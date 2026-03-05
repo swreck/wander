@@ -4,6 +4,7 @@ import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { extractItinerary, type ExtractionResult } from "../services/itineraryExtractor.js";
+import { geocodeExperience } from "../services/geocoding.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -208,6 +209,16 @@ router.post("/commit", async (req: AuthRequest, res) => {
       description: `${req.user!.displayName} created trip "${trip.name}" from imported itinerary`,
       newState: data,
     });
+
+    // Trigger async batch geocoding for all created experiences
+    const allExperiences = await prisma.experience.findMany({
+      where: { tripId: trip.id },
+      select: { id: true },
+    });
+    // Fire-and-forget — don't block the response
+    Promise.all(
+      allExperiences.map((e) => geocodeExperience(e.id).catch(() => {}))
+    ).catch(() => {});
 
     // Return the full trip
     const full = await prisma.trip.findUnique({
