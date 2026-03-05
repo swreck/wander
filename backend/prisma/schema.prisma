@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TripStatus {
+  active
+  archived
+}
+
+enum TransportMode {
+  flight
+  train
+  ferry
+  drive
+  other
+}
+
+enum LocationStatus {
+  unlocated
+  pending
+  confirmed
+}
+
+enum ExperienceState {
+  possible
+  selected
+}
+
+enum Theme {
+  ceramics
+  architecture
+  food
+  temples
+  nature
+  other
+}
+
+enum RatingPlatform {
+  google
+  yelp
+  foursquare
+}
+
+enum ReservationType {
+  restaurant
+  activity
+  transport
+  other
+}
+
+enum TravelMode {
+  walk
+  transit
+  taxi
+}
+
+model Trip {
+  id        String     @id @default(cuid())
+  name      String
+  startDate DateTime   @map("start_date")
+  endDate   DateTime   @map("end_date")
+  status    TripStatus @default(active)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  cities        City[]
+  days          Day[]
+  routeSegments RouteSegment[]
+  experiences   Experience[]
+  accommodations Accommodation[]
+  reservations  Reservation[]
+  changeLogs    ChangeLog[]
+
+  @@map("trips")
+}
+
+model RouteSegment {
+  id              String        @id @default(cuid())
+  tripId          String        @map("trip_id")
+  originCity      String        @map("origin_city")
+  destinationCity String        @map("destination_city")
+  sequenceOrder   Int           @map("sequence_order")
+  transportMode   TransportMode @map("transport_mode")
+  departureDate   DateTime?     @map("departure_date")
+  notes           String?
+
+  trip        Trip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  experiences Experience[]
+
+  @@map("route_segments")
+}
+
+model City {
+  id            String   @id @default(cuid())
+  tripId        String   @map("trip_id")
+  name          String
+  country       String?
+  latitude      Float?
+  longitude     Float?
+  sequenceOrder Int      @map("sequence_order")
+  arrivalDate   DateTime? @map("arrival_date")
+  departureDate DateTime? @map("departure_date")
+
+  trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  days           Day[]
+  experiences    Experience[]
+  accommodations Accommodation[]
+
+  @@map("cities")
+}
+
+model Day {
+  id              String  @id @default(cuid())
+  tripId          String  @map("trip_id")
+  cityId          String  @map("city_id")
+  date            DateTime
+  explorationZone String? @map("exploration_zone")
+  notes           String?
+
+  trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  city           City            @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  experiences    Experience[]
+  accommodations Accommodation[]
+  reservations   Reservation[]
+
+  @@map("days")
+}
+
+model Experience {
+  id                          String          @id @default(cuid())
+  tripId                      String          @map("trip_id")
+  cityId                      String          @map("city_id")
+  name                        String
+  description                 String?
+  sourceUrl                   String?         @map("source_url")
+  sourceText                  String?         @map("source_text")
+  locationStatus              LocationStatus  @default(unlocated) @map("location_status")
+  latitude                    Float?
+  longitude                   Float?
+  placeIdGoogle               String?         @map("place_id_google")
+  state                       ExperienceState @default(possible)
+  dayId                       String?         @map("day_id")
+  routeSegmentId              String?         @map("route_segment_id")
+  timeWindow                  String?         @map("time_window")
+  transportModeToHere         TravelMode?     @map("transport_mode_to_here")
+  explorationZoneAssociation  String?         @map("exploration_zone_association")
+  priorityOrder               Int             @default(0) @map("priority_order")
+  cloudinaryImageId           String?         @map("cloudinary_image_id")
+  themes                      Theme[]         @default([])
+  userNotes                   String?         @map("user_notes")
+  createdBy                   String          @map("created_by")
+  createdAt                   DateTime        @default(now()) @map("created_at")
+  updatedAt                   DateTime        @updatedAt @map("updated_at")
+
+  trip         Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  city         City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  day          Day?              @relation(fields: [dayId], references: [id], onDelete: SetNull)
+  routeSegment RouteSegment?     @relation(fields: [routeSegmentId], references: [id], onDelete: SetNull)
+  ratings      ExperienceRating[]
+
+  @@map("experiences")
+}
+
+model ExperienceRating {
+  id              String         @id @default(cuid())
+  experienceId    String         @map("experience_id")
+  platform        RatingPlatform
+  ratingValue     Float          @map("rating_value")
+  reviewCount     Int            @map("review_count")
+  lastRefreshedAt DateTime       @default(now()) @map("last_refreshed_at")
+  rawResponse     Json?          @map("raw_response")
+
+  experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
+  @@unique([experienceId, platform])
+  @@map("experience_ratings")
+}
+
+model Accommodation {
+  id                 String   @id @default(cuid())
+  tripId             String   @map("trip_id")
+  cityId             String   @map("city_id")
+  dayId              String?  @map("day_id")
+  name               String
+  address            String?
+  latitude           Float?
+  longitude          Float?
+  checkInTime        String?  @map("check_in_time")
+  checkOutTime       String?  @map("check_out_time")
+  confirmationNumber String?  @map("confirmation_number")
+  notes              String?
+
+  trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  city City  @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  day  Day?  @relation(fields: [dayId], references: [id], onDelete: SetNull)
+
+  @@map("accommodations")
+}
+
+model Reservation {
+  id                  String          @id @default(cuid())
+  tripId              String          @map("trip_id")
+  dayId               String          @map("day_id")
+  name                String
+  type                ReservationType
+  datetime            DateTime
+  durationMinutes     Int?            @map("duration_minutes")
+  latitude            Float?
+  longitude           Float?
+  confirmationNumber  String?         @map("confirmation_number")
+  notes               String?
+  transportModeToHere TravelMode?     @map("transport_mode_to_here")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  day  Day  @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@map("reservations")
+}
+
+model ChangeLog {
+  id              String   @id @default(cuid())
+  tripId          String   @map("trip_id")
+  userCode        String   @map("user_code")
+  userDisplayName String   @map("user_display_name")
+  actionType      String   @map("action_type")
+  entityType      String   @map("entity_type")
+  entityId        String   @map("entity_id")
+  entityName      String   @map("entity_name")
+  description     String
+  previousState   Json?    @map("previous_state")
+  newState        Json?    @map("new_state")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("change_logs")
+}
