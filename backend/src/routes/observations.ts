@@ -8,6 +8,16 @@ router.use(requireAuth);
 
 const anthropic = new Anthropic();
 
+/** Strip markdown code fences (```json ... ```) that models sometimes wrap around JSON output. */
+function stripMarkdownFences(text: string): string {
+  let s = text.trim();
+  // Remove opening fence like ```json or ```
+  s = s.replace(/^```(?:json)?\s*\n?/, "");
+  // Remove closing fence
+  s = s.replace(/\n?```\s*$/, "");
+  return s.trim();
+}
+
 interface ExperienceWithRatings {
   id: string;
   name: string;
@@ -147,8 +157,8 @@ router.post("/day/:dayId", async (req, res) => {
       messages: [{ role: "user", content: prompt }],
     });
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const observations: string[] = JSON.parse(text.trim());
+    const rawText = message.content[0].type === "text" ? message.content[0].text : "";
+    const observations: string[] = JSON.parse(stripMarkdownFences(rawText));
 
     res.json({ observations });
   } catch (err: any) {
@@ -190,8 +200,8 @@ router.post("/city/:cityId", async (req, res) => {
       messages: [{ role: "user", content: prompt }],
     });
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const observations: string[] = JSON.parse(text.trim());
+    const rawText = message.content[0].type === "text" ? message.content[0].text : "";
+    const observations: string[] = JSON.parse(stripMarkdownFences(rawText));
 
     res.json({ observations });
   } catch (err: any) {
