@@ -44,6 +44,8 @@ app.get("/{*splat}", (_req, res) => {
   res.sendFile(path.join(publicPath, "index.html"));
 });
 
+export { app };
+
 app.listen(PORT, () => {
   console.log(`Wander API running on port ${PORT}`);
 });
