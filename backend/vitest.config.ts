@@ -6,5 +6,9 @@ export default defineConfig({
     environment: "node",
     testTimeout: 30000,
     hookTimeout: 30000,
+    pool: "forks",
+    poolOptions: {
+      forks: { singleFork: true },
+    },
   },
 });
