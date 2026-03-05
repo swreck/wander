@@ -3,8 +3,8 @@ builder = "nixpacks"
 
 [build.nixpacks]
 providers = ["node"]
-install_cmd = "cd frontend && npm install && cd ../backend && npm install"
-build_cmd = "cd frontend && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/ && cd ../backend && npx prisma generate && npm run build"
+install_cmd = "npm run install:all"
+build_cmd = "npm run build"
 
 [deploy]
 startCommand = "cd backend && node dist/index.js"
