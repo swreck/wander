@@ -13,6 +13,8 @@ import accommodationRoutes from "./routes/accommodations.js";
 import reservationRoutes from "./routes/reservations.js";
 import changeLogRoutes from "./routes/changeLogs.js";
 import importRoutes from "./routes/import.js";
+import geocodingRoutes from "./routes/geocoding.js";
+import captureRoutes from "./routes/capture.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -32,6 +34,8 @@ app.use("/api/accommodations", accommodationRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/change-logs", changeLogRoutes);
 app.use("/api/import", importRoutes);
+app.use("/api/geocoding", geocodingRoutes);
+app.use("/api/capture", captureRoutes);
 
 // Serve frontend static files in production
 const publicPath = path.join(__dirname, "..", "public");

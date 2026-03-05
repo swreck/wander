@@ -72,4 +72,24 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   res.json(acc);
 });
 
+router.delete("/:id", async (req: AuthRequest, res) => {
+  const existing = await prisma.accommodation.findUnique({ where: { id: req.params.id as string } });
+  if (!existing) { res.status(404).json({ error: "Accommodation not found" }); return; }
+
+  await prisma.accommodation.delete({ where: { id: req.params.id as string } });
+
+  await logChange({
+    user: req.user!,
+    tripId: existing.tripId,
+    actionType: "accommodation_deleted",
+    entityType: "accommodation",
+    entityId: existing.id,
+    entityName: existing.name,
+    description: `${req.user!.displayName} deleted accommodation "${existing.name}"`,
+    previousState: existing,
+  });
+
+  res.json({ deleted: true });
+});
+
 export default router;

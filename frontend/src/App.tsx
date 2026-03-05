@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import TripOverview from "./pages/TripOverview";
 import PlanPage from "./pages/PlanPage";
+import NowPage from "./pages/NowPage";
+import HistoryPage from "./pages/HistoryPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -21,6 +23,8 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/" element={<ProtectedRoute><TripOverview /></ProtectedRoute>} />
       <Route path="/plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
+      <Route path="/now" element={<ProtectedRoute><NowPage /></ProtectedRoute>} />
+      <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
     </Routes>
   );
 }

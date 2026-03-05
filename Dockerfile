@@ -2,6 +2,10 @@ FROM node:20
 
 WORKDIR /app
 
+# Build arg for Vite env vars (set in Railway)
+ARG VITE_GOOGLE_MAPS_API_KEY
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
+
 # Copy everything
 COPY . .
 

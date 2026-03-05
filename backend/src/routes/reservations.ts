@@ -74,4 +74,24 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   res.json(reservation);
 });
 
+router.delete("/:id", async (req: AuthRequest, res) => {
+  const existing = await prisma.reservation.findUnique({ where: { id: req.params.id as string } });
+  if (!existing) { res.status(404).json({ error: "Reservation not found" }); return; }
+
+  await prisma.reservation.delete({ where: { id: req.params.id as string } });
+
+  await logChange({
+    user: req.user!,
+    tripId: existing.tripId,
+    actionType: "reservation_deleted",
+    entityType: "reservation",
+    entityId: existing.id,
+    entityName: existing.name,
+    description: `${req.user!.displayName} deleted reservation "${existing.name}"`,
+    previousState: existing,
+  });
+
+  res.json({ deleted: true });
+});
+
 export default router;

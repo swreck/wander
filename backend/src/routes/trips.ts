@@ -138,4 +138,63 @@ router.post("/", async (req: AuthRequest, res) => {
   res.status(201).json(full);
 });
 
+// Update trip (dates, name)
+router.patch("/:id", async (req: AuthRequest, res) => {
+  const existing = await prisma.trip.findUnique({ where: { id: req.params.id as string } });
+  if (!existing) { res.status(404).json({ error: "Trip not found" }); return; }
+
+  const { name, startDate, endDate } = req.body;
+  const trip = await prisma.trip.update({
+    where: { id: req.params.id as string },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(startDate !== undefined && { startDate: new Date(startDate) }),
+      ...(endDate !== undefined && { endDate: new Date(endDate) }),
+    },
+  });
+
+  await logChange({
+    user: req.user!,
+    tripId: trip.id,
+    actionType: "trip_edited",
+    entityType: "trip",
+    entityId: trip.id,
+    entityName: trip.name,
+    description: `${req.user!.displayName} updated trip "${trip.name}"`,
+    previousState: existing,
+    newState: trip,
+  });
+
+  const full = await prisma.trip.findUnique({
+    where: { id: trip.id },
+    include: {
+      cities: { orderBy: { sequenceOrder: "asc" } },
+      routeSegments: { orderBy: { sequenceOrder: "asc" } },
+      days: { orderBy: { date: "asc" }, include: { city: true } },
+    },
+  });
+  res.json(full);
+});
+
+// Delete trip
+router.delete("/:id", async (req: AuthRequest, res) => {
+  const existing = await prisma.trip.findUnique({ where: { id: req.params.id as string } });
+  if (!existing) { res.status(404).json({ error: "Trip not found" }); return; }
+
+  await prisma.trip.delete({ where: { id: req.params.id as string } });
+
+  await logChange({
+    user: req.user!,
+    tripId: existing.id,
+    actionType: "trip_deleted",
+    entityType: "trip",
+    entityId: existing.id,
+    entityName: existing.name,
+    description: `${req.user!.displayName} deleted trip "${existing.name}"`,
+    previousState: existing,
+  });
+
+  res.json({ deleted: true });
+});
+
 export default router;
