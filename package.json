@@ -1,9 +1,5 @@
 {
   "name": "wander",
   "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "postinstall": "cd frontend && npm install --include=dev && cd ../backend && npm install --include=dev",
-    "build": "cd frontend && npx vite build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/ && cd ../backend && npx prisma generate && npx tsc"
-  }
+  "private": true
 }
