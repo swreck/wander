@@ -768,17 +768,16 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
   // ═══════════════════════════════════════════════════════════════════
   describe("Phase 12: Final trip state", () => {
     it("trip has complete structure", async () => {
+      // Use tripId directly — other test files may have changed the active trip
       const res = await request(app)
-        .get("/api/trips/active")
+        .get(`/api/trips/${tripId}`)
         .set("Authorization", `Bearer ${kenToken}`);
       expect(res.status).toBe(200);
       expect(res.body.cities.length).toBe(6); // Tokyo, Hakone, Kyoto, Nara, Osaka, Kanazawa
       expect(res.body.routeSegments.length).toBe(8); // 3 original + 5 new
-      // 22 from import + 8 from adding cities with dates (Nara 1 + Osaka 4 + Kanazawa 3)
-      // NOTE: This reveals a UX issue — adding a city with dates creates new days
-      // even when placeholder days already exist for those dates. A future fix should
-      // reassign existing placeholder days instead of creating duplicates.
-      expect(res.body.days.length).toBe(30);
+      // 22 total days — adding cities with dates now reassigns existing placeholder
+      // days instead of creating duplicates
+      expect(res.body.days.length).toBe(22);
     });
 
     it("experiences are correctly distributed across states", async () => {

@@ -49,6 +49,14 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     include: { city: true },
   });
 
+  // When a day is reassigned to a different city, move its experiences too
+  if (cityId !== undefined && cityId !== existing.cityId) {
+    await prisma.experience.updateMany({
+      where: { dayId: day.id },
+      data: { cityId },
+    });
+  }
+
   await logChange({
     user: req.user!,
     tripId: day.tripId,
@@ -96,6 +104,12 @@ router.post("/", async (req: AuthRequest, res) => {
 router.delete("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.day.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Day not found" }); return; }
+
+  // Demote selected experiences on this day back to "possible" before deleting
+  await prisma.experience.updateMany({
+    where: { dayId: req.params.id as string, state: "selected" },
+    data: { state: "possible", dayId: null, timeWindow: null },
+  });
 
   await prisma.day.delete({ where: { id: req.params.id as string } });
 

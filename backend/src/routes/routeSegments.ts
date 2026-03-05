@@ -93,6 +93,12 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.routeSegment.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Route segment not found" }); return; }
 
+  // Demote selected experiences on this segment back to "possible" before deleting
+  await prisma.experience.updateMany({
+    where: { routeSegmentId: req.params.id as string, state: "selected" },
+    data: { state: "possible", routeSegmentId: null, timeWindow: null },
+  });
+
   await prisma.routeSegment.delete({ where: { id: req.params.id as string } });
 
   await logChange({
