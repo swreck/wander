@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
+import { PrismaClient } from "@prisma/client";
 
 // Set test env vars before importing app
 process.env.ACCESS_CODES = "TEST1:TestUser,TEST2:TestUser2";
@@ -7,6 +8,19 @@ process.env.JWT_SECRET = "test-secret";
 
 // Dynamic import after env setup
 const { app } = await import("../src/index.js");
+
+const prisma = new PrismaClient();
+
+// Clean up test data after all tests
+afterAll(async () => {
+  const testTrips = await prisma.trip.findMany({
+    where: { name: { in: ["Test Japan Trip", "Japan 2026 Updated", "Import Test Trip"] } },
+  });
+  for (const t of testTrips) {
+    await prisma.trip.delete({ where: { id: t.id } });
+  }
+  await prisma.$disconnect();
+});
 
 let token: string;
 let tripId: string;
