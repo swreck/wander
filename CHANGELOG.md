@@ -98,3 +98,14 @@ Affects: backend/src/routes/routeSegments.ts
 - 50 chaos simulation tests (backend/tests/chaos.test.ts) covering 8 categories: trip shapes, date gymnastics, data preservation, experience flow, destructive operations, multi-user collaboration, import edge cases, and cascade integrity. Found and fixed 1 additional UX bug (route segment deletion limbo) during simulation. Total test count: 204.
 
 SPEC UPDATE NEEDED: Sections covering city date management, day reassignment, city deletion, and route segment deletion should document the data preservation behaviors.
+
+### Added (Conversational Chat Assistant)
+- Two-way conversational chatbot (POST /api/chat) that can answer questions about trip data and perform all user actions via natural language. Uses Claude Haiku with tool_use to read trip state and execute operations (add/promote/demote experiences, manage cities/days, add reservations, reorder, search, etc.). All actions are logged to the change log with "(via chat)" attribution.
+- ChatBubble frontend component (frontend/src/components/ChatBubble.tsx): subtle floating chat icon (bottom-right) that expands to a conversation panel. Responsive design: bottom sheet with backdrop on mobile (max 75vh), fixed-width side panel on desktop (384px). Sand-tone styling consistent with app palette.
+- Pages auto-refresh when the chat performs data-changing actions via a custom `wander:data-changed` event. PlanPage, TripOverview, and NowPage all listen for this event.
+- Chat context includes current page, trip ID, and active city/day for contextual responses.
+- Example queries: "What's planned for Tuesday?", "Add Fushimi Inari to Kyoto", "Move the temple visit to day 3", "How many experiences in Osaka?"
+
+Affects: backend/src/routes/chat.ts, backend/src/index.ts, frontend/src/components/ChatBubble.tsx, frontend/src/App.tsx, frontend/src/pages/PlanPage.tsx, frontend/src/pages/TripOverview.tsx, frontend/src/pages/NowPage.tsx
+
+SPEC UPDATE NEEDED: A new section for the conversational assistant should be added to SPEC.md.

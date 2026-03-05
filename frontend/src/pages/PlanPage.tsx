@@ -71,6 +71,13 @@ export default function PlanPage() {
 
   useEffect(() => { loadTrip(); }, []);
 
+  // Refresh when chat makes changes
+  useEffect(() => {
+    const handler = () => { loadTrip(); };
+    window.addEventListener("wander:data-changed", handler);
+    return () => window.removeEventListener("wander:data-changed", handler);
+  }, [loadTrip]);
+
   // Load experiences for current context
   const loadExperiences = useCallback(async () => {
     if (!trip) return;

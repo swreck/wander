@@ -17,6 +17,7 @@ import geocodingRoutes from "./routes/geocoding.js";
 import captureRoutes from "./routes/capture.js";
 import travelTimeRoutes from "./routes/travelTime.js";
 import observationRoutes from "./routes/observations.js";
+import chatRoutes from "./routes/chat.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -40,6 +41,7 @@ app.use("/api/geocoding", geocodingRoutes);
 app.use("/api/capture", captureRoutes);
 app.use("/api/travel-time", travelTimeRoutes);
 app.use("/api/observations", observationRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Serve frontend static files in production
 const publicPath = path.join(__dirname, "..", "public");

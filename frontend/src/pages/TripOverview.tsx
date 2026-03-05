@@ -44,6 +44,13 @@ export default function TripOverview() {
 
   useEffect(() => { loadTrips(); }, []);
 
+  // Refresh when chat makes changes
+  useEffect(() => {
+    const handler = () => { loadTrips(); };
+    window.addEventListener("wander:data-changed", handler);
+    return () => window.removeEventListener("wander:data-changed", handler);
+  }, []);
+
   async function handleSaveTrip() {
     if (!trip) return;
     await api.patch(`/trips/${trip.id}`, {

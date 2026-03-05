@@ -57,6 +57,13 @@ export default function NowPage() {
     load();
   }, [navigate]);
 
+  // Refresh when chat makes changes
+  useEffect(() => {
+    const handler = () => { window.location.reload(); };
+    window.addEventListener("wander:data-changed", handler);
+    return () => window.removeEventListener("wander:data-changed", handler);
+  }, []);
+
   // Request GPS position, fall back to hotel coords
   useEffect(() => {
     if (!today) return;
