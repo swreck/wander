@@ -12,13 +12,14 @@ import experienceRoutes from "./routes/experiences.js";
 import accommodationRoutes from "./routes/accommodations.js";
 import reservationRoutes from "./routes/reservations.js";
 import changeLogRoutes from "./routes/changeLogs.js";
+import importRoutes from "./routes/import.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "50mb" }));
 
 // API routes
 app.use("/api/auth", authRoutes);
@@ -30,6 +31,7 @@ app.use("/api/experiences", experienceRoutes);
 app.use("/api/accommodations", accommodationRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/change-logs", changeLogRoutes);
+app.use("/api/import", importRoutes);
 
 // Serve frontend static files in production
 const publicPath = path.join(__dirname, "..", "public");

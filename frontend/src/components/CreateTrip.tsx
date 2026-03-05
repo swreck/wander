@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { api } from "../lib/api";
+import ImportReview from "./ImportReview";
 
 interface CityInput {
   name: string;
@@ -12,7 +13,47 @@ interface Props {
   onCreated: () => void;
 }
 
+type Mode = "choose" | "manual" | "import" | "review";
+
+export interface ExtractionResult {
+  tripName: string;
+  startDate: string;
+  endDate: string;
+  cities: {
+    name: string;
+    country: string;
+    arrivalDate: string | null;
+    departureDate: string | null;
+  }[];
+  accommodations: {
+    cityName: string;
+    name: string;
+    address?: string;
+    checkInDate?: string;
+    checkOutDate?: string;
+    notes?: string;
+  }[];
+  experiences: {
+    cityName: string;
+    dayDate: string | null;
+    name: string;
+    description?: string;
+    timeWindow?: string;
+  }[];
+  routeSegments: {
+    originCity: string;
+    destinationCity: string;
+    transportMode: string;
+    departureDate?: string;
+    notes?: string;
+  }[];
+  notes: string;
+}
+
 export default function CreateTrip({ onCreated }: Props) {
+  const [mode, setMode] = useState<Mode>("choose");
+
+  // Manual mode state
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -22,6 +63,14 @@ export default function CreateTrip({ onCreated }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // Import mode state
+  const [importText, setImportText] = useState("");
+  const [importFiles, setImportFiles] = useState<File[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Manual mode functions ---
   function updateCity(index: number, field: keyof CityInput, value: string) {
     const updated = [...cities];
     updated[index] = { ...updated[index], [field]: value };
@@ -51,7 +100,7 @@ export default function CreateTrip({ onCreated }: Props) {
     return segments;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !startDate || !endDate) return;
 
@@ -73,13 +122,204 @@ export default function CreateTrip({ onCreated }: Props) {
     }
   }
 
+  // --- Import mode functions ---
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) {
+      setImportFiles(Array.from(e.target.files));
+    }
+  }
+
+  async function handleExtract() {
+    if (!importText.trim() && importFiles.length === 0) return;
+
+    setError("");
+    setExtracting(true);
+    try {
+      const formData = new FormData();
+      if (importText.trim()) {
+        formData.append("text", importText.trim());
+      }
+      for (const file of importFiles) {
+        formData.append("images", file);
+      }
+
+      const result = await api.upload<ExtractionResult>("/import/extract", formData);
+      setExtraction(result);
+      setMode("review");
+    } catch (err: any) {
+      setError(err.message || "Extraction failed");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function handleCommit(data: ExtractionResult) {
+    setError("");
+    setSubmitting(true);
+    try {
+      await api.post("/import/commit", data);
+      onCreated();
+    } catch (err: any) {
+      setError(err.message || "Failed to create trip");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // --- Mode: Choose ---
+  if (mode === "choose") {
+    return (
+      <div className="min-h-screen bg-[#faf8f5]">
+        <div className="max-w-xl mx-auto px-4 py-8">
+          <h1 className="text-2xl font-light text-[#3a3128] mb-2">New Trip</h1>
+          <p className="text-sm text-[#8a7a62] mb-8">How would you like to start?</p>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => setMode("import")}
+              className="w-full text-left px-5 py-4 bg-white rounded-lg border border-[#e0d8cc]
+                         hover:border-[#a89880] transition-colors"
+            >
+              <div className="text-[#3a3128] font-medium">Import an itinerary</div>
+              <div className="text-sm text-[#8a7a62] mt-1">
+                Paste text, upload screenshots, or share a document from a tour company, travel agent, or AI chatbot
+              </div>
+            </button>
+
+            <button
+              onClick={() => setMode("manual")}
+              className="w-full text-left px-5 py-4 bg-white rounded-lg border border-[#f0ece5]
+                         hover:border-[#e0d8cc] transition-colors"
+            >
+              <div className="text-[#3a3128] font-medium">Start from scratch</div>
+              <div className="text-sm text-[#8a7a62] mt-1">
+                Enter trip dates and cities manually
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Mode: Review ---
+  if (mode === "review" && extraction) {
+    return (
+      <ImportReview
+        data={extraction}
+        onCommit={handleCommit}
+        onBack={() => setMode("import")}
+        submitting={submitting}
+        error={error}
+      />
+    );
+  }
+
+  // --- Mode: Import ---
+  if (mode === "import") {
+    return (
+      <div className="min-h-screen bg-[#faf8f5]">
+        <div className="max-w-xl mx-auto px-4 py-8">
+          <button
+            onClick={() => setMode("choose")}
+            className="text-sm text-[#8a7a62] hover:text-[#3a3128] mb-4 transition-colors"
+          >
+            &larr; Back
+          </button>
+
+          <h1 className="text-2xl font-light text-[#3a3128] mb-2">Import Itinerary</h1>
+          <p className="text-sm text-[#8a7a62] mb-6">
+            Paste your itinerary text below, upload screenshots, or both. The AI will extract
+            cities, dates, hotels, and activities for you to review before creating the trip.
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+                Paste itinerary text
+              </label>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="Paste your itinerary, tour company document, or AI chatbot output here..."
+                rows={10}
+                className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
+                           text-[#3a3128] placeholder-[#c8bba8] text-sm
+                           focus:outline-none focus:ring-2 focus:ring-[#a89880] resize-y"
+              />
+            </div>
+
+            <div className="relative">
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+                Or upload screenshots / images
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-[#e0d8cc]
+                           text-sm text-[#8a7a62] hover:border-[#a89880] hover:text-[#6b5d4a]
+                           transition-colors"
+              >
+                {importFiles.length > 0
+                  ? `${importFiles.length} file${importFiles.length > 1 ? "s" : ""} selected`
+                  : "Click to select images"}
+              </button>
+              {importFiles.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {importFiles.map((f, i) => (
+                    <div key={i} className="text-xs text-[#8a7a62] flex items-center gap-2">
+                      <span>{f.name}</span>
+                      <button
+                        onClick={() => setImportFiles(importFiles.filter((_, j) => j !== i))}
+                        className="text-[#c8bba8] hover:text-red-500"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+
+          <button
+            onClick={handleExtract}
+            disabled={extracting || (!importText.trim() && importFiles.length === 0)}
+            className="mt-6 w-full py-3 rounded-lg bg-[#514636] text-white text-sm font-medium
+                       hover:bg-[#3a3128] disabled:opacity-40 disabled:cursor-not-allowed
+                       transition-colors"
+          >
+            {extracting ? "Analyzing itinerary..." : "Extract & Review"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Mode: Manual ---
   return (
     <div className="min-h-screen bg-[#faf8f5]">
       <div className="max-w-xl mx-auto px-4 py-8">
+        <button
+          onClick={() => setMode("choose")}
+          className="text-sm text-[#8a7a62] hover:text-[#3a3128] mb-4 transition-colors"
+        >
+          &larr; Back
+        </button>
+
         <h1 className="text-2xl font-light text-[#3a3128] mb-6">New Trip</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Trip basics */}
+        <form onSubmit={handleManualSubmit} className="space-y-6">
           <div>
             <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
               Trip Name
@@ -122,7 +362,6 @@ export default function CreateTrip({ onCreated }: Props) {
             </div>
           </div>
 
-          {/* Cities */}
           <div>
             <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">
               Cities
