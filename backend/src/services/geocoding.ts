@@ -179,7 +179,7 @@ export async function nearbyPlaces(lat: number, lng: number, radius: number = 10
 }
 
 // Simple string similarity (Jaro-Winkler inspired)
-function stringSimilarity(a: string, b: string): number {
+export function stringSimilarity(a: string, b: string): number {
   if (a === b) return 1;
   if (!a.length || !b.length) return 0;
 

@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "./db.js";
 import { geocodeExperience } from "./geocoding.js";
+import { fetchYelpRating, storeYelpRating } from "./yelp.js";
+import { fetchFoursquareRating, storeFoursquareRating } from "./foursquare.js";
 
 const anthropic = new Anthropic();
 
@@ -121,5 +123,37 @@ export async function enrichExperience(experienceId: string) {
     await geocodeExperience(experienceId);
   } catch (err) {
     console.error("Enrichment geocoding error:", err);
+  }
+
+  // Fetch Yelp and Foursquare ratings in parallel
+  try {
+    const exp = await prisma.experience.findUnique({
+      where: { id: experienceId },
+      include: { city: true },
+    });
+    if (!exp) return;
+
+    const city = exp.city.name;
+    const country = exp.city.country || "";
+
+    const [yelpResult, foursquareResult] = await Promise.all([
+      fetchYelpRating(exp.name, city, country).catch((err) => {
+        console.error("Yelp rating error:", err);
+        return null;
+      }),
+      fetchFoursquareRating(exp.name, city, country).catch((err) => {
+        console.error("Foursquare rating error:", err);
+        return null;
+      }),
+    ]);
+
+    if (yelpResult) {
+      await storeYelpRating(experienceId, yelpResult);
+    }
+    if (foursquareResult) {
+      await storeFoursquareRating(experienceId, foursquareResult);
+    }
+  } catch (err) {
+    console.error("Enrichment ratings error:", err);
   }
 }

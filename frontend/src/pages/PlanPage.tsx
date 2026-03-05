@@ -41,6 +41,9 @@ export default function PlanPage() {
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
 
+  // Theme filter state
+  const [activeThemes, setActiveThemes] = useState<string[]>([]);
+
   // Mobile panel state
   const [mobilePanel, setMobilePanel] = useState<"list" | null>(null);
 
@@ -165,10 +168,26 @@ export default function PlanPage() {
 
   const selectedDay = days.find((d) => d.id === selectedDayId) || null;
 
-  // Filter experiences for current context
-  const contextExperiences = axis === "days" && selectedDay
+  const THEME_OPTIONS = ["ceramics", "architecture", "food", "temples", "nature", "other"] as const;
+
+  function toggleTheme(theme: string) {
+    setActiveThemes((prev) =>
+      prev.includes(theme)
+        ? prev.filter((t) => t !== theme)
+        : [...prev, theme]
+    );
+  }
+
+  // Filter experiences for current context, then by theme
+  const axisFiltered = axis === "days" && selectedDay
     ? experiences.filter((e) => e.cityId === selectedDay.cityId)
     : experiences;
+
+  const contextExperiences = activeThemes.length > 0
+    ? axisFiltered.filter((e) =>
+        e.themes.some((t) => activeThemes.includes(t))
+      )
+    : axisFiltered;
 
   const selected = contextExperiences.filter((e) => e.state === "selected");
   const possible = contextExperiences.filter((e) => e.state === "possible");
@@ -312,9 +331,33 @@ export default function PlanPage() {
             ≡
           </button>
 
-          {/* Selector strip */}
+          {/* Theme filter chips + Selector strip */}
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-[#f0ece5] z-10">
-            <div className="flex gap-1 p-2 overflow-x-auto">
+            {/* Theme filter row */}
+            <div className="flex gap-1.5 px-2 pt-2 pb-1 overflow-x-auto">
+              {THEME_OPTIONS.map((theme) => (
+                <button
+                  key={theme}
+                  onClick={() => toggleTheme(theme)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] capitalize whitespace-nowrap shrink-0 transition-colors border ${
+                    activeThemes.includes(theme)
+                      ? "bg-[#514636] text-white border-[#514636]"
+                      : "bg-transparent text-[#8a7a62] border-[#e0d8cc] hover:border-[#a89880]"
+                  }`}
+                >
+                  {theme}
+                </button>
+              ))}
+              {activeThemes.length > 0 && (
+                <button
+                  onClick={() => setActiveThemes([])}
+                  className="px-2 py-1 text-[11px] text-[#c8bba8] hover:text-[#8a7a62] whitespace-nowrap shrink-0"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1 px-2 pb-2 overflow-x-auto">
               {axis === "cities" && (
                 <>
                   {trip.cities.map((city) => (

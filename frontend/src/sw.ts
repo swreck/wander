@@ -1,0 +1,181 @@
+/// <reference lib="webworker" />
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { registerRoute, NavigationRoute } from 'workbox-routing';
+import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { CacheableResponsePlugin } from 'workbox-cacheable-response';
+import { ExpirationPlugin } from 'workbox-expiration';
+
+declare let self: ServiceWorkerGlobalScope;
+
+// ── Precache app shell (injected by vite-plugin-pwa at build time) ──
+precacheAndRoute(self.__WB_MANIFEST);
+cleanupOutdatedCaches();
+
+// ── Cache names ──
+const API_CACHE = 'wander-api-v1';
+const STATIC_CACHE = 'wander-static-v1';
+const DAY_CACHE = 'wander-days-v1';
+
+// ── Static assets: CacheFirst (fonts, images, CSS/JS chunks) ──
+registerRoute(
+  ({ request }) =>
+    request.destination === 'style' ||
+    request.destination === 'script' ||
+    request.destination === 'font' ||
+    request.destination === 'image',
+  new CacheFirst({
+    cacheName: STATIC_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+    ],
+  })
+);
+
+// ── API: Active trip — NetworkFirst so Now screen works offline ──
+registerRoute(
+  ({ url }) => url.pathname === '/api/trips/active',
+  new NetworkFirst({
+    cacheName: API_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 5, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+    networkTimeoutSeconds: 3,
+  })
+);
+
+// ── API: Trip structure overview (cities, dates, route segments) ──
+registerRoute(
+  ({ url }) => /^\/api\/trips\/[^/]+$/.test(url.pathname),
+  new NetworkFirst({
+    cacheName: API_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 10, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+    networkTimeoutSeconds: 3,
+  })
+);
+
+// ── API: Days data — NetworkFirst for today/tomorrow instant offline loads ──
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/api/days/'),
+  new NetworkFirst({
+    cacheName: DAY_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+    networkTimeoutSeconds: 3,
+  })
+);
+
+// ── API: Experiences for full trip (confirmed locations) ──
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/api/experiences'),
+  new NetworkFirst({
+    cacheName: API_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+    networkTimeoutSeconds: 3,
+  })
+);
+
+// ── API: All other GET requests — StaleWhileRevalidate ──
+registerRoute(
+  ({ url, request }) =>
+    url.pathname.startsWith('/api/') && request.method === 'GET',
+  new StaleWhileRevalidate({
+    cacheName: API_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 }),
+    ],
+  })
+);
+
+// ── SPA navigation fallback ──
+registerRoute(
+  new NavigationRoute(
+    new NetworkFirst({
+      cacheName: 'wander-navigation-v1',
+      networkTimeoutSeconds: 3,
+    })
+  )
+);
+
+// ── Offline capture queue: sync when connectivity returns ──
+// POST/PATCH requests that fail offline are queued in IndexedDB by the app layer
+// and replayed via the sync event below.
+
+self.addEventListener('sync', (event: SyncEvent) => {
+  if (event.tag === 'wander-capture-sync') {
+    event.waitUntil(replayOfflineQueue());
+  }
+});
+
+async function replayOfflineQueue() {
+  const db = await openOfflineDB();
+  const tx = db.transaction('queue', 'readwrite');
+  const store = tx.objectStore('queue');
+  const allKeys = await idbGetAllKeys(store);
+
+  for (const key of allKeys) {
+    const entry = await idbGet(store, key);
+    if (!entry) continue;
+
+    try {
+      const res = await fetch(entry.url, {
+        method: entry.method,
+        headers: entry.headers,
+        body: entry.body,
+      });
+      if (res.ok || res.status < 500) {
+        // Success or client error (don't retry client errors)
+        const delTx = db.transaction('queue', 'readwrite');
+        delTx.objectStore('queue').delete(key);
+      }
+    } catch {
+      // Still offline, stop trying
+      break;
+    }
+  }
+}
+
+// ── IndexedDB helpers for offline queue ──
+function openOfflineDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('wander-offline', 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore('queue', { autoIncrement: true });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbGetAllKeys(store: IDBObjectStore): Promise<IDBValidKey[]> {
+  return new Promise((resolve, reject) => {
+    const req = store.getAllKeys();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbGet(store: IDBObjectStore, key: IDBValidKey): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ── Notify clients when back online ──
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});

@@ -29,11 +29,14 @@ function AppRoutes() {
   );
 }
 
+import OfflineIndicator from "./components/OfflineIndicator";
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <AppRoutes />
+        <OfflineIndicator />
       </AuthProvider>
     </BrowserRouter>
   );

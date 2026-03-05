@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../lib/api";
 import type { Day, Experience, Trip } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
+import AIObservations from "./AIObservations";
 
 interface Props {
   day: Day;
@@ -106,6 +107,9 @@ export default function DayView({
         </div>
       )}
 
+      {/* AI Observations */}
+      {selectedForDay.length > 0 && <AIObservations dayId={day.id} />}
+
       {/* Selected experiences — spacious layout per spec */}
       <div className="space-y-4 mb-6">
         {selectedForDay.map((exp) => (
@@ -136,28 +140,6 @@ export default function DayView({
           </div>
         ))}
       </div>
-
-      {/* Reservations */}
-      {reservations.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
-            Reservations
-          </h3>
-          <div className="space-y-2">
-            {reservations.map((res) => (
-              <div key={res.id} className="px-3 py-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-[#3a3128]">{res.name}</span>
-                  <span className="text-xs text-[#8a7a62]">
-                    {new Date(res.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                  </span>
-                </div>
-                {res.notes && <p className="text-xs text-[#a89880] mt-0.5">{res.notes}</p>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Reservations — with add button */}
       <div className="mb-6">
