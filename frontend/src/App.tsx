@@ -8,6 +8,7 @@ import HistoryPage from "./pages/HistoryPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import OfflineIndicator from "./components/OfflineIndicator";
 import ChatBubble from "./components/ChatBubble";
+import DailyGreeting from "./components/DailyGreeting";
 import { ToastProvider } from "./contexts/ToastContext";
 import { useState, useEffect, useCallback } from "react";
 import { api } from "./lib/api";
@@ -78,6 +79,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <AppRoutes />
+          <DailyGreeting />
           <ChatOverlay />
           <OfflineIndicator />
         </ToastProvider>

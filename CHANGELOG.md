@@ -13,9 +13,12 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   - **Andy**: Buddhist temples and meditation spots, Zen gardens, AI/tech innovation spaces, independent bookstores
   - **Julie**: ceramics and pottery studios (shared with Larisa), exceptional fresh produce, cooking classes, quality sportswear
   - **Ken**: AI/tech innovation, philosophy/bookstores, cooking classes, art galleries, Japanese culture
-- Nudges appear in two places: (1) when tapping a nearby ghost marker that matches your interests — shows a card with the nudge and "Add to trip" / "Not now" buttons; (2) in the experience detail view when viewing a matching experience. (Plan screen, Experience Detail)
+- Nudges appear in three places:
+  1. **Daily greeting** — on first app open each day, a personalized overlay appears: "Good morning, Andy. I noticed Zen Meditation Temple is on your list today — thought you'd enjoy that one." Scans today's planned experiences against the traveler's interests. If no match, gives a warm generic greeting with the city name. Time-of-day aware (morning/afternoon/evening). Tap anywhere to dismiss. Shows once per day per user. (All screens, overlay)
+  2. **Map nearby marker** — when tapping a nearby ghost marker that matches your interests, shows a card with the nudge and "Add to trip" / "Not now" buttons. Rate-limited to ~1 per 8 hours. (Plan screen)
+  3. **Experience detail** — when viewing an experience that matches your interests, the nudge appears inline. No rate limit since user chose to look. (Experience Detail)
 
-SPEC UPDATE NEEDED: Login flow changed from access codes to name buttons. Personalized nudge system is new and not in SPEC.md.
+SPEC UPDATE NEEDED: Login flow changed from access codes to name buttons. Personalized nudge system (daily greeting + map nudges + detail nudges) is new and not in SPEC.md.
 
 ## 2026-03-05 (UX Polish — Power Made Visible)
 

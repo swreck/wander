@@ -4,7 +4,13 @@
  * edge cases, and all four traveler profiles.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { getNudgesForPlace, getNudgeForExperience } from "../travelerProfiles";
+import {
+  getNudgesForPlace,
+  getNudgeForExperience,
+  canShowDailyGreeting,
+  recordDailyGreeting,
+  getDailyGreeting,
+} from "../travelerProfiles";
 
 // Mock localStorage
 const store: Record<string, string> = {};
@@ -461,6 +467,95 @@ describe("Traveler Profiles — Easter Egg System", () => {
       expect(nudges.length).toBeGreaterThan(0);
       const anyMentionsJulie = nudges.some(n => /Julie/i.test(n!));
       expect(anyMentionsJulie).toBe(true);
+    });
+  });
+
+  // ── Daily Greeting System ─────────────────────────────────────────
+
+  describe("daily greeting", () => {
+    it("canShowDailyGreeting returns true on first call", () => {
+      expect(canShowDailyGreeting("Ken")).toBe(true);
+    });
+
+    it("canShowDailyGreeting returns false after recording", () => {
+      recordDailyGreeting("Ken");
+      expect(canShowDailyGreeting("Ken")).toBe(false);
+    });
+
+    it("different users have independent greeting state", () => {
+      recordDailyGreeting("Ken");
+      expect(canShowDailyGreeting("Ken")).toBe(false);
+      expect(canShowDailyGreeting("Julie")).toBe(true);
+    });
+
+    it("greeting resets next day", () => {
+      recordDailyGreeting("Andy");
+      // Today's date is stored — should be blocked
+      expect(canShowDailyGreeting("Andy")).toBe(false);
+      // Simulate yesterday's date stored — should allow (new day)
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      store["wander:last-greeting"] = JSON.stringify({ Andy: yesterday.toDateString() });
+      expect(canShowDailyGreeting("Andy")).toBe(true);
+    });
+
+    it("generates greeting with matching experience", () => {
+      const greeting = getDailyGreeting("Andy", [
+        { name: "Zen Meditation Temple", themes: [] },
+        { name: "Sushi Restaurant", themes: ["food"] },
+      ], "Kyoto");
+      expect(greeting).toBeTruthy();
+      expect(greeting).toContain("Andy");
+      expect(greeting).toContain("Zen Meditation Temple");
+    });
+
+    it("generates greeting for Ken with AI match", () => {
+      const greeting = getDailyGreeting("Ken", [
+        { name: "AI Innovation Lab", themes: ["technology"] },
+      ], "Tokyo");
+      expect(greeting).toBeTruthy();
+      expect(greeting).toContain("Ken");
+      expect(greeting).toContain("AI Innovation Lab");
+    });
+
+    it("generates greeting for Larisa with bakery match", () => {
+      const greeting = getDailyGreeting("Larisa", [
+        { name: "Famous Matcha Bakery", themes: [] },
+      ], "Kyoto");
+      expect(greeting).toBeTruthy();
+      expect(greeting).toContain("Larisa");
+      expect(greeting).toContain("Famous Matcha Bakery");
+    });
+
+    it("generates generic greeting when no interest match", () => {
+      const greeting = getDailyGreeting("Ken", [
+        { name: "Random Place", themes: [] },
+      ], "Osaka");
+      expect(greeting).toBeTruthy();
+      expect(greeting).toContain("Ken");
+      expect(greeting).toContain("Osaka");
+    });
+
+    it("generates fallback greeting when no experiences and no city", () => {
+      const greeting = getDailyGreeting("Julie", [], undefined);
+      expect(greeting).toBeTruthy();
+      expect(greeting).toContain("Julie");
+    });
+
+    it("greeting includes time-appropriate salutation", () => {
+      const greeting = getDailyGreeting("Andy", [], "Tokyo");
+      expect(greeting).toBeTruthy();
+      expect(greeting).toMatch(/Good (morning|afternoon|evening)/);
+    });
+
+    it("unknown user returns null", () => {
+      expect(getDailyGreeting("Stranger", [], "Tokyo")).toBeNull();
+    });
+
+    it("greeting is deterministic within same day", () => {
+      const g1 = getDailyGreeting("Ken", [{ name: "Art Gallery Tour", themes: [] }], "Tokyo");
+      const g2 = getDailyGreeting("Ken", [{ name: "Art Gallery Tour", themes: [] }], "Tokyo");
+      expect(g1).toBe(g2);
     });
   });
 });

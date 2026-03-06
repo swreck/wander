@@ -282,6 +282,86 @@ export function getNudgeForExperience(
   return null;
 }
 
+// ── Daily Greeting ──────────────────────────────────────────────────
+
+const GREETING_STORAGE_KEY = "wander:last-greeting";
+
+export function canShowDailyGreeting(userName: string): boolean {
+  try {
+    const stored = localStorage.getItem(GREETING_STORAGE_KEY);
+    if (!stored) return true;
+    const data = JSON.parse(stored);
+    const lastDate = data[userName];
+    if (!lastDate) return true;
+    return lastDate !== new Date().toDateString();
+  } catch {
+    return true;
+  }
+}
+
+export function recordDailyGreeting(userName: string): void {
+  try {
+    const stored = localStorage.getItem(GREETING_STORAGE_KEY);
+    const data = stored ? JSON.parse(stored) : {};
+    data[userName] = new Date().toDateString();
+    localStorage.setItem(GREETING_STORAGE_KEY, JSON.stringify(data));
+  } catch { /* ignore */ }
+}
+
+interface GreetingExperience {
+  name: string;
+  themes: string[];
+}
+
+/**
+ * Build a daily greeting message by scanning today's planned experiences
+ * for matches against the user's interest profile.
+ */
+export function getDailyGreeting(
+  userName: string,
+  todayExperiences: GreetingExperience[],
+  cityName?: string,
+): string | null {
+  const profile = profiles[userName];
+  if (!profile) return null;
+
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  // Find the first matching experience
+  for (const exp of todayExperiences) {
+    for (const interest of profile.interests) {
+      const nameMatch = interest.keywords.some((kw) => keywordInText(kw, exp.name));
+      const themeMatch = (exp.themes || []).some((t) =>
+        interest.keywords.some((kw) => keywordInText(kw, t))
+      );
+
+      if (nameMatch || themeMatch) {
+        const hash = simpleHash(new Date().toDateString() + userName + "greeting");
+        const templates = [
+          `${timeGreeting}, ${userName}. I noticed ${exp.name} is on your list today — thought you'd enjoy that one.`,
+          `${timeGreeting}, ${userName}. ${exp.name} might be a highlight today. Have a wonderful time exploring.`,
+          `${timeGreeting}, ${userName}. You have ${exp.name} ahead of you today — seems like your kind of place.`,
+        ];
+        return templates[hash % templates.length];
+      }
+    }
+  }
+
+  // No interest match — give a warm generic greeting with city context
+  if (cityName) {
+    const hash = simpleHash(new Date().toDateString() + userName + "generic");
+    const generics = [
+      `${timeGreeting}, ${userName}. A good day to explore ${cityName}. Enjoy wherever the day takes you.`,
+      `${timeGreeting}, ${userName}. ${cityName} has a lot to offer today. Take your time with it.`,
+      `${timeGreeting}, ${userName}. Hope today in ${cityName} brings something unexpected and good.`,
+    ];
+    return generics[hash % generics.length];
+  }
+
+  return `${timeGreeting}, ${userName}. Have a good day exploring.`;
+}
+
 function simpleHash(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
