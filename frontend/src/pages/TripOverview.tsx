@@ -23,6 +23,7 @@ export default function TripOverview() {
   const [editEndDate, setEditEndDate] = useState("");
   const [editTagline, setEditTagline] = useState("");
   const [recentActivity, setRecentActivity] = useState<ChangeLogEntry[]>([]);
+  const [collabWelcome, setCollabWelcome] = useState<{ names: string[]; tripName: string } | null>(null);
 
   async function loadTrips() {
     setLoading(true);
@@ -43,8 +44,22 @@ export default function TripOverview() {
         setExperiences(e);
         // Fetch recent activity
         try {
-          const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${active.id}?limit=5`);
-          setRecentActivity(logs);
+          const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${active.id}?limit=50`);
+          setRecentActivity(logs.slice(0, 5));
+
+          // Check if this user is new to the trip (collaboration welcome)
+          const welcomeKey = `wander:trip-welcomed:${active.id}:${user?.displayName}`;
+          if (user && !localStorage.getItem(welcomeKey)) {
+            const myEntries = logs.filter((l) => l.userDisplayName === user.displayName);
+            if (myEntries.length === 0 && logs.length > 0) {
+              // This user has never touched this trip — show who has
+              const otherNames = [...new Set(logs.map((l) => l.userDisplayName))];
+              if (otherNames.length > 0) {
+                setCollabWelcome({ names: otherNames, tripName: active.name });
+              }
+            }
+            localStorage.setItem(welcomeKey, "1");
+          }
         } catch { /* ignore */ }
       }
     } finally {
@@ -119,6 +134,26 @@ export default function TripOverview() {
 
   return (
     <div className="min-h-screen bg-[#faf8f5]">
+      {/* Collaboration welcome — one-time for users joining an existing trip */}
+      {collabWelcome && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+          <div
+            className="mx-6 max-w-sm w-full bg-white rounded-2xl shadow-xl p-6 animate-greetingFadeIn"
+            onClick={() => setCollabWelcome(null)}
+          >
+            <p className="text-[15px] text-[#3a3128] leading-relaxed">
+              {formatNameList(collabWelcome.names)}{" "}
+              {collabWelcome.names.length === 1 ? "has" : "have"} already started
+              the {collabWelcome.tripName} itinerary. Once you enter, you'll be
+              collaborating on the trip and everyone will see your changes.
+            </p>
+            <div className="mt-4 text-center">
+              <span className="text-xs text-[#c8bba8]">tap anywhere to continue</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <FirstTimeGuide
         id="overview"
         lines={[
@@ -346,6 +381,12 @@ export default function TripOverview() {
       </div>
     </div>
   );
+}
+
+function formatNameList(names: string[]): string {
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function formatRelativeTime(dateStr: string): string {
