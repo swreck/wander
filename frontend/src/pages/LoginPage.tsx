@@ -35,7 +35,7 @@ export default function LoginPage() {
           Wander
         </h1>
         <p className="text-sm text-[#8a7a62] mb-10">
-          Who's exploring?
+          Who's wandering?
         </p>
 
         <div className="grid grid-cols-2 gap-3">
