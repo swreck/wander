@@ -151,18 +151,29 @@ export async function extractItinerary(
 
   if (images && images.length > 0) {
     for (const img of images) {
-      userContent.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: img.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-          data: img.base64,
-        },
-      });
+      if (img.mediaType === "application/pdf") {
+        userContent.push({
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: img.base64,
+          },
+        } as any);
+      } else {
+        userContent.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: img.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+            data: img.base64,
+          },
+        });
+      }
     }
     userContent.push({
       type: "text",
-      text: "Extract the travel itinerary from these images.",
+      text: "Extract the travel itinerary from these uploaded files.",
     });
   }
 

@@ -300,7 +300,7 @@ export default function CreateTrip({ onCreated }: Props) {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf,application/pdf"
                 multiple
                 onChange={handleFileSelect}
                 className="hidden"

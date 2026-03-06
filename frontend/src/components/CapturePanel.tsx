@@ -213,7 +213,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf,application/pdf"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 className="hidden"
               />
