@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Trip, Day, Experience } from "../lib/types";
+import FirstTimeGuide from "../components/FirstTimeGuide";
+import { useToast } from "../contexts/ToastContext";
 
 interface TravelTimeResult {
   durationMinutes: number;
@@ -31,6 +33,7 @@ const MODE_LABELS: Record<TravelMode, string> = {
 
 export default function NowPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [today, setToday] = useState<Day | null>(null);
   const [loading, setLoading] = useState(true);
@@ -136,11 +139,16 @@ export default function NowPage() {
 
     // Reservations
     for (const res of reservations) {
+      const detailParts = [
+        new Date(res.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+      ];
+      if (res.confirmationNumber) detailParts.push(`Conf: ${res.confirmationNumber}`);
+      if (res.notes) detailParts.push(res.notes);
       anchors.push({
         time: new Date(res.datetime),
         name: res.name,
         type: "reservation",
-        detail: `${new Date(res.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}${res.notes ? ` — ${res.notes}` : ""}`,
+        detail: detailParts.join(" — "),
         lat: res.latitude,
         lng: res.longitude,
       });
@@ -221,7 +229,8 @@ export default function NowPage() {
       });
       setQuickCaptureName("");
       setShowQuickCapture(false);
-      // Reload the page to show the new experience
+      showToast("Discovery saved");
+      // Reload to show new experience
       window.location.reload();
     } finally {
       setCapturing(false);
@@ -268,6 +277,15 @@ export default function NowPage() {
 
   return (
     <div className="min-h-screen bg-[#faf8f5]">
+      <FirstTimeGuide
+        id="now"
+        lines={[
+          "See what's next and when you should leave",
+          "Switch between walk, transit, and taxi for travel times",
+          "Set a timer or alarm so you don't lose track of time",
+          "Quickly capture a place you discover while out exploring",
+        ]}
+      />
       <div className="max-w-lg mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -294,21 +312,32 @@ export default function NowPage() {
             {today.city.name}
             {today.city.tagline && <span className="text-[#a89880] ml-1">· {today.city.tagline}</span>}
           </p>
-          {accommodations.length > 0 && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm text-[#6b5d4a]">{accommodations[0].name}</span>
-              {accommodations[0].latitude != null && accommodations[0].longitude != null && (
-                <a
-                  href={`https://maps.apple.com/?daddr=${accommodations[0].latitude},${accommodations[0].longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-[#a89880] hover:text-[#514636]"
-                >
-                  navigate
-                </a>
-              )}
-            </div>
-          )}
+          {accommodations.length > 0 && (() => {
+            const acc = accommodations[0];
+            return (
+              <div className="mt-2 px-3 py-2 bg-[#f0ece5] rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-[#3a3128]">{acc.name}</span>
+                  {acc.latitude != null && acc.longitude != null && (
+                    <a
+                      href={`https://maps.apple.com/?daddr=${acc.latitude},${acc.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-[#a89880] hover:text-[#514636]"
+                    >
+                      navigate
+                    </a>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-[#8a7a62]">
+                  {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
+                  {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
+                  {acc.confirmationNumber && <span>Conf: {acc.confirmationNumber}</span>}
+                </div>
+                {acc.notes && <div className="text-xs text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
+              </div>
+            );
+          })()}
           {/* Quick summary line */}
           <p className="text-xs text-[#c8bba8] mt-2">
             {selectedExps.length} planned

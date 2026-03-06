@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import type { Experience, Trip, Day } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
+import { useToast } from "../contexts/ToastContext";
 
 interface Props {
   experienceId: string;
@@ -17,14 +18,13 @@ interface Props {
 export default function ExperienceDetail({
   experienceId, trip, days, onClose, onPromote, onDemote, onDelete, onRefresh,
 }: Props) {
+  const { showToast } = useToast();
   const [exp, setExp] = useState<Experience | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [promoteDay, setPromoteDay] = useState("");
-  const [promoteTimeWindow, setPromoteTimeWindow] = useState("");
   const [showPromote, setShowPromote] = useState(false);
 
   useEffect(() => {
@@ -38,42 +38,56 @@ export default function ExperienceDetail({
 
   async function handleSave() {
     if (!exp) return;
-    await api.patch(`/experiences/${exp.id}`, {
-      name: editName,
-      description: editDesc || null,
-      userNotes: editNotes || null,
-    });
-    setEditing(false);
-    onRefresh();
-    const updated = await api.get<Experience>(`/experiences/${experienceId}`);
-    setExp(updated);
+    try {
+      await api.patch(`/experiences/${exp.id}`, {
+        name: editName,
+        description: editDesc || null,
+        userNotes: editNotes || null,
+      });
+      setEditing(false);
+      showToast("Changes saved");
+      onRefresh();
+      const updated = await api.get<Experience>(`/experiences/${experienceId}`);
+      setExp(updated);
+    } catch {
+      showToast("Couldn't save changes", "error");
+    }
   }
 
   async function handleGeocode() {
     if (!exp) return;
-    await api.post(`/geocoding/experience/${exp.id}`, {});
-    const updated = await api.get<Experience>(`/experiences/${experienceId}`);
-    setExp(updated);
-    onRefresh();
+    try {
+      const result = await api.post<any>(`/geocoding/experience/${exp.id}`, {});
+      const updated = await api.get<Experience>(`/experiences/${experienceId}`);
+      setExp(updated);
+      onRefresh();
+      if (updated.locationStatus === "confirmed") {
+        showToast("Location confirmed");
+      } else if (result?.confidence === "low") {
+        showToast("Location found — needs review", "info");
+      } else {
+        showToast("No location match found", "info");
+      }
+    } catch {
+      showToast("Location search failed", "error");
+    }
   }
 
   async function handleRefreshRatings() {
     if (!exp) return;
-    await api.post(`/geocoding/experience/${exp.id}`, {});
-    const updated = await api.get<Experience>(`/experiences/${experienceId}`);
-    setExp(updated);
-  }
-
-  function handlePromoteSubmit() {
-    if (!exp || !promoteDay) return;
-    onPromote(exp.id, promoteDay, undefined, promoteTimeWindow || undefined);
-    setShowPromote(false);
-    onClose();
+    try {
+      await api.post(`/geocoding/experience/${exp.id}`, {});
+      const updated = await api.get<Experience>(`/experiences/${experienceId}`);
+      setExp(updated);
+      showToast("Ratings updated");
+    } catch {
+      showToast("Couldn't refresh ratings", "error");
+    }
   }
 
   if (!exp) {
     return (
-      <div className="fixed inset-y-0 right-0 w-96 bg-white border-l border-[#f0ece5] shadow-xl z-40
+      <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white border-l border-[#f0ece5] shadow-xl z-40
                       flex items-center justify-center text-[#8a7a62]">
         Loading...
       </div>
@@ -81,15 +95,15 @@ export default function ExperienceDetail({
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-white border-l border-[#f0ece5] shadow-xl z-40
+    <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white md:border-l border-[#f0ece5] shadow-xl z-40
                     overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-[#f0ece5] px-4 py-3 flex items-center justify-between">
+      <div className="sticky top-0 bg-white border-b border-[#f0ece5] px-4 py-3 flex items-center justify-between z-10">
         <button
           onClick={onClose}
           className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
         >
-          &times; Close
+          &larr; Back
         </button>
         <div className="flex items-center gap-2">
           <button
@@ -134,7 +148,7 @@ export default function ExperienceDetail({
           <h2 className="text-lg font-medium text-[#3a3128]">{exp.name}</h2>
         )}
 
-        <div className="flex items-center gap-2 text-xs text-[#8a7a62]">
+        <div className="flex items-center gap-2 text-xs text-[#8a7a62] flex-wrap">
           <span>{exp.city?.name}</span>
           {exp.themes.map((t) => (
             <span key={t} className="px-2 py-0.5 bg-[#f0ece5] rounded-full capitalize">{t}</span>
@@ -152,7 +166,7 @@ export default function ExperienceDetail({
               onClick={handleGeocode}
               className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
             >
-              📍 Find location
+              Find location
             </button>
           )}
         </div>
@@ -196,7 +210,7 @@ export default function ExperienceDetail({
           onClick={handleRefreshRatings}
           className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
         >
-          Refresh ratings
+          Update location & ratings
         </button>
 
         {/* Source + attribution */}
@@ -233,7 +247,7 @@ export default function ExperienceDetail({
             <>
               <button
                 onClick={() => setShowPromote(!showPromote)}
-                className="w-full py-2 rounded-lg bg-[#514636] text-white text-sm font-medium
+                className="w-full py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium
                            hover:bg-[#3a3128] transition-colors"
               >
                 Add to Itinerary
@@ -250,7 +264,7 @@ export default function ExperienceDetail({
                         <button
                           key={d.id}
                           onClick={() => { onPromote(exp!.id, d.id); onClose(); }}
-                          className={`flex flex-col items-center px-2 py-1.5 rounded text-[10px] shrink-0 transition-colors ${
+                          className={`flex flex-col items-center px-2.5 py-2 rounded text-[11px] shrink-0 transition-colors ${
                             isMatchCity
                               ? "bg-[#514636] text-white hover:bg-[#3a3128]"
                               : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
@@ -268,7 +282,7 @@ export default function ExperienceDetail({
           ) : (
             <button
               onClick={() => { onDemote(exp.id); onClose(); }}
-              className="w-full py-2 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
+              className="w-full py-2.5 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
                          hover:bg-[#f0ece5] transition-colors"
             >
               Move to Candidates
@@ -283,7 +297,7 @@ export default function ExperienceDetail({
           </button>
         </div>
 
-        {/* Delete confirmation — the only modal allowed */}
+        {/* Delete confirmation */}
         {showDeleteConfirm && (
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">

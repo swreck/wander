@@ -183,7 +183,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
     experiences.filter((e) => e.placeIdGoogle).map((e) => e.placeIdGoogle)
   );
 
-  // Fetch Tier 3 nearby markers
+  // Fetch Tier 3 nearby markers — always on when showNearby is true
   const fetchNearby = useCallback(async () => {
     if (!showNearby || !center.lat || !center.lng) return;
     try {

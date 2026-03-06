@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
+import { useToast } from "../contexts/ToastContext";
 import type { Trip } from "../lib/types";
 
 export default function CaptureSharePage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,7 @@ export default function CaptureSharePage() {
         sourceUrl: sharedUrl || null,
         userNotes: notes.trim() || null,
       });
+      showToast("Saved to your trip");
       navigate("/plan");
     } finally {
       setSaving(false);

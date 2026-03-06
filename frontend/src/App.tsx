@@ -8,6 +8,7 @@ import HistoryPage from "./pages/HistoryPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import OfflineIndicator from "./components/OfflineIndicator";
 import ChatBubble from "./components/ChatBubble";
+import { ToastProvider } from "./contexts/ToastContext";
 import { useState, useEffect, useCallback } from "react";
 import { api } from "./lib/api";
 
@@ -75,9 +76,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
-        <ChatOverlay />
-        <OfflineIndicator />
+        <ToastProvider>
+          <AppRoutes />
+          <ChatOverlay />
+          <OfflineIndicator />
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

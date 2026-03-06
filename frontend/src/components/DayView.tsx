@@ -3,6 +3,8 @@ import { api } from "../lib/api";
 import type { Day, Experience, Trip } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
 import AIObservations from "./AIObservations";
+import FirstTimeGuide from "./FirstTimeGuide";
+import { useToast } from "../contexts/ToastContext";
 
 interface Props {
   day: Day;
@@ -18,6 +20,7 @@ interface Props {
 export default function DayView({
   day, experiences, trip, onClose, onPromote, onDemote, onExperienceClick, onRefresh,
 }: Props) {
+  const { showToast } = useToast();
   const dayDate = new Date(day.date);
   const formattedDate = dayDate.toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric",
@@ -63,7 +66,7 @@ export default function DayView({
   const frictionAlerts = useMemo(() => {
     const alerts: { key: string; message: string }[] = [];
 
-    // Density imbalance: if this day has 5+ experiences, check adjacent days in same city
+    // Density imbalance
     if (selectedForDay.length >= 5 && trip.days) {
       const sameCityDays = trip.days
         .filter(d => d.cityId === day.cityId)
@@ -76,13 +79,13 @@ export default function DayView({
           const adjDate = new Date(adj.date).toLocaleDateString("en-US", { weekday: "long" });
           alerts.push({
             key: `density-${day.id}-${adj.id}`,
-            message: `${selectedForDay.length} planned here — ${adjDate} is open.`,
+            message: `${selectedForDay.length} planned here — ${adjDate} is open. Consider spreading out.`,
           });
         }
       }
     }
 
-    // Travel time warning: consecutive experiences far apart
+    // Distance warnings between consecutive experiences
     const locatedSelected = selectedForDay.filter(e => e.latitude != null && e.longitude != null);
     for (let i = 1; i < locatedSelected.length; i++) {
       const prev = locatedSelected[i - 1];
@@ -101,14 +104,14 @@ export default function DayView({
     return alerts.filter(a => !dismissedAlerts.has(a.key));
   }, [selectedForDay, experiences, day, trip.days, dismissedAlerts]);
 
-  // Spatial sequence
-  const [showSpatialSequence, setShowSpatialSequence] = useState(false);
+  // Spatial sequence — ON by default when 2+ located experiences exist
+  const canShowSpatial = selectedForDay.filter(e => e.latitude != null).length >= 2;
+  const [spatialOverridden, setSpatialOverridden] = useState(false);
 
   const spatiallyOrdered = useMemo(() => {
     const located = selectedForDay.filter(e => e.latitude != null && e.longitude != null);
     if (located.length < 2) return selectedForDay;
 
-    // Start from accommodation if available, otherwise first experience
     const startLat = accommodations[0]?.latitude ?? located[0].latitude!;
     const startLng = accommodations[0]?.longitude ?? located[0].longitude!;
 
@@ -146,13 +149,13 @@ export default function DayView({
     const lastAfternoon = sortedAfternoon.length > 0 ? sortedAfternoon[sortedAfternoon.length - 1] : lastMid;
     const sortedEvening = nearestSort(evening, lastAfternoon?.latitude ?? startLat, lastAfternoon?.longitude ?? startLng);
 
-    // Include any unlocated experiences at the end
     const unlocated = selectedForDay.filter(e => e.latitude == null || e.longitude == null);
     return [...sortedMorning, ...sortedUnslotted, ...sortedAfternoon, ...sortedEvening, ...unlocated];
   }, [selectedForDay, accommodations]);
 
-  const displaySelected = showSpatialSequence ? spatiallyOrdered : selectedForDay;
-  const canShowSpatial = selectedForDay.filter(e => e.latitude != null).length >= 2;
+  // Show spatial order by default (unless user turned it off)
+  const useSpatialOrder = canShowSpatial && !spatialOverridden;
+  const displaySelected = useSpatialOrder ? spatiallyOrdered : selectedForDay;
 
   // Add reservation
   const [addingRes, setAddingRes] = useState(false);
@@ -162,37 +165,74 @@ export default function DayView({
   const [resType, setResType] = useState<string>("restaurant");
 
   async function saveNotes() {
-    await api.patch(`/days/${day.id}`, { notes: notesText || null });
-    setEditingNotes(false);
-    onRefresh();
+    try {
+      await api.patch(`/days/${day.id}`, { notes: notesText || null });
+      setEditingNotes(false);
+      showToast("Notes saved");
+      onRefresh();
+    } catch {
+      showToast("Couldn't save notes", "error");
+    }
   }
 
   async function saveZone() {
-    await api.patch(`/days/${day.id}`, { explorationZone: zoneText || null });
-    setEditingZone(false);
-    onRefresh();
+    try {
+      await api.patch(`/days/${day.id}`, { explorationZone: zoneText || null });
+      setEditingZone(false);
+      showToast("Exploration zone saved");
+      onRefresh();
+    } catch {
+      showToast("Couldn't save zone", "error");
+    }
   }
 
   async function addReservation() {
     if (!resName.trim() || !resTime) return;
     const dateStr = day.date.split("T")[0];
-    await api.post("/reservations", {
-      tripId: trip.id,
-      dayId: day.id,
-      name: resName.trim(),
-      type: resType,
-      datetime: `${dateStr}T${resTime}:00`,
-      notes: resNotes.trim() || null,
-    });
-    setAddingRes(false);
-    setResName("");
-    setResTime("");
-    setResNotes("");
-    onRefresh();
+    try {
+      await api.post("/reservations", {
+        tripId: trip.id,
+        dayId: day.id,
+        name: resName.trim(),
+        type: resType,
+        datetime: `${dateStr}T${resTime}:00`,
+        notes: resNotes.trim() || null,
+      });
+      setAddingRes(false);
+      setResName("");
+      setResTime("");
+      setResNotes("");
+      showToast("Reservation added");
+      onRefresh();
+    } catch {
+      showToast("Couldn't add reservation", "error");
+    }
+  }
+
+  async function handleApplySpatialOrder() {
+    const orderedIds = spatiallyOrdered.map(e => e.id);
+    try {
+      await api.post("/experiences/reorder", { orderedIds });
+      showToast("Route order applied");
+      onRefresh();
+    } catch {
+      showToast("Couldn't save order", "error");
+    }
   }
 
   return (
     <div className="p-4">
+      {/* First-time guide for day view */}
+      <FirstTimeGuide
+        id="day-view"
+        lines={[
+          "Experiences are sorted by walking distance for the best route",
+          "Amber alerts warn when a day is packed or distances are long",
+          "Tap an experience to see details, or the arrow to move it",
+          "Add reservations with times so the Now screen can remind you",
+        ]}
+      />
+
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-light text-[#3a3128]">{formattedDate}</h2>
@@ -209,13 +249,19 @@ export default function DayView({
         </button>
       </div>
 
-      {/* Accommodation anchor */}
+      {/* Accommodation anchor — with full details */}
       {accommodations.length > 0 && (
         <div className="mb-6">
           {accommodations.map((acc) => (
-            <div key={acc.id} className="px-3 py-2 bg-[#f0ece5] rounded-lg text-sm">
+            <div key={acc.id} className="px-3 py-2.5 bg-[#f0ece5] rounded-lg text-sm">
               <div className="font-medium text-[#3a3128]">{acc.name}</div>
               {acc.address && <div className="text-xs text-[#8a7a62] mt-0.5">{acc.address}</div>}
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs text-[#a89880]">
+                {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
+                {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
+                {acc.confirmationNumber && <span>Conf: {acc.confirmationNumber}</span>}
+              </div>
+              {acc.notes && <div className="text-xs text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
             </div>
           ))}
         </div>
@@ -228,11 +274,11 @@ export default function DayView({
       {frictionAlerts.length > 0 && (
         <div className="space-y-1.5 mb-4">
           {frictionAlerts.map(alert => (
-            <div key={alert.key} className="flex items-start gap-2 px-3 py-2 bg-[#f5f0e8] rounded-lg text-xs text-[#8a7a62]">
+            <div key={alert.key} className="flex items-start gap-2 px-3 py-2 bg-amber-50 rounded-lg text-xs text-amber-800 border border-amber-100">
               <span className="flex-1">{alert.message}</span>
               <button
                 onClick={() => dismissAlert(alert.key)}
-                className="text-[#c8bba8] hover:text-[#8a7a62] shrink-0"
+                className="text-amber-400 hover:text-amber-600 shrink-0"
               >
                 &times;
               </button>
@@ -241,73 +287,98 @@ export default function DayView({
         </div>
       )}
 
-      {/* Spatial sequence toggle */}
+      {/* Spatial sequence indicator — shown when active */}
       {canShowSpatial && (
         <div className="flex items-center justify-between mb-2">
-          <button
-            onClick={() => setShowSpatialSequence(!showSpatialSequence)}
-            className={`text-[10px] uppercase tracking-wider transition-colors ${
-              showSpatialSequence ? "text-[#514636] font-medium" : "text-[#c8bba8] hover:text-[#8a7a62]"
-            }`}
-          >
-            {showSpatialSequence ? "Showing suggested route" : "Suggest route order"}
-          </button>
-          {showSpatialSequence && (
+          {useSpatialOrder ? (
+            <>
+              <span className="text-[10px] uppercase tracking-wider text-[#a89880]">
+                Route order
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleApplySpatialOrder}
+                  className="text-[10px] text-[#514636] hover:text-[#3a3128] font-medium"
+                >
+                  Save this order
+                </button>
+                <button
+                  onClick={() => setSpatialOverridden(true)}
+                  className="text-[10px] text-[#c8bba8] hover:text-[#8a7a62]"
+                >
+                  Use my order
+                </button>
+              </div>
+            </>
+          ) : (
             <button
-              onClick={async () => {
-                const orderedIds = spatiallyOrdered.map(e => e.id);
-                await api.post("/experiences/reorder", { orderedIds });
-                setShowSpatialSequence(false);
-                onRefresh();
-              }}
-              className="text-[10px] text-[#514636] hover:text-[#3a3128] font-medium"
+              onClick={() => setSpatialOverridden(false)}
+              className="text-[10px] uppercase tracking-wider text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
             >
-              Use this order
+              Show route order
             </button>
           )}
         </div>
       )}
 
-      {/* Selected experiences — spacious layout per spec */}
+      {/* Selected experiences */}
       <div className="space-y-4 mb-6">
-        {displaySelected.map((exp) => (
-          <div
-            key={exp.id}
-            className="px-4 py-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
-                       hover:border-[#a89880] transition-colors"
-            onClick={() => onExperienceClick(exp.id)}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
-              <div className="flex items-center gap-2">
-                {exp.timeWindow && (
-                  <span className="text-xs text-[#a89880]">{exp.timeWindow}</span>
-                )}
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
-                  className="text-xs text-[#c8bba8] hover:text-[#8a7a62]"
-                >
-                  &darr;
-                </button>
+        {displaySelected.map((exp, idx) => (
+          <div key={exp.id}>
+            {/* Distance hint between consecutive experiences */}
+            {useSpatialOrder && idx > 0 && exp.latitude != null && displaySelected[idx - 1].latitude != null && (() => {
+              const prev = displaySelected[idx - 1];
+              const dx = (exp.latitude! - prev.latitude!) * 111;
+              const dy = (exp.longitude! - prev.longitude!) * 111 * Math.cos(prev.latitude! * Math.PI / 180);
+              const distKm = Math.sqrt(dx * dx + dy * dy);
+              const walkMin = Math.round((distKm / 5) * 60);
+              if (walkMin < 1) return null;
+              return (
+                <div className="flex items-center gap-2 py-1 px-4 text-[10px] text-[#c8bba8]">
+                  <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
+                  <span>{walkMin} min walk</span>
+                  <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
+                </div>
+              );
+            })()}
+            <div
+              className="px-4 py-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
+                         hover:border-[#a89880] transition-colors active:bg-[#f0ece5]"
+              onClick={() => onExperienceClick(exp.id)}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
+                <div className="flex items-center gap-2">
+                  {exp.timeWindow && (
+                    <span className="text-xs text-[#a89880]">{exp.timeWindow}</span>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
+                    className="text-xs text-[#c8bba8] hover:text-[#8a7a62] p-1"
+                    aria-label="Move to candidates"
+                  >
+                    &darr;
+                  </button>
+                </div>
               </div>
-            </div>
-            {exp.description && (
-              <p className="text-xs text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</p>
-            )}
-            {exp.userNotes && (
-              <p className="text-xs text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</p>
-            )}
-            <div className="flex items-center gap-2 mt-1">
-              <RatingsBadge ratings={exp.ratings} />
-              {exp.createdBy && (
-                <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
+              {exp.description && (
+                <p className="text-xs text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</p>
               )}
+              {exp.userNotes && (
+                <p className="text-xs text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</p>
+              )}
+              <div className="flex items-center gap-2 mt-1">
+                <RatingsBadge ratings={exp.ratings} />
+                {exp.createdBy && (
+                  <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
+                )}
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Reservations — with add button */}
+      {/* Reservations */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
@@ -354,7 +425,7 @@ export default function DayView({
               type="text"
               value={resNotes}
               onChange={(e) => setResNotes(e.target.value)}
-              placeholder="Notes (optional)"
+              placeholder="Notes (confirmation number, seat, etc.)"
               className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
                          placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
             />
@@ -378,6 +449,9 @@ export default function DayView({
                     {new Date(res.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                   </span>
                 </div>
+                {res.confirmationNumber && (
+                  <div className="text-xs text-[#a89880] mt-0.5">Conf: {res.confirmationNumber}</div>
+                )}
                 {res.notes && <p className="text-xs text-[#a89880] mt-0.5">{res.notes}</p>}
               </div>
             ))}
@@ -455,7 +529,7 @@ export default function DayView({
           <div
             key={exp.id}
             className="px-3 py-2 bg-white rounded-lg border border-[#f0ece5]
-                       hover:border-[#e0d8cc] cursor-pointer transition-colors"
+                       hover:border-[#e0d8cc] cursor-pointer transition-colors active:bg-[#faf8f5]"
             onClick={() => onExperienceClick(exp.id)}
           >
             <div className="flex items-center justify-between">
@@ -465,8 +539,8 @@ export default function DayView({
                   e.stopPropagation();
                   onPromote(exp.id, day.id);
                 }}
-                className="text-xs text-[#a89880] hover:text-[#514636]"
-                title="Add to this day"
+                className="text-xs text-[#a89880] hover:text-[#514636] p-1"
+                aria-label="Add to this day"
               >
                 &uarr;
               </button>

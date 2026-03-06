@@ -24,6 +24,7 @@ import type { Experience, Day, Trip } from "../lib/types";
 import { api } from "../lib/api";
 import RatingsBadge from "./RatingsBadge";
 import AIObservations from "./AIObservations";
+import { useToast } from "../contexts/ToastContext";
 
 interface Props {
   selected: Experience[];
@@ -262,6 +263,7 @@ function DragOverlayItem({ exp }: { exp: Experience }) {
 export default function ExperienceList({
   selected, possible, days, trip, onPromote, onDemote, onExperienceClick,
 }: Props) {
+  const { showToast } = useToast();
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [promoteDay, setPromoteDay] = useState("");
   const [promoteTimeWindow, setPromoteTimeWindow] = useState("");
@@ -363,8 +365,10 @@ export default function ExperienceList({
       }
 
       // Persist reorder to backend
-      api.post("/experiences/reorder", { orderedIds: newOrder }).catch(() => {
-        // Revert on failure
+      api.post("/experiences/reorder", { orderedIds: newOrder }).then(() => {
+        showToast("Order saved");
+      }).catch(() => {
+        showToast("Couldn't save order", "error");
         if (activeZone === "selected") setSelectedOrder(null);
         else setPossibleOrder(null);
       });

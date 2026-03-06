@@ -2,6 +2,33 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-05 (UX Polish — Power Made Visible)
+
+### Added
+- **Toast notification system**: Every action that touches the server now shows brief feedback at the bottom of the screen — "Added to itinerary," "Order saved," "Location confirmed," "Couldn't save order." Slides up, disappears after 3 seconds. Users always know whether their action worked. (All screens)
+- **First-time guide overlays**: Each screen shows a one-time overlay on first visit explaining what you can do there. Two buttons: "Got it" (never show again) or "Remind me" (show again next session). Screens covered: Trip Overview, Plan, Day View, Now. (All screens)
+- **Map legend**: Subtle legend in bottom-left of map showing what each marker color means — Planned, Possible, Nearby, Hotel. Replaces the need for the old Nearby toggle. (Plan screen, map area)
+- **Friction indicator dots**: Amber dot on day cards in the selector strip when that day has 5+ experiences. Visual signal without text — tap the day to see details. (Plan screen, day selector)
+- **Walking time hints between experiences**: When route order is active in Day View, shows estimated walking minutes between consecutive experiences (e.g. "8 min walk"). (Day View)
+
+### Changed
+- **Nearby markers always on**: Removed the Nearby toggle button. Ghost markers now appear automatically whenever the map has a center point. The visual hierarchy (ghost style, smallest scale) is the signal — no mode switching needed. (Plan screen, map)
+- **Spatial sequence on by default**: Day View now shows experiences in walking-distance order by default (nearest-neighbor from hotel). "Use my order" lets you override; "Show route order" brings it back. Previously required finding and clicking "Suggest route order." (Day View)
+- **Theme filters persist across axis switches**: Switching between Cities and Days no longer resets your theme filter. The filter is a lens on your whole trip, not tied to an axis. (Plan screen)
+- **Accommodation details surfaced**: Check-in time, check-out time, confirmation number, and notes now display in Day View and Now screen wherever accommodations appear. Previously only showed name and address. (Day View, Now screen)
+- **Reservation confirmation numbers surfaced**: Confirmation numbers now show in reservation cards in Day View and in the Now screen schedule. (Day View, Now screen)
+- **Experience detail panel responsive**: On mobile, the detail panel is now full-screen instead of a 384px sidebar. Back button is labeled. Touch targets are larger. (Plan screen, mobile)
+- **Mobile planning layout rebuilt**: On mobile, the experience list is now a full-screen view (toggled via list icon) instead of a cramped bottom drawer. Includes a bottom action bar with Capture and Day Details buttons. Map and list are separate views you switch between. (Plan screen, mobile)
+- **Import preview stacks on mobile**: The three-column import preview now stacks to single column on narrow screens. (Plan screen, import panel)
+- **Friction alerts styled as amber warnings**: Changed from neutral sand background to amber tint with amber text for clearer visual weight. (Day View)
+- **"Refresh ratings" button renamed**: Now says "Update location & ratings" to clarify what it actually does. (Experience Detail)
+
+### Fixed
+- Silent failures on reorder, geocode, promote, demote, save, delete — all now show feedback via toast.
+- Mobile bottom drawer was cramped and hard to dismiss — replaced with full-screen list view.
+
+SPEC UPDATE NEEDED: First-time guide overlays, toast notifications, always-on nearby markers, default spatial ordering, and mobile layout are new UX patterns not in SPEC.md.
+
 ## 2026-03-05
 
 ### Added

@@ -3,11 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import CreateTrip from "../components/CreateTrip";
+import FirstTimeGuide from "../components/FirstTimeGuide";
+import { useToast } from "../contexts/ToastContext";
 import type { Trip, Day, Experience, ChangeLogEntry } from "../lib/types";
 
 export default function TripOverview() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
   const [days, setDays] = useState<Day[]>([]);
@@ -60,14 +63,19 @@ export default function TripOverview() {
 
   async function handleSaveTrip() {
     if (!trip) return;
-    await api.patch(`/trips/${trip.id}`, {
-      name: editName,
-      tagline: editTagline || null,
-      startDate: editStartDate,
-      endDate: editEndDate,
-    });
-    setEditingTrip(false);
-    loadTrips();
+    try {
+      await api.patch(`/trips/${trip.id}`, {
+        name: editName,
+        tagline: editTagline || null,
+        startDate: editStartDate,
+        endDate: editEndDate,
+      });
+      setEditingTrip(false);
+      showToast("Trip updated");
+      loadTrips();
+    } catch {
+      showToast("Couldn't update trip", "error");
+    }
   }
 
   function formatDate(d: string) {
@@ -111,6 +119,15 @@ export default function TripOverview() {
 
   return (
     <div className="min-h-screen bg-[#faf8f5]">
+      <FirstTimeGuide
+        id="overview"
+        lines={[
+          "This is your trip home base — cities, days, and recent activity at a glance",
+          "Tap \"Start Planning\" to open the map and organize your experiences",
+          "During your trip, the \"Now\" button shows your live schedule",
+          "Import text from friends, blogs, or AI chatbots to add experiences quickly",
+        ]}
+      />
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

@@ -7,11 +7,14 @@ import ExperienceList from "../components/ExperienceList";
 import ExperienceDetail from "../components/ExperienceDetail";
 import CapturePanel from "../components/CapturePanel";
 import DayView from "../components/DayView";
+import FirstTimeGuide from "../components/FirstTimeGuide";
+import { useToast } from "../contexts/ToastContext";
 
 type Axis = "cities" | "days";
 
 export default function PlanPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [days, setDays] = useState<Day[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
@@ -21,7 +24,6 @@ export default function PlanPage() {
   const [axis, setAxis] = useState<Axis>("cities");
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
-  // selectedSegmentId removed — routes axis eliminated per UX redesign
 
   // UI state
   const [showCapture, setShowCapture] = useState(false);
@@ -29,7 +31,9 @@ export default function PlanPage() {
   const [showDayView, setShowDayView] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showAddCity, setShowAddCity] = useState(false);
-  const [showNearby, setShowNearby] = useState(false);
+
+  // Mobile layout state
+  const [mobileView, setMobileView] = useState<"map" | "list">("map");
 
   // Add city form
   const [newCityName, setNewCityName] = useState("");
@@ -43,11 +47,8 @@ export default function PlanPage() {
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any>(null);
 
-  // Theme filter state
+  // Theme filter state — persists across axis switches
   const [activeThemes, setActiveThemes] = useState<string[]>([]);
-
-  // Mobile panel state
-  const [mobilePanel, setMobilePanel] = useState<"list" | null>(null);
 
   // Load trip data
   const loadTrip = useCallback(async () => {
@@ -89,47 +90,68 @@ export default function PlanPage() {
 
   useEffect(() => { loadExperiences(); }, [loadExperiences]);
 
-  // Actions
+  // Actions — with toast feedback
   async function handlePromote(expId: string, dayId: string, routeSegmentId?: string, timeWindow?: string) {
-    await api.post(`/experiences/${expId}/promote`, {
-      dayId: dayId || null,
-      routeSegmentId: routeSegmentId || null,
-      timeWindow: timeWindow || null,
-    });
-    await loadExperiences();
+    try {
+      await api.post(`/experiences/${expId}/promote`, {
+        dayId: dayId || null,
+        routeSegmentId: routeSegmentId || null,
+        timeWindow: timeWindow || null,
+      });
+      showToast("Added to itinerary");
+      await loadExperiences();
+    } catch {
+      showToast("Couldn't add to itinerary", "error");
+    }
   }
 
   async function handleDemote(expId: string) {
-    await api.post(`/experiences/${expId}/demote`, {});
-    await loadExperiences();
+    try {
+      await api.post(`/experiences/${expId}/demote`, {});
+      showToast("Moved to candidates");
+      await loadExperiences();
+    } catch {
+      showToast("Couldn't move to candidates", "error");
+    }
   }
 
   async function handleDeleteExp(expId: string) {
-    await api.delete(`/experiences/${expId}`);
-    setSelectedExpId(null);
-    await loadExperiences();
+    try {
+      await api.delete(`/experiences/${expId}`);
+      setSelectedExpId(null);
+      showToast("Experience deleted");
+      await loadExperiences();
+    } catch {
+      showToast("Couldn't delete", "error");
+    }
   }
 
   async function handleCaptured() {
     setShowCapture(false);
+    showToast("Experience captured");
     await loadExperiences();
   }
 
   async function handleAddCity() {
     if (!trip || !newCityName.trim()) return;
-    await api.post("/cities", {
-      tripId: trip.id,
-      name: newCityName.trim(),
-      country: newCityCountry.trim() || null,
-      arrivalDate: newCityArrival || null,
-      departureDate: newCityDeparture || null,
-    });
-    setShowAddCity(false);
-    setNewCityName("");
-    setNewCityCountry("");
-    setNewCityArrival("");
-    setNewCityDeparture("");
-    await loadTrip();
+    try {
+      await api.post("/cities", {
+        tripId: trip.id,
+        name: newCityName.trim(),
+        country: newCityCountry.trim() || null,
+        arrivalDate: newCityArrival || null,
+        departureDate: newCityDeparture || null,
+      });
+      setShowAddCity(false);
+      setNewCityName("");
+      setNewCityCountry("");
+      setNewCityArrival("");
+      setNewCityDeparture("");
+      showToast("City added");
+      await loadTrip();
+    } catch {
+      showToast("Couldn't add city", "error");
+    }
   }
 
   async function handleImportExtract() {
@@ -152,6 +174,7 @@ export default function PlanPage() {
       setShowImport(false);
       setImportText("");
       setImportPreview(null);
+      showToast("Imported successfully");
       await loadExperiences();
     } finally {
       setImporting(false);
@@ -167,8 +190,11 @@ export default function PlanPage() {
       setImportText("");
       setImportStartDate("");
       setImportPreview(null);
+      showToast("Import added to trip");
       await loadTrip();
       await loadExperiences();
+    } catch {
+      showToast("Import failed", "error");
     } finally {
       setImporting(false);
     }
@@ -176,15 +202,19 @@ export default function PlanPage() {
 
   async function handleNearbyClick(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number }) {
     if (!trip || !selectedCityId) return;
-    // Quick-capture from nearby marker
-    await api.post("/experiences", {
-      tripId: trip.id,
-      cityId: selectedCityId,
-      name: place.name,
-      description: `Nearby discovery (★${place.rating})`,
-      userNotes: "Discovered via map nearby places",
-    });
-    await loadExperiences();
+    try {
+      await api.post("/experiences", {
+        tripId: trip.id,
+        cityId: selectedCityId,
+        name: place.name,
+        description: `Nearby discovery (${place.rating} stars)`,
+        userNotes: "Discovered via map",
+      });
+      showToast(`${place.name} added`);
+      await loadExperiences();
+    } catch {
+      showToast("Couldn't add place", "error");
+    }
   }
 
   if (loading || !trip) {
@@ -208,6 +238,7 @@ export default function PlanPage() {
   }
 
   // Filter experiences for current context, then by theme
+  // Theme filters persist across axis switches
   const axisFiltered = axis === "days" && selectedDay
     ? experiences.filter((e) => e.cityId === selectedDay.cityId)
     : experiences;
@@ -220,6 +251,15 @@ export default function PlanPage() {
 
   const selected = contextExperiences.filter((e) => e.state === "selected");
   const possible = contextExperiences.filter((e) => e.state === "possible");
+
+  // Friction indicators for day chips
+  const dayFrictionMap = new Map<string, boolean>();
+  for (const day of days) {
+    const daySelected = experiences.filter(e => e.state === "selected" && e.dayId === day.id);
+    if (daySelected.length >= 5) {
+      dayFrictionMap.set(day.id, true);
+    }
+  }
 
   // Map center based on context
   const mapCenter = (() => {
@@ -238,6 +278,18 @@ export default function PlanPage() {
 
   return (
     <div className="h-screen flex flex-col bg-[#faf8f5]">
+      {/* First-time guide */}
+      <FirstTimeGuide
+        id="plan"
+        lines={[
+          "Switch between Cities and Days to organize your trip",
+          "Drag experiences up to add them to your itinerary",
+          "Tap a day card to see details, route suggestions, and alerts",
+          "Filter by theme to focus on what interests you",
+          "Ghost markers on the map show highly-rated places nearby",
+        ]}
+      />
+
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-[#f0ece5] bg-white shrink-0">
         <button
@@ -263,15 +315,6 @@ export default function PlanPage() {
           ))}
           <span className="text-[#e0d8cc] mx-1">|</span>
           <button
-            onClick={() => setShowNearby(!showNearby)}
-            className={`px-2 py-1 rounded text-xs transition-colors ${
-              showNearby ? "bg-[#e8e2d8] text-[#514636]" : "text-[#c8bba8] hover:text-[#8a7a62]"
-            }`}
-            title="Show nearby high-rated places"
-          >
-            Nearby
-          </button>
-          <button
             onClick={() => setShowImport(!showImport)}
             className="px-2 py-1 rounded text-xs text-[#8a7a62] hover:bg-[#f0ece5] transition-colors"
             title="Import text or paste recommendations"
@@ -296,7 +339,7 @@ export default function PlanPage() {
                              text-[#3a3128] placeholder-[#c8bba8] text-sm resize-y
                              focus:outline-none focus:ring-2 focus:ring-[#a89880]"
                 />
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <input
                     type="date"
                     value={importStartDate}
@@ -305,7 +348,7 @@ export default function PlanPage() {
                     className="px-2 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#3a3128]
                                focus:outline-none focus:ring-2 focus:ring-[#a89880]"
                   />
-                  <span className="text-[10px] text-[#c8bba8]">Start date (if text uses "Day 1, Day 2")</span>
+                  <span className="text-[10px] text-[#c8bba8] hidden sm:inline">Start date (if text uses "Day 1, Day 2")</span>
                   <div className="flex-1" />
                   <button
                     onClick={handleImportExtract}
@@ -334,8 +377,8 @@ export default function PlanPage() {
                     &larr; Edit text
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs max-h-48 overflow-y-auto">
-                  {/* Cities */}
+                {/* Stacked on mobile, grid on desktop */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs max-h-48 overflow-y-auto">
                   {importPreview.cities?.length > 0 && (
                     <div>
                       <span className="font-medium text-[#a89880] uppercase tracking-wider">
@@ -353,7 +396,6 @@ export default function PlanPage() {
                       </div>
                     </div>
                   )}
-                  {/* Experiences */}
                   {importPreview.experiences?.length > 0 && (
                     <div>
                       <span className="font-medium text-[#a89880] uppercase tracking-wider">
@@ -368,7 +410,6 @@ export default function PlanPage() {
                       </div>
                     </div>
                   )}
-                  {/* Accommodations + Routes */}
                   <div>
                     {importPreview.accommodations?.length > 0 && (
                       <div className="mb-2">
@@ -422,17 +463,17 @@ export default function PlanPage() {
         </div>
       )}
 
-      {/* Main content */}
+      {/* Main content — desktop: side-by-side, mobile: toggle map/list */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Map */}
-        <div className="flex-1 relative">
+        {/* Map — always visible on desktop, toggleable on mobile */}
+        <div className={`flex-1 relative ${mobileView !== "map" ? "hidden md:block" : ""}`}>
           <MapCanvas
             center={mapCenter}
             experiences={contextExperiences}
             accommodations={selectedDay?.accommodations || []}
             onExperienceClick={(id) => setSelectedExpId(id)}
             onNearbyClick={handleNearbyClick}
-            showNearby={showNearby}
+            showNearby={true}
             themeFilter={activeThemes}
           />
 
@@ -463,6 +504,28 @@ export default function PlanPage() {
             </div>
           )}
 
+          {/* Map legend — bottom left, subtle */}
+          <div className="absolute bottom-[7.5rem] left-2 z-10 hidden md:block">
+            <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-2.5 py-2 text-[10px] text-[#8a7a62] space-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#514636]" />
+                <span>Planned</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#c8bba8]" />
+                <span>Possible</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#e8e2d8] border border-[#d4cdc0]" />
+                <span>Nearby</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#6b5d4a]" />
+                <span>Hotel</span>
+              </div>
+            </div>
+          </div>
+
           {/* Now button — visible during trip dates */}
           {isWithinTripDates(trip) && (
             <button
@@ -484,13 +547,18 @@ export default function PlanPage() {
             +
           </button>
 
-          {/* Mobile list toggle */}
+          {/* Mobile view toggle — map/list */}
           <button
-            onClick={() => setMobilePanel(mobilePanel ? null : "list")}
+            onClick={() => setMobileView("list")}
             className="absolute bottom-20 right-20 md:hidden w-10 h-10 rounded-full bg-white shadow-lg
                        text-sm text-[#514636] flex items-center justify-center z-10"
+            aria-label="Show list"
           >
-            ≡
+            <svg width="16" height="14" viewBox="0 0 16 14" fill="currentColor">
+              <rect y="0" width="16" height="2" rx="1" />
+              <rect y="6" width="16" height="2" rx="1" />
+              <rect y="12" width="16" height="2" rx="1" />
+            </svg>
           </button>
 
           {/* Theme filter chips + Selector strip */}
@@ -554,16 +622,21 @@ export default function PlanPage() {
                 const dayAccom = day.accommodations?.[0];
                 const mapUrl = buildStaticMapUrl(locatedExps, dayAccom);
                 const isActive = selectedDayId === day.id;
+                const hasFriction = dayFrictionMap.has(day.id);
                 return (
                   <button
                     key={day.id}
                     onClick={() => { setSelectedDayId(day.id); setShowDayView(true); }}
-                    className={`shrink-0 rounded-lg overflow-hidden transition-all ${
+                    className={`shrink-0 rounded-lg overflow-hidden transition-all relative ${
                       isActive
                         ? "ring-2 ring-[#514636] w-[120px]"
                         : "w-[100px] opacity-80 hover:opacity-100"
                     }`}
                   >
+                    {/* Friction indicator dot */}
+                    {hasFriction && (
+                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 z-10" />
+                    )}
                     {mapUrl ? (
                       <img
                         src={mapUrl}
@@ -675,38 +748,76 @@ export default function PlanPage() {
           )}
         </div>
 
-        {/* Mobile bottom drawer */}
-        {mobilePanel === "list" && (
-          <div className="fixed inset-x-0 bottom-0 z-40 bg-white border-t border-[#e0d8cc]
-                          rounded-t-2xl shadow-2xl max-h-[60vh] overflow-y-auto md:hidden">
-            <div className="w-12 h-1 bg-[#e0d8cc] rounded-full mx-auto mt-2 mb-1" />
-            {showDayView && selectedDay ? (
-              <DayView
-                day={selectedDay}
-                experiences={contextExperiences}
-                trip={trip}
-                onClose={() => { setShowDayView(false); setMobilePanel(null); }}
-                onPromote={handlePromote}
-                onDemote={handleDemote}
-                onExperienceClick={(id) => { setSelectedExpId(id); setMobilePanel(null); }}
-                onRefresh={() => { loadExperiences(); loadTrip(); }}
-              />
-            ) : (
-              <ExperienceList
-                selected={selected}
-                possible={possible}
-                days={days}
-                trip={trip}
-                onPromote={handlePromote}
-                onDemote={handleDemote}
-                onExperienceClick={(id) => { setSelectedExpId(id); setMobilePanel(null); }}
-              />
-            )}
+        {/* Mobile list view — full screen when active */}
+        {mobileView === "list" && (
+          <div className="fixed inset-0 z-40 bg-[#faf8f5] md:hidden flex flex-col">
+            {/* Mobile list header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0">
+              <button
+                onClick={() => setMobileView("map")}
+                className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
+              >
+                &larr; Map
+              </button>
+              <span className="text-xs font-medium text-[#a89880]">
+                {selected.length} Selected · {possible.length} Possible
+              </span>
+              {axis === "days" && selectedDay && (
+                <button
+                  onClick={() => { setShowDayView(true); }}
+                  className="text-xs text-[#514636] font-medium"
+                >
+                  Day view
+                </button>
+              )}
+            </div>
+            {/* Mobile list content */}
+            <div className="flex-1 overflow-y-auto">
+              {showDayView && selectedDay ? (
+                <DayView
+                  day={selectedDay}
+                  experiences={contextExperiences}
+                  trip={trip}
+                  onClose={() => { setShowDayView(false); }}
+                  onPromote={handlePromote}
+                  onDemote={handleDemote}
+                  onExperienceClick={(id) => { setSelectedExpId(id); setMobileView("map"); }}
+                  onRefresh={() => { loadExperiences(); loadTrip(); }}
+                />
+              ) : (
+                <ExperienceList
+                  selected={selected}
+                  possible={possible}
+                  days={days}
+                  trip={trip}
+                  onPromote={handlePromote}
+                  onDemote={handleDemote}
+                  onExperienceClick={(id) => { setSelectedExpId(id); setMobileView("map"); }}
+                />
+              )}
+            </div>
+            {/* Mobile bottom actions */}
+            <div className="shrink-0 flex gap-2 px-4 py-3 bg-white border-t border-[#f0ece5]">
+              <button
+                onClick={() => { setShowCapture(true); setMobileView("map"); }}
+                className="flex-1 py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium"
+              >
+                + Capture
+              </button>
+              {axis === "days" && !showDayView && selectedDay && (
+                <button
+                  onClick={() => setShowDayView(true)}
+                  className="px-4 py-2.5 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]"
+                >
+                  Day details
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Experience detail panel */}
+      {/* Experience detail panel — responsive */}
       {selectedExpId && (
         <ExperienceDetail
           experienceId={selectedExpId}
@@ -751,11 +862,9 @@ function buildStaticMapUrl(
   }
   if (points.length === 0) return null;
 
-  // Center on centroid
   const centerLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
   const centerLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
 
-  // Calculate zoom to fit all points
   let zoom = 15;
   if (points.length > 1) {
     const latSpan = Math.max(...points.map(p => p.lat)) - Math.min(...points.map(p => p.lat));
@@ -767,7 +876,6 @@ function buildStaticMapUrl(
     else zoom = 15;
   }
 
-  // Build markers
   const markers = points.slice(0, 5).map(p => `${p.lat},${p.lng}`).join("|");
 
   return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&markers=size:tiny|color:0x514636|${markers}&key=${apiKey}`;
