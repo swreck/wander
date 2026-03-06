@@ -11,7 +11,7 @@ router.use(requireAuth);
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB for large PDFs
 });
 
 // Extract itinerary from text or images — returns structured data for review
@@ -36,6 +36,78 @@ router.post("/extract", upload.array("images", 10), async (req: AuthRequest, res
   } catch (err: any) {
     console.error("Extraction error:", err);
     res.status(500).json({ error: err.message || "Extraction failed" });
+  }
+});
+
+// Extract itinerary from a URL — fetches the page content, then extracts
+router.post("/extract-url", async (req: AuthRequest, res) => {
+  try {
+    const { url, startDate } = req.body;
+
+    if (!url) {
+      res.status(400).json({ error: "URL is required" });
+      return;
+    }
+
+    // Fetch the page
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Wander/1.0)",
+        "Accept": "text/html,application/xhtml+xml,text/plain,*/*",
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      res.status(400).json({ error: `Couldn't fetch that URL (${response.status})` });
+      return;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    let text: string;
+
+    if (contentType.includes("application/pdf")) {
+      // PDF URL — fetch as buffer and send as document to Claude
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const images = [{
+        base64: buffer.toString("base64"),
+        mediaType: "application/pdf",
+      }];
+      const hints = startDate ? { startDate } : undefined;
+      const result = await extractItinerary("", images, hints);
+      res.json(result);
+      return;
+    }
+
+    // HTML/text — strip tags and extract text content
+    const html = await response.text();
+    text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&#\d+;/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!text || text.length < 50) {
+      res.status(400).json({ error: "Couldn't extract readable content from that URL" });
+      return;
+    }
+
+    const hints = startDate ? { startDate } : undefined;
+    const result = await extractItinerary(text, undefined, hints);
+    res.json(result);
+  } catch (err: any) {
+    console.error("URL extraction error:", err);
+    if (err.name === "TimeoutError") {
+      res.status(400).json({ error: "URL took too long to respond" });
+      return;
+    }
+    res.status(500).json({ error: err.message || "URL extraction failed" });
   }
 });
 
