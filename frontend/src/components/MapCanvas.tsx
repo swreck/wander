@@ -12,6 +12,7 @@ interface NearbyPlace {
   longitude: number;
   rating: number;
   userRatingsTotal: number;
+  types?: string[];
 }
 
 interface Props {

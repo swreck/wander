@@ -9,12 +9,15 @@ import CapturePanel from "../components/CapturePanel";
 import DayView from "../components/DayView";
 import FirstTimeGuide from "../components/FirstTimeGuide";
 import { useToast } from "../contexts/ToastContext";
+import { useAuth } from "../contexts/AuthContext";
+import { getNudgesForPlace } from "../lib/travelerProfiles";
 
 type Axis = "cities" | "days";
 
 export default function PlanPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [days, setDays] = useState<Day[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
@@ -200,7 +203,24 @@ export default function PlanPage() {
     }
   }
 
-  async function handleNearbyClick(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number }) {
+  // Personalized nudge state — shown when a nearby marker is tapped
+  const [nudgeMessage, setNudgeMessage] = useState<{ place: any; nudge: string } | null>(null);
+
+  async function handleNearbyClick(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number; types?: string[] }) {
+    if (!trip || !selectedCityId) return;
+
+    // Check for personalized nudge before adding
+    const nudge = user ? getNudgesForPlace(user.displayName, place.name, place.types || []) : null;
+    if (nudge) {
+      setNudgeMessage({ place, nudge });
+      return;
+    }
+
+    // No nudge — add directly
+    await addNearbyPlace(place);
+  }
+
+  async function addNearbyPlace(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number }) {
     if (!trip || !selectedCityId) return;
     try {
       await api.post("/experiences", {
@@ -816,6 +836,39 @@ export default function PlanPage() {
           </div>
         )}
       </div>
+
+      {/* Personalized nudge card */}
+      {nudgeMessage && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/20">
+          <div className="bg-white rounded-t-xl sm:rounded-xl shadow-xl max-w-sm w-full mx-4 mb-0 sm:mb-0 p-5 border border-[#e0d8cc]">
+            <p className="text-sm text-[#3a3128] leading-relaxed mb-1">
+              {nudgeMessage.nudge}
+            </p>
+            <p className="text-xs text-[#a89880] mb-4">
+              {nudgeMessage.place.name} · {nudgeMessage.place.rating} stars
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  addNearbyPlace(nudgeMessage.place);
+                  setNudgeMessage(null);
+                }}
+                className="flex-1 py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium
+                           hover:bg-[#3a3128] transition-colors"
+              >
+                Add to trip
+              </button>
+              <button
+                onClick={() => setNudgeMessage(null)}
+                className="flex-1 py-2.5 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
+                           hover:bg-[#f0ece5] transition-colors"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Experience detail panel — responsive */}
       {selectedExpId && (

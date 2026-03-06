@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-05 (Login & Personalization)
+
+### Changed
+- **Login simplified**: No more access codes. The login screen shows four name buttons (Ken, Julie, Andy, Larisa). Tap your name, you're in. Everyone sees everything, can change anything. The changelog tracks who did what. (Login screen)
+
+### Added
+- **Personalized nudges (easter eggs)**: When a nearby place or experience matches a traveler's personal interests, a warm, specific message appears — like a thoughtful friend whispering a suggestion. Not a feature, not an alert — a quiet personal touch that appears only when it's relevant.
+  - **Larisa**: ceramic frogs (for her mother), tulips, flower markets, ceramics studios (shared with Julie), local artisan gifts, sweet treats (custard, matcha, pastries), sports gear
+  - **Andy**: Buddhist temples and meditation spots, Zen gardens, AI/tech innovation spaces, independent bookstores
+  - **Julie**: ceramics and pottery studios (shared with Larisa), exceptional fresh produce, cooking classes, quality sportswear
+  - **Ken**: AI/tech innovation, philosophy/bookstores, cooking classes, art galleries, Japanese culture
+- Nudges appear in two places: (1) when tapping a nearby ghost marker that matches your interests — shows a card with the nudge and "Add to trip" / "Not now" buttons; (2) in the experience detail view when viewing a matching experience. (Plan screen, Experience Detail)
+
+SPEC UPDATE NEEDED: Login flow changed from access codes to name buttons. Personalized nudge system is new and not in SPEC.md.
+
 ## 2026-03-05 (UX Polish — Power Made Visible)
 
 ### Added

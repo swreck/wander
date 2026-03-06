@@ -2,65 +2,63 @@ import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
+const TRAVELERS = [
+  { name: "Ken", code: "Ken" },
+  { name: "Julie", code: "Julie" },
+  { name: "Andy", code: "Andy" },
+  { name: "Larisa", code: "Larisa" },
+];
+
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [code, setCode] = useState("");
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [signing, setSigning] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!code.trim()) return;
+  async function handleSelect(traveler: { name: string; code: string }) {
     setError("");
-    setSubmitting(true);
+    setSigning(traveler.name);
     try {
-      await login(code.trim());
+      await login(traveler.code);
       navigate("/");
-    } catch (err: any) {
-      setError(err.message || "Invalid access code");
+    } catch {
+      setError("Couldn't sign in. Try again.");
     } finally {
-      setSubmitting(false);
+      setSigning(null);
     }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
-      <div className="w-full max-w-sm">
-        <h1 className="text-3xl font-light tracking-tight text-[#3a3128] mb-2">
+      <div className="w-full max-w-xs text-center">
+        <h1 className="text-3xl font-light tracking-tight text-[#3a3128] mb-1">
           Wander
         </h1>
-        <p className="text-sm text-[#8a7a62] mb-8">
-          Enter your access code to continue
+        <p className="text-sm text-[#8a7a62] mb-10">
+          Who's exploring?
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="Access code"
-            autoFocus
-            autoComplete="off"
-            className="w-full px-4 py-3 rounded-lg border border-[#e0d8cc] bg-white
-                       text-[#3a3128] placeholder-[#c8bba8] text-lg
-                       focus:outline-none focus:ring-2 focus:ring-[#a89880] focus:border-transparent"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          {TRAVELERS.map((t) => (
+            <button
+              key={t.name}
+              onClick={() => handleSelect(t)}
+              disabled={signing !== null}
+              className={`py-4 px-3 rounded-xl border-2 text-base font-medium transition-all
+                ${signing === t.name
+                  ? "border-[#514636] bg-[#514636] text-white scale-95"
+                  : "border-[#e0d8cc] bg-white text-[#3a3128] hover:border-[#a89880] hover:bg-[#faf8f5] active:scale-95"
+                }
+                disabled:opacity-60`}
+            >
+              {signing === t.name ? "..." : t.name}
+            </button>
+          ))}
+        </div>
 
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting || !code.trim()}
-            className="w-full py-3 rounded-lg bg-[#514636] text-white text-sm font-medium
-                       hover:bg-[#3a3128] disabled:opacity-40 disabled:cursor-not-allowed
-                       transition-colors"
-          >
-            {submitting ? "Signing in..." : "Continue"}
-          </button>
-        </form>
+        {error && (
+          <p className="text-sm text-red-600 mt-4">{error}</p>
+        )}
       </div>
     </div>
   );

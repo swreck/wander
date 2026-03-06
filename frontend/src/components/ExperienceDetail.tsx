@@ -3,6 +3,8 @@ import { api } from "../lib/api";
 import type { Experience, Trip, Day } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
 import { useToast } from "../contexts/ToastContext";
+import { useAuth } from "../contexts/AuthContext";
+import { getNudgeForExperience } from "../lib/travelerProfiles";
 
 interface Props {
   experienceId: string;
@@ -19,6 +21,7 @@ export default function ExperienceDetail({
   experienceId, trip, days, onClose, onPromote, onDemote, onDelete, onRefresh,
 }: Props) {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [exp, setExp] = useState<Experience | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -170,6 +173,18 @@ export default function ExperienceDetail({
             </button>
           )}
         </div>
+
+        {/* Personalized nudge — shown if this experience matches the user's interests */}
+        {(() => {
+          if (!user || !exp) return null;
+          const nudge = getNudgeForExperience(user.displayName, exp.name, exp.themes || []);
+          if (!nudge) return null;
+          return (
+            <div className="px-3 py-2.5 bg-[#f0ece5] rounded-lg text-sm text-[#6b5d4a] italic border-l-3 border-[#a89880]">
+              {nudge}
+            </div>
+          );
+        })()}
 
         {/* Personal notes — prominent, above description */}
         {editing ? (
