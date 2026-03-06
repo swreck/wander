@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { api } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 import ImportReview from "./ImportReview";
 
 interface CityInput {
@@ -51,6 +52,7 @@ export interface ExtractionResult {
 }
 
 export default function CreateTrip({ onCreated }: Props) {
+  const { user, logout } = useAuth();
   const [mode, setMode] = useState<Mode>("choose");
 
   // Manual mode state
@@ -172,32 +174,53 @@ export default function CreateTrip({ onCreated }: Props) {
 
   // --- Mode: Choose ---
   if (mode === "choose") {
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
     return (
       <div className="min-h-screen bg-[#faf8f5]">
-        <div className="max-w-xl mx-auto px-4 py-8">
-          <h1 className="text-2xl font-light text-[#3a3128] mb-2">New Trip</h1>
-          <p className="text-sm text-[#8a7a62] mb-8">How would you like to start?</p>
+        <div className="max-w-xl mx-auto px-4 py-12">
+          {/* Identity bar */}
+          <div className="flex items-center justify-between mb-10">
+            <div className="text-xs text-[#a89880] tracking-wide uppercase">Wander</div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-[#8a7a62]">{user?.displayName}</span>
+              <button onClick={logout} className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors">
+                Sign out
+              </button>
+            </div>
+          </div>
+
+          {/* Welcome */}
+          <div className="mb-10">
+            <h1 className="text-3xl font-light text-[#3a3128] mb-2">
+              {greeting}{user ? `, ${user.displayName}` : ""}.
+            </h1>
+            <p className="text-[15px] text-[#6b5d4a] leading-relaxed">
+              Let's get your trip started. If you have an itinerary from a tour company, travel agent, or even an AI chatbot, paste it in and Wander will do the rest. Or start fresh — either way, you'll have a map, a schedule, and everything organized in a few minutes.
+            </p>
+          </div>
 
           <div className="space-y-3">
             <button
               onClick={() => setMode("import")}
-              className="w-full text-left px-5 py-4 bg-white rounded-lg border border-[#e0d8cc]
-                         hover:border-[#a89880] transition-colors"
+              className="w-full text-left px-5 py-5 bg-white rounded-xl border border-[#e0d8cc]
+                         hover:border-[#a89880] hover:shadow-sm transition-all"
             >
-              <div className="text-[#3a3128] font-medium">Import an itinerary</div>
-              <div className="text-sm text-[#8a7a62] mt-1">
-                Paste text, upload screenshots, or share a document from a tour company, travel agent, or AI chatbot
+              <div className="text-[#3a3128] font-medium text-base">Import an itinerary</div>
+              <div className="text-sm text-[#8a7a62] mt-1.5 leading-relaxed">
+                Paste text, upload screenshots, or share a document — Wander extracts cities, hotels, activities, and dates automatically
               </div>
             </button>
 
             <button
               onClick={() => setMode("manual")}
-              className="w-full text-left px-5 py-4 bg-white rounded-lg border border-[#f0ece5]
-                         hover:border-[#e0d8cc] transition-colors"
+              className="w-full text-left px-5 py-5 bg-white rounded-xl border border-[#f0ece5]
+                         hover:border-[#e0d8cc] hover:shadow-sm transition-all"
             >
-              <div className="text-[#3a3128] font-medium">Start from scratch</div>
-              <div className="text-sm text-[#8a7a62] mt-1">
-                Enter trip dates and cities manually
+              <div className="text-[#3a3128] font-medium text-base">Start from scratch</div>
+              <div className="text-sm text-[#8a7a62] mt-1.5">
+                Enter your dates and cities, then add experiences as you discover them
               </div>
             </button>
           </div>
