@@ -44,14 +44,38 @@ router.get("/search", async (req, res) => {
   res.json(results);
 });
 
+// Theme-to-Google-Places type mapping
+const THEME_TYPES: Record<string, string> = {
+  ceramics: "museum|art_gallery|store",
+  architecture: "church|hindu_temple|museum|landmark",
+  food: "restaurant|cafe|bakery|bar",
+  temples: "hindu_temple|buddhist_temple|place_of_worship",
+  nature: "park|natural_feature",
+};
+
 // Get nearby high-rated places (Tier 3 markers)
 router.get("/nearby", async (req, res) => {
-  const { lat, lng, radius } = req.query as Record<string, string | undefined>;
+  const { lat, lng, radius, themes } = req.query as Record<string, string | undefined>;
   if (!lat || !lng) { res.status(400).json({ error: "lat and lng required" }); return; }
+
+  // Build type filter from themes if provided
+  let typeFilter: string | undefined;
+  if (themes) {
+    const themeList = themes.split(",").filter(t => t in THEME_TYPES);
+    if (themeList.length > 0) {
+      const types = new Set<string>();
+      for (const t of themeList) {
+        THEME_TYPES[t].split("|").forEach(tp => types.add(tp));
+      }
+      typeFilter = [...types].join("|");
+    }
+  }
+
   const results = await nearbyPlaces(
     parseFloat(lat),
     parseFloat(lng),
-    radius ? parseInt(radius) : 1000
+    radius ? parseInt(radius) : 1000,
+    typeFilter,
   );
   res.json(results);
 });

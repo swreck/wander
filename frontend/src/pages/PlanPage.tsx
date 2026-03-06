@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import type { Trip, City, Day, Experience, RouteSegment } from "../lib/types";
+import type { Trip, City, Day, Experience } from "../lib/types";
 import MapCanvas from "../components/MapCanvas";
 import ExperienceList from "../components/ExperienceList";
 import ExperienceDetail from "../components/ExperienceDetail";
 import CapturePanel from "../components/CapturePanel";
 import DayView from "../components/DayView";
 
-type Axis = "cities" | "days" | "routes";
+type Axis = "cities" | "days";
 
 export default function PlanPage() {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ export default function PlanPage() {
   const [axis, setAxis] = useState<Axis>("cities");
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
-  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
+  // selectedSegmentId removed — routes axis eliminated per UX redesign
 
   // UI state
   const [showCapture, setShowCapture] = useState(false);
@@ -39,7 +39,9 @@ export default function PlanPage() {
 
   // Import more
   const [importText, setImportText] = useState("");
+  const [importStartDate, setImportStartDate] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<any>(null);
 
   // Theme filter state
   const [activeThemes, setActiveThemes] = useState<string[]>([]);
@@ -62,12 +64,8 @@ export default function PlanPage() {
       setSelectedDayId(d[0].id);
     }
 
-    if (!selectedSegmentId && t.routeSegments.length > 0) {
-      setSelectedSegmentId(t.routeSegments[0].id);
-    }
-
     setLoading(false);
-  }, [navigate, selectedCityId, selectedDayId, selectedSegmentId]);
+  }, [navigate, selectedCityId, selectedDayId]);
 
   useEffect(() => { loadTrip(); }, []);
 
@@ -134,10 +132,17 @@ export default function PlanPage() {
     await loadTrip();
   }
 
-  async function handleImportMore() {
+  async function handleImportExtract() {
     if (!trip || !importText.trim()) return;
     setImporting(true);
     try {
+      const formData = new FormData();
+      formData.append("text", importText.trim());
+      if (importStartDate) formData.append("startDate", importStartDate);
+      const result = await api.upload<any>("/import/extract", formData);
+      setImportPreview(result);
+    } catch {
+      // Fall back to simple capture if extraction fails
       const formData = new FormData();
       formData.append("tripId", trip.id);
       formData.append("cityId", selectedCityId || trip.cities[0]?.id || "");
@@ -146,6 +151,23 @@ export default function PlanPage() {
       await api.upload("/capture", formData);
       setShowImport(false);
       setImportText("");
+      setImportPreview(null);
+      await loadExperiences();
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function handleImportMerge() {
+    if (!trip || !importPreview) return;
+    setImporting(true);
+    try {
+      await api.post("/import/merge", { tripId: trip.id, ...importPreview });
+      setShowImport(false);
+      setImportText("");
+      setImportStartDate("");
+      setImportPreview(null);
+      await loadTrip();
       await loadExperiences();
     } finally {
       setImporting(false);
@@ -226,7 +248,7 @@ export default function PlanPage() {
         </button>
         <div className="flex items-center gap-2">
           {/* Axis switcher */}
-          {(["cities", "days", "routes"] as Axis[]).map((a) => (
+          {(["cities", "days"] as Axis[]).map((a) => (
             <button
               key={a}
               onClick={() => setAxis(a)}
@@ -263,34 +285,139 @@ export default function PlanPage() {
       {showImport && (
         <div className="px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0">
           <div className="max-w-2xl mx-auto">
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder="Paste recommendations, article text, or chatbot output to extract experiences..."
-              rows={4}
-              className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
-                         text-[#3a3128] placeholder-[#c8bba8] text-sm resize-y
-                         focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-            />
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={handleImportMore}
-                disabled={importing || !importText.trim()}
-                className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                           hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-              >
-                {importing ? "Extracting..." : "Extract & Add"}
-              </button>
-              <button
-                onClick={() => { setShowImport(false); setImportText(""); }}
-                className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
-              >
-                Cancel
-              </button>
-              <span className="text-xs text-[#c8bba8] self-center ml-2">
-                Adding to: {trip.cities.find((c) => c.id === selectedCityId)?.name || "first city"}
-              </span>
-            </div>
+            {!importPreview ? (
+              <>
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder="Paste recommendations, itinerary text, tour details, or chatbot output..."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
+                             text-[#3a3128] placeholder-[#c8bba8] text-sm resize-y
+                             focus:outline-none focus:ring-2 focus:ring-[#a89880]"
+                />
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="date"
+                    value={importStartDate}
+                    onChange={(e) => setImportStartDate(e.target.value)}
+                    placeholder="Start date hint"
+                    className="px-2 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#3a3128]
+                               focus:outline-none focus:ring-2 focus:ring-[#a89880]"
+                  />
+                  <span className="text-[10px] text-[#c8bba8]">Start date (if text uses "Day 1, Day 2")</span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={handleImportExtract}
+                    disabled={importing || !importText.trim()}
+                    className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
+                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
+                  >
+                    {importing ? "Analyzing..." : "Extract & Review"}
+                  </button>
+                  <button
+                    onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); }}
+                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-[#3a3128]">Review before adding to trip</h3>
+                  <button
+                    onClick={() => setImportPreview(null)}
+                    className="text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                  >
+                    &larr; Edit text
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs max-h-48 overflow-y-auto">
+                  {/* Cities */}
+                  {importPreview.cities?.length > 0 && (
+                    <div>
+                      <span className="font-medium text-[#a89880] uppercase tracking-wider">
+                        {importPreview.cities.filter((c: any) => !trip.cities.some((tc) => tc.name.toLowerCase() === c.name.toLowerCase())).length} new cities
+                      </span>
+                      <div className="mt-1 space-y-0.5">
+                        {importPreview.cities.map((c: any, i: number) => {
+                          const exists = trip.cities.some((tc) => tc.name.toLowerCase() === c.name.toLowerCase());
+                          return (
+                            <div key={i} className={`px-2 py-1 rounded ${exists ? "text-[#c8bba8]" : "bg-[#f0ece5] text-[#3a3128]"}`}>
+                              {c.name} {exists && <span className="text-[10px]">(exists)</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {/* Experiences */}
+                  {importPreview.experiences?.length > 0 && (
+                    <div>
+                      <span className="font-medium text-[#a89880] uppercase tracking-wider">
+                        {importPreview.experiences.length} experiences
+                      </span>
+                      <div className="mt-1 space-y-0.5">
+                        {importPreview.experiences.map((e: any, i: number) => (
+                          <div key={i} className="px-2 py-1 rounded bg-[#f0ece5] text-[#3a3128]">
+                            {e.name} <span className="text-[#a89880]">· {e.cityName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Accommodations + Routes */}
+                  <div>
+                    {importPreview.accommodations?.length > 0 && (
+                      <div className="mb-2">
+                        <span className="font-medium text-[#a89880] uppercase tracking-wider">
+                          {importPreview.accommodations.length} hotels
+                        </span>
+                        <div className="mt-1 space-y-0.5">
+                          {importPreview.accommodations.map((a: any, i: number) => (
+                            <div key={i} className="px-2 py-1 rounded bg-[#f0ece5] text-[#3a3128]">
+                              {a.name} <span className="text-[#a89880]">· {a.cityName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {importPreview.routeSegments?.length > 0 && (
+                      <div>
+                        <span className="font-medium text-[#a89880] uppercase tracking-wider">
+                          {importPreview.routeSegments.length} routes
+                        </span>
+                        <div className="mt-1 space-y-0.5">
+                          {importPreview.routeSegments.map((r: any, i: number) => (
+                            <div key={i} className="px-2 py-1 rounded bg-[#f0ece5] text-[#3a3128]">
+                              {r.originCity} → {r.destinationCity}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={handleImportMerge}
+                    disabled={importing}
+                    className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
+                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
+                  >
+                    {importing ? "Adding..." : "Add to Trip"}
+                  </button>
+                  <button
+                    onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); }}
+                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -306,7 +433,35 @@ export default function PlanPage() {
             onExperienceClick={(id) => setSelectedExpId(id)}
             onNearbyClick={handleNearbyClick}
             showNearby={showNearby}
+            themeFilter={activeThemes}
           />
+
+          {/* Contextual day card — floating over map when Days axis is active */}
+          {axis === "days" && selectedDay && (
+            <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none flex justify-center">
+              <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-3 py-2 pointer-events-auto max-w-sm">
+                <div className="text-xs font-medium text-[#3a3128]">
+                  {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                  {" — "}
+                  {selectedDay.city.name}
+                  {selectedDay.city.tagline && (
+                    <span className="text-[#a89880] font-normal ml-1">· {selectedDay.city.tagline}</span>
+                  )}
+                </div>
+                <div className="text-[10px] text-[#8a7a62] mt-0.5">
+                  {selected.filter(e => e.dayId === selectedDay.id).length} planned
+                  {selectedDay.explorationZone && ` · ${selectedDay.explorationZone}`}
+                  {(() => {
+                    const dayRes = selectedDay.reservations?.find(r => r);
+                    if (dayRes) {
+                      return ` · ${dayRes.name} ${new Date(dayRes.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+                    }
+                    return "";
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Now button — visible during trip dates */}
           {isWithinTripDates(trip) && (
@@ -378,6 +533,9 @@ export default function PlanPage() {
                       }`}
                     >
                       {city.name}
+                      {city.tagline && selectedCityId === city.id && (
+                        <span className="ml-1 opacity-70 font-normal">· {city.tagline}</span>
+                      )}
                     </button>
                   ))}
                   <button
@@ -390,32 +548,46 @@ export default function PlanPage() {
                   </button>
                 </>
               )}
-              {axis === "days" && days.map((day) => (
-                <button
-                  key={day.id}
-                  onClick={() => { setSelectedDayId(day.id); setShowDayView(true); }}
-                  className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors ${
-                    selectedDayId === day.id
-                      ? "bg-[#514636] text-white"
-                      : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
-                  }`}
-                >
-                  {formatShortDate(day.date)} · {day.city.name}
-                </button>
-              ))}
-              {axis === "routes" && trip.routeSegments.map((seg) => (
-                <button
-                  key={seg.id}
-                  onClick={() => setSelectedSegmentId(seg.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors ${
-                    selectedSegmentId === seg.id
-                      ? "bg-[#514636] text-white"
-                      : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
-                  }`}
-                >
-                  {seg.originCity} → {seg.destinationCity}
-                </button>
-              ))}
+              {axis === "days" && days.map((day) => {
+                const dayExps = experiences.filter(e => e.state === "selected" && e.dayId === day.id);
+                const locatedExps = dayExps.filter(e => e.latitude != null && e.longitude != null);
+                const dayAccom = day.accommodations?.[0];
+                const mapUrl = buildStaticMapUrl(locatedExps, dayAccom);
+                const isActive = selectedDayId === day.id;
+                return (
+                  <button
+                    key={day.id}
+                    onClick={() => { setSelectedDayId(day.id); setShowDayView(true); }}
+                    className={`shrink-0 rounded-lg overflow-hidden transition-all ${
+                      isActive
+                        ? "ring-2 ring-[#514636] w-[120px]"
+                        : "w-[100px] opacity-80 hover:opacity-100"
+                    }`}
+                  >
+                    {mapUrl ? (
+                      <img
+                        src={mapUrl}
+                        alt={`${day.city.name} map`}
+                        className="w-full h-14 object-cover bg-[#f0ece5]"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-14 bg-[#f0ece5] flex items-center justify-center">
+                        <span className="text-[#c8bba8] text-lg">{day.city.name.charAt(0)}</span>
+                      </div>
+                    )}
+                    <div className={`px-1.5 py-1 text-left ${isActive ? "bg-[#514636] text-white" : "bg-[#f0ece5] text-[#6b5d4a]"}`}>
+                      <div className="text-[10px] font-medium truncate">
+                        {formatShortDate(day.date)}
+                      </div>
+                      <div className={`text-[9px] truncate ${isActive ? "opacity-70" : "text-[#a89880]"}`}>
+                        {day.city.name}
+                        {dayExps.length > 0 ? ` · ${dayExps.length}` : ""}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -559,6 +731,46 @@ export default function PlanPage() {
       )}
     </div>
   );
+}
+
+function buildStaticMapUrl(
+  experiences: { latitude: number | null; longitude: number | null }[],
+  accommodation?: { latitude: number | null; longitude: number | null } | null,
+): string | null {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return null;
+
+  const points: { lat: number; lng: number }[] = [];
+  for (const e of experiences) {
+    if (e.latitude != null && e.longitude != null) {
+      points.push({ lat: e.latitude, lng: e.longitude });
+    }
+  }
+  if (accommodation?.latitude != null && accommodation?.longitude != null) {
+    points.push({ lat: accommodation.latitude, lng: accommodation.longitude });
+  }
+  if (points.length === 0) return null;
+
+  // Center on centroid
+  const centerLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
+  const centerLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
+
+  // Calculate zoom to fit all points
+  let zoom = 15;
+  if (points.length > 1) {
+    const latSpan = Math.max(...points.map(p => p.lat)) - Math.min(...points.map(p => p.lat));
+    const lngSpan = Math.max(...points.map(p => p.lng)) - Math.min(...points.map(p => p.lng));
+    const span = Math.max(latSpan, lngSpan);
+    if (span > 0.1) zoom = 12;
+    else if (span > 0.05) zoom = 13;
+    else if (span > 0.02) zoom = 14;
+    else zoom = 15;
+  }
+
+  // Build markers
+  const markers = points.slice(0, 5).map(p => `${p.lat},${p.lng}`).join("|");
+
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&markers=size:tiny|color:0x514636|${markers}&key=${apiKey}`;
 }
 
 function formatShortDate(d: string): string {

@@ -162,6 +162,57 @@ const tools: Anthropic.Tool[] = [
     description: "Get all days for the trip with their cities",
     input_schema: { type: "object" as const, properties: { tripId: { type: "string" } }, required: ["tripId"] },
   },
+  {
+    name: "update_experience",
+    description: "Edit an experience's name, description, or personal notes",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        experienceId: { type: "string" },
+        name: { type: "string", description: "New name" },
+        description: { type: "string", description: "New description" },
+        userNotes: { type: "string", description: "Personal notes about why this was saved" },
+      },
+      required: ["experienceId"],
+    },
+  },
+  {
+    name: "update_trip",
+    description: "Edit the trip name or date range",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        name: { type: "string" },
+        startDate: { type: "string", description: "YYYY-MM-DD format" },
+        endDate: { type: "string", description: "YYYY-MM-DD format" },
+      },
+      required: ["tripId"],
+    },
+  },
+  {
+    name: "delete_city",
+    description: "Remove a city from the trip. Experiences are preserved by moving them to another city.",
+    input_schema: { type: "object" as const, properties: { cityId: { type: "string" } }, required: ["cityId"] },
+  },
+  {
+    name: "delete_reservation",
+    description: "Delete a reservation",
+    input_schema: { type: "object" as const, properties: { reservationId: { type: "string" } }, required: ["reservationId"] },
+  },
+  {
+    name: "get_change_log",
+    description: "Get recent changes/history for the trip, optionally filtered by search term",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        search: { type: "string", description: "Optional search term to filter changes" },
+        limit: { type: "number", description: "Number of entries to return (default 20)" },
+      },
+      required: ["tripId"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -428,6 +479,122 @@ async function executeTool(
         include: { city: true, experiences: { select: { id: true, name: true, state: true } } },
       });
       return { result: days };
+    }
+
+    case "update_experience": {
+      const existing = await prisma.experience.findUnique({ where: { id: input.experienceId }, include: { city: true } });
+      if (!existing) return { result: { error: "Experience not found" } };
+      const data: any = {};
+      if (input.name !== undefined) data.name = input.name;
+      if (input.description !== undefined) data.description = input.description || null;
+      if (input.userNotes !== undefined) data.userNotes = input.userNotes || null;
+      const exp = await prisma.experience.update({
+        where: { id: input.experienceId },
+        data,
+        include: { city: true },
+      });
+      await logChange({
+        user,
+        tripId: existing.tripId,
+        actionType: "experience_updated",
+        entityType: "experience",
+        entityId: exp.id,
+        entityName: exp.name,
+        description: `${user.displayName} edited "${exp.name}" (via chat)`,
+        previousState: existing,
+        newState: exp,
+      });
+      return { result: exp, actionDescription: `Updated "${exp.name}"` };
+    }
+
+    case "update_trip": {
+      const existing = await prisma.trip.findUnique({ where: { id: input.tripId } });
+      if (!existing) return { result: { error: "Trip not found" } };
+      const data: any = {};
+      if (input.name !== undefined) data.name = input.name;
+      if (input.startDate !== undefined) data.startDate = new Date(input.startDate);
+      if (input.endDate !== undefined) data.endDate = new Date(input.endDate);
+      const trip = await prisma.trip.update({ where: { id: input.tripId }, data });
+      await logChange({
+        user,
+        tripId: trip.id,
+        actionType: "trip_updated",
+        entityType: "trip",
+        entityId: trip.id,
+        entityName: trip.name,
+        description: `${user.displayName} updated trip "${trip.name}" (via chat)`,
+        previousState: existing,
+        newState: trip,
+      });
+      return { result: trip, actionDescription: `Updated trip "${trip.name}"` };
+    }
+
+    case "delete_city": {
+      const existing = await prisma.city.findUnique({ where: { id: input.cityId } });
+      if (!existing) return { result: { error: "City not found" } };
+      // Move experiences to another city before deleting
+      const otherCity = await prisma.city.findFirst({
+        where: { tripId: existing.tripId, id: { not: existing.id } },
+        orderBy: { sequenceOrder: "asc" },
+      });
+      if (otherCity) {
+        await prisma.experience.updateMany({
+          where: { cityId: existing.id, state: "selected" },
+          data: { state: "possible", dayId: null, timeWindow: null, routeSegmentId: null },
+        });
+        await prisma.experience.updateMany({
+          where: { cityId: existing.id },
+          data: { cityId: otherCity.id },
+        });
+      }
+      await prisma.day.deleteMany({ where: { cityId: existing.id } });
+      await prisma.city.delete({ where: { id: existing.id } });
+      await logChange({
+        user,
+        tripId: existing.tripId,
+        actionType: "city_deleted",
+        entityType: "city",
+        entityId: existing.id,
+        entityName: existing.name,
+        description: `${user.displayName} deleted city "${existing.name}" (via chat)`,
+        previousState: existing,
+      });
+      return { result: { deleted: true }, actionDescription: `Deleted city "${existing.name}"` };
+    }
+
+    case "delete_reservation": {
+      const existing = await prisma.reservation.findUnique({ where: { id: input.reservationId } });
+      if (!existing) return { result: { error: "Reservation not found" } };
+      await prisma.reservation.delete({ where: { id: input.reservationId } });
+      await logChange({
+        user,
+        tripId: existing.tripId,
+        actionType: "reservation_deleted",
+        entityType: "reservation",
+        entityId: existing.id,
+        entityName: existing.name,
+        description: `${user.displayName} deleted reservation "${existing.name}" (via chat)`,
+        previousState: existing,
+      });
+      return { result: { deleted: true }, actionDescription: `Deleted reservation "${existing.name}"` };
+    }
+
+    case "get_change_log": {
+      const where: any = { tripId: input.tripId };
+      if (input.search) {
+        where.OR = [
+          { description: { contains: input.search, mode: "insensitive" } },
+          { entityName: { contains: input.search, mode: "insensitive" } },
+          { userDisplayName: { contains: input.search, mode: "insensitive" } },
+        ];
+      }
+      const logs = await prisma.changeLog.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: input.limit || 20,
+        select: { id: true, description: true, userDisplayName: true, createdAt: true, actionType: true },
+      });
+      return { result: logs };
     }
 
     default:

@@ -5,6 +5,7 @@ import TripOverview from "./pages/TripOverview";
 import PlanPage from "./pages/PlanPage";
 import NowPage from "./pages/NowPage";
 import HistoryPage from "./pages/HistoryPage";
+import CaptureSharePage from "./pages/CaptureSharePage";
 import OfflineIndicator from "./components/OfflineIndicator";
 import ChatBubble from "./components/ChatBubble";
 import { useState, useEffect, useCallback } from "react";
@@ -65,6 +66,7 @@ function AppRoutes() {
       <Route path="/plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
       <Route path="/now" element={<ProtectedRoute><NowPage /></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+      <Route path="/capture-share" element={<ProtectedRoute><CaptureSharePage /></ProtectedRoute>} />
     </Routes>
   );
 }

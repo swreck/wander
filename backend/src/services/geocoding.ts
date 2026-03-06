@@ -145,13 +145,13 @@ export async function searchPlace(query: string, city: string): Promise<PlaceRes
 }
 
 // Fetch nearby high-rated places for Tier 3 markers
-export async function nearbyPlaces(lat: number, lng: number, radius: number = 1000): Promise<any[]> {
+export async function nearbyPlaces(lat: number, lng: number, radius: number = 1000, typeFilter?: string): Promise<any[]> {
   if (!API_KEY) return [];
 
   const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
   url.searchParams.set("location", `${lat},${lng}`);
   url.searchParams.set("radius", String(radius));
-  url.searchParams.set("type", "restaurant|museum|tourist_attraction|hindu_temple|church|park");
+  url.searchParams.set("type", typeFilter || "restaurant|museum|tourist_attraction|hindu_temple|church|park");
   url.searchParams.set("key", API_KEY);
 
   try {

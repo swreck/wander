@@ -66,6 +66,7 @@ export default function CreateTrip({ onCreated }: Props) {
   // Import mode state
   const [importText, setImportText] = useState("");
   const [importFiles, setImportFiles] = useState<File[]>([]);
+  const [importStartDate, setImportStartDate] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -138,6 +139,9 @@ export default function CreateTrip({ onCreated }: Props) {
       const formData = new FormData();
       if (importText.trim()) {
         formData.append("text", importText.trim());
+      }
+      if (importStartDate) {
+        formData.append("startDate", importStartDate);
       }
       for (const file of importFiles) {
         formData.append("images", file);
@@ -234,6 +238,23 @@ export default function CreateTrip({ onCreated }: Props) {
           </p>
 
           <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+                Trip start date
+              </label>
+              <p className="text-xs text-[#8a7a62] mb-1.5">
+                If the itinerary uses "Day 1, Day 2" instead of real dates, set the start date here
+              </p>
+              <input
+                type="date"
+                value={importStartDate}
+                onChange={(e) => setImportStartDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
+                           text-[#3a3128] text-sm
+                           focus:outline-none focus:ring-2 focus:ring-[#a89880]"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
                 Paste itinerary text

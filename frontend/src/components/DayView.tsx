@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { api } from "../lib/api";
 import type { Day, Experience, Trip } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
@@ -43,6 +43,117 @@ export default function DayView({
   const [editingZone, setEditingZone] = useState(false);
   const [zoneText, setZoneText] = useState(day.explorationZone || "");
 
+  // Friction alerts
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem("wander:dismissed-alerts");
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  function dismissAlert(key: string) {
+    setDismissedAlerts(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      localStorage.setItem("wander:dismissed-alerts", JSON.stringify([...next]));
+      return next;
+    });
+  }
+
+  const frictionAlerts = useMemo(() => {
+    const alerts: { key: string; message: string }[] = [];
+
+    // Density imbalance: if this day has 5+ experiences, check adjacent days in same city
+    if (selectedForDay.length >= 5 && trip.days) {
+      const sameCityDays = trip.days
+        .filter(d => d.cityId === day.cityId)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const dayIdx = sameCityDays.findIndex(d => d.id === day.id);
+      const adjacent = [sameCityDays[dayIdx - 1], sameCityDays[dayIdx + 1]].filter(Boolean);
+      for (const adj of adjacent) {
+        const adjCount = experiences.filter(e => e.state === "selected" && e.dayId === adj.id).length;
+        if (adjCount <= 1) {
+          const adjDate = new Date(adj.date).toLocaleDateString("en-US", { weekday: "long" });
+          alerts.push({
+            key: `density-${day.id}-${adj.id}`,
+            message: `${selectedForDay.length} planned here — ${adjDate} is open.`,
+          });
+        }
+      }
+    }
+
+    // Travel time warning: consecutive experiences far apart
+    const locatedSelected = selectedForDay.filter(e => e.latitude != null && e.longitude != null);
+    for (let i = 1; i < locatedSelected.length; i++) {
+      const prev = locatedSelected[i - 1];
+      const curr = locatedSelected[i];
+      const dx = (curr.latitude! - prev.latitude!) * 111;
+      const dy = (curr.longitude! - prev.longitude!) * 111 * Math.cos(prev.latitude! * Math.PI / 180);
+      const distKm = Math.sqrt(dx * dx + dy * dy);
+      if (distKm > 3) {
+        alerts.push({
+          key: `distance-${prev.id}-${curr.id}`,
+          message: `${prev.name} and ${curr.name} are ~${distKm.toFixed(1)}km apart.`,
+        });
+      }
+    }
+
+    return alerts.filter(a => !dismissedAlerts.has(a.key));
+  }, [selectedForDay, experiences, day, trip.days, dismissedAlerts]);
+
+  // Spatial sequence
+  const [showSpatialSequence, setShowSpatialSequence] = useState(false);
+
+  const spatiallyOrdered = useMemo(() => {
+    const located = selectedForDay.filter(e => e.latitude != null && e.longitude != null);
+    if (located.length < 2) return selectedForDay;
+
+    // Start from accommodation if available, otherwise first experience
+    const startLat = accommodations[0]?.latitude ?? located[0].latitude!;
+    const startLng = accommodations[0]?.longitude ?? located[0].longitude!;
+
+    // Nearest-neighbor greedy sort, respecting time windows
+    const morning = located.filter(e => e.timeWindow?.toLowerCase() === "morning");
+    const afternoon = located.filter(e => e.timeWindow?.toLowerCase() === "afternoon");
+    const evening = located.filter(e => e.timeWindow?.toLowerCase() === "evening");
+    const unslotted = located.filter(e => !["morning", "afternoon", "evening"].includes(e.timeWindow?.toLowerCase() || ""));
+
+    function nearestSort(items: Experience[], fromLat: number, fromLng: number): Experience[] {
+      const result: Experience[] = [];
+      const remaining = [...items];
+      let curLat = fromLat, curLng = fromLng;
+      while (remaining.length > 0) {
+        let bestIdx = 0, bestDist = Infinity;
+        for (let i = 0; i < remaining.length; i++) {
+          const dx = (remaining[i].latitude! - curLat) * 111;
+          const dy = (remaining[i].longitude! - curLng) * 111 * Math.cos(curLat * Math.PI / 180);
+          const dist = dx * dx + dy * dy;
+          if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+        }
+        const next = remaining.splice(bestIdx, 1)[0];
+        result.push(next);
+        curLat = next.latitude!;
+        curLng = next.longitude!;
+      }
+      return result;
+    }
+
+    const sortedMorning = nearestSort(morning, startLat, startLng);
+    const lastMorning = sortedMorning.length > 0 ? sortedMorning[sortedMorning.length - 1] : null;
+    const sortedUnslotted = nearestSort(unslotted, lastMorning?.latitude ?? startLat, lastMorning?.longitude ?? startLng);
+    const lastMid = sortedUnslotted.length > 0 ? sortedUnslotted[sortedUnslotted.length - 1] : lastMorning;
+    const sortedAfternoon = nearestSort(afternoon, lastMid?.latitude ?? startLat, lastMid?.longitude ?? startLng);
+    const lastAfternoon = sortedAfternoon.length > 0 ? sortedAfternoon[sortedAfternoon.length - 1] : lastMid;
+    const sortedEvening = nearestSort(evening, lastAfternoon?.latitude ?? startLat, lastAfternoon?.longitude ?? startLng);
+
+    // Include any unlocated experiences at the end
+    const unlocated = selectedForDay.filter(e => e.latitude == null || e.longitude == null);
+    return [...sortedMorning, ...sortedUnslotted, ...sortedAfternoon, ...sortedEvening, ...unlocated];
+  }, [selectedForDay, accommodations]);
+
+  const displaySelected = showSpatialSequence ? spatiallyOrdered : selectedForDay;
+  const canShowSpatial = selectedForDay.filter(e => e.latitude != null).length >= 2;
+
   // Add reservation
   const [addingRes, setAddingRes] = useState(false);
   const [resName, setResName] = useState("");
@@ -85,7 +196,10 @@ export default function DayView({
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-light text-[#3a3128]">{formattedDate}</h2>
-          <p className="text-xs text-[#8a7a62]">{day.city.name}</p>
+          <p className="text-xs text-[#8a7a62]">
+            {day.city.name}
+            {day.city.tagline && <span className="ml-1 text-[#a89880]">· {day.city.tagline}</span>}
+          </p>
         </div>
         <button
           onClick={onClose}
@@ -110,9 +224,53 @@ export default function DayView({
       {/* AI Observations */}
       {selectedForDay.length > 0 && <AIObservations dayId={day.id} />}
 
+      {/* Friction alerts */}
+      {frictionAlerts.length > 0 && (
+        <div className="space-y-1.5 mb-4">
+          {frictionAlerts.map(alert => (
+            <div key={alert.key} className="flex items-start gap-2 px-3 py-2 bg-[#f5f0e8] rounded-lg text-xs text-[#8a7a62]">
+              <span className="flex-1">{alert.message}</span>
+              <button
+                onClick={() => dismissAlert(alert.key)}
+                className="text-[#c8bba8] hover:text-[#8a7a62] shrink-0"
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Spatial sequence toggle */}
+      {canShowSpatial && (
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => setShowSpatialSequence(!showSpatialSequence)}
+            className={`text-[10px] uppercase tracking-wider transition-colors ${
+              showSpatialSequence ? "text-[#514636] font-medium" : "text-[#c8bba8] hover:text-[#8a7a62]"
+            }`}
+          >
+            {showSpatialSequence ? "Showing suggested route" : "Suggest route order"}
+          </button>
+          {showSpatialSequence && (
+            <button
+              onClick={async () => {
+                const orderedIds = spatiallyOrdered.map(e => e.id);
+                await api.post("/experiences/reorder", { orderedIds });
+                setShowSpatialSequence(false);
+                onRefresh();
+              }}
+              className="text-[10px] text-[#514636] hover:text-[#3a3128] font-medium"
+            >
+              Use this order
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Selected experiences — spacious layout per spec */}
       <div className="space-y-4 mb-6">
-        {selectedForDay.map((exp) => (
+        {displaySelected.map((exp) => (
           <div
             key={exp.id}
             className="px-4 py-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
@@ -136,7 +294,15 @@ export default function DayView({
             {exp.description && (
               <p className="text-xs text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</p>
             )}
-            <RatingsBadge ratings={exp.ratings} />
+            {exp.userNotes && (
+              <p className="text-xs text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</p>
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              <RatingsBadge ratings={exp.ratings} />
+              {exp.createdBy && (
+                <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -308,7 +474,15 @@ export default function DayView({
             {exp.description && (
               <p className="text-xs text-[#a89880] mt-0.5 line-clamp-1">{exp.description}</p>
             )}
-            <RatingsBadge ratings={exp.ratings} />
+            {exp.userNotes && (
+              <p className="text-xs text-[#6b5d4a] mt-0.5 italic line-clamp-1">{exp.userNotes}</p>
+            )}
+            <div className="flex items-center gap-2 mt-0.5">
+              <RatingsBadge ratings={exp.ratings} />
+              {exp.createdBy && (
+                <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
+              )}
+            </div>
           </div>
         ))}
       </div>

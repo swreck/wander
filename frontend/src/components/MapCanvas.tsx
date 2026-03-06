@@ -21,6 +21,7 @@ interface Props {
   onExperienceClick: (id: string) => void;
   onNearbyClick?: (place: NearbyPlace) => void;
   showNearby?: boolean;
+  themeFilter?: string[];
 }
 
 // ── Geometry helpers ───────────────────────────────────────────────
@@ -166,7 +167,7 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
 
 // ── Main Component ─────────────────────────────────────────────────
 
-export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false }: Props) {
+export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, themeFilter = [] }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
 
   const confirmedExps = experiences.filter(
@@ -186,15 +187,17 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
   const fetchNearby = useCallback(async () => {
     if (!showNearby || !center.lat || !center.lng) return;
     try {
-      const results = await api.get<NearbyPlace[]>(
-        `/geocoding/nearby?lat=${center.lat}&lng=${center.lng}&radius=1500`
-      );
+      let nearbyUrl = `/geocoding/nearby?lat=${center.lat}&lng=${center.lng}&radius=1500`;
+      if (themeFilter.length > 0) {
+        nearbyUrl += `&themes=${themeFilter.join(",")}`;
+      }
+      const results = await api.get<NearbyPlace[]>(nearbyUrl);
       // Filter out places that are already in the trip
       setNearbyPlaces(results.filter((p) => !existingPlaceIds.has(p.placeId)));
     } catch {
       // Silently fail — nearby is enhancement only
     }
-  }, [center.lat, center.lng, showNearby]);
+  }, [center.lat, center.lng, showNearby, themeFilter.join(",")]);
 
   useEffect(() => {
     fetchNearby();

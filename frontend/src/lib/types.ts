@@ -1,6 +1,7 @@
 export interface City {
   id: string;
   name: string;
+  tagline: string | null;
   country: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -104,6 +105,7 @@ export interface Reservation {
 export interface Trip {
   id: string;
   name: string;
+  tagline: string | null;
   startDate: string;
   endDate: string;
   status: string;

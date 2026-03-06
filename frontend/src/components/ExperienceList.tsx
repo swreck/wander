@@ -102,7 +102,15 @@ function SortableSelectedItem({
             {exp.description && (
               <div className="text-xs text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</div>
             )}
-            <RatingsBadge ratings={exp.ratings} />
+            {exp.userNotes && (
+              <div className="text-xs text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</div>
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              <RatingsBadge ratings={exp.ratings} />
+              {exp.createdBy && (
+                <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -132,6 +140,7 @@ function SortablePossibleItem({
   setPromoteTimeWindow: (v: string) => void;
   days: Day[];
   onPromoteSubmit: (id: string) => void;
+  onDirectPromote: (expId: string, dayId: string) => void;
   onExperienceClick: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -174,52 +183,50 @@ function SortablePossibleItem({
             {exp.description && (
               <div className="text-xs text-[#a89880] mt-1 line-clamp-2">{exp.description}</div>
             )}
-            <RatingsBadge ratings={exp.ratings} />
+            {exp.userNotes && (
+              <div className="text-xs text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</div>
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              <RatingsBadge ratings={exp.ratings} />
+              {exp.createdBy && (
+                <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Inline promote panel */}
+      {/* Inline promote — calendar strip */}
       {promotingId === exp.id && (
-        <div className="mt-1 p-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] space-y-2">
-          <select
-            value={promoteDay}
-            onChange={(e) => setPromoteDay(e.target.value)}
-            className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                       focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-          >
-            <option value="">Select a day...</option>
-            {days.map((d) => (
-              <option key={d.id} value={d.id}>
-                {formatDate(d.date)} — {d.city.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            value={promoteTimeWindow}
-            onChange={(e) => setPromoteTimeWindow(e.target.value)}
-            placeholder="Time window (optional, e.g. morning)"
-            className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                       placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={() => onPromoteSubmit(exp.id)}
-              disabled={!promoteDay}
-              className="flex-1 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                         hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-            >
-              Add to Day
-            </button>
-            <button
-              onClick={() => { setPromotingId(null); setPromoteDay(""); setPromoteTimeWindow(""); }}
-              className="px-3 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#6b5d4a]
-                         hover:bg-[#f0ece5] transition-colors"
-            >
-              Cancel
-            </button>
+        <div className="mt-1 p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
+          <div className="text-[10px] text-[#a89880] mb-1.5 uppercase tracking-wider">Tap a day to add</div>
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {days.map((d) => {
+              const isMatchCity = d.cityId === exp.cityId;
+              const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+              const cityAbbr = d.city.name.slice(0, 3).toUpperCase();
+              return (
+                <button
+                  key={d.id}
+                  onClick={(e) => { e.stopPropagation(); onDirectPromote(exp.id, d.id); setPromotingId(null); }}
+                  className={`flex flex-col items-center px-2 py-1.5 rounded text-[10px] shrink-0 transition-colors ${
+                    isMatchCity
+                      ? "bg-[#514636] text-white hover:bg-[#3a3128]"
+                      : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
+                  }`}
+                >
+                  <span className="font-medium">{shortDate}</span>
+                  <span className={isMatchCity ? "opacity-70" : "text-[#c8bba8]"}>{cityAbbr}</span>
+                </button>
+              );
+            })}
           </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setPromotingId(null); setPromoteDay(""); setPromoteTimeWindow(""); }}
+            className="mt-1 text-[10px] text-[#c8bba8] hover:text-[#8a7a62]"
+          >
+            Cancel
+          </button>
         </div>
       )}
     </div>
@@ -400,52 +407,49 @@ export default function ExperienceList({
           <AIObservations cityId={selected[0].cityId} />
         )}
 
-        {/* Cross-zone promote panel (shown at top when dragging possible -> selected) */}
-        {crossZonePromoteId && (
-          <div className="mb-3 p-3 bg-[#faf8f5] rounded-lg border-2 border-[#a89880] space-y-2">
-            <div className="text-xs font-medium text-[#514636]">
-              Add "{allExperiences.get(crossZonePromoteId)?.name}" to itinerary:
-            </div>
-            <select
-              value={crossPromoteDay}
-              onChange={(e) => setCrossPromoteDay(e.target.value)}
-              className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                         focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-            >
-              <option value="">Select a day...</option>
-              {days.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {formatDate(d.date)} — {d.city.name}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={crossPromoteTimeWindow}
-              onChange={(e) => setCrossPromoteTimeWindow(e.target.value)}
-              placeholder="Time window (optional, e.g. morning)"
-              className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                         placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleCrossPromoteSubmit(crossZonePromoteId)}
-                disabled={!crossPromoteDay}
-                className="flex-1 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                           hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-              >
-                Add to Day
-              </button>
+        {/* Cross-zone promote panel — calendar strip (shown at top when dragging possible -> selected) */}
+        {crossZonePromoteId && (() => {
+          const draggedExp = allExperiences.get(crossZonePromoteId);
+          return (
+            <div className="mb-3 p-2 bg-[#faf8f5] rounded-lg border-2 border-[#a89880]">
+              <div className="text-[10px] text-[#a89880] mb-1.5 uppercase tracking-wider">
+                Tap a day to add "{draggedExp?.name}"
+              </div>
+              <div className="flex gap-1 overflow-x-auto pb-1">
+                {days.map((d) => {
+                  const isMatchCity = draggedExp ? d.cityId === draggedExp.cityId : false;
+                  const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+                  const cityAbbr = d.city.name.slice(0, 3).toUpperCase();
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => {
+                        onPromote(crossZonePromoteId, d.id);
+                        setCrossZonePromoteId(null);
+                        setCrossPromoteDay("");
+                        setCrossPromoteTimeWindow("");
+                      }}
+                      className={`flex flex-col items-center px-2 py-1.5 rounded text-[10px] shrink-0 transition-colors ${
+                        isMatchCity
+                          ? "bg-[#514636] text-white hover:bg-[#3a3128]"
+                          : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
+                      }`}
+                    >
+                      <span className="font-medium">{shortDate}</span>
+                      <span className={isMatchCity ? "opacity-70" : "text-[#c8bba8]"}>{cityAbbr}</span>
+                    </button>
+                  );
+                })}
+              </div>
               <button
                 onClick={() => { setCrossZonePromoteId(null); setCrossPromoteDay(""); setCrossPromoteTimeWindow(""); }}
-                className="px-3 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#6b5d4a]
-                           hover:bg-[#f0ece5] transition-colors"
+                className="mt-1 text-[10px] text-[#c8bba8] hover:text-[#8a7a62]"
               >
                 Cancel
               </button>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Selected zone */}
         <DroppableZone id="selected-zone">
@@ -487,6 +491,7 @@ export default function ExperienceList({
                   setPromoteTimeWindow={setPromoteTimeWindow}
                   days={days}
                   onPromoteSubmit={handlePromoteSubmit}
+                  onDirectPromote={onPromote}
                   onExperienceClick={onExperienceClick}
                 />
               ))}

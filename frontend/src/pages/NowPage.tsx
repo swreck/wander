@@ -40,6 +40,9 @@ export default function NowPage() {
   const [travelResults, setTravelResults] = useState<Map<number, TravelTimeResult>>(new Map());
   const [now, setNow] = useState(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [quickCaptureName, setQuickCaptureName] = useState("");
+  const [showQuickCapture, setShowQuickCapture] = useState(false);
+  const [capturing, setCapturing] = useState(false);
 
   // Load trip and day data
   useEffect(() => {
@@ -118,11 +121,14 @@ export default function NowPage() {
 
     // Experiences
     for (const exp of selectedExps) {
+      const detailParts: string[] = [];
+      if (exp.timeWindow) detailParts.push(exp.timeWindow);
+      if (exp.userNotes) detailParts.push(exp.userNotes);
       anchors.push({
         time: exp.timeWindow ? parseTimeWindow(exp.timeWindow, today.date) : null,
         name: exp.name,
         type: "experience",
-        detail: exp.timeWindow || undefined,
+        detail: detailParts.join(" · ") || undefined,
         lat: exp.latitude,
         lng: exp.longitude,
       });
@@ -203,6 +209,25 @@ export default function NowPage() {
     fetchTravelTimes(anchors);
   }, [travelMode, buildAnchors, fetchTravelTimes]);
 
+  async function handleQuickCapture() {
+    if (!quickCaptureName.trim() || !trip || !today) return;
+    setCapturing(true);
+    try {
+      await api.post("/experiences", {
+        tripId: trip.id,
+        cityId: today.cityId,
+        name: quickCaptureName.trim(),
+        userNotes: "Discovered today",
+      });
+      setQuickCaptureName("");
+      setShowQuickCapture(false);
+      // Reload the page to show the new experience
+      window.location.reload();
+    } finally {
+      setCapturing(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
@@ -257,7 +282,7 @@ export default function NowPage() {
           </span>
         </div>
 
-        {/* Question 1: Where am I? */}
+        {/* Today — morning briefing header */}
         <section className="mb-8">
           <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
             Today
@@ -265,10 +290,30 @@ export default function NowPage() {
           <h1 className="text-2xl font-light text-[#3a3128]">
             {new Date(today.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
           </h1>
-          <p className="text-sm text-[#8a7a62] mt-1">{today.city.name}</p>
+          <p className="text-sm text-[#8a7a62] mt-1">
+            {today.city.name}
+            {today.city.tagline && <span className="text-[#a89880] ml-1">· {today.city.tagline}</span>}
+          </p>
           {accommodations.length > 0 && (
-            <p className="text-sm text-[#6b5d4a] mt-0.5">{accommodations[0].name}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm text-[#6b5d4a]">{accommodations[0].name}</span>
+              {accommodations[0].latitude != null && accommodations[0].longitude != null && (
+                <a
+                  href={`https://maps.apple.com/?daddr=${accommodations[0].latitude},${accommodations[0].longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-[#a89880] hover:text-[#514636]"
+                >
+                  navigate
+                </a>
+              )}
+            </div>
           )}
+          {/* Quick summary line */}
+          <p className="text-xs text-[#c8bba8] mt-2">
+            {selectedExps.length} planned
+            {reservations.length > 0 && ` · ${reservations.length} reservation${reservations.length > 1 ? "s" : ""}`}
+          </p>
         </section>
 
         {/* Question 2 & 3: What's next? When should I leave? */}
@@ -457,10 +502,54 @@ export default function NowPage() {
           </div>
         </section>
 
+        {/* Quick capture */}
+        {showQuickCapture ? (
+          <div className="mt-6 p-3 bg-white rounded-lg border border-[#e0d8cc] space-y-2">
+            <input
+              type="text"
+              value={quickCaptureName}
+              onChange={(e) => setQuickCaptureName(e.target.value)}
+              placeholder="Place name"
+              autoFocus
+              className="w-full px-3 py-2 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
+                         placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && quickCaptureName.trim()) {
+                  handleQuickCapture();
+                }
+              }}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleQuickCapture}
+                disabled={!quickCaptureName.trim() || capturing}
+                className="flex-1 py-2 rounded bg-[#514636] text-white text-sm font-medium
+                           hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
+              >
+                {capturing ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={() => { setShowQuickCapture(false); setQuickCaptureName(""); }}
+                className="px-3 py-2 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowQuickCapture(true)}
+            className="mt-6 w-full py-3 rounded-lg border-2 border-dashed border-[#e0d8cc] text-sm text-[#a89880]
+                       hover:border-[#a89880] hover:text-[#6b5d4a] transition-colors"
+          >
+            + Add a discovery
+          </button>
+        )}
+
         {/* Share plan */}
         <button
           onClick={() => sharePlan(today, selectedExps, reservations, accommodations)}
-          className="mt-8 w-full py-3 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
+          className="mt-4 w-full py-3 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
                      hover:bg-[#f0ece5] transition-colors"
         >
           Share Today's Plan

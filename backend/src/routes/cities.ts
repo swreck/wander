@@ -117,12 +117,13 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.city.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "City not found" }); return; }
 
-  const { name, country, arrivalDate, departureDate, sequenceOrder } = req.body;
+  const { name, tagline, country, arrivalDate, departureDate, sequenceOrder } = req.body;
 
   const city = await prisma.city.update({
     where: { id: req.params.id as string },
     data: {
       ...(name !== undefined && { name }),
+      ...(tagline !== undefined && { tagline: tagline || null }),
       ...(country !== undefined && { country }),
       ...(sequenceOrder !== undefined && { sequenceOrder }),
       ...(arrivalDate !== undefined && { arrivalDate: arrivalDate ? new Date(arrivalDate) : null }),

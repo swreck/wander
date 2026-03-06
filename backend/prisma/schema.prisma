@@ -62,6 +62,7 @@ enum TravelMode {
 model Trip {
   id        String     @id @default(cuid())
   name      String
+  tagline   String?
   startDate DateTime   @map("start_date")
   endDate   DateTime   @map("end_date")
   status    TripStatus @default(active)
@@ -99,6 +100,7 @@ model City {
   id            String   @id @default(cuid())
   tripId        String   @map("trip_id")
   name          String
+  tagline       String?
   country       String?
   latitude      Float?
   longitude     Float?

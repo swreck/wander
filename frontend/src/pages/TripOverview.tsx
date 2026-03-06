@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import CreateTrip from "../components/CreateTrip";
-import type { Trip, Day, Experience } from "../lib/types";
+import type { Trip, Day, Experience, ChangeLogEntry } from "../lib/types";
 
 export default function TripOverview() {
   const { user, logout } = useAuth();
@@ -18,6 +18,8 @@ export default function TripOverview() {
   const [editName, setEditName] = useState("");
   const [editStartDate, setEditStartDate] = useState("");
   const [editEndDate, setEditEndDate] = useState("");
+  const [editTagline, setEditTagline] = useState("");
+  const [recentActivity, setRecentActivity] = useState<ChangeLogEntry[]>([]);
 
   async function loadTrips() {
     setLoading(true);
@@ -36,6 +38,11 @@ export default function TripOverview() {
         ]);
         setDays(d);
         setExperiences(e);
+        // Fetch recent activity
+        try {
+          const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${active.id}?limit=5`);
+          setRecentActivity(logs);
+        } catch { /* ignore */ }
       }
     } finally {
       setLoading(false);
@@ -55,6 +62,7 @@ export default function TripOverview() {
     if (!trip) return;
     await api.patch(`/trips/${trip.id}`, {
       name: editName,
+      tagline: editTagline || null,
       startDate: editStartDate,
       endDate: editEndDate,
     });
@@ -116,6 +124,14 @@ export default function TripOverview() {
                   className="text-2xl font-light text-[#3a3128] border-b border-[#e0d8cc]
                              focus:outline-none focus:border-[#a89880] bg-transparent"
                 />
+                <input
+                  type="text"
+                  value={editTagline}
+                  onChange={(e) => setEditTagline(e.target.value)}
+                  placeholder="Trip tagline (e.g. Ceramics, temples, and autumn leaves)"
+                  className="w-full text-sm text-[#6b5d4a] border-b border-[#e0d8cc]
+                             focus:outline-none focus:border-[#a89880] bg-transparent placeholder-[#c8bba8]"
+                />
                 <div className="flex gap-2">
                   <input type="date" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)}
                     className="px-2 py-1 text-sm border border-[#e0d8cc] rounded" />
@@ -136,11 +152,15 @@ export default function TripOverview() {
             ) : (
               <>
                 <h1 className="text-2xl font-light text-[#3a3128]">{trip.name}</h1>
+                {trip.tagline && (
+                  <p className="text-sm text-[#6b5d4a] mt-0.5 italic">{trip.tagline}</p>
+                )}
                 <p className="text-sm text-[#8a7a62] mt-1">
                   {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
                   <button
                     onClick={() => {
                       setEditName(trip.name);
+                      setEditTagline(trip.tagline || "");
                       setEditStartDate(trip.startDate.split("T")[0]);
                       setEditEndDate(trip.endDate.split("T")[0]);
                       setEditingTrip(true);
@@ -176,12 +196,17 @@ export default function TripOverview() {
             {trip.cities.map((city) => (
               <div key={city.id} className="flex items-center justify-between px-4 py-3 bg-white rounded-lg border border-[#f0ece5]">
                 <div>
-                  <span className="text-[#3a3128] font-medium">{city.name}</span>
-                  {city.country && <span className="text-[#a89880] text-sm ml-2">{city.country}</span>}
-                  {possiblePerCity[city.id] > 0 && (
-                    <span className="text-[#c8bba8] text-xs ml-2">
-                      {possiblePerCity[city.id]} possible
-                    </span>
+                  <div>
+                    <span className="text-[#3a3128] font-medium">{city.name}</span>
+                    {city.country && <span className="text-[#a89880] text-sm ml-2">{city.country}</span>}
+                    {possiblePerCity[city.id] > 0 && (
+                      <span className="text-[#c8bba8] text-xs ml-2">
+                        {possiblePerCity[city.id]} possible
+                      </span>
+                    )}
+                  </div>
+                  {city.tagline && (
+                    <div className="text-xs text-[#8a7a62] italic mt-0.5">{city.tagline}</div>
                   )}
                 </div>
                 <div className="text-sm text-[#8a7a62]">
@@ -214,13 +239,55 @@ export default function TripOverview() {
           </section>
         )}
 
-        {/* Day summary */}
+        {/* Day filmstrip preview */}
         <section className="mb-8">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">Days</h2>
-          <div className="px-4 py-3 bg-white rounded-lg border border-[#f0ece5] text-sm text-[#8a7a62]">
-            {days.length} days planned · {experiences.filter((e) => e.state === "selected").length} selected experiences · {experiences.filter((e) => e.state === "possible").length} possible
+          <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">
+            {days.length} Days · {experiences.filter((e) => e.state === "selected").length} Planned
+          </h2>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {days.map((day) => {
+              const count = selectedPerDay[day.id] || 0;
+              return (
+                <button
+                  key={day.id}
+                  onClick={() => navigate("/plan")}
+                  className="shrink-0 w-[90px] bg-white rounded-lg border border-[#f0ece5] hover:border-[#e0d8cc]
+                             transition-colors overflow-hidden text-left"
+                >
+                  <div className="px-2 py-1.5">
+                    <div className="text-[10px] font-medium text-[#3a3128]">
+                      {new Date(day.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                    </div>
+                    <div className="text-[9px] text-[#a89880] truncate">{day.city.name}</div>
+                    <div className="text-[9px] text-[#c8bba8] mt-0.5">
+                      {count > 0 ? `${count} planned` : "open day"}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </section>
+
+        {/* Recent activity */}
+        {recentActivity.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">
+              Recent Activity
+            </h2>
+            <div className="space-y-1.5">
+              {recentActivity.map((log) => (
+                <div key={log.id} className="px-4 py-2 bg-white rounded-lg border border-[#f0ece5] text-xs text-[#8a7a62]">
+                  <span className="text-[#3a3128] font-medium">{log.userDisplayName}</span>
+                  {" "}{log.description.replace(`${log.userDisplayName} `, "")}
+                  <span className="text-[#c8bba8] ml-2">
+                    {formatRelativeTime(log.createdAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Actions */}
         <div className="flex gap-3">
@@ -262,4 +329,15 @@ export default function TripOverview() {
       </div>
     </div>
   );
+}
+
+function formatRelativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }

@@ -6,6 +6,22 @@
   "display": "standalone",
   "background_color": "#faf8f5",
   "theme_color": "#514636",
+  "share_target": {
+    "action": "/capture-share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "name",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "image",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  },
   "icons": [
     {
       "src": "/icons/icon-192.png",

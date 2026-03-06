@@ -102,16 +102,22 @@ export default function ExperienceDetail({
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Image placeholder */}
+        {/* Hero image or map snippet */}
         {exp.cloudinaryImageId ? (
           <img
             src={`https://res.cloudinary.com/dkqmgwila/image/upload/w_400,h_250,c_fill/${exp.cloudinaryImageId}`}
             alt={exp.name}
             className="w-full h-48 object-cover rounded-lg"
           />
+        ) : exp.latitude != null && exp.longitude != null ? (
+          <img
+            src={buildDetailMapUrl(exp.latitude, exp.longitude)}
+            alt={`Map of ${exp.name}`}
+            className="w-full h-36 object-cover rounded-lg bg-[#f0ece5]"
+          />
         ) : (
-          <div className="w-full h-32 bg-[#f0ece5] rounded-lg flex items-center justify-center">
-            <span className="text-sm text-[#c8bba8]">{exp.name}</span>
+          <div className="w-full h-24 bg-[#f0ece5] rounded-lg flex items-center justify-center">
+            <span className="text-lg text-[#c8bba8]">{exp.name.charAt(0)}</span>
           </div>
         )}
 
@@ -151,6 +157,24 @@ export default function ExperienceDetail({
           )}
         </div>
 
+        {/* Personal notes — prominent, above description */}
+        {editing ? (
+          <textarea
+            value={editNotes}
+            onChange={(e) => setEditNotes(e.target.value)}
+            rows={2}
+            placeholder="Notes..."
+            className="w-full px-3 py-2 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
+                       placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880] resize-y"
+          />
+        ) : (
+          exp.userNotes && (
+            <div className="px-3 py-2.5 bg-[#f5f0e8] rounded-lg text-sm text-[#514636] italic">
+              {exp.userNotes}
+            </div>
+          )
+        )}
+
         {/* Description */}
         {editing ? (
           <textarea
@@ -166,18 +190,6 @@ export default function ExperienceDetail({
           )
         )}
 
-        {/* Source */}
-        {exp.sourceUrl && (
-          <a
-            href={exp.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-[#a89880] hover:text-[#514636] underline"
-          >
-            View source
-          </a>
-        )}
-
         {/* Ratings */}
         <RatingsBadge ratings={exp.ratings} />
         <button
@@ -187,23 +199,23 @@ export default function ExperienceDetail({
           Refresh ratings
         </button>
 
-        {/* User notes */}
-        {editing ? (
-          <textarea
-            value={editNotes}
-            onChange={(e) => setEditNotes(e.target.value)}
-            rows={2}
-            placeholder="Why I saved this..."
-            className="w-full px-3 py-2 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                       placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880] resize-y"
-          />
-        ) : (
-          exp.userNotes && (
-            <div className="px-3 py-2 bg-[#faf8f5] rounded-lg text-xs text-[#8a7a62]">
-              {exp.userNotes}
-            </div>
-          )
-        )}
+        {/* Source + attribution */}
+        <div className="flex items-center justify-between text-xs text-[#a89880]">
+          {exp.sourceUrl ? (
+            <a
+              href={exp.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[#514636] underline truncate max-w-[60%]"
+            >
+              From: {extractDomain(exp.sourceUrl)}
+            </a>
+          ) : <span />}
+          <span className="text-[#c8bba8]">
+            {exp.createdBy && `${exp.createdBy} · `}
+            {new Date(exp.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        </div>
 
         {editing && (
           <button
@@ -227,36 +239,29 @@ export default function ExperienceDetail({
                 Add to Itinerary
               </button>
               {showPromote && (
-                <div className="p-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] space-y-2">
-                  <select
-                    value={promoteDay}
-                    onChange={(e) => setPromoteDay(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                               focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-                  >
-                    <option value="">Select a day...</option>
-                    {days.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {new Date(d.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} — {d.city.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={promoteTimeWindow}
-                    onChange={(e) => setPromoteTimeWindow(e.target.value)}
-                    placeholder="Time window (optional)"
-                    className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                               placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-                  />
-                  <button
-                    onClick={handlePromoteSubmit}
-                    disabled={!promoteDay}
-                    className="w-full py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-                  >
-                    Confirm
-                  </button>
+                <div className="p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
+                  <div className="text-[10px] text-[#a89880] mb-1.5 uppercase tracking-wider">Tap a day to add</div>
+                  <div className="flex gap-1 overflow-x-auto pb-1">
+                    {days.map((d) => {
+                      const isMatchCity = exp ? d.cityId === exp.cityId : false;
+                      const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+                      const cityAbbr = d.city.name.slice(0, 3).toUpperCase();
+                      return (
+                        <button
+                          key={d.id}
+                          onClick={() => { onPromote(exp!.id, d.id); onClose(); }}
+                          className={`flex flex-col items-center px-2 py-1.5 rounded text-[10px] shrink-0 transition-colors ${
+                            isMatchCity
+                              ? "bg-[#514636] text-white hover:bg-[#3a3128]"
+                              : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
+                          }`}
+                        >
+                          <span className="font-medium">{shortDate}</span>
+                          <span className={isMatchCity ? "opacity-70" : "text-[#c8bba8]"}>{cityAbbr}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </>
@@ -307,4 +312,18 @@ export default function ExperienceDetail({
       </div>
     </div>
   );
+}
+
+function buildDetailMapUrl(lat: number, lng: number): string {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return "";
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=16&size=400x200&scale=2&maptype=roadmap&style=feature:all|saturation:-50&markers=color:0x514636|${lat},${lng}&key=${apiKey}`;
+}
+
+function extractDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }

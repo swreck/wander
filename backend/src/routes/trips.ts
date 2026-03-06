@@ -143,11 +143,12 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.trip.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Trip not found" }); return; }
 
-  const { name, startDate, endDate } = req.body;
+  const { name, tagline, startDate, endDate } = req.body;
   const trip = await prisma.trip.update({
     where: { id: req.params.id as string },
     data: {
       ...(name !== undefined && { name }),
+      ...(tagline !== undefined && { tagline: tagline || null }),
       ...(startDate !== undefined && { startDate: new Date(startDate) }),
       ...(endDate !== undefined && { endDate: new Date(endDate) }),
     },

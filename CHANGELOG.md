@@ -109,3 +109,169 @@ SPEC UPDATE NEEDED: Sections covering city date management, day reassignment, ci
 Affects: backend/src/routes/chat.ts, backend/src/index.ts, frontend/src/components/ChatBubble.tsx, frontend/src/App.tsx, frontend/src/pages/PlanPage.tsx, frontend/src/pages/TripOverview.tsx, frontend/src/pages/NowPage.tsx
 
 SPEC UPDATE NEEDED: A new section for the conversational assistant should be added to SPEC.md.
+
+## 2026-03-05 (cont.)
+
+### Added (Chat Tool Coverage Expansion)
+- 5 new chat tools to close gaps found during page-by-page function audit:
+  - `update_experience`: edit experience name, description, or personal notes via chat
+  - `update_trip`: edit trip name or date range via chat
+  - `delete_city`: remove a city (preserves experiences by moving to another city) via chat
+  - `delete_reservation`: delete a reservation via chat
+  - `get_change_log`: view/search recent trip change history via chat
+- Chat assistant now covers 20 tools total (up from 15), matching all user-facing CRUD operations across TripOverview, PlanPage, DayView, ExperienceDetail, and HistoryPage
+- Functions intentionally NOT covered by chat (device-dependent): travel time calculations (GPS), timer/alarm deep links, map share sheet, text/URL/image import (complex multi-step capture pipeline), nearby places discovery (map interaction)
+
+Affects: backend/src/routes/chat.ts
+
+### Changed (Import UX — Multi-City Smart Ingest)
+- Import extraction now accepts a **start date hint** — if the source text uses "Day 1, Day 2" instead of real dates, the user specifies when the trip starts and the AI calculates actual dates. Added to both the CreateTrip import screen (new date picker above the paste area) and the PlanPage import panel.
+- New **merge endpoint** (POST /api/import/merge): adds extracted cities, experiences, accommodations, and route segments to an existing trip instead of creating a new one. Matches extracted city names to existing cities (case-insensitive); creates new cities for unmatched ones. Expands trip date range if the new content falls outside it. Experiences are created as "possible" candidates in the correct city. Geocoding fires in background.
+- **PlanPage Import panel upgraded**: now uses the full itinerary extractor (multi-city, multi-entity) instead of the simple single-city capture. Shows a compact review panel with new cities, experiences grouped by city, hotels, and route segments before merging. Existing cities are marked "(exists)" to clarify what's new.
+- Two-step import flow on PlanPage: paste text → "Extract & Review" → review what was found → "Add to Trip" (or go back to edit).
+
+Affects: backend/src/services/itineraryExtractor.ts, backend/src/routes/import.ts, frontend/src/components/CreateTrip.tsx, frontend/src/pages/PlanPage.tsx
+
+SPEC UPDATE NEEDED: Import/capture section should document the start date hint, merge endpoint, and the upgraded PlanPage import flow.
+
+### Changed (Extraction Prompt — Real-World Input Quality)
+- Rewrote the itinerary extraction prompt to handle two common real-world input patterns:
+  1. **Tour company itineraries** (Backroads, G Adventures, etc.): multiple activity levels per day are collapsed into one experience at the moderate option. Optional activities are included with "(optional)" note. Marketing copy, pricing, equipment specs, packing lists, and included-services lists are ignored. Accommodations with "begins N-night stay" produce one record, not N.
+  2. **Informal planning notes**: arrow notation ("Tokyo (4 nights) → Mashiko (day trip)"), night counts, emoji bullets, weather analysis, date rankings, and personal opinions are all handled correctly. Weather/opinion sections are ignored as non-itinerary content.
+- **Base city vs. day trip distinction** (most impactful change): the prompt now explicitly instructs the AI that a "city" is only a place where the traveler sleeps overnight. Day trips, excursions, and places visited for a few hours are created as EXPERIENCES under the base city, not as separate cities. This prevents the common error of creating 11 cities instead of 5 cities + 6 experiences.
+- **Date chaining from night counts**: "Tokyo (4 nights) → Kyoto (3 nights)" with a start date hint now chains correctly — Tokyo Sep 28–Oct 1, Kyoto Oct 2–4, etc.
+- **Route segments between base cities only**: day-trip destination routing arcs (Mashiko → Shigaraki → Bizen) are not mistaken for route segments between overnight stays.
+- **Pre-processing step added**: strips cookie banners, navigation fragments, and excessive whitespace from browser pastes before they hit the AI. Truncates to 6000 chars to stay within context budget.
+
+Affects: backend/src/services/itineraryExtractor.ts
+
+## 2026-03-05 (cont.)
+
+### Changed (Wave 1 UX — Foundation & Quick Wins)
+
+#### Routes Axis Removed
+- Removed "routes" from the axis switcher on PlanPage. Only "cities" and "days" axes remain. Route segments still exist in the data model and display on TripOverview, but they no longer have their own navigation axis on the planning screen. This simplifies the planning workflow — experiences are organized by city or by day, not by transit legs.
+
+Affects: frontend/src/pages/PlanPage.tsx
+
+#### Trip & City Taglines
+- Added optional `tagline` field to Trip and City models in the database schema.
+- TripOverview shows the trip tagline (italic, below the trip name) and city taglines (below each city name).
+- Trip tagline is editable in the trip edit form (with placeholder "Ceramics, temples, and autumn leaves").
+- PlanPage city selector strip shows the active city's tagline inline.
+- DayView header shows the city tagline next to the city name.
+- Backend PATCH routes for trips and cities now accept and persist `tagline`.
+
+Affects: backend/prisma/schema.prisma, frontend/src/lib/types.ts, backend/src/routes/trips.ts, backend/src/routes/cities.ts, frontend/src/pages/TripOverview.tsx, frontend/src/pages/PlanPage.tsx, frontend/src/components/DayView.tsx
+
+#### Personal Notes Prominence
+- ExperienceList (both selected and possible zones) now shows `userNotes` inline below the description, in italic text.
+- DayView selected and possible experience cards show `userNotes` inline.
+- NowPage schedule items include personal notes in the detail line (concatenated with time window using a separator).
+
+Affects: frontend/src/components/ExperienceList.tsx, frontend/src/components/DayView.tsx, frontend/src/pages/NowPage.tsx
+
+#### Collaborative Presence Signals
+- All experience items across ExperienceList and DayView now show "by [createdBy]" attribution in small text.
+- TripOverview shows a "Recent Activity" section with the last 5 change log entries, showing who did what and when (relative timestamps like "2h ago").
+- Recent activity data is fetched from the existing change-logs API.
+
+Affects: frontend/src/components/ExperienceList.tsx, frontend/src/components/DayView.tsx, frontend/src/pages/TripOverview.tsx
+
+SPEC UPDATE NEEDED: Sections covering the Plan screen axis switcher, experience display fields, trip/city metadata, and collaboration signals should be updated.
+
+### Changed (Wave 2 UX — Day Experience)
+
+#### Filmstrip Day Navigator
+- When the Days axis is active on PlanPage, the selector strip is replaced with a visual filmstrip of day cards (~100-120px each). Each card shows:
+  - A mini-map thumbnail from Google Maps Static API, centered on the day's experiences and accommodation at neighborhood zoom
+  - Date and city name overlaid at the bottom
+  - Experience count for that day
+- If no Google Maps API key is set or no experiences have coordinates, a fallback letter initial is shown.
+- The active day card has a highlighted ring and is slightly wider.
+- Cities axis continues to use text chip pills.
+
+Affects: frontend/src/pages/PlanPage.tsx
+
+#### Contextual Day Card on Map
+- When the Days axis is active and a day is selected, a floating info card appears at the top of the map showing: full date, city name, city tagline, planned experience count, exploration zone, and the first reservation if any.
+- The card uses a frosted glass style (bg-white/90 backdrop-blur) and is max 384px wide.
+
+Affects: frontend/src/pages/PlanPage.tsx
+
+#### Day Shape — Suggested Spatial Sequence
+- DayView now shows a "Suggest route order" toggle when a day has 2+ experiences with confirmed locations.
+- When toggled on, experiences are reordered using a nearest-neighbor algorithm starting from the accommodation (or first experience). Time windows (morning/afternoon/evening) are respected as constraints.
+- A "Use this order" button applies the spatial sequence as the new priority order via the reorder endpoint.
+- The suggested sequence is informational and doesn't change saved order until explicitly applied.
+
+Affects: frontend/src/components/DayView.tsx
+
+#### Calendar Strip Promotion
+- The day dropdown in the promote flow (both inline promote and cross-zone drag promote) is replaced with a horizontal scrollable calendar strip.
+- Each day cell shows: short date (e.g., "Mon 18"), city abbreviation (e.g., "KYO"), with matching-city days highlighted in sand-tone.
+- Tapping a cell immediately promotes the experience to that day — no separate confirmation step needed.
+- Cancel button available below the strip.
+
+Affects: frontend/src/components/ExperienceList.tsx
+
+SPEC UPDATE NEEDED: Sections covering the day selector strip, experience promotion flow, day view, and map overlays should be updated to reflect filmstrip navigation, calendar strip promotion, spatial sequencing, and contextual map cards.
+
+### Changed (Wave 3 UX — Welcome & Delight)
+
+#### TripOverview Day Filmstrip
+- The "Days" section on TripOverview is replaced with a horizontal scrollable filmstrip of day cards. Each card shows: short date, city name, and planned count (or "open day"). Tapping any card navigates to the Plan page.
+- This gives new users immediate orientation on the trip's shape and density without needing to enter the planning screen.
+
+Affects: frontend/src/pages/TripOverview.tsx
+
+#### Now Screen as Morning Briefing
+- Now screen header enhanced with: city tagline display, hotel navigate link (opens Apple Maps), and a quick summary line showing planned count and reservation count.
+- Quick capture "+" button added to Now screen (Initiative 13: Low-friction Contribution): a minimal form with just a name field. City auto-set to today's city. Creates a possible experience instantly. Designed for Andy discovering a ramen shop while walking.
+- Personal notes from experiences now surface in schedule items via the detail line.
+
+Affects: frontend/src/pages/NowPage.tsx
+
+#### Proactive Friction Alerts
+- DayView now shows dismissible inline alerts for two friction patterns:
+  1. **Density imbalance**: When a day has 5+ selected experiences and an adjacent day in the same city has 0-1, shows "[N] planned here — [day] is open."
+  2. **Distance warning**: When consecutive selected experiences are more than 3km apart, shows "[A] and [B] are ~X.Xkm apart."
+- Alerts are sand-toned (not red), non-blocking, and dismissible. Dismissed state persists in localStorage.
+
+Affects: frontend/src/components/DayView.tsx
+
+SPEC UPDATE NEEDED: Sections covering TripOverview layout, Now screen design, and friction alerts should be updated.
+
+### Added (Wave 4 UX — Contribution & Discovery)
+
+#### PWA Share Target
+- Wander is now registered as a PWA share target in manifest.json. When a user shares a URL, text, or image from Safari/Instagram/etc., Wander appears in the iOS share sheet.
+- New `/capture-share` route renders a lightweight capture screen pre-populated with the shared content: name (auto-extracted from text/URL), city selector, notes field, and a Save button.
+- The user is back to their source app in under 5 seconds.
+
+Affects: frontend/public/manifest.json, frontend/src/pages/CaptureSharePage.tsx, frontend/src/App.tsx
+
+#### Experience Detail as Place Page
+- ExperienceDetail panel redesigned to feel like a mini place page:
+  - Map snippet: when no hero image exists but coordinates are confirmed, shows a Google Maps Static API street-level map centered on the location
+  - Personal notes shown prominently above description in a highlighted background
+  - Source link shows the domain name cleanly (e.g., "From: timeout.com/tokyo")
+  - Attribution line shows creator name and date added
+  - Promote flow uses the calendar strip (same as ExperienceList)
+
+Affects: frontend/src/components/ExperienceDetail.tsx
+
+#### Thematic Nearby Discovery
+- Nearby places (Tier 3 ghost markers) now filter by active theme selection. When theme chips are active on PlanPage, the nearby request passes those themes to the backend.
+- Backend maps Wander themes to Google Places types: ceramics → museum/art_gallery/store, food → restaurant/cafe/bakery/bar, temples → hindu_temple/buddhist_temple/place_of_worship, etc.
+- When no theme filter is active, the default broad type set is used.
+
+Affects: frontend/src/components/MapCanvas.tsx, frontend/src/pages/PlanPage.tsx, backend/src/routes/geocoding.ts, backend/src/services/geocoding.ts
+
+#### Quick Capture on Now Screen
+- "Add a discovery" button on the Now screen opens a minimal capture form: just a name field and Save button. City auto-set to today's city. Creates a possible experience instantly.
+- Designed for the "Andy finds a ramen shop while walking" use case — contribution in under 5 seconds.
+
+Affects: frontend/src/pages/NowPage.tsx
+
+SPEC UPDATE NEEDED: Sections covering share target, experience detail, nearby discovery, and Now screen contribution flow should be updated.
