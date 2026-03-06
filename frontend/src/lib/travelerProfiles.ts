@@ -217,6 +217,12 @@ function recordNudge(userName: string): void {
   } catch { /* ignore */ }
 }
 
+/** Word-boundary-aware keyword match to avoid "tart" matching "Startup" etc. */
+function keywordInText(kw: string, text: string): boolean {
+  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+}
+
 export function getNudgesForPlace(
   userName: string,
   placeName: string,
@@ -226,11 +232,9 @@ export function getNudgesForPlace(
   if (!profile) return null;
   if (!canShowNudge(userName)) return null;
 
-  const lowerName = placeName.toLowerCase();
-
   for (const interest of profile.interests) {
     const keywordMatch = interest.keywords.some((kw) =>
-      lowerName.includes(kw.toLowerCase())
+      keywordInText(kw, placeName)
     );
 
     const typeMatch = interest.placeTypes.length > 0 &&
@@ -259,15 +263,13 @@ export function getNudgeForExperience(
   const profile = profiles[userName];
   if (!profile) return null;
 
-  const lowerName = experienceName.toLowerCase();
-
   for (const interest of profile.interests) {
     const keywordMatch = interest.keywords.some((kw) =>
-      lowerName.includes(kw.toLowerCase())
+      keywordInText(kw, experienceName)
     );
 
     const themeMatch = themes.some((t) =>
-      interest.keywords.some((kw) => t.toLowerCase().includes(kw.toLowerCase()))
+      interest.keywords.some((kw) => keywordInText(kw, t))
     );
 
     if (keywordMatch || themeMatch) {
