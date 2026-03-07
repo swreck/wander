@@ -35,7 +35,7 @@ Rules:
 
 export async function extractFromText(text: string): Promise<CaptureResult> {
   const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: "claude-sonnet-4-5-20241022",
     max_tokens: 2048,
     system: CAPTURE_PROMPT,
     messages: [{ role: "user", content: text }],
@@ -56,7 +56,7 @@ export async function extractFromText(text: string): Promise<CaptureResult> {
 
 export async function extractFromImage(base64: string, mediaType: string): Promise<CaptureResult> {
   const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: "claude-sonnet-4-5-20241022",
     max_tokens: 2048,
     system: CAPTURE_PROMPT,
     messages: [{

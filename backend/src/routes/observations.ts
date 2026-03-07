@@ -152,7 +152,7 @@ router.post("/day/:dayId", async (req, res) => {
     const prompt = buildPrompt(day.experiences, contextLabel);
 
     const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-sonnet-4-5-20241022",
       max_tokens: 512,
       messages: [{ role: "user", content: prompt }],
     });
@@ -195,7 +195,7 @@ router.post("/city/:cityId", async (req, res) => {
     const prompt = buildPrompt(experiences, `${city.name} (all selected experiences)`);
 
     const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-sonnet-4-5-20241022",
       max_tokens: 512,
       messages: [{ role: "user", content: prompt }],
     });
