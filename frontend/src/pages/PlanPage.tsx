@@ -631,9 +631,17 @@ export default function PlanPage() {
                   {/* Group by: existing city, new city, no city */}
                   {(() => {
                     const recs = recPreview.recommendations || [];
-                    const existingCityNames = new Set(trip.cities.map((c) => c.name.toLowerCase()));
-                    const inTrip = recs.filter((r: any) => r.city && existingCityNames.has(r.city.toLowerCase()));
-                    const newCity = recs.filter((r: any) => r.city && !existingCityNames.has(r.city.toLowerCase()));
+                    const tripCities = trip.cities.map((c) => c.name.toLowerCase());
+                    function matchesTripCity(name: string): boolean {
+                      const lower = name.toLowerCase();
+                      if (tripCities.includes(lower)) return true;
+                      if (lower.length >= 4) {
+                        return tripCities.some((tc) => tc.includes(lower) || lower.includes(tc));
+                      }
+                      return false;
+                    }
+                    const inTrip = recs.filter((r: any) => r.city && matchesTripCity(r.city));
+                    const newCity = recs.filter((r: any) => r.city && !matchesTripCity(r.city));
                     const noCity = recs.filter((r: any) => !r.city);
                     // Group newCity by region
                     const byRegion: Record<string, any[]> = {};

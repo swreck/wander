@@ -4,6 +4,8 @@ import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { extractRecommendations } from "../services/itineraryExtractor.js";
+import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -236,6 +238,20 @@ const tools: Anthropic.Tool[] = [
         offsetDays: { type: "number", description: "Number of days to shift. Negative = earlier, positive = later. E.g., -7 moves everything one week earlier." },
       },
       required: ["tripId", "offsetDays"],
+    },
+  },
+  {
+    name: "import_recommendations",
+    description: "Import a list of travel recommendations (from a friend's email, blog post, or any unstructured text with place suggestions). The AI extracts individual places, categorizes them by location, and adds them to the trip. Use this when the user pastes a block of text that contains travel suggestions, recommendations, or place lists — NOT a structured itinerary with dates.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        text: { type: "string", description: "The raw text containing recommendations" },
+        senderLabel: { type: "string", description: "Who sent these recommendations (e.g. 'Larisa', 'Blog post'). Infer from context if possible." },
+        country: { type: "string", description: "Country context for the recommendations (e.g. 'Japan'). Infer from trip cities if not stated." },
+      },
+      required: ["tripId", "text"],
     },
   },
 ];
@@ -716,6 +732,148 @@ async function executeTool(
       };
     }
 
+    case "import_recommendations": {
+      const trip = await prisma.trip.findUnique({
+        where: { id: input.tripId },
+        include: { cities: { orderBy: { sequenceOrder: "asc" } } },
+      });
+      if (!trip) return { result: { error: "Trip not found" } };
+
+      // Extract recommendations using AI
+      const country = input.country || trip.cities[0]?.country || undefined;
+      const extracted = await extractRecommendations(input.text, country);
+      const recs = extracted.recommendations;
+      if (!recs.length) return { result: { message: "No recommendations found in the text." } };
+
+      // Commit using same logic as import.ts
+      const existingCities = trip.cities.map((c) => ({ id: c.id, lower: c.name.toLowerCase() }));
+      function findExistingCity(name: string): string | null {
+        const lower = name.toLowerCase();
+        const exact = existingCities.find((c) => c.lower === lower);
+        if (exact) return exact.id;
+        if (lower.length >= 4) {
+          const contained = existingCities.find(
+            (c) => c.lower.includes(lower) || lower.includes(c.lower)
+          );
+          if (contained) return contained.id;
+        }
+        return null;
+      }
+
+      const newCityMap = new Map<string, string>();
+      let maxOrder = Math.max(0, ...trip.cities.map((c) => c.sequenceOrder));
+      let ideasCityId: string | null = null;
+      const sourceLabel = input.senderLabel ? `${input.senderLabel}'s recommendations` : "Recommendations (via chat)";
+      let cat1 = 0, cat2 = 0, cat3 = 0;
+      const addedNames: string[] = [];
+
+      const validThemes = new Set(["ceramics", "architecture", "food", "temples", "nature", "other"]);
+      const themeMap: Record<string, string> = {
+        pottery: "ceramics", onsen: "nature", hiking: "nature", gardens: "nature",
+        museums: "architecture", art: "architecture", history: "architecture",
+        sake: "food", shopping: "other", culture: "other", trains: "other",
+      };
+
+      for (const rec of recs) {
+        let cityId: string | null = null;
+
+        if (rec.city) {
+          const cityKey = rec.city.toLowerCase();
+          cityId = findExistingCity(rec.city);
+          if (!cityId) cityId = newCityMap.get(cityKey) || null;
+
+          if (cityId) {
+            const isExisting = existingCities.some((c) => c.id === cityId);
+            if (isExisting) cat1++;
+            else cat2++;
+          } else {
+            maxOrder++;
+            const city = await prisma.city.create({
+              data: {
+                tripId: input.tripId,
+                name: rec.city,
+                country: rec.country || null,
+                sequenceOrder: maxOrder,
+                tagline: rec.region ? `${rec.region} region` : null,
+              },
+            });
+            newCityMap.set(cityKey, city.id);
+            cityId = city.id;
+            cat2++;
+            geocodeCity(city.id).catch(() => {});
+          }
+        } else {
+          if (!ideasCityId) {
+            const existing = findExistingCity("Ideas") || newCityMap.get("ideas");
+            if (existing) {
+              ideasCityId = existing;
+            } else {
+              maxOrder++;
+              const ideasCity = await prisma.city.create({
+                data: {
+                  tripId: input.tripId,
+                  name: "Ideas",
+                  country: trip.cities[0]?.country || rec.country || null,
+                  sequenceOrder: maxOrder,
+                  tagline: "General trip ideas — no specific location",
+                },
+              });
+              newCityMap.set("ideas", ideasCity.id);
+              ideasCityId = ideasCity.id;
+            }
+          }
+          cityId = ideasCityId;
+          cat3++;
+        }
+
+        const descParts: string[] = [];
+        if (rec.description) descParts.push(rec.description);
+        if (rec.urls.length > 0) descParts.push(rec.urls.join("\n"));
+
+        const mappedThemes = rec.themes
+          .map((t: string) => validThemes.has(t) ? t : (themeMap[t] || "other"))
+          .filter((t: string, i: number, arr: string[]) => arr.indexOf(t) === i);
+
+        await prisma.experience.create({
+          data: {
+            tripId: input.tripId,
+            cityId,
+            name: rec.name,
+            description: descParts.join("\n\n") || null,
+            state: "possible",
+            themes: mappedThemes as any,
+            createdBy: user.code,
+            sourceText: sourceLabel,
+            userNotes: rec.accommodationTip ? "Accommodation recommendation" : null,
+          },
+        });
+        addedNames.push(rec.name);
+      }
+
+      // Geocode new experiences
+      const newExps = await prisma.experience.findMany({
+        where: { tripId: input.tripId, sourceText: sourceLabel },
+        select: { id: true },
+      });
+      Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {}))).catch(() => {});
+
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "recommendations_imported",
+        entityType: "trip",
+        entityId: input.tripId,
+        entityName: trip.name,
+        description: `${user.displayName} imported ${recs.length} recommendations (${sourceLabel}, via chat)${extracted.senderNotes ? `. Notes: ${extracted.senderNotes}` : ""}`,
+      });
+
+      const summary = `Imported ${recs.length} recommendations: ${cat1} to existing cities, ${cat2} to new candidate cities${cat3 > 0 ? `, ${cat3} to Ideas bucket` : ""}`;
+      return {
+        result: { imported: recs.length, category1: cat1, category2: cat2, category3: cat3, addedNames, senderNotes: extracted.senderNotes },
+        actionDescription: summary,
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -753,7 +911,9 @@ RULES:
 5. When the user says "add X to Tuesday" or similar, look up the correct day ID first.
 6. For date references like "Tuesday" or "day 3", use get_all_days to find the right day.
 7. Never fabricate data — always query first.
-8. When the user says "move X to Y day", demote first then promote to the new day.`;
+8. When the user says "move X to Y day", demote first then promote to the new day.
+11. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
+12. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.`;
 
     // Run the tool-use loop
     let messages: Anthropic.MessageParam[] = [{ role: "user", content: message }];

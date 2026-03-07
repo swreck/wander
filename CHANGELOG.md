@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-07 (cont'd — Chat Recommendation Import)
+
+### Added
+- **Chat-based recommendation import**: Pasting a recommendation list into the AI chat now triggers the same extraction and categorization pipeline as the Import panel. The chat detects recommendation-style text automatically, extracts places, routes them to existing/new/Ideas cities with fuzzy matching, and reports back what was imported. No need to navigate to a specific page — paste anywhere the chat is available.
+- **Fuzzy matching parity**: Frontend preview panel now uses the same substring-containment matching (min 4 chars) as the backend, so the color-coded preview accurately reflects what will actually happen on commit.
+
+SPEC UPDATE NEEDED: Chat AI can now import recommendations, not just answer questions and manage individual items.
+
 ## 2026-03-07 (cont'd — Recommendation Import)
 
 ### Added
@@ -12,6 +20,8 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   - Gray: items with no identifiable location (goes to an "Ideas" city bucket)
 - **Import mode toggle**: Import panel now has "Itinerary" and "Recommendations" tabs. Recommendations mode has a "From whom?" field to tag the source.
 - **Recommendation review panel**: Shows color-coded categorization before committing. Items grouped by existing city, new locations (by region), and general ideas.
+- **Candidate Destinations section on TripOverview**: After recommendation import, dateless cities (candidate cities) appear in a new section below the calendar. Grouped by region (from sender's organization), each city is expandable to browse individual suggestions with descriptions and source attribution (e.g., "via Larisa's recommendations").
+- **Fuzzy city name matching**: Recommendation routing uses substring containment (min 4 chars) in addition to exact matching, so "Kyoto" matches a trip city named "Kyoto" even if casing or whitespace varies.
 - Backend endpoints: `POST /import/extract-recommendations` and `POST /import/commit-recommendations`
 
 SPEC UPDATE NEEDED: Recommendation import is a new feature. Candidate cities (dateless cities for planning options) are a new concept.

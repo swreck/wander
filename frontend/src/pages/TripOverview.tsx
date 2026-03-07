@@ -371,6 +371,13 @@ export default function TripOverview() {
           onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
         />
 
+        {/* Candidate destinations — cities with no dates but with experiences */}
+        <CandidateDestinations
+          cities={trip.cities}
+          experiences={experiences}
+          onNavigate={(cityId) => navigate(`/plan?city=${cityId}`)}
+        />
+
         {/* Recent activity — collapsed to button, opens modal */}
         {recentActivity.length > 0 && (
           <RecentActivityButton activity={recentActivity} />
@@ -698,6 +705,105 @@ function RecentActivityButton({ activity }: { activity: ChangeLogEntry[] }) {
         </div>
       )}
     </>
+  );
+}
+
+// ── Candidate Destinations ────────────────────────────────────────
+
+function CandidateDestinations({
+  cities,
+  experiences,
+  onNavigate,
+}: {
+  cities: City[];
+  experiences: Experience[];
+  onNavigate: (cityId: string) => void;
+}) {
+  const [expandedCity, setExpandedCity] = useState<string | null>(null);
+
+  // Candidate cities: no dates, but have experiences
+  const candidateCities = cities.filter(
+    (c) => !c.arrivalDate && !c.departureDate
+  );
+
+  // Count experiences per candidate city
+  const expsByCity: Record<string, Experience[]> = {};
+  for (const c of candidateCities) {
+    expsByCity[c.id] = experiences.filter((e) => e.cityId === c.id);
+  }
+
+  // Only show cities that actually have experiences
+  const visibleCities = candidateCities.filter((c) => (expsByCity[c.id]?.length || 0) > 0);
+
+  if (visibleCities.length === 0) return null;
+
+  // Group by tagline (which stores the region from recommendation import)
+  const byRegion: Record<string, typeof visibleCities> = {};
+  for (const c of visibleCities) {
+    const region = c.tagline || "Other destinations";
+    if (!byRegion[region]) byRegion[region] = [];
+    byRegion[region].push(c);
+  }
+
+  return (
+    <section className="mb-6">
+      <h2 className="text-sm font-medium text-[#3a3128] mb-2">Candidate Destinations</h2>
+      <p className="text-xs text-[#a89880] mb-3">
+        Places to consider if you adjust your itinerary. Tap to browse suggestions.
+      </p>
+      {Object.entries(byRegion).map(([region, regionCities]) => (
+        <div key={region} className="mb-3">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[#a89880] mb-1.5">
+            {region}
+          </div>
+          <div className="space-y-1.5">
+            {regionCities.map((city) => {
+              const cityExps = expsByCity[city.id] || [];
+              const isExpanded = expandedCity === city.id;
+              return (
+                <div key={city.id}>
+                  <button
+                    onClick={() => setExpandedCity(isExpanded ? null : city.id)}
+                    className="w-full text-left px-3 py-2 rounded-lg bg-white border border-[#f0ece5]
+                               hover:border-[#a89880] transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-[#3a3128]">{city.name}</span>
+                      <span className="text-xs text-[#a89880]">
+                        {cityExps.length} suggestion{cityExps.length !== 1 ? "s" : ""}
+                        <span className="ml-1">{isExpanded ? "\u25B4" : "\u25BE"}</span>
+                      </span>
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <div className="ml-3 mt-1 space-y-1 mb-2">
+                      {cityExps.map((exp) => (
+                        <div
+                          key={exp.id}
+                          className="px-3 py-2 rounded bg-[#faf8f5] border border-[#f0ece5]"
+                        >
+                          <div className="text-sm font-medium text-[#3a3128]">{exp.name}</div>
+                          {exp.description && (
+                            <div className="text-xs text-[#8a7a62] mt-0.5 whitespace-pre-line line-clamp-3">
+                              {exp.description}
+                            </div>
+                          )}
+                          {exp.sourceText && (
+                            <div className="text-[10px] text-[#c8bba8] mt-1">
+                              via {exp.sourceText}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 

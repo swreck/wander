@@ -993,9 +993,22 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
     }
 
     // Build a lookup of existing city names (case-insensitive)
-    const existingCityMap = new Map<string, string>(); // lowercase name → cityId
-    for (const c of trip.cities) {
-      existingCityMap.set(c.name.toLowerCase(), c.id);
+    // Include both exact and substring matching for resilience
+    const existingCities = trip.cities.map((c) => ({ id: c.id, lower: c.name.toLowerCase() }));
+    function findExistingCity(name: string): string | null {
+      const lower = name.toLowerCase();
+      // Exact match
+      const exact = existingCities.find((c) => c.lower === lower);
+      if (exact) return exact.id;
+      // Rec city contained in trip city or vice versa (e.g., "Karatsu" matches "Karatsu")
+      // But skip very short names to avoid false positives
+      if (lower.length >= 4) {
+        const contained = existingCities.find(
+          (c) => c.lower.includes(lower) || lower.includes(c.lower)
+        );
+        if (contained) return contained.id;
+      }
+      return null;
     }
 
     // Track new candidate cities we create
@@ -1016,15 +1029,16 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
       if (rec.city) {
         const cityKey = rec.city.toLowerCase();
 
-        // Try existing trip city
-        cityId = existingCityMap.get(cityKey) || null;
+        // Try existing trip city (exact + substring)
+        cityId = findExistingCity(rec.city);
 
         // Try new candidate cities we already created this session
         if (!cityId) cityId = newCityMap.get(cityKey) || null;
 
         if (cityId) {
-          // Category 1 — existing city
-          if (existingCityMap.has(cityKey)) cat1Count++;
+          // Check if it's an existing trip city or a new candidate we created
+          const isExisting = existingCities.some((c) => c.id === cityId);
+          if (isExisting) cat1Count++;
           else cat2Count++;
         } else {
           // Category 2 — new candidate city (no dates, no days)
@@ -1049,7 +1063,7 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
       } else {
         // Category 3 — no location, goes to Ideas city
         if (!ideasCityId) {
-          const existing = existingCityMap.get("ideas") || newCityMap.get("ideas");
+          const existing = findExistingCity("Ideas") || newCityMap.get("ideas");
           if (existing) {
             ideasCityId = existing;
           } else {
