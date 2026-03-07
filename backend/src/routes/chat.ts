@@ -890,12 +890,19 @@ router.post("/", async (req: AuthRequest, res) => {
 
     const user = req.user!;
 
+    // Ensure we have a tripId — fall back to the active trip
+    let tripId = context?.tripId;
+    if (!tripId) {
+      const activeTrip = await prisma.trip.findFirst({ where: { status: "active" }, select: { id: true } });
+      if (activeTrip) tripId = activeTrip.id;
+    }
+
     // Build system prompt with page context
     const systemPrompt = `You are a helpful travel planning assistant embedded in the Wander app. You can answer questions about the user's trip and perform actions like adding experiences, promoting/demoting them, adding reservations, and managing cities and days.
 
 CURRENT CONTEXT:
 - Page: ${context?.page || "unknown"}
-- Trip ID: ${context?.tripId || "none"}
+- Trip ID: ${tripId || "none"}
 ${context?.cityId ? `- Viewing city ID: ${context.cityId}` : ""}
 ${context?.cityName ? `- Viewing city: ${context.cityName}` : ""}
 ${context?.dayId ? `- Viewing day ID: ${context.dayId}` : ""}
@@ -912,7 +919,8 @@ RULES:
 6. For date references like "Tuesday" or "day 3", use get_all_days to find the right day.
 7. Never fabricate data — always query first.
 8. When the user says "move X to Y day", demote first then promote to the new day.
-11. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
+11. NEVER ask the user for a trip ID, city ID, day ID, or any internal identifier. These are always provided in the CURRENT CONTEXT above. If the trip ID shows "none", tell the user no active trip was found.
+12. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
 12. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.`;
 
     // Build conversation with history for context
