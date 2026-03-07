@@ -933,7 +933,11 @@ RULES:
         }
       }
     }
-    messages.push({ role: "user", content: message });
+    // Append tripId hint to the user message so the model can't miss it
+    const augmentedMessage = tripId
+      ? `${message}\n\n[System: The active trip ID is ${tripId}. Use it for any tool calls. Do not ask the user for it.]`
+      : message;
+    messages.push({ role: "user", content: augmentedMessage });
     const actions: string[] = [];
     let finalReply = "";
 
