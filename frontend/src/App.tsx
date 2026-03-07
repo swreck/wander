@@ -13,6 +13,52 @@ import { ToastProvider } from "./contexts/ToastContext";
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./lib/api";
 
+function ShortcutHelp() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setShow(true);
+    window.addEventListener("wander:show-shortcuts", handler);
+    return () => window.removeEventListener("wander:show-shortcuts", handler);
+  }, []);
+
+  if (!show) return null;
+
+  const shortcuts = [
+    ["1 or g h", "Trip Overview"],
+    ["2 or g p", "Plan page"],
+    ["3 or g n", "Now page"],
+    ["4 or g l", "History"],
+    ["c", "Toggle capture (Plan)"],
+    ["i", "Toggle import (Plan)"],
+    ["m", "Toggle map/list (Plan, mobile)"],
+    ["Esc", "Close panel"],
+    ["?", "This help"],
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30" onClick={() => setShow(false)}>
+      <div className="bg-white rounded-xl shadow-xl max-w-xs w-full mx-4 p-5 border border-[#e0d8cc]" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-medium text-[#3a3128] mb-3">Keyboard Shortcuts</h3>
+        <div className="space-y-1.5">
+          {shortcuts.map(([key, desc]) => (
+            <div key={key} className="flex items-center justify-between text-xs">
+              <span className="text-[#8a7a62]">{desc}</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#3a3128] font-mono text-[10px] border border-[#e0d8cc]">{key}</kbd>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => setShow(false)}
+          className="mt-4 w-full py-2 rounded-lg bg-[#f0ece5] text-xs text-[#6b5d4a] hover:bg-[#e0d8cc] transition-colors"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) { return { error }; }
@@ -119,6 +165,7 @@ export default function App() {
             <AppRoutes />
             <DailyGreeting />
             <ChatOverlay />
+            <ShortcutHelp />
             <OfflineIndicator />
           </ToastProvider>
         </AuthProvider>

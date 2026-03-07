@@ -25,6 +25,8 @@ interface Props {
   showUserLocation?: boolean;
   highlightedExpId?: string | null;
   recenterKey?: number;
+  themeFilter?: string | null;
+  onThemeFilterChange?: (theme: string | null) => void;
 }
 
 // ── Theme marker config ─────────────────────────────────────────
@@ -389,11 +391,12 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
     const circle = new google.maps.Circle({
       center,
       radius: radiusM,
-      strokeColor: "#a89880",
-      strokeOpacity: 0.5,
-      strokeWeight: 1.5,
+      strokeColor: "#8a7a62",
+      strokeOpacity: 0.7,
+      strokeWeight: 2.5,
+      strokePosition: google.maps.StrokePosition.OUTSIDE,
       fillColor: "#c8bba8",
-      fillOpacity: 0.1,
+      fillOpacity: 0.18,
       map,
       clickable: false,
     });
@@ -404,16 +407,17 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
   if (geoPoints.length === 0 || !center) return null;
 
   const label = geoPoints.length === 1
-    ? `🚶 ~${walkingMin} min walking radius`
-    : `🚶 ${diameterKm.toFixed(1)} km across · ~${walkingMin} min walk`;
+    ? `~${walkingMin} min walking radius`
+    : `${diameterKm.toFixed(1)} km spread · ~${walkingMin} min walk`;
 
   return (
-    <MapControl position={ControlPosition.BOTTOM_CENTER}>
+    <MapControl position={ControlPosition.TOP_CENTER}>
       <div
-        className="mb-20 px-4 py-2 rounded-xl shadow-lg border border-[#c8bba8]"
-        style={{ backgroundColor: "rgba(255,255,255,0.95)" }}
+        className="mt-14 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
+        style={{ backgroundColor: "rgba(255,255,255,0.92)" }}
       >
-        <div className="text-sm text-[#3a3128] font-medium">
+        <div className="text-xs text-[#3a3128] font-medium flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full border-2 border-[#8a7a62] inline-block" style={{ backgroundColor: "rgba(200,187,168,0.3)" }} />
           {label}
         </div>
       </div>
@@ -458,7 +462,47 @@ function MapPanner({ center, experiences, recenterKey }: { center: { lat: number
 
 // ── Main Component ──────────────────────────────────────────────
 
-export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true, highlightedExpId, recenterKey }: Props) {
+function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeTheme: string | null; onSelect: (t: string | null) => void; availableThemes: Set<string> }) {
+  if (availableThemes.size <= 1) return null;
+  const themes = [...availableThemes].sort();
+  return (
+    <MapControl position={ControlPosition.LEFT_TOP}>
+      <div className="ml-2 mt-2 flex flex-col gap-1">
+        {activeTheme && (
+          <button
+            onClick={() => onSelect(null)}
+            className="w-8 h-8 rounded-full bg-white shadow-md border border-[#e0d8cc]
+                       flex items-center justify-center text-xs text-[#8a7a62] hover:bg-[#f0ece5]"
+            title="Show all"
+          >
+            All
+          </button>
+        )}
+        {themes.map((t) => {
+          const style = THEME_STYLES[t] || THEME_STYLES.other;
+          const isActive = activeTheme === t;
+          return (
+            <button
+              key={t}
+              onClick={() => onSelect(isActive ? null : t)}
+              className="w-8 h-8 rounded-full shadow-md border-2 flex items-center justify-center text-sm transition-all"
+              style={{
+                backgroundColor: isActive ? style.bg : "white",
+                borderColor: isActive ? style.border : "#e0d8cc",
+                opacity: activeTheme && !isActive ? 0.4 : 1,
+              }}
+              title={THEME_LABELS[t] || t}
+            >
+              {style.emoji}
+            </button>
+          );
+        })}
+      </div>
+    </MapControl>
+  );
+}
+
+export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true, highlightedExpId, recenterKey, themeFilter, onThemeFilterChange }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -477,8 +521,21 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
     (e) => e.locationStatus === "confirmed" && e.latitude && e.longitude
   );
 
+  // Collect all themes present on the map for the filter bar
+  const availableThemes = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of confirmedExps) {
+      for (const t of e.themes) set.add(t);
+    }
+    return set;
+  }, [confirmedExps]);
+
+  const matchesFilter = (themes: string[]) => !themeFilter || themes.includes(themeFilter);
+
   const selectedExps = confirmedExps.filter((e) => e.state === "selected");
   const possibleExps = confirmedExps.filter((e) => e.state === "possible");
+  const filteredSelected = selectedExps.filter((e) => matchesFilter(e.themes));
+  const filteredPossible = possibleExps.filter((e) => matchesFilter(e.themes));
   const confirmedAccom = accommodations.filter((a) => a.latitude && a.longitude);
 
   const existingPlaceIds = new Set(
@@ -527,8 +584,17 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         <MapPanner center={center} experiences={experiences} recenterKey={recenterKey} />
         <TravelGeometryOverlay selectedExps={selectedExps} />
 
+        {/* Theme filter bar */}
+        {onThemeFilterChange && (
+          <ThemeFilterBar
+            activeTheme={themeFilter || null}
+            onSelect={onThemeFilterChange}
+            availableThemes={availableThemes}
+          />
+        )}
+
         {/* Tier 1 — Selected experiences (bold, labeled) */}
-        {selectedExps.map((exp) => (
+        {filteredSelected.map((exp) => (
           <AdvancedMarker
             key={exp.id}
             position={{ lat: exp.latitude!, lng: exp.longitude! }}
@@ -541,7 +607,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         ))}
 
         {/* Tier 2 — Possible experiences (dashed border, labeled) */}
-        {possibleExps.map((exp) => (
+        {filteredPossible.map((exp) => (
           <AdvancedMarker
             key={exp.id}
             position={{ lat: exp.latitude!, lng: exp.longitude! }}
@@ -554,7 +620,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         ))}
 
         {/* Tier 3 — Nearby high-rated places (smaller, labeled with rating) */}
-        {nearbyPlaces.map((place) => (
+        {nearbyPlaces.filter((p) => matchesFilter(typesToThemes(p.types))).map((place) => (
           <AdvancedMarker
             key={place.placeId}
             position={{ lat: place.latitude, lng: place.longitude }}

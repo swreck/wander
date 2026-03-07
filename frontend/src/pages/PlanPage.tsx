@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Trip, Day, Experience } from "../lib/types";
@@ -10,6 +10,7 @@ import DayView from "../components/DayView";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
 import { getNudgesForPlace } from "../lib/travelerProfiles";
+import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
 export default function PlanPage() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function PlanPage() {
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const [highlightedExpId, setHighlightedExpId] = useState<string | null>(null);
   const [recenterKey, setRecenterKey] = useState(0);
+  const [themeFilter, setThemeFilter] = useState<string | null>(null);
 
   // Import state
   const [importText, setImportText] = useState("");
@@ -54,6 +56,20 @@ export default function PlanPage() {
   // Derived state
   const selectedDay = days.find((d) => d.id === selectedDayId) || null;
   const activeCityId = selectedDay?.cityId || trip?.cities[0]?.id || "";
+
+  // Keyboard shortcuts
+  const shortcutActions = useMemo(() => ({
+    toggleCapture: () => setShowCapture((v) => !v),
+    toggleImport: () => setShowImport((v) => !v),
+    toggleMobileView: () => setMobileView((v) => v === "map" ? "list" : "map"),
+    closePanel: () => {
+      if (selectedExpId) { setSelectedExpId(null); return; }
+      if (showDayView) { setShowDayView(false); return; }
+      if (showCapture) { setShowCapture(false); return; }
+      if (showImport) { setShowImport(false); setImportPreview(null); setRecPreview(null); return; }
+    },
+  }), [selectedExpId, showDayView, showCapture, showImport]);
+  useKeyboardShortcuts(shortcutActions);
 
   // Expose current day/city to chat assistant via global
   useEffect(() => {
@@ -746,6 +762,8 @@ export default function PlanPage() {
             showNearby={true}
             highlightedExpId={highlightedExpId}
             recenterKey={recenterKey}
+            themeFilter={themeFilter}
+            onThemeFilterChange={setThemeFilter}
           />
 
           {/* Contextual day card — floating over map */}

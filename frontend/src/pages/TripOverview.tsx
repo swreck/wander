@@ -7,6 +7,7 @@ import { useToast } from "../contexts/ToastContext";
 import { APIProvider, Map as GoogleMap, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
 import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
 import type { Trip, City, Day, Experience, ChangeLogEntry } from "../lib/types";
+import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -27,6 +28,8 @@ export default function TripOverview() {
   const [editTagline, setEditTagline] = useState("");
   const [recentActivity, setRecentActivity] = useState<ChangeLogEntry[]>([]);
   const [collabWelcome, setCollabWelcome] = useState<{ names: string[]; tripName: string } | null>(null);
+
+  useKeyboardShortcuts();
 
   async function loadTrips() {
     setLoading(true);

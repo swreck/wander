@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-07 (cont'd — Theme Filter, Keyboard Shortcuts, Overlay Fix)
+
+### Added
+- **Theme filtering on map**: Emoji filter bar on the left side of the map. Tap a theme emoji to show only markers of that type (food, temples, ceramics, etc.). Tap again or tap "All" to clear the filter. Applies to selected, possible, and nearby markers. Only shows themes that are actually present on the current map view.
+- **Keyboard shortcuts**: Global navigation shortcuts work on all pages: 1/g+h = Overview, 2/g+p = Plan, 3/g+n = Now, 4/g+l = History. Plan page also supports: c = toggle capture, i = toggle import, m = toggle map/list, Esc = close panel. Press ? for a help overlay showing all shortcuts. Shortcuts are suppressed when typing in inputs.
+
+### Fixed
+- **Distance overlay visibility**: Circle around selected pins was nearly invisible (10% opacity, thin stroke). Now uses 18% fill opacity, 2.5px stroke at 70% opacity, darker color (#8a7a62). Walking time/distance label moved to top center with a small circle indicator matching the overlay style.
+
+SPEC UPDATE NEEDED: Theme filtering and keyboard shortcuts are new features.
+
 ## 2026-03-07 (cont'd — Chat Recommendation Import)
 
 ### Added
