@@ -16,6 +16,8 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 - **Back button going to CreateTrip**: If /trips/active returns null but trips exist, auto-reactivates instead of showing the new trip screen.
 
 ### Changed
+- **Filmstrip redesign**: Each day now shows 3-letter day name (Mon, Tue...), date (Oct 23), and full city name with word-wrap — no truncation. Map thumbnail is pure geography.
+- **Static map labels suppressed**: Google's city name labels (京都市, 岡山市 etc.) hidden on all static maps via styling. Our own consistent label shows instead — no more duplicate/competing text.
 - **Simplified location model**: "Pending" locations treated same as "unlocated" — either you have a confirmed location or you don't. Tap the icon to fix it.
 - **Calendar icon**: Replaced 📋 (clipboard/copy-paste confusion) with 🗓️ (calendar) for plans indicator, consistent across calendar and PlanPage.
 
