@@ -151,12 +151,16 @@ export default function TripOverview() {
 
   const selectedPerDay: Record<string, number> = {};
   const possiblePerCity: Record<string, number> = {};
+  const backroadsDays = new Set<string>();
   for (const exp of experiences) {
     if (exp.state === "selected" && exp.dayId) {
       selectedPerDay[exp.dayId] = (selectedPerDay[exp.dayId] || 0) + 1;
     }
     if (exp.state === "possible") {
       possiblePerCity[exp.cityId] = (possiblePerCity[exp.cityId] || 0) + 1;
+    }
+    if (exp.dayId && (exp.sourceText === "Imported from itinerary document" || exp.sourceText === "Merged from imported text")) {
+      backroadsDays.add(exp.dayId);
     }
   }
 
@@ -363,6 +367,7 @@ export default function TripOverview() {
           days={days}
           cities={trip.cities}
           selectedPerDay={selectedPerDay}
+          backroadsDays={backroadsDays}
           onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
         />
 
@@ -457,11 +462,13 @@ function CalendarGrid({
   days,
   cities,
   selectedPerDay,
+  backroadsDays,
   onDayClick,
 }: {
   days: Day[];
   cities: City[];
   selectedPerDay: Record<string, number>;
+  backroadsDays: Set<string>;
   onDayClick: (cityId: string) => void;
 }) {
   if (days.length === 0) return null;
@@ -503,6 +510,7 @@ function CalendarGrid({
           allSortedDays={sortedDays}
           cities={cities}
           selectedPerDay={selectedPerDay}
+          backroadsDays={backroadsDays}
           onDayClick={onDayClick}
         />
       ))}
@@ -515,12 +523,14 @@ function CalendarCluster({
   allSortedDays,
   cities,
   selectedPerDay,
+  backroadsDays,
   onDayClick,
 }: {
   clusterDays: Day[];
   allSortedDays: Day[];
   cities: City[];
   selectedPerDay: Record<string, number>;
+  backroadsDays: Set<string>;
   onDayClick: (cityId: string) => void;
 }) {
   const firstDate = new Date(clusterDays[0].date);
@@ -588,6 +598,7 @@ function CalendarCluster({
               }
 
               const count = selectedPerDay[day.id] || 0;
+              const isBackroads = backroadsDays.has(day.id);
               const cityColor = getCityPastel(cities, day.cityId);
               const globalIdx = allSortedDays.indexOf(day);
               const prevDay = globalIdx > 0 ? allSortedDays[globalIdx - 1] : null;
@@ -634,8 +645,12 @@ function CalendarCluster({
                     style={{ wordBreak: "break-word" }}>
                     {city?.name || ""}
                   </div>
-                  {/* Bottom: plans icon */}
-                  <div className="relative z-10 mb-1 h-4 flex items-center justify-center">
+                  {/* Bottom: plans icon + Backroads badge */}
+                  <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0.5">
+                    {isBackroads && (
+                      <span className="font-bold text-white rounded-sm leading-none"
+                        style={{ fontSize: 9, backgroundColor: "#c0392b", padding: "1px 2px" }}>B</span>
+                    )}
                     {count > 0 && (
                       <span style={{ fontSize: 12, color: dotColor }}>🗓️</span>
                     )}

@@ -2,6 +2,11 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-07 (cont'd — Trip Date Sync, Backroads Badge)
+
+### Added
+- **Backroads day badge on calendar**: Days with experiences imported from the Backroads PDF show a small red "B" badge next to the calendar icon. Identified by `sourceText` on experiences — no schema change needed.
+
 ## 2026-03-07 (cont'd — Trip Date Sync)
 
 ### Fixed
