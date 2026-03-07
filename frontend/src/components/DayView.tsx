@@ -268,6 +268,37 @@ export default function DayView({
         </button>
       </div>
 
+      {/* Travel card — shown on city transition days */}
+      {(() => {
+        const sortedDays = [...(trip.days || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const dayIdx = sortedDays.findIndex((d) => d.id === day.id);
+        const prev = dayIdx > 0 ? sortedDays[dayIdx - 1] : null;
+        if (!prev || prev.cityId === day.cityId) return null;
+        const segment = trip.routeSegments?.find(
+          (rs) => rs.originCity === prev.city.name && rs.destinationCity === day.city.name
+        );
+        const modeEmoji: Record<string, string> = { train: "🚃", bus: "🚌", flight: "✈️", car: "🚗", ferry: "⛴️", walk: "🚶" };
+        const emoji = segment ? (modeEmoji[segment.transportMode.toLowerCase()] || "🚃") : "🚃";
+        return (
+          <div className="mb-4 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="text-sm font-medium text-amber-800">
+              {emoji} {prev.city.name} → {day.city.name}
+            </div>
+            {segment ? (
+              <div className="text-xs text-amber-700 mt-0.5">
+                {segment.transportMode.charAt(0).toUpperCase() + segment.transportMode.slice(1)}
+                {segment.departureDate && ` · ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+                {segment.notes && ` · ${segment.notes}`}
+              </div>
+            ) : (
+              <div className="text-xs text-amber-600 mt-0.5 italic">
+                No travel details yet
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Accommodation anchor — with full details */}
       {accommodations.length > 0 && (
         <div className="mb-6">

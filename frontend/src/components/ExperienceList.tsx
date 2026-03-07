@@ -26,6 +26,80 @@ import RatingsBadge from "./RatingsBadge";
 
 import { useToast } from "../contexts/ToastContext";
 
+// ── Inline Location Resolver ──────────────────────────────────────
+function LocationResolver({ exp, onResolved }: { exp: Experience; onResolved: () => void }) {
+  const [query, setQuery] = useState(exp.name);
+  const [results, setResults] = useState<{ placeId: string; name: string; address: string; latitude: number; longitude: number }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const { showToast } = useToast();
+
+  async function handleSearch() {
+    setSearching(true);
+    try {
+      const r = await api.get<any[]>(`/geocoding/search?query=${encodeURIComponent(query)}&city=${encodeURIComponent(exp.city?.name || "")}`);
+      setResults(r);
+    } catch { setResults([]); }
+    setSearching(false);
+  }
+
+  async function handleConfirm(result: { placeId: string; latitude: number; longitude: number }) {
+    setConfirming(true);
+    try {
+      await api.post(`/geocoding/experience/${exp.id}/confirm`, {
+        latitude: result.latitude,
+        longitude: result.longitude,
+        placeIdGoogle: result.placeId,
+      });
+      showToast("Location set");
+      onResolved();
+    } catch {
+      showToast("Couldn't set location", "error");
+    }
+    setConfirming(false);
+  }
+
+  return (
+    <div className="mt-1 p-2 bg-white rounded-lg border border-[#e0d8cc] space-y-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex gap-1">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          className="flex-1 text-xs px-2 py-1 border border-[#e0d8cc] rounded bg-[#faf8f5] focus:outline-none focus:border-[#a89880]"
+          placeholder="Search for place..."
+        />
+        <button
+          onClick={handleSearch}
+          disabled={searching}
+          className="px-2 py-1 text-[10px] bg-[#514636] text-white rounded hover:bg-[#3a3128] disabled:opacity-40"
+        >
+          {searching ? "..." : "Search"}
+        </button>
+      </div>
+      {results.length > 0 && (
+        <div className="space-y-1 max-h-32 overflow-y-auto">
+          {results.map((r) => (
+            <button
+              key={r.placeId}
+              onClick={() => handleConfirm(r)}
+              disabled={confirming}
+              className="w-full text-left px-2 py-1.5 rounded bg-[#faf8f5] hover:bg-[#f0ece5] transition-colors"
+            >
+              <div className="text-xs font-medium text-[#3a3128]">{r.name}</div>
+              <div className="text-[10px] text-[#8a7a62] truncate">{r.address}</div>
+            </button>
+          ))}
+        </div>
+      )}
+      {results.length === 0 && !searching && (
+        <div className="text-[10px] text-[#c8bba8]">Search to find a map location</div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   selected: Experience[];
   possible: Experience[];
@@ -35,6 +109,7 @@ interface Props {
   onDemote: (expId: string) => void;
   onExperienceClick: (id: string) => void;
   onExperienceHover?: (id: string | null) => void;
+  onLocationResolved?: () => void;
 }
 
 // ── Grip Handle SVG ────────────────────────────────────────────────
@@ -63,11 +138,17 @@ function SortableSelectedItem({
   onDemote,
   onExperienceClick,
   onHover,
+  locatingId,
+  setLocatingId,
+  onLocationResolved,
 }: {
   exp: Experience;
   onDemote: (id: string) => void;
   onExperienceClick: (id: string) => void;
   onHover?: (id: string | null) => void;
+  locatingId: string | null;
+  setLocatingId: (id: string | null) => void;
+  onLocationResolved: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exp.id,
@@ -94,10 +175,15 @@ function SortableSelectedItem({
           <div className="flex-1 min-w-0 flex items-center justify-between">
             <div className="truncate flex items-center gap-1.5">
               {exp.locationStatus !== "confirmed" && (
-                <span title="No map location" className="text-[10px] text-[#c8bba8] relative inline-block" style={{ width: 14, height: 14 }}>
+                <button
+                  title="Tap to set map location"
+                  className="text-[10px] text-[#c8bba8] relative inline-block hover:text-[#8a7a62] transition-colors"
+                  style={{ width: 14, height: 14, flexShrink: 0 }}
+                  onClick={(e) => { e.stopPropagation(); setLocatingId(locatingId === exp.id ? null : exp.id); }}
+                >
                   <span style={{ position: "absolute", fontSize: 12 }}>📍</span>
                   <span style={{ position: "absolute", top: -1, left: 2, fontSize: 14, color: "#d44" }}>╲</span>
-                </span>
+                </button>
               )}
               <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
               {exp.timeWindow && (
@@ -123,6 +209,9 @@ function SortableSelectedItem({
             </div>
           </div>
         </div>
+        {locatingId === exp.id && (
+          <LocationResolver exp={exp} onResolved={() => { setLocatingId(null); onLocationResolved(); }} />
+        )}
       </div>
     </div>
   );
@@ -153,6 +242,9 @@ function SortablePossibleItem({
   onDirectPromote: (expId: string, dayId: string) => void;
   onExperienceClick: (id: string) => void;
   onHover?: (id: string | null) => void;
+  locatingId: string | null;
+  setLocatingId: (id: string | null) => void;
+  onLocationResolved: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exp.id,
@@ -180,10 +272,15 @@ function SortablePossibleItem({
           <div className="flex-1 min-w-0 flex items-center justify-between">
             <span className="text-xs text-[#6b5d4a] truncate flex items-center gap-1">
               {exp.locationStatus !== "confirmed" && (
-                <span title="No map location" className="inline-block relative" style={{ width: 12, height: 12, flexShrink: 0 }}>
+                <button
+                  title="Tap to set map location"
+                  className="inline-block relative hover:opacity-70 transition-opacity"
+                  style={{ width: 12, height: 12, flexShrink: 0 }}
+                  onClick={(e) => { e.stopPropagation(); setLocatingId(locatingId === exp.id ? null : exp.id); }}
+                >
                   <span style={{ position: "absolute", fontSize: 10 }}>📍</span>
                   <span style={{ position: "absolute", top: -1, left: 1, fontSize: 12, color: "#d44" }}>╲</span>
-                </span>
+                </button>
               )}
               {exp.name}
             </span>
@@ -231,6 +328,9 @@ function SortablePossibleItem({
           </button>
         </div>
       )}
+      {locatingId === exp.id && (
+        <LocationResolver exp={exp} onResolved={() => { setLocatingId(null); onLocationResolved(); }} />
+      )}
     </div>
   );
 }
@@ -262,13 +362,14 @@ function DragOverlayItem({ exp }: { exp: Experience }) {
 
 // ── Main Component ─────────────────────────────────────────────────
 export default function ExperienceList({
-  selected, possible, days, trip, onPromote, onDemote, onExperienceClick, onExperienceHover,
+  selected, possible, days, trip, onPromote, onDemote, onExperienceClick, onExperienceHover, onLocationResolved,
 }: Props) {
   const { showToast } = useToast();
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [promoteDay, setPromoteDay] = useState("");
   const [promoteTimeWindow, setPromoteTimeWindow] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [locatingId, setLocatingId] = useState<string | null>(null);
 
   // Cross-zone drag: if dragging from possible to selected, show inline day selector
   const [crossZonePromoteId, setCrossZonePromoteId] = useState<string | null>(null);
@@ -467,6 +568,9 @@ export default function ExperienceList({
                   onDemote={onDemote}
                   onExperienceClick={onExperienceClick}
                   onHover={onExperienceHover}
+                  locatingId={locatingId}
+                  setLocatingId={setLocatingId}
+                  onLocationResolved={() => onLocationResolved?.()}
                 />
               ))}
             </div>
@@ -495,6 +599,9 @@ export default function ExperienceList({
                   onDirectPromote={onPromote}
                   onExperienceClick={onExperienceClick}
                   onHover={onExperienceHover}
+                  locatingId={locatingId}
+                  setLocatingId={setLocatingId}
+                  onLocationResolved={() => onLocationResolved?.()}
                 />
               ))}
 

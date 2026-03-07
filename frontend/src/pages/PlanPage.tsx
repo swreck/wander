@@ -492,7 +492,18 @@ export default function PlanPage() {
                     const dayIdx = days.findIndex((d) => d.id === selectedDay.id);
                     const prev = dayIdx > 0 ? days[dayIdx - 1] : null;
                     if (prev && prev.cityId !== selectedDay.cityId) {
-                      return <span className="text-amber-600 font-medium mr-1">🚃 {prev.city.name} → {selectedDay.city.name} ·</span>;
+                      const segment = trip.routeSegments.find(
+                        (rs) => rs.originCity === prev.city.name && rs.destinationCity === selectedDay.city.name
+                      );
+                      const modeEmoji: Record<string, string> = { train: "🚃", bus: "🚌", flight: "✈️", car: "🚗", ferry: "⛴️", walk: "🚶" };
+                      const emoji = segment ? (modeEmoji[segment.transportMode.toLowerCase()] || "🚃") : "🚃";
+                      return (
+                        <span className="text-amber-600 font-medium mr-1">
+                          {emoji} {prev.city.name} → {selectedDay.city.name}
+                          {segment?.notes && <span className="font-normal text-[#8a7a62]"> · {segment.notes}</span>}
+                          {" ·"}
+                        </span>
+                      );
                     }
                     return null;
                   })()}
@@ -650,6 +661,7 @@ export default function PlanPage() {
               onDemote={handleDemote}
               onExperienceClick={(id) => setSelectedExpId(id)}
               onExperienceHover={setHighlightedExpId}
+              onLocationResolved={loadExperiences}
             />
           )}
         </div>
@@ -697,6 +709,7 @@ export default function PlanPage() {
                   onPromote={handlePromote}
                   onDemote={handleDemote}
                   onExperienceClick={(id) => { setSelectedExpId(id); setMobileView("map"); }}
+                  onLocationResolved={loadExperiences}
                 />
               )}
             </div>

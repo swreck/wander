@@ -2,6 +2,25 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-07 (Location Resolver, Travel Days, Map-List Linkage)
+
+### Added
+- **Inline location resolver**: Unlocated experiences show a crossed-out 📍 icon. Tapping it opens an inline search — pick a result to set the map location. No separate review queue needed.
+- **Travel day cards**: Days with a city change show a transport banner (🚃/✈️/🚌 etc.) with origin → destination, mode, and notes from route segments. Appears in both the floating day card and DayView detail panel.
+- **List ↔ Map highlight**: Hovering a list item highlights its marker on the map with an amber ring. Clicking a map marker opens the detail panel.
+
+### Fixed
+- **Duplicate city names on calendar**: Static maps already show the city name — removed our overlay text when a map is present. Only shows city name on cells without a map (e.g., Izu Peninsula).
+- **Nearby marker duplicates**: Clicking a nearby place that already exists as an experience now opens its detail instead of creating a duplicate. New nearby discoveries save lat/lng and placeId for proper dedup.
+- **Map stuck on GPS location**: Tapping the same day after "where am I" now re-centers the map correctly.
+- **Back button going to CreateTrip**: If /trips/active returns null but trips exist, auto-reactivates instead of showing the new trip screen.
+
+### Changed
+- **Simplified location model**: "Pending" locations treated same as "unlocated" — either you have a confirmed location or you don't. Tap the icon to fix it.
+- **Calendar icon**: Replaced 📋 (clipboard/copy-paste confusion) with 🗓️ (calendar) for plans indicator, consistent across calendar and PlanPage.
+
+SPEC UPDATE NEEDED: Location resolver is new inline UI. Travel day display is new. List-map linkage is new interaction pattern.
+
 ## 2026-03-06 (Home Page Redesign, Brand Language, Smart Navigation)
 
 ### Changed
