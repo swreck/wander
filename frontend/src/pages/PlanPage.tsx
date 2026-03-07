@@ -22,8 +22,9 @@ export default function PlanPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Navigation — always days-based
+  // Navigation — days-based, plus dateless candidate cities
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
+  const [selectedCandidateCityId, setSelectedCandidateCityId] = useState<string | null>(null);
   const initialCityId = searchParams.get("city");
 
   // UI state
@@ -54,8 +55,15 @@ export default function PlanPage() {
   );
 
   // Derived state
-  const selectedDay = days.find((d) => d.id === selectedDayId) || null;
-  const activeCityId = selectedDay?.cityId || trip?.cities[0]?.id || "";
+  const selectedDay = selectedCandidateCityId ? null : (days.find((d) => d.id === selectedDayId) || null);
+  const activeCityId = selectedCandidateCityId || selectedDay?.cityId || trip?.cities[0]?.id || "";
+
+  // Dateless candidate cities (created by recommendation import, no days assigned)
+  const datedCityIds = useMemo(() => new Set(days.map((d) => d.cityId)), [days]);
+  const candidateCities = useMemo(
+    () => trip?.cities.filter((c) => !datedCityIds.has(c.id)) || [],
+    [trip, datedCityIds],
+  );
 
   // Keyboard shortcuts
   const shortcutActions = useMemo(() => ({
@@ -327,6 +335,7 @@ export default function PlanPage() {
 
   function handleDayClick(dayId: string) {
     setRecenterKey((k) => k + 1);
+    setSelectedCandidateCityId(null);
     if (selectedDayId === dayId) {
       setShowDayView(true);
     } else {
@@ -346,9 +355,11 @@ export default function PlanPage() {
   }
 
   // Show experiences for the selected day's city
-  const cityExperiences = selectedDay
-    ? experiences.filter((e) => e.cityId === selectedDay.cityId)
-    : experiences;
+  const cityExperiences = selectedCandidateCityId
+    ? experiences.filter((e) => e.cityId === selectedCandidateCityId)
+    : selectedDay
+      ? experiences.filter((e) => e.cityId === selectedDay.cityId)
+      : experiences;
 
   const selected = cityExperiences.filter((e) => e.state === "selected");
   const possible = cityExperiences.filter((e) => e.state === "possible");
@@ -931,6 +942,56 @@ export default function PlanPage() {
                   </button>
                 );
               })}
+
+              {/* Dateless candidate cities from recommendation imports */}
+              {candidateCities.length > 0 && (
+                <>
+                  <div className="shrink-0 w-px bg-[#e0d8cc] mx-1 self-stretch" />
+                  {candidateCities.map((city) => {
+                    const isActive = selectedCandidateCityId === city.id;
+                    const cityExpCount = experiences.filter((e) => e.cityId === city.id).length;
+                    return (
+                      <button
+                        key={city.id}
+                        onClick={() => {
+                          setSelectedCandidateCityId(isActive ? null : city.id);
+                          if (!isActive) setSelectedDayId(null);
+                          else if (days.length > 0) setSelectedDayId(days[0].id);
+                        }}
+                        className={`shrink-0 rounded-lg overflow-hidden transition-all ${
+                          isActive
+                            ? "ring-2 ring-[#514636] w-[110px]"
+                            : "w-[100px] opacity-80 hover:opacity-100"
+                        }`}
+                      >
+                        <div
+                          className="w-full h-12 flex items-center justify-center"
+                          style={{ backgroundColor: "#f0ece5" }}
+                        >
+                          <span className="text-lg">📌</span>
+                        </div>
+                        <div
+                          className="px-1.5 py-1 text-center"
+                          style={isActive
+                            ? { backgroundColor: "#514636", color: "#fff" }
+                            : { backgroundColor: "#f5f0e8", color: "#3a3128" }
+                          }
+                        >
+                          <div className="text-xs font-semibold">
+                            {cityExpCount} ideas
+                          </div>
+                          <div
+                            className={`text-xs leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
+                            style={{ wordBreak: "break-word" }}
+                          >
+                            {city.name}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </div>
           </div>
         </div>
