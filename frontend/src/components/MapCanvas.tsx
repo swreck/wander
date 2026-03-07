@@ -23,6 +23,7 @@ interface Props {
   onNearbyClick?: (place: NearbyPlace) => void;
   showNearby?: boolean;
   showUserLocation?: boolean;
+  highlightedExpId?: string | null;
 }
 
 // ── Theme marker config ─────────────────────────────────────────
@@ -104,7 +105,7 @@ function typesToThemes(types?: string[]): string[] {
   return mapped.length > 0 ? mapped : ["other"];
 }
 
-export function ThemedMarkerIcon({ themes, tier, label }: { themes: string[]; tier: "selected" | "possible" | "nearby"; label?: string }) {
+export function ThemedMarkerIcon({ themes, tier, label, highlighted }: { themes: string[]; tier: "selected" | "possible" | "nearby"; label?: string; highlighted?: boolean }) {
   const config = getThemeStyle(themes);
   const size = tier === "selected" ? 44 : tier === "possible" ? 36 : 28;
   const emojiSize = tier === "selected" ? 22 : tier === "possible" ? 18 : 14;
@@ -114,15 +115,18 @@ export function ThemedMarkerIcon({ themes, tier, label }: { themes: string[]; ti
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", opacity, cursor: "pointer" }}>
       {/* Marker pin */}
       <div style={{
-        width: size,
-        height: size,
+        width: highlighted ? size + 8 : size,
+        height: highlighted ? size + 8 : size,
         borderRadius: "50% 50% 50% 0",
         transform: "rotate(-45deg)",
         backgroundColor: config.bg,
-        border: tier === "selected" ? "3px solid #fff" : tier === "possible" ? "2.5px dashed " + config.border : "2px solid " + config.border,
-        boxShadow: tier === "selected"
-          ? "0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px " + config.border
-          : "0 2px 6px rgba(0,0,0,0.35)",
+        border: highlighted ? "4px solid #f59e0b" : tier === "selected" ? "3px solid #fff" : tier === "possible" ? "2.5px dashed " + config.border : "2px solid " + config.border,
+        boxShadow: highlighted
+          ? "0 0 0 4px rgba(245,158,11,0.4), 0 4px 16px rgba(0,0,0,0.5)"
+          : tier === "selected"
+            ? "0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px " + config.border
+            : "0 2px 6px rgba(0,0,0,0.35)",
+        transition: "all 0.2s ease",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -431,7 +435,7 @@ function MapPanner({ center, experiences }: { center: { lat: number; lng: number
 
 // ── Main Component ──────────────────────────────────────────────
 
-export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true }: Props) {
+export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true, highlightedExpId }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -507,8 +511,9 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             position={{ lat: exp.latitude!, lng: exp.longitude! }}
             onClick={() => onExperienceClick(exp.id)}
             title={exp.name}
+            zIndex={highlightedExpId === exp.id ? 900 : 100}
           >
-            <ThemedMarkerIcon themes={exp.themes} tier="selected" label={exp.name} />
+            <ThemedMarkerIcon themes={exp.themes} tier="selected" label={exp.name} highlighted={highlightedExpId === exp.id} />
           </AdvancedMarker>
         ))}
 
@@ -519,8 +524,9 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             position={{ lat: exp.latitude!, lng: exp.longitude! }}
             onClick={() => onExperienceClick(exp.id)}
             title={exp.name}
+            zIndex={highlightedExpId === exp.id ? 900 : 50}
           >
-            <ThemedMarkerIcon themes={exp.themes} tier="possible" label={exp.name} />
+            <ThemedMarkerIcon themes={exp.themes} tier="possible" label={exp.name} highlighted={highlightedExpId === exp.id} />
           </AdvancedMarker>
         ))}
 

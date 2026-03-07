@@ -34,6 +34,7 @@ interface Props {
   onPromote: (expId: string, dayId: string, routeSegmentId?: string, timeWindow?: string) => void;
   onDemote: (expId: string) => void;
   onExperienceClick: (id: string) => void;
+  onExperienceHover?: (id: string | null) => void;
 }
 
 // ── Grip Handle SVG ────────────────────────────────────────────────
@@ -61,10 +62,12 @@ function SortableSelectedItem({
   exp,
   onDemote,
   onExperienceClick,
+  onHover,
 }: {
   exp: Experience;
   onDemote: (id: string) => void;
   onExperienceClick: (id: string) => void;
+  onHover?: (id: string | null) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exp.id,
@@ -83,11 +86,19 @@ function SortableSelectedItem({
         className="px-3 py-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
                    hover:border-[#a89880] transition-colors"
         onClick={() => onExperienceClick(exp.id)}
+        onMouseEnter={() => onHover?.(exp.id)}
+        onMouseLeave={() => onHover?.(null)}
       >
         <div className="flex items-center gap-2">
           <GripHandle listeners={listeners as Record<string, unknown>} attributes={attributes} />
           <div className="flex-1 min-w-0 flex items-center justify-between">
-            <div className="truncate">
+            <div className="truncate flex items-center gap-1.5">
+              {exp.locationStatus !== "confirmed" && (
+                <span title="No map location" className="text-[10px] text-[#c8bba8] relative inline-block" style={{ width: 14, height: 14 }}>
+                  <span style={{ position: "absolute", fontSize: 12 }}>📍</span>
+                  <span style={{ position: "absolute", top: -1, left: 2, fontSize: 14, color: "#d44" }}>╲</span>
+                </span>
+              )}
               <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
               {exp.timeWindow && (
                 <span className="text-[10px] text-[#a89880] ml-1.5">{exp.timeWindow}</span>
@@ -141,6 +152,7 @@ function SortablePossibleItem({
   onPromoteSubmit: (id: string) => void;
   onDirectPromote: (expId: string, dayId: string) => void;
   onExperienceClick: (id: string) => void;
+  onHover?: (id: string | null) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exp.id,
@@ -160,11 +172,21 @@ function SortablePossibleItem({
           ${ratingBorderClass(exp)} bg-white
           hover:opacity-100 hover:border-[#e0d8cc]`}
         onClick={() => onExperienceClick(exp.id)}
+        onMouseEnter={() => onHover?.(exp.id)}
+        onMouseLeave={() => onHover?.(null)}
       >
         <div className="flex items-center gap-2">
           <GripHandle listeners={listeners as Record<string, unknown>} attributes={attributes} />
           <div className="flex-1 min-w-0 flex items-center justify-between">
-            <span className="text-xs text-[#6b5d4a] truncate">{exp.name}</span>
+            <span className="text-xs text-[#6b5d4a] truncate flex items-center gap-1">
+              {exp.locationStatus !== "confirmed" && (
+                <span title="No map location" className="inline-block relative" style={{ width: 12, height: 12, flexShrink: 0 }}>
+                  <span style={{ position: "absolute", fontSize: 10 }}>📍</span>
+                  <span style={{ position: "absolute", top: -1, left: 1, fontSize: 12, color: "#d44" }}>╲</span>
+                </span>
+              )}
+              {exp.name}
+            </span>
             <button
               onClick={(e) => { e.stopPropagation(); setPromotingId(promotingId === exp.id ? null : exp.id); }}
               className="text-[10px] text-[#c8bba8] hover:text-[#514636] transition-colors shrink-0 ml-2"
@@ -240,7 +262,7 @@ function DragOverlayItem({ exp }: { exp: Experience }) {
 
 // ── Main Component ─────────────────────────────────────────────────
 export default function ExperienceList({
-  selected, possible, days, trip, onPromote, onDemote, onExperienceClick,
+  selected, possible, days, trip, onPromote, onDemote, onExperienceClick, onExperienceHover,
 }: Props) {
   const { showToast } = useToast();
   const [promotingId, setPromotingId] = useState<string | null>(null);
@@ -444,6 +466,7 @@ export default function ExperienceList({
                   exp={exp}
                   onDemote={onDemote}
                   onExperienceClick={onExperienceClick}
+                  onHover={onExperienceHover}
                 />
               ))}
             </div>
@@ -471,6 +494,7 @@ export default function ExperienceList({
                   onPromoteSubmit={handlePromoteSubmit}
                   onDirectPromote={onPromote}
                   onExperienceClick={onExperienceClick}
+                  onHover={onExperienceHover}
                 />
               ))}
 

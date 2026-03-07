@@ -109,7 +109,7 @@ export default function TripOverview() {
     );
   }
 
-  if (showCreate || !trip) {
+  if (showCreate || (!trip && allTrips.length === 0)) {
     return (
       <CreateTrip
         onCreated={() => { setShowCreate(false); loadTrips(); }}
@@ -124,6 +124,17 @@ export default function TripOverview() {
           }
         }}
       />
+    );
+  }
+
+  // Active trip failed to load but trips exist — auto-activate the first one
+  if (!trip && allTrips.length > 0) {
+    const firstTrip = allTrips.find((t) => t.status === "active") || allTrips[0];
+    api.post(`/trips/${firstTrip.id}/activate`, {}).then(() => loadTrips()).catch(() => {});
+    return (
+      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
+        Loading...
+      </div>
     );
   }
 

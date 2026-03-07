@@ -31,6 +31,7 @@ export default function PlanPage() {
   const [showDayView, setShowDayView] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
+  const [highlightedExpId, setHighlightedExpId] = useState<string | null>(null);
 
   // Import state
   const [importText, setImportText] = useState("");
@@ -468,6 +469,7 @@ export default function PlanPage() {
             onExperienceClick={(id) => setSelectedExpId(id)}
             onNearbyClick={handleNearbyClick}
             showNearby={true}
+            highlightedExpId={highlightedExpId}
           />
 
           {/* Contextual day card — floating over map */}
@@ -483,6 +485,14 @@ export default function PlanPage() {
                   )}
                 </div>
                 <div className="text-[10px] text-[#8a7a62] mt-0.5">
+                  {(() => {
+                    const dayIdx = days.findIndex((d) => d.id === selectedDay.id);
+                    const prev = dayIdx > 0 ? days[dayIdx - 1] : null;
+                    if (prev && prev.cityId !== selectedDay.cityId) {
+                      return <span className="text-amber-600 font-medium mr-1">🚃 {prev.city.name} → {selectedDay.city.name} ·</span>;
+                    }
+                    return null;
+                  })()}
                   {selected.filter((e) => e.dayId === selectedDay.id).length} planned
                   {selectedDay.explorationZone && ` · ${selectedDay.explorationZone}`}
                   {(() => {
@@ -636,6 +646,7 @@ export default function PlanPage() {
               onPromote={handlePromote}
               onDemote={handleDemote}
               onExperienceClick={(id) => setSelectedExpId(id)}
+              onExperienceHover={setHighlightedExpId}
             />
           )}
         </div>
