@@ -24,6 +24,7 @@ interface Props {
   showNearby?: boolean;
   showUserLocation?: boolean;
   highlightedExpId?: string | null;
+  recenterKey?: number;
 }
 
 // ── Theme marker config ─────────────────────────────────────────
@@ -400,11 +401,11 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
 
 // ── Map Panner — reactively pan/zoom when center changes ────────
 
-function MapPanner({ center, experiences }: { center: { lat: number; lng: number }; experiences: Experience[] }) {
+function MapPanner({ center, experiences, recenterKey }: { center: { lat: number; lng: number }; experiences: Experience[]; recenterKey?: number }) {
   const map = useMap();
   const prevKeyRef = useRef("");
 
-  const key = `${center.lat.toFixed(5)},${center.lng.toFixed(5)}`;
+  const key = `${center.lat.toFixed(5)},${center.lng.toFixed(5)},${recenterKey ?? 0}`;
 
   useEffect(() => {
     if (!map || key === prevKeyRef.current) return;
@@ -435,7 +436,7 @@ function MapPanner({ center, experiences }: { center: { lat: number; lng: number
 
 // ── Main Component ──────────────────────────────────────────────
 
-export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true, highlightedExpId }: Props) {
+export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true, highlightedExpId, recenterKey }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -501,7 +502,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         fullscreenControl={false}
         style={{ width: "100%", height: "100%" }}
       >
-        <MapPanner center={center} experiences={experiences} />
+        <MapPanner center={center} experiences={experiences} recenterKey={recenterKey} />
         <TravelGeometryOverlay selectedExps={selectedExps} />
 
         {/* Tier 1 — Selected experiences (bold, labeled) */}

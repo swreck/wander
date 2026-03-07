@@ -32,6 +32,7 @@ export default function PlanPage() {
   const [showImport, setShowImport] = useState(false);
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const [highlightedExpId, setHighlightedExpId] = useState<string | null>(null);
+  const [recenterKey, setRecenterKey] = useState(0);
 
   // Import state
   const [importText, setImportText] = useState("");
@@ -233,6 +234,7 @@ export default function PlanPage() {
   // ── Day selection ─────────────────────────────────────────────
 
   function handleDayClick(dayId: string) {
+    setRecenterKey((k) => k + 1);
     if (selectedDayId === dayId) {
       setShowDayView(true);
     } else {
@@ -470,6 +472,7 @@ export default function PlanPage() {
             onNearbyClick={handleNearbyClick}
             showNearby={true}
             highlightedExpId={highlightedExpId}
+            recenterKey={recenterKey}
           />
 
           {/* Contextual day card — floating over map */}
