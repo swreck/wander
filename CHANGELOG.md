@@ -2,6 +2,13 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Map Cleanup, Layout Fixes)
+
+### Fixed
+- **Overview map only shows itinerary cities**: Previously showed all 44 cities (including recommendation candidates), creating overwhelming numbered clusters. Now only dated, non-hidden cities appear on the overview map and route polyline.
+- **Floating buttons no longer hidden behind filmstrip**: The capture (+) and activity list buttons on PlanPage were at z-30, same as the filmstrip, and at insufficient bottom offset. Raised to z-35 and moved up to 110px above the bottom.
+- **Day header card respects safe area**: On PWA/notched devices, the day info card at the top of the map was clipped by the status bar. Now uses `env(safe-area-inset-top)` for proper positioning.
+
 ## 2026-03-08 (cont'd — Rating Links, Dismiss Safety)
 
 ### Changed

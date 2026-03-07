@@ -849,7 +849,7 @@ export default function PlanPage() {
 
           {/* Contextual day card — floating over map */}
           {selectedDay && (
-            <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none flex justify-center">
+            <div className="absolute left-2 right-2 z-10 pointer-events-none flex justify-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
               <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-3 py-2 pointer-events-auto max-w-sm">
                 <div className="text-xs font-medium text-[#3a3128]">
                   {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
@@ -917,19 +917,19 @@ export default function PlanPage() {
           <button
             onClick={() => setShowCapture(true)}
             className="fixed right-4 w-12 h-12 rounded-full bg-[#514636] text-white
-                       text-xl shadow-lg hover:bg-[#3a3128] transition-colors z-30
+                       text-xl shadow-lg hover:bg-[#3a3128] transition-colors z-[35]
                        flex items-center justify-center"
-            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}
+            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 110px)" }}
           >
             +
           </button>
 
-          {/* Mobile: activities toggle — calendar icon instead of hamburger */}
+          {/* Mobile: activities toggle — calendar icon */}
           <button
             onClick={() => setMobileView("list")}
             className="fixed md:hidden w-10 h-10 rounded-full bg-white shadow-lg
-                       text-sm text-[#514636] flex items-center justify-center z-30"
-            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)", right: "4.5rem" }}
+                       text-sm text-[#514636] flex items-center justify-center z-[35]"
+            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 110px)", right: "4.5rem" }}
             aria-label="Activities"
           >
             <span className="text-base">🗓️</span>

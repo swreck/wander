@@ -167,8 +167,9 @@ export default function TripOverview() {
     }
   }
 
-  // Check if any cities have coordinates for the map
-  const locatedCities = trip.cities.filter((c) => c.latitude && c.longitude);
+  // Only show itinerary cities (dated, not hidden) on the overview map
+  const itineraryCities = trip.cities.filter((c) => c.arrivalDate && !c.hidden);
+  const locatedCities = itineraryCities.filter((c) => c.latitude && c.longitude);
   const hasMap = API_KEY && locatedCities.length > 0;
 
   return (
@@ -211,8 +212,8 @@ export default function TripOverview() {
                 style={{ width: "100%", height: "100%" }}
               >
                 <OverviewFitter cities={locatedCities} />
-                <RoutePolyline cities={trip.cities} />
-                {trip.cities.map((city, i) => city.latitude && city.longitude && (
+                <RoutePolyline cities={itineraryCities} />
+                {itineraryCities.map((city, i) => city.latitude && city.longitude && (
                   <AdvancedMarker
                     key={city.id}
                     position={{ lat: city.latitude, lng: city.longitude }}
