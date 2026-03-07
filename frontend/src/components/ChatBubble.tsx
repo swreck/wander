@@ -21,28 +21,35 @@ interface ChatBubbleProps {
   onDataChanged?: () => void;
 }
 
-function storageKey(tripId?: string) {
-  return `wander-chat-${tripId || "global"}`;
-}
+const CHAT_STORAGE_KEY = "wander-chat";
 
-function loadMessages(tripId?: string): ChatMessage[] {
+function loadMessages(): ChatMessage[] {
   try {
-    const raw = localStorage.getItem(storageKey(tripId));
+    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
-function saveMessages(msgs: ChatMessage[], tripId?: string) {
+function saveMessages(msgs: ChatMessage[]) {
   try {
     // Keep last 50 messages to avoid unbounded growth
     const trimmed = msgs.slice(-50);
-    localStorage.setItem(storageKey(tripId), JSON.stringify(trimmed));
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(trimmed));
   } catch { /* quota exceeded — ignore */ }
+}
+
+function clearMessages() {
+  localStorage.removeItem(CHAT_STORAGE_KEY);
+  // Also clean up any legacy per-trip keys
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key?.startsWith("wander-chat-")) localStorage.removeItem(key);
+  }
 }
 
 export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(context.tripId));
+  const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -50,8 +57,8 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
 
   // Persist messages to localStorage
   useEffect(() => {
-    saveMessages(messages, context.tripId);
-  }, [messages, context.tripId]);
+    saveMessages(messages);
+  }, [messages]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -158,7 +165,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
               <button
-                onClick={() => { setMessages([]); localStorage.removeItem(storageKey(context.tripId)); }}
+                onClick={() => { setMessages([]); clearMessages(); }}
                 className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3] text-xs"
                 title="Clear chat"
               >
