@@ -127,14 +127,16 @@ function preprocessContent(raw: string): string {
     return true;
   });
 
-  text = cleaned.join("\n");
+  // Strip trailing whitespace from each line before joining
+  text = cleaned.map((line) => line.trimEnd()).join("\n");
 
   // Collapse excessive whitespace
   text = text.replace(/\n{4,}/g, "\n\n\n");
 
-  // Truncate to ~6000 chars to stay well within context limits while keeping the meat
-  if (text.length > 6000) {
-    text = text.slice(0, 6000) + "\n\n[Content truncated]";
+  // Truncate to ~15000 chars — Haiku handles up to ~100k tokens,
+  // so this is well within limits while covering long recommendation lists
+  if (text.length > 15000) {
+    text = text.slice(0, 15000) + "\n\n[Content truncated]";
   }
 
   return text.trim();
