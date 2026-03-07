@@ -194,7 +194,7 @@ export async function extractItinerary(
   messages.push({ role: "user", content: userContent });
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5-20241022",
+    model: "claude-sonnet-4-6",
     max_tokens: 4096,
     system: EXTRACTION_PROMPT,
     messages,
@@ -277,7 +277,7 @@ export async function extractRecommendations(
   }
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5-20241022",
+    model: "claude-sonnet-4-6",
     max_tokens: 16384,
     system: RECOMMENDATION_PROMPT,
     messages: [{ role: "user", content: textPrompt }],
