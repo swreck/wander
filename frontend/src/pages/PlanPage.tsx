@@ -188,6 +188,36 @@ export default function PlanPage() {
     }
   }
 
+  async function handleReplaceBackbone() {
+    if (!trip || !importPreview) return;
+    setImporting(true);
+    try {
+      const result = await api.post<{ archivedTripName: string; repositioned: { before: number; after: number } }>(
+        "/import/replace-backbone",
+        { tripId: trip.id, ...importPreview }
+      );
+      setShowImport(false);
+      setImportText("");
+      setImportStartDate("");
+      setImportPreview(null);
+      const { before, after } = result.repositioned;
+      const moved = before + after;
+      showToast(
+        `Backbone replaced. Old plan archived. ${moved > 0 ? `${moved} surrounding day${moved !== 1 ? "s" : ""} repositioned.` : ""}`
+      );
+      await loadTrip();
+      await loadExperiences();
+    } catch {
+      showToast("Replace failed", "error");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const hasBackbone = experiences.some(
+    (e) => e.sourceText === "Imported from itinerary document" || e.sourceText === "Merged from imported text"
+  );
+
   // ── Nearby + Nudges ───────────────────────────────────────────
 
   async function handleNearbyClick(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number; types?: string[] }) {
@@ -438,7 +468,7 @@ export default function PlanPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2 mt-3">
+                <div className="flex gap-2 mt-3 flex-wrap">
                   <button
                     onClick={handleImportMerge}
                     disabled={importing}
@@ -447,6 +477,16 @@ export default function PlanPage() {
                   >
                     {importing ? "Adding..." : "Add to Trip"}
                   </button>
+                  {hasBackbone && (
+                    <button
+                      onClick={handleReplaceBackbone}
+                      disabled={importing}
+                      className="px-4 py-1.5 rounded bg-[#c0392b] text-white text-xs font-medium
+                                 hover:bg-[#a93226] disabled:opacity-40 transition-colors"
+                    >
+                      {importing ? "Replacing..." : "Replace Backbone"}
+                    </button>
+                  )}
                   <button
                     onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); }}
                     className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"

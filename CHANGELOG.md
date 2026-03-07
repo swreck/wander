@@ -8,6 +8,7 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 - **Bulk date shift**: New `POST /days/shift` endpoint and `shift_trip_dates` AI chat tool. Shifts all days, city dates, route segments, and reservations by N days. Users can say "move everything one week earlier" in chat and the AI will execute it.
 - **Single day date change**: `PATCH /days/:id` now accepts `date` field. New `update_day_date` AI chat tool for individual day moves.
 - **Backbone replacement**: New `POST /import/replace-backbone` endpoint. Archives old Backroads (imported itinerary) days/experiences/cities into a separate trip, imports new content, and repositions non-Backroads days to maintain their relative position before/after the new backbone. Archived trips can be reactivated to restore old plans.
+- **Replace Backbone UI button**: When importing into a trip that already has backbone (imported itinerary) days, a red "Replace Backbone" button appears alongside "Add to Trip" in the import review panel. Clicking it archives old backbone days, imports new content, and repositions surrounding days.
 - AI chat system prompt updated with instructions for date shift operations.
 
 SPEC UPDATE NEEDED: Date shifting and backbone replacement are new capabilities. Trip dates section needs update to reflect they're always derived from days.
