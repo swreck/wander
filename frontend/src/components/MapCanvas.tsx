@@ -343,7 +343,7 @@ function convexHull(points: { lat: number; lng: number }[]): { lat: number; lng:
 
 function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] }) {
   const map = useMap();
-  const polygonRef = useRef<google.maps.Polygon | null>(null);
+  const circleRef = useRef<google.maps.Circle | null>(null);
 
   const geoPoints = useMemo(() =>
     selectedExps
@@ -352,36 +352,60 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
     [selectedExps]
   );
 
-  const span = useMemo(() => maxSpanKm(geoPoints), [geoPoints]);
+  // Center = midpoint of all points
+  const center = useMemo(() => {
+    if (geoPoints.length === 0) return null;
+    const lat = geoPoints.reduce((s, p) => s + p.lat, 0) / geoPoints.length;
+    const lng = geoPoints.reduce((s, p) => s + p.lng, 0) / geoPoints.length;
+    return { lat, lng };
+  }, [geoPoints]);
+
+  // Radius: at least 1km (2km diameter default), or enough to contain all points + 20% padding
+  const radiusM = useMemo(() => {
+    if (!center || geoPoints.length === 0) return 1000;
+    if (geoPoints.length === 1) return 1000; // 2km diameter default
+    let maxDist = 0;
+    for (const p of geoPoints) {
+      const d = haversineKm(center.lat, center.lng, p.lat, p.lng) * 1000;
+      if (d > maxDist) maxDist = d;
+    }
+    return Math.max(1000, maxDist * 1.2); // at least 1km radius, else fit all + 20%
+  }, [center, geoPoints]);
+
+  // Walking time: diameter at 3 km/hr
+  const diameterKm = (radiusM * 2) / 1000;
   const walkingMin = useMemo(() => {
-    if (span === 0) return 0;
-    const raw = (span / 5) * 60;
-    return Math.round(raw / 5) * 5 || 5;
-  }, [span]);
-  const hullPoints = useMemo(() => convexHull(geoPoints), [geoPoints]);
+    const raw = (diameterKm / 3) * 60; // 3 km/hr
+    return Math.round(raw / 5) * 5 || 5; // round to nearest 5 min
+  }, [diameterKm]);
 
   useEffect(() => {
     if (!map) return;
-    if (polygonRef.current) {
-      polygonRef.current.setMap(null);
-      polygonRef.current = null;
+    if (circleRef.current) {
+      circleRef.current.setMap(null);
+      circleRef.current = null;
     }
-    if (hullPoints.length < 3) return;
-    const polygon = new google.maps.Polygon({
-      paths: hullPoints,
+    if (!center) return;
+    const circle = new google.maps.Circle({
+      center,
+      radius: radiusM,
       strokeColor: "#a89880",
-      strokeOpacity: 0.6,
+      strokeOpacity: 0.5,
       strokeWeight: 1.5,
       fillColor: "#c8bba8",
-      fillOpacity: 0.15,
+      fillOpacity: 0.1,
       map,
       clickable: false,
     });
-    polygonRef.current = polygon;
-    return () => { polygon.setMap(null); };
-  }, [map, hullPoints]);
+    circleRef.current = circle;
+    return () => { circle.setMap(null); };
+  }, [map, center, radiusM]);
 
-  if (geoPoints.length < 2 || span < 0.01) return null;
+  if (geoPoints.length === 0 || !center) return null;
+
+  const label = geoPoints.length === 1
+    ? `🚶 ~${walkingMin} min walking radius`
+    : `🚶 ${diameterKm.toFixed(1)} km across · ~${walkingMin} min walk`;
 
   return (
     <MapControl position={ControlPosition.BOTTOM_CENTER}>
@@ -389,10 +413,8 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
         className="mb-20 px-4 py-2 rounded-xl shadow-lg border border-[#c8bba8]"
         style={{ backgroundColor: "rgba(255,255,255,0.95)" }}
       >
-        <div className="flex items-center gap-3 text-sm text-[#3a3128] font-medium">
-          <span>🚶 {span.toFixed(1)} km</span>
-          <span className="text-[#c8bba8]">·</span>
-          <span>~{walkingMin} min walk</span>
+        <div className="text-sm text-[#3a3128] font-medium">
+          {label}
         </div>
       </div>
     </MapControl>

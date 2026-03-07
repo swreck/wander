@@ -2,10 +2,11 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
-## 2026-03-07 (Location Resolver, Travel Days, Map-List Linkage)
+## 2026-03-07 (Location Resolver, Travel Days, Map-List Linkage, Distance Overlay)
 
 ### Added
 - **Inline location resolver**: Unlocated experiences show a crossed-out 📍 icon. Tapping it opens an inline search — pick a result to set the map location. No separate review queue needed.
+- **Walking distance overlay on maps**: Circle-based distance overlay replaces polygon hull. Works with even 1 geocoded item (shows 2km walking radius). With 2+ items, circle encompasses all points with 20% padding. Label shows diameter and estimated walking time at 3 km/hr. Minimum circle size is 2km diameter.
 - **Travel day cards**: Days with a city change show a transport banner (🚃/✈️/🚌 etc.) with origin → destination, mode, and notes from route segments. Appears in both the floating day card and DayView detail panel.
 - **List ↔ Map highlight**: Hovering a list item highlights its marker on the map with an amber ring. Clicking a map marker opens the detail panel.
 
