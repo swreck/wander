@@ -583,52 +583,58 @@ export default function PlanPage() {
                 const isTravel = prevDay && prevDay.cityId !== day.cityId;
                 const prevColor = isTravel ? getCityPastel(trip.cities, prevDay.cityId) : null;
 
+                const dayOfWeek = new Date(day.date).toLocaleDateString("en-US", { weekday: "short" });
+                const dateLabel = new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
                 return (
                   <button
                     key={day.id}
                     onClick={() => handleDayClick(day.id)}
                     className={`shrink-0 rounded-lg overflow-hidden transition-all relative ${
                       isActive
-                        ? "ring-2 ring-[#514636] w-[120px]"
+                        ? "ring-2 ring-[#514636] w-[110px]"
                         : "w-[100px] opacity-80 hover:opacity-100"
                     }`}
                   >
                     {hasFriction && (
                       <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 z-10" />
                     )}
+                    {/* Map thumbnail — just geography, no labels */}
                     {mapUrl ? (
                       <img
                         src={mapUrl}
-                        alt={`${day.city.name} map`}
-                        className="w-full h-14 object-cover bg-[#f0ece5]"
+                        alt=""
+                        className="w-full h-12 object-cover bg-[#f0ece5]"
                         loading="lazy"
                       />
                     ) : (
                       <div
-                        className="w-full h-14 flex items-center justify-center"
+                        className="w-full h-12"
                         style={isTravel && prevColor
                           ? { background: `linear-gradient(135deg, ${prevColor} 50%, ${cityColor} 50%)` }
-                          : { backgroundColor: cityColor }
+                          : { backgroundColor: cityColor, opacity: 0.5 }
                         }
-                      >
-                        <span className="text-[#6b5d4a] text-xs font-medium opacity-60 truncate px-1">
-                          {day.city.name}
-                        </span>
-                      </div>
+                      />
                     )}
+                    {/* Info strip: day, date, city name */}
                     <div
-                      className="px-1.5 py-1 text-left"
+                      className="px-1.5 py-1 text-center"
                       style={isActive
                         ? { backgroundColor: "#514636", color: "#fff" }
                         : { backgroundColor: cityColor, color: "#3a3128" }
                       }
                     >
-                      <div className="text-[10px] font-medium truncate">
-                        {formatShortDate(day.date)}
+                      <div className="text-[9px] font-semibold uppercase tracking-wide">
+                        {dayOfWeek}
                       </div>
-                      <div className={`text-[9px] truncate ${isActive ? "opacity-70" : "opacity-60"}`}>
+                      <div className="text-[10px] font-medium">
+                        {dateLabel}
+                      </div>
+                      <div
+                        className={`text-[8px] leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
+                        style={{ wordBreak: "break-word" }}
+                      >
                         {day.city.name}
-                        {dayExps.length > 0 ? ` · ${dayExps.length}` : ""}
                       </div>
                     </div>
                   </button>
