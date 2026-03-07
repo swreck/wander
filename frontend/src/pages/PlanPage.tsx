@@ -631,7 +631,7 @@ export default function PlanPage() {
                         {dateLabel}
                       </div>
                       <div
-                        className={`text-[8px] leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
+                        className={`text-[11px] leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
                         style={{ wordBreak: "break-word" }}
                       >
                         {day.city.name}
@@ -819,7 +819,7 @@ function buildStaticMapUrl(
 
   // Fall back to city center if no experience/accommodation points
   if (points.length === 0 && cityFallback?.latitude != null && cityFallback?.longitude != null) {
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${cityFallback.latitude},${cityFallback.longitude}&zoom=13&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&style=feature:administrative.locality|element:labels|visibility:off&key=${apiKey}`;
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${cityFallback.latitude},${cityFallback.longitude}&zoom=13&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&style=feature:all|element:labels.text|visibility:off&key=${apiKey}`;
   }
   if (points.length === 0) return null;
 
@@ -838,7 +838,7 @@ function buildStaticMapUrl(
   }
 
   const markers = points.slice(0, 5).map((p) => `${p.lat},${p.lng}`).join("|");
-  return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&style=feature:administrative.locality|element:labels|visibility:off&markers=size:tiny|color:0x514636|${markers}&key=${apiKey}`;
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&style=feature:all|element:labels.text|visibility:off&markers=size:tiny|color:0x514636|${markers}&key=${apiKey}`;
 }
 
 function buildShortLabel(trip: Trip): string {

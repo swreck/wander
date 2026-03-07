@@ -127,14 +127,21 @@ export default function TripOverview() {
     );
   }
 
-  // Active trip failed to load but trips exist — auto-activate the first one
+  // Active trip failed to load but trips exist — show trip switcher
   if (!trip && allTrips.length > 0) {
-    const firstTrip = allTrips.find((t) => t.status === "active") || allTrips[0];
-    api.post(`/trips/${firstTrip.id}/activate`, {}).then(() => loadTrips()).catch(() => {});
     return (
-      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
-        Loading...
-      </div>
+      <CreateTrip
+        onCreated={() => { loadTrips(); }}
+        existingTrips={allTrips}
+        onSwitchTrip={async (tripId) => {
+          try {
+            await api.post(`/trips/${tripId}/activate`, {});
+            loadTrips();
+          } catch {
+            showToast("Couldn't switch trip", "error");
+          }
+        }}
+      />
     );
   }
 
@@ -594,7 +601,7 @@ function CalendarCluster({
               const dayNum = new Date(day.date).getUTCDate();
               const city = cities.find((c) => c.id === day.cityId);
               const mapUrl = city?.latitude && city?.longitude && API_KEY
-                ? `https://maps.googleapis.com/maps/api/staticmap?center=${city.latitude},${city.longitude}&zoom=13&size=120x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&style=feature:administrative.locality|element:labels|visibility:off&key=${API_KEY}`
+                ? `https://maps.googleapis.com/maps/api/staticmap?center=${city.latitude},${city.longitude}&zoom=13&size=120x120&scale=2&maptype=roadmap&style=feature:all|element:labels.text|visibility:off&style=feature:all|saturation:-50&key=${API_KEY}`
                 : null;
 
               // Darker accent for dots (darken the pastel)
@@ -611,14 +618,17 @@ function CalendarCluster({
                              hover:shadow-md transition-shadow"
                   style={{ backgroundColor: cityColor }}
                 >
-                  {/* Map as vivid background — no overlay */}
+                  {/* Map background with city color tint */}
                   {mapUrl && (
-                    <img
-                      src={mapUrl}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover"
-                      loading="lazy"
-                    />
+                    <>
+                      <img
+                        src={mapUrl}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
+                    </>
                   )}
                   {/* Top: date */}
                   <div className="relative z-10 mt-1 text-[11px] font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
