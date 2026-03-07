@@ -897,6 +897,41 @@ router.post("/", async (req: AuthRequest, res) => {
       if (activeTrip) tripId = activeTrip.id;
     }
 
+    // Fast-path: detect recommendation-like text and import directly
+    // (bypasses Haiku chat loop to avoid timeout)
+    const lines = message.split("\n").filter((l: string) => l.trim().length > 0);
+    const looksLikeRecs = lines.length >= 5 && message.length > 300 && tripId;
+    if (looksLikeRecs) {
+      console.log("Chat fast-path: detected recommendation text, importing directly");
+      try {
+        const { result, actionDescription } = await executeTool(
+          "import_recommendations",
+          { tripId, text: message, senderLabel: "Chat paste" },
+          user,
+        );
+        const r = result as any;
+        let reply: string;
+        if (r.error) {
+          reply = `Import failed: ${r.error}`;
+        } else if (r.message) {
+          reply = r.message;
+        } else {
+          reply = `Imported ${r.imported} recommendations: ${r.category1} to existing cities, ${r.category2} to new candidate cities${r.category3 > 0 ? `, ${r.category3} to Ideas bucket` : ""}.`;
+          if (r.senderNotes) reply += `\n\nSender notes: ${r.senderNotes}`;
+          if (r.addedNames?.length > 0) reply += `\n\nPlaces added: ${r.addedNames.join(", ")}`;
+        }
+        res.json({
+          reply,
+          actions: actionDescription ? [actionDescription] : [],
+          hasActions: !!actionDescription,
+        });
+        return;
+      } catch (err: any) {
+        console.error("Chat fast-path import error:", err.message);
+        // Fall through to normal chat flow
+      }
+    }
+
     // Build system prompt with page context
     const systemPrompt = `You are a helpful travel planning assistant embedded in the Wander app. You can answer questions about the user's trip and perform actions like adding experiences, promoting/demoting them, adding reservations, and managing cities and days.
 
