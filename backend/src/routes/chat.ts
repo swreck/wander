@@ -802,7 +802,7 @@ async function executeTool(
             newCityMap.set(cityKey, city.id);
             cityId = city.id;
             cat2++;
-            geocodeCity(city.id).catch(() => {});
+            await geocodeCity(city.id).catch(() => {});
           }
         } else {
           if (!ideasCityId) {
@@ -864,7 +864,7 @@ async function executeTool(
         where: { tripId: input.tripId, sourceText: sourceLabel },
         select: { id: true },
       });
-      Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {}))).catch(() => {});
+      await Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {})));
 
       await logChange({
         user,

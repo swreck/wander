@@ -2,6 +2,15 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08
+
+### Fixed
+- **Geocoding now works on production**: All import paths (commit, merge, replace-backbone, commit-recommendations, chat fast-path) previously used fire-and-forget geocoding (`Promise.all(...).catch(() => {})`) which silently failed on Railway because the process context terminated after the HTTP response was sent. Changed all 7 locations to `await` geocoding before responding. This means imports take slightly longer but experiences actually get coordinates. The distance/walking time overlay (circle + label on the map) was never visible because zero experiences had geocoded locations.
+- **Batch-geocoded all existing experiences**: Ran a one-time batch geocode of all 21 unlocated experiences. 15 confirmed (high confidence), 3 pending (low confidence), 3 failed (too vague for Google Places). The distance overlay should now be visible on day maps with geocoded selected experiences (Nikko, Kyoto, etc.).
+
+### Removed
+- **Cleaned up junk database items**: Deleted 3x "ミレット" and 4x "e-jaro" from Okayama — artifacts from earlier failed chat import attempts.
+
 ## 2026-03-07 (cont'd — Chat Memory)
 
 ### Fixed

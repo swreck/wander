@@ -323,23 +323,22 @@ router.post("/commit", async (req: AuthRequest, res) => {
       newState: data,
     });
 
-    // Trigger async batch geocoding for all created cities and experiences
+    // Batch geocode all created cities and experiences before responding
     const allCities = await prisma.city.findMany({
       where: { tripId: trip.id },
       select: { id: true },
     });
-    Promise.all(
+    await Promise.all(
       allCities.map((c) => geocodeCity(c.id).catch(() => {}))
-    ).catch(() => {});
+    );
 
     const allExperiences = await prisma.experience.findMany({
       where: { tripId: trip.id },
       select: { id: true },
     });
-    // Fire-and-forget — don't block the response
-    Promise.all(
+    await Promise.all(
       allExperiences.map((e) => geocodeExperience(e.id).catch(() => {}))
-    ).catch(() => {});
+    );
 
     // Return the full trip
     const full = await prisma.trip.findUnique({
@@ -520,17 +519,17 @@ router.post("/merge", async (req: AuthRequest, res) => {
       where: { tripId },
       select: { id: true },
     });
-    Promise.all(
+    await Promise.all(
       allMergeCities.map((c) => geocodeCity(c.id).catch(() => {}))
-    ).catch(() => {});
+    );
 
     const newExps = await prisma.experience.findMany({
       where: { tripId, sourceText: "Merged from imported text" },
       select: { id: true },
     });
-    Promise.all(
+    await Promise.all(
       newExps.map((e) => geocodeExperience(e.id).catch(() => {}))
-    ).catch(() => {});
+    );
 
     // Return updated trip
     const full = await prisma.trip.findUnique({
@@ -904,12 +903,12 @@ router.post("/replace-backbone", async (req: AuthRequest, res) => {
       where: { tripId, id: { in: [...newCityMap.values()] } },
       select: { id: true },
     });
-    Promise.all(newCities.map((c) => geocodeCity(c.id).catch(() => {}))).catch(() => {});
+    await Promise.all(newCities.map((c) => geocodeCity(c.id).catch(() => {})));
     const newExps = await prisma.experience.findMany({
       where: { tripId, sourceText: "Imported from itinerary document" },
       select: { id: true },
     });
-    Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {}))).catch(() => {});
+    await Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {})));
 
     await logChange({
       user: req.user!,
@@ -1059,7 +1058,7 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
           cat2Count++;
 
           // Geocode the new city
-          geocodeCity(city.id).catch(() => {});
+          await geocodeCity(city.id).catch(() => {});
         }
       } else {
         // Category 3 — no location, goes to Ideas city
@@ -1149,7 +1148,7 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
       where: { tripId, sourceText: sourceLabel },
       select: { id: true },
     });
-    Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {}))).catch(() => {});
+    await Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {})));
 
     res.status(201).json({
       imported: recommendations.length,
