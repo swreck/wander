@@ -344,7 +344,7 @@ function convexHull(points: { lat: number; lng: number }[]): { lat: number; lng:
   return hull;
 }
 
-function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] }) {
+function TravelGeometryOverlay({ selectedExps, isDayScoped }: { selectedExps: Experience[]; isDayScoped: boolean }) {
   const map = useMap();
   const circleRef = useRef<google.maps.Circle | null>(null);
 
@@ -392,27 +392,63 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
       circleRef.current = null;
     }
     if (!center) return;
-    const circle = new google.maps.Circle({
-      center,
-      radius: radiusM,
-      strokeColor: "#8a7a62",
-      strokeOpacity: 0.7,
-      strokeWeight: 2.5,
-      strokePosition: google.maps.StrokePosition.OUTSIDE,
-      fillColor: "#c8bba8",
-      fillOpacity: 0.18,
-      map,
-      clickable: false,
-    });
-    circleRef.current = circle;
-    return () => { circle.setMap(null); };
-  }, [map, center, radiusM, expKey]);
+
+    if (isDayScoped) {
+      // Solid circle — "here's how far you'll walk today"
+      const circle = new google.maps.Circle({
+        center,
+        radius: radiusM,
+        strokeColor: "#8a7a62",
+        strokeOpacity: 0.7,
+        strokeWeight: 2.5,
+        fillColor: "#c8bba8",
+        fillOpacity: 0.18,
+        map,
+        clickable: false,
+      });
+      circleRef.current = circle as any;
+      return () => { circle.setMap(null); };
+    } else {
+      // Dashed circle — "here's the geography of this city"
+      const points = 72;
+      const path: google.maps.LatLngLiteral[] = [];
+      for (let i = 0; i <= points; i++) {
+        const angle = (i / points) * 2 * Math.PI;
+        const lat = center.lat + (radiusM / 111320) * Math.cos(angle);
+        const lng = center.lng + (radiusM / (111320 * Math.cos(center.lat * Math.PI / 180))) * Math.sin(angle);
+        path.push({ lat, lng });
+      }
+      const line = new google.maps.Polyline({
+        path,
+        strokeOpacity: 0,
+        icons: [{
+          icon: { path: "M 0,-1 0,1", strokeOpacity: 0.5, strokeColor: "#8a7a62", strokeWeight: 2, scale: 3 },
+          offset: "0",
+          repeat: "16px",
+        }],
+        map,
+        clickable: false,
+      });
+      // Add a transparent fill circle behind the dashed line
+      const fill = new google.maps.Circle({
+        center,
+        radius: radiusM,
+        strokeOpacity: 0,
+        fillColor: "#c8bba8",
+        fillOpacity: 0.10,
+        map,
+        clickable: false,
+      });
+      circleRef.current = { setMap: (m: any) => { line.setMap(m); fill.setMap(m); } } as any;
+      return () => { line.setMap(null); fill.setMap(null); };
+    }
+  }, [map, center, radiusM, expKey, isDayScoped]);
 
   if (geoPoints.length === 0 || !center) return null;
 
-  const label = geoPoints.length === 1
-    ? `~${diameterMi.toFixed(1)} mi · ~${walkingMin} min walk`
-    : `${diameterMi.toFixed(1)} mi spread · ~${walkingMin} min walk`;
+  const itemWord = geoPoints.length === 1 ? "item" : "items";
+  const scope = isDayScoped ? "Today" : "All selected";
+  const label = `${scope}: ${geoPoints.length} ${itemWord} · ${diameterMi.toFixed(1)} mi · ~${walkingMin} min walk`;
 
   return (
     <MapControl position={ControlPosition.LEFT_TOP}>
@@ -537,7 +573,9 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
   const matchesFilter = (themes: string[]) => !themeFilter || themes.includes(themeFilter);
 
   const selectedExps = confirmedExps.filter((e) => e.state === "selected");
-  const daySelectedExps = dayId ? selectedExps.filter((e) => e.dayId === dayId) : selectedExps;
+  const dayOnly = dayId ? selectedExps.filter((e) => e.dayId === dayId) : [];
+  // Circle: use day-specific if any are assigned, otherwise fall back to all city selected
+  const daySelectedExps = dayOnly.length > 0 ? dayOnly : selectedExps;
   const possibleExps = confirmedExps.filter((e) => e.state === "possible");
   const filteredSelected = selectedExps.filter((e) => matchesFilter(e.themes));
   const filteredPossible = possibleExps.filter((e) => matchesFilter(e.themes));
@@ -587,7 +625,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         style={{ width: "100%", height: "100%" }}
       >
         <MapPanner center={center} experiences={experiences} recenterKey={recenterKey} />
-        <TravelGeometryOverlay selectedExps={daySelectedExps} />
+        <TravelGeometryOverlay selectedExps={daySelectedExps} isDayScoped={dayOnly.length > 0} />
 
         {/* Theme filter bar */}
         {onThemeFilterChange && (

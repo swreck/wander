@@ -33,6 +33,9 @@ export default function PlanPage() {
   const [showDayView, setShowDayView] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
+  const [candidatesExpanded, setCandidatesExpanded] = useState(() => {
+    try { return localStorage.getItem("wander:candidates-expanded") === "true"; } catch { return false; }
+  });
   const [highlightedExpId, setHighlightedExpId] = useState<string | null>(null);
   const [recenterKey, setRecenterKey] = useState(0);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
@@ -1020,68 +1023,86 @@ export default function PlanPage() {
                   <div className="shrink-0 flex flex-col items-center justify-center mx-1 self-stretch gap-1">
                     <div className="w-px flex-1 bg-[#e0d8cc]" />
                     <button
-                      onClick={handleHideAllCandidates}
+                      onClick={() => {
+                        const next = !candidatesExpanded;
+                        setCandidatesExpanded(next);
+                        try { localStorage.setItem("wander:candidates-expanded", String(next)); } catch {}
+                        if (!next) setSelectedCandidateCityId(null);
+                      }}
                       className="text-xs text-[#c8bba8] hover:text-[#8a7a62] whitespace-nowrap px-1"
-                      title="Dismiss all recommendation cities"
+                      title={candidatesExpanded ? "Collapse ideas" : "Show idea cities"}
                     >
-                      clear
+                      {candidatesExpanded ? `${candidateCities.length} ideas ‹` : `${candidateCities.length} ideas ›`}
                     </button>
                     <div className="w-px flex-1 bg-[#e0d8cc]" />
                   </div>
-                  {candidateCities.map((city) => {
-                    const isActive = selectedCandidateCityId === city.id;
-                    const cityExpCount = experiences.filter((e) => e.cityId === city.id).length;
-                    return (
-                      <div key={city.id} className="shrink-0 relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleHideCity(city.id);
-                          }}
-                          className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-[#e0d8cc] hover:bg-[#c8bba8] flex items-center justify-center text-xs text-[#514636]"
-                          title={`Dismiss ${city.name}`}
-                        >
-                          ×
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedCandidateCityId(isActive ? null : city.id);
-                            if (!isActive) setSelectedDayId(null);
-                            else if (days.length > 0) setSelectedDayId(days[0].id);
-                          }}
-                          className={`rounded-lg overflow-hidden transition-all ${
-                            isActive
-                              ? "ring-2 ring-[#514636] w-[110px]"
-                              : "w-[100px] opacity-80 hover:opacity-100"
-                          }`}
-                        >
-                          <div
-                            className="w-full h-12 flex items-center justify-center"
-                            style={{ backgroundColor: "#f0ece5" }}
-                          >
-                            <span className="text-lg">📌</span>
-                          </div>
-                          <div
-                            className="px-1.5 py-1 text-center"
-                            style={isActive
-                              ? { backgroundColor: "#514636", color: "#fff" }
-                              : { backgroundColor: "#f5f0e8", color: "#3a3128" }
-                            }
-                          >
-                            <div className="text-xs font-semibold">
-                              {cityExpCount} ideas
-                            </div>
-                            <div
-                              className={`text-xs leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
-                              style={{ wordBreak: "break-word" }}
+                  {candidatesExpanded && (
+                    <>
+                      {candidateCities.map((city) => {
+                        const isActive = selectedCandidateCityId === city.id;
+                        const cityExpCount = experiences.filter((e) => e.cityId === city.id).length;
+                        return (
+                          <div key={city.id} className="shrink-0 relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleHideCity(city.id);
+                              }}
+                              className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-[#e0d8cc] hover:bg-[#c8bba8] flex items-center justify-center text-xs text-[#514636]"
+                              title={`Dismiss ${city.name}`}
                             >
-                              {city.name}
-                            </div>
+                              ×
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedCandidateCityId(isActive ? null : city.id);
+                                if (!isActive) setSelectedDayId(null);
+                                else if (days.length > 0) setSelectedDayId(days[0].id);
+                              }}
+                              className={`rounded-lg overflow-hidden transition-all ${
+                                isActive
+                                  ? "ring-2 ring-[#514636] w-[110px]"
+                                  : "w-[100px] opacity-80 hover:opacity-100"
+                              }`}
+                            >
+                              <div
+                                className="w-full h-12 flex items-center justify-center"
+                                style={{ backgroundColor: "#f0ece5" }}
+                              >
+                                <span className="text-lg">📌</span>
+                              </div>
+                              <div
+                                className="px-1.5 py-1 text-center"
+                                style={isActive
+                                  ? { backgroundColor: "#514636", color: "#fff" }
+                                  : { backgroundColor: "#f5f0e8", color: "#3a3128" }
+                                }
+                              >
+                                <div className="text-xs font-semibold">
+                                  {cityExpCount} ideas
+                                </div>
+                                <div
+                                  className={`text-xs leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
+                                  style={{ wordBreak: "break-word" }}
+                                >
+                                  {city.name}
+                                </div>
+                              </div>
+                            </button>
                           </div>
+                        );
+                      })}
+                      <div className="shrink-0 flex flex-col items-center justify-center mx-1 self-stretch gap-1">
+                        <button
+                          onClick={handleHideAllCandidates}
+                          className="text-xs text-[#c8bba8] hover:text-[#8a7a62] whitespace-nowrap px-1"
+                          title="Dismiss all recommendation cities"
+                        >
+                          dismiss all
                         </button>
                       </div>
-                    );
-                  })}
+                    </>
+                  )}
                 </>
               )}
             </div>

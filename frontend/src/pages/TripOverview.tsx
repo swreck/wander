@@ -205,7 +205,7 @@ export default function TripOverview() {
                 mapId="wander-overview"
                 gestureHandling="cooperative"
                 disableDefaultUI={true}
-                zoomControl={true}
+                zoomControl={false}
                 mapTypeControl={false}
                 streetViewControl={false}
                 fullscreenControl={false}

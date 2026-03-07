@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Candidate Cities Collapse, Circle Polish)
+
+### Changed
+- **Candidate cities collapsed by default**: The recommendation cities in the filmstrip are now hidden behind a toggle ("12 ideas ›"). Collapsed state is stored per-browser in localStorage — Julie and Andy will never see them; Ken and Larisa can expand when planning. Collapsing is purely local and doesn't affect other travelers.
+- **"clear" renamed to "dismiss all"**: The bulk dismiss button is now labeled honestly. It appears at the end of the expanded candidate list, not as the primary action at the divider.
+- **Dismiss remains shared**: Dismissing a city (× or "dismiss all") sets `hidden: true` in the database, affecting all travelers. This is a trip decision, not a view preference.
+- **Circle dashed vs solid**: City-overview circle (no items assigned to this day) renders with a dashed stroke and lighter fill. Day-specific circle (items assigned to this day) renders solid. Visual shorthand: dashed = "here's the geography," solid = "here's your walking plan."
+- **Circle falls back to city-wide when no day assignments**: If no selected experiences are assigned to the current day, the circle shows all selected for the city (dashed). Once items land on the day, it narrows to just those (solid).
+- **Circle label shows scope**: "Today: 2 items · 1.2 mi · ~20 min walk" vs "All selected: 4 items · 2.1 mi · ~30 min walk."
+
+### Fixed
+- **Overview map zoom buttons removed**: The +/- zoom controls on the trip overview hero map were non-functional. Removed since the map auto-fits to show all cities.
+
+SPEC UPDATE NEEDED: Candidate city UX section — collapsed by default, local vs shared state distinction. Travel geometry section — dashed/solid distinction, day-scoping fallback.
+
 ## 2026-03-08 (cont'd — Circle Overlay Fix)
 
 ### Fixed
