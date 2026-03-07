@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Rating Links, Dismiss Safety)
+
+### Changed
+- **Rating badges link to Google Maps**: Tapping the "G ★ 4.2 (1.4k)" rating on any experience now opens that place's Google Maps page in a new tab — quick access to reviews, photos, and directions. Only works for geocoded experiences with a Google Place ID.
+- **Dismiss city requires confirmation**: Tapping the X on a candidate city now shows a confirmation dialog ("Dismiss Takeo and its ideas?") instead of immediately hiding. Same for the "clear" all button.
+- **Undo for dismissed cities**: After dismissing a city, a toast appears with an "Undo" button (visible for 6 seconds) that restores the city instantly. Works for both individual and bulk dismissals.
+- **Toast system supports action buttons**: Extended the toast component to accept an optional action (label + callback), used for undo operations.
+
 ## 2026-03-08 (cont'd — Test Isolation, Soft-Delete, AI Tools, Bug Fix)
 
 ### Added

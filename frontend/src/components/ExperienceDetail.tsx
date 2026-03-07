@@ -220,7 +220,7 @@ export default function ExperienceDetail({
         )}
 
         {/* Ratings */}
-        <RatingsBadge ratings={exp.ratings} />
+        <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
         <button
           onClick={handleRefreshRatings}
           className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"

@@ -168,29 +168,69 @@ export default function PlanPage() {
     await loadExperiences();
   }
 
+  const [confirmHideCity, setConfirmHideCity] = useState<{ id: string; name: string } | null>(null);
+
   async function handleHideCity(cityId: string) {
+    const city = candidateCities.find((c) => c.id === cityId);
+    if (!city) return;
+    setConfirmHideCity({ id: cityId, name: city.name });
+  }
+
+  async function executeHideCity(cityId: string, cityName: string) {
+    setConfirmHideCity(null);
     try {
       await api.patch(`/cities/${cityId}`, { hidden: true });
       if (selectedCandidateCityId === cityId) {
         setSelectedCandidateCityId(null);
         if (days.length > 0) setSelectedDayId(days[0].id);
       }
-      showToast("City dismissed");
       await loadTrip();
       await loadExperiences();
+      showToast(`${cityName} dismissed`, "success", {
+        action: { label: "Undo", onClick: () => undoHideCity(cityId, cityName) },
+      });
     } catch {
       showToast("Couldn't dismiss city", "error");
     }
   }
 
+  async function undoHideCity(cityId: string, cityName: string) {
+    try {
+      await api.patch(`/cities/${cityId}`, { hidden: false });
+      showToast(`${cityName} restored`);
+      await loadTrip();
+      await loadExperiences();
+    } catch {
+      showToast("Couldn't restore city", "error");
+    }
+  }
+
+  const [confirmHideAll, setConfirmHideAll] = useState(false);
+
   async function handleHideAllCandidates() {
+    setConfirmHideAll(true);
+  }
+
+  async function executeHideAllCandidates() {
     if (!trip) return;
-    const ids = candidateCities.map((c) => c.id);
+    setConfirmHideAll(false);
+    const cities = [...candidateCities];
+    const ids = cities.map((c) => c.id);
     try {
       await Promise.all(ids.map((id) => api.patch(`/cities/${id}`, { hidden: true })));
       setSelectedCandidateCityId(null);
       if (days.length > 0) setSelectedDayId(days[0].id);
-      showToast(`Dismissed ${ids.length} recommendation cities`);
+      showToast(`Dismissed ${cities.length} cities`, "success", {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await Promise.all(ids.map((id) => api.patch(`/cities/${id}`, { hidden: false })));
+            showToast("Cities restored");
+            loadTrip();
+            loadExperiences();
+          },
+        },
+      });
       await loadTrip();
       await loadExperiences();
     } catch {
@@ -1197,6 +1237,60 @@ export default function PlanPage() {
           onClose={() => setShowCapture(false)}
           onCaptured={handleCaptured}
         />
+      )}
+
+      {/* Dismiss all candidates confirmation */}
+      {confirmHideAll && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
+            <p className="text-sm text-[#3a3128] mb-4">
+              Dismiss all {candidateCities.length} recommendation cities? You can bring them back later via the assistant.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={executeHideAllCandidates}
+                className="flex-1 py-2 rounded-lg bg-[#514636] text-white text-sm font-medium
+                           hover:bg-[#3a3128] transition-colors"
+              >
+                Dismiss All
+              </button>
+              <button
+                onClick={() => setConfirmHideAll(false)}
+                className="flex-1 py-2 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
+                           hover:bg-[#f0ece5] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dismiss city confirmation */}
+      {confirmHideCity && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
+            <p className="text-sm text-[#3a3128] mb-4">
+              Dismiss <strong>{confirmHideCity.name}</strong> and its ideas? You can bring it back later via the assistant.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => executeHideCity(confirmHideCity.id, confirmHideCity.name)}
+                className="flex-1 py-2 rounded-lg bg-[#514636] text-white text-sm font-medium
+                           hover:bg-[#3a3128] transition-colors"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={() => setConfirmHideCity(null)}
+                className="flex-1 py-2 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
+                           hover:bg-[#f0ece5] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

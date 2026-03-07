@@ -1,13 +1,23 @@
 import { createContext, useContext, useState, useCallback, useRef } from "react";
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: number;
   message: string;
   type: "success" | "error" | "info";
+  action?: ToastAction;
+}
+
+interface ToastOptions {
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  showToast: (message: string, type?: "success" | "error" | "info") => void;
+  showToast: (message: string, type?: "success" | "error" | "info", options?: ToastOptions) => void;
 }
 
 const ToastContext = createContext<ToastContextValue>({ showToast: () => {} });
@@ -20,13 +30,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(0);
 
-  const showToast = useCallback((message: string, type: "success" | "error" | "info" = "success") => {
+  const showToast = useCallback((message: string, type: "success" | "error" | "info" = "success", options?: ToastOptions) => {
     const id = nextId.current++;
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type, action: options?.action }]);
+    const duration = options?.action ? 6000 : 3000;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    }, duration);
   }, []);
+
+  function handleAction(toast: Toast) {
+    toast.action?.onClick();
+    setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+  }
 
   return (
     <ToastContext.Provider value={{ showToast }}>
@@ -36,7 +52,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium pointer-events-auto
+            className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium pointer-events-auto flex items-center gap-3
               animate-[slideUp_0.3s_ease-out] transition-opacity
               ${toast.type === "error"
                 ? "bg-red-600 text-white"
@@ -45,7 +61,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   : "bg-[#3a3128] text-white"
               }`}
           >
-            {toast.message}
+            <span>{toast.message}</span>
+            {toast.action && (
+              <button
+                onClick={() => handleAction(toast)}
+                className="text-white/90 hover:text-white font-semibold underline underline-offset-2 shrink-0"
+              >
+                {toast.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

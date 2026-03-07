@@ -420,7 +420,7 @@ export default function DayView({
                 <p className="text-sm text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</p>
               )}
               <div className="flex items-center gap-2 mt-1">
-                <RatingsBadge ratings={exp.ratings} />
+                <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
                 {exp.createdBy && (
                   <span className="text-sm text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
                 )}
@@ -604,7 +604,7 @@ export default function DayView({
               <p className="text-sm text-[#6b5d4a] mt-0.5 italic line-clamp-1">{exp.userNotes}</p>
             )}
             <div className="flex items-center gap-2 mt-0.5">
-              <RatingsBadge ratings={exp.ratings} />
+              <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
               {exp.createdBy && (
                 <span className="text-sm text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
               )}
