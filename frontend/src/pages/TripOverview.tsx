@@ -594,7 +594,7 @@ function CalendarCluster({
               const dayNum = new Date(day.date).getUTCDate();
               const city = cities.find((c) => c.id === day.cityId);
               const mapUrl = city?.latitude && city?.longitude && API_KEY
-                ? `https://maps.googleapis.com/maps/api/staticmap?center=${city.latitude},${city.longitude}&zoom=13&size=120x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&key=${API_KEY}`
+                ? `https://maps.googleapis.com/maps/api/staticmap?center=${city.latitude},${city.longitude}&zoom=13&size=120x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&style=feature:administrative.locality|element:labels|visibility:off&key=${API_KEY}`
                 : null;
 
               // Darker accent for dots (darken the pastel)
@@ -624,13 +624,11 @@ function CalendarCluster({
                   <div className="relative z-10 mt-1 text-[11px] font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
                     {dayNum}
                   </div>
-                  {/* Middle: city name — only when no map (map already shows it) */}
-                  {!mapUrl && (
-                    <div className="relative z-10 text-[9px] text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center"
-                      style={{ wordBreak: "break-word" }}>
-                      {city?.name || ""}
-                    </div>
-                  )}
+                  {/* Middle: city name */}
+                  <div className="relative z-10 text-[9px] text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center"
+                    style={{ wordBreak: "break-word" }}>
+                    {city?.name || ""}
+                  </div>
                   {/* Bottom: plans icon */}
                   <div className="relative z-10 mb-1 h-4 flex items-center justify-center">
                     {count > 0 && (

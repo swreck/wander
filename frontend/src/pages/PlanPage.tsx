@@ -813,7 +813,7 @@ function buildStaticMapUrl(
 
   // Fall back to city center if no experience/accommodation points
   if (points.length === 0 && cityFallback?.latitude != null && cityFallback?.longitude != null) {
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${cityFallback.latitude},${cityFallback.longitude}&zoom=13&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&key=${apiKey}`;
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${cityFallback.latitude},${cityFallback.longitude}&zoom=13&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&style=feature:administrative.locality|element:labels|visibility:off&key=${apiKey}`;
   }
   if (points.length === 0) return null;
 
@@ -832,7 +832,7 @@ function buildStaticMapUrl(
   }
 
   const markers = points.slice(0, 5).map((p) => `${p.lat},${p.lng}`).join("|");
-  return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&markers=size:tiny|color:0x514636|${markers}&key=${apiKey}`;
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&style=feature:administrative.locality|element:labels|visibility:off&markers=size:tiny|color:0x514636|${markers}&key=${apiKey}`;
 }
 
 function buildShortLabel(trip: Trip): string {
