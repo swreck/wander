@@ -138,6 +138,30 @@ router.post("/", async (req: AuthRequest, res) => {
   res.status(201).json(full);
 });
 
+// Activate a trip (set it as the current active trip)
+router.post("/:id/activate", async (req: AuthRequest, res) => {
+  const trip = await prisma.trip.findUnique({ where: { id: req.params.id as string } });
+  if (!trip) { res.status(404).json({ error: "Trip not found" }); return; }
+
+  // Archive all other trips
+  await prisma.trip.updateMany({
+    where: { status: "active" },
+    data: { status: "archived" },
+  });
+
+  const updated = await prisma.trip.update({
+    where: { id: req.params.id as string },
+    data: { status: "active" },
+    include: {
+      cities: { orderBy: { sequenceOrder: "asc" } },
+      routeSegments: { orderBy: { sequenceOrder: "asc" } },
+      days: { orderBy: { date: "asc" }, include: { city: true } },
+    },
+  });
+
+  res.json(updated);
+});
+
 // Update trip (dates, name)
 router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.trip.findUnique({ where: { id: req.params.id as string } });

@@ -20,5 +20,17 @@ body {
   background: #faf8f5;
   color: #241f1a;
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Safe area helpers */
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+}
+
+.safe-bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  margin-bottom: env(safe-area-inset-bottom, 0px);
 }

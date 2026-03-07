@@ -10,8 +10,35 @@ import OfflineIndicator from "./components/OfflineIndicator";
 import ChatBubble from "./components/ChatBubble";
 import DailyGreeting from "./components/DailyGreeting";
 import { ToastProvider } from "./contexts/ToastContext";
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./lib/api";
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("[Wander] Render crash:", error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[#faf8f5] p-8">
+          <div className="max-w-md text-center">
+            <h1 className="text-lg font-medium text-[#3a3128] mb-2">Something went wrong</h1>
+            <p className="text-sm text-[#8a7a62] mb-4">{this.state.error.message}</p>
+            <button
+              onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+              className="px-4 py-2 bg-[#514636] text-white rounded-lg text-sm"
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -48,9 +75,19 @@ function ChatOverlay() {
     "/history": "History",
   }[location.pathname] || "Unknown";
 
+  // Pick up day/city context from PlanPage if available
+  const wanderCtx = (window as any).__wanderContext || {};
+
   return (
     <ChatBubble
-      context={{ page: pageName, tripId }}
+      context={{
+        page: pageName,
+        tripId,
+        dayId: wanderCtx.dayId,
+        dayDate: wanderCtx.dayDate,
+        cityId: wanderCtx.cityId,
+        cityName: wanderCtx.cityName,
+      }}
       onDataChanged={handleDataChanged}
     />
   );
@@ -75,15 +112,17 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <AppRoutes />
-          <DailyGreeting />
-          <ChatOverlay />
-          <OfflineIndicator />
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <AppRoutes />
+            <DailyGreeting />
+            <ChatOverlay />
+            <OfflineIndicator />
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

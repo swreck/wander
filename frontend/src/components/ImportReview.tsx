@@ -67,6 +67,28 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
           Review what was extracted. Remove items that don't belong, then confirm to create your trip.
         </p>
 
+        {/* Past-date warning */}
+        {(() => {
+          const today = new Date().toISOString().split("T")[0];
+          const pastDates: string[] = [];
+          if (edited.startDate && edited.startDate < today) pastDates.push(`Trip start (${edited.startDate})`);
+          for (const c of edited.cities) {
+            if (c.arrivalDate && c.arrivalDate < today) pastDates.push(`${c.name} arrival (${c.arrivalDate})`);
+          }
+          if (pastDates.length === 0) return null;
+          return (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm font-medium text-amber-800 mb-1">Some dates are in the past</p>
+              <p className="text-xs text-amber-700 mb-2">
+                These look like they might have the wrong year. Please correct them before confirming:
+              </p>
+              <ul className="text-xs text-amber-700 list-disc pl-4 space-y-0.5">
+                {pastDates.map((d, i) => <li key={i}>{d}</li>)}
+              </ul>
+            </div>
+          );
+        })()}
+
         {/* Trip basics */}
         <section className="mb-6">
           <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">

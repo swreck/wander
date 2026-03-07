@@ -12,6 +12,8 @@ interface CityInput {
 
 interface Props {
   onCreated: () => void;
+  existingTrips?: { id: string; name: string; startDate: string; endDate: string; status: string }[];
+  onSwitchTrip?: (tripId: string) => void;
 }
 
 type Mode = "main" | "manual" | "review";
@@ -76,7 +78,7 @@ function describeInput(text: string, files: File[]): string | null {
   return parts.length > 0 ? parts.join("  ·  ") : null;
 }
 
-export default function CreateTrip({ onCreated }: Props) {
+export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: Props) {
   const { user, logout } = useAuth();
   const [mode, setMode] = useState<Mode>("main");
 
@@ -488,16 +490,36 @@ export default function CreateTrip({ onCreated }: Props) {
             {extracting ? "Reading your itinerary..." : "Extract & Review"}
           </button>
 
-          {/* Start from scratch link */}
-          <div className="text-center pt-2">
-            <button
-              onClick={() => setMode("manual")}
-              className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
-            >
-              Or start from scratch with dates and cities
-            </button>
-          </div>
         </div>
+
+        {/* Existing trips — tap to switch */}
+        {existingTrips && existingTrips.length > 0 && onSwitchTrip && (
+          <div className="mt-10">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">
+              Your Trips
+            </h2>
+            <div className="space-y-2">
+              {existingTrips.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onSwitchTrip(t.id)}
+                  className="w-full text-left px-4 py-3 bg-white rounded-lg border border-[#f0ece5]
+                             hover:border-[#e0d8cc] hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-[#3a3128]">{t.name}</span>
+                    <span className="text-[10px] uppercase text-[#c8bba8]">{t.status}</span>
+                  </div>
+                  <div className="text-xs text-[#a89880] mt-0.5">
+                    {new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {" — "}
+                    {new Date(t.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

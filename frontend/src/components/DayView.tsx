@@ -17,6 +17,25 @@ interface Props {
   onRefresh: () => void;
 }
 
+function AIObsDisclosure({ dayId }: { dayId: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-3">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 text-[10px] text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+      >
+        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-[#c8bba8] text-[9px] font-medium">
+          i
+        </span>
+        <span>AI Observations</span>
+        <span className="text-[8px]">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && <AIObservations dayId={dayId} />}
+    </div>
+  );
+}
+
 export default function DayView({
   day, experiences, trip, onClose, onPromote, onDemote, onExperienceClick, onRefresh,
 }: Props) {
@@ -267,8 +286,10 @@ export default function DayView({
         </div>
       )}
 
-      {/* AI Observations */}
-      {selectedForDay.length > 0 && <AIObservations dayId={day.id} />}
+      {/* AI Observations — hidden behind disclosure icon */}
+      {selectedForDay.length > 0 && (
+        <AIObsDisclosure dayId={day.id} />
+      )}
 
       {/* Friction alerts */}
       {frictionAlerts.length > 0 && (

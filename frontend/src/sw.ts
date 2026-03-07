@@ -1,11 +1,16 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { ExpirationPlugin } from 'workbox-expiration';
+import { clientsClaim } from 'workbox-core';
 
 declare let self: ServiceWorkerGlobalScope;
+
+// ── Activate new SW immediately, don't wait for old tabs to close ──
+self.skipWaiting();
+clientsClaim();
 
 // ── Precache app shell (injected by vite-plugin-pwa at build time) ──
 precacheAndRoute(self.__WB_MANIFEST);
@@ -16,14 +21,14 @@ const API_CACHE = 'wander-api-v1';
 const STATIC_CACHE = 'wander-static-v1';
 const DAY_CACHE = 'wander-days-v1';
 
-// ── Static assets: CacheFirst (fonts, images, CSS/JS chunks) ──
+// ── Static assets: StaleWhileRevalidate (serve cached, fetch update in background) ──
 registerRoute(
   ({ request }) =>
     request.destination === 'style' ||
     request.destination === 'script' ||
     request.destination === 'font' ||
     request.destination === 'image',
-  new CacheFirst({
+  new StaleWhileRevalidate({
     cacheName: STATIC_CACHE,
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
@@ -173,7 +178,7 @@ function idbGet(store: IDBObjectStore, key: IDBValidKey): Promise<any> {
   });
 }
 
-// ── Notify clients when back online ──
+// ── Handle messages from clients ──
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();

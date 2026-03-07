@@ -4,7 +4,7 @@ import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { extractItinerary, type ExtractionResult } from "../services/itineraryExtractor.js";
-import { geocodeExperience } from "../services/geocoding.js";
+import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -119,6 +119,42 @@ router.post("/commit", async (req: AuthRequest, res) => {
     if (!data.tripName || !data.startDate || !data.endDate || !data.cities?.length) {
       res.status(400).json({ error: "Missing required fields: tripName, startDate, endDate, cities" });
       return;
+    }
+
+    // Guard: if any dates are in the past, shift everything forward
+    {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const parsedStart = new Date(data.startDate);
+      if (parsedStart < today) {
+        const shiftMs = today.getTime() - parsedStart.getTime();
+        const shiftDays = Math.ceil(shiftMs / 86400000);
+        console.log(`[Import] Dates in the past — shifting forward by ${shiftDays} days`);
+
+        const shiftDate = (d: string | null | undefined): string | null | undefined => {
+          if (!d) return d;
+          const date = new Date(d);
+          date.setUTCDate(date.getUTCDate() + shiftDays);
+          return date.toISOString().split("T")[0];
+        };
+
+        data.startDate = shiftDate(data.startDate)!;
+        data.endDate = shiftDate(data.endDate)!;
+        for (const c of data.cities) {
+          c.arrivalDate = shiftDate(c.arrivalDate) ?? null;
+          c.departureDate = shiftDate(c.departureDate) ?? null;
+        }
+        if (data.experiences) {
+          for (const e of data.experiences) {
+            e.dayDate = shiftDate(e.dayDate) ?? null;
+          }
+        }
+        if (data.routeSegments) {
+          for (const rs of data.routeSegments) {
+            rs.departureDate = shiftDate(rs.departureDate) as string | undefined;
+          }
+        }
+      }
     }
 
     // Archive any existing active trip
@@ -283,7 +319,15 @@ router.post("/commit", async (req: AuthRequest, res) => {
       newState: data,
     });
 
-    // Trigger async batch geocoding for all created experiences
+    // Trigger async batch geocoding for all created cities and experiences
+    const allCities = await prisma.city.findMany({
+      where: { tripId: trip.id },
+      select: { id: true },
+    });
+    Promise.all(
+      allCities.map((c) => geocodeCity(c.id).catch(() => {}))
+    ).catch(() => {});
+
     const allExperiences = await prisma.experience.findMany({
       where: { tripId: trip.id },
       select: { id: true },
@@ -472,7 +516,15 @@ router.post("/merge", async (req: AuthRequest, res) => {
       newState: data,
     });
 
-    // Batch geocode new experiences
+    // Batch geocode new cities and experiences
+    const allMergeCities = await prisma.city.findMany({
+      where: { tripId },
+      select: { id: true },
+    });
+    Promise.all(
+      allMergeCities.map((c) => geocodeCity(c.id).catch(() => {}))
+    ).catch(() => {});
+
     const newExps = await prisma.experience.findMany({
       where: { tripId, sourceText: "Merged from imported text" },
       select: { id: true },

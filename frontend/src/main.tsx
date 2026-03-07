@@ -19,6 +19,18 @@ if ('serviceWorker' in navigator) {
         { type: import.meta.env.MODE === 'production' ? 'classic' : 'module' }
       );
       console.log('[Wander] SW registered, scope:', reg.scope);
+
+      // When a new SW takes over, reload to get fresh assets
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+            // New SW activated — reload to pick up new code
+            window.location.reload();
+          }
+        });
+      });
     } catch (err) {
       console.warn('[Wander] SW registration failed:', err);
     }

@@ -283,7 +283,7 @@ export default function NowPage() {
           "See what's next and when you should leave",
           "Switch between walk, transit, and taxi for travel times",
           "Set a timer or alarm so you don't lose track of time",
-          "Quickly capture a place you discover while out exploring",
+          "Quickly capture a place you discover while wandering",
         ]}
       />
       <div className="max-w-lg mx-auto px-4 py-6">

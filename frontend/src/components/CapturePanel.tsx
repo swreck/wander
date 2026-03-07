@@ -26,6 +26,8 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
   const [previewResult, setPreviewResult] = useState<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [geocode, setGeocode] = useState(false);
+
   async function handleSubmit() {
     if (!cityId) return;
     setError("");
@@ -40,6 +42,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
           name: name.trim(),
           description: description.trim() || null,
           userNotes: userNotes.trim() || null,
+          geocode,
         });
         onCaptured();
       } else if (mode === "text") {
@@ -108,7 +111,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 bg-white border-t border-[#e0d8cc]
-                    rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto">
+                    rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto safe-bottom">
       <div className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-medium text-[#3a3128]">Capture Experience</h3>
@@ -179,6 +182,26 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                            text-[#3a3128] placeholder-[#c8bba8] text-sm resize-none
                            focus:outline-none focus:ring-2 focus:ring-[#a89880]"
               />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGeocode(false)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    !geocode ? "bg-[#514636] text-white" : "bg-[#f0ece5] text-[#6b5d4a]"
+                  }`}
+                >
+                  Just add to list
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGeocode(true)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    geocode ? "bg-[#514636] text-white" : "bg-[#f0ece5] text-[#6b5d4a]"
+                  }`}
+                >
+                  📍 Look up &amp; place on map
+                </button>
+              </div>
             </>
           )}
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { APIProvider, Map, AdvancedMarker, Pin, MapControl, ControlPosition, useMap } from "@vis.gl/react-google-maps";
+import { APIProvider, Map, AdvancedMarker, MapControl, ControlPosition, useMap } from "@vis.gl/react-google-maps";
 import { api } from "../lib/api";
 import type { Experience, Accommodation } from "../lib/types";
 
@@ -22,16 +22,273 @@ interface Props {
   onExperienceClick: (id: string) => void;
   onNearbyClick?: (place: NearbyPlace) => void;
   showNearby?: boolean;
-  themeFilter?: string[];
+  showUserLocation?: boolean;
 }
 
-// ── Geometry helpers ───────────────────────────────────────────────
+// ── Theme marker config ─────────────────────────────────────────
 
-/** Haversine distance between two points in km */
-function haversineKm(
-  lat1: number, lng1: number,
-  lat2: number, lng2: number
-): number {
+interface ThemeStyle {
+  bg: string;
+  border: string;
+  emoji: string;
+  shape: "circle" | "diamond" | "rounded-square" | "square" | "tall-pill";
+}
+
+export const THEME_STYLES: Record<string, ThemeStyle> = {
+  food:         { bg: "#c17f59", border: "#a0664a", emoji: "🍜", shape: "circle" },
+  temples:      { bg: "#b35a5a", border: "#8a3d3d", emoji: "⛩️", shape: "circle" },
+  ceramics:     { bg: "#5a7ab3", border: "#3d5a8a", emoji: "🏺", shape: "circle" },
+  architecture: { bg: "#8a8078", border: "#6a6058", emoji: "🏛️", shape: "circle" },
+  nature:       { bg: "#5a8a5a", border: "#3d6a3d", emoji: "🌿", shape: "circle" },
+  transport:    { bg: "#7a7a8a", border: "#5a5a6a", emoji: "🚃", shape: "circle" },
+  shopping:     { bg: "#b3895a", border: "#8a6a3d", emoji: "🛍️", shape: "circle" },
+  art:          { bg: "#8a5ab3", border: "#6a3d8a", emoji: "🎨", shape: "circle" },
+  nightlife:    { bg: "#5a5a8a", border: "#3d3d6a", emoji: "🌙", shape: "circle" },
+  other:        { bg: "#a89880", border: "#8a7a62", emoji: "📍", shape: "circle" },
+};
+
+export const THEME_LABELS: Record<string, string> = {
+  food: "Food & Drink",
+  temples: "Temples & Shrines",
+  ceramics: "Ceramics & Crafts",
+  architecture: "Architecture",
+  nature: "Nature & Outdoors",
+  transport: "Transportation",
+  shopping: "Shopping",
+  art: "Art & Culture",
+  nightlife: "Nightlife",
+  other: "Experience",
+};
+
+// ── City pastel palette ─────────────────────────────────────────
+
+export const CITY_PASTELS = [
+  "#F2E0DE", // rose
+  "#DEE6F2", // sky
+  "#DEF2DE", // sage
+  "#F2ECDE", // warm
+  "#E6DEF2", // lavender
+  "#DEF2EC", // mint
+  "#F2DEE6", // blush
+  "#ECF2DE", // spring
+];
+
+export function getCityPastel(cities: { id: string }[], cityId: string): string {
+  const idx = cities.findIndex((c) => c.id === cityId);
+  if (idx === -1) return CITY_PASTELS[0];
+  return CITY_PASTELS[idx % CITY_PASTELS.length];
+}
+
+function getThemeStyle(themes: string[]): ThemeStyle {
+  for (const t of themes) {
+    if (THEME_STYLES[t]) return THEME_STYLES[t];
+  }
+  return THEME_STYLES.other;
+}
+
+/** Map Google Places types to Wander themes for nearby markers */
+function typesToThemes(types?: string[]): string[] {
+  if (!types || types.length === 0) return ["other"];
+  const mapped: string[] = [];
+  for (const t of types) {
+    if (["restaurant", "cafe", "bakery", "bar", "food", "meal_delivery", "meal_takeaway"].includes(t)) {
+      if (!mapped.includes("food")) mapped.push("food");
+    } else if (["hindu_temple", "buddhist_temple", "place_of_worship", "church", "mosque", "synagogue"].includes(t)) {
+      if (!mapped.includes("temples")) mapped.push("temples");
+    } else if (["museum", "art_gallery", "store"].includes(t)) {
+      if (!mapped.includes("ceramics")) mapped.push("ceramics");
+    } else if (["park", "natural_feature", "campground"].includes(t)) {
+      if (!mapped.includes("nature")) mapped.push("nature");
+    }
+  }
+  return mapped.length > 0 ? mapped : ["other"];
+}
+
+export function ThemedMarkerIcon({ themes, tier, label }: { themes: string[]; tier: "selected" | "possible" | "nearby"; label?: string }) {
+  const config = getThemeStyle(themes);
+  const size = tier === "selected" ? 44 : tier === "possible" ? 36 : 28;
+  const emojiSize = tier === "selected" ? 22 : tier === "possible" ? 18 : 14;
+  const opacity = tier === "nearby" ? 0.75 : 1;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", opacity, cursor: "pointer" }}>
+      {/* Marker pin */}
+      <div style={{
+        width: size,
+        height: size,
+        borderRadius: "50% 50% 50% 0",
+        transform: "rotate(-45deg)",
+        backgroundColor: config.bg,
+        border: tier === "selected" ? "3px solid #fff" : tier === "possible" ? "2.5px dashed " + config.border : "2px solid " + config.border,
+        boxShadow: tier === "selected"
+          ? "0 3px 12px rgba(0,0,0,0.5), 0 0 0 2px " + config.border
+          : "0 2px 6px rgba(0,0,0,0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <span style={{ transform: "rotate(45deg)", fontSize: emojiSize, lineHeight: 1 }}>
+          {config.emoji}
+        </span>
+      </div>
+      {/* Label */}
+      {label && (
+        <div style={{
+          marginTop: 4,
+          padding: "2px 8px",
+          backgroundColor: tier === "selected" ? "rgba(58, 49, 40, 0.9)" : "rgba(58, 49, 40, 0.7)",
+          color: "#fff",
+          fontSize: tier === "selected" ? 12 : 10,
+          fontWeight: 600,
+          borderRadius: 6,
+          whiteSpace: "nowrap",
+          maxWidth: 160,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          textAlign: "center",
+          lineHeight: "18px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+        }}>
+          {label}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Small inline shape chip for use in detail panels */
+export function ThemeChip({ theme }: { theme: string }) {
+  const config = THEME_STYLES[theme] || THEME_STYLES.other;
+  const label = THEME_LABELS[theme] || theme;
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span style={{ fontSize: 12 }}>{config.emoji}</span>
+      <span className="text-[10px] text-[#8a7a62] capitalize">{label}</span>
+    </span>
+  );
+}
+
+function YouAreHereMarker() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      {/* Pulsing outer ring */}
+      <div style={{ position: "relative", width: 48, height: 48 }}>
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "50%",
+          backgroundColor: "rgba(59, 130, 246, 0.2)",
+          animation: "pulse-ring 2s ease-out infinite",
+        }} />
+        <div style={{
+          position: "absolute",
+          top: 8,
+          left: 8,
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
+          backgroundColor: "#3b82f6",
+          border: "4px solid #fff",
+          boxShadow: "0 3px 12px rgba(59, 130, 246, 0.6), 0 0 0 2px #3b82f6",
+        }} />
+      </div>
+      <div style={{
+        marginTop: 2,
+        padding: "2px 8px",
+        backgroundColor: "#3b82f6",
+        color: "#fff",
+        fontSize: 11,
+        fontWeight: 700,
+        borderRadius: 4,
+        whiteSpace: "nowrap",
+        letterSpacing: "0.02em",
+      }}>
+        You are here
+      </div>
+      <style>{`
+        @keyframes pulse-ring {
+          0% { transform: scale(1); opacity: 0.6; }
+          100% { transform: scale(2); opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function ReturnToLocationButton({ userLocation }: { userLocation: { lat: number; lng: number } }) {
+  const map = useMap();
+  return (
+    <button
+      onClick={() => {
+        if (!map) return;
+        map.panTo(userLocation);
+        map.setZoom(15);
+      }}
+      style={{
+        marginBottom: 80, // above filmstrip
+        marginRight: 8,
+        width: 44,
+        height: 44,
+        borderRadius: "50%",
+        backgroundColor: "#fff",
+        border: "2px solid #e0d8cc",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 20,
+      }}
+      title="Return to my location"
+    >
+      📍
+    </button>
+  );
+}
+
+function AccommodationMarker({ label }: { label?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{
+        width: 36,
+        height: 36,
+        backgroundColor: "#6b5d4a",
+        borderColor: "#fff",
+        borderWidth: 3,
+        borderStyle: "solid",
+        borderRadius: "6px 6px 18px 18px",
+        boxShadow: "0 3px 10px rgba(0,0,0,0.45), 0 0 0 2px #3a3128",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 16,
+      }}>
+        🏨
+      </div>
+      {label && (
+        <div style={{
+          marginTop: 2,
+          padding: "1px 6px",
+          backgroundColor: "rgba(58, 49, 40, 0.85)",
+          color: "#fff",
+          fontSize: 10,
+          fontWeight: 600,
+          borderRadius: 4,
+          whiteSpace: "nowrap",
+          maxWidth: 120,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}>
+          {label}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Geometry helpers ─────────────────────────────────────────────
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -43,7 +300,6 @@ function haversineKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Maximum straight-line distance between any two points (the "span") */
 function maxSpanKm(points: { lat: number; lng: number }[]): number {
   let max = 0;
   for (let i = 0; i < points.length; i++) {
@@ -55,15 +311,10 @@ function maxSpanKm(points: { lat: number; lng: number }[]): number {
   return max;
 }
 
-/** Convex hull using Graham scan (returns points in order) */
 function convexHull(points: { lat: number; lng: number }[]): { lat: number; lng: number }[] {
   if (points.length <= 2) return [...points];
-
-  // Find bottom-most (then left-most) point
   const sorted = [...points].sort((a, b) => a.lat - b.lat || a.lng - b.lng);
   const pivot = sorted[0];
-
-  // Sort by polar angle relative to pivot
   const rest = sorted.slice(1).sort((a, b) => {
     const angleA = Math.atan2(a.lat - pivot.lat, a.lng - pivot.lng);
     const angleB = Math.atan2(b.lat - pivot.lat, b.lng - pivot.lng);
@@ -71,9 +322,7 @@ function convexHull(points: { lat: number; lng: number }[]): { lat: number; lng:
     return haversineKm(pivot.lat, pivot.lng, a.lat, a.lng) -
            haversineKm(pivot.lat, pivot.lng, b.lat, b.lng);
   });
-
   const hull: { lat: number; lng: number }[] = [pivot];
-
   for (const p of rest) {
     while (hull.length >= 2) {
       const a = hull[hull.length - 2];
@@ -84,11 +333,8 @@ function convexHull(points: { lat: number; lng: number }[]): { lat: number; lng:
     }
     hull.push(p);
   }
-
   return hull;
 }
-
-// ── Travel Geometry Overlay (inner component, needs useMap) ────────
 
 function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] }) {
   const map = useMap();
@@ -102,29 +348,20 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
   );
 
   const span = useMemo(() => maxSpanKm(geoPoints), [geoPoints]);
-
-  // Walking time: span / 5 km/h, rounded to nearest 5 min
   const walkingMin = useMemo(() => {
     if (span === 0) return 0;
     const raw = (span / 5) * 60;
-    return Math.round(raw / 5) * 5 || 5; // at least 5 min
+    return Math.round(raw / 5) * 5 || 5;
   }, [span]);
-
   const hullPoints = useMemo(() => convexHull(geoPoints), [geoPoints]);
 
-  // Draw/update polygon on the map
   useEffect(() => {
     if (!map) return;
-
-    // Clean up previous polygon
     if (polygonRef.current) {
       polygonRef.current.setMap(null);
       polygonRef.current = null;
     }
-
-    // Need at least 3 points for a polygon
     if (hullPoints.length < 3) return;
-
     const polygon = new google.maps.Polygon({
       paths: hullPoints,
       strokeColor: "#a89880",
@@ -135,41 +372,79 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
       map,
       clickable: false,
     });
-
     polygonRef.current = polygon;
-
-    return () => {
-      polygon.setMap(null);
-    };
+    return () => { polygon.setMap(null); };
   }, [map, hullPoints]);
 
-  // Don't show the overlay card if fewer than 2 located points
   if (geoPoints.length < 2 || span < 0.01) return null;
 
   return (
-    <MapControl position={ControlPosition.TOP_CENTER}>
+    <MapControl position={ControlPosition.BOTTOM_CENTER}>
       <div
-        className="mt-2 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
-        style={{ backgroundColor: "rgba(250, 248, 245, 0.92)" }}
+        className="mb-20 px-4 py-2 rounded-xl shadow-lg border border-[#c8bba8]"
+        style={{ backgroundColor: "rgba(255,255,255,0.95)" }}
       >
-        <div className="flex items-center gap-3 text-xs text-[#514636]">
-          <span>
-            <span className="font-medium">Span:</span> {span.toFixed(1)} km
-          </span>
-          <span className="text-[#e0d8cc]">|</span>
-          <span>
-            <span className="font-medium">Walking:</span> ~{walkingMin} min across
-          </span>
+        <div className="flex items-center gap-3 text-sm text-[#3a3128] font-medium">
+          <span>🚶 {span.toFixed(1)} km</span>
+          <span className="text-[#c8bba8]">·</span>
+          <span>~{walkingMin} min walk</span>
         </div>
       </div>
     </MapControl>
   );
 }
 
-// ── Main Component ─────────────────────────────────────────────────
+// ── Map Panner — reactively pan/zoom when center changes ────────
 
-export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, themeFilter = [] }: Props) {
+function MapPanner({ center, experiences }: { center: { lat: number; lng: number }; experiences: Experience[] }) {
+  const map = useMap();
+  const prevKeyRef = useRef("");
+
+  const key = `${center.lat.toFixed(5)},${center.lng.toFixed(5)}`;
+
+  useEffect(() => {
+    if (!map || key === prevKeyRef.current) return;
+    prevKeyRef.current = key;
+
+    const located = experiences.filter(
+      (e) => e.state === "selected" && e.latitude != null && e.longitude != null,
+    );
+
+    if (located.length >= 2) {
+      const bounds = new google.maps.LatLngBounds();
+      for (const e of located) {
+        bounds.extend({ lat: e.latitude!, lng: e.longitude! });
+      }
+      // Padding: top for day card overlay, bottom for filmstrip, sides for breathing room
+      map.fitBounds(bounds, { top: 80, bottom: 120, left: 40, right: 40 });
+    } else if (located.length === 1) {
+      map.panTo({ lat: located[0].latitude!, lng: located[0].longitude! });
+      map.setZoom(15);
+    } else {
+      map.panTo(center);
+      map.setZoom(13);
+    }
+  }, [map, key]);
+
+  return null;
+}
+
+// ── Main Component ──────────────────────────────────────────────
+
+export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Track user's GPS position
+  useEffect(() => {
+    if (!showUserLocation || !navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {}, // silently fail if denied
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [showUserLocation]);
 
   const confirmedExps = experiences.filter(
     (e) => e.locationStatus === "confirmed" && e.latitude && e.longitude
@@ -179,30 +454,23 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
   const possibleExps = confirmedExps.filter((e) => e.state === "possible");
   const confirmedAccom = accommodations.filter((a) => a.latitude && a.longitude);
 
-  // Existing experience placeIds for deduplication
   const existingPlaceIds = new Set(
     experiences.filter((e) => e.placeIdGoogle).map((e) => e.placeIdGoogle)
   );
 
-  // Fetch Tier 3 nearby markers — always on when showNearby is true
   const fetchNearby = useCallback(async () => {
     if (!showNearby || !center.lat || !center.lng) return;
     try {
-      let nearbyUrl = `/geocoding/nearby?lat=${center.lat}&lng=${center.lng}&radius=1500`;
-      if (themeFilter.length > 0) {
-        nearbyUrl += `&themes=${themeFilter.join(",")}`;
-      }
-      const results = await api.get<NearbyPlace[]>(nearbyUrl);
-      // Filter out places that are already in the trip
+      const results = await api.get<NearbyPlace[]>(
+        `/geocoding/nearby?lat=${center.lat}&lng=${center.lng}&radius=1500`
+      );
       setNearbyPlaces(results.filter((p) => !existingPlaceIds.has(p.placeId)));
     } catch {
       // Silently fail — nearby is enhancement only
     }
-  }, [center.lat, center.lng, showNearby, themeFilter.join(",")]);
+  }, [center.lat, center.lng, showNearby]);
 
-  useEffect(() => {
-    fetchNearby();
-  }, [fetchNearby]);
+  useEffect(() => { fetchNearby(); }, [fetchNearby]);
 
   if (!API_KEY) {
     return (
@@ -222,17 +490,17 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         defaultZoom={13}
         mapId="wander-map"
         gestureHandling="greedy"
-        disableDefaultUI={false}
+        disableDefaultUI={true}
         zoomControl={true}
         mapTypeControl={false}
         streetViewControl={false}
         fullscreenControl={false}
         style={{ width: "100%", height: "100%" }}
       >
-        {/* Travel geometry overlay for selected experiences */}
+        <MapPanner center={center} experiences={experiences} />
         <TravelGeometryOverlay selectedExps={selectedExps} />
 
-        {/* Tier 1 — Selected experiences (bold) */}
+        {/* Tier 1 — Selected experiences (bold, labeled) */}
         {selectedExps.map((exp) => (
           <AdvancedMarker
             key={exp.id}
@@ -240,16 +508,11 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             onClick={() => onExperienceClick(exp.id)}
             title={exp.name}
           >
-            <Pin
-              background="#514636"
-              borderColor="#3a3128"
-              glyphColor="#fff"
-              scale={1.2}
-            />
+            <ThemedMarkerIcon themes={exp.themes} tier="selected" label={exp.name} />
           </AdvancedMarker>
         ))}
 
-        {/* Tier 2 — Possible experiences (lighter) */}
+        {/* Tier 2 — Possible experiences (dashed border, labeled) */}
         {possibleExps.map((exp) => (
           <AdvancedMarker
             key={exp.id}
@@ -257,16 +520,11 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             onClick={() => onExperienceClick(exp.id)}
             title={exp.name}
           >
-            <Pin
-              background="#c8bba8"
-              borderColor="#a89880"
-              glyphColor="#fff"
-              scale={0.9}
-            />
+            <ThemedMarkerIcon themes={exp.themes} tier="possible" label={exp.name} />
           </AdvancedMarker>
         ))}
 
-        {/* Tier 3 — Nearby high-rated places (ghost) */}
+        {/* Tier 3 — Nearby high-rated places (smaller, labeled with rating) */}
         {nearbyPlaces.map((place) => (
           <AdvancedMarker
             key={place.placeId}
@@ -274,12 +532,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             onClick={() => onNearbyClick?.(place)}
             title={`${place.name} ★${place.rating}`}
           >
-            <Pin
-              background="#e8e2d8"
-              borderColor="#d4cdc0"
-              glyphColor="#a89880"
-              scale={0.7}
-            />
+            <ThemedMarkerIcon themes={typesToThemes(place.types)} tier="nearby" label={`${place.name} ★${place.rating}`} />
           </AdvancedMarker>
         ))}
 
@@ -290,14 +543,28 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             position={{ lat: acc.latitude!, lng: acc.longitude! }}
             title={acc.name}
           >
-            <Pin
-              background="#6b5d4a"
-              borderColor="#3a3128"
-              glyphColor="#fff"
-              scale={1.1}
-            />
+            <AccommodationMarker label={acc.name} />
           </AdvancedMarker>
         ))}
+
+        {/* You are here — GPS position */}
+        {userLocation && (
+          <AdvancedMarker
+            key="user-location"
+            position={userLocation}
+            title="You are here"
+            zIndex={1000}
+          >
+            <YouAreHereMarker />
+          </AdvancedMarker>
+        )}
+
+        {/* Return to my location button */}
+        {userLocation && (
+          <MapControl position={ControlPosition.RIGHT_BOTTOM}>
+            <ReturnToLocationButton userLocation={userLocation} />
+          </MapControl>
+        )}
       </Map>
     </APIProvider>
   );

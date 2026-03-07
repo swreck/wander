@@ -340,7 +340,7 @@ export function getDailyGreeting(
         const hash = simpleHash(new Date().toDateString() + userName + "greeting");
         const templates = [
           `${timeGreeting}, ${userName}. I noticed ${exp.name} is on your list today — thought you'd enjoy that one.`,
-          `${timeGreeting}, ${userName}. ${exp.name} might be a highlight today. Have a wonderful time exploring.`,
+          `${timeGreeting}, ${userName}. ${exp.name} might be a highlight today. Enjoy your wander.`,
           `${timeGreeting}, ${userName}. You have ${exp.name} ahead of you today — seems like your kind of place.`,
         ];
         return templates[hash % templates.length];
@@ -348,18 +348,46 @@ export function getDailyGreeting(
     }
   }
 
-  // No interest match — give a warm generic greeting with city context
+  // No interest match — city-specific discovery suggestions (the "mint on the pillow")
   if (cityName) {
-    const hash = simpleHash(new Date().toDateString() + userName + "generic");
+    const hash = simpleHash(new Date().toDateString() + userName + "discovery");
+    const discoveries: Record<string, string[]> = {
+      Tokyo: [
+        `${timeGreeting}, ${userName}. Did you know the backstreets of Shimokitazawa have some of Tokyo's best vintage finds? Worth a wander if you have a free hour.`,
+        `${timeGreeting}, ${userName}. The view from the free observation deck at Tokyo Metropolitan Government Building is stunning at sunset. Just saying.`,
+        `${timeGreeting}, ${userName}. If you pass through Yanaka today, the old cemetery path is one of Tokyo's hidden gems — locals walk their cats there.`,
+      ],
+      Kyoto: [
+        `${timeGreeting}, ${userName}. The torii gates at Fushimi Inari are magical at dawn — far fewer people than midday. Something to consider.`,
+        `${timeGreeting}, ${userName}. There's a tiny tea house on the Philosopher's Path that most tourists walk right past. Ask for matcha and just sit.`,
+        `${timeGreeting}, ${userName}. Kyoto's Nishiki Market opens early — the pickled vegetables and fresh mochi are worth arriving before 9am.`,
+      ],
+      Nikko: [
+        `${timeGreeting}, ${userName}. The forest walk behind Toshogu Shrine is one of the most peaceful in Japan. Don't skip it for the gift shops.`,
+        `${timeGreeting}, ${userName}. Lake Chuzenji is beautiful today — the Kegon Falls viewpoint is about a 10-minute walk from the bus stop.`,
+      ],
+      Karatsu: [
+        `${timeGreeting}, ${userName}. Karatsu's pottery tradition goes back 400 years. The Nakazato kiln is one of the few still using traditional techniques.`,
+        `${timeGreeting}, ${userName}. The pine grove along Karatsu beach is called Nijinomatsubara — locals say it's best just before sunset.`,
+      ],
+      Okayama: [
+        `${timeGreeting}, ${userName}. Korakuen Garden is one of Japan's top three. The early morning light on the pond is something special.`,
+        `${timeGreeting}, ${userName}. The Bizen pottery district is a short train ride from Okayama — worth it if you love ceramics.`,
+      ],
+    };
+    const cityDiscoveries = discoveries[cityName];
+    if (cityDiscoveries) {
+      return cityDiscoveries[hash % cityDiscoveries.length];
+    }
     const generics = [
-      `${timeGreeting}, ${userName}. A good day to explore ${cityName}. Enjoy wherever the day takes you.`,
-      `${timeGreeting}, ${userName}. ${cityName} has a lot to offer today. Take your time with it.`,
-      `${timeGreeting}, ${userName}. Hope today in ${cityName} brings something unexpected and good.`,
+      `${timeGreeting}, ${userName}. ${cityName} has surprises around every corner. Enjoy your wander.`,
+      `${timeGreeting}, ${userName}. Take your time in ${cityName} — the best moments are the ones you don't plan.`,
+      `${timeGreeting}, ${userName}. Hope today in ${cityName} brings something unexpected and good. Enjoy your wander.`,
     ];
     return generics[hash % generics.length];
   }
 
-  return `${timeGreeting}, ${userName}. Have a good day exploring.`;
+  return `${timeGreeting}, ${userName}. Enjoy your wander.`;
 }
 
 function simpleHash(str: string): number {

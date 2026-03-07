@@ -1,21 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
-import type { Trip, City, Day, Experience } from "../lib/types";
-import MapCanvas from "../components/MapCanvas";
+import type { Trip, Day, Experience } from "../lib/types";
+import MapCanvas, { getCityPastel } from "../components/MapCanvas";
 import ExperienceList from "../components/ExperienceList";
 import ExperienceDetail from "../components/ExperienceDetail";
 import CapturePanel from "../components/CapturePanel";
 import DayView from "../components/DayView";
-import FirstTimeGuide from "../components/FirstTimeGuide";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
 import { getNudgesForPlace } from "../lib/travelerProfiles";
 
-type Axis = "cities" | "days";
-
 export default function PlanPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { user } = useAuth();
   const [trip, setTrip] = useState<Trip | null>(null);
@@ -23,77 +21,83 @@ export default function PlanPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Navigation state
-  const [axis, setAxis] = useState<Axis>("cities");
-  const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
+  // Navigation — always days-based
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
+  const initialCityId = searchParams.get("city");
 
   // UI state
   const [showCapture, setShowCapture] = useState(false);
   const [selectedExpId, setSelectedExpId] = useState<string | null>(null);
   const [showDayView, setShowDayView] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [showAddCity, setShowAddCity] = useState(false);
-
-  // Mobile layout state
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
 
-  // Add city form
-  const [newCityName, setNewCityName] = useState("");
-  const [newCityCountry, setNewCityCountry] = useState("");
-  const [newCityArrival, setNewCityArrival] = useState("");
-  const [newCityDeparture, setNewCityDeparture] = useState("");
-
-  // Import more
+  // Import state
   const [importText, setImportText] = useState("");
   const [importStartDate, setImportStartDate] = useState("");
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any>(null);
 
-  // Theme filter state — persists across axis switches
-  const [activeThemes, setActiveThemes] = useState<string[]>([]);
+  // Nudge state
+  const [nudgeMessage, setNudgeMessage] = useState<{ place: any; nudge: string } | null>(null);
 
-  // Load trip data
+  // First-visit orientation
+  const [showOrientation, setShowOrientation] = useState(
+    () => !localStorage.getItem("wander:plan-oriented"),
+  );
+
+  // Derived state
+  const selectedDay = days.find((d) => d.id === selectedDayId) || null;
+  const activeCityId = selectedDay?.cityId || trip?.cities[0]?.id || "";
+
+  // Expose current day/city to chat assistant via global
+  useEffect(() => {
+    (window as any).__wanderContext = {
+      dayId: selectedDay?.id,
+      dayDate: selectedDay?.date,
+      cityId: selectedDay?.cityId,
+      cityName: selectedDay?.city?.name,
+    };
+    return () => { delete (window as any).__wanderContext; };
+  }, [selectedDay]);
+
+  // ── Data loading ──────────────────────────────────────────────
+
   const loadTrip = useCallback(async () => {
     const t = await api.get<Trip>("/trips/active");
     if (!t) { navigate("/"); return; }
     setTrip(t);
-    if (t.cities.length > 0 && !selectedCityId) {
-      setSelectedCityId(t.cities[0].id);
-    }
 
     const d = await api.get<Day[]>(`/days/trip/${t.id}`);
     setDays(d);
     if (d.length > 0 && !selectedDayId) {
-      setSelectedDayId(d[0].id);
+      // If navigated with ?city=X, jump to that city's first day
+      const cityDay = initialCityId ? d.find((day) => day.cityId === initialCityId) : null;
+      setSelectedDayId(cityDay?.id || d[0].id);
+      // Clear the param so future loads don't keep jumping
+      if (initialCityId) setSearchParams({}, { replace: true });
     }
-
     setLoading(false);
-  }, [navigate, selectedCityId, selectedDayId]);
+  }, [navigate, selectedDayId]);
 
   useEffect(() => { loadTrip(); }, []);
 
-  // Refresh when chat makes changes
   useEffect(() => {
     const handler = () => { loadTrip(); };
     window.addEventListener("wander:data-changed", handler);
     return () => window.removeEventListener("wander:data-changed", handler);
   }, [loadTrip]);
 
-  // Load experiences for current context
   const loadExperiences = useCallback(async () => {
     if (!trip) return;
-    let url = `/experiences/trip/${trip.id}`;
-    if (axis === "cities" && selectedCityId) {
-      url += `?cityId=${selectedCityId}`;
-    }
-    const exps = await api.get<Experience[]>(url);
+    const exps = await api.get<Experience[]>(`/experiences/trip/${trip.id}`);
     setExperiences(exps);
-  }, [trip, axis, selectedCityId]);
+  }, [trip]);
 
   useEffect(() => { loadExperiences(); }, [loadExperiences]);
 
-  // Actions — with toast feedback
+  // ── Actions ───────────────────────────────────────────────────
+
   async function handlePromote(expId: string, dayId: string, routeSegmentId?: string, timeWindow?: string) {
     try {
       await api.post(`/experiences/${expId}/promote`, {
@@ -135,27 +139,7 @@ export default function PlanPage() {
     await loadExperiences();
   }
 
-  async function handleAddCity() {
-    if (!trip || !newCityName.trim()) return;
-    try {
-      await api.post("/cities", {
-        tripId: trip.id,
-        name: newCityName.trim(),
-        country: newCityCountry.trim() || null,
-        arrivalDate: newCityArrival || null,
-        departureDate: newCityDeparture || null,
-      });
-      setShowAddCity(false);
-      setNewCityName("");
-      setNewCityCountry("");
-      setNewCityArrival("");
-      setNewCityDeparture("");
-      showToast("City added");
-      await loadTrip();
-    } catch {
-      showToast("Couldn't add city", "error");
-    }
-  }
+  // ── Import ────────────────────────────────────────────────────
 
   async function handleImportExtract() {
     if (!trip || !importText.trim()) return;
@@ -167,10 +151,9 @@ export default function PlanPage() {
       const result = await api.upload<any>("/import/extract", formData);
       setImportPreview(result);
     } catch {
-      // Fall back to simple capture if extraction fails
       const formData = new FormData();
       formData.append("tripId", trip.id);
-      formData.append("cityId", selectedCityId || trip.cities[0]?.id || "");
+      formData.append("cityId", activeCityId);
       formData.append("text", importText.trim());
       formData.append("mode", "all");
       await api.upload("/capture", formData);
@@ -203,29 +186,24 @@ export default function PlanPage() {
     }
   }
 
-  // Personalized nudge state — shown when a nearby marker is tapped
-  const [nudgeMessage, setNudgeMessage] = useState<{ place: any; nudge: string } | null>(null);
+  // ── Nearby + Nudges ───────────────────────────────────────────
 
   async function handleNearbyClick(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number; types?: string[] }) {
-    if (!trip || !selectedCityId) return;
-
-    // Check for personalized nudge before adding
+    if (!trip || !activeCityId) return;
     const nudge = user ? getNudgesForPlace(user.displayName, place.name, place.types || []) : null;
     if (nudge) {
       setNudgeMessage({ place, nudge });
       return;
     }
-
-    // No nudge — add directly
     await addNearbyPlace(place);
   }
 
   async function addNearbyPlace(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number }) {
-    if (!trip || !selectedCityId) return;
+    if (!trip || !activeCityId) return;
     try {
       await api.post("/experiences", {
         tripId: trip.id,
-        cityId: selectedCityId,
+        cityId: activeCityId,
         name: place.name,
         description: `Nearby discovery (${place.rating} stars)`,
         userNotes: "Discovered via map",
@@ -237,6 +215,19 @@ export default function PlanPage() {
     }
   }
 
+  // ── Day selection ─────────────────────────────────────────────
+
+  function handleDayClick(dayId: string) {
+    if (selectedDayId === dayId) {
+      setShowDayView(true);
+    } else {
+      setSelectedDayId(dayId);
+      setShowDayView(false);
+    }
+  }
+
+  // ── Derived display data ──────────────────────────────────────
+
   if (loading || !trip) {
     return (
       <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
@@ -245,106 +236,77 @@ export default function PlanPage() {
     );
   }
 
-  const selectedDay = days.find((d) => d.id === selectedDayId) || null;
-
-  const THEME_OPTIONS = ["ceramics", "architecture", "food", "temples", "nature", "other"] as const;
-
-  function toggleTheme(theme: string) {
-    setActiveThemes((prev) =>
-      prev.includes(theme)
-        ? prev.filter((t) => t !== theme)
-        : [...prev, theme]
-    );
-  }
-
-  // Filter experiences for current context, then by theme
-  // Theme filters persist across axis switches
-  const axisFiltered = axis === "days" && selectedDay
+  // Show experiences for the selected day's city
+  const cityExperiences = selectedDay
     ? experiences.filter((e) => e.cityId === selectedDay.cityId)
     : experiences;
 
-  const contextExperiences = activeThemes.length > 0
-    ? axisFiltered.filter((e) =>
-        e.themes.some((t) => activeThemes.includes(t))
-      )
-    : axisFiltered;
+  const selected = cityExperiences.filter((e) => e.state === "selected");
+  const possible = cityExperiences.filter((e) => e.state === "possible");
 
-  const selected = contextExperiences.filter((e) => e.state === "selected");
-  const possible = contextExperiences.filter((e) => e.state === "possible");
-
-  // Friction indicators for day chips
+  // Friction dots for filmstrip
   const dayFrictionMap = new Map<string, boolean>();
   for (const day of days) {
-    const daySelected = experiences.filter(e => e.state === "selected" && e.dayId === day.id);
-    if (daySelected.length >= 5) {
-      dayFrictionMap.set(day.id, true);
-    }
+    const count = experiences.filter((e) => e.state === "selected" && e.dayId === day.id).length;
+    if (count >= 5) dayFrictionMap.set(day.id, true);
   }
 
-  // Map center based on context
+  // Map center — centroid of selected day's located experiences, or city center
   const mapCenter = (() => {
-    if (axis === "cities" && selectedCityId) {
-      const city = trip.cities.find((c) => c.id === selectedCityId);
-      if (city?.latitude && city?.longitude) return { lat: city.latitude, lng: city.longitude };
-    }
-    if (axis === "days" && selectedDay?.city) {
-      const city = selectedDay.city;
-      if (city?.latitude && city?.longitude) return { lat: city.latitude, lng: city.longitude };
+    if (selectedDay) {
+      const dayExps = experiences.filter(
+        (e) => e.state === "selected" && e.dayId === selectedDay.id &&
+          e.latitude != null && e.longitude != null,
+      );
+      if (dayExps.length > 0) {
+        return {
+          lat: dayExps.reduce((s, e) => s + e.latitude!, 0) / dayExps.length,
+          lng: dayExps.reduce((s, e) => s + e.longitude!, 0) / dayExps.length,
+        };
+      }
+      if (selectedDay.city?.latitude && selectedDay.city?.longitude) {
+        return { lat: selectedDay.city.latitude, lng: selectedDay.city.longitude };
+      }
     }
     const confirmed = experiences.find((e) => e.locationStatus === "confirmed" && e.latitude);
     if (confirmed) return { lat: confirmed.latitude!, lng: confirmed.longitude! };
     return { lat: 35.6762, lng: 139.6503 };
   })();
 
-  return (
-    <div className="h-screen flex flex-col bg-[#faf8f5]">
-      {/* First-time guide */}
-      <FirstTimeGuide
-        id="plan"
-        lines={[
-          "Switch between Cities and Days to organize your trip",
-          "Drag experiences up to add them to your itinerary",
-          "Tap a day card to see details, route suggestions, and alerts",
-          "Filter by theme to focus on what interests you",
-          "Ghost markers on the map show highly-rated places nearby",
-        ]}
-      />
+  const isWithinDates = (() => {
+    const now = new Date();
+    return now >= new Date(trip.startDate) && now <= new Date(trip.endDate);
+  })();
 
-      {/* Top bar */}
+  return (
+    <div className="flex flex-col bg-[#faf8f5]" style={{ height: "100dvh" }}>
+      {/* Top bar — clean, minimal */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-[#f0ece5] bg-white shrink-0">
         <button
           onClick={() => navigate("/")}
-          className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
+          className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
         >
-          &larr; {trip.name}
+          &larr; {trip.shortLabel || buildShortLabel(trip)}
         </button>
         <div className="flex items-center gap-2">
-          {/* Axis switcher */}
-          {(["cities", "days"] as Axis[]).map((a) => (
+          {isWithinDates && (
             <button
-              key={a}
-              onClick={() => setAxis(a)}
-              className={`px-3 py-1 rounded text-xs capitalize transition-colors ${
-                axis === a
-                  ? "bg-[#514636] text-white"
-                  : "text-[#8a7a62] hover:bg-[#f0ece5]"
-              }`}
+              onClick={() => navigate("/now")}
+              className="px-3 py-1 rounded text-xs font-medium text-[#514636] bg-[#f0ece5] hover:bg-[#e0d8cc] transition-colors"
             >
-              {a}
+              Now
             </button>
-          ))}
-          <span className="text-[#e0d8cc] mx-1">|</span>
+          )}
           <button
             onClick={() => setShowImport(!showImport)}
-            className="px-2 py-1 rounded text-xs text-[#8a7a62] hover:bg-[#f0ece5] transition-colors"
-            title="Import text or paste recommendations"
+            className="px-3 py-1 rounded text-xs font-medium text-[#6b5d4a] bg-[#f0ece5] hover:bg-[#e0d8cc] transition-colors"
           >
-            Import
+            + Import
           </button>
         </div>
       </div>
 
-      {/* Import panel */}
+      {/* Import panel — slides down from top */}
       {showImport && (
         <div className="px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0">
           <div className="max-w-2xl mx-auto">
@@ -364,7 +326,6 @@ export default function PlanPage() {
                     type="date"
                     value={importStartDate}
                     onChange={(e) => setImportStartDate(e.target.value)}
-                    placeholder="Start date hint"
                     className="px-2 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#3a3128]
                                focus:outline-none focus:ring-2 focus:ring-[#a89880]"
                   />
@@ -397,7 +358,6 @@ export default function PlanPage() {
                     &larr; Edit text
                   </button>
                 </div>
-                {/* Stacked on mobile, grid on desktop */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs max-h-48 overflow-y-auto">
                   {importPreview.cities?.length > 0 && (
                     <div>
@@ -483,22 +443,21 @@ export default function PlanPage() {
         </div>
       )}
 
-      {/* Main content — desktop: side-by-side, mobile: toggle map/list */}
+      {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Map — always visible on desktop, toggleable on mobile */}
         <div className={`flex-1 relative ${mobileView !== "map" ? "hidden md:block" : ""}`}>
           <MapCanvas
             center={mapCenter}
-            experiences={contextExperiences}
+            experiences={cityExperiences}
             accommodations={selectedDay?.accommodations || []}
             onExperienceClick={(id) => setSelectedExpId(id)}
             onNearbyClick={handleNearbyClick}
             showNearby={true}
-            themeFilter={activeThemes}
           />
 
-          {/* Contextual day card — floating over map when Days axis is active */}
-          {axis === "days" && selectedDay && (
+          {/* Contextual day card — floating over map */}
+          {selectedDay && (
             <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none flex justify-center">
               <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-3 py-2 pointer-events-auto max-w-sm">
                 <div className="text-xs font-medium text-[#3a3128]">
@@ -510,10 +469,10 @@ export default function PlanPage() {
                   )}
                 </div>
                 <div className="text-[10px] text-[#8a7a62] mt-0.5">
-                  {selected.filter(e => e.dayId === selectedDay.id).length} planned
+                  {selected.filter((e) => e.dayId === selectedDay.id).length} planned
                   {selectedDay.explorationZone && ` · ${selectedDay.explorationZone}`}
                   {(() => {
-                    const dayRes = selectedDay.reservations?.find(r => r);
+                    const dayRes = selectedDay.reservations?.find((r) => r);
                     if (dayRes) {
                       return ` · ${dayRes.name} ${new Date(dayRes.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
                     }
@@ -524,136 +483,78 @@ export default function PlanPage() {
             </div>
           )}
 
-          {/* Map legend — bottom left, subtle */}
-          <div className="absolute bottom-[7.5rem] left-2 z-10 hidden md:block">
-            <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-2.5 py-2 text-[10px] text-[#8a7a62] space-y-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#514636]" />
-                <span>Planned</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#c8bba8]" />
-                <span>Possible</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#e8e2d8] border border-[#d4cdc0]" />
-                <span>Nearby</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#6b5d4a]" />
-                <span>Hotel</span>
+          {/* Orientation banner — first visit only, compact */}
+          {showOrientation && (
+            <div className="absolute top-16 left-2 right-2 z-20 flex justify-center">
+              <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-3 py-2 flex items-center gap-2 max-w-sm">
+                <div className="text-[11px] text-[#6b5d4a] leading-snug">
+                  <p className="font-medium mb-1">Map view</p>
+                  <p>• Swipe days at bottom to navigate</p>
+                  <p>• Tap 📋 for activity list</p>
+                  <p>• <strong>+ Import</strong> to add plans</p>
+                </div>
+                <button
+                  onClick={() => { setShowOrientation(false); localStorage.setItem("wander:plan-oriented", "1"); }}
+                  className="text-[#c8bba8] hover:text-[#8a7a62] shrink-0 text-sm"
+                >
+                  &times;
+                </button>
               </div>
             </div>
-          </div>
-
-          {/* Now button — visible during trip dates */}
-          {isWithinTripDates(trip) && (
-            <button
-              onClick={() => navigate("/now")}
-              className="absolute bottom-20 left-4 px-4 py-2 bg-white rounded-lg shadow-lg
-                         text-sm font-medium text-[#514636] hover:bg-[#faf8f5] transition-colors z-10"
-            >
-              Now
-            </button>
           )}
 
-          {/* Capture button */}
+          {/* Capture button — floating above filmstrip */}
           <button
             onClick={() => setShowCapture(true)}
-            className="absolute bottom-20 right-4 w-14 h-14 rounded-full bg-[#514636] text-white
-                       text-2xl shadow-lg hover:bg-[#3a3128] transition-colors z-10
+            className="fixed right-4 w-12 h-12 rounded-full bg-[#514636] text-white
+                       text-xl shadow-lg hover:bg-[#3a3128] transition-colors z-30
                        flex items-center justify-center"
+            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}
           >
             +
           </button>
 
-          {/* Mobile view toggle — map/list */}
+          {/* Mobile: activities toggle — calendar icon instead of hamburger */}
           <button
             onClick={() => setMobileView("list")}
-            className="absolute bottom-20 right-20 md:hidden w-10 h-10 rounded-full bg-white shadow-lg
-                       text-sm text-[#514636] flex items-center justify-center z-10"
-            aria-label="Show list"
+            className="fixed md:hidden w-10 h-10 rounded-full bg-white shadow-lg
+                       text-sm text-[#514636] flex items-center justify-center z-30"
+            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)", right: "4.5rem" }}
+            aria-label="Activities"
           >
-            <svg width="16" height="14" viewBox="0 0 16 14" fill="currentColor">
-              <rect y="0" width="16" height="2" rx="1" />
-              <rect y="6" width="16" height="2" rx="1" />
-              <rect y="12" width="16" height="2" rx="1" />
-            </svg>
+            <span className="text-base">📋</span>
           </button>
 
-          {/* Theme filter chips + Selector strip */}
-          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-[#f0ece5] z-10">
-            {/* Theme filter row */}
-            <div className="flex gap-1.5 px-2 pt-2 pb-1 overflow-x-auto">
-              {THEME_OPTIONS.map((theme) => (
-                <button
-                  key={theme}
-                  onClick={() => toggleTheme(theme)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] capitalize whitespace-nowrap shrink-0 transition-colors border ${
-                    activeThemes.includes(theme)
-                      ? "bg-[#514636] text-white border-[#514636]"
-                      : "bg-transparent text-[#8a7a62] border-[#e0d8cc] hover:border-[#a89880]"
-                  }`}
-                >
-                  {theme}
-                </button>
-              ))}
-              {activeThemes.length > 0 && (
-                <button
-                  onClick={() => setActiveThemes([])}
-                  className="px-2 py-1 text-[11px] text-[#c8bba8] hover:text-[#8a7a62] whitespace-nowrap shrink-0"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <div className="flex gap-1 px-2 pb-2 overflow-x-auto">
-              {axis === "cities" && (
-                <>
-                  {trip.cities.map((city) => (
-                    <button
-                      key={city.id}
-                      onClick={() => setSelectedCityId(city.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors ${
-                        selectedCityId === city.id
-                          ? "bg-[#514636] text-white"
-                          : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
-                      }`}
-                    >
-                      {city.name}
-                      {city.tagline && selectedCityId === city.id && (
-                        <span className="ml-1 opacity-70 font-normal">· {city.tagline}</span>
-                      )}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setShowAddCity(!showAddCity)}
-                    className="px-3 py-1.5 rounded-full text-xs whitespace-nowrap shrink-0
-                               border border-dashed border-[#e0d8cc] text-[#a89880]
-                               hover:border-[#8a7a62] hover:text-[#6b5d4a] transition-colors"
-                  >
-                    + City
-                  </button>
-                </>
-              )}
-              {axis === "days" && days.map((day) => {
-                const dayExps = experiences.filter(e => e.state === "selected" && e.dayId === day.id);
-                const locatedExps = dayExps.filter(e => e.latitude != null && e.longitude != null);
+          {/* Day filmstrip — fixed to bottom of screen with safe area */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#f0ece5] z-30 safe-bottom-nav">
+            <div
+              className="flex gap-1.5 px-2 py-2 overflow-x-auto"
+              style={{ touchAction: "pan-x", overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" }}
+            >
+              {days.map((day, dayIdx) => {
+                const dayExps = experiences.filter((e) => e.state === "selected" && e.dayId === day.id);
+                const locatedExps = dayExps.filter((e) => e.latitude != null && e.longitude != null);
                 const dayAccom = day.accommodations?.[0];
-                const mapUrl = buildStaticMapUrl(locatedExps, dayAccom);
+                const city = trip.cities.find((c) => c.id === day.cityId);
+                const mapUrl = buildStaticMapUrl(locatedExps, dayAccom, city);
                 const isActive = selectedDayId === day.id;
                 const hasFriction = dayFrictionMap.has(day.id);
+                const cityColor = getCityPastel(trip.cities, day.cityId);
+                // Detect travel day: first day of a new city
+                const prevDay = dayIdx > 0 ? days[dayIdx - 1] : null;
+                const isTravel = prevDay && prevDay.cityId !== day.cityId;
+                const prevColor = isTravel ? getCityPastel(trip.cities, prevDay.cityId) : null;
+
                 return (
                   <button
                     key={day.id}
-                    onClick={() => { setSelectedDayId(day.id); setShowDayView(true); }}
+                    onClick={() => handleDayClick(day.id)}
                     className={`shrink-0 rounded-lg overflow-hidden transition-all relative ${
                       isActive
                         ? "ring-2 ring-[#514636] w-[120px]"
                         : "w-[100px] opacity-80 hover:opacity-100"
                     }`}
                   >
-                    {/* Friction indicator dot */}
                     {hasFriction && (
                       <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 z-10" />
                     )}
@@ -665,15 +566,29 @@ export default function PlanPage() {
                         loading="lazy"
                       />
                     ) : (
-                      <div className="w-full h-14 bg-[#f0ece5] flex items-center justify-center">
-                        <span className="text-[#c8bba8] text-lg">{day.city.name.charAt(0)}</span>
+                      <div
+                        className="w-full h-14 flex items-center justify-center"
+                        style={isTravel && prevColor
+                          ? { background: `linear-gradient(135deg, ${prevColor} 50%, ${cityColor} 50%)` }
+                          : { backgroundColor: cityColor }
+                        }
+                      >
+                        <span className="text-[#6b5d4a] text-xs font-medium opacity-60 truncate px-1">
+                          {day.city.name}
+                        </span>
                       </div>
                     )}
-                    <div className={`px-1.5 py-1 text-left ${isActive ? "bg-[#514636] text-white" : "bg-[#f0ece5] text-[#6b5d4a]"}`}>
+                    <div
+                      className="px-1.5 py-1 text-left"
+                      style={isActive
+                        ? { backgroundColor: "#514636", color: "#fff" }
+                        : { backgroundColor: cityColor, color: "#3a3128" }
+                      }
+                    >
                       <div className="text-[10px] font-medium truncate">
                         {formatShortDate(day.date)}
                       </div>
-                      <div className={`text-[9px] truncate ${isActive ? "opacity-70" : "text-[#a89880]"}`}>
+                      <div className={`text-[9px] truncate ${isActive ? "opacity-70" : "opacity-60"}`}>
                         {day.city.name}
                         {dayExps.length > 0 ? ` · ${dayExps.length}` : ""}
                       </div>
@@ -683,71 +598,14 @@ export default function PlanPage() {
               })}
             </div>
           </div>
-
-          {/* Add city form — inline above selector strip */}
-          {showAddCity && (
-            <div className="absolute bottom-14 left-0 right-0 z-20 px-2">
-              <div className="bg-white rounded-lg shadow-lg border border-[#e0d8cc] p-3 space-y-2 max-w-md mx-auto">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newCityName}
-                    onChange={(e) => setNewCityName(e.target.value)}
-                    placeholder="City name"
-                    autoFocus
-                    className="flex-1 px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                               placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-                  />
-                  <input
-                    type="text"
-                    value={newCityCountry}
-                    onChange={(e) => setNewCityCountry(e.target.value)}
-                    placeholder="Country"
-                    className="w-24 px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
-                               placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    value={newCityArrival}
-                    onChange={(e) => setNewCityArrival(e.target.value)}
-                    className="flex-1 px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]"
-                  />
-                  <input
-                    type="date"
-                    value={newCityDeparture}
-                    onChange={(e) => setNewCityDeparture(e.target.value)}
-                    className="flex-1 px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleAddCity}
-                    disabled={!newCityName.trim()}
-                    className="flex-1 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-                  >
-                    Add City
-                  </button>
-                  <button
-                    onClick={() => setShowAddCity(false)}
-                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Side panel — desktop */}
+        {/* Desktop side panel */}
         <div className="w-96 border-l border-[#f0ece5] bg-white overflow-y-auto hidden md:block">
           {showDayView && selectedDay ? (
             <DayView
               day={selectedDay}
-              experiences={contextExperiences}
+              experiences={cityExperiences}
               trip={trip}
               onClose={() => setShowDayView(false)}
               onPromote={handlePromote}
@@ -771,7 +629,6 @@ export default function PlanPage() {
         {/* Mobile list view — full screen when active */}
         {mobileView === "list" && (
           <div className="fixed inset-0 z-40 bg-[#faf8f5] md:hidden flex flex-col">
-            {/* Mobile list header */}
             <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0">
               <button
                 onClick={() => setMobileView("map")}
@@ -780,25 +637,24 @@ export default function PlanPage() {
                 &larr; Map
               </button>
               <span className="text-xs font-medium text-[#a89880]">
-                {selected.length} Selected · {possible.length} Possible
+                {selected.length} Planned · {possible.length} Possible
               </span>
-              {axis === "days" && selectedDay && (
+              {selectedDay && (
                 <button
-                  onClick={() => { setShowDayView(true); }}
+                  onClick={() => setShowDayView(true)}
                   className="text-xs text-[#514636] font-medium"
                 >
-                  Day view
+                  Day details
                 </button>
               )}
             </div>
-            {/* Mobile list content */}
             <div className="flex-1 overflow-y-auto">
               {showDayView && selectedDay ? (
                 <DayView
                   day={selectedDay}
-                  experiences={contextExperiences}
+                  experiences={cityExperiences}
                   trip={trip}
-                  onClose={() => { setShowDayView(false); }}
+                  onClose={() => setShowDayView(false)}
                   onPromote={handlePromote}
                   onDemote={handleDemote}
                   onExperienceClick={(id) => { setSelectedExpId(id); setMobileView("map"); }}
@@ -816,7 +672,6 @@ export default function PlanPage() {
                 />
               )}
             </div>
-            {/* Mobile bottom actions */}
             <div className="shrink-0 flex gap-2 px-4 py-3 bg-white border-t border-[#f0ece5]">
               <button
                 onClick={() => { setShowCapture(true); setMobileView("map"); }}
@@ -824,7 +679,7 @@ export default function PlanPage() {
               >
                 + Capture
               </button>
-              {axis === "days" && !showDayView && selectedDay && (
+              {!showDayView && selectedDay && (
                 <button
                   onClick={() => setShowDayView(true)}
                   className="px-4 py-2.5 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]"
@@ -870,7 +725,7 @@ export default function PlanPage() {
         </div>
       )}
 
-      {/* Experience detail panel — responsive */}
+      {/* Experience detail panel */}
       {selectedExpId && (
         <ExperienceDetail
           experienceId={selectedExpId}
@@ -888,7 +743,7 @@ export default function PlanPage() {
       {showCapture && (
         <CapturePanel
           trip={trip}
-          defaultCityId={selectedCityId || trip.cities[0]?.id}
+          defaultCityId={activeCityId}
           onClose={() => setShowCapture(false)}
           onCaptured={handleCaptured}
         />
@@ -900,6 +755,7 @@ export default function PlanPage() {
 function buildStaticMapUrl(
   experiences: { latitude: number | null; longitude: number | null }[],
   accommodation?: { latitude: number | null; longitude: number | null } | null,
+  cityFallback?: { latitude: number | null; longitude: number | null } | null,
 ): string | null {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   if (!apiKey) return null;
@@ -913,6 +769,11 @@ function buildStaticMapUrl(
   if (accommodation?.latitude != null && accommodation?.longitude != null) {
     points.push({ lat: accommodation.latitude, lng: accommodation.longitude });
   }
+
+  // Fall back to city center if no experience/accommodation points
+  if (points.length === 0 && cityFallback?.latitude != null && cityFallback?.longitude != null) {
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${cityFallback.latitude},${cityFallback.longitude}&zoom=13&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&key=${apiKey}`;
+  }
   if (points.length === 0) return null;
 
   const centerLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
@@ -920,8 +781,8 @@ function buildStaticMapUrl(
 
   let zoom = 15;
   if (points.length > 1) {
-    const latSpan = Math.max(...points.map(p => p.lat)) - Math.min(...points.map(p => p.lat));
-    const lngSpan = Math.max(...points.map(p => p.lng)) - Math.min(...points.map(p => p.lng));
+    const latSpan = Math.max(...points.map((p) => p.lat)) - Math.min(...points.map((p) => p.lat));
+    const lngSpan = Math.max(...points.map((p) => p.lng)) - Math.min(...points.map((p) => p.lng));
     const span = Math.max(latSpan, lngSpan);
     if (span > 0.1) zoom = 12;
     else if (span > 0.05) zoom = 13;
@@ -929,18 +790,20 @@ function buildStaticMapUrl(
     else zoom = 15;
   }
 
-  const markers = points.slice(0, 5).map(p => `${p.lat},${p.lng}`).join("|");
-
+  const markers = points.slice(0, 5).map((p) => `${p.lat},${p.lng}`).join("|");
   return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=240x120&scale=2&maptype=roadmap&style=feature:all|saturation:-50&markers=size:tiny|color:0x514636|${markers}&key=${apiKey}`;
+}
+
+function buildShortLabel(trip: Trip): string {
+  const year = new Date(trip.startDate).getFullYear();
+  // Use first word of trip name that isn't a month or year
+  const months = new Set(["january","february","march","april","may","june","july","august","september","october","november","december"]);
+  const word = trip.name.split(/\s+/).find(
+    (w) => !months.has(w.toLowerCase()) && !/^\d{4}$/.test(w)
+  );
+  return `${word || trip.name} ${year}`;
 }
 
 function formatShortDate(d: string): string {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function isWithinTripDates(trip: Trip): boolean {
-  const now = new Date();
-  const start = new Date(trip.startDate);
-  const end = new Date(trip.endDate);
-  return now >= start && now <= end;
 }

@@ -23,7 +23,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { Experience, Day, Trip } from "../lib/types";
 import { api } from "../lib/api";
 import RatingsBadge from "./RatingsBadge";
-import AIObservations from "./AIObservations";
+
 import { useToast } from "../contexts/ToastContext";
 
 interface Props {
@@ -80,37 +80,35 @@ function SortableSelectedItem({
   return (
     <div ref={setNodeRef} style={style}>
       <div
-        className="px-3 py-2.5 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
+        className="px-3 py-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
                    hover:border-[#a89880] transition-colors"
         onClick={() => onExperienceClick(exp.id)}
       >
         <div className="flex items-center gap-2">
           <GripHandle listeners={listeners as Record<string, unknown>} attributes={attributes} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-medium text-[#3a3128] truncate">{exp.name}</div>
+          <div className="flex-1 min-w-0 flex items-center justify-between">
+            <div className="truncate">
+              <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
+              {exp.timeWindow && (
+                <span className="text-[10px] text-[#a89880] ml-1.5">{exp.timeWindow}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); onExperienceClick(exp.id); }}
+                className="w-5 h-5 rounded-full border border-[#e0d8cc] text-[#a89880] hover:text-[#6b5d4a]
+                           flex items-center justify-center text-[10px] transition-colors"
+                title="Details"
+              >
+                i
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
-                className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors flex-shrink-0"
+                className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
                 title="Move to candidates"
               >
                 &darr;
               </button>
-            </div>
-            {exp.timeWindow && (
-              <div className="text-xs text-[#a89880] mt-0.5">{exp.timeWindow}</div>
-            )}
-            {exp.description && (
-              <div className="text-xs text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</div>
-            )}
-            {exp.userNotes && (
-              <div className="text-xs text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</div>
-            )}
-            <div className="flex items-center gap-2 mt-1">
-              <RatingsBadge ratings={exp.ratings} />
-              {exp.createdBy && (
-                <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
-              )}
             </div>
           </div>
         </div>
@@ -158,41 +156,22 @@ function SortablePossibleItem({
   return (
     <div ref={setNodeRef} style={style}>
       <div
-        className={`px-3 py-2.5 bg-white rounded-lg border transition-colors cursor-pointer
-          ${ratingBorderClass(exp)}
-          hover:border-[#e0d8cc]`}
+        className={`px-3 py-1.5 rounded-lg border transition-colors cursor-pointer opacity-70
+          ${ratingBorderClass(exp)} bg-white
+          hover:opacity-100 hover:border-[#e0d8cc]`}
         onClick={() => onExperienceClick(exp.id)}
       >
         <div className="flex items-center gap-2">
           <GripHandle listeners={listeners as Record<string, unknown>} attributes={attributes} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[#3a3128]">{exp.name}</span>
-                {exp.locationStatus === "unlocated" && (
-                  <span className="text-[10px] text-[#c8bba8]" title="Location needed">?</span>
-                )}
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); setPromotingId(promotingId === exp.id ? null : exp.id); }}
-                className="text-xs text-[#a89880] hover:text-[#514636] transition-colors flex-shrink-0"
-                title="Add to itinerary"
-              >
-                &uarr;
-              </button>
-            </div>
-            {exp.description && (
-              <div className="text-xs text-[#a89880] mt-1 line-clamp-2">{exp.description}</div>
-            )}
-            {exp.userNotes && (
-              <div className="text-xs text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</div>
-            )}
-            <div className="flex items-center gap-2 mt-1">
-              <RatingsBadge ratings={exp.ratings} />
-              {exp.createdBy && (
-                <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
-              )}
-            </div>
+          <div className="flex-1 min-w-0 flex items-center justify-between">
+            <span className="text-xs text-[#6b5d4a] truncate">{exp.name}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); setPromotingId(promotingId === exp.id ? null : exp.id); }}
+              className="text-[10px] text-[#c8bba8] hover:text-[#514636] transition-colors shrink-0 ml-2"
+              title="Add to itinerary"
+            >
+              &uarr;
+            </button>
           </div>
         </div>
       </div>
@@ -405,11 +384,6 @@ export default function ExperienceList({
             {selected.length} Selected · {possible.length} Possible
           </span>
         </div>
-
-        {/* AI Observations — shown when there are selected experiences */}
-        {selected.length > 0 && (
-          <AIObservations cityId={selected[0].cityId} />
-        )}
 
         {/* Cross-zone promote panel — calendar strip (shown at top when dragging possible -> selected) */}
         {crossZonePromoteId && (() => {

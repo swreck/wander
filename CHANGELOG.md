@@ -2,6 +2,83 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-06 (Home Page Redesign, Brand Language, Smart Navigation)
+
+### Changed
+- **Calendar cells redesigned**: Map is now the hero element at 70% opacity with white gradient overlay at bottom showing date, city name (word-wrapped), and colored dots for activity count. Replaces text-heavy cells.
+- **"Open Map" renamed to "Day by Day"**: Better reflects that the trip view is for following, not just planning.
+- **Brand language**: All instances of "exploring" replaced with "wandering." Tagline is now "Enjoy your Wander."
+- **Back button shows short trip label**: "Japan 2026" instead of full trip name. Derived dynamically from trip data.
+- **"New Trip" button removed from Trip Overview**: Declutters the home page.
+
+### Added
+- **City-click navigation**: Clicking a city on the hero map or calendar navigates to that city's first day on the Plan page (via `?city=` URL param), not always day 1.
+- **City-specific daily discovery tips**: Greeting system includes local insider tips for Tokyo, Kyoto, Nikko, Karatsu, Okayama — different each day.
+
+SPEC UPDATE NEEDED: Navigation labels changed. Brand language updated throughout. Calendar cell design changed. City-click deep linking is new.
+
+## 2026-03-06 (iPhone UX Overhaul, Emoji Markers, Date Fix)
+
+### Fixed
+- **Trip dates shifted to October 2026**: All days, cities, and trip envelope shifted from March/April to October/November to match actual Backroads tour dates. Trip now runs Oct 17 - Nov 1.
+- **iPhone Safari safe areas**: Added `viewport-fit=cover` and `env(safe-area-inset-bottom)` padding to all fixed-position elements. Nav strip, floating buttons, and chat bubble no longer hidden behind Safari's bottom toolbar. Uses `100dvh` instead of `100vh`.
+- **Nav strip scroll on touch**: Added `touch-action: pan-x` and `overscroll-behavior-x: contain` so horizontal swiping works without moving the whole page on mobile.
+- **Nav strip pinned to true bottom**: Filmstrip is now `position: fixed` at viewport bottom with safe area padding, always visible and tappable on iPhone.
+- **Floating buttons repositioned**: Capture (+) and activities (📋) buttons use `position: fixed` with safe area offset, no longer clipped off-screen.
+
+### Changed
+- **Emoji map markers**: Replaced abstract geometric shapes with emoji-in-pin markers. Food=🍜, Temples=⛩️, Ceramics=🏺, Architecture=🏛️, Nature=🌿, Transport=🚃, Shopping=🛍️, Art=🎨, Nightlife=🌙, Other=📍. Pin shape is teardrop-style for visibility on mobile.
+- **Marker labels always visible**: All markers show name label below the pin. Selected markers are 44px, possible 36px (dashed border), nearby 28px with star rating.
+- **Activities button**: Replaced hamburger icon (≡) with 📋 emoji — clearer meaning for "view activities list."
+- **Distance overlay more prominent**: Walking distance/time overlay moved to bottom-center, larger text with 🚶 emoji, white background with shadow. Now readable on mobile.
+- **Home page orientation text**: Shortened to bullet-point format ("Tap a day to jump to the map", "Colors match cities across all views", etc.) instead of paragraphs.
+- **Recent activity collapsed**: Now a small "📋 5 recent changes" button that opens a modal, instead of inline list taking up screen real estate.
+- **City legend removed**: Colors are self-documenting between calendar and nav strip — no separate legend needed.
+- **Hero map city markers**: Now show numbered circles with city name label below, using matching pastel colors from calendar. Larger (40px) and more visible.
+- **Easter egg discoveries**: Daily greeting now includes city-specific local tips (e.g., "The backstreets of Shimokitazawa have some of Tokyo's best vintage finds") for Tokyo, Kyoto, Nikko, Karatsu, Okayama. Different tip each day.
+
+### Added
+- **"Return to my location" button**: Blue 📍 button on map (bottom-right) pans and zooms to GPS position. Only appears when location is available.
+- **Chat knows current day/city**: AI assistant now receives the currently selected day and city as context, so "What are my activities today?" works correctly on the Plan page.
+- **New theme categories**: Added transport, shopping, art, nightlife as marker themes with distinct emoji.
+
+SPEC UPDATE NEEDED: Map marker system completely redesigned. iPhone safe area handling is new. Easter egg discovery system is new feature. Chat context awareness improved.
+
+## 2026-03-06 (Map Markers, GPS, Mini-maps)
+
+### Changed
+- **Map markers dramatically larger and labeled**: Selected markers are now 40px with white border, double ring shadow, and name label below. Possible markers are 32px with dashed border. Nearby markers are 24px with star rating. All tiers are now clearly visible on iPad and iPhone screens. Accommodation markers enlarged to 36px with hotel emoji. (Plan page map)
+- **Mini-map thumbnails in calendar cells**: Trip Overview calendar cells now show a faded Google Static Map background centered on the city's coordinates. City name shown in full at bottom of each cell. (Trip Overview)
+- **Full city names everywhere**: Filmstrip on Plan page and calendar cells show full city names, not abbreviations. (Plan page filmstrip, Trip Overview calendar)
+
+### Added
+- **"You are here" GPS marker**: When the app has location permission, a pulsing blue dot with "You are here" label appears on the map. Uses `watchPosition` for live tracking. Highest z-index so it's always visible. (Plan page map)
+
+SPEC UPDATE NEEDED: Map marker sizes/styles changed significantly. GPS user location is new feature. Mini-map backgrounds on calendar cells are new.
+
+## 2026-03-06 (Service Worker, Trip Switching, Date Guards)
+
+### Fixed
+- **Service worker blocking updates**: PWA service worker was using `CacheFirst` for JS/CSS and never activating new versions. Users saw stale code forever. Fixed with `skipWaiting()` + `clientsClaim()`, changed to `StaleWhileRevalidate`, and added auto-reload on SW update. Future deploys will update automatically without manual cache clearing. (All screens)
+- **Past dates in import**: AI extraction sometimes guessed wrong years (e.g. 2024 instead of 2026). Added two guards: (1) Review screen shows amber warning listing any past dates so user can fix before committing. (2) Backend auto-shifts all dates forward if trip start is in the past. (Import review screen, backend import/commit)
+- **Fixed wrong dates on Okayama, Karatsu, Nagoya**: Corrected from Jan 2024 to Apr 2026 in database.
+
+### Added
+- **Trip switching**: Tap any archived trip on the overview to reactivate it. Create screen now shows "Your Trips" list so you can get back to an existing trip. New `POST /trips/:id/activate` API endpoint. (Trip Overview, Create Trip screen)
+- **Calendar handles date gaps gracefully**: Days separated by 7+ day gaps render as separate calendar blocks instead of one enormous grid. Prevents blank page when dates span multiple years. (Trip Overview)
+
+## 2026-03-06 (Calendar, City Geocoding, AI Observations)
+
+### Added
+- **City geocoding**: Cities are now automatically geocoded via Google Geocoding API during import (both commit and merge). This populates latitude/longitude on cities, enabling the hero map on Trip Overview, filmstrip map thumbnails, and proper map centering. (Backend: import pipeline)
+- **Week-view calendar grid on Trip Overview**: The day listing is now a Mon-Sun calendar grid with city-colored cells. Travel days show diagonal gradients between two city colors. Each cell shows the day number, planned experience count, and abbreviated city name. A color legend beneath the calendar maps colors to city names. Replaces the horizontal filmstrip and city list. (Trip Overview page)
+
+### Changed
+- **AI Observations hidden behind disclosure**: The blue AI Observation boxes in Day View are now collapsed behind a small (i) icon labeled "AI Observations". Tap to expand, tap again to collapse. No longer takes up screen space by default. (Day View panel)
+- **Removed unused AI Observations import** from ExperienceList component (cleanup).
+
+SPEC UPDATE NEEDED: Trip Overview layout changed from list/filmstrip to calendar grid. City geocoding is new backend behavior. AI Observations display behavior changed.
+
 ## 2026-03-05 (Login & Personalization)
 
 ### Changed
@@ -320,3 +397,74 @@ Affects: frontend/src/components/MapCanvas.tsx, frontend/src/pages/PlanPage.tsx,
 Affects: frontend/src/pages/NowPage.tsx
 
 SPEC UPDATE NEEDED: Sections covering share target, experience detail, nearby discovery, and Now screen contribution flow should be updated.
+
+## 2026-03-05 (cont.)
+
+### Changed (Import UX — Unified Drop Zone & PDF Support)
+
+#### Unified Import Zone
+- CreateTrip screen consolidated from separate text area + file picker into a single intelligent input zone. Users can paste text, drop files (PDF or image), paste URLs, or paste screenshots — all in one area. The zone auto-detects input type and routes accordingly.
+- Full-page drag overlay prevents Safari from opening dropped files as new pages.
+- File chips show attached files with size and remove button.
+- Start date hint collapsed by default, expandable when itinerary uses "Day 1, Day 2" notation.
+- Removed redundant "Start from scratch" link at bottom (back button serves same purpose).
+
+#### PDF Import Support
+- File picker now accepts PDFs in addition to images (`image/*,.pdf,application/pdf`).
+- Backend sends PDFs as `type: "document"` content blocks to Claude API (native PDF reading) instead of `type: "image"`.
+- Multer file size limit raised from 10MB to 50MB for large tour company PDFs.
+
+#### URL Import
+- New `POST /import/extract-url` endpoint: fetches URL content server-side, strips HTML tags, extracts itinerary from text. Handles PDF URLs by downloading and sending as document blocks.
+- CreateTrip auto-detects pasted URLs and routes to the URL extraction endpoint.
+
+#### Collaboration Welcome
+- When Andy or Julie first open a trip that Ken and Larisa have already been editing, a one-time welcome overlay appears: "Ken and Larisa have already started the Japan itinerary. Once you enter, you'll be collaborating on the trip and everyone will get your changes."
+- Uses change log inspection to dynamically detect who has been active, rather than hardcoding names.
+
+#### Login Screen Polish
+- Changed "Who's exploring?" to "Who's wandering?" on the login screen.
+- CreateTrip header includes identity bar with user name and sign-out button.
+
+Affects: frontend/src/components/CreateTrip.tsx, frontend/src/pages/LoginPage.tsx, frontend/src/pages/TripOverview.tsx, backend/src/routes/import.ts, backend/src/services/itineraryExtractor.ts, frontend/src/components/CapturePanel.tsx
+
+SPEC UPDATE NEEDED: Import flow, PDF support, URL extraction, collaboration welcome overlay, and login screen copy should be documented.
+
+## 2026-03-06
+
+### Changed (Plan Screen — Map + Filmstrip Redesign)
+
+#### Map is the primary view
+- Plan screen is now a full-screen map with a horizontal day filmstrip pinned to the bottom. The filmstrip is the only navigation — scroll through days, tap one to center the map on that day's neighborhood.
+- Removed the cities/days axis switcher. Navigation is always by day (days belong to cities, so scrolling through days IS browsing cities).
+- Removed theme filter chips from below the map. Category is now communicated through marker shape and color — no text filtering needed.
+- Removed city pill selector. Redundant with the filmstrip (each day card shows its city name).
+- Removed the map legend. Markers teach their own category when tapped.
+
+#### Category-specific map markers
+- Each experience theme has a distinct marker shape and color on the map:
+  - **Food**: warm brown circle
+  - **Temples**: muted red diamond (rotated square)
+  - **Ceramics**: blue rounded square
+  - **Architecture**: gray square
+  - **Nature**: green tall pill
+  - **Accommodation**: dark rounded-bottom square
+- Three tiers expressed by size and opacity: Planned (large, full), Possible (medium, 70%), Nearby (small, 50%).
+- Tapping any marker opens the detail card, which shows the category — teaching the user what each shape means.
+- Nearby ghost markers are also themed based on their Google Places types.
+
+#### Filmstrip navigation
+- Day cards show mini-map thumbnail, date, city name, and planned count. Amber friction dot when a day has 5+ experiences.
+- First tap on a day card: selects it, centers the map. Second tap on the already-active card: opens the Day View detail panel.
+- Desktop: side panel shows experience list or day view. Mobile: full-screen list toggle preserved.
+
+#### Flow and labeling fixes
+- TripOverview: "Start Planning" renamed to "Open Map" — because by the time you see it, you've already started planning via import.
+- TripOverview: post-import orientation card: "Your trip is set up — X cities, Y days, Z experiences ready to explore. You can always add more with Import."
+- PlanPage: first-visit orientation banner: "Your itinerary is on the map. Scroll the days below to explore, or tap + Import to add more."
+- Import button in the Plan screen top bar is more visible and clearly labeled "+ Import".
+- FirstTimeGuide text on TripOverview updated to match new button names.
+
+Affects: frontend/src/components/MapCanvas.tsx, frontend/src/pages/PlanPage.tsx, frontend/src/pages/TripOverview.tsx
+
+SPEC UPDATE NEEDED: Plan screen layout, marker system, navigation model, and flow labeling should be updated in SPEC.md.

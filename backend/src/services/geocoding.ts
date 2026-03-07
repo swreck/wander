@@ -96,6 +96,38 @@ export async function geocodeExperience(experienceId: string): Promise<PlaceResu
   }
 }
 
+export async function geocodeCity(cityId: string): Promise<{ latitude: number; longitude: number } | null> {
+  if (!API_KEY) return null;
+
+  const city = await prisma.city.findUnique({ where: { id: cityId } });
+  if (!city) return null;
+  if (city.latitude && city.longitude) return { latitude: city.latitude, longitude: city.longitude };
+
+  const query = `${city.name}${city.country ? `, ${city.country}` : ""}`;
+
+  try {
+    const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+    url.searchParams.set("address", query);
+    url.searchParams.set("key", API_KEY);
+
+    const res = await fetch(url.toString());
+    const data = await res.json();
+
+    if (data.status !== "OK" || !data.results?.length) return null;
+
+    const loc = data.results[0].geometry.location;
+    await prisma.city.update({
+      where: { id: cityId },
+      data: { latitude: loc.lat, longitude: loc.lng },
+    });
+
+    return { latitude: loc.lat, longitude: loc.lng };
+  } catch (err) {
+    console.error("City geocoding error:", err);
+    return null;
+  }
+}
+
 export async function confirmLocation(
   experienceId: string,
   latitude: number,
