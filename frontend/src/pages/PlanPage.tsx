@@ -190,6 +190,16 @@ export default function PlanPage() {
 
   async function handleNearbyClick(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number; types?: string[] }) {
     if (!trip || !activeCityId) return;
+
+    // If an experience with this name already exists, open its detail instead of duplicating
+    const existing = experiences.find(
+      (e) => e.name.toLowerCase() === place.name.toLowerCase() || e.placeIdGoogle === place.placeId
+    );
+    if (existing) {
+      setSelectedExpId(existing.id);
+      return;
+    }
+
     const nudge = user ? getNudgesForPlace(user.displayName, place.name, place.types || []) : null;
     if (nudge) {
       setNudgeMessage({ place, nudge });
@@ -207,6 +217,10 @@ export default function PlanPage() {
         name: place.name,
         description: `Nearby discovery (${place.rating} stars)`,
         userNotes: "Discovered via map",
+        latitude: place.latitude,
+        longitude: place.longitude,
+        locationStatus: "confirmed",
+        placeIdGoogle: place.placeId,
       });
       showToast(`${place.name} added`);
       await loadExperiences();

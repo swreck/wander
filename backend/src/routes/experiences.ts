@@ -34,7 +34,8 @@ router.get("/:id", async (req, res) => {
 
 // Create experience (capture)
 router.post("/", async (req: AuthRequest, res) => {
-  const { tripId, cityId, name, description, sourceUrl, sourceText, themes, userNotes } = req.body;
+  const { tripId, cityId, name, description, sourceUrl, sourceText, themes, userNotes,
+    latitude, longitude, locationStatus, placeIdGoogle } = req.body;
 
   const exp = await prisma.experience.create({
     data: {
@@ -48,7 +49,10 @@ router.post("/", async (req: AuthRequest, res) => {
       userNotes: userNotes || null,
       createdBy: req.user!.code,
       state: "possible",
-      locationStatus: "unlocated",
+      locationStatus: latitude && longitude && locationStatus === "confirmed" ? "confirmed" : "unlocated",
+      ...(latitude != null && { latitude }),
+      ...(longitude != null && { longitude }),
+      ...(placeIdGoogle && { placeIdGoogle }),
     },
     include: { ratings: true, city: true },
   });
