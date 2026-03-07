@@ -300,39 +300,38 @@ function SortablePossibleItem({
         </div>
       </div>
 
-      {/* Inline promote — calendar strip */}
-      {promotingId === exp.id && (
-        <div className="mt-1 p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-          <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">Tap a day to add</div>
-          <div className="flex gap-1 overflow-x-auto pb-1">
-            {days.map((d) => {
-              const isMatchCity = d.cityId === exp.cityId;
-              const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
-              const cityAbbr = d.city.name.slice(0, 3).toUpperCase();
-              return (
-                <button
-                  key={d.id}
-                  onClick={(e) => { e.stopPropagation(); onDirectPromote(exp.id, d.id); setPromotingId(null); }}
-                  className={`flex flex-col items-center px-2 py-1.5 rounded text-xs shrink-0 transition-colors ${
-                    isMatchCity
-                      ? "bg-[#514636] text-white hover:bg-[#3a3128]"
-                      : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
-                  }`}
-                >
-                  <span className="font-medium">{shortDate}</span>
-                  <span className={isMatchCity ? "opacity-70" : "text-[#c8bba8]"}>{cityAbbr}</span>
-                </button>
-              );
-            })}
+      {/* Inline promote — calendar strip (city days only) */}
+      {promotingId === exp.id && (() => {
+        const cityDays = days.filter((d) => d.cityId === exp.cityId);
+        const showDays = cityDays.length > 0 ? cityDays : days;
+        return (
+          <div className="mt-1 p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
+            <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">
+              {cityDays.length > 0 ? `Pick a ${exp.city?.name || "city"} day` : "Pick a day"}
+            </div>
+            <div className="flex gap-1 overflow-x-auto pb-1">
+              {showDays.map((d) => {
+                const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+                return (
+                  <button
+                    key={d.id}
+                    onClick={(e) => { e.stopPropagation(); onDirectPromote(exp.id, d.id); setPromotingId(null); }}
+                    className="flex flex-col items-center px-2 py-1.5 rounded text-xs shrink-0 transition-colors bg-[#514636] text-white hover:bg-[#3a3128]"
+                  >
+                    <span className="font-medium">{shortDate}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setPromotingId(null); setPromoteDay(""); setPromoteTimeWindow(""); }}
+              className="mt-1 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
+            >
+              Cancel
+            </button>
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); setPromotingId(null); setPromoteDay(""); setPromoteTimeWindow(""); }}
-            className="mt-1 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
+        );
+      })()}
       {locatingId === exp.id && (
         <LocationResolver exp={exp} onResolved={() => { setLocatingId(null); onLocationResolved(); }} />
       )}
@@ -513,19 +512,19 @@ export default function ExperienceList({
           </span>
         </div>
 
-        {/* Cross-zone promote panel — calendar strip (shown at top when dragging possible -> selected) */}
+        {/* Cross-zone promote panel — calendar strip (city days only) */}
         {crossZonePromoteId && (() => {
           const draggedExp = allExperiences.get(crossZonePromoteId);
+          const cityDays = draggedExp ? days.filter((d) => d.cityId === draggedExp.cityId) : [];
+          const showDays = cityDays.length > 0 ? cityDays : days;
           return (
             <div className="mb-3 p-2 bg-[#faf8f5] rounded-lg border-2 border-[#a89880]">
               <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">
                 Tap a day to add "{draggedExp?.name}"
               </div>
               <div className="flex gap-1 overflow-x-auto pb-1">
-                {days.map((d) => {
-                  const isMatchCity = draggedExp ? d.cityId === draggedExp.cityId : false;
+                {showDays.map((d) => {
                   const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
-                  const cityAbbr = d.city.name.slice(0, 3).toUpperCase();
                   return (
                     <button
                       key={d.id}
@@ -535,14 +534,9 @@ export default function ExperienceList({
                         setCrossPromoteDay("");
                         setCrossPromoteTimeWindow("");
                       }}
-                      className={`flex flex-col items-center px-2 py-1.5 rounded text-xs shrink-0 transition-colors ${
-                        isMatchCity
-                          ? "bg-[#514636] text-white hover:bg-[#3a3128]"
-                          : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
-                      }`}
+                      className="flex flex-col items-center px-2 py-1.5 rounded text-xs shrink-0 transition-colors bg-[#514636] text-white hover:bg-[#3a3128]"
                     >
                       <span className="font-medium">{shortDate}</span>
-                      <span className={isMatchCity ? "opacity-70" : "text-[#c8bba8]"}>{cityAbbr}</span>
                     </button>
                   );
                 })}

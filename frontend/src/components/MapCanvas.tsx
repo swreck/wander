@@ -381,6 +381,9 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
     return Math.round(raw / 5) * 5 || 5; // round to nearest 5 min
   }, [diameterKm]);
 
+  // Use a stable key so the effect fires when the set of experiences changes
+  const expKey = selectedExps.map((e) => e.id).sort().join(",");
+
   useEffect(() => {
     if (!map) return;
     if (circleRef.current) {
@@ -402,7 +405,7 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
     });
     circleRef.current = circle;
     return () => { circle.setMap(null); };
-  }, [map, center, radiusM]);
+  }, [map, center, radiusM, expKey]);
 
   if (geoPoints.length === 0 || !center) return null;
 
