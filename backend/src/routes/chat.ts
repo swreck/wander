@@ -6,6 +6,7 @@ import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { extractRecommendations } from "../services/itineraryExtractor.js";
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
+import { findDuplicate } from "../services/dedup.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -766,6 +767,7 @@ async function executeTool(
       const sourceLabel = input.senderLabel ? `${input.senderLabel}'s recommendations` : "Recommendations (via chat)";
       let cat1 = 0, cat2 = 0, cat3 = 0;
       const addedNames: string[] = [];
+      const skippedNames: string[] = [];
 
       const validThemes = new Set(["ceramics", "architecture", "food", "temples", "nature", "other"]);
       const themeMap: Record<string, string> = {
@@ -834,6 +836,13 @@ async function executeTool(
           .map((t: string) => validThemes.has(t) ? t : (themeMap[t] || "other"))
           .filter((t: string, i: number, arr: string[]) => arr.indexOf(t) === i);
 
+        // Dedup: skip if a fuzzy-matching experience already exists
+        const dupName = await findDuplicate(input.tripId, rec.name, cityId!);
+        if (dupName) {
+          skippedNames.push(rec.name);
+          continue;
+        }
+
         await prisma.experience.create({
           data: {
             tripId: input.tripId,
@@ -867,9 +876,11 @@ async function executeTool(
         description: `${user.displayName} imported ${recs.length} recommendations (${sourceLabel}, via chat)${extracted.senderNotes ? `. Notes: ${extracted.senderNotes}` : ""}`,
       });
 
-      const summary = `Imported ${recs.length} recommendations: ${cat1} to existing cities, ${cat2} to new candidate cities${cat3 > 0 ? `, ${cat3} to Ideas bucket` : ""}`;
+      const added = addedNames.length;
+      const skipped = skippedNames.length;
+      const summary = `Imported ${added} recommendations: ${cat1} to existing cities, ${cat2} to new candidate cities${cat3 > 0 ? `, ${cat3} to Ideas bucket` : ""}${skipped > 0 ? `. Skipped ${skipped} duplicates.` : ""}`;
       return {
-        result: { imported: recs.length, category1: cat1, category2: cat2, category3: cat3, addedNames, senderNotes: extracted.senderNotes },
+        result: { imported: added, skipped, category1: cat1, category2: cat2, category3: cat3, addedNames, skippedNames, senderNotes: extracted.senderNotes },
         actionDescription: summary,
       };
     }
@@ -933,8 +944,10 @@ router.post("/", async (req: AuthRequest, res) => {
           reply = r.message;
         } else {
           reply = `Imported ${r.imported} recommendations: ${r.category1} to existing cities, ${r.category2} to new candidate cities${r.category3 > 0 ? `, ${r.category3} to Ideas bucket` : ""}.`;
+          if (r.skipped > 0) reply += ` Skipped ${r.skipped} duplicates.`;
           if (r.senderNotes) reply += `\n\nSender notes: ${r.senderNotes}`;
           if (r.addedNames?.length > 0) reply += `\n\nPlaces added: ${r.addedNames.join(", ")}`;
+          if (r.skippedNames?.length > 0) reply += `\n\nAlready existed: ${r.skippedNames.join(", ")}`;
         }
         res.json({
           reply,

@@ -6,6 +6,7 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { extractItinerary, extractRecommendations, type ExtractionResult, type RecommendationResult } from "../services/itineraryExtractor.js";
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 import { syncTripDates } from "../services/syncTripDates.js";
+import { findDuplicate } from "../services/dedup.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -1100,6 +1101,10 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
       const mappedThemes = rec.themes
         .map((t: string) => validThemes.has(t) ? t : (themeMap[t] || "other"))
         .filter((t: string, i: number, arr: string[]) => arr.indexOf(t) === i);
+
+      // Dedup: skip if a fuzzy-matching experience already exists
+      const dupName = await findDuplicate(tripId, rec.name, cityId!);
+      if (dupName) continue;
 
       await prisma.experience.create({
         data: {
