@@ -2,6 +2,13 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-07 (cont'd — Trip Date Sync)
+
+### Fixed
+- **Trip header dates out of sync with calendar**: Header showed Oct 16–Oct 31 while calendar showed Oct 18–Nov 1. Root cause: trip.startDate/endDate were set at import time and never updated when days changed. Now trip dates are automatically derived from actual day records. Every operation that creates, deletes, or modifies days recalculates trip dates. Manual date editing removed from trip edit form — dates always match your city schedules.
+
+SPEC UPDATE NEEDED: Trip dates are now derived from day records, not independently editable.
+
 ## 2026-03-07 (Location Resolver, Travel Days, Map-List Linkage, Distance Overlay)
 
 ### Added

@@ -81,8 +81,6 @@ export default function TripOverview() {
       await api.patch(`/trips/${trip.id}`, {
         name: editName,
         tagline: editTagline || null,
-        startDate: editStartDate,
-        endDate: editEndDate,
       });
       setEditingTrip(false);
       showToast("Trip updated");
@@ -323,12 +321,9 @@ export default function TripOverview() {
               className="w-full text-sm text-[#6b5d4a] border-b border-[#e0d8cc]
                          focus:outline-none focus:border-[#a89880] bg-transparent placeholder-[#c8bba8]"
             />
-            <div className="flex gap-2">
-              <input type="date" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)}
-                className="px-2 py-1 text-sm border border-[#e0d8cc] rounded" />
-              <input type="date" value={editEndDate} onChange={(e) => setEditEndDate(e.target.value)}
-                className="px-2 py-1 text-sm border border-[#e0d8cc] rounded" />
-            </div>
+            <p className="text-xs text-[#a89880]">
+              Dates are set automatically from your city schedules
+            </p>
             <div className="flex gap-2">
               <button onClick={handleSaveTrip}
                 className="px-3 py-1 text-xs bg-[#514636] text-white rounded hover:bg-[#3a3128]">

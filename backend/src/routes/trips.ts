@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
+import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -116,6 +117,8 @@ router.post("/", async (req: AuthRequest, res) => {
     }
   }
 
+  await syncTripDates(trip.id);
+
   await logChange({
     user: req.user!,
     tripId: trip.id,
@@ -167,16 +170,17 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.trip.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Trip not found" }); return; }
 
-  const { name, tagline, startDate, endDate } = req.body;
+  const { name, tagline } = req.body;
   const trip = await prisma.trip.update({
     where: { id: req.params.id as string },
     data: {
       ...(name !== undefined && { name }),
       ...(tagline !== undefined && { tagline: tagline || null }),
-      ...(startDate !== undefined && { startDate: new Date(startDate) }),
-      ...(endDate !== undefined && { endDate: new Date(endDate) }),
     },
   });
+
+  // Trip dates always derived from actual day records
+  await syncTripDates(trip.id);
 
   await logChange({
     user: req.user!,

@@ -2,6 +2,7 @@ import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
+import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -421,6 +422,8 @@ async function executeTool(
         }
       }
 
+      await syncTripDates(input.tripId);
+
       await logChange({
         user,
         tripId: input.tripId,
@@ -441,6 +444,7 @@ async function executeTool(
       if (input.arrivalDate !== undefined) data.arrivalDate = input.arrivalDate ? new Date(input.arrivalDate) : null;
       if (input.departureDate !== undefined) data.departureDate = input.departureDate ? new Date(input.departureDate) : null;
       const city = await prisma.city.update({ where: { id: input.cityId }, data });
+      await syncTripDates(existing.tripId);
       return { result: city, actionDescription: `Updated dates for "${city.name}"` };
     }
 
@@ -451,6 +455,7 @@ async function executeTool(
         include: { city: true },
       });
       await prisma.experience.updateMany({ where: { dayId: day.id }, data: { cityId: input.newCityId } });
+      await syncTripDates(day.tripId);
       return { result: day, actionDescription: `Reassigned ${day.date.toISOString().split("T")[0]} to ${day.city.name}` };
     }
 
@@ -512,9 +517,9 @@ async function executeTool(
       if (!existing) return { result: { error: "Trip not found" } };
       const data: any = {};
       if (input.name !== undefined) data.name = input.name;
-      if (input.startDate !== undefined) data.startDate = new Date(input.startDate);
-      if (input.endDate !== undefined) data.endDate = new Date(input.endDate);
+      // Ignore manual startDate/endDate — always derived from days
       const trip = await prisma.trip.update({ where: { id: input.tripId }, data });
+      await syncTripDates(input.tripId);
       await logChange({
         user,
         tripId: trip.id,
@@ -549,6 +554,7 @@ async function executeTool(
       }
       await prisma.day.deleteMany({ where: { cityId: existing.id } });
       await prisma.city.delete({ where: { id: existing.id } });
+      await syncTripDates(existing.tripId);
       await logChange({
         user,
         tripId: existing.tripId,

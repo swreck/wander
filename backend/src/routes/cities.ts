@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
+import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -97,6 +98,8 @@ router.post("/", async (req: AuthRequest, res) => {
       }
     }
   }
+
+  await syncTripDates(tripId);
 
   await logChange({
     user: req.user!,
@@ -218,6 +221,8 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     }
   }
 
+  await syncTripDates(city.tripId);
+
   await logChange({
     user: req.user!,
     tripId: city.tripId,
@@ -258,6 +263,8 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   // If no other city exists, cascade delete is the only option
 
   await prisma.city.delete({ where: { id: req.params.id as string } });
+
+  await syncTripDates(existing.tripId);
 
   await logChange({
     user: req.user!,

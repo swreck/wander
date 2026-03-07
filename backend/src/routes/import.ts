@@ -5,6 +5,7 @@ import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { extractItinerary, type ExtractionResult } from "../services/itineraryExtractor.js";
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
+import { syncTripDates } from "../services/syncTripDates.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -308,6 +309,8 @@ router.post("/commit", async (req: AuthRequest, res) => {
       }
     }
 
+    await syncTripDates(trip.id);
+
     await logChange({
       user: req.user!,
       tripId: trip.id,
@@ -425,13 +428,8 @@ router.post("/merge", async (req: AuthRequest, res) => {
       }
     }
 
-    // Expand trip date range if new cities fall outside it
-    if (data.startDate && new Date(data.startDate) < trip.startDate) {
-      await prisma.trip.update({ where: { id: tripId }, data: { startDate: new Date(data.startDate) } });
-    }
-    if (data.endDate && new Date(data.endDate) > trip.endDate) {
-      await prisma.trip.update({ where: { id: tripId }, data: { endDate: new Date(data.endDate) } });
-    }
+    // Sync trip date range to match actual days
+    await syncTripDates(tripId);
 
     // Create route segments
     if (data.routeSegments?.length) {
