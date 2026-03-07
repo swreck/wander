@@ -363,16 +363,16 @@ function TravelGeometryOverlay({ selectedExps, isDayScoped }: { selectedExps: Ex
     return { lat, lng };
   }, [geoPoints]);
 
-  // Radius: at least 1km (2km diameter default), capped at 2.5km for walkability
+  // Radius: default 1610m (2 mi diameter), capped at 4000m (~5 mi diameter)
   const radiusM = useMemo(() => {
-    if (!center || geoPoints.length === 0) return 1000;
-    if (geoPoints.length === 1) return 1000; // 2km diameter default (~1.2 mi)
+    if (!center || geoPoints.length === 0) return 1610;
+    if (geoPoints.length === 1) return 1610; // 2 mi diameter default
     let maxDist = 0;
     for (const p of geoPoints) {
       const d = haversineKm(center.lat, center.lng, p.lat, p.lng) * 1000;
       if (d > maxDist) maxDist = d;
     }
-    return Math.min(2500, Math.max(1000, maxDist * 1.2)); // 1km min, 2.5km max
+    return Math.min(4000, Math.max(1610, maxDist * 1.2)); // 1 mi min radius, 2.5 mi max
   }, [center, geoPoints]);
 
   // Walking time: diameter at ~2 mph (3.2 km/hr), displayed in miles
