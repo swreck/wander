@@ -376,31 +376,7 @@ export default function TripOverview() {
           )}
         </div>
 
-        {/* Archived Trips */}
-        {archivedTrips.length > 0 && (
-          <section className="mt-12">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-[#c8bba8] mb-3">Past Trips</h2>
-            <div className="space-y-2">
-              {archivedTrips.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={async () => {
-                    try {
-                      await api.post(`/trips/${t.id}/activate`, {});
-                      loadTrips();
-                    } catch {
-                      showToast("Couldn't switch trip", "error");
-                    }
-                  }}
-                  className="w-full text-left px-4 py-3 bg-white/50 rounded-lg border border-[#f0ece5] text-sm text-[#a89880]
-                             hover:bg-white hover:border-[#e0d8cc] transition-colors"
-                >
-                  {t.name} — {formatDate(t.startDate)} to {formatDate(t.endDate)}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Past trips removed — accessible via CreateTrip screen if needed */}
       </div>
     </div>
   );
@@ -620,43 +596,32 @@ function CalendarCluster({
                 <button
                   key={day.id}
                   onClick={() => onDayClick(day.cityId)}
-                  className="aspect-[3/4] rounded-lg flex flex-col items-start relative overflow-hidden
+                  className="aspect-[3/4] rounded-lg flex flex-col items-center justify-between relative overflow-hidden
                              hover:shadow-md transition-shadow"
-                  style={{ backgroundColor: "#f5f3f0" }}
+                  style={{ backgroundColor: cityColor }}
                 >
-                  {/* Map as hero — prominent */}
-                  {mapUrl ? (
+                  {/* Map as vivid background — no overlay */}
+                  {mapUrl && (
                     <img
                       src={mapUrl}
                       alt=""
                       className="absolute inset-0 w-full h-full object-cover"
-                      style={{ opacity: 0.7 }}
                       loading="lazy"
                     />
-                  ) : (
-                    <div className="absolute inset-0" style={{ backgroundColor: cityColor }} />
                   )}
-                  {/* Content overlay at bottom */}
-                  <div className="relative mt-auto w-full px-1 pb-1 pt-3"
-                    style={{ background: "linear-gradient(to top, rgba(255,255,255,0.92) 70%, transparent)" }}
-                  >
-                    {/* Date */}
-                    <div className="text-[11px] font-bold text-[#3a3128] leading-tight">{dayNum}</div>
-                    {/* City name — wraps */}
-                    <div className="text-[9px] text-[#514636] font-medium leading-tight" style={{ wordBreak: "break-word" }}>
-                      {city?.name || ""}
-                    </div>
-                    {/* Activity dots */}
+                  {/* Top: date */}
+                  <div className="relative z-10 mt-1 text-[11px] font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
+                    {dayNum}
+                  </div>
+                  {/* Middle: city name */}
+                  <div className="relative z-10 text-[9px] text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center"
+                    style={{ wordBreak: "break-word" }}>
+                    {city?.name || ""}
+                  </div>
+                  {/* Bottom: plans icon */}
+                  <div className="relative z-10 mb-1 h-4 flex items-center justify-center">
                     {count > 0 && (
-                      <div className="flex gap-[3px] mt-0.5 flex-wrap">
-                        {Array.from({ length: Math.min(count, 8) }).map((_, i) => (
-                          <div
-                            key={i}
-                            className="rounded-full"
-                            style={{ width: 5, height: 5, backgroundColor: dotColor }}
-                          />
-                        ))}
-                      </div>
+                      <span style={{ fontSize: 12, color: dotColor }}>🗓️</span>
                     )}
                   </div>
                 </button>
@@ -679,7 +644,7 @@ function RecentActivityButton({ activity }: { activity: ChangeLogEntry[] }) {
         onClick={() => setOpen(true)}
         className="mb-4 flex items-center gap-2 text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
       >
-        <span>📋</span>
+        <span>🔔</span>
         <span>{activity.length} recent changes</span>
       </button>
       {open && (

@@ -490,7 +490,7 @@ export default function PlanPage() {
                 <div className="text-[11px] text-[#6b5d4a] leading-snug">
                   <p className="font-medium mb-1">Map view</p>
                   <p>• Swipe days at bottom to navigate</p>
-                  <p>• Tap 📋 for activity list</p>
+                  <p>• Tap 🗓️ for activity list</p>
                   <p>• <strong>+ Import</strong> to add plans</p>
                 </div>
                 <button
@@ -522,7 +522,7 @@ export default function PlanPage() {
             style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)", right: "4.5rem" }}
             aria-label="Activities"
           >
-            <span className="text-base">📋</span>
+            <span className="text-base">🗓️</span>
           </button>
 
           {/* Day filmstrip — fixed to bottom of screen with safe area */}
