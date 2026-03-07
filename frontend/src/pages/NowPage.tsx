@@ -295,7 +295,7 @@ export default function NowPage() {
           >
             &larr; Planning
           </button>
-          <span className="text-xs text-[#c8bba8]">
+          <span className="text-sm text-[#c8bba8]">
             {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
           </span>
         </div>
@@ -323,23 +323,23 @@ export default function NowPage() {
                       href={`https://maps.apple.com/?daddr=${acc.latitude},${acc.longitude}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[10px] text-[#a89880] hover:text-[#514636]"
+                      className="text-sm text-[#a89880] hover:text-[#514636]"
                     >
                       navigate
                     </a>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-[#8a7a62]">
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-sm text-[#8a7a62]">
                   {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
                   {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
                   {acc.confirmationNumber && <span>Conf: {acc.confirmationNumber}</span>}
                 </div>
-                {acc.notes && <div className="text-xs text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
+                {acc.notes && <div className="text-sm text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
               </div>
             );
           })()}
           {/* Quick summary line */}
-          <p className="text-xs text-[#c8bba8] mt-2">
+          <p className="text-sm text-[#c8bba8] mt-2">
             {selectedExps.length} planned
             {reservations.length > 0 && ` · ${reservations.length} reservation${reservations.length > 1 ? "s" : ""}`}
           </p>
@@ -366,7 +366,7 @@ export default function NowPage() {
                   {nextTravelResult.durationMinutes} min {MODE_LABELS[travelMode]} + {nextTravelResult.bufferMinutes} min buffer to {nextAnchor.name}
                 </div>
                 {nextTravelResult.source === "fallback" && (
-                  <div className="text-xs text-[#a89880] mt-1 italic">Estimated from distance</div>
+                  <div className="text-sm text-[#a89880] mt-1 italic">Estimated from distance</div>
                 )}
               </div>
             )}
@@ -473,7 +473,7 @@ export default function NowPage() {
             <div className="text-sm font-medium text-amber-800">
               {r.name} at {new Date(r.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </div>
-            <div className="text-xs text-amber-700 mt-0.5">
+            <div className="text-sm text-amber-700 mt-0.5">
               Reservation in {Math.round((new Date(r.datetime).getTime() - now.getTime()) / 60000)} minutes
             </div>
           </div>
@@ -559,7 +559,7 @@ export default function NowPage() {
               </button>
               <button
                 onClick={() => { setShowQuickCapture(false); setQuickCaptureName(""); }}
-                className="px-3 py-2 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                className="px-3 py-2 text-sm text-[#8a7a62] hover:text-[#3a3128]"
               >
                 Cancel
               </button>

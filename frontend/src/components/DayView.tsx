@@ -23,9 +23,9 @@ function AIObsDisclosure({ dayId }: { dayId: string }) {
     <div className="mb-3">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-[10px] text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+        className="flex items-center gap-1.5 text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
       >
-        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-[#c8bba8] text-[9px] font-medium">
+        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-[#c8bba8] text-xs font-medium">
           i
         </span>
         <span>AI Observations</span>
@@ -255,14 +255,14 @@ export default function DayView({
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-light text-[#3a3128]">{formattedDate}</h2>
-          <p className="text-xs text-[#8a7a62]">
+          <p className="text-sm text-[#8a7a62]">
             {day.city.name}
             {day.city.tagline && <span className="ml-1 text-[#a89880]">· {day.city.tagline}</span>}
           </p>
         </div>
         <button
           onClick={onClose}
-          className="text-xs text-[#8a7a62] hover:text-[#3a3128]"
+          className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
         >
           &times;
         </button>
@@ -285,13 +285,13 @@ export default function DayView({
               {emoji} {prev.city.name} → {day.city.name}
             </div>
             {segment ? (
-              <div className="text-xs text-amber-700 mt-0.5">
+              <div className="text-sm text-amber-700 mt-0.5">
                 {segment.transportMode.charAt(0).toUpperCase() + segment.transportMode.slice(1)}
                 {segment.departureDate && ` · ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
                 {segment.notes && ` · ${segment.notes}`}
               </div>
             ) : (
-              <div className="text-xs text-amber-600 mt-0.5 italic">
+              <div className="text-sm text-amber-600 mt-0.5 italic">
                 No travel details yet
               </div>
             )}
@@ -305,13 +305,13 @@ export default function DayView({
           {accommodations.map((acc) => (
             <div key={acc.id} className="px-3 py-2.5 bg-[#f0ece5] rounded-lg text-sm">
               <div className="font-medium text-[#3a3128]">{acc.name}</div>
-              {acc.address && <div className="text-xs text-[#8a7a62] mt-0.5">{acc.address}</div>}
-              <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs text-[#a89880]">
+              {acc.address && <div className="text-sm text-[#8a7a62] mt-0.5">{acc.address}</div>}
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-[#a89880]">
                 {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
                 {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
                 {acc.confirmationNumber && <span>Conf: {acc.confirmationNumber}</span>}
               </div>
-              {acc.notes && <div className="text-xs text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
+              {acc.notes && <div className="text-sm text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
             </div>
           ))}
         </div>
@@ -344,19 +344,19 @@ export default function DayView({
         <div className="flex items-center justify-between mb-2">
           {useSpatialOrder ? (
             <>
-              <span className="text-[10px] uppercase tracking-wider text-[#a89880]">
+              <span className="text-xs uppercase tracking-wider text-[#a89880]">
                 Route order
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleApplySpatialOrder}
-                  className="text-[10px] text-[#514636] hover:text-[#3a3128] font-medium"
+                  className="text-xs text-[#514636] hover:text-[#3a3128] font-medium"
                 >
                   Save this order
                 </button>
                 <button
                   onClick={() => setSpatialOverridden(true)}
-                  className="text-[10px] text-[#c8bba8] hover:text-[#8a7a62]"
+                  className="text-sm text-[#c8bba8] hover:text-[#8a7a62]"
                 >
                   Use my order
                 </button>
@@ -365,7 +365,7 @@ export default function DayView({
           ) : (
             <button
               onClick={() => setSpatialOverridden(false)}
-              className="text-[10px] uppercase tracking-wider text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+              className="text-xs uppercase tracking-wider text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
             >
               Show route order
             </button>
@@ -386,7 +386,7 @@ export default function DayView({
               const walkMin = Math.round((distKm / 5) * 60);
               if (walkMin < 1) return null;
               return (
-                <div className="flex items-center gap-2 py-1 px-4 text-[10px] text-[#c8bba8]">
+                <div className="flex items-center gap-2 py-1 px-4 text-sm text-[#c8bba8]">
                   <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
                   <span>{walkMin} min walk</span>
                   <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
@@ -402,11 +402,11 @@ export default function DayView({
                 <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
                 <div className="flex items-center gap-2">
                   {exp.timeWindow && (
-                    <span className="text-xs text-[#a89880]">{exp.timeWindow}</span>
+                    <span className="text-sm text-[#a89880]">{exp.timeWindow}</span>
                   )}
                   <button
                     onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
-                    className="text-xs text-[#c8bba8] hover:text-[#8a7a62] p-1"
+                    className="text-sm text-[#c8bba8] hover:text-[#8a7a62] p-1"
                     aria-label="Move to candidates"
                   >
                     &darr;
@@ -414,15 +414,15 @@ export default function DayView({
                 </div>
               </div>
               {exp.description && (
-                <p className="text-xs text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</p>
+                <p className="text-sm text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</p>
               )}
               {exp.userNotes && (
-                <p className="text-xs text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</p>
+                <p className="text-sm text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</p>
               )}
               <div className="flex items-center gap-2 mt-1">
                 <RatingsBadge ratings={exp.ratings} />
                 {exp.createdBy && (
-                  <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
+                  <span className="text-sm text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
                 )}
               </div>
             </div>
@@ -438,7 +438,7 @@ export default function DayView({
           </h3>
           <button
             onClick={() => setAddingRes(!addingRes)}
-            className="text-xs text-[#a89880] hover:text-[#514636]"
+            className="text-sm text-[#a89880] hover:text-[#514636]"
           >
             {addingRes ? "Cancel" : "+ Add"}
           </button>
@@ -497,19 +497,19 @@ export default function DayView({
               <div key={res.id} className="px-3 py-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-[#3a3128]">{res.name}</span>
-                  <span className="text-xs text-[#8a7a62]">
+                  <span className="text-sm text-[#8a7a62]">
                     {new Date(res.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                   </span>
                 </div>
                 {res.confirmationNumber && (
-                  <div className="text-xs text-[#a89880] mt-0.5">Conf: {res.confirmationNumber}</div>
+                  <div className="text-sm text-[#a89880] mt-0.5">Conf: {res.confirmationNumber}</div>
                 )}
-                {res.notes && <p className="text-xs text-[#a89880] mt-0.5">{res.notes}</p>}
+                {res.notes && <p className="text-sm text-[#a89880] mt-0.5">{res.notes}</p>}
               </div>
             ))}
           </div>
         ) : !addingRes && (
-          <p className="text-xs text-[#c8bba8]">No reservations yet</p>
+          <p className="text-sm text-[#c8bba8]">No reservations yet</p>
         )}
       </div>
 
@@ -527,7 +527,7 @@ export default function DayView({
             />
             <div className="flex gap-2">
               <button onClick={saveZone} className="px-3 py-1 rounded bg-[#514636] text-white text-xs">Save</button>
-              <button onClick={() => setEditingZone(false)} className="text-xs text-[#8a7a62]">Cancel</button>
+              <button onClick={() => setEditingZone(false)} className="text-sm text-[#8a7a62]">Cancel</button>
             </div>
           </div>
         ) : (
@@ -536,7 +536,7 @@ export default function DayView({
             onClick={() => setEditingZone(true)}
           >
             <span className="text-xs font-medium text-[#a89880]">Exploration Zone: </span>
-            <span className="text-xs text-[#6b5d4a]">{day.explorationZone || "Tap to set..."}</span>
+            <span className="text-sm text-[#6b5d4a]">{day.explorationZone || "Tap to set..."}</span>
           </div>
         )}
       </div>
@@ -555,7 +555,7 @@ export default function DayView({
             />
             <div className="flex gap-2">
               <button onClick={saveNotes} className="px-3 py-1 rounded bg-[#514636] text-white text-xs">Save</button>
-              <button onClick={() => setEditingNotes(false)} className="text-xs text-[#8a7a62]">Cancel</button>
+              <button onClick={() => setEditingNotes(false)} className="text-sm text-[#8a7a62]">Cancel</button>
             </div>
           </div>
         ) : (
@@ -564,7 +564,7 @@ export default function DayView({
                        hover:border-[#e0d8cc] transition-colors"
             onClick={() => setEditingNotes(true)}
           >
-            <span className="text-xs text-[#8a7a62]">{day.notes || "Tap to add notes..."}</span>
+            <span className="text-sm text-[#8a7a62]">{day.notes || "Tap to add notes..."}</span>
           </div>
         )}
       </div>
@@ -591,22 +591,22 @@ export default function DayView({
                   e.stopPropagation();
                   onPromote(exp.id, day.id);
                 }}
-                className="text-xs text-[#a89880] hover:text-[#514636] p-1"
+                className="text-sm text-[#a89880] hover:text-[#514636] p-1"
                 aria-label="Add to this day"
               >
                 &uarr;
               </button>
             </div>
             {exp.description && (
-              <p className="text-xs text-[#a89880] mt-0.5 line-clamp-1">{exp.description}</p>
+              <p className="text-sm text-[#a89880] mt-0.5 line-clamp-1">{exp.description}</p>
             )}
             {exp.userNotes && (
-              <p className="text-xs text-[#6b5d4a] mt-0.5 italic line-clamp-1">{exp.userNotes}</p>
+              <p className="text-sm text-[#6b5d4a] mt-0.5 italic line-clamp-1">{exp.userNotes}</p>
             )}
             <div className="flex items-center gap-2 mt-0.5">
               <RatingsBadge ratings={exp.ratings} />
               {exp.createdBy && (
-                <span className="text-[10px] text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
+                <span className="text-sm text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
               )}
             </div>
           </div>

@@ -265,7 +265,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
         {/* List detection choice */}
         {previewResult?.isList && !listChoice && (
           <div className="mt-3 p-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-            <p className="text-xs text-[#6b5d4a] mb-2">
+            <p className="text-sm text-[#6b5d4a] mb-2">
               Found {previewResult.experiences.length} experiences. How would you like to save them?
             </p>
             <div className="flex gap-2">
@@ -278,7 +278,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
               </button>
               <button
                 onClick={() => handleListChoice("one")}
-                className="flex-1 py-2 rounded border border-[#e0d8cc] text-xs text-[#6b5d4a]
+                className="flex-1 py-2 rounded border border-[#e0d8cc] text-sm text-[#6b5d4a]
                            hover:bg-[#f0ece5] transition-colors"
               >
                 Keep as one entry

@@ -465,7 +465,7 @@ export default function PlanPage() {
                     className="px-2 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#3a3128]
                                focus:outline-none focus:ring-2 focus:ring-[#a89880]"
                   />
-                  <span className="text-[10px] text-[#c8bba8] hidden sm:inline">Start date (if text uses "Day 1, Day 2")</span>
+                  <span className="text-sm text-[#c8bba8] hidden sm:inline">Start date (if text uses "Day 1, Day 2")</span>
                   <div className="flex-1" />
                   <button
                     onClick={handleImportExtract}
@@ -477,7 +477,7 @@ export default function PlanPage() {
                   </button>
                   <button
                     onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); setRecPreview(null); setImportMode("itinerary"); }}
-                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                    className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     Cancel
                   </button>
@@ -517,7 +517,7 @@ export default function PlanPage() {
                   </button>
                   <button
                     onClick={() => { setShowImport(false); setImportText(""); setSenderLabel(""); setRecPreview(null); setImportMode("itinerary"); }}
-                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                    className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     Cancel
                   </button>
@@ -532,12 +532,12 @@ export default function PlanPage() {
                   <h3 className="text-sm font-medium text-[#3a3128]">Review before adding to trip</h3>
                   <button
                     onClick={() => setImportPreview(null)}
-                    className="text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                    className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     &larr; Edit text
                   </button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs max-h-48 overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm max-h-48 overflow-y-auto">
                   {importPreview.cities?.length > 0 && (
                     <div>
                       <span className="font-medium text-[#a89880] uppercase tracking-wider">
@@ -548,7 +548,7 @@ export default function PlanPage() {
                           const exists = trip.cities.some((tc) => tc.name.toLowerCase() === c.name.toLowerCase());
                           return (
                             <div key={i} className={`px-2 py-1 rounded ${exists ? "text-[#c8bba8]" : "bg-[#f0ece5] text-[#3a3128]"}`}>
-                              {c.name} {exists && <span className="text-[10px]">(exists)</span>}
+                              {c.name} {exists && <span className="text-xs">(exists)</span>}
                             </div>
                           );
                         })}
@@ -621,7 +621,7 @@ export default function PlanPage() {
                   )}
                   <button
                     onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); setImportMode("itinerary"); }}
-                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                    className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     Cancel
                   </button>
@@ -638,12 +638,12 @@ export default function PlanPage() {
                   </h3>
                   <button
                     onClick={() => setRecPreview(null)}
-                    className="text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                    className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     &larr; Edit text
                   </button>
                 </div>
-                <div className="text-xs max-h-64 overflow-y-auto space-y-3">
+                <div className="text-sm max-h-64 overflow-y-auto space-y-3">
                   {/* Group by: existing city, new city, no city */}
                   {(() => {
                     const recs = recPreview.recommendations || [];
@@ -691,7 +691,7 @@ export default function PlanPage() {
                             </div>
                             {Object.entries(byRegion).map(([region, items]) => (
                               <div key={region} className="ml-3.5 mb-1">
-                                <div className="text-[10px] font-medium text-[#a89880] uppercase">{region}</div>
+                                <div className="text-xs font-medium text-[#a89880] uppercase">{region}</div>
                                 <div className="space-y-0.5">
                                   {items.map((r: any, i: number) => (
                                     <div key={i} className="px-2 py-1 rounded bg-amber-50 text-[#3a3128]">
@@ -738,7 +738,7 @@ export default function PlanPage() {
                   </button>
                   <button
                     onClick={() => { setShowImport(false); setImportText(""); setRecPreview(null); setSenderLabel(""); setImportMode("itinerary"); }}
-                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                    className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     Cancel
                   </button>
@@ -778,7 +778,7 @@ export default function PlanPage() {
                     <span className="text-[#a89880] font-normal ml-1">· {selectedDay.city.tagline}</span>
                   )}
                 </div>
-                <div className="text-[10px] text-[#8a7a62] mt-0.5">
+                <div className="text-sm text-[#8a7a62] mt-0.5">
                   {(() => {
                     const dayIdx = days.findIndex((d) => d.id === selectedDay.id);
                     const prev = dayIdx > 0 ? days[dayIdx - 1] : null;
@@ -816,7 +816,7 @@ export default function PlanPage() {
           {showOrientation && (
             <div className="absolute top-16 left-2 right-2 z-20 flex justify-center">
               <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-3 py-2 flex items-center gap-2 max-w-sm">
-                <div className="text-[11px] text-[#6b5d4a] leading-snug">
+                <div className="text-sm text-[#6b5d4a] leading-snug">
                   <p className="font-medium mb-1">Map view</p>
                   <p>• Swipe days at bottom to navigate</p>
                   <p>• Tap 🗓️ for activity list</p>
@@ -915,14 +915,14 @@ export default function PlanPage() {
                         : { backgroundColor: cityColor, color: "#3a3128" }
                       }
                     >
-                      <div className="text-[9px] font-semibold uppercase tracking-wide">
+                      <div className="text-xs font-semibold uppercase tracking-wide">
                         {dayOfWeek}
                       </div>
-                      <div className="text-[10px] font-medium">
+                      <div className="text-xs font-medium">
                         {dateLabel}
                       </div>
                       <div
-                        className={`text-[11px] leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
+                        className={`text-xs leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
                         style={{ wordBreak: "break-word" }}
                       >
                         {day.city.name}
@@ -1037,7 +1037,7 @@ export default function PlanPage() {
             <p className="text-sm text-[#3a3128] leading-relaxed mb-1">
               {nudgeMessage.nudge}
             </p>
-            <p className="text-xs text-[#a89880] mb-4">
+            <p className="text-sm text-[#a89880] mb-4">
               {nudgeMessage.place.name} · {nudgeMessage.place.rating} stars
             </p>
             <div className="flex gap-3">

@@ -187,7 +187,7 @@ export default function TripOverview() {
               collaborating on the trip and everyone will see your changes.
             </p>
             <div className="mt-4 text-center">
-              <span className="text-xs text-[#c8bba8]">tap anywhere to continue</span>
+              <span className="text-sm text-[#c8bba8]">tap anywhere to continue</span>
             </div>
           </div>
         </div>
@@ -235,7 +235,7 @@ export default function TripOverview() {
                         </span>
                       </div>
                       <div className="mt-1 px-2 py-0.5 rounded bg-white/90 shadow-sm">
-                        <span className="text-[11px] font-semibold text-[#3a3128]">{city.name}</span>
+                        <span className="text-xs font-semibold text-[#3a3128]">{city.name}</span>
                       </div>
                     </div>
                   </AdvancedMarker>
@@ -250,7 +250,7 @@ export default function TripOverview() {
               {trip.tagline && (
                 <p className="text-sm text-[#6b5d4a] italic">{trip.tagline}</p>
               )}
-              <p className="text-xs text-[#8a7a62] mt-1">
+              <p className="text-sm text-[#8a7a62] mt-1">
                 {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
                 <button
                   onClick={() => {
@@ -288,7 +288,7 @@ export default function TripOverview() {
                   setEditEndDate(trip.endDate.split("T")[0]);
                   setEditingTrip(true);
                 }}
-                className="ml-2 text-xs text-[#c8bba8] hover:text-[#8a7a62]"
+                className="ml-2 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
               >
                 edit
               </button>
@@ -300,12 +300,12 @@ export default function TripOverview() {
         <div className="flex items-center justify-end gap-3 mb-6">
           <button
             onClick={() => navigate("/history")}
-            className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+            className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
           >
             History
           </button>
           <span className="text-sm text-[#8a7a62]">{user?.displayName}</span>
-          <button onClick={logout} className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors">
+          <button onClick={logout} className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors">
             Sign out
           </button>
         </div>
@@ -328,7 +328,7 @@ export default function TripOverview() {
               className="w-full text-sm text-[#6b5d4a] border-b border-[#e0d8cc]
                          focus:outline-none focus:border-[#a89880] bg-transparent placeholder-[#c8bba8]"
             />
-            <p className="text-xs text-[#a89880]">
+            <p className="text-sm text-[#a89880]">
               Dates are set automatically from your city schedules
             </p>
             <div className="flex gap-2">
@@ -337,7 +337,7 @@ export default function TripOverview() {
                 Save
               </button>
               <button onClick={() => setEditingTrip(false)}
-                className="px-3 py-1 text-xs text-[#8a7a62] hover:text-[#3a3128]">
+                className="px-3 py-1 text-sm text-[#8a7a62] hover:text-[#3a3128]">
                 Cancel
               </button>
             </div>
@@ -350,7 +350,7 @@ export default function TripOverview() {
             <p className="text-sm font-medium text-[#3a3128] mb-2">
               Your trip at a glance
             </p>
-            <ul className="text-xs text-[#6b5d4a] space-y-1 list-none">
+            <ul className="text-sm text-[#6b5d4a] space-y-1 list-none">
               <li>• Tap a day to jump to the map</li>
               <li>• Colors match cities across all views</li>
               <li>• Use <strong>Import</strong> on the map to add plans</li>
@@ -358,7 +358,7 @@ export default function TripOverview() {
             </ul>
             <button
               onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); loadTrips(); }}
-              className="text-[10px] text-[#c8bba8] hover:text-[#6b5d4a] mt-2 transition-colors"
+              className="text-sm text-[#c8bba8] hover:text-[#6b5d4a] mt-2 transition-colors"
             >
               dismiss
             </button>
@@ -508,7 +508,7 @@ function CalendarGrid({
     <section className="mb-6">
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-sm font-medium text-[#3a3128]">Itinerary</h2>
-        <span className="text-xs text-[#a89880]">
+        <span className="text-sm text-[#a89880]">
           {days.length} days · {totalPlanned} planned
         </span>
       </div>
@@ -587,12 +587,12 @@ function CalendarCluster({
 
   return (
     <div className="mb-4">
-      <div className="text-xs text-[#8a7a62] mb-2">{headerLabel}</div>
+      <div className="text-sm text-[#8a7a62] mb-2">{headerLabel}</div>
 
       {/* Day-of-week headers */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {dayLabels.map((l) => (
-          <div key={l} className="text-center text-[10px] font-medium text-[#a89880] uppercase">
+          <div key={l} className="text-center text-xs font-medium text-[#a89880] uppercase">
             {l}
           </div>
         ))}
@@ -647,11 +647,11 @@ function CalendarCluster({
                     </>
                   )}
                   {/* Top: date */}
-                  <div className="relative z-10 mt-1 text-[11px] font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
+                  <div className="relative z-10 mt-1 text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
                     {dayNum}
                   </div>
                   {/* Middle: city name */}
-                  <div className="relative z-10 text-[9px] text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center"
+                  <div className="relative z-10 text-xs text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center"
                     style={{ wordBreak: "break-word" }}>
                     {city?.name || ""}
                   </div>
@@ -659,7 +659,7 @@ function CalendarCluster({
                   <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0.5">
                     {isBackroads && (
                       <span className="font-bold text-white rounded-sm leading-none"
-                        style={{ fontSize: 9, backgroundColor: "#c0392b", padding: "1px 2px" }}>B</span>
+                        style={{ fontSize: 11, backgroundColor: "#c0392b", padding: "1px 2px" }}>B</span>
                     )}
                     {count > 0 && (
                       <span style={{ fontSize: 12, color: dotColor }}>🗓️</span>
@@ -683,7 +683,7 @@ function RecentActivityButton({ activity }: { activity: ChangeLogEntry[] }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="mb-4 flex items-center gap-2 text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+        className="mb-4 flex items-center gap-2 text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
       >
         <span>🔔</span>
         <span>{activity.length} recent changes</span>
@@ -697,7 +697,7 @@ function RecentActivityButton({ activity }: { activity: ChangeLogEntry[] }) {
             </div>
             <div className="space-y-2">
               {activity.map((log) => (
-                <div key={log.id} className="px-3 py-2 bg-[#faf8f5] rounded-lg text-xs text-[#8a7a62]">
+                <div key={log.id} className="px-3 py-2 bg-[#faf8f5] rounded-lg text-sm text-[#8a7a62]">
                   <span className="text-[#3a3128] font-medium">{log.userDisplayName}</span>
                   {" "}{log.description.replace(`${log.userDisplayName} `, "")}
                   <span className="text-[#c8bba8] ml-2">{formatRelativeTime(log.createdAt)}</span>
@@ -751,12 +751,12 @@ function CandidateDestinations({
   return (
     <section className="mb-6">
       <h2 className="text-sm font-medium text-[#3a3128] mb-2">Candidate Destinations</h2>
-      <p className="text-xs text-[#a89880] mb-3">
+      <p className="text-sm text-[#a89880] mb-3">
         Places to consider if you adjust your itinerary. Tap to browse suggestions.
       </p>
       {Object.entries(byRegion).map(([region, regionCities]) => (
         <div key={region} className="mb-3">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[#a89880] mb-1.5">
+          <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1.5">
             {region}
           </div>
           <div className="space-y-1.5">
@@ -772,7 +772,7 @@ function CandidateDestinations({
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-[#3a3128]">{city.name}</span>
-                      <span className="text-xs text-[#a89880]">
+                      <span className="text-sm text-[#a89880]">
                         {cityExps.length} suggestion{cityExps.length !== 1 ? "s" : ""}
                         <span className="ml-1">{isExpanded ? "\u25B4" : "\u25BE"}</span>
                       </span>
@@ -787,12 +787,12 @@ function CandidateDestinations({
                         >
                           <div className="text-sm font-medium text-[#3a3128]">{exp.name}</div>
                           {exp.description && (
-                            <div className="text-xs text-[#8a7a62] mt-0.5 whitespace-pre-line line-clamp-3">
+                            <div className="text-sm text-[#8a7a62] mt-0.5 whitespace-pre-line line-clamp-3">
                               {exp.description}
                             </div>
                           )}
                           {exp.sourceText && (
-                            <div className="text-[10px] text-[#c8bba8] mt-1">
+                            <div className="text-sm text-[#c8bba8] mt-1">
                               via {exp.sourceText}
                             </div>
                           )}

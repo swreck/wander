@@ -79,10 +79,10 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
           return (
             <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm font-medium text-amber-800 mb-1">Some dates are in the past</p>
-              <p className="text-xs text-amber-700 mb-2">
+              <p className="text-sm text-amber-700 mb-2">
                 These look like they might have the wrong year. Please correct them before confirming:
               </p>
-              <ul className="text-xs text-amber-700 list-disc pl-4 space-y-0.5">
+              <ul className="text-sm text-amber-700 list-disc pl-4 space-y-0.5">
                 {pastDates.map((d, i) => <li key={i}>{d}</li>)}
               </ul>
             </div>
@@ -96,7 +96,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
           </h2>
           <div className="bg-white rounded-lg border border-[#f0ece5] p-4 space-y-3">
             <div>
-              <label className="text-xs text-[#a89880]">Name</label>
+              <label className="text-sm text-[#a89880]">Name</label>
               <input
                 type="text"
                 value={edited.tripName}
@@ -107,7 +107,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-[#a89880]">Start</label>
+                <label className="text-sm text-[#a89880]">Start</label>
                 <input
                   type="date"
                   value={edited.startDate}
@@ -117,7 +117,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
                 />
               </div>
               <div>
-                <label className="text-xs text-[#a89880]">End</label>
+                <label className="text-sm text-[#a89880]">End</label>
                 <input
                   type="date"
                   value={edited.endDate}
@@ -213,7 +213,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
                     <span className="text-[#3a3128] font-medium text-sm">{acc.name}</span>
                     <span className="text-[#a89880] text-xs ml-2">{acc.cityName}</span>
                     {acc.address && (
-                      <div className="text-xs text-[#8a7a62] mt-0.5">{acc.address}</div>
+                      <div className="text-sm text-[#8a7a62] mt-0.5">{acc.address}</div>
                     )}
                   </div>
                   <button
@@ -250,16 +250,16 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
                           <div className="flex items-baseline gap-2">
                             <span className="text-[#3a3128] text-sm font-medium">{exp.name}</span>
                             {exp.dayDate && (
-                              <span className="text-xs text-[#a89880]">
+                              <span className="text-sm text-[#a89880]">
                                 {formatDate(exp.dayDate)}
                               </span>
                             )}
                             {exp.timeWindow && (
-                              <span className="text-xs text-[#c8bba8]">{exp.timeWindow}</span>
+                              <span className="text-sm text-[#c8bba8]">{exp.timeWindow}</span>
                             )}
                           </div>
                           {exp.description && (
-                            <div className="text-xs text-[#8a7a62] mt-0.5 line-clamp-2">
+                            <div className="text-sm text-[#8a7a62] mt-0.5 line-clamp-2">
                               {exp.description}
                             </div>
                           )}

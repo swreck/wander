@@ -170,7 +170,7 @@ export function ThemeChip({ theme }: { theme: string }) {
   return (
     <span className="inline-flex items-center gap-1">
       <span style={{ fontSize: 12 }}>{config.emoji}</span>
-      <span className="text-[10px] text-[#8a7a62] capitalize">{label}</span>
+      <span className="text-xs text-[#8a7a62] capitalize">{label}</span>
     </span>
   );
 }

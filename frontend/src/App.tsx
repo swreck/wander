@@ -44,7 +44,7 @@ function ShortcutHelp() {
           {shortcuts.map(([key, desc]) => (
             <div key={key} className="flex items-center justify-between text-xs">
               <span className="text-[#8a7a62]">{desc}</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#3a3128] font-mono text-[10px] border border-[#e0d8cc]">{key}</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#3a3128] font-mono text-xs border border-[#e0d8cc]">{key}</kbd>
             </div>
           ))}
         </div>

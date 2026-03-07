@@ -27,7 +27,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -48,6 +48,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
     if (!text || sending) return;
 
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
     setMessages((prev) => [...prev, { role: "user", text }]);
     setSending(true);
 
@@ -79,6 +80,14 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
       sendMessage();
     }
   };
+
+  // Auto-resize textarea to fit content
+  const autoResize = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  }, []);
 
   if (!open) {
     return (
@@ -145,7 +154,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
             <div className="text-center text-[#8a7a62] text-sm py-8">
               <p>Ask me anything about your trip,</p>
               <p>or tell me what to do.</p>
-              <div className="mt-4 space-y-1.5 text-xs text-[#a89a82]">
+              <div className="mt-4 space-y-1.5 text-sm text-[#a89a82]">
                 <p>"What's planned for Tuesday?"</p>
                 <p>"Add Fushimi Inari to Kyoto"</p>
                 <p>"Move the temple visit to day 3"</p>
@@ -156,7 +165,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-base leading-relaxed ${
                   msg.role === "user"
                     ? "bg-[#514636] text-[#faf8f5]"
                     : "bg-[#f0ebe3] text-[#3a3128]"
@@ -166,7 +175,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
                 {msg.actions && msg.actions.length > 0 && (
                   <div className="mt-1.5 pt-1.5 border-t border-[#d9cfc0]/50 space-y-0.5">
                     {msg.actions.map((a, j) => (
-                      <p key={j} className="text-xs opacity-75 flex items-center gap-1">
+                      <p key={j} className="text-sm opacity-75 flex items-center gap-1">
                         <span>&#10003;</span> {a}
                       </p>
                     ))}
@@ -190,16 +199,18 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
 
         {/* Input */}
         <div className="px-3 py-3 border-t border-[#e5ddd0]">
-          <div className="flex items-center gap-2">
-            <input
+          <div className="flex items-end gap-2">
+            <textarea
               ref={inputRef}
-              type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => { setInput(e.target.value); autoResize(); }}
+              onPaste={() => setTimeout(autoResize, 0)}
               onKeyDown={handleKeyDown}
               placeholder="Ask or tell me what to do..."
               disabled={sending}
-              className="flex-1 bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-sm text-[#3a3128] placeholder:text-[#a89a82] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50"
+              rows={1}
+              className="flex-1 bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-sm text-[#3a3128] placeholder:text-[#a89a82] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50 resize-none"
+              style={{ maxHeight: 120 }}
             />
             <button
               onClick={sendMessage}

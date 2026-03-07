@@ -111,7 +111,7 @@ export default function ExperienceDetail({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setEditing(!editing)}
-            className="text-xs text-[#8a7a62] hover:text-[#3a3128]"
+            className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
           >
             {editing ? "Cancel" : "Edit"}
           </button>
@@ -151,7 +151,7 @@ export default function ExperienceDetail({
           <h2 className="text-lg font-medium text-[#3a3128]">{exp.name}</h2>
         )}
 
-        <div className="flex items-center gap-2 text-xs text-[#8a7a62] flex-wrap">
+        <div className="flex items-center gap-2 text-sm text-[#8a7a62] flex-wrap">
           <span>{exp.city?.name}</span>
           {exp.themes.map((t) => (
             <span key={t} className="px-2 py-0.5 bg-[#f0ece5] rounded-full capitalize">{t}</span>
@@ -163,11 +163,11 @@ export default function ExperienceDetail({
           {exp.locationStatus === "confirmed" ? (
             <span className="text-xs text-green-600">Location confirmed</span>
           ) : exp.locationStatus === "pending" ? (
-            <span className="text-xs text-amber-600">Location pending review</span>
+            <span className="text-sm text-amber-600">Location pending review</span>
           ) : (
             <button
               onClick={handleGeocode}
-              className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
+              className="text-sm text-[#a89880] hover:text-[#514636] transition-colors"
             >
               Find location
             </button>
@@ -223,13 +223,13 @@ export default function ExperienceDetail({
         <RatingsBadge ratings={exp.ratings} />
         <button
           onClick={handleRefreshRatings}
-          className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+          className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
         >
           Update location & ratings
         </button>
 
         {/* Source + attribution */}
-        <div className="flex items-center justify-between text-xs text-[#a89880]">
+        <div className="flex items-center justify-between text-sm text-[#a89880]">
           {exp.sourceUrl ? (
             <a
               href={exp.sourceUrl}
@@ -269,7 +269,7 @@ export default function ExperienceDetail({
               </button>
               {showPromote && (
                 <div className="p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-                  <div className="text-[10px] text-[#a89880] mb-1.5 uppercase tracking-wider">Tap a day to add</div>
+                  <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">Tap a day to add</div>
                   <div className="flex gap-1 overflow-x-auto pb-1">
                     {days.map((d) => {
                       const isMatchCity = exp ? d.cityId === exp.cityId : false;
@@ -279,7 +279,7 @@ export default function ExperienceDetail({
                         <button
                           key={d.id}
                           onClick={() => { onPromote(exp!.id, d.id); onClose(); }}
-                          className={`flex flex-col items-center px-2.5 py-2 rounded text-[11px] shrink-0 transition-colors ${
+                          className={`flex flex-col items-center px-2.5 py-2 rounded text-xs shrink-0 transition-colors ${
                             isMatchCity
                               ? "bg-[#514636] text-white hover:bg-[#3a3128]"
                               : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"

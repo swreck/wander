@@ -63,7 +63,7 @@ export default function HistoryPage() {
           >
             &larr; Back
           </button>
-          <span className="text-xs text-[#c8bba8]">{total} changes</span>
+          <span className="text-sm text-[#c8bba8]">{total} changes</span>
         </div>
 
         <h1 className="text-2xl font-light text-[#3a3128] mb-4">History</h1>
@@ -96,7 +96,7 @@ export default function HistoryPage() {
                     </span>
                     <span className="text-sm text-[#8a7a62] ml-1">{log.description}</span>
                   </div>
-                  <span className="text-xs text-[#c8bba8] whitespace-nowrap ml-2">
+                  <span className="text-sm text-[#c8bba8] whitespace-nowrap ml-2">
                     {formatRelativeTime(log.createdAt)}
                   </span>
                 </div>

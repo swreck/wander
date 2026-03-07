@@ -80,7 +80,7 @@ export default function AIObservations({ dayId, cityId }: Props) {
                 className="px-3 py-2.5 rounded-lg bg-[#eef1f5] border border-[#d5dce6]
                            flex items-start gap-2"
               >
-                <p className="flex-1 text-xs text-[#4a5568] leading-relaxed">{obs}</p>
+                <p className="flex-1 text-sm text-[#4a5568] leading-relaxed">{obs}</p>
                 <button
                   onClick={() => dismiss(i)}
                   className="text-[#9ca3af] hover:text-[#6b7280] text-sm leading-none

@@ -508,7 +508,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-[#3a3128]">{t.name}</span>
-                    <span className="text-[10px] uppercase text-[#c8bba8]">{t.status}</span>
+                    <span className="text-xs uppercase text-[#c8bba8]">{t.status}</span>
                   </div>
                   <div className="text-xs text-[#a89880] mt-0.5">
                     {new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}

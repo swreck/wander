@@ -2,6 +2,12 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-07 (cont'd — Text Size + Chat Input)
+
+### Changed
+- **Text size increase for readability**: All text across the app now meets minimum size thresholds for users aged 55-65. Primary content is 16px minimum, secondary content 14px minimum, and UI chrome 12px minimum. No text anywhere in the app is smaller than 12px. Affected components: TripOverview, PlanPage, MapCanvas, ChatBubble, RatingsBadge, DayView, NowScreen, HistoryPage, and all sidebar/card components.
+- **Chat input now supports multi-line paste**: The chat input field is now a textarea that auto-expands (up to 5 lines) when you paste large blocks of text like recommendation lists. Previously, pasting multi-line content into the single-line input showed only the first line, making it appear truncated.
+
 ## 2026-03-07 (cont'd — Theme Filter, Keyboard Shortcuts, Overlay Fix)
 
 ### Added

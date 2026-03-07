@@ -64,7 +64,7 @@ export default function CaptureSharePage() {
     <div className="min-h-screen bg-[#faf8f5]">
       <div className="max-w-md mx-auto px-4 py-8">
         <h1 className="text-xl font-light text-[#3a3128] mb-1">Save to Wander</h1>
-        <p className="text-xs text-[#8a7a62] mb-6">Add this to your trip</p>
+        <p className="text-sm text-[#8a7a62] mb-6">Add this to your trip</p>
 
         <div className="space-y-4">
           <div>
@@ -111,7 +111,7 @@ export default function CaptureSharePage() {
           </div>
 
           {sharedUrl && (
-            <div className="text-xs text-[#a89880] truncate">
+            <div className="text-sm text-[#a89880] truncate">
               Source: {sharedUrl}
             </div>
           )}

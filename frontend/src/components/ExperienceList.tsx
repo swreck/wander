@@ -73,7 +73,7 @@ function LocationResolver({ exp, onResolved }: { exp: Experience; onResolved: ()
         <button
           onClick={handleSearch}
           disabled={searching}
-          className="px-2 py-1 text-[10px] bg-[#514636] text-white rounded hover:bg-[#3a3128] disabled:opacity-40"
+          className="px-2 py-1 text-xs bg-[#514636] text-white rounded hover:bg-[#3a3128] disabled:opacity-40"
         >
           {searching ? "..." : "Search"}
         </button>
@@ -88,13 +88,13 @@ function LocationResolver({ exp, onResolved }: { exp: Experience; onResolved: ()
               className="w-full text-left px-2 py-1.5 rounded bg-[#faf8f5] hover:bg-[#f0ece5] transition-colors"
             >
               <div className="text-xs font-medium text-[#3a3128]">{r.name}</div>
-              <div className="text-[10px] text-[#8a7a62] truncate">{r.address}</div>
+              <div className="text-sm text-[#8a7a62] truncate">{r.address}</div>
             </button>
           ))}
         </div>
       )}
       {results.length === 0 && !searching && (
-        <div className="text-[10px] text-[#c8bba8]">Search to find a map location</div>
+        <div className="text-sm text-[#c8bba8]">Search to find a map location</div>
       )}
     </div>
   );
@@ -177,7 +177,7 @@ function SortableSelectedItem({
               {exp.locationStatus !== "confirmed" && (
                 <button
                   title="Tap to set map location"
-                  className="text-[10px] text-[#c8bba8] relative inline-block hover:text-[#8a7a62] transition-colors"
+                  className="text-sm text-[#c8bba8] relative inline-block hover:text-[#8a7a62] transition-colors"
                   style={{ width: 14, height: 14, flexShrink: 0 }}
                   onClick={(e) => { e.stopPropagation(); setLocatingId(locatingId === exp.id ? null : exp.id); }}
                 >
@@ -187,21 +187,21 @@ function SortableSelectedItem({
               )}
               <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
               {exp.timeWindow && (
-                <span className="text-[10px] text-[#a89880] ml-1.5">{exp.timeWindow}</span>
+                <span className="text-sm text-[#a89880] ml-1.5">{exp.timeWindow}</span>
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-2">
               <button
                 onClick={(e) => { e.stopPropagation(); onExperienceClick(exp.id); }}
                 className="w-5 h-5 rounded-full border border-[#e0d8cc] text-[#a89880] hover:text-[#6b5d4a]
-                           flex items-center justify-center text-[10px] transition-colors"
+                           flex items-center justify-center text-xs transition-colors"
                 title="Details"
               >
                 i
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
-                className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+                className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
                 title="Move to candidates"
               >
                 &darr;
@@ -270,7 +270,7 @@ function SortablePossibleItem({
         <div className="flex items-center gap-2">
           <GripHandle listeners={listeners as Record<string, unknown>} attributes={attributes} />
           <div className="flex-1 min-w-0 flex items-center justify-between">
-            <span className="text-xs text-[#6b5d4a] truncate flex items-center gap-1">
+            <span className="text-sm text-[#6b5d4a] truncate flex items-center gap-1">
               {exp.locationStatus !== "confirmed" && (
                 <button
                   title="Tap to set map location"
@@ -286,7 +286,7 @@ function SortablePossibleItem({
             </span>
             <button
               onClick={(e) => { e.stopPropagation(); setPromotingId(promotingId === exp.id ? null : exp.id); }}
-              className="text-[10px] text-[#c8bba8] hover:text-[#514636] transition-colors shrink-0 ml-2"
+              className="text-sm text-[#c8bba8] hover:text-[#514636] transition-colors shrink-0 ml-2"
               title="Add to itinerary"
             >
               &uarr;
@@ -298,7 +298,7 @@ function SortablePossibleItem({
       {/* Inline promote — calendar strip */}
       {promotingId === exp.id && (
         <div className="mt-1 p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-          <div className="text-[10px] text-[#a89880] mb-1.5 uppercase tracking-wider">Tap a day to add</div>
+          <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">Tap a day to add</div>
           <div className="flex gap-1 overflow-x-auto pb-1">
             {days.map((d) => {
               const isMatchCity = d.cityId === exp.cityId;
@@ -308,7 +308,7 @@ function SortablePossibleItem({
                 <button
                   key={d.id}
                   onClick={(e) => { e.stopPropagation(); onDirectPromote(exp.id, d.id); setPromotingId(null); }}
-                  className={`flex flex-col items-center px-2 py-1.5 rounded text-[10px] shrink-0 transition-colors ${
+                  className={`flex flex-col items-center px-2 py-1.5 rounded text-xs shrink-0 transition-colors ${
                     isMatchCity
                       ? "bg-[#514636] text-white hover:bg-[#3a3128]"
                       : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
@@ -322,7 +322,7 @@ function SortablePossibleItem({
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); setPromotingId(null); setPromoteDay(""); setPromoteTimeWindow(""); }}
-            className="mt-1 text-[10px] text-[#c8bba8] hover:text-[#8a7a62]"
+            className="mt-1 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
           >
             Cancel
           </button>
@@ -513,7 +513,7 @@ export default function ExperienceList({
           const draggedExp = allExperiences.get(crossZonePromoteId);
           return (
             <div className="mb-3 p-2 bg-[#faf8f5] rounded-lg border-2 border-[#a89880]">
-              <div className="text-[10px] text-[#a89880] mb-1.5 uppercase tracking-wider">
+              <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">
                 Tap a day to add "{draggedExp?.name}"
               </div>
               <div className="flex gap-1 overflow-x-auto pb-1">
@@ -530,7 +530,7 @@ export default function ExperienceList({
                         setCrossPromoteDay("");
                         setCrossPromoteTimeWindow("");
                       }}
-                      className={`flex flex-col items-center px-2 py-1.5 rounded text-[10px] shrink-0 transition-colors ${
+                      className={`flex flex-col items-center px-2 py-1.5 rounded text-xs shrink-0 transition-colors ${
                         isMatchCity
                           ? "bg-[#514636] text-white hover:bg-[#3a3128]"
                           : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
@@ -544,7 +544,7 @@ export default function ExperienceList({
               </div>
               <button
                 onClick={() => { setCrossZonePromoteId(null); setCrossPromoteDay(""); setCrossPromoteTimeWindow(""); }}
-                className="mt-1 text-[10px] text-[#c8bba8] hover:text-[#8a7a62]"
+                className="mt-1 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
               >
                 Cancel
               </button>
@@ -557,7 +557,7 @@ export default function ExperienceList({
           <SortableContext items={selectedIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5 mb-3 min-h-[40px]">
               {orderedSelected.length === 0 && (
-                <div className="py-4 text-center text-xs text-[#c8bba8] border-2 border-dashed border-[#e0d8cc] rounded-lg">
+                <div className="py-4 text-center text-sm text-[#c8bba8] border-2 border-dashed border-[#e0d8cc] rounded-lg">
                   Drag experiences here to add to itinerary
                 </div>
               )}
