@@ -21,13 +21,37 @@ interface ChatBubbleProps {
   onDataChanged?: () => void;
 }
 
+function storageKey(tripId?: string) {
+  return `wander-chat-${tripId || "global"}`;
+}
+
+function loadMessages(tripId?: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(storageKey(tripId));
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveMessages(msgs: ChatMessage[], tripId?: string) {
+  try {
+    // Keep last 50 messages to avoid unbounded growth
+    const trimmed = msgs.slice(-50);
+    localStorage.setItem(storageKey(tripId), JSON.stringify(trimmed));
+  } catch { /* quota exceeded — ignore */ }
+}
+
 export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(context.tripId));
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Persist messages to localStorage
+  useEffect(() => {
+    saveMessages(messages, context.tripId);
+  }, [messages, context.tripId]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -53,9 +77,11 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
     setSending(true);
 
     try {
+      // Send recent history so the bot has conversation context
+      const history = messages.slice(-10).map((m) => ({ role: m.role, text: m.text }));
       const res = await api.post<{ reply: string; actions: string[]; hasActions: boolean }>(
         "/chat",
-        { message: text, context },
+        { message: text, context, history },
       );
       setMessages((prev) => [
         ...prev,
@@ -132,7 +158,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
               <button
-                onClick={() => setMessages([])}
+                onClick={() => { setMessages([]); localStorage.removeItem(storageKey(context.tripId)); }}
                 className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3] text-xs"
                 title="Clear chat"
               >

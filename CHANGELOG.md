@@ -2,6 +2,13 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-07 (cont'd — Chat Memory)
+
+### Fixed
+- **Chat now has conversation memory**: Previously each message was sent independently — the bot had zero knowledge of anything said earlier in the conversation. Now the last 10 messages are sent as context with each new message, so the bot can reference what was discussed before.
+- **Chat history persists across page navigation**: Conversation is saved to localStorage per trip. Navigating between pages or refreshing no longer wipes the chat. The "Clear" button still works to reset.
+- **Chat textarea expands for large pastes**: Input area now grows up to 40% of the chat panel height (was capped at ~5 lines). Pasting 100 lines of recommendations shows a substantial portion instead of a tiny sliver.
+
 ## 2026-03-07 (cont'd — Text Size + Chat Input)
 
 ### Changed

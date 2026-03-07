@@ -881,7 +881,7 @@ async function executeTool(
 
 router.post("/", async (req: AuthRequest, res) => {
   try {
-    const { message, context } = req.body;
+    const { message, context, history } = req.body;
 
     if (!message) {
       res.status(400).json({ error: "message is required" });
@@ -915,8 +915,16 @@ RULES:
 11. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
 12. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.`;
 
-    // Run the tool-use loop
-    let messages: Anthropic.MessageParam[] = [{ role: "user", content: message }];
+    // Build conversation with history for context
+    let messages: Anthropic.MessageParam[] = [];
+    if (Array.isArray(history) && history.length > 0) {
+      for (const h of history.slice(-10)) {
+        if (h.role === "user" || h.role === "assistant") {
+          messages.push({ role: h.role, content: h.text });
+        }
+      }
+    }
+    messages.push({ role: "user", content: message });
     const actions: string[] = [];
     let finalReply = "";
 
