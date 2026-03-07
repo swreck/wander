@@ -902,7 +902,7 @@ router.post("/", async (req: AuthRequest, res) => {
     // Check both current message and recent history for pasted recs
     let recText = message;
     const lines = message.split("\n").filter((l: string) => l.trim().length > 0);
-    let looksLikeRecs = lines.length >= 5 && message.length > 300 && tripId;
+    let looksLikeRecs = lines.length >= 3 && message.length > 200 && tripId;
     if (!looksLikeRecs && tripId && Array.isArray(history)) {
       // Check if user recently pasted recs and is now saying "do it" / "yes"
       const lastUserMsg = [...history].reverse().find((h: any) => h.role === "user");
