@@ -1761,4 +1761,276 @@ describe("Chaos Simulations", () => {
       expect(users.has("Bob")).toBe(true);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 9. Soft-Delete & AI Tool Operations
+  // ═══════════════════════════════════════════════════════════════════
+  describe("9. Soft-Delete & AI Tool Operations", () => {
+    it("S51: Hide city — disappears from trip listing, experiences preserved", async () => {
+      const tripId = await createTrip(aliceToken, "Hide Test", "2026-08-01", "2026-08-05", [
+        { name: "Tokyo", arrivalDate: "2026-08-01", departureDate: "2026-08-03" },
+      ]);
+      const candidateId = await addCity(aliceToken, tripId, "Ibusuki");
+      const expId = await addExp(aliceToken, tripId, candidateId, "Sand Bath");
+
+      // Verify city visible
+      let trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(trip.body.cities).toHaveLength(2);
+
+      // Hide it
+      const hide = await request(app).patch(`/api/cities/${candidateId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ hidden: true });
+      expect(hide.status).toBe(200);
+
+      // Trip no longer shows hidden city
+      trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(trip.body.cities).toHaveLength(1);
+      expect(trip.body.cities[0].name).toBe("Tokyo");
+
+      // City listing also filters
+      const cityList = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(cityList.body).toHaveLength(1);
+
+      // But experience still exists in DB
+      const exp = await request(app).get(`/api/experiences/${expId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(exp.status).toBe(200);
+      expect(exp.body.name).toBe("Sand Bath");
+      expect(exp.body.cityId).toBe(candidateId);
+    });
+
+    it("S52: Hide already-hidden city — idempotent, no error", async () => {
+      const tripId = await createTrip(aliceToken, "Double Hide", "2026-08-10", "2026-08-12");
+      const cityId = await addCity(aliceToken, tripId, "Taketa");
+
+      // Hide twice
+      const r1 = await request(app).patch(`/api/cities/${cityId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ hidden: true });
+      expect(r1.status).toBe(200);
+      const r2 = await request(app).patch(`/api/cities/${cityId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ hidden: true });
+      expect(r2.status).toBe(200);
+
+      // Still hidden (not double-hidden or errored)
+      const city = await prisma.city.findUnique({ where: { id: cityId } });
+      expect(city!.hidden).toBe(true);
+    });
+
+    it("S53: Restore hidden city — becomes visible again", async () => {
+      const tripId = await createTrip(aliceToken, "Restore Test", "2026-08-15", "2026-08-18");
+      const cityId = await addCity(aliceToken, tripId, "Hita");
+      await addExp(aliceToken, tripId, cityId, "Mameda Town");
+
+      // Hide
+      await request(app).patch(`/api/cities/${cityId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ hidden: true });
+      let trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(trip.body.cities).toHaveLength(0);
+
+      // Restore
+      await request(app).patch(`/api/cities/${cityId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ hidden: false });
+      trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(trip.body.cities).toHaveLength(1);
+      expect(trip.body.cities[0].name).toBe("Hita");
+    });
+
+    it("S54: Delete city with hidden=false skips hidden cities for reassignment", async () => {
+      const tripId = await createTrip(aliceToken, "Delete Skip Hidden", "2026-09-01", "2026-09-05", [
+        { name: "CityA", arrivalDate: "2026-09-01", departureDate: "2026-09-03" },
+        { name: "CityB", arrivalDate: "2026-09-04", departureDate: "2026-09-05" },
+      ]);
+      const trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityA = trip.body.cities.find((c: any) => c.name === "CityA");
+      const cityB = trip.body.cities.find((c: any) => c.name === "CityB");
+
+      // Add hidden city
+      const hiddenId = await addCity(aliceToken, tripId, "HiddenCity");
+      await request(app).patch(`/api/cities/${hiddenId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ hidden: true });
+
+      // Add experience to CityA
+      const expId = await addExp(aliceToken, tripId, cityA.id, "Test Experience");
+
+      // Delete CityA — experience should go to CityB (not HiddenCity)
+      await request(app).delete(`/api/cities/${cityA.id}`).set("Authorization", `Bearer ${aliceToken}`);
+      const exp = await request(app).get(`/api/experiences/${expId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(exp.body.cityId).toBe(cityB.id);
+    });
+
+    it("S55: Move experience between cities", async () => {
+      const tripId = await createTrip(aliceToken, "Move Exp", "2026-09-10", "2026-09-15", [
+        { name: "Kyoto", arrivalDate: "2026-09-10", departureDate: "2026-09-12" },
+        { name: "Osaka", arrivalDate: "2026-09-13", departureDate: "2026-09-15" },
+      ]);
+      const trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const kyoto = trip.body.cities.find((c: any) => c.name === "Kyoto");
+      const osaka = trip.body.cities.find((c: any) => c.name === "Osaka");
+
+      const expId = await addExp(aliceToken, tripId, kyoto.id, "Ramen Shop");
+
+      // Move to Osaka via direct API (mirrors what move_experience tool does)
+      const move = await request(app).patch(`/api/experiences/${expId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ cityId: osaka.id });
+      expect(move.status).toBe(200);
+
+      const exp = await request(app).get(`/api/experiences/${expId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(exp.body.cityId).toBe(osaka.id);
+    });
+
+    it("S56: Move selected experience — stays selected but dayId cleared if day not in new city", async () => {
+      const tripId = await createTrip(aliceToken, "Move Selected", "2026-09-20", "2026-09-25", [
+        { name: "CityX", arrivalDate: "2026-09-20", departureDate: "2026-09-22" },
+        { name: "CityY", arrivalDate: "2026-09-23", departureDate: "2026-09-25" },
+      ]);
+      const trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityX = trip.body.cities.find((c: any) => c.name === "CityX");
+      const cityY = trip.body.cities.find((c: any) => c.name === "CityY");
+
+      const expId = await addExp(aliceToken, tripId, cityX.id, "Temple Visit");
+      const days = await request(app).get(`/api/days/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityXDay = days.body.find((d: any) => d.cityId === cityX.id);
+
+      // Promote to day
+      await request(app).post(`/api/experiences/${expId}/promote`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ dayId: cityXDay.id });
+
+      // Move to CityY — experience should be demoted (day belongs to CityX)
+      await request(app).patch(`/api/experiences/${expId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ cityId: cityY.id, state: "possible", dayId: null });
+
+      const exp = await request(app).get(`/api/experiences/${expId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(exp.body.cityId).toBe(cityY.id);
+      expect(exp.body.state).toBe("possible");
+      expect(exp.body.dayId).toBeNull();
+    });
+
+    it("S57: Bulk delete experiences — mix of valid IDs", async () => {
+      const tripId = await createTrip(aliceToken, "Bulk Delete", "2026-10-01", "2026-10-03");
+      const cityId = await addCity(aliceToken, tripId, "TestCity", "2026-10-01", "2026-10-03");
+
+      const ids = [];
+      for (let i = 0; i < 5; i++) {
+        ids.push(await addExp(aliceToken, tripId, cityId, `Item ${i}`));
+      }
+
+      // Delete 3 of 5
+      const toDelete = ids.slice(0, 3);
+      await prisma.experience.deleteMany({ where: { id: { in: toDelete } } });
+
+      // Remaining 2 still exist
+      const exps = await request(app).get(`/api/experiences/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(exps.body).toHaveLength(2);
+      expect(exps.body.map((e: any) => e.id).sort()).toEqual(ids.slice(3).sort());
+    });
+
+    it("S58: Bulk delete with invalid IDs — no crash, valid ones still work", async () => {
+      const tripId = await createTrip(aliceToken, "Bulk Delete Invalid", "2026-10-05", "2026-10-07");
+      const cityId = await addCity(aliceToken, tripId, "TestCity2", "2026-10-05", "2026-10-07");
+      const validId = await addExp(aliceToken, tripId, cityId, "Real Item");
+
+      // Delete with mix of valid and fake IDs
+      await prisma.experience.deleteMany({
+        where: { id: { in: [validId, "fake-id-1", "fake-id-2"] } },
+      });
+
+      // Valid one is gone
+      const exp = await request(app).get(`/api/experiences/${validId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(exp.status).toBe(404);
+    });
+
+    it("S59: Hide dated city — days become orphans with no city in trip view", async () => {
+      const tripId = await createTrip(aliceToken, "Hide Dated", "2026-10-10", "2026-10-15", [
+        { name: "CityM", arrivalDate: "2026-10-10", departureDate: "2026-10-12" },
+        { name: "CityN", arrivalDate: "2026-10-13", departureDate: "2026-10-15" },
+      ]);
+      const trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityM = trip.body.cities.find((c: any) => c.name === "CityM");
+
+      // Hide CityM
+      await request(app).patch(`/api/cities/${cityM.id}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ hidden: true });
+
+      // Trip shows only CityN
+      const updated = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(updated.body.cities).toHaveLength(1);
+      expect(updated.body.cities[0].name).toBe("CityN");
+
+      // But days for CityM still exist (orphaned from visible perspective)
+      const days = await request(app).get(`/api/days/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityMDays = days.body.filter((d: any) => d.cityId === cityM.id);
+      expect(cityMDays.length).toBeGreaterThan(0);
+    });
+
+    it("S60: Update city name and tagline", async () => {
+      const tripId = await createTrip(aliceToken, "City Edit", "2026-10-20", "2026-10-22");
+      const cityId = await addCity(aliceToken, tripId, "Sajo");
+
+      // Fix typo
+      const r = await request(app).patch(`/api/cities/${cityId}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ name: "Saijo", tagline: "Sake brewing town" });
+      expect(r.status).toBe(200);
+
+      const city = await request(app).get(`/api/cities/${cityId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(city.body.name).toBe("Saijo");
+      expect(city.body.tagline).toBe("Sake brewing town");
+    });
+
+    it("S61: Hide all candidate cities, then restore one by name", async () => {
+      const tripId = await createTrip(aliceToken, "Bulk Hide Restore", "2026-11-01", "2026-11-05", [
+        { name: "MainCity", arrivalDate: "2026-11-01", departureDate: "2026-11-05" },
+      ]);
+
+      // Add candidate cities
+      const c1 = await addCity(aliceToken, tripId, "Ibusuki");
+      const c2 = await addCity(aliceToken, tripId, "Taketa");
+      const c3 = await addCity(aliceToken, tripId, "Asakura");
+      await addExp(aliceToken, tripId, c1, "Sand Bath");
+      await addExp(aliceToken, tripId, c2, "Ruins");
+      await addExp(aliceToken, tripId, c3, "Persimmon Farm");
+
+      // Verify 4 cities visible
+      let trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(trip.body.cities).toHaveLength(4);
+
+      // Hide all candidates (dateless cities)
+      await request(app).patch(`/api/cities/${c1}`).set("Authorization", `Bearer ${aliceToken}`).send({ hidden: true });
+      await request(app).patch(`/api/cities/${c2}`).set("Authorization", `Bearer ${aliceToken}`).send({ hidden: true });
+      await request(app).patch(`/api/cities/${c3}`).set("Authorization", `Bearer ${aliceToken}`).send({ hidden: true });
+
+      trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(trip.body.cities).toHaveLength(1); // Only MainCity
+
+      // Restore Taketa
+      await request(app).patch(`/api/cities/${c2}`).set("Authorization", `Bearer ${aliceToken}`).send({ hidden: false });
+
+      trip = await request(app).get(`/api/trips/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(trip.body.cities).toHaveLength(2);
+      const names = trip.body.cities.map((c: any) => c.name);
+      expect(names).toContain("MainCity");
+      expect(names).toContain("Taketa");
+
+      // Taketa's experience is still there
+      const exps = await request(app).get(`/api/experiences/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const taketaExp = exps.body.find((e: any) => e.cityId === c2);
+      expect(taketaExp).toBeDefined();
+      expect(taketaExp.name).toBe("Ruins");
+    });
+
+    it("S62: Experience listing includes hidden city experiences (for processing)", async () => {
+      const tripId = await createTrip(aliceToken, "Exp Visibility", "2026-11-10", "2026-11-12");
+      const visible = await addCity(aliceToken, tripId, "VisibleCity", "2026-11-10", "2026-11-12");
+      const hidden = await addCity(aliceToken, tripId, "HiddenCity2");
+      await addExp(aliceToken, tripId, visible, "Visible Exp");
+      await addExp(aliceToken, tripId, hidden, "Hidden Exp");
+
+      // Hide the city
+      await request(app).patch(`/api/cities/${hidden}`).set("Authorization", `Bearer ${aliceToken}`)
+        .send({ hidden: true });
+
+      // Experiences endpoint returns ALL trip experiences (including hidden city ones)
+      const exps = await request(app).get(`/api/experiences/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      expect(exps.body).toHaveLength(2);
+      expect(exps.body.map((e: any) => e.name).sort()).toEqual(["Hidden Exp", "Visible Exp"]);
+    });
+  });
 });
