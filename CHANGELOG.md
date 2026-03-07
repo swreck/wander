@@ -2,6 +2,12 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Circle-Driven Map Zoom)
+
+### Changed
+- **Map zooms to fit the circle, not all city pins**: Previously the map zoomed to fit every selected experience in the city, making the walking circle invisible at wide zoom levels (e.g., Nikko spanning 30km). Now the map zoom is driven by the circle bounds, keeping the circle at ~30-50% of the viewport. Pins outside the circle (other days' items) may be off-screen — the user can pan to them.
+- **Default circle is 2 miles diameter**: Changed from the previous 1.2 mi (2 km) default to 2 mi, better suited for healthy walkers. Max cap raised to ~5 mi diameter.
+
 ## 2026-03-08 (cont'd — Candidate Cities Collapse, Circle Polish)
 
 ### Changed

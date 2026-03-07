@@ -344,36 +344,19 @@ function convexHull(points: { lat: number; lng: number }[]): { lat: number; lng:
   return hull;
 }
 
-function TravelGeometryOverlay({ selectedExps, isDayScoped }: { selectedExps: Experience[]; isDayScoped: boolean }) {
+interface CircleGeo {
+  center: { lat: number; lng: number };
+  radiusM: number;
+  count: number;
+}
+
+function TravelGeometryOverlay({ geo, isDayScoped }: { geo: CircleGeo | null; isDayScoped: boolean }) {
   const map = useMap();
   const circleRef = useRef<google.maps.Circle | null>(null);
 
-  const geoPoints = useMemo(() =>
-    selectedExps
-      .filter((e) => e.latitude != null && e.longitude != null)
-      .map((e) => ({ lat: e.latitude!, lng: e.longitude! })),
-    [selectedExps]
-  );
-
-  // Center = midpoint of all points
-  const center = useMemo(() => {
-    if (geoPoints.length === 0) return null;
-    const lat = geoPoints.reduce((s, p) => s + p.lat, 0) / geoPoints.length;
-    const lng = geoPoints.reduce((s, p) => s + p.lng, 0) / geoPoints.length;
-    return { lat, lng };
-  }, [geoPoints]);
-
-  // Radius: default 1610m (2 mi diameter), capped at 4000m (~5 mi diameter)
-  const radiusM = useMemo(() => {
-    if (!center || geoPoints.length === 0) return 1610;
-    if (geoPoints.length === 1) return 1610; // 2 mi diameter default
-    let maxDist = 0;
-    for (const p of geoPoints) {
-      const d = haversineKm(center.lat, center.lng, p.lat, p.lng) * 1000;
-      if (d > maxDist) maxDist = d;
-    }
-    return Math.min(4000, Math.max(1610, maxDist * 1.2)); // 1 mi min radius, 2.5 mi max
-  }, [center, geoPoints]);
+  const center = geo?.center ?? null;
+  const radiusM = geo?.radiusM ?? 1610;
+  const count = geo?.count ?? 0;
 
   // Walking time: diameter at ~2 mph (3.2 km/hr), displayed in miles
   const diameterMi = useMemo(() => (radiusM * 2) / 1000 * 0.621371, [radiusM]);
@@ -382,8 +365,7 @@ function TravelGeometryOverlay({ selectedExps, isDayScoped }: { selectedExps: Ex
     return Math.round(raw / 5) * 5 || 5; // round to nearest 5 min
   }, [diameterMi]);
 
-  // Use a stable key so the effect fires when the set of experiences changes
-  const expKey = selectedExps.map((e) => e.id).sort().join(",");
+  const geoKey = geo ? `${center!.lat.toFixed(5)},${center!.lng.toFixed(5)},${radiusM},${count}` : "";
 
   useEffect(() => {
     if (!map) return;
@@ -442,13 +424,13 @@ function TravelGeometryOverlay({ selectedExps, isDayScoped }: { selectedExps: Ex
       circleRef.current = { setMap: (m: any) => { line.setMap(m); fill.setMap(m); } } as any;
       return () => { line.setMap(null); fill.setMap(null); };
     }
-  }, [map, center, radiusM, expKey, isDayScoped]);
+  }, [map, center, radiusM, geoKey, isDayScoped]);
 
-  if (geoPoints.length === 0 || !center) return null;
+  if (!geo || !center) return null;
 
-  const itemWord = geoPoints.length === 1 ? "item" : "items";
+  const itemWord = count === 1 ? "item" : "items";
   const scope = isDayScoped ? "Today" : "All selected";
-  const label = `${scope}: ${geoPoints.length} ${itemWord} · ${diameterMi.toFixed(1)} mi · ~${walkingMin} min walk`;
+  const label = `${scope}: ${count} ${itemWord} · ${diameterMi.toFixed(1)} mi · ~${walkingMin} min walk`;
 
   return (
     <MapControl position={ControlPosition.LEFT_TOP}>
@@ -467,30 +449,29 @@ function TravelGeometryOverlay({ selectedExps, isDayScoped }: { selectedExps: Ex
 
 // ── Map Panner — reactively pan/zoom when center changes ────────
 
-function MapPanner({ center, experiences, recenterKey }: { center: { lat: number; lng: number }; experiences: Experience[]; recenterKey?: number }) {
+function MapPanner({ center, circleGeo, recenterKey }: { center: { lat: number; lng: number }; circleGeo: CircleGeo | null; recenterKey?: number }) {
   const map = useMap();
   const prevKeyRef = useRef("");
 
-  const key = `${center.lat.toFixed(5)},${center.lng.toFixed(5)},${recenterKey ?? 0}`;
+  const geoStr = circleGeo ? `${circleGeo.center.lat.toFixed(5)},${circleGeo.center.lng.toFixed(5)},${circleGeo.radiusM}` : "";
+  const key = `${center.lat.toFixed(5)},${center.lng.toFixed(5)},${recenterKey ?? 0},${geoStr}`;
 
   useEffect(() => {
     if (!map || key === prevKeyRef.current) return;
     prevKeyRef.current = key;
 
-    const located = experiences.filter(
-      (e) => e.state === "selected" && e.latitude != null && e.longitude != null,
-    );
-
-    if (located.length >= 2) {
-      const bounds = new google.maps.LatLngBounds();
-      for (const e of located) {
-        bounds.extend({ lat: e.latitude!, lng: e.longitude! });
-      }
-      // Padding: top for day card overlay, bottom for filmstrip, sides for breathing room
-      map.fitBounds(bounds, { top: 80, bottom: 120, left: 40, right: 40 });
-    } else if (located.length === 1) {
-      map.panTo({ lat: located[0].latitude!, lng: located[0].longitude! });
-      map.setZoom(15);
+    if (circleGeo) {
+      // Zoom to fit the circle — keeps it at ~30-50% of viewport
+      const r = circleGeo.radiusM;
+      const c = circleGeo.center;
+      const latDelta = r / 111320;
+      const lngDelta = r / (111320 * Math.cos(c.lat * Math.PI / 180));
+      const bounds = new google.maps.LatLngBounds(
+        { lat: c.lat - latDelta, lng: c.lng - lngDelta },
+        { lat: c.lat + latDelta, lng: c.lng + lngDelta },
+      );
+      // Generous padding so circle sits comfortably in ~40% of viewport
+      map.fitBounds(bounds, { top: 100, bottom: 140, left: 60, right: 60 });
     } else {
       map.panTo(center);
       map.setZoom(13);
@@ -576,6 +557,27 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
   const dayOnly = dayId ? selectedExps.filter((e) => e.dayId === dayId) : [];
   // Circle: use day-specific if any are assigned, otherwise fall back to all city selected
   const daySelectedExps = dayOnly.length > 0 ? dayOnly : selectedExps;
+  const isDayScoped = dayOnly.length > 0;
+
+  // Pre-compute circle geometry for both overlay and panner
+  const circleGeo = useMemo(() => {
+    const pts = daySelectedExps
+      .filter((e) => e.latitude != null && e.longitude != null)
+      .map((e) => ({ lat: e.latitude!, lng: e.longitude! }));
+    if (pts.length === 0) return null;
+    const cLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+    const cLng = pts.reduce((s, p) => s + p.lng, 0) / pts.length;
+    let maxDist = 0;
+    if (pts.length > 1) {
+      for (const p of pts) {
+        const d = haversineKm(cLat, cLng, p.lat, p.lng) * 1000;
+        if (d > maxDist) maxDist = d;
+      }
+    }
+    const radius = Math.min(4000, Math.max(1610, pts.length === 1 ? 1610 : maxDist * 1.2));
+    return { center: { lat: cLat, lng: cLng }, radiusM: radius, count: pts.length };
+  }, [daySelectedExps]);
+
   const possibleExps = confirmedExps.filter((e) => e.state === "possible");
   const filteredSelected = selectedExps.filter((e) => matchesFilter(e.themes));
   const filteredPossible = possibleExps.filter((e) => matchesFilter(e.themes));
@@ -624,8 +626,8 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         fullscreenControl={false}
         style={{ width: "100%", height: "100%" }}
       >
-        <MapPanner center={center} experiences={experiences} recenterKey={recenterKey} />
-        <TravelGeometryOverlay selectedExps={daySelectedExps} isDayScoped={dayOnly.length > 0} />
+        <MapPanner center={center} circleGeo={circleGeo} recenterKey={recenterKey} />
+        <TravelGeometryOverlay geo={circleGeo} isDayScoped={isDayScoped} />
 
         {/* Theme filter bar */}
         {onThemeFilterChange && (
