@@ -72,6 +72,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
           <div className="max-w-md text-center">
             <h1 className="text-lg font-medium text-[#3a3128] mb-2">Something went wrong</h1>
             <p className="text-sm text-[#8a7a62] mb-4">{this.state.error.message}</p>
+            <pre className="text-xs text-left bg-[#f0ebe3] rounded-lg p-3 mb-4 max-h-40 overflow-auto whitespace-pre-wrap text-[#6b5d4a]">{this.state.error.stack?.split("\n").slice(0, 6).join("\n")}</pre>
             <button
               onClick={() => { this.setState({ error: null }); window.location.reload(); }}
               className="px-4 py-2 bg-[#514636] text-white rounded-lg text-sm"
