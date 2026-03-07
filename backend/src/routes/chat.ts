@@ -214,6 +214,30 @@ const tools: Anthropic.Tool[] = [
       required: ["tripId"],
     },
   },
+  {
+    name: "update_day_date",
+    description: "Change the date of a specific day. Use YYYY-MM-DD format.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        dayId: { type: "string" },
+        date: { type: "string", description: "New date in YYYY-MM-DD format" },
+      },
+      required: ["dayId", "date"],
+    },
+  },
+  {
+    name: "shift_trip_dates",
+    description: "Shift ALL dates in the trip (days, city dates, reservations, route segments) by a number of days. Positive = forward, negative = backward. Use this when the user wants to move the whole trip or a block of days earlier or later.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        offsetDays: { type: "number", description: "Number of days to shift. Negative = earlier, positive = later. E.g., -7 moves everything one week earlier." },
+      },
+      required: ["tripId", "offsetDays"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -603,6 +627,95 @@ async function executeTool(
       return { result: logs };
     }
 
+    case "update_day_date": {
+      const existing = await prisma.day.findUnique({ where: { id: input.dayId } });
+      if (!existing) return { result: { error: "Day not found" } };
+      const oldDate = existing.date.toISOString().slice(0, 10);
+      const day = await prisma.day.update({
+        where: { id: input.dayId },
+        data: { date: new Date(input.date) },
+        include: { city: true },
+      });
+      await syncTripDates(day.tripId);
+      await logChange({
+        user,
+        tripId: day.tripId,
+        actionType: "day_date_changed",
+        entityType: "day",
+        entityId: day.id,
+        entityName: `Day ${input.date}`,
+        description: `${user.displayName} moved day from ${oldDate} to ${input.date} (via chat)`,
+        previousState: existing,
+        newState: day,
+      });
+      return { result: day, actionDescription: `Moved day from ${oldDate} to ${input.date}` };
+    }
+
+    case "shift_trip_dates": {
+      if (!input.offsetDays || input.offsetDays === 0) {
+        return { result: { error: "offsetDays must be non-zero" } };
+      }
+      const ms = input.offsetDays * 86400000;
+
+      // Shift all days
+      const days = await prisma.day.findMany({ where: { tripId: input.tripId } });
+      for (const d of days) {
+        await prisma.day.update({
+          where: { id: d.id },
+          data: { date: new Date(d.date.getTime() + ms) },
+        });
+      }
+
+      // Shift city arrival/departure dates
+      const cities = await prisma.city.findMany({ where: { tripId: input.tripId } });
+      for (const c of cities) {
+        const data: any = {};
+        if (c.arrivalDate) data.arrivalDate = new Date(c.arrivalDate.getTime() + ms);
+        if (c.departureDate) data.departureDate = new Date(c.departureDate.getTime() + ms);
+        if (Object.keys(data).length > 0) {
+          await prisma.city.update({ where: { id: c.id }, data });
+        }
+      }
+
+      // Shift route segment departure dates
+      const segments = await prisma.routeSegment.findMany({ where: { tripId: input.tripId } });
+      for (const seg of segments) {
+        if (seg.departureDate) {
+          await prisma.routeSegment.update({
+            where: { id: seg.id },
+            data: { departureDate: new Date(seg.departureDate.getTime() + ms) },
+          });
+        }
+      }
+
+      // Shift reservation datetimes
+      const reservations = await prisma.reservation.findMany({ where: { tripId: input.tripId } });
+      for (const r of reservations) {
+        await prisma.reservation.update({
+          where: { id: r.id },
+          data: { datetime: new Date(r.datetime.getTime() + ms) },
+        });
+      }
+
+      await syncTripDates(input.tripId);
+
+      const direction = input.offsetDays > 0 ? "forward" : "back";
+      const absOffset = Math.abs(input.offsetDays);
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "trip_dates_shifted",
+        entityType: "trip",
+        entityId: input.tripId,
+        entityName: "Trip dates",
+        description: `${user.displayName} shifted all dates ${absOffset} day${absOffset !== 1 ? "s" : ""} ${direction} (via chat)`,
+      });
+      return {
+        result: { shifted: days.length, offsetDays: input.offsetDays },
+        actionDescription: `Shifted all ${days.length} days ${absOffset} day${absOffset !== 1 ? "s" : ""} ${direction}`,
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -634,6 +747,8 @@ RULES:
 1. Be concise and helpful. One or two sentences for simple answers.
 2. When performing actions, confirm what you did briefly.
 3. If the user asks to add something, do it — don't just explain how.
+9. When the user asks to shift, move, or reschedule the trip (e.g., "move everything one week earlier"), use shift_trip_dates with the correct offsetDays. Calculate the offset from their description — e.g., "Oct 18 to Oct 11" = -7 days.
+10. When moving a single day's date, use update_day_date.
 4. Use the tools to read data before answering questions about trip state.
 5. When the user says "add X to Tuesday" or similar, look up the correct day ID first.
 6. For date references like "Tuesday" or "day 3", use get_all_days to find the right day.

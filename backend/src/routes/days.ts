@@ -39,13 +39,14 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.day.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Day not found" }); return; }
 
-  const { explorationZone, notes, cityId } = req.body;
+  const { explorationZone, notes, cityId, date } = req.body;
   const day = await prisma.day.update({
     where: { id: req.params.id as string },
     data: {
       ...(explorationZone !== undefined && { explorationZone }),
       ...(notes !== undefined && { notes }),
       ...(cityId !== undefined && { cityId }),
+      ...(date !== undefined && { date: new Date(date) }),
     },
     include: { city: true },
   });
@@ -58,14 +59,18 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     });
   }
 
+  if (date !== undefined) {
+    await syncTripDates(day.tripId);
+  }
+
   await logChange({
     user: req.user!,
     tripId: day.tripId,
-    actionType: "day_note_edited",
+    actionType: date !== undefined ? "day_date_changed" : "day_note_edited",
     entityType: "day",
     entityId: day.id,
     entityName: `Day ${day.date.toISOString().slice(0, 10)}`,
-    description: `${req.user!.displayName} updated ${day.date.toISOString().slice(0, 10)}`,
+    description: `${req.user!.displayName} updated ${existing.date.toISOString().slice(0, 10)}${date !== undefined ? ` → ${day.date.toISOString().slice(0, 10)}` : ""}`,
     previousState: existing,
     newState: day,
   });
@@ -130,6 +135,74 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   });
 
   res.json({ deleted: true });
+});
+
+// Bulk shift all days (and city dates) by N days
+router.post("/shift", async (req: AuthRequest, res) => {
+  const { tripId, offsetDays } = req.body;
+
+  if (!tripId || typeof offsetDays !== "number" || offsetDays === 0) {
+    res.status(400).json({ error: "tripId and non-zero offsetDays required" });
+    return;
+  }
+
+  const ms = offsetDays * 86400000;
+
+  // Shift all days
+  const days = await prisma.day.findMany({ where: { tripId } });
+  for (const day of days) {
+    await prisma.day.update({
+      where: { id: day.id },
+      data: { date: new Date(day.date.getTime() + ms) },
+    });
+  }
+
+  // Shift all city arrival/departure dates
+  const cities = await prisma.city.findMany({ where: { tripId } });
+  for (const city of cities) {
+    const data: any = {};
+    if (city.arrivalDate) data.arrivalDate = new Date(city.arrivalDate.getTime() + ms);
+    if (city.departureDate) data.departureDate = new Date(city.departureDate.getTime() + ms);
+    if (Object.keys(data).length > 0) {
+      await prisma.city.update({ where: { id: city.id }, data });
+    }
+  }
+
+  // Shift route segment departure dates
+  const segments = await prisma.routeSegment.findMany({ where: { tripId } });
+  for (const seg of segments) {
+    if (seg.departureDate) {
+      await prisma.routeSegment.update({
+        where: { id: seg.id },
+        data: { departureDate: new Date(seg.departureDate.getTime() + ms) },
+      });
+    }
+  }
+
+  // Shift reservation datetimes
+  const reservations = await prisma.reservation.findMany({ where: { tripId } });
+  for (const r of reservations) {
+    await prisma.reservation.update({
+      where: { id: r.id },
+      data: { datetime: new Date(r.datetime.getTime() + ms) },
+    });
+  }
+
+  await syncTripDates(tripId);
+
+  const direction = offsetDays > 0 ? "forward" : "back";
+  const absOffset = Math.abs(offsetDays);
+  await logChange({
+    user: req.user!,
+    tripId,
+    actionType: "trip_dates_shifted",
+    entityType: "trip",
+    entityId: tripId,
+    entityName: "Trip dates",
+    description: `${req.user!.displayName} shifted all dates ${absOffset} day${absOffset !== 1 ? "s" : ""} ${direction}`,
+  });
+
+  res.json({ shifted: days.length, offsetDays });
 });
 
 export default router;

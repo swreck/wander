@@ -549,4 +549,402 @@ router.post("/merge", async (req: AuthRequest, res) => {
   }
 });
 
+// Replace the "backbone" (imported itinerary) block of a trip with a new one.
+// Archives old Backroads days/experiences into a separate trip, imports new content,
+// and repositions non-Backroads days to maintain their relative position.
+router.post("/replace-backbone", async (req: AuthRequest, res) => {
+  try {
+    const { tripId, ...data } = req.body as ExtractionResult & { tripId: string };
+
+    if (!tripId) {
+      res.status(400).json({ error: "tripId is required" });
+      return;
+    }
+    if (!data.tripName || !data.startDate || !data.endDate || !data.cities?.length) {
+      res.status(400).json({ error: "New itinerary data is required (tripName, startDate, endDate, cities)" });
+      return;
+    }
+
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: {
+        cities: { orderBy: { sequenceOrder: "asc" } },
+        routeSegments: { orderBy: { sequenceOrder: "asc" } },
+      },
+    });
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+
+    // ── 1. Identify Backroads experiences and days ──────────────
+    const backroadsExps = await prisma.experience.findMany({
+      where: {
+        tripId,
+        sourceText: { in: ["Imported from itinerary document", "Merged from imported text"] },
+      },
+    });
+    const backroadsDayIds = new Set(
+      backroadsExps.filter((e) => e.dayId).map((e) => e.dayId!)
+    );
+    const allDays = await prisma.day.findMany({
+      where: { tripId },
+      orderBy: { date: "asc" },
+    });
+    const backroadsDays = allDays.filter((d) => backroadsDayIds.has(d.id));
+    const nonBackroadsDays = allDays.filter((d) => !backroadsDayIds.has(d.id));
+
+    if (backroadsDays.length === 0) {
+      res.status(400).json({ error: "No imported backbone days found in this trip to replace" });
+      return;
+    }
+
+    // Determine the old backbone's date range
+    const oldStart = backroadsDays[0].date;
+    const oldEnd = backroadsDays[backroadsDays.length - 1].date;
+
+    // Classify non-Backroads days as "before" or "after" the backbone
+    const beforeDays = nonBackroadsDays.filter((d) => d.date < oldStart);
+    const afterDays = nonBackroadsDays.filter((d) => d.date >= oldEnd); // on or after last Backroads day
+
+    // Gap from backbone start: how many days before?
+    const beforeGapMs = beforeDays.length > 0
+      ? oldStart.getTime() - beforeDays[beforeDays.length - 1].date.getTime()
+      : 0;
+    const afterGapMs = afterDays.length > 0
+      ? afterDays[0].date.getTime() - oldEnd.getTime()
+      : 0;
+
+    // ── 2. Archive old Backroads block as a separate trip ───────
+    const backroadsCityIds = new Set(backroadsDays.map((d) => d.cityId));
+    const backroadsCities = trip.cities.filter((c) => backroadsCityIds.has(c.id));
+    // Also archive route segments tied to Backroads cities
+    const backroadsSegments = trip.routeSegments.filter(
+      (s) => backroadsCities.some((c) => c.name === s.originCity || c.name === s.destinationCity)
+    );
+
+    const archiveName = `${trip.name} [archived backbone ${oldStart.toISOString().slice(0, 10)}]`;
+    const archivedTrip = await prisma.trip.create({
+      data: {
+        name: archiveName,
+        startDate: oldStart,
+        endDate: oldEnd,
+        status: "archived",
+      },
+    });
+
+    // Clone cities into archive
+    const archiveCityMap = new Map<string, string>(); // old cityId -> archive cityId
+    for (const c of backroadsCities) {
+      const archived = await prisma.city.create({
+        data: {
+          tripId: archivedTrip.id,
+          name: c.name,
+          country: c.country,
+          latitude: c.latitude,
+          longitude: c.longitude,
+          sequenceOrder: c.sequenceOrder,
+          arrivalDate: c.arrivalDate,
+          departureDate: c.departureDate,
+          tagline: c.tagline,
+        },
+      });
+      archiveCityMap.set(c.id, archived.id);
+    }
+
+    // Clone days into archive
+    const archiveDayMap = new Map<string, string>(); // old dayId -> archive dayId
+    for (const d of backroadsDays) {
+      const newCityId = archiveCityMap.get(d.cityId);
+      if (!newCityId) continue;
+      const archived = await prisma.day.create({
+        data: {
+          tripId: archivedTrip.id,
+          cityId: newCityId,
+          date: d.date,
+          notes: d.notes,
+          explorationZone: d.explorationZone,
+        },
+      });
+      archiveDayMap.set(d.id, archived.id);
+    }
+
+    // Clone experiences into archive
+    for (const exp of backroadsExps) {
+      const newCityId = archiveCityMap.get(exp.cityId);
+      if (!newCityId) continue;
+      const newDayId = exp.dayId ? archiveDayMap.get(exp.dayId) || null : null;
+      await prisma.experience.create({
+        data: {
+          tripId: archivedTrip.id,
+          cityId: newCityId,
+          dayId: newDayId,
+          name: exp.name,
+          description: exp.description,
+          state: exp.state,
+          themes: exp.themes,
+          timeWindow: exp.timeWindow,
+          sourceText: exp.sourceText,
+          createdBy: exp.createdBy,
+          latitude: exp.latitude,
+          longitude: exp.longitude,
+          locationStatus: exp.locationStatus,
+          placeIdGoogle: exp.placeIdGoogle,
+        },
+      });
+    }
+
+    // Clone route segments into archive
+    for (const seg of backroadsSegments) {
+      await prisma.routeSegment.create({
+        data: {
+          tripId: archivedTrip.id,
+          originCity: seg.originCity,
+          destinationCity: seg.destinationCity,
+          sequenceOrder: seg.sequenceOrder,
+          transportMode: seg.transportMode,
+          departureDate: seg.departureDate,
+          notes: seg.notes,
+        },
+      });
+    }
+
+    // ── 3. Delete old Backroads content from current trip ───────
+    // Delete experiences first (FK constraint)
+    await prisma.experience.deleteMany({
+      where: { id: { in: backroadsExps.map((e) => e.id) } },
+    });
+    // Delete Backroads days
+    await prisma.day.deleteMany({
+      where: { id: { in: backroadsDays.map((d) => d.id) } },
+    });
+    // Delete route segments for old Backroads cities
+    if (backroadsSegments.length > 0) {
+      await prisma.routeSegment.deleteMany({
+        where: { id: { in: backroadsSegments.map((s) => s.id) } },
+      });
+    }
+    // Delete cities that were exclusively Backroads (no remaining days)
+    for (const c of backroadsCities) {
+      const remainingDays = await prisma.day.count({ where: { cityId: c.id } });
+      const remainingExps = await prisma.experience.count({ where: { cityId: c.id } });
+      if (remainingDays === 0 && remainingExps === 0) {
+        await prisma.city.delete({ where: { id: c.id } });
+      }
+    }
+
+    // ── 4. Import new backbone content ─────────────────────────
+    const newStart = new Date(data.startDate);
+    const newEnd = new Date(data.endDate);
+
+    const newCityMap = new Map<string, string>(); // cityName -> cityId
+    let maxOrder = 0;
+    const remainingCities = await prisma.city.findMany({ where: { tripId } });
+    if (remainingCities.length > 0) {
+      maxOrder = Math.max(...remainingCities.map((c) => c.sequenceOrder));
+    }
+
+    for (let i = 0; i < data.cities.length; i++) {
+      const c = data.cities[i];
+      maxOrder++;
+      const city = await prisma.city.create({
+        data: {
+          tripId,
+          name: c.name,
+          country: c.country || null,
+          sequenceOrder: maxOrder,
+          arrivalDate: c.arrivalDate ? new Date(c.arrivalDate) : null,
+          departureDate: c.departureDate ? new Date(c.departureDate) : null,
+        },
+      });
+      newCityMap.set(c.name.toLowerCase(), city.id);
+
+      // Create days
+      if (c.arrivalDate && c.departureDate) {
+        const arrival = new Date(c.arrivalDate);
+        const departure = new Date(c.departureDate);
+        for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+          await prisma.day.create({
+            data: { tripId, cityId: city.id, date: new Date(d) },
+          });
+        }
+      }
+    }
+
+    // Create route segments
+    if (data.routeSegments?.length) {
+      const existingSegs = await prisma.routeSegment.findMany({ where: { tripId } });
+      let segOrder = existingSegs.length > 0
+        ? Math.max(...existingSegs.map((s) => s.sequenceOrder))
+        : 0;
+      for (const rs of data.routeSegments) {
+        segOrder++;
+        await prisma.routeSegment.create({
+          data: {
+            tripId,
+            originCity: rs.originCity,
+            destinationCity: rs.destinationCity,
+            sequenceOrder: segOrder,
+            transportMode: (rs.transportMode as any) || "other",
+            departureDate: rs.departureDate ? new Date(rs.departureDate) : null,
+            notes: rs.notes || null,
+          },
+        });
+      }
+    }
+
+    // Create experiences
+    if (data.experiences?.length) {
+      const allTripDays = await prisma.day.findMany({
+        where: { tripId },
+        orderBy: { date: "asc" },
+      });
+      for (const exp of data.experiences) {
+        const cityId = newCityMap.get(exp.cityName.toLowerCase());
+        if (!cityId) continue;
+        let dayId: string | null = null;
+        if (exp.dayDate) {
+          const matchingDay = allTripDays.find(
+            (d) => d.date.toISOString().split("T")[0] === exp.dayDate
+          );
+          if (matchingDay) dayId = matchingDay.id;
+        }
+        await prisma.experience.create({
+          data: {
+            tripId,
+            cityId,
+            name: exp.name,
+            description: exp.description || null,
+            state: dayId ? "selected" : "possible",
+            dayId,
+            timeWindow: exp.timeWindow || null,
+            createdBy: req.user!.code,
+            sourceText: "Imported from itinerary document",
+          },
+        });
+      }
+    }
+
+    // Create accommodations
+    if (data.accommodations?.length) {
+      for (const acc of data.accommodations) {
+        const cityId = newCityMap.get(acc.cityName.toLowerCase());
+        if (!cityId) continue;
+        await prisma.accommodation.create({
+          data: {
+            tripId,
+            cityId,
+            name: acc.name,
+            address: acc.address || null,
+            notes: acc.notes || null,
+          },
+        });
+      }
+    }
+
+    // ── 5. Reposition non-Backroads days relative to new backbone ──
+    // "Before" days maintain the same gap from the new start
+    if (beforeDays.length > 0) {
+      const lastBeforeDate = beforeDays[beforeDays.length - 1].date;
+      const newBeforeAnchor = new Date(newStart.getTime() - beforeGapMs);
+      const shiftMs = newBeforeAnchor.getTime() - lastBeforeDate.getTime();
+      if (shiftMs !== 0) {
+        for (const d of beforeDays) {
+          await prisma.day.update({
+            where: { id: d.id },
+            data: { date: new Date(d.date.getTime() + shiftMs) },
+          });
+        }
+        // Shift cities that own these days
+        const beforeCityIds = new Set(beforeDays.map((d) => d.cityId));
+        for (const cid of beforeCityIds) {
+          const c = await prisma.city.findUnique({ where: { id: cid } });
+          if (!c) continue;
+          const upd: any = {};
+          if (c.arrivalDate) upd.arrivalDate = new Date(c.arrivalDate.getTime() + shiftMs);
+          if (c.departureDate) upd.departureDate = new Date(c.departureDate.getTime() + shiftMs);
+          if (Object.keys(upd).length > 0) {
+            await prisma.city.update({ where: { id: cid }, data: upd });
+          }
+        }
+      }
+    }
+
+    // "After" days maintain the same gap from the new end
+    if (afterDays.length > 0) {
+      const firstAfterDate = afterDays[0].date;
+      const newAfterAnchor = new Date(newEnd.getTime() + afterGapMs);
+      const shiftMs = newAfterAnchor.getTime() - firstAfterDate.getTime();
+      if (shiftMs !== 0) {
+        for (const d of afterDays) {
+          await prisma.day.update({
+            where: { id: d.id },
+            data: { date: new Date(d.date.getTime() + shiftMs) },
+          });
+        }
+        const afterCityIds = new Set(afterDays.map((d) => d.cityId));
+        for (const cid of afterCityIds) {
+          const c = await prisma.city.findUnique({ where: { id: cid } });
+          if (!c) continue;
+          const upd: any = {};
+          if (c.arrivalDate) upd.arrivalDate = new Date(c.arrivalDate.getTime() + shiftMs);
+          if (c.departureDate) upd.departureDate = new Date(c.departureDate.getTime() + shiftMs);
+          if (Object.keys(upd).length > 0) {
+            await prisma.city.update({ where: { id: cid }, data: upd });
+          }
+        }
+      }
+    }
+
+    await syncTripDates(tripId);
+
+    // Geocode new cities and experiences
+    const newCities = await prisma.city.findMany({
+      where: { tripId, id: { in: [...newCityMap.values()] } },
+      select: { id: true },
+    });
+    Promise.all(newCities.map((c) => geocodeCity(c.id).catch(() => {}))).catch(() => {});
+    const newExps = await prisma.experience.findMany({
+      where: { tripId, sourceText: "Imported from itinerary document" },
+      select: { id: true },
+    });
+    Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {}))).catch(() => {});
+
+    await logChange({
+      user: req.user!,
+      tripId,
+      actionType: "backbone_replaced",
+      entityType: "trip",
+      entityId: tripId,
+      entityName: trip.name,
+      description: `${req.user!.displayName} replaced backbone itinerary. Old plan archived as "${archiveName}". ${beforeDays.length} pre-days and ${afterDays.length} post-days repositioned.`,
+      newState: { archiveTripId: archivedTrip.id, newStart: data.startDate, newEnd: data.endDate },
+    });
+
+    const full = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: {
+        cities: { orderBy: { sequenceOrder: "asc" } },
+        routeSegments: { orderBy: { sequenceOrder: "asc" } },
+        days: { orderBy: { date: "asc" }, include: { city: true } },
+        experiences: { orderBy: { createdAt: "asc" } },
+        accommodations: true,
+      },
+    });
+
+    res.status(201).json({
+      trip: full,
+      archivedTripId: archivedTrip.id,
+      archivedTripName: archiveName,
+      repositioned: {
+        before: beforeDays.length,
+        after: afterDays.length,
+      },
+    });
+  } catch (err: any) {
+    console.error("Replace backbone error:", err);
+    res.status(500).json({ error: err.message || "Failed to replace backbone" });
+  }
+});
+
 export default router;
