@@ -899,14 +899,30 @@ router.post("/", async (req: AuthRequest, res) => {
 
     // Fast-path: detect recommendation-like text and import directly
     // (bypasses Haiku chat loop to avoid timeout)
+    // Check both current message and recent history for pasted recs
+    let recText = message;
     const lines = message.split("\n").filter((l: string) => l.trim().length > 0);
-    const looksLikeRecs = lines.length >= 5 && message.length > 300 && tripId;
+    let looksLikeRecs = lines.length >= 5 && message.length > 300 && tripId;
+    if (!looksLikeRecs && tripId && Array.isArray(history)) {
+      // Check if user recently pasted recs and is now saying "do it" / "yes"
+      const lastUserMsg = [...history].reverse().find((h: any) => h.role === "user");
+      if (lastUserMsg) {
+        const hLines = lastUserMsg.text.split("\n").filter((l: string) => l.trim().length > 0);
+        if (hLines.length >= 5 && lastUserMsg.text.length > 300) {
+          const shortFollowUp = message.length < 100;
+          if (shortFollowUp) {
+            looksLikeRecs = true;
+            recText = lastUserMsg.text;
+          }
+        }
+      }
+    }
     if (looksLikeRecs) {
       console.log("Chat fast-path: detected recommendation text, importing directly");
       try {
         const { result, actionDescription } = await executeTool(
           "import_recommendations",
-          { tripId, text: message, senderLabel: "Chat paste" },
+          { tripId, text: recText, senderLabel: "Chat paste" },
           user,
         );
         const r = result as any;
