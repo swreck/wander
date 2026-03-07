@@ -115,21 +115,10 @@ async function getExp(token: string, expId: string): Promise<any> {
   return res.body;
 }
 
-// Cleanup all chaos trips
-const CHAOS_TRIP_NAMES: string[] = [];
+// No cleanup needed — tests run on a Neon branch that gets deleted after
 afterAll(async () => {
-  for (const name of CHAOS_TRIP_NAMES) {
-    const trips = await prisma.trip.findMany({ where: { name } });
-    for (const t of trips) {
-      await prisma.trip.delete({ where: { id: t.id } });
-    }
-  }
   await prisma.$disconnect();
 });
-
-function trackTrip(name: string) {
-  if (!CHAOS_TRIP_NAMES.includes(name)) CHAOS_TRIP_NAMES.push(name);
-}
 
 let aliceToken: string;
 let bobToken: string;
@@ -149,7 +138,7 @@ describe("Chaos Simulations", () => {
   describe("1. Trip Shapes", () => {
     it("S01: Single-day trip works end-to-end", async () => {
       const name = "Chaos: Single Day";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-01", [
         { name: "Paris", arrivalDate: "2026-07-01", departureDate: "2026-07-01" },
       ]);
@@ -167,7 +156,7 @@ describe("Chaos Simulations", () => {
 
     it("S02: Trip with no cities — add cities later", async () => {
       const name = "Chaos: No Cities";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-08-01", "2026-08-05");
 
       let days = await getDays(aliceToken, tripId);
@@ -184,7 +173,7 @@ describe("Chaos Simulations", () => {
 
     it("S03: Trip with many cities (8 cities, 30 days)", async () => {
       const name = "Chaos: Many Cities";
-      trackTrip(name);
+
       const cities = [
         { name: "City1", arrivalDate: "2026-09-01", departureDate: "2026-09-04" },
         { name: "City2", arrivalDate: "2026-09-05", departureDate: "2026-09-07" },
@@ -212,7 +201,7 @@ describe("Chaos Simulations", () => {
 
     it("S04: Trip with city that has no dates (flexible exploration)", async () => {
       const name = "Chaos: Flexible City";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-10-01", "2026-10-05", [
         { name: "Berlin", arrivalDate: "2026-10-01", departureDate: "2026-10-03" },
       ]);
@@ -245,7 +234,7 @@ describe("Chaos Simulations", () => {
   describe("2. Date Gymnastics", () => {
     it("S05: Overlapping city date ranges — later city takes the days", async () => {
       const name = "Chaos: Overlapping Dates";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-10", [
         { name: "Madrid", arrivalDate: "2026-07-01", departureDate: "2026-07-06" },
       ]);
@@ -268,7 +257,7 @@ describe("Chaos Simulations", () => {
 
     it("S06: Shrink city dates — experiences demoted, days removed", async () => {
       const name = "Chaos: Shrink Dates";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-10", [
         { name: "Vienna", arrivalDate: "2026-07-01", departureDate: "2026-07-10" },
       ]);
@@ -306,7 +295,7 @@ describe("Chaos Simulations", () => {
 
     it("S07: Expand city dates — existing days preserved, new ones added", async () => {
       const name = "Chaos: Expand Dates";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-10", [
         { name: "Prague", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -343,7 +332,7 @@ describe("Chaos Simulations", () => {
 
     it("S08: Clear city dates entirely", async () => {
       const name = "Chaos: Clear Dates";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Lisbon", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
       ]);
@@ -368,7 +357,7 @@ describe("Chaos Simulations", () => {
 
     it("S09: Gap days between cities — no orphan days", async () => {
       const name = "Chaos: Gap Days";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-10", [
         { name: "Amsterdam", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         // Gap: Jul 4-7 has no city
@@ -382,7 +371,7 @@ describe("Chaos Simulations", () => {
 
     it("S10: Add city that fills the gap", async () => {
       const name = "Chaos: Fill Gap";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-10", [
         { name: "Amsterdam", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         { name: "Brussels", arrivalDate: "2026-07-08", departureDate: "2026-07-10" },
@@ -400,7 +389,7 @@ describe("Chaos Simulations", () => {
 
     it("S11: Shift city dates forward (shrink start, expand end)", async () => {
       const name = "Chaos: Shift Dates";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-10", [
         { name: "Athens", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
       ]);
@@ -444,7 +433,7 @@ describe("Chaos Simulations", () => {
   describe("3. Data Preservation", () => {
     it("S12: Reservation survives city date expansion", async () => {
       const name = "Chaos: Reservation Preservation";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-10", [
         { name: "Milan", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -481,7 +470,7 @@ describe("Chaos Simulations", () => {
 
     it("S13: Accommodation survives day reassignment", async () => {
       const name = "Chaos: Accommodation Reassign";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-06", [
         { name: "Zurich", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         { name: "Lucerne", arrivalDate: "2026-07-04", departureDate: "2026-07-06" },
@@ -524,7 +513,7 @@ describe("Chaos Simulations", () => {
 
     it("S14: Exploration zone and notes survive date expansion", async () => {
       const name = "Chaos: Notes Survive";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Kyoto", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -559,7 +548,7 @@ describe("Chaos Simulations", () => {
 
     it("S15: Reservation destroyed when its day is deleted (cascade)", async () => {
       const name = "Chaos: Reservation Cascade";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Oslo", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -591,7 +580,7 @@ describe("Chaos Simulations", () => {
 
     it("S16: Reservation destroyed when city date shrink removes its day", async () => {
       const name = "Chaos: Reservation Shrink Cascade";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Stockholm", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
       ]);
@@ -634,7 +623,7 @@ describe("Chaos Simulations", () => {
   describe("4. Experience Flow", () => {
     it("S17: Promote → demote → re-promote to different day", async () => {
       const name = "Chaos: Promote Demote Chain";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Seville", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
       ]);
@@ -665,7 +654,7 @@ describe("Chaos Simulations", () => {
 
     it("S18: Promote experience to route segment", async () => {
       const name = "Chaos: Route Segment Promote";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Munich", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         { name: "Salzburg", arrivalDate: "2026-07-04", departureDate: "2026-07-05" },
@@ -696,7 +685,7 @@ describe("Chaos Simulations", () => {
 
     it("S19: Reorder experiences within a day", async () => {
       const name = "Chaos: Reorder";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Barcelona", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -729,7 +718,7 @@ describe("Chaos Simulations", () => {
 
     it("S20: Cross-city promotion — experience in city A promoted to city B's day", async () => {
       const name = "Chaos: Cross City Promote";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-06", [
         { name: "Copenhagen", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         { name: "Malmo", arrivalDate: "2026-07-04", departureDate: "2026-07-06" },
@@ -753,7 +742,7 @@ describe("Chaos Simulations", () => {
 
     it("S21: Promote with all transport modes", async () => {
       const name = "Chaos: Transport Modes";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "London", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -774,7 +763,7 @@ describe("Chaos Simulations", () => {
 
     it("S22: Bulk promote then bulk demote", async () => {
       const name = "Chaos: Bulk Operations";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Dublin", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -819,7 +808,7 @@ describe("Chaos Simulations", () => {
   describe("5. Destructive Operations", () => {
     it("S23: Delete the only city — experiences cascade-deleted", async () => {
       const name = "Chaos: Delete Only City";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Reykjavik", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -846,7 +835,7 @@ describe("Chaos Simulations", () => {
 
     it("S24: Delete city with experiences — moved to other city", async () => {
       const name = "Chaos: Delete City Move Exp";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-06", [
         { name: "Tokyo", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         { name: "Osaka", arrivalDate: "2026-07-04", departureDate: "2026-07-06" },
@@ -878,7 +867,7 @@ describe("Chaos Simulations", () => {
 
     it("S25: Delete route segment with promoted experience", async () => {
       const name = "Chaos: Delete Segment";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-04", [
         { name: "Nice", arrivalDate: "2026-07-01", departureDate: "2026-07-02" },
         { name: "Monaco", arrivalDate: "2026-07-03", departureDate: "2026-07-04" },
@@ -911,7 +900,7 @@ describe("Chaos Simulations", () => {
 
     it("S26: Delete trip cascades everything", async () => {
       const name = "Chaos: Delete Trip Cascade";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Havana", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -943,7 +932,7 @@ describe("Chaos Simulations", () => {
 
     it("S27: Delete day with both reservation and experience", async () => {
       const name = "Chaos: Delete Rich Day";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Seoul", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
       ]);
@@ -987,7 +976,7 @@ describe("Chaos Simulations", () => {
   describe("6. Multi-User Collaboration", () => {
     it("S28: Both users add experiences to same city", async () => {
       const name = "Chaos: Multi User Same City";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Bangkok", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
       ]);
@@ -1013,7 +1002,7 @@ describe("Chaos Simulations", () => {
 
     it("S29: One user promotes, other user demotes", async () => {
       const name = "Chaos: Cross User Promote Demote";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Hanoi", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1033,7 +1022,7 @@ describe("Chaos Simulations", () => {
 
     it("S30: Change log shows correct user attribution", async () => {
       const name = "Chaos: Attribution";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Cairo", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1076,8 +1065,6 @@ describe("Chaos Simulations", () => {
     it("S31: Import then immediately import again — first trip archived", async () => {
       const name1 = "Chaos: Import First";
       const name2 = "Chaos: Import Second";
-      trackTrip(name1);
-      trackTrip(name2);
 
       const res1 = await request(app)
         .post("/api/import/commit")
@@ -1111,7 +1098,7 @@ describe("Chaos Simulations", () => {
 
     it("S32: Import with no experiences — just structure", async () => {
       const name = "Chaos: Import No Experiences";
-      trackTrip(name);
+
 
       const res = await request(app)
         .post("/api/import/commit")
@@ -1137,7 +1124,7 @@ describe("Chaos Simulations", () => {
 
     it("S33: Import with placeholder days for gap dates", async () => {
       const name = "Chaos: Import With Gaps";
-      trackTrip(name);
+
 
       const res = await request(app)
         .post("/api/import/commit")
@@ -1180,7 +1167,7 @@ describe("Chaos Simulations", () => {
 
     it("S34: Import with experiences and day matching", async () => {
       const name = "Chaos: Import With Experiences";
-      trackTrip(name);
+
 
       const res = await request(app)
         .post("/api/import/commit")
@@ -1215,7 +1202,7 @@ describe("Chaos Simulations", () => {
   describe("8. Cascade Integrity", () => {
     it("S35: Full lifecycle — create, populate, modify dates, delete city, verify integrity", async () => {
       const name = "Chaos: Full Lifecycle";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-15", [
         { name: "Lisbon", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
         { name: "Porto", arrivalDate: "2026-07-06", departureDate: "2026-07-10" },
@@ -1275,7 +1262,7 @@ describe("Chaos Simulations", () => {
 
     it("S36: Day reassignment chain — move day A→B, then B→C", async () => {
       const name = "Chaos: Reassignment Chain";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-09", [
         { name: "CityA", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         { name: "CityB", arrivalDate: "2026-07-04", departureDate: "2026-07-06" },
@@ -1314,7 +1301,7 @@ describe("Chaos Simulations", () => {
 
     it("S37: Multiple experiences on same day — all demoted when day deleted", async () => {
       const name = "Chaos: Multi Exp Day Delete";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Taipei", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1342,7 +1329,7 @@ describe("Chaos Simulations", () => {
 
     it("S38: Accommodation on city delete — preserved if other city exists", async () => {
       const name = "Chaos: Acc City Delete";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-06", [
         { name: "Denver", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         { name: "Boulder", arrivalDate: "2026-07-04", departureDate: "2026-07-06" },
@@ -1371,7 +1358,7 @@ describe("Chaos Simulations", () => {
 
     it("S39: Import then manually add overlapping city — placeholders reassigned correctly", async () => {
       const name = "Chaos: Import Then Overlap";
-      trackTrip(name);
+
 
       const importRes = await request(app)
         .post("/api/import/commit")
@@ -1406,7 +1393,7 @@ describe("Chaos Simulations", () => {
 
     it("S40: Experience with location data persists through promote/demote cycles", async () => {
       const name = "Chaos: Location Persist";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Sydney", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1436,7 +1423,7 @@ describe("Chaos Simulations", () => {
 
     it("S41: Reorder cities and verify experience listing order", async () => {
       const name = "Chaos: City Reorder";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-09", [
         { name: "Alpha", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
         { name: "Beta", arrivalDate: "2026-07-04", departureDate: "2026-07-06" },
@@ -1464,7 +1451,7 @@ describe("Chaos Simulations", () => {
 
     it("S42: Capture via manual entry and verify enrichment doesn't crash", async () => {
       const name = "Chaos: Capture Entry";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Kyoto", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1485,7 +1472,7 @@ describe("Chaos Simulations", () => {
 
     it("S43: Travel time calculation for different modes", async () => {
       const name = "Chaos: Travel Time";
-      trackTrip(name);
+
 
       // Test all three modes between two points
       for (const mode of ["walk", "transit", "taxi"]) {
@@ -1508,8 +1495,7 @@ describe("Chaos Simulations", () => {
 
     it("S44: Trip update (rename, change dates) doesn't affect days", async () => {
       const name = "Chaos: Trip Update";
-      trackTrip(name);
-      trackTrip("Chaos: Trip Renamed");
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Venice", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
       ]);
@@ -1530,7 +1516,7 @@ describe("Chaos Simulations", () => {
 
     it("S45: Empty trip — no cities, no days, still functional", async () => {
       const name = "Chaos: Empty Trip";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05");
 
       const days = await getDays(aliceToken, tripId);
@@ -1554,7 +1540,7 @@ describe("Chaos Simulations", () => {
 
     it("S46: Experience themes filtering", async () => {
       const name = "Chaos: Theme Filtering";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Kyoto", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1585,7 +1571,7 @@ describe("Chaos Simulations", () => {
 
     it("S47: Rapid promote/demote same experience (stress test)", async () => {
       const name = "Chaos: Rapid Toggle";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Singapore", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1614,7 +1600,7 @@ describe("Chaos Simulations", () => {
 
     it("S48: Create standalone day then add to city", async () => {
       const name = "Chaos: Standalone Day";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-05", [
         { name: "Lima", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1640,7 +1626,7 @@ describe("Chaos Simulations", () => {
 
     it("S49: Experience with all optional fields populated", async () => {
       const name = "Chaos: Full Experience";
-      trackTrip(name);
+
       const tripId = await createTrip(aliceToken, name, "2026-07-01", "2026-07-03", [
         { name: "Nara", arrivalDate: "2026-07-01", departureDate: "2026-07-03" },
       ]);
@@ -1673,7 +1659,7 @@ describe("Chaos Simulations", () => {
 
     it("S50: Complete user journey — import, edit, plan, verify", async () => {
       const name = "Chaos: Complete Journey";
-      trackTrip(name);
+
 
       // 1. Import a trip
       const importRes = await request(app)

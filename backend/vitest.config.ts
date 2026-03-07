@@ -7,8 +7,8 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     pool: "forks",
-    poolOptions: {
-      forks: { singleFork: true },
-    },
+    singleFork: true,
+    globalSetup: "./tests/vitest-global-setup.ts",
+    setupFiles: ["./tests/vitest-setup.ts"],
   },
 });

@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Test Isolation, Soft-Delete, AI Tools, Bug Fix)
+
+### Added
+- **Neon branch test isolation**: Tests now automatically create a temporary Neon database branch before running and delete it after. Production data is never touched. This eliminates the risk of test data polluting the live app (previously, test users Alice/Bob and hundreds of test trips appeared in production). Uses Neon API to create point-in-time branches, with endpoint readiness polling. Architecture: `vitest-global-setup.ts` creates branch, writes URL to temp file; `vitest-setup.ts` reads it in worker processes; teardown deletes branch.
+- **CLAUDE.md testing rules**: Added mandatory testing protocol — all feature work must include test runs before being declared done. Chaos testing required for user-facing features.
+
+### Changed
+- **Vitest config updated for v4**: Moved deprecated `poolOptions` to top-level `singleFork` option.
+- **Experience PATCH endpoint expanded**: Now supports `cityId`, `state`, `dayId`, and `timeWindow` fields, enabling the AI chat move_experience tool and other operations.
+
 ## 2026-03-08 (cont'd — Soft-Delete, AI Tools, Bug Fix)
 
 ### Fixed
