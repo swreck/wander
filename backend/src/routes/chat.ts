@@ -920,8 +920,9 @@ RULES:
 7. Never fabricate data — always query first.
 8. When the user says "move X to Y day", demote first then promote to the new day.
 11. NEVER ask the user for a trip ID, city ID, day ID, or any internal identifier. These are always provided in the CURRENT CONTEXT above. If the trip ID shows "none", tell the user no active trip was found.
-12. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
-12. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.`;
+12. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations IMMEDIATELY. Do not ask for confirmation first — just do it. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
+13. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.
+14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];
@@ -960,13 +961,25 @@ RULES:
 
       for (const block of toolUseBlocks) {
         const toolBlock = block as Anthropic.ToolUseBlock;
-        const { result, actionDescription } = await executeTool(toolBlock.name, toolBlock.input, user);
-        if (actionDescription) actions.push(actionDescription);
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: toolBlock.id,
-          content: JSON.stringify(result),
-        });
+        console.log(`Chat tool call: ${toolBlock.name}`, JSON.stringify(toolBlock.input).slice(0, 200));
+        try {
+          const { result, actionDescription } = await executeTool(toolBlock.name, toolBlock.input, user);
+          if (actionDescription) actions.push(actionDescription);
+          console.log(`Chat tool result: ${toolBlock.name} OK`);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: toolBlock.id,
+            content: JSON.stringify(result),
+          });
+        } catch (toolErr: any) {
+          console.error(`Chat tool error: ${toolBlock.name}`, toolErr.message);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: toolBlock.id,
+            content: JSON.stringify({ error: toolErr.message }),
+            is_error: true,
+          });
+        }
       }
 
       // Add assistant response and tool results for next turn
@@ -980,7 +993,7 @@ RULES:
       hasActions: actions.length > 0,
     });
   } catch (err: any) {
-    console.error("Chat error:", err.message);
+    console.error("Chat error:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));
     res.status(500).json({ error: "Chat failed" });
   }
 });
