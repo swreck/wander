@@ -211,3 +211,85 @@ export async function extractItinerary(
 
   return JSON.parse(jsonMatch[0]) as ExtractionResult;
 }
+
+// ── Recommendation Extraction ────────────────────────────────────
+
+export interface ExtractedRecommendation {
+  name: string;
+  city: string | null;        // specific city/town (e.g. "Tokoname", "Fukuoka")
+  region: string | null;       // grouping region (e.g. "Kyushu", "Nagano")
+  country: string;
+  description: string;         // personal notes, tips, context
+  urls: string[];              // any URLs mentioned
+  themes: string[];            // ceramics, food, nature, onsen, architecture, etc.
+  accommodationTip: boolean;   // true if this is a lodging recommendation
+}
+
+export interface RecommendationResult {
+  recommendations: ExtractedRecommendation[];
+  senderNotes: string;         // general advice that isn't place-specific
+}
+
+const RECOMMENDATION_PROMPT = `You are parsing an informal list of travel recommendations — the kind a friend sends via email or message. This is NOT a structured itinerary with dates. It's a collection of suggestions organized loosely by location.
+
+Your job: extract every specific place, activity, restaurant, experience, or accommodation into a structured list. Preserve the sender's personal notes and opinions — these are valuable context, not noise.
+
+Return a JSON object:
+{
+  "recommendations": [
+    {
+      "name": "Place or activity name",
+      "city": "Specific city/town (e.g. 'Tokoname', 'Fukuoka', 'Takeo'). Null only if truly no location can be inferred.",
+      "region": "Broader grouping region if the sender organized by region (e.g. 'Kyushu', 'Nagano', 'Tottori and Shimane'). Null if the item stands alone.",
+      "country": "Country (e.g. 'Japan')",
+      "description": "Combine the sender's personal notes, tips, opinions, and any context. Include practical details like 'Food is okay but the place is amazing' or '70 min bus ride but worth it'. Keep the human voice.",
+      "urls": ["any URLs mentioned for this item"],
+      "themes": ["relevant themes from: ceramics, pottery, food, nature, onsen, architecture, temples, museums, sake, hiking, shopping, culture, trains, gardens, history, art"],
+      "accommodationTip": false
+    }
+  ],
+  "senderNotes": "Any general travel advice that isn't about a specific place (e.g., 'best time is late spring', 'fly into Izumo and out of Tottori')"
+}
+
+RULES:
+1. Every distinct place, restaurant, museum, garden, castle, shrine, brewery, kiln, onsen, or named attraction is a separate recommendation.
+2. When items are listed in rapid succession (e.g., "Ritsurin Garden, Kotohiragu, Zentsuji"), create separate entries for each.
+3. city = the most specific place this item is IN or NEAR. "Nakasu for Yatai" → city is "Fukuoka". "Saijo Sake Brewery Street" → city is "Higashi Hiroshima".
+4. region = the sender's grouping header. If the sender wrote "[in Kyushu]" or "[Nagano]", use that. Items under "[Hyogo, Okayama, Hiroshima, Yamaguchi]" get that as region.
+5. When someone recommends staying somewhere (ryokan, hotel, shukubo), set accommodationTip: true and extract the name.
+6. URLs should be attached to the specific item they reference, not grouped separately.
+7. Keep parenthetical notes in the description — "(cold udon at Kompira udon)" is useful context.
+8. Compound entries like "Suwa Taisha, Lake Suwa, Miyasaka Brewing Co., Masumi" should be split into individual items, all in the same city.
+9. If someone mentions a city as a recommendation itself ("If you haven't been to Kanazawa, I highly recommend going there"), create an entry with the city as the name and the recommendation text as description.
+10. Do NOT skip items just because they're brief. "Arita ware" with no description still gets extracted — name: "Arita Ware", city: "Arita", themes: ["pottery", "ceramics"].
+11. Return ONLY the JSON object, no other text.`;
+
+export async function extractRecommendations(
+  content: string,
+  country?: string,
+): Promise<RecommendationResult> {
+  const cleaned = preprocessContent(content);
+  let textPrompt = `Extract travel recommendations from this text:\n\n${cleaned}`;
+  if (country) {
+    textPrompt += `\n\nContext: These recommendations are for a trip to ${country}.`;
+  }
+
+  const response = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 4096,
+    system: RECOMMENDATION_PROMPT,
+    messages: [{ role: "user", content: textPrompt }],
+  });
+
+  const text = response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("AI extraction did not return valid JSON");
+  }
+
+  return JSON.parse(jsonMatch[0]) as RecommendationResult;
+}

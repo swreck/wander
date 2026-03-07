@@ -39,6 +39,9 @@ export default function PlanPage() {
   const [importStartDate, setImportStartDate] = useState("");
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any>(null);
+  const [importMode, setImportMode] = useState<"itinerary" | "recommendations">("itinerary");
+  const [recPreview, setRecPreview] = useState<any>(null);
+  const [senderLabel, setSenderLabel] = useState("");
 
   // Nudge state
   const [nudgeMessage, setNudgeMessage] = useState<{ place: any; nudge: string } | null>(null);
@@ -218,6 +221,49 @@ export default function PlanPage() {
     (e) => e.sourceText === "Imported from itinerary document" || e.sourceText === "Merged from imported text"
   );
 
+  async function handleRecExtract() {
+    if (!importText.trim()) return;
+    setImporting(true);
+    try {
+      const result = await api.post<any>("/import/extract-recommendations", {
+        text: importText.trim(),
+        country: trip?.cities[0]?.country || "Japan",
+      });
+      setRecPreview(result);
+    } catch {
+      showToast("Extraction failed", "error");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function handleRecCommit() {
+    if (!trip || !recPreview) return;
+    setImporting(true);
+    try {
+      const result = await api.post<any>("/import/commit-recommendations", {
+        tripId: trip.id,
+        recommendations: recPreview.recommendations,
+        senderNotes: recPreview.senderNotes,
+        senderLabel: senderLabel || "Friend's recommendations",
+      });
+      setShowImport(false);
+      setImportText("");
+      setRecPreview(null);
+      setSenderLabel("");
+      setImportMode("itinerary");
+      showToast(
+        `Imported ${result.imported} recommendations: ${result.category1} to existing cities, ${result.category2} to new cities${result.category3 > 0 ? `, ${result.category3} to Ideas` : ""}`
+      );
+      await loadTrip();
+      await loadExperiences();
+    } catch {
+      showToast("Import failed", "error");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   // ── Nearby + Nudges ───────────────────────────────────────────
 
   async function handleNearbyClick(place: { placeId: string; name: string; latitude: number; longitude: number; rating: number; types?: string[] }) {
@@ -357,12 +403,39 @@ export default function PlanPage() {
       {showImport && (
         <div className="px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0">
           <div className="max-w-2xl mx-auto">
-            {!importPreview ? (
+            {/* Mode toggle */}
+            {!importPreview && !recPreview && (
+              <div className="flex gap-1 mb-3">
+                <button
+                  onClick={() => setImportMode("itinerary")}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    importMode === "itinerary"
+                      ? "bg-[#514636] text-white"
+                      : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
+                  }`}
+                >
+                  Itinerary
+                </button>
+                <button
+                  onClick={() => setImportMode("recommendations")}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    importMode === "recommendations"
+                      ? "bg-[#514636] text-white"
+                      : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
+                  }`}
+                >
+                  Recommendations
+                </button>
+              </div>
+            )}
+
+            {/* ── Itinerary mode ── */}
+            {importMode === "itinerary" && !importPreview && !recPreview && (
               <>
                 <textarea
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Paste recommendations, itinerary text, tour details, or chatbot output..."
+                  placeholder="Paste itinerary text, tour details, or chatbot output..."
                   rows={4}
                   className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
                              text-[#3a3128] placeholder-[#c8bba8] text-sm resize-y
@@ -387,14 +460,57 @@ export default function PlanPage() {
                     {importing ? "Analyzing..." : "Extract & Review"}
                   </button>
                   <button
-                    onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); }}
+                    onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); setRecPreview(null); setImportMode("itinerary"); }}
                     className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     Cancel
                   </button>
                 </div>
               </>
-            ) : (
+            )}
+
+            {/* ── Recommendations mode ── */}
+            {importMode === "recommendations" && !importPreview && !recPreview && (
+              <>
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder="Paste recommendations from a friend, email, blog post, or any list of suggestions..."
+                  rows={6}
+                  className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
+                             text-[#3a3128] placeholder-[#c8bba8] text-sm resize-y
+                             focus:outline-none focus:ring-2 focus:ring-[#a89880]"
+                />
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <input
+                    type="text"
+                    value={senderLabel}
+                    onChange={(e) => setSenderLabel(e.target.value)}
+                    placeholder="From whom? (e.g. Larisa)"
+                    className="px-2 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#3a3128]
+                               placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880] w-40"
+                  />
+                  <div className="flex-1" />
+                  <button
+                    onClick={handleRecExtract}
+                    disabled={importing || !importText.trim()}
+                    className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
+                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
+                  >
+                    {importing ? "Analyzing..." : "Extract & Review"}
+                  </button>
+                  <button
+                    onClick={() => { setShowImport(false); setImportText(""); setSenderLabel(""); setRecPreview(null); setImportMode("itinerary"); }}
+                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── Itinerary review ── */}
+            {importPreview && (
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-medium text-[#3a3128]">Review before adding to trip</h3>
@@ -488,7 +604,116 @@ export default function PlanPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); }}
+                    onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); setImportMode("itinerary"); }}
+                    className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Recommendations review ── */}
+            {recPreview && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-[#3a3128]">
+                    {recPreview.recommendations?.length || 0} recommendations extracted
+                  </h3>
+                  <button
+                    onClick={() => setRecPreview(null)}
+                    className="text-xs text-[#8a7a62] hover:text-[#3a3128]"
+                  >
+                    &larr; Edit text
+                  </button>
+                </div>
+                <div className="text-xs max-h-64 overflow-y-auto space-y-3">
+                  {/* Group by: existing city, new city, no city */}
+                  {(() => {
+                    const recs = recPreview.recommendations || [];
+                    const existingCityNames = new Set(trip.cities.map((c) => c.name.toLowerCase()));
+                    const inTrip = recs.filter((r: any) => r.city && existingCityNames.has(r.city.toLowerCase()));
+                    const newCity = recs.filter((r: any) => r.city && !existingCityNames.has(r.city.toLowerCase()));
+                    const noCity = recs.filter((r: any) => !r.city);
+                    // Group newCity by region
+                    const byRegion: Record<string, any[]> = {};
+                    for (const r of newCity) {
+                      const key = r.region || r.city || "Other";
+                      if (!byRegion[key]) byRegion[key] = [];
+                      byRegion[key].push(r);
+                    }
+                    return (
+                      <>
+                        {inTrip.length > 0 && (
+                          <div>
+                            <div className="font-medium text-[#3a3128] mb-1 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                              {inTrip.length} items for cities on your trip
+                            </div>
+                            <div className="space-y-0.5 ml-3.5">
+                              {inTrip.map((r: any, i: number) => (
+                                <div key={i} className="px-2 py-1 rounded bg-green-50 text-[#3a3128]">
+                                  {r.name} <span className="text-[#a89880]">· {r.city}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {Object.keys(byRegion).length > 0 && (
+                          <div>
+                            <div className="font-medium text-[#3a3128] mb-1 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                              {newCity.length} items for new locations
+                            </div>
+                            {Object.entries(byRegion).map(([region, items]) => (
+                              <div key={region} className="ml-3.5 mb-1">
+                                <div className="text-[10px] font-medium text-[#a89880] uppercase">{region}</div>
+                                <div className="space-y-0.5">
+                                  {items.map((r: any, i: number) => (
+                                    <div key={i} className="px-2 py-1 rounded bg-amber-50 text-[#3a3128]">
+                                      {r.name} <span className="text-[#a89880]">· {r.city}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {noCity.length > 0 && (
+                          <div>
+                            <div className="font-medium text-[#3a3128] mb-1 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
+                              {noCity.length} general ideas
+                            </div>
+                            <div className="space-y-0.5 ml-3.5">
+                              {noCity.map((r: any, i: number) => (
+                                <div key={i} className="px-2 py-1 rounded bg-gray-50 text-[#3a3128]">
+                                  {r.name}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                  {recPreview.senderNotes && (
+                    <div className="px-2 py-1.5 bg-[#faf8f5] rounded text-[#8a7a62] italic">
+                      {recPreview.senderNotes}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={handleRecCommit}
+                    disabled={importing}
+                    className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
+                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
+                  >
+                    {importing ? "Importing..." : "Import All"}
+                  </button>
+                  <button
+                    onClick={() => { setShowImport(false); setImportText(""); setRecPreview(null); setSenderLabel(""); setImportMode("itinerary"); }}
                     className="px-3 py-1.5 text-xs text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     Cancel

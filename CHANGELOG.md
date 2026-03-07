@@ -2,6 +2,20 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-07 (cont'd — Recommendation Import)
+
+### Added
+- **Recommendation extraction**: New import mode for unstructured recommendation lists (friend's emails, blog posts, etc.). Uses a dedicated AI prompt that extracts individual places, preserves personal notes/URLs, and classifies by location.
+- **Three-category routing**: Extracted recommendations are categorized:
+  - Green: items in cities already on your trip (added as candidates)
+  - Amber: items in new locations (creates dateless "candidate cities" grouped by sender's region)
+  - Gray: items with no identifiable location (goes to an "Ideas" city bucket)
+- **Import mode toggle**: Import panel now has "Itinerary" and "Recommendations" tabs. Recommendations mode has a "From whom?" field to tag the source.
+- **Recommendation review panel**: Shows color-coded categorization before committing. Items grouped by existing city, new locations (by region), and general ideas.
+- Backend endpoints: `POST /import/extract-recommendations` and `POST /import/commit-recommendations`
+
+SPEC UPDATE NEEDED: Recommendation import is a new feature. Candidate cities (dateless cities for planning options) are a new concept.
+
 ## 2026-03-07 (cont'd — Date Shifting, Backbone Replacement)
 
 ### Added

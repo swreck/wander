@@ -3,7 +3,7 @@ import multer from "multer";
 import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
-import { extractItinerary, type ExtractionResult } from "../services/itineraryExtractor.js";
+import { extractItinerary, extractRecommendations, type ExtractionResult, type RecommendationResult } from "../services/itineraryExtractor.js";
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 
@@ -944,6 +944,204 @@ router.post("/replace-backbone", async (req: AuthRequest, res) => {
   } catch (err: any) {
     console.error("Replace backbone error:", err);
     res.status(500).json({ error: err.message || "Failed to replace backbone" });
+  }
+});
+
+// ── Recommendations extraction + commit ─────────────────────────
+
+// Extract recommendations from unstructured text (friend's email, etc.)
+router.post("/extract-recommendations", async (req: AuthRequest, res) => {
+  try {
+    const { text, country } = req.body;
+    if (!text) {
+      res.status(400).json({ error: "text is required" });
+      return;
+    }
+    const result = await extractRecommendations(text, country);
+    res.json(result);
+  } catch (err: any) {
+    console.error("Recommendation extraction error:", err);
+    res.status(500).json({ error: err.message || "Extraction failed" });
+  }
+});
+
+// Commit extracted recommendations into a trip's experience pool.
+// Category 1: item city matches an existing trip city → add as candidate experience
+// Category 2: item city doesn't match → create a dateless "candidate city" and add experiences
+// Category 3: no city at all → add to a special "Ideas" city
+router.post("/commit-recommendations", async (req: AuthRequest, res) => {
+  try {
+    const { tripId, recommendations, senderNotes, senderLabel } = req.body as {
+      tripId: string;
+      recommendations: RecommendationResult["recommendations"];
+      senderNotes?: string;
+      senderLabel?: string; // e.g. "Larisa's recommendations"
+    };
+
+    if (!tripId || !recommendations?.length) {
+      res.status(400).json({ error: "tripId and recommendations are required" });
+      return;
+    }
+
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: { cities: { orderBy: { sequenceOrder: "asc" } } },
+    });
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+
+    // Build a lookup of existing city names (case-insensitive)
+    const existingCityMap = new Map<string, string>(); // lowercase name → cityId
+    for (const c of trip.cities) {
+      existingCityMap.set(c.name.toLowerCase(), c.id);
+    }
+
+    // Track new candidate cities we create
+    const newCityMap = new Map<string, string>(); // lowercase name → cityId
+    let maxOrder = Math.max(0, ...trip.cities.map((c) => c.sequenceOrder));
+
+    // Create or find the "Ideas" city for category 3
+    let ideasCityId: string | null = null;
+
+    const sourceLabel = senderLabel || "Friend's recommendations";
+    let cat1Count = 0;
+    let cat2Count = 0;
+    let cat3Count = 0;
+
+    for (const rec of recommendations) {
+      let cityId: string | null = null;
+
+      if (rec.city) {
+        const cityKey = rec.city.toLowerCase();
+
+        // Try existing trip city
+        cityId = existingCityMap.get(cityKey) || null;
+
+        // Try new candidate cities we already created this session
+        if (!cityId) cityId = newCityMap.get(cityKey) || null;
+
+        if (cityId) {
+          // Category 1 — existing city
+          if (existingCityMap.has(cityKey)) cat1Count++;
+          else cat2Count++;
+        } else {
+          // Category 2 — new candidate city (no dates, no days)
+          maxOrder++;
+          const city = await prisma.city.create({
+            data: {
+              tripId,
+              name: rec.city,
+              country: rec.country || null,
+              sequenceOrder: maxOrder,
+              // No arrivalDate/departureDate — this is a candidate city
+              tagline: rec.region ? `${rec.region} region` : null,
+            },
+          });
+          newCityMap.set(cityKey, city.id);
+          cityId = city.id;
+          cat2Count++;
+
+          // Geocode the new city
+          geocodeCity(city.id).catch(() => {});
+        }
+      } else {
+        // Category 3 — no location, goes to Ideas city
+        if (!ideasCityId) {
+          const existing = existingCityMap.get("ideas") || newCityMap.get("ideas");
+          if (existing) {
+            ideasCityId = existing;
+          } else {
+            maxOrder++;
+            const ideasCity = await prisma.city.create({
+              data: {
+                tripId,
+                name: "Ideas",
+                country: trip.cities[0]?.country || rec.country || null,
+                sequenceOrder: maxOrder,
+                tagline: "General trip ideas — no specific location",
+              },
+            });
+            newCityMap.set("ideas", ideasCity.id);
+            ideasCityId = ideasCity.id;
+          }
+        }
+        cityId = ideasCityId;
+        cat3Count++;
+      }
+
+      // Build description from rec fields
+      const descParts: string[] = [];
+      if (rec.description) descParts.push(rec.description);
+      if (rec.urls.length > 0) descParts.push(rec.urls.join("\n"));
+
+      // Map extracted themes to valid enum values
+      const validThemes = new Set(["ceramics", "architecture", "food", "temples", "nature", "other"]);
+      const themeMap: Record<string, string> = {
+        pottery: "ceramics", onsen: "nature", hiking: "nature", gardens: "nature",
+        museums: "architecture", art: "architecture", history: "architecture",
+        sake: "food", shopping: "other", culture: "other", trains: "other",
+      };
+      const mappedThemes = rec.themes
+        .map((t: string) => validThemes.has(t) ? t : (themeMap[t] || "other"))
+        .filter((t: string, i: number, arr: string[]) => arr.indexOf(t) === i);
+
+      await prisma.experience.create({
+        data: {
+          tripId,
+          cityId,
+          name: rec.name,
+          description: descParts.join("\n\n") || null,
+          state: "possible",
+          themes: mappedThemes as any,
+          createdBy: req.user!.code,
+          sourceText: sourceLabel,
+          userNotes: rec.accommodationTip ? "Accommodation recommendation" : null,
+        },
+      });
+    }
+
+    // Store sender notes as a log entry if present
+    if (senderNotes) {
+      await logChange({
+        user: req.user!,
+        tripId,
+        actionType: "recommendations_imported",
+        entityType: "trip",
+        entityId: tripId,
+        entityName: trip.name,
+        description: `${req.user!.displayName} imported ${recommendations.length} recommendations (${sourceLabel}). General notes: ${senderNotes}`,
+      });
+    } else {
+      await logChange({
+        user: req.user!,
+        tripId,
+        actionType: "recommendations_imported",
+        entityType: "trip",
+        entityId: tripId,
+        entityName: trip.name,
+        description: `${req.user!.displayName} imported ${recommendations.length} recommendations (${sourceLabel})`,
+      });
+    }
+
+    // Geocode all new experiences
+    const newExps = await prisma.experience.findMany({
+      where: { tripId, sourceText: sourceLabel },
+      select: { id: true },
+    });
+    Promise.all(newExps.map((e) => geocodeExperience(e.id).catch(() => {}))).catch(() => {});
+
+    res.status(201).json({
+      imported: recommendations.length,
+      category1: cat1Count,
+      category2: cat2Count,
+      category3: cat3Count,
+      newCities: [...newCityMap.entries()].map(([name, id]) => ({ name, id })),
+    });
+  } catch (err: any) {
+    console.error("Commit recommendations error:", err);
+    res.status(500).json({ error: err.message || "Failed to commit recommendations" });
   }
 });
 
