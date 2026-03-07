@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
@@ -383,6 +383,12 @@ export default function ExperienceList({
   // Local order state so drag reorder is visually instant
   const [selectedOrder, setSelectedOrder] = useState<string[] | null>(null);
   const [possibleOrder, setPossibleOrder] = useState<string[] | null>(null);
+
+  // Reset cached orders when the experience set changes (e.g. switching cities)
+  const selectedKey = selected.map((e) => e.id).join(",");
+  const possibleKey = possible.map((e) => e.id).join(",");
+  useEffect(() => { setSelectedOrder(null); }, [selectedKey]);
+  useEffect(() => { setPossibleOrder(null); }, [possibleKey]);
 
   const orderedSelected = useMemo(() => {
     if (!selectedOrder) return selected;

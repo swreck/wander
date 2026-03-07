@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Soft-Delete, AI Tools, Bug Fix)
+
+### Fixed
+- **Candidate city experiences not rendering**: When viewing a candidate city (recommendation import) in PlanPage, the right panel showed "0 SELECTED · 4 POSSIBLE" in the header but no experience items below. Root cause: the drag-reorder cache in ExperienceList retained IDs from the previous city; when switching to a candidate city, those IDs didn't match, causing `orderedPossible` to be empty. Fixed by resetting cached order state when the experience set changes. Affects: ExperienceList component.
+
+### Added
+- **Soft-delete for candidate cities**: Cities can now be hidden (dismissed) instead of permanently deleted. Hidden cities and their experiences are preserved in the database but invisible everywhere in the UI. On PlanPage, each candidate city tab has an X button to dismiss, and a "clear" link dismisses all candidates at once. The AI chat agent can restore hidden cities by name ("bring back Ibusuki"). Backend: `hidden` field on City model, filtered in all trip/city includes. Frontend: dismiss buttons on PlanPage filmstrip. SPEC UPDATE NEEDED — candidate city management section.
+- **Three new AI chat tools for city visibility**: `hide_city` (individual or bulk), `restore_city` (fuzzy name match), `list_hidden_cities`. Enables conversational management: "dismiss all the recommendation cities" or "what cities did I archive?"
+- **AI tool: move_experience** — Move an experience from one city to another ("move that ramen place to Osaka"). Fills a gap where previously the AI would need to delete and recreate.
+- **AI tool: bulk_delete_experiences** — Delete multiple experiences at once ("delete all suggestions for Ibusuki"). Previously required N serial delete calls.
+- **AI tool: update_city** — Edit city name, tagline, or country via chat ("rename that city to Saijo" or "add a tagline for Takeo").
+
 ## 2026-03-08
 
 ### Fixed

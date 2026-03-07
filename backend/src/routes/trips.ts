@@ -12,7 +12,7 @@ router.get("/", async (_req, res) => {
   const trips = await prisma.trip.findMany({
     orderBy: { createdAt: "desc" },
     include: {
-      cities: { orderBy: { sequenceOrder: "asc" } },
+      cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       _count: { select: { experiences: true, days: true } },
     },
   });
@@ -24,7 +24,7 @@ router.get("/active", async (_req, res) => {
   const trip = await prisma.trip.findFirst({
     where: { status: "active" },
     include: {
-      cities: { orderBy: { sequenceOrder: "asc" } },
+      cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },
       days: { orderBy: { date: "asc" }, include: { city: true } },
     },
@@ -37,7 +37,7 @@ router.get("/:id", async (req, res) => {
   const trip = await prisma.trip.findUnique({
     where: { id: req.params.id },
     include: {
-      cities: { orderBy: { sequenceOrder: "asc" } },
+      cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },
       days: { orderBy: { date: "asc" }, include: { city: true } },
     },
@@ -133,7 +133,7 @@ router.post("/", async (req: AuthRequest, res) => {
   const full = await prisma.trip.findUnique({
     where: { id: trip.id },
     include: {
-      cities: { orderBy: { sequenceOrder: "asc" } },
+      cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },
       days: { orderBy: { date: "asc" }, include: { city: true } },
     },
@@ -156,7 +156,7 @@ router.post("/:id/activate", async (req: AuthRequest, res) => {
     where: { id: req.params.id as string },
     data: { status: "active" },
     include: {
-      cities: { orderBy: { sequenceOrder: "asc" } },
+      cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },
       days: { orderBy: { date: "asc" }, include: { city: true } },
     },
@@ -197,7 +197,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const full = await prisma.trip.findUnique({
     where: { id: trip.id },
     include: {
-      cities: { orderBy: { sequenceOrder: "asc" } },
+      cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },
       days: { orderBy: { date: "asc" }, include: { city: true } },
     },

@@ -344,7 +344,7 @@ router.post("/commit", async (req: AuthRequest, res) => {
     const full = await prisma.trip.findUnique({
       where: { id: trip.id },
       include: {
-        cities: { orderBy: { sequenceOrder: "asc" } },
+        cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
         routeSegments: { orderBy: { sequenceOrder: "asc" } },
         days: { orderBy: { date: "asc" }, include: { city: true } },
         experiences: { orderBy: { createdAt: "asc" } },
@@ -535,7 +535,7 @@ router.post("/merge", async (req: AuthRequest, res) => {
     const full = await prisma.trip.findUnique({
       where: { id: tripId },
       include: {
-        cities: { orderBy: { sequenceOrder: "asc" } },
+        cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
         routeSegments: { orderBy: { sequenceOrder: "asc" } },
         days: { orderBy: { date: "asc" }, include: { city: true } },
         experiences: { orderBy: { createdAt: "asc" } },
@@ -568,7 +568,7 @@ router.post("/replace-backbone", async (req: AuthRequest, res) => {
     const trip = await prisma.trip.findUnique({
       where: { id: tripId },
       include: {
-        cities: { orderBy: { sequenceOrder: "asc" } },
+        cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
         routeSegments: { orderBy: { sequenceOrder: "asc" } },
       },
     });
@@ -924,7 +924,7 @@ router.post("/replace-backbone", async (req: AuthRequest, res) => {
     const full = await prisma.trip.findUnique({
       where: { id: tripId },
       include: {
-        cities: { orderBy: { sequenceOrder: "asc" } },
+        cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
         routeSegments: { orderBy: { sequenceOrder: "asc" } },
         days: { orderBy: { date: "asc" }, include: { city: true } },
         experiences: { orderBy: { createdAt: "asc" } },
@@ -985,7 +985,7 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
 
     const trip = await prisma.trip.findUnique({
       where: { id: tripId },
-      include: { cities: { orderBy: { sequenceOrder: "asc" } } },
+      include: { cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } } },
     });
     if (!trip) {
       res.status(404).json({ error: "Trip not found" });

@@ -8,6 +8,7 @@ export interface City {
   sequenceOrder: number;
   arrivalDate: string | null;
   departureDate: string | null;
+  hidden?: boolean;
   _count?: { experiences: number; days: number };
 }
 

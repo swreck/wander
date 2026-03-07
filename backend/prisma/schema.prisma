@@ -107,6 +107,7 @@ model City {
   sequenceOrder Int      @map("sequence_order")
   arrivalDate   DateTime? @map("arrival_date")
   departureDate DateTime? @map("departure_date")
+  hidden        Boolean  @default(false)
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   days           Day[]

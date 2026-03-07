@@ -9,7 +9,7 @@ router.use(requireAuth);
 
 router.get("/trip/:tripId", async (req, res) => {
   const cities = await prisma.city.findMany({
-    where: { tripId: req.params.tripId as string },
+    where: { tripId: req.params.tripId as string, hidden: false },
     orderBy: { sequenceOrder: "asc" },
     include: {
       _count: { select: { experiences: true, days: true } },
@@ -120,7 +120,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.city.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "City not found" }); return; }
 
-  const { name, tagline, country, arrivalDate, departureDate, sequenceOrder } = req.body;
+  const { name, tagline, country, arrivalDate, departureDate, sequenceOrder, hidden } = req.body;
 
   const city = await prisma.city.update({
     where: { id: req.params.id as string },
@@ -131,6 +131,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
       ...(sequenceOrder !== undefined && { sequenceOrder }),
       ...(arrivalDate !== undefined && { arrivalDate: arrivalDate ? new Date(arrivalDate) : null }),
       ...(departureDate !== undefined && { departureDate: departureDate ? new Date(departureDate) : null }),
+      ...(hidden !== undefined && { hidden }),
     },
   });
 
@@ -245,7 +246,7 @@ router.delete("/:id", async (req: AuthRequest, res) => {
 
   // Find another city in the trip to reassign experiences to (if any)
   const otherCity = await prisma.city.findFirst({
-    where: { tripId: existing.tripId, id: { not: existing.id } },
+    where: { tripId: existing.tripId, id: { not: existing.id }, hidden: false },
     orderBy: { sequenceOrder: "asc" },
   });
 

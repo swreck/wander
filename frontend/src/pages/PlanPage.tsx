@@ -168,6 +168,36 @@ export default function PlanPage() {
     await loadExperiences();
   }
 
+  async function handleHideCity(cityId: string) {
+    try {
+      await api.patch(`/cities/${cityId}`, { hidden: true });
+      if (selectedCandidateCityId === cityId) {
+        setSelectedCandidateCityId(null);
+        if (days.length > 0) setSelectedDayId(days[0].id);
+      }
+      showToast("City dismissed");
+      await loadTrip();
+      await loadExperiences();
+    } catch {
+      showToast("Couldn't dismiss city", "error");
+    }
+  }
+
+  async function handleHideAllCandidates() {
+    if (!trip) return;
+    const ids = candidateCities.map((c) => c.id);
+    try {
+      await Promise.all(ids.map((id) => api.patch(`/cities/${id}`, { hidden: true })));
+      setSelectedCandidateCityId(null);
+      if (days.length > 0) setSelectedDayId(days[0].id);
+      showToast(`Dismissed ${ids.length} recommendation cities`);
+      await loadTrip();
+      await loadExperiences();
+    } catch {
+      showToast("Couldn't dismiss cities", "error");
+    }
+  }
+
   // ── Import ────────────────────────────────────────────────────
 
   async function handleImportExtract() {
@@ -946,48 +976,69 @@ export default function PlanPage() {
               {/* Dateless candidate cities from recommendation imports */}
               {candidateCities.length > 0 && (
                 <>
-                  <div className="shrink-0 w-px bg-[#e0d8cc] mx-1 self-stretch" />
+                  <div className="shrink-0 flex flex-col items-center justify-center mx-1 self-stretch gap-1">
+                    <div className="w-px flex-1 bg-[#e0d8cc]" />
+                    <button
+                      onClick={handleHideAllCandidates}
+                      className="text-xs text-[#c8bba8] hover:text-[#8a7a62] whitespace-nowrap px-1"
+                      title="Dismiss all recommendation cities"
+                    >
+                      clear
+                    </button>
+                    <div className="w-px flex-1 bg-[#e0d8cc]" />
+                  </div>
                   {candidateCities.map((city) => {
                     const isActive = selectedCandidateCityId === city.id;
                     const cityExpCount = experiences.filter((e) => e.cityId === city.id).length;
                     return (
-                      <button
-                        key={city.id}
-                        onClick={() => {
-                          setSelectedCandidateCityId(isActive ? null : city.id);
-                          if (!isActive) setSelectedDayId(null);
-                          else if (days.length > 0) setSelectedDayId(days[0].id);
-                        }}
-                        className={`shrink-0 rounded-lg overflow-hidden transition-all ${
-                          isActive
-                            ? "ring-2 ring-[#514636] w-[110px]"
-                            : "w-[100px] opacity-80 hover:opacity-100"
-                        }`}
-                      >
-                        <div
-                          className="w-full h-12 flex items-center justify-center"
-                          style={{ backgroundColor: "#f0ece5" }}
+                      <div key={city.id} className="shrink-0 relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleHideCity(city.id);
+                          }}
+                          className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-[#e0d8cc] hover:bg-[#c8bba8] flex items-center justify-center text-xs text-[#514636]"
+                          title={`Dismiss ${city.name}`}
                         >
-                          <span className="text-lg">📌</span>
-                        </div>
-                        <div
-                          className="px-1.5 py-1 text-center"
-                          style={isActive
-                            ? { backgroundColor: "#514636", color: "#fff" }
-                            : { backgroundColor: "#f5f0e8", color: "#3a3128" }
-                          }
+                          ×
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedCandidateCityId(isActive ? null : city.id);
+                            if (!isActive) setSelectedDayId(null);
+                            else if (days.length > 0) setSelectedDayId(days[0].id);
+                          }}
+                          className={`rounded-lg overflow-hidden transition-all ${
+                            isActive
+                              ? "ring-2 ring-[#514636] w-[110px]"
+                              : "w-[100px] opacity-80 hover:opacity-100"
+                          }`}
                         >
-                          <div className="text-xs font-semibold">
-                            {cityExpCount} ideas
+                          <div
+                            className="w-full h-12 flex items-center justify-center"
+                            style={{ backgroundColor: "#f0ece5" }}
+                          >
+                            <span className="text-lg">📌</span>
                           </div>
                           <div
-                            className={`text-xs leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
-                            style={{ wordBreak: "break-word" }}
+                            className="px-1.5 py-1 text-center"
+                            style={isActive
+                              ? { backgroundColor: "#514636", color: "#fff" }
+                              : { backgroundColor: "#f5f0e8", color: "#3a3128" }
+                            }
                           >
-                            {city.name}
+                            <div className="text-xs font-semibold">
+                              {cityExpCount} ideas
+                            </div>
+                            <div
+                              className={`text-xs leading-tight mt-0.5 ${isActive ? "opacity-80" : "opacity-60"}`}
+                              style={{ wordBreak: "break-word" }}
+                            >
+                              {city.name}
+                            </div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                      </div>
                     );
                   })}
                 </>

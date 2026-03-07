@@ -255,6 +255,78 @@ const tools: Anthropic.Tool[] = [
       required: ["tripId", "text"],
     },
   },
+  {
+    name: "hide_city",
+    description: "Hide a city from the trip view. The city and its experiences are preserved but invisible. Use this when the user wants to dismiss, clear, or archive a recommendation city. Also supports hiding ALL candidate/recommendation cities at once by passing hideAll: true.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        cityId: { type: "string", description: "The city ID to hide (optional if hideAll is true)" },
+        tripId: { type: "string", description: "Required when using hideAll" },
+        hideAll: { type: "boolean", description: "If true, hide ALL dateless candidate cities in the trip" },
+      },
+    },
+  },
+  {
+    name: "restore_city",
+    description: "Restore a previously hidden city, making it visible again. Use this when the user asks to bring back a dismissed city or its experiences. Can search by name.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        cityName: { type: "string", description: "Name of the city to restore (fuzzy match)" },
+      },
+      required: ["tripId", "cityName"],
+    },
+  },
+  {
+    name: "list_hidden_cities",
+    description: "List all hidden/dismissed cities in the trip. Use this when the user asks what was dismissed, archived, or wants to see what recommendation cities are available to restore.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+      },
+      required: ["tripId"],
+    },
+  },
+  {
+    name: "move_experience",
+    description: "Move an experience from one city to another. Use when the user says something like 'move X to Osaka' or 'that belongs in Kyoto not Tokyo'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        experienceId: { type: "string" },
+        newCityId: { type: "string", description: "The city to move the experience to" },
+      },
+      required: ["experienceId", "newCityId"],
+    },
+  },
+  {
+    name: "bulk_delete_experiences",
+    description: "Delete multiple experiences at once. Use when the user wants to clear all suggestions for a city, delete all items from a source, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        experienceIds: { type: "array", items: { type: "string" }, description: "Array of experience IDs to delete" },
+      },
+      required: ["experienceIds"],
+    },
+  },
+  {
+    name: "update_city",
+    description: "Edit a city's name, tagline, or country. Use when the user wants to rename a city or update its description.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        cityId: { type: "string" },
+        name: { type: "string", description: "New city name" },
+        tagline: { type: "string", description: "Short tagline or description" },
+        country: { type: "string", description: "Country name" },
+      },
+      required: ["cityId"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -268,7 +340,7 @@ async function executeTool(
       const trip = await prisma.trip.findUnique({
         where: { id: input.tripId },
         include: {
-          cities: { orderBy: { sequenceOrder: "asc" }, include: { _count: { select: { experiences: true, days: true } } } },
+          cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" }, include: { _count: { select: { experiences: true, days: true } } } },
           routeSegments: { orderBy: { sequenceOrder: "asc" } },
           _count: { select: { days: true, experiences: true } },
         },
@@ -580,7 +652,7 @@ async function executeTool(
       if (!existing) return { result: { error: "City not found" } };
       // Move experiences to another city before deleting
       const otherCity = await prisma.city.findFirst({
-        where: { tripId: existing.tripId, id: { not: existing.id } },
+        where: { tripId: existing.tripId, id: { not: existing.id }, hidden: false },
         orderBy: { sequenceOrder: "asc" },
       });
       if (otherCity) {
@@ -736,7 +808,7 @@ async function executeTool(
     case "import_recommendations": {
       const trip = await prisma.trip.findUnique({
         where: { id: input.tripId },
-        include: { cities: { orderBy: { sequenceOrder: "asc" } } },
+        include: { cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } } },
       });
       if (!trip) return { result: { error: "Trip not found" } };
 
@@ -885,6 +957,164 @@ async function executeTool(
       };
     }
 
+    case "hide_city": {
+      if (input.hideAll && input.tripId) {
+        // Hide all dateless candidate cities
+        const candidates = await prisma.city.findMany({
+          where: { tripId: input.tripId, hidden: false, arrivalDate: null },
+          select: { id: true, name: true },
+        });
+        if (candidates.length === 0) return { result: { message: "No candidate cities to hide" } };
+        await prisma.city.updateMany({
+          where: { id: { in: candidates.map((c) => c.id) } },
+          data: { hidden: true },
+        });
+        const names = candidates.map((c) => c.name);
+        await logChange({
+          user,
+          tripId: input.tripId,
+          actionType: "cities_hidden",
+          entityType: "trip",
+          entityId: input.tripId,
+          entityName: `${candidates.length} cities`,
+          description: `${user.displayName} dismissed ${candidates.length} recommendation cities: ${names.join(", ")}`,
+        });
+        return { result: { hidden: names }, actionDescription: `Dismissed ${candidates.length} recommendation cities` };
+      }
+      if (!input.cityId) return { result: { error: "cityId or hideAll+tripId required" } };
+      const city = await prisma.city.findUnique({ where: { id: input.cityId } });
+      if (!city) return { result: { error: "City not found" } };
+      await prisma.city.update({ where: { id: input.cityId }, data: { hidden: true } });
+      await logChange({
+        user,
+        tripId: city.tripId,
+        actionType: "city_hidden",
+        entityType: "city",
+        entityId: city.id,
+        entityName: city.name,
+        description: `${user.displayName} dismissed "${city.name}" from the trip view`,
+      });
+      return { result: { hidden: city.name }, actionDescription: `Dismissed "${city.name}"` };
+    }
+
+    case "restore_city": {
+      const hidden = await prisma.city.findMany({
+        where: { tripId: input.tripId, hidden: true },
+        include: { _count: { select: { experiences: true } } },
+      });
+      const searchLower = input.cityName.toLowerCase();
+      const match = hidden.find((c) => c.name.toLowerCase() === searchLower)
+        || hidden.find((c) => c.name.toLowerCase().includes(searchLower) || searchLower.includes(c.name.toLowerCase()));
+      if (!match) {
+        const available = hidden.map((c) => c.name);
+        return { result: { error: `No hidden city matching "${input.cityName}". Hidden cities: ${available.join(", ") || "none"}` } };
+      }
+      await prisma.city.update({ where: { id: match.id }, data: { hidden: false } });
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "city_restored",
+        entityType: "city",
+        entityId: match.id,
+        entityName: match.name,
+        description: `${user.displayName} restored "${match.name}" (${match._count.experiences} experiences)`,
+      });
+      return { result: { restored: match.name, experiences: match._count.experiences }, actionDescription: `Restored "${match.name}" with ${match._count.experiences} experiences` };
+    }
+
+    case "list_hidden_cities": {
+      const hidden = await prisma.city.findMany({
+        where: { tripId: input.tripId, hidden: true },
+        include: { _count: { select: { experiences: true } } },
+        orderBy: { name: "asc" },
+      });
+      return {
+        result: hidden.map((c) => ({ name: c.name, experiences: c._count.experiences, tagline: c.tagline })),
+      };
+    }
+
+    case "move_experience": {
+      const exp = await prisma.experience.findUnique({ where: { id: input.experienceId }, include: { city: true } });
+      if (!exp) return { result: { error: "Experience not found" } };
+      const newCity = await prisma.city.findUnique({ where: { id: input.newCityId } });
+      if (!newCity) return { result: { error: "City not found" } };
+
+      await prisma.experience.update({
+        where: { id: input.experienceId },
+        data: { cityId: input.newCityId },
+      });
+
+      await logChange({
+        user,
+        tripId: exp.tripId,
+        actionType: "experience_edited",
+        entityType: "experience",
+        entityId: exp.id,
+        entityName: exp.name,
+        description: `${user.displayName} moved "${exp.name}" from ${exp.city?.name} to ${newCity.name}`,
+      });
+
+      return {
+        result: { moved: exp.name, from: exp.city?.name, to: newCity.name },
+        actionDescription: `Moved "${exp.name}" to ${newCity.name}`,
+      };
+    }
+
+    case "bulk_delete_experiences": {
+      const ids: string[] = input.experienceIds;
+      const exps = await prisma.experience.findMany({ where: { id: { in: ids } } });
+      if (exps.length === 0) return { result: { error: "No experiences found" } };
+
+      await prisma.experience.deleteMany({ where: { id: { in: ids } } });
+
+      const tripId = exps[0].tripId;
+      await logChange({
+        user,
+        tripId,
+        actionType: "experience_deleted",
+        entityType: "experience",
+        entityId: ids[0],
+        entityName: `${exps.length} experiences`,
+        description: `${user.displayName} deleted ${exps.length} experiences: ${exps.map((e) => e.name).join(", ")}`,
+      });
+
+      return {
+        result: { deleted: exps.length, names: exps.map((e) => e.name) },
+        actionDescription: `Deleted ${exps.length} experiences`,
+      };
+    }
+
+    case "update_city": {
+      const city = await prisma.city.findUnique({ where: { id: input.cityId } });
+      if (!city) return { result: { error: "City not found" } };
+
+      const updated = await prisma.city.update({
+        where: { id: input.cityId },
+        data: {
+          ...(input.name !== undefined && { name: input.name }),
+          ...(input.tagline !== undefined && { tagline: input.tagline || null }),
+          ...(input.country !== undefined && { country: input.country }),
+        },
+      });
+
+      await logChange({
+        user,
+        tripId: city.tripId,
+        actionType: "city_edited",
+        entityType: "city",
+        entityId: city.id,
+        entityName: updated.name,
+        description: `${user.displayName} updated city "${city.name}"${input.name && input.name !== city.name ? ` → "${input.name}"` : ""}`,
+        previousState: city,
+        newState: updated,
+      });
+
+      return {
+        result: { updated: updated.name, tagline: updated.tagline, country: updated.country },
+        actionDescription: `Updated city "${updated.name}"`,
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -986,7 +1216,9 @@ RULES:
 11. NEVER ask the user for a trip ID, city ID, day ID, or any internal identifier. These are always provided in the CURRENT CONTEXT above. If the trip ID shows "none", tell the user no active trip was found.
 12. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations IMMEDIATELY. Do not ask for confirmation first — just do it. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
 13. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.
-14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.`;
+14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.
+15. Cities can be "hidden" (dismissed). When listing trip cities, only show visible ones. When the user asks to bring back, restore, or recall a dismissed city, use restore_city. When asked what was dismissed or archived, use list_hidden_cities.
+16. When the user asks to clear, dismiss, or archive recommendation cities, use hide_city with hideAll: true. Individual cities can be hidden with hide_city by cityId.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];
