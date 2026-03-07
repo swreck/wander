@@ -845,6 +845,7 @@ export default function PlanPage() {
             recenterKey={recenterKey}
             themeFilter={themeFilter}
             onThemeFilterChange={setThemeFilter}
+            dayId={selectedDay?.id || null}
           />
 
           {/* Contextual day card — floating over map */}

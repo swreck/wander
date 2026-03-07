@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Circle Overlay Fix)
+
+### Fixed
+- **Travel circle now scoped to current day**: The walking-distance circle was encompassing ALL selected experiences across the entire city (producing absurd 41.6 km circles spanning Fushimi to Philosopher's Path). Now it only includes selected experiences assigned to the currently viewed day. When no day is selected, it falls back to all selected.
+- **Circle radius capped at 2.5 km**: No circle can exceed 5 km diameter (~3.1 miles), keeping it within walkable range. Minimum remains 2 km diameter (~1.2 miles) for single items.
+- **Circle label now shows miles**: Switched from kilometers to miles for the distance label and walking time calculation (at 2 mph), matching user expectations for US travelers.
+- **Map pins still show all city experiences**: Only the circle is day-filtered — all selected experience markers for the city remain visible on the map regardless of day.
+
+SPEC UPDATE NEEDED: Travel geometry overlay section should note day-scoping, mile display, and radius cap.
+
 ## 2026-03-08 (cont'd — Map Cleanup, Layout Fixes)
 
 ### Fixed

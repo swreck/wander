@@ -27,6 +27,7 @@ interface Props {
   recenterKey?: number;
   themeFilter?: string | null;
   onThemeFilterChange?: (theme: string | null) => void;
+  dayId?: string | null;
 }
 
 // ── Theme marker config ─────────────────────────────────────────
@@ -362,24 +363,24 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
     return { lat, lng };
   }, [geoPoints]);
 
-  // Radius: at least 1km (2km diameter default), or enough to contain all points + 20% padding
+  // Radius: at least 1km (2km diameter default), capped at 2.5km for walkability
   const radiusM = useMemo(() => {
     if (!center || geoPoints.length === 0) return 1000;
-    if (geoPoints.length === 1) return 1000; // 2km diameter default
+    if (geoPoints.length === 1) return 1000; // 2km diameter default (~1.2 mi)
     let maxDist = 0;
     for (const p of geoPoints) {
       const d = haversineKm(center.lat, center.lng, p.lat, p.lng) * 1000;
       if (d > maxDist) maxDist = d;
     }
-    return Math.max(1000, maxDist * 1.2); // at least 1km radius, else fit all + 20%
+    return Math.min(2500, Math.max(1000, maxDist * 1.2)); // 1km min, 2.5km max
   }, [center, geoPoints]);
 
-  // Walking time: diameter at 3 km/hr
-  const diameterKm = (radiusM * 2) / 1000;
+  // Walking time: diameter at ~2 mph (3.2 km/hr), displayed in miles
+  const diameterMi = useMemo(() => (radiusM * 2) / 1000 * 0.621371, [radiusM]);
   const walkingMin = useMemo(() => {
-    const raw = (diameterKm / 3) * 60; // 3 km/hr
+    const raw = (diameterMi / 2) * 60; // 2 mph walking speed
     return Math.round(raw / 5) * 5 || 5; // round to nearest 5 min
-  }, [diameterKm]);
+  }, [diameterMi]);
 
   // Use a stable key so the effect fires when the set of experiences changes
   const expKey = selectedExps.map((e) => e.id).sort().join(",");
@@ -410,8 +411,8 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
   if (geoPoints.length === 0 || !center) return null;
 
   const label = geoPoints.length === 1
-    ? `~${walkingMin} min walking radius`
-    : `${diameterKm.toFixed(1)} km spread · ~${walkingMin} min walk`;
+    ? `~${diameterMi.toFixed(1)} mi · ~${walkingMin} min walk`
+    : `${diameterMi.toFixed(1)} mi spread · ~${walkingMin} min walk`;
 
   return (
     <MapControl position={ControlPosition.LEFT_TOP}>
@@ -505,7 +506,7 @@ function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeThem
   );
 }
 
-export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true, highlightedExpId, recenterKey, themeFilter, onThemeFilterChange }: Props) {
+export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true, highlightedExpId, recenterKey, themeFilter, onThemeFilterChange, dayId }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -536,6 +537,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
   const matchesFilter = (themes: string[]) => !themeFilter || themes.includes(themeFilter);
 
   const selectedExps = confirmedExps.filter((e) => e.state === "selected");
+  const daySelectedExps = dayId ? selectedExps.filter((e) => e.dayId === dayId) : selectedExps;
   const possibleExps = confirmedExps.filter((e) => e.state === "possible");
   const filteredSelected = selectedExps.filter((e) => matchesFilter(e.themes));
   const filteredPossible = possibleExps.filter((e) => matchesFilter(e.themes));
@@ -585,7 +587,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         style={{ width: "100%", height: "100%" }}
       >
         <MapPanner center={center} experiences={experiences} recenterKey={recenterKey} />
-        <TravelGeometryOverlay selectedExps={selectedExps} />
+        <TravelGeometryOverlay selectedExps={daySelectedExps} />
 
         {/* Theme filter bar */}
         {onThemeFilterChange && (
