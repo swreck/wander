@@ -81,12 +81,14 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
     }
   };
 
-  // Auto-resize textarea to fit content
+  // Auto-resize textarea to fit content (up to 40% of chat panel)
   const autoResize = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
+    const panel = el.closest("[data-chat-panel]") as HTMLElement | null;
+    const maxH = panel ? panel.clientHeight * 0.4 : 200;
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+    el.style.height = Math.min(el.scrollHeight, maxH) + "px";
   }, []);
 
   if (!open) {
@@ -116,6 +118,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
 
       {/* Chat panel — bottom sheet on mobile, side panel on desktop */}
       <div
+        data-chat-panel
         className="fixed z-50 flex flex-col bg-[#faf8f5] shadow-2xl border border-[#e5ddd0]
           inset-x-0 bottom-0 max-h-[75vh] rounded-t-2xl
           sm:inset-auto sm:bottom-6 sm:right-6 sm:w-96 sm:max-h-[500px] sm:rounded-2xl"
@@ -210,7 +213,6 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
               disabled={sending}
               rows={1}
               className="flex-1 bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-sm text-[#3a3128] placeholder:text-[#a89a82] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50 resize-none"
-              style={{ maxHeight: 120 }}
             />
             <button
               onClick={sendMessage}
