@@ -414,9 +414,9 @@ function TravelGeometryOverlay({ selectedExps }: { selectedExps: Experience[] })
     : `${diameterKm.toFixed(1)} km spread · ~${walkingMin} min walk`;
 
   return (
-    <MapControl position={ControlPosition.TOP_CENTER}>
+    <MapControl position={ControlPosition.LEFT_TOP}>
       <div
-        className="mt-14 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
+        className="ml-2 mt-24 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
         style={{ backgroundColor: "rgba(255,255,255,0.92)" }}
       >
         <div className="text-xs text-[#3a3128] font-medium flex items-center gap-1.5">
