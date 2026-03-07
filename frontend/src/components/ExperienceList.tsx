@@ -228,7 +228,12 @@ function SortablePossibleItem({
   setPromoteTimeWindow,
   days,
   onPromoteSubmit,
+  onDirectPromote,
   onExperienceClick,
+  onHover,
+  locatingId,
+  setLocatingId,
+  onLocationResolved,
 }: {
   exp: Experience;
   promotingId: string | null;
