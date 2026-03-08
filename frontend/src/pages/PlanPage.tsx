@@ -428,27 +428,8 @@ export default function PlanPage() {
     }
   }
 
-  // ── Derived display data ──────────────────────────────────────
-
-  if (loading || !trip) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
-        Loading...
-      </div>
-    );
-  }
-
-  // Show experiences for the selected day's city
-  const cityExperiences = selectedCandidateCityId
-    ? experiences.filter((e) => e.cityId === selectedCandidateCityId)
-    : selectedDay
-      ? experiences.filter((e) => e.cityId === selectedDay.cityId)
-      : experiences;
-
-  const selected = cityExperiences.filter((e) => e.state === "selected");
-  const possible = cityExperiences.filter((e) => e.state === "possible");
-
   // Backroads days: continuous date range from first to last itinerary-imported item
+  // NOTE: useMemo must be called before any early returns to maintain hook order
   const backroadsDayIds = useMemo(() => {
     const set = new Set<string>();
     const brDates: { date: string; dayId: string }[] = [];
@@ -468,6 +449,26 @@ export default function PlanPage() {
     }
     return set;
   }, [experiences, days]);
+
+  // ── Derived display data ──────────────────────────────────────
+
+  if (loading || !trip) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
+        Loading...
+      </div>
+    );
+  }
+
+  // Show experiences for the selected day's city
+  const cityExperiences = selectedCandidateCityId
+    ? experiences.filter((e) => e.cityId === selectedCandidateCityId)
+    : selectedDay
+      ? experiences.filter((e) => e.cityId === selectedDay.cityId)
+      : experiences;
+
+  const selected = cityExperiences.filter((e) => e.state === "selected");
+  const possible = cityExperiences.filter((e) => e.state === "possible");
 
   // Friction dots for filmstrip
   const dayFrictionMap = new Map<string, boolean>();
