@@ -102,6 +102,29 @@ export default function TripOverview() {
     return Math.round((new Date(departure).getTime() - new Date(arrival).getTime()) / 86400000);
   }
 
+  // Backroads days: continuous range from earliest to latest itinerary-imported day
+  // NOTE: useMemo must be called before any early returns to maintain hook order
+  const backroadsDays = useMemo(() => {
+    if (!trip) return new Set<string>();
+    const set = new Set<string>();
+    const brDates: string[] = [];
+    for (const exp of experiences) {
+      if (exp.sourceText === "Imported from itinerary document" && exp.dayId) {
+        const day = trip.days.find((d) => d.id === exp.dayId);
+        if (day?.date) brDates.push(day.date);
+      }
+    }
+    if (brDates.length === 0) return set;
+    brDates.sort();
+    const startDate = new Date(brDates[0]);
+    const endDate = new Date(brDates[brDates.length - 1]);
+    for (const day of trip.days) {
+      const d = new Date(day.date);
+      if (d >= startDate && d <= endDate) set.add(day.id);
+    }
+    return set;
+  }, [experiences, trip]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
@@ -162,27 +185,6 @@ export default function TripOverview() {
       possiblePerCity[exp.cityId] = (possiblePerCity[exp.cityId] || 0) + 1;
     }
   }
-
-  // Backroads days: continuous range from earliest to latest itinerary-imported day
-  const backroadsDays = useMemo(() => {
-    const set = new Set<string>();
-    const brDates: string[] = [];
-    for (const exp of experiences) {
-      if (exp.sourceText === "Imported from itinerary document" && exp.dayId) {
-        const day = trip.days.find((d) => d.id === exp.dayId);
-        if (day?.date) brDates.push(day.date);
-      }
-    }
-    if (brDates.length === 0) return set;
-    brDates.sort();
-    const startDate = new Date(brDates[0]);
-    const endDate = new Date(brDates[brDates.length - 1]);
-    for (const day of trip.days) {
-      const d = new Date(day.date);
-      if (d >= startDate && d <= endDate) set.add(day.id);
-    }
-    return set;
-  }, [experiences, trip]);
 
   // Only show itinerary cities (dated, not hidden) on the overview map
   const itineraryCities = trip.cities.filter((c) => c.arrivalDate && !c.hidden);
