@@ -430,7 +430,10 @@ function TravelGeometryOverlay({ geo, isDayScoped }: { geo: CircleGeo | null; is
 
   const itemWord = count === 1 ? "item" : "items";
   const scope = isDayScoped ? "Today" : "All selected";
-  const label = `${scope}: ${count} ${itemWord} · ${diameterMi.toFixed(1)} mi · ~${walkingMin} min walk`;
+  const walkTime = walkingMin >= 60
+    ? `~${(walkingMin / 60).toFixed(1)} hr walk`
+    : `~${walkingMin} min walk`;
+  const label = `${scope}: ${count} ${itemWord} · ${diameterMi.toFixed(1)} mi · ${walkTime}`;
 
   return (
     <MapControl position={ControlPosition.LEFT_TOP}>
