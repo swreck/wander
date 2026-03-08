@@ -6,15 +6,23 @@ router.use(requireAuth);
 
 const BUFFER_MINUTES: Record<string, number> = {
   walk: 10,
-  transit: 15,
+  subway: 10,
+  train: 15,
+  bus: 10,
   taxi: 5,
+  shuttle: 10,
+  other: 10,
 };
 
 // Average speeds in km/h for fallback estimation
 const FALLBACK_SPEEDS: Record<string, number> = {
   walk: 4.5,
-  transit: 25,
+  subway: 30,
+  train: 25,
+  bus: 20,
   taxi: 30,
+  shuttle: 25,
+  other: 20,
 };
 
 /**
@@ -58,7 +66,7 @@ function fallbackEstimate(
  * POST /api/travel-time
  *
  * Body: { originLat, originLng, destLat, destLng, mode, anchorTime? }
- *   - mode: "walk" | "transit" | "taxi"
+ *   - mode: "walk" | "subway" | "train" | "bus" | "taxi" | "shuttle" | "other"
  *   - anchorTime: ISO string of when you need to arrive (optional)
  *
  * Returns: { durationMinutes, bufferMinutes, totalMinutes, departureTime?, source }
@@ -87,8 +95,16 @@ router.post("/", async (req, res) => {
   if (apiKey) {
     try {
       // Map our mode names to Google Distance Matrix modes
-      const googleMode =
-        travelMode === "taxi" ? "driving" : travelMode === "transit" ? "transit" : "walking";
+      const modeMap: Record<string, string> = {
+        walk: "walking",
+        subway: "transit",
+        train: "transit",
+        bus: "transit",
+        taxi: "driving",
+        shuttle: "driving",
+        other: "driving",
+      };
+      const googleMode = modeMap[travelMode] || "walking";
 
       const url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json");
       url.searchParams.set("origins", `${originLat},${originLng}`);

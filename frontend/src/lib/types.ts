@@ -34,6 +34,13 @@ export interface RouteSegment {
   transportMode: string;
   departureDate: string | null;
   notes: string | null;
+  confirmationNumber: string | null;
+  serviceNumber: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  departureStation: string | null;
+  arrivalStation: string | null;
+  seatInfo: string | null;
 }
 
 export interface ExperienceRating {

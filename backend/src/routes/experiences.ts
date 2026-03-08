@@ -79,7 +79,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   });
   if (!existing) { res.status(404).json({ error: "Experience not found" }); return; }
 
-  const { name, description, themes, userNotes, latitude, longitude, locationStatus, placeIdGoogle, cloudinaryImageId, priorityOrder, cityId, state, dayId, timeWindow } = req.body;
+  const { name, description, themes, userNotes, latitude, longitude, locationStatus, placeIdGoogle, cloudinaryImageId, priorityOrder, cityId, state, dayId, timeWindow, transportModeToHere } = req.body;
 
   const exp = await prisma.experience.update({
     where: { id: req.params.id as string },
@@ -98,6 +98,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
       ...(state !== undefined && { state }),
       ...(dayId !== undefined && { dayId: dayId || null }),
       ...(timeWindow !== undefined && { timeWindow: timeWindow || null }),
+      ...(transportModeToHere !== undefined && { transportModeToHere: transportModeToHere || null }),
       lastEditedBy: req.user!.code,
     },
     include: { ratings: true, city: true, day: true },

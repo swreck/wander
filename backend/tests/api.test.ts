@@ -899,7 +899,7 @@ describe("Wander API — Comprehensive Test Suite", () => {
       expect(["google", "fallback"]).toContain(res.body.source);
     });
 
-    it("calculates travel time with transit mode", async () => {
+    it("calculates travel time with subway mode", async () => {
       const res = await request(app)
         .post("/api/travel-time")
         .set("Authorization", `Bearer ${token}`)
@@ -908,11 +908,11 @@ describe("Wander API — Comprehensive Test Suite", () => {
           originLng: 139.6503,
           destLat: 35.7148,
           destLng: 139.7967,
-          mode: "transit",
+          mode: "subway",
         });
       expect(res.status).toBe(200);
-      expect(res.body.bufferMinutes).toBe(15); // transit buffer
-      expect(res.body.mode).toBe("transit");
+      expect(res.body.bufferMinutes).toBe(10); // subway buffer
+      expect(res.body.mode).toBe("subway");
     });
 
     it("calculates travel time with taxi mode", async () => {

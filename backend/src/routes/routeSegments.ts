@@ -27,7 +27,9 @@ router.get("/:id", async (req, res) => {
 });
 
 router.post("/", async (req: AuthRequest, res) => {
-  const { tripId, originCity, destinationCity, transportMode, departureDate, notes } = req.body;
+  const { tripId, originCity, destinationCity, transportMode, departureDate, notes,
+          confirmationNumber, serviceNumber, departureTime, arrivalTime,
+          departureStation, arrivalStation, seatInfo } = req.body;
 
   const maxSeg = await prisma.routeSegment.findFirst({
     where: { tripId },
@@ -43,6 +45,13 @@ router.post("/", async (req: AuthRequest, res) => {
       transportMode: transportMode || "other",
       departureDate: departureDate ? new Date(departureDate) : null,
       notes: notes || null,
+      confirmationNumber: confirmationNumber || null,
+      serviceNumber: serviceNumber || null,
+      departureTime: departureTime || null,
+      arrivalTime: arrivalTime || null,
+      departureStation: departureStation || null,
+      arrivalStation: arrivalStation || null,
+      seatInfo: seatInfo || null,
     },
   });
 
@@ -64,13 +73,22 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.routeSegment.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Route segment not found" }); return; }
 
-  const { transportMode, departureDate, notes } = req.body;
+  const { transportMode, departureDate, notes,
+          confirmationNumber, serviceNumber, departureTime, arrivalTime,
+          departureStation, arrivalStation, seatInfo } = req.body;
   const segment = await prisma.routeSegment.update({
     where: { id: req.params.id as string },
     data: {
       ...(transportMode !== undefined && { transportMode }),
       ...(departureDate !== undefined && { departureDate: departureDate ? new Date(departureDate) : null }),
       ...(notes !== undefined && { notes }),
+      ...(confirmationNumber !== undefined && { confirmationNumber }),
+      ...(serviceNumber !== undefined && { serviceNumber }),
+      ...(departureTime !== undefined && { departureTime }),
+      ...(arrivalTime !== undefined && { arrivalTime }),
+      ...(departureStation !== undefined && { departureStation }),
+      ...(arrivalStation !== undefined && { arrivalStation }),
+      ...(seatInfo !== undefined && { seatInfo }),
     },
   });
 

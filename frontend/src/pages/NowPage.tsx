@@ -23,12 +23,16 @@ interface AnchorItem {
   lng?: number | null;
 }
 
-type TravelMode = "walk" | "transit" | "taxi";
+type TravelMode = "walk" | "subway" | "train" | "bus" | "taxi" | "shuttle" | "other";
 
 const MODE_LABELS: Record<TravelMode, string> = {
   walk: "walk",
-  transit: "transit",
+  subway: "subway",
+  train: "train",
+  bus: "bus",
   taxi: "taxi",
+  shuttle: "shuttle",
+  other: "other",
 };
 
 export default function NowPage() {
@@ -281,7 +285,7 @@ export default function NowPage() {
         id="now"
         lines={[
           "See what's next and when you should leave",
-          "Switch between walk, transit, and taxi for travel times",
+          "Switch between walk, subway, train, bus, taxi, or shuttle for travel times",
           "Set a timer or alarm so you don't lose track of time",
           "Quickly capture a place you discover while wandering",
         ]}
@@ -374,7 +378,7 @@ export default function NowPage() {
             {/* Travel mode selector */}
             {nextAnchor.lat != null && nextAnchor.lng != null && userLat != null && (
               <div className="mt-3 flex gap-2">
-                {(["walk", "transit", "taxi"] as TravelMode[]).map((m) => (
+                {(["walk", "subway", "train", "bus", "taxi", "shuttle"] as TravelMode[]).map((m) => (
                   <button
                     key={m}
                     onClick={() => setTravelMode(m)}
@@ -384,7 +388,7 @@ export default function NowPage() {
                         : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
                     }`}
                   >
-                    {m === "walk" ? "Walk" : m === "transit" ? "Transit" : "Taxi"}
+                    {m.charAt(0).toUpperCase() + m.slice(1)}
                   </button>
                 ))}
               </div>

@@ -622,7 +622,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
           originLng: 135.5027,
           destLat: 34.6873,
           destLng: 135.5262,
-          mode: "transit",
+          mode: "subway",
         });
 
       expect(transitRes.body.durationMinutes).toBeLessThanOrEqual(walkRes.body.durationMinutes);

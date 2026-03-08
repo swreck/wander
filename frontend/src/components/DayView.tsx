@@ -1,10 +1,26 @@
 import { useState, useMemo } from "react";
 import { api } from "../lib/api";
-import type { Day, Experience, Trip } from "../lib/types";
+import type { Day, Experience, Trip, RouteSegment } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
 import AIObservations from "./AIObservations";
 import FirstTimeGuide from "./FirstTimeGuide";
 import { useToast } from "../contexts/ToastContext";
+
+type IntraCityMode = "walk" | "subway" | "train" | "bus" | "taxi" | "shuttle" | "other";
+
+const MODE_EMOJI: Record<string, string> = {
+  flight: "✈️", train: "🚃", ferry: "⛴️", drive: "🚗", other: "🚐",
+  walk: "🚶", subway: "🚇", bus: "🚌", taxi: "🚕", shuttle: "🚐",
+};
+
+const INTRA_MODES: { value: IntraCityMode; label: string; emoji: string }[] = [
+  { value: "walk", label: "Walk", emoji: "🚶" },
+  { value: "subway", label: "Subway", emoji: "🚇" },
+  { value: "train", label: "Train", emoji: "🚃" },
+  { value: "bus", label: "Bus", emoji: "🚌" },
+  { value: "taxi", label: "Taxi", emoji: "🚕" },
+  { value: "shuttle", label: "Shuttle", emoji: "🚐" },
+];
 
 interface Props {
   day: Day;
@@ -32,6 +48,272 @@ function AIObsDisclosure({ dayId }: { dayId: string }) {
         <span className="text-[8px]">{open ? "▲" : "▼"}</span>
       </button>
       {open && <AIObservations dayId={dayId} />}
+    </div>
+  );
+}
+
+/** Intercity travel card — shows route segment with full logistics on city-transition days */
+function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefresh: () => void }) {
+  const { showToast } = useToast();
+  const [editing, setEditing] = useState(false);
+
+  const sortedDays = useMemo(() =>
+    [...(trip.days || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [trip.days]
+  );
+  const dayIdx = sortedDays.findIndex((d) => d.id === day.id);
+  const prev = dayIdx > 0 ? sortedDays[dayIdx - 1] : null;
+
+  // Only show on city transition days
+  if (!prev || prev.cityId === day.cityId) return null;
+
+  const segment = trip.routeSegments?.find(
+    (rs) => rs.originCity === prev.city.name && rs.destinationCity === day.city.name
+  );
+
+  const emoji = segment ? (MODE_EMOJI[segment.transportMode.toLowerCase()] || "🚐") : "🚐";
+
+  // Edit form state
+  const [mode, setMode] = useState(segment?.transportMode || "train");
+  const [depDate, setDepDate] = useState(segment?.departureDate?.split("T")[0] || "");
+  const [depTime, setDepTime] = useState(segment?.departureTime || "");
+  const [arrTime, setArrTime] = useState(segment?.arrivalTime || "");
+  const [depStation, setDepStation] = useState(segment?.departureStation || "");
+  const [arrStation, setArrStation] = useState(segment?.arrivalStation || "");
+  const [serviceNum, setServiceNum] = useState(segment?.serviceNumber || "");
+  const [confNum, setConfNum] = useState(segment?.confirmationNumber || "");
+  const [seat, setSeat] = useState(segment?.seatInfo || "");
+  const [notes, setNotes] = useState(segment?.notes || "");
+
+  async function saveSegment() {
+    try {
+      const data = {
+        transportMode: mode,
+        departureDate: depDate || null,
+        departureTime: depTime || null,
+        arrivalTime: arrTime || null,
+        departureStation: depStation || null,
+        arrivalStation: arrStation || null,
+        serviceNumber: serviceNum || null,
+        confirmationNumber: confNum || null,
+        seatInfo: seat || null,
+        notes: notes || null,
+      };
+
+      if (segment) {
+        await api.patch(`/route-segments/${segment.id}`, data);
+      } else {
+        await api.post("/route-segments", {
+          ...data,
+          tripId: trip.id,
+          originCity: prev!.city.name,
+          destinationCity: day.city.name,
+        });
+      }
+      setEditing(false);
+      showToast("Travel details saved");
+      onRefresh();
+    } catch {
+      showToast("Couldn't save travel details", "error");
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="mb-4 px-3 py-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+        <div className="text-sm font-medium text-amber-800 mb-2">
+          {prev.city.name} → {day.city.name}
+        </div>
+        {/* Mode selector */}
+        <div className="flex gap-1.5 flex-wrap">
+          {(["flight", "train", "ferry", "drive", "other"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                mode === m ? "bg-amber-600 text-white" : "bg-white text-amber-700 border border-amber-200"
+              }`}
+            >
+              {MODE_EMOJI[m]} {m.charAt(0).toUpperCase() + m.slice(1)}
+            </button>
+          ))}
+        </div>
+        {/* Service number + confirmation */}
+        <div className="flex gap-2">
+          <input type="text" value={serviceNum} onChange={(e) => setServiceNum(e.target.value)}
+            placeholder={mode === "flight" ? "Flight # (e.g. NH204)" : "Service # (e.g. Nozomi 42)"}
+            className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+          <input type="text" value={confNum} onChange={(e) => setConfNum(e.target.value)}
+            placeholder="Confirmation #"
+            className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+        </div>
+        {/* Date + departure/arrival times */}
+        <div className="flex gap-2">
+          <input type="date" value={depDate} onChange={(e) => setDepDate(e.target.value)}
+            className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+          <input type="time" value={depTime} onChange={(e) => setDepTime(e.target.value)}
+            placeholder="Depart"
+            className="w-24 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+          <input type="time" value={arrTime} onChange={(e) => setArrTime(e.target.value)}
+            placeholder="Arrive"
+            className="w-24 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+        </div>
+        {/* Stations */}
+        <div className="flex gap-2">
+          <input type="text" value={depStation} onChange={(e) => setDepStation(e.target.value)}
+            placeholder="From station/airport"
+            className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+          <input type="text" value={arrStation} onChange={(e) => setArrStation(e.target.value)}
+            placeholder="To station/airport"
+            className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+        </div>
+        {/* Seat + notes */}
+        <div className="flex gap-2">
+          <input type="text" value={seat} onChange={(e) => setSeat(e.target.value)}
+            placeholder="Seat info"
+            className="w-28 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+          <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Notes"
+            className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+        </div>
+        {/* Save / Cancel */}
+        <div className="flex gap-2 pt-1">
+          <button onClick={saveSegment}
+            className="px-4 py-1.5 rounded bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 transition-colors">
+            Save
+          </button>
+          <button onClick={() => setEditing(false)}
+            className="px-4 py-1.5 rounded text-xs text-amber-700 hover:bg-amber-100 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mb-4 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors"
+      onClick={() => setEditing(true)}
+    >
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium text-amber-800">
+          {emoji} {prev.city.name} → {day.city.name}
+        </div>
+        <span className="text-xs text-amber-500">tap to edit</span>
+      </div>
+      {segment ? (
+        <div className="mt-1 space-y-0.5">
+          <div className="text-sm text-amber-700">
+            {segment.transportMode.charAt(0).toUpperCase() + segment.transportMode.slice(1)}
+            {segment.serviceNumber && ` · ${segment.serviceNumber}`}
+            {segment.departureDate && ` · ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+          </div>
+          {(segment.departureTime || segment.arrivalTime) && (
+            <div className="text-sm text-amber-600">
+              {segment.departureTime && `Depart ${segment.departureTime}`}
+              {segment.departureTime && segment.arrivalTime && " → "}
+              {segment.arrivalTime && `Arrive ${segment.arrivalTime}`}
+            </div>
+          )}
+          {(segment.departureStation || segment.arrivalStation) && (
+            <div className="text-sm text-amber-600">
+              {segment.departureStation}{segment.departureStation && segment.arrivalStation && " → "}{segment.arrivalStation}
+            </div>
+          )}
+          {segment.confirmationNumber && (
+            <div className="text-xs text-amber-500">Conf: {segment.confirmationNumber}</div>
+          )}
+          {segment.seatInfo && (
+            <div className="text-xs text-amber-500">Seat: {segment.seatInfo}</div>
+          )}
+          {segment.notes && (
+            <div className="text-sm text-amber-600 italic">{segment.notes}</div>
+          )}
+        </div>
+      ) : (
+        <div className="text-sm text-amber-600 mt-0.5 italic">
+          No travel details yet — tap to add
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Transport connector between two experiences — shows mode + estimated time */
+function TransportConnector({
+  prevExp, nextExp, useSpatialOrder, onRefresh,
+}: {
+  prevExp: Experience;
+  nextExp: Experience;
+  useSpatialOrder: boolean;
+  onRefresh: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [localMode, setLocalMode] = useState<IntraCityMode | null>(null);
+  const { showToast } = useToast();
+
+  // Calculate distance-based estimates
+  const hasCoords = prevExp.latitude != null && nextExp.latitude != null;
+  const distKm = hasCoords ? (() => {
+    const dx = (nextExp.latitude! - prevExp.latitude!) * 111;
+    const dy = (nextExp.longitude! - prevExp.longitude!) * 111 * Math.cos(prevExp.latitude! * Math.PI / 180);
+    return Math.sqrt(dx * dx + dy * dy);
+  })() : null;
+
+  // Current mode for this experience (stored on the destination experience)
+  const currentMode = localMode || (nextExp.transportModeToHere as IntraCityMode) || "walk";
+  const modeEmoji = MODE_EMOJI[currentMode] || "🚶";
+
+  // Estimate minutes based on mode
+  const speeds: Record<string, number> = { walk: 5, subway: 30, train: 25, bus: 20, taxi: 30, shuttle: 25, other: 20 };
+  const estMin = distKm ? Math.round((distKm * 1.4 / (speeds[currentMode] || 5)) * 60) : null;
+
+  async function handleSetMode(mode: IntraCityMode) {
+    try {
+      setLocalMode(mode);
+      setExpanded(false);
+      await api.patch(`/experiences/${nextExp.id}`, { transportModeToHere: mode });
+      onRefresh();
+    } catch {
+      setLocalMode(null);
+      showToast("Couldn't update travel mode", "error");
+    }
+  }
+
+  if (!useSpatialOrder && !hasCoords) return null;
+  if (estMin != null && estMin < 1 && currentMode === "walk") return null;
+
+  return (
+    <div className="py-0.5 px-4">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 w-full text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+      >
+        <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
+        <span className="flex items-center gap-1 shrink-0">
+          {modeEmoji}
+          {estMin != null && <span>{estMin} min</span>}
+        </span>
+        <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
+      </button>
+      {expanded && (
+        <div className="flex gap-1 justify-center mt-1 mb-0.5">
+          {INTRA_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => handleSetMode(m.value)}
+              className={`px-2 py-1 rounded text-xs transition-colors ${
+                currentMode === m.value
+                  ? "bg-[#514636] text-white"
+                  : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
+              }`}
+            >
+              {m.emoji} {m.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -269,35 +551,7 @@ export default function DayView({
       </div>
 
       {/* Travel card — shown on city transition days */}
-      {(() => {
-        const sortedDays = [...(trip.days || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        const dayIdx = sortedDays.findIndex((d) => d.id === day.id);
-        const prev = dayIdx > 0 ? sortedDays[dayIdx - 1] : null;
-        if (!prev || prev.cityId === day.cityId) return null;
-        const segment = trip.routeSegments?.find(
-          (rs) => rs.originCity === prev.city.name && rs.destinationCity === day.city.name
-        );
-        const modeEmoji: Record<string, string> = { train: "🚃", bus: "🚌", flight: "✈️", car: "🚗", ferry: "⛴️", walk: "🚶" };
-        const emoji = segment ? (modeEmoji[segment.transportMode.toLowerCase()] || "🚃") : "🚃";
-        return (
-          <div className="mb-4 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="text-sm font-medium text-amber-800">
-              {emoji} {prev.city.name} → {day.city.name}
-            </div>
-            {segment ? (
-              <div className="text-sm text-amber-700 mt-0.5">
-                {segment.transportMode.charAt(0).toUpperCase() + segment.transportMode.slice(1)}
-                {segment.departureDate && ` · ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-                {segment.notes && ` · ${segment.notes}`}
-              </div>
-            ) : (
-              <div className="text-sm text-amber-600 mt-0.5 italic">
-                No travel details yet
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      <TransportCard day={day} trip={trip} onRefresh={onRefresh} />
 
       {/* Accommodation anchor — with full details */}
       {accommodations.length > 0 && (
@@ -377,22 +631,15 @@ export default function DayView({
       <div className="space-y-4 mb-6">
         {displaySelected.map((exp, idx) => (
           <div key={exp.id}>
-            {/* Distance hint between consecutive experiences */}
-            {useSpatialOrder && idx > 0 && exp.latitude != null && displaySelected[idx - 1].latitude != null && (() => {
-              const prev = displaySelected[idx - 1];
-              const dx = (exp.latitude! - prev.latitude!) * 111;
-              const dy = (exp.longitude! - prev.longitude!) * 111 * Math.cos(prev.latitude! * Math.PI / 180);
-              const distKm = Math.sqrt(dx * dx + dy * dy);
-              const walkMin = Math.round((distKm / 5) * 60);
-              if (walkMin < 1) return null;
-              return (
-                <div className="flex items-center gap-2 py-1 px-4 text-sm text-[#c8bba8]">
-                  <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
-                  <span>{walkMin} min walk</span>
-                  <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
-                </div>
-              );
-            })()}
+            {/* Transport connector between consecutive experiences */}
+            {idx > 0 && (
+              <TransportConnector
+                prevExp={displaySelected[idx - 1]}
+                nextExp={exp}
+                useSpatialOrder={useSpatialOrder}
+                onRefresh={onRefresh}
+              />
+            )}
             <div
               className="px-4 py-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
                          hover:border-[#a89880] transition-colors active:bg-[#f0ece5]"

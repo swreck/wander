@@ -2,6 +2,20 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Transport System)
+
+### Added
+- **Intercity transport card (DayView)**: On city-transition days, shows a full travel card with mode, service number, times, stations, confirmation, seat, and notes. Tap to edit inline. Creates or updates route segments directly from the day view. Appears at the top of the day before experiences.
+- **Intra-city transport connectors (DayView)**: Between consecutive experiences, shows travel mode emoji + estimated time. Tap to expand a mode picker (walk, subway, train, bus, taxi, shuttle). Saves the chosen mode to the experience's `transportModeToHere` field. Replaces the old walking-only distance hints.
+- **Route segment logistics fields (schema)**: `confirmationNumber`, `serviceNumber`, `departureTime`, `arrivalTime`, `departureStation`, `arrivalStation`, `seatInfo` added to RouteSegment model. Backend POST/PATCH accept all new fields.
+- **Expanded intra-city travel modes**: TravelMode enum changed from `walk | transit | taxi` to `walk | subway | train | bus | taxi | shuttle | other`. All backend speed/buffer calculations, Google Distance Matrix mappings, and NowPage mode picker updated.
+
+### Changed
+- **NowPage travel mode picker**: Now shows 6 modes (walk, subway, train, bus, taxi, shuttle) instead of 3.
+- **Experience PATCH endpoint**: Now accepts `transportModeToHere` for direct mode updates from the UI.
+
+**SPEC UPDATE NEEDED**: Sections 6.2 (RouteSegment fields), 6.7 (TravelMode enum values), 14.3 (route segment UI), 22.2 (travel time modes).
+
 ## 2026-03-08 (cont'd — Runtime Crash Fixes, Playwright Smoke Tests)
 
 ### Fixed
