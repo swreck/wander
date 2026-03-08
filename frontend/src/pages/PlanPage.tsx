@@ -448,6 +448,27 @@ export default function PlanPage() {
   const selected = cityExperiences.filter((e) => e.state === "selected");
   const possible = cityExperiences.filter((e) => e.state === "possible");
 
+  // Backroads days: continuous date range from first to last itinerary-imported item
+  const backroadsDayIds = useMemo(() => {
+    const set = new Set<string>();
+    const brDates: { date: string; dayId: string }[] = [];
+    for (const exp of experiences) {
+      if (exp.sourceText === "Imported from itinerary document" && exp.dayId) {
+        const day = days.find((d) => d.id === exp.dayId);
+        if (day) brDates.push({ date: day.date, dayId: day.id });
+      }
+    }
+    if (brDates.length === 0) return set;
+    brDates.sort((a, b) => a.date.localeCompare(b.date));
+    const startDate = new Date(brDates[0].date);
+    const endDate = new Date(brDates[brDates.length - 1].date);
+    for (const day of days) {
+      const d = new Date(day.date);
+      if (d >= startDate && d <= endDate) set.add(day.id);
+    }
+    return set;
+  }, [experiences, days]);
+
   // Friction dots for filmstrip
   const dayFrictionMap = new Map<string, boolean>();
   for (const day of days) {
@@ -967,7 +988,7 @@ export default function PlanPage() {
               {days.map((day, dayIdx) => {
                 const dayExps = experiences.filter((e) => e.state === "selected" && e.dayId === day.id);
                 const locatedExps = dayExps.filter((e) => e.latitude != null && e.longitude != null);
-                const hasBackroads = dayExps.some((e) => e.sourceText === "Imported from itinerary document");
+                const hasBackroads = backroadsDayIds.has(day.id);
                 const dayAccom = day.accommodations?.[0];
                 const city = trip.cities.find((c) => c.id === day.cityId);
                 const mapUrl = buildStaticMapUrl(locatedExps, dayAccom, city);
