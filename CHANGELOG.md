@@ -2,6 +2,24 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — iPhone Polish, Creator Badges, Login & Splash)
+
+### Fixed
+- **Back button visible on iPhone**: ExperienceDetail header, mobile list view header, and DayView all now respect `safe-area-inset-top`, keeping the back/close button below the notch and clock.
+
+### Changed
+- **Candidate destinations collapsed on calendar page**: The TripOverview page now collapses candidate cities by default, matching the filmstrip behavior. Uses the same localStorage key so the preference syncs across views.
+- **Creator initial badge on experiences**: When anyone adds an item, their first initial appears as a subtle badge (e.g., "K" for Ken) next to the name. Disappears when someone else edits the record. Tracks via new `lastEditedBy` field on experiences.
+- **Login screen redesigned**: Full-bleed travel photography background (Japan-themed, random from curated set), frosted glass name buttons, gradient overlay for legibility. Replaces the plain white login.
+- **City splash photo on day selection**: When you first tap into a city, a full-bleed iconic photo of that city appears briefly (1 second default, configurable 1/3/5s in settings via localStorage `wander:splash-duration`), then fades to reveal the map. Shows once per city per session. Tap to dismiss early. Uses Google Places photo API.
+- **"dismiss all" button moved**: Now appears at the end of the expanded candidate list in the filmstrip, not at the divider.
+
+### Added
+- **City photo API endpoint**: `GET /api/geocoding/city-photo?query=CityName` returns a Google Places photo URL for splash screens.
+- **`lastEditedBy` field on Experience model**: Tracks who last edited an experience, used to show/hide creator badge.
+
+SPEC UPDATE NEEDED: Login screen design, city splash feature, creator badges, safe area handling.
+
 ## 2026-03-08 (cont'd — Circle-Driven Map Zoom)
 
 ### Changed

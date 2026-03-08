@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Trip, Day, Experience } from "../lib/types";
@@ -7,6 +7,7 @@ import ExperienceList from "../components/ExperienceList";
 import ExperienceDetail from "../components/ExperienceDetail";
 import CapturePanel from "../components/CapturePanel";
 import DayView from "../components/DayView";
+import CitySplash from "../components/CitySplash";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
 import { getNudgesForPlace } from "../lib/travelerProfiles";
@@ -37,6 +38,7 @@ export default function PlanPage() {
     try { return localStorage.getItem("wander:candidates-expanded") === "true"; } catch { return false; }
   });
   const [highlightedExpId, setHighlightedExpId] = useState<string | null>(null);
+  const [splashCity, setSplashCity] = useState<string | null>(null);
   const [recenterKey, setRecenterKey] = useState(0);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
 
@@ -92,6 +94,15 @@ export default function PlanPage() {
     };
     return () => { delete (window as any).__wanderContext; };
   }, [selectedDay]);
+
+  // Trigger city splash when city changes
+  const prevCityRef = useRef<string>("");
+  useEffect(() => {
+    if (!activeCityId || activeCityId === prevCityRef.current) return;
+    prevCityRef.current = activeCityId;
+    const city = trip?.cities.find((c) => c.id === activeCityId);
+    if (city?.name) setSplashCity(city.name);
+  }, [activeCityId, trip]);
 
   // ── Data loading ──────────────────────────────────────────────
 
@@ -851,6 +862,14 @@ export default function PlanPage() {
             dayId={selectedDay?.id || null}
           />
 
+          {/* City splash photo — shows once per city per session */}
+          {splashCity && (
+            <CitySplash
+              cityName={splashCity}
+              onComplete={() => setSplashCity(null)}
+            />
+          )}
+
           {/* Contextual day card — floating over map */}
           {selectedDay && (
             <div className="absolute left-2 right-2 z-10 pointer-events-none flex justify-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
@@ -1140,7 +1159,8 @@ export default function PlanPage() {
         {/* Mobile list view — full screen when active */}
         {mobileView === "list" && (
           <div className="fixed inset-0 z-40 bg-[#faf8f5] md:hidden flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0">
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0"
+                 style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
               <button
                 onClick={() => setMobileView("map")}
                 className="text-sm text-[#8a7a62] hover:text-[#3a3128]"

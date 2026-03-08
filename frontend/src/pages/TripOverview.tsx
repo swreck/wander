@@ -724,6 +724,9 @@ function CandidateDestinations({
   onNavigate: (cityId: string) => void;
 }) {
   const [expandedCity, setExpandedCity] = useState<string | null>(null);
+  const [sectionExpanded, setSectionExpanded] = useState(() => {
+    try { return localStorage.getItem("wander:candidates-expanded") === "true"; } catch { return false; }
+  });
 
   // Candidate cities: no dates, but have experiences
   const candidateCities = cities.filter(
@@ -749,9 +752,25 @@ function CandidateDestinations({
     byRegion[region].push(c);
   }
 
+  const totalExps = visibleCities.reduce((sum, c) => sum + (expsByCity[c.id]?.length || 0), 0);
+
   return (
     <section className="mb-6">
-      <h2 className="text-sm font-medium text-[#3a3128] mb-2">Candidate Destinations</h2>
+      <button
+        onClick={() => {
+          const next = !sectionExpanded;
+          setSectionExpanded(next);
+          try { localStorage.setItem("wander:candidates-expanded", String(next)); } catch {}
+        }}
+        className="w-full text-left flex items-center justify-between mb-2"
+      >
+        <h2 className="text-sm font-medium text-[#3a3128]">
+          Candidate Destinations
+          <span className="ml-2 text-[#a89880] font-normal">{visibleCities.length} cities · {totalExps} ideas</span>
+        </h2>
+        <span className="text-sm text-[#a89880]">{sectionExpanded ? "\u25B4" : "\u25BE"}</span>
+      </button>
+      {!sectionExpanded ? null : (<>
       <p className="text-sm text-[#a89880] mb-3">
         Places to consider if you adjust your itinerary. Tap to browse suggestions.
       </p>
@@ -807,6 +826,7 @@ function CandidateDestinations({
           </div>
         </div>
       ))}
+      </>)}
     </section>
   );
 }

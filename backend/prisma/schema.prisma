@@ -157,6 +157,7 @@ model Experience {
   themes                      Theme[]         @default([])
   userNotes                   String?         @map("user_notes")
   createdBy                   String          @map("created_by")
+  lastEditedBy                String?         @map("last_edited_by")
   createdAt                   DateTime        @default(now()) @map("created_at")
   updatedAt                   DateTime        @updatedAt @map("updated_at")
 

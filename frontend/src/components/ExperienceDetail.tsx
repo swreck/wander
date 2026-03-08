@@ -101,7 +101,8 @@ export default function ExperienceDetail({
     <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white md:border-l border-[#f0ece5] shadow-xl z-40
                     overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-[#f0ece5] px-4 py-3 flex items-center justify-between z-10">
+      <div className="sticky top-0 bg-white border-b border-[#f0ece5] px-4 py-3 flex items-center justify-between z-10"
+           style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
         <button
           onClick={onClose}
           className="text-sm text-[#8a7a62] hover:text-[#3a3128]"

@@ -65,6 +65,7 @@ export interface Experience {
   themes: string[];
   userNotes: string | null;
   createdBy: string;
+  lastEditedBy: string | null;
   createdAt: string;
   updatedAt: string;
   city?: City;

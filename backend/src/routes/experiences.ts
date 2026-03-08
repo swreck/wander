@@ -98,6 +98,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
       ...(state !== undefined && { state }),
       ...(dayId !== undefined && { dayId: dayId || null }),
       ...(timeWindow !== undefined && { timeWindow: timeWindow || null }),
+      lastEditedBy: req.user!.code,
     },
     include: { ratings: true, city: true, day: true },
   });

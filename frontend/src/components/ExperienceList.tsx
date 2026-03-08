@@ -26,6 +26,18 @@ import RatingsBadge from "./RatingsBadge";
 
 import { useToast } from "../contexts/ToastContext";
 
+function CreatorBadge({ exp }: { exp: Experience }) {
+  // Show creator's first initial until someone else edits
+  if (exp.lastEditedBy && exp.lastEditedBy !== exp.createdBy) return null;
+  const initial = exp.createdBy?.[0]?.toUpperCase();
+  if (!initial) return null;
+  return (
+    <span className="ml-1 text-[10px] text-[#c8bba8] font-medium" title={`Added by ${exp.createdBy}`}>
+      {initial}
+    </span>
+  );
+}
+
 // ── Inline Location Resolver ──────────────────────────────────────
 function LocationResolver({ exp, onResolved }: { exp: Experience; onResolved: () => void }) {
   const [query, setQuery] = useState(exp.name);
@@ -186,6 +198,7 @@ function SortableSelectedItem({
                 </button>
               )}
               <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
+              <CreatorBadge exp={exp} />
               {exp.timeWindow && (
                 <span className="text-sm text-[#a89880] ml-1.5">{exp.timeWindow}</span>
               )}
@@ -288,6 +301,7 @@ function SortablePossibleItem({
                 </button>
               )}
               {exp.name}
+              <CreatorBadge exp={exp} />
             </span>
             <button
               onClick={(e) => { e.stopPropagation(); setPromotingId(promotingId === exp.id ? null : exp.id); }}

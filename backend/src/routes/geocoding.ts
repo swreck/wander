@@ -98,4 +98,29 @@ router.post("/batch/:tripId", async (req, res) => {
   res.json({ processed: results.length, results });
 });
 
+// City photo — returns a Google Places photo URL for a city name
+router.get("/city-photo", async (req: AuthRequest, res) => {
+  const { query } = req.query as { query?: string };
+  if (!query) { res.status(400).json({ error: "query required" }); return; }
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) { res.status(500).json({ error: "No API key" }); return; }
+
+  try {
+    // Find place to get photo reference
+    const findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=photos,name&key=${apiKey}`;
+    const findRes = await fetch(findUrl);
+    const findData = await findRes.json() as any;
+    const photos = findData?.candidates?.[0]?.photos;
+    if (!photos || photos.length === 0) { res.json({ url: null }); return; }
+
+    // Return the photo URL (maxwidth 800 for splash)
+    const photoRef = photos[0].photo_reference;
+    const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${apiKey}`;
+    res.json({ url: photoUrl });
+  } catch {
+    res.json({ url: null });
+  }
+});
+
 export default router;

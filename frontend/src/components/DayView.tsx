@@ -240,7 +240,7 @@ export default function DayView({
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4" style={{ paddingTop: "max(16px, env(safe-area-inset-top, 16px))" }}>
       {/* First-time guide for day view */}
       <FirstTimeGuide
         id="day-view"
