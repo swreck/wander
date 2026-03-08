@@ -967,6 +967,7 @@ export default function PlanPage() {
               {days.map((day, dayIdx) => {
                 const dayExps = experiences.filter((e) => e.state === "selected" && e.dayId === day.id);
                 const locatedExps = dayExps.filter((e) => e.latitude != null && e.longitude != null);
+                const hasBackroads = dayExps.some((e) => e.sourceText === "Imported from itinerary document");
                 const dayAccom = day.accommodations?.[0];
                 const city = trip.cities.find((c) => c.id === day.cityId);
                 const mapUrl = buildStaticMapUrl(locatedExps, dayAccom, city);
@@ -993,6 +994,9 @@ export default function PlanPage() {
                   >
                     {hasFriction && (
                       <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 z-10" />
+                    )}
+                    {hasBackroads && (
+                      <span className="absolute top-1 left-1 z-10 text-[9px] font-bold text-white bg-[#8a7a62]/70 rounded px-0.5 leading-tight">B</span>
                     )}
                     {/* Map thumbnail — just geography, no labels */}
                     {mapUrl ? (

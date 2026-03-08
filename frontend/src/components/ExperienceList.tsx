@@ -29,6 +29,16 @@ import { useToast } from "../contexts/ToastContext";
 function CreatorBadge({ exp }: { exp: Experience }) {
   // Show creator's first initial until someone else edits
   if (exp.lastEditedBy && exp.lastEditedBy !== exp.createdBy) return null;
+
+  // Backroads itinerary items show "B"
+  if (exp.sourceText === "Imported from itinerary document") {
+    return (
+      <span className="ml-1 text-[10px] text-[#c8bba8] font-medium" title="Backroads itinerary">
+        B
+      </span>
+    );
+  }
+
   const initial = exp.createdBy?.[0]?.toUpperCase();
   if (!initial) return null;
   return (
