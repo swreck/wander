@@ -145,21 +145,21 @@
     <!-- Motion-blurred trailing ghost -->
     <g transform="translate(245 272) rotate(-3)" filter="url(#motionTrail)" opacity="0.18">
       <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
-        font-family="Georgia, 'Times New Roman', serif" font-size="285" font-weight="700"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="285" font-weight="600"
         fill="white" style="letter-spacing: -12px;">W</text>
     </g>
 
     <!-- Drop shadow -->
     <g transform="translate(278 276) rotate(-3)">
       <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
-        font-family="Georgia, 'Times New Roman', serif" font-size="285" font-weight="700"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="285" font-weight="600"
         fill="#2a7ab5" fill-opacity="0.12" style="letter-spacing: -12px;">W</text>
     </g>
 
     <!-- Main W with trailing-edge fade -->
     <g transform="translate(275 272) rotate(-3)" mask="url(#wMask)">
       <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
-        font-family="Georgia, 'Times New Roman', serif" font-size="285" font-weight="700"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="285" font-weight="600"
         fill="white" style="letter-spacing: -12px;">W</text>
     </g>
 
