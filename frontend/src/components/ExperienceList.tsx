@@ -6,9 +6,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverEvent,
+  type DragEndEvent,
+  type DragStartEvent,
+  type DragOverEvent,
   DragOverlay,
   useDroppable,
 } from "@dnd-kit/core";
