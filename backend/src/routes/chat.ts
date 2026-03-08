@@ -327,6 +327,50 @@ const tools: Anthropic.Tool[] = [
       required: ["cityId"],
     },
   },
+  {
+    name: "add_route_segment",
+    description: "Add a route segment (intercity travel) to a trip. Use when the user mentions booking a train, flight, ferry, or drive between cities.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        originCity: { type: "string", description: "Name of the departure city" },
+        destinationCity: { type: "string", description: "Name of the arrival city" },
+        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "other"], description: "Mode of transport" },
+        departureDate: { type: "string", description: "YYYY-MM-DD departure date" },
+        serviceNumber: { type: "string", description: "Flight number or train service (e.g. NH204, Nozomi 42)" },
+        confirmationNumber: { type: "string", description: "Booking reference / confirmation number" },
+        departureTime: { type: "string", description: "Departure time HH:MM (24h)" },
+        arrivalTime: { type: "string", description: "Arrival time HH:MM (24h)" },
+        departureStation: { type: "string", description: "Departure station or airport name" },
+        arrivalStation: { type: "string", description: "Arrival station or airport name" },
+        seatInfo: { type: "string", description: "Seat assignment" },
+        notes: { type: "string", description: "Additional notes" },
+      },
+      required: ["tripId", "originCity", "destinationCity", "transportMode"],
+    },
+  },
+  {
+    name: "update_route_segment",
+    description: "Update an existing route segment's details. Use when the user wants to change travel logistics like times, confirmation numbers, stations, or transport mode.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        segmentId: { type: "string", description: "The route segment ID to update" },
+        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "other"] },
+        departureDate: { type: "string", description: "YYYY-MM-DD departure date" },
+        serviceNumber: { type: "string", description: "Flight number or train service" },
+        confirmationNumber: { type: "string", description: "Booking reference" },
+        departureTime: { type: "string", description: "Departure time HH:MM (24h)" },
+        arrivalTime: { type: "string", description: "Arrival time HH:MM (24h)" },
+        departureStation: { type: "string", description: "Departure station or airport" },
+        arrivalStation: { type: "string", description: "Arrival station or airport" },
+        seatInfo: { type: "string", description: "Seat assignment" },
+        notes: { type: "string", description: "Additional notes" },
+      },
+      required: ["segmentId"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -1112,6 +1156,86 @@ async function executeTool(
       return {
         result: { updated: updated.name, tagline: updated.tagline, country: updated.country },
         actionDescription: `Updated city "${updated.name}"`,
+      };
+    }
+
+    case "add_route_segment": {
+      const existingSegs = await prisma.routeSegment.findMany({ where: { tripId: input.tripId } });
+      const segOrder = existingSegs.length > 0
+        ? Math.max(...existingSegs.map((s) => s.sequenceOrder)) + 1
+        : 0;
+
+      const segment = await prisma.routeSegment.create({
+        data: {
+          tripId: input.tripId,
+          originCity: input.originCity,
+          destinationCity: input.destinationCity,
+          sequenceOrder: segOrder,
+          transportMode: (input.transportMode as any) || "other",
+          departureDate: input.departureDate ? new Date(input.departureDate) : null,
+          serviceNumber: input.serviceNumber || null,
+          confirmationNumber: input.confirmationNumber || null,
+          departureTime: input.departureTime || null,
+          arrivalTime: input.arrivalTime || null,
+          departureStation: input.departureStation || null,
+          arrivalStation: input.arrivalStation || null,
+          seatInfo: input.seatInfo || null,
+          notes: input.notes || null,
+        },
+      });
+
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "route_segment_created",
+        entityType: "routeSegment",
+        entityId: segment.id,
+        entityName: `${input.originCity} → ${input.destinationCity}`,
+        description: `${user.displayName} added ${input.transportMode} from ${input.originCity} to ${input.destinationCity}`,
+        newState: segment,
+      });
+
+      return {
+        result: segment,
+        actionDescription: `Added ${input.transportMode} route: ${input.originCity} → ${input.destinationCity}`,
+      };
+    }
+
+    case "update_route_segment": {
+      const segment = await prisma.routeSegment.findUnique({ where: { id: input.segmentId } });
+      if (!segment) return { result: { error: "Route segment not found" } };
+
+      const updated = await prisma.routeSegment.update({
+        where: { id: input.segmentId },
+        data: {
+          ...(input.transportMode !== undefined && { transportMode: input.transportMode as any }),
+          ...(input.departureDate !== undefined && { departureDate: input.departureDate ? new Date(input.departureDate) : null }),
+          ...(input.serviceNumber !== undefined && { serviceNumber: input.serviceNumber || null }),
+          ...(input.confirmationNumber !== undefined && { confirmationNumber: input.confirmationNumber || null }),
+          ...(input.departureTime !== undefined && { departureTime: input.departureTime || null }),
+          ...(input.arrivalTime !== undefined && { arrivalTime: input.arrivalTime || null }),
+          ...(input.departureStation !== undefined && { departureStation: input.departureStation || null }),
+          ...(input.arrivalStation !== undefined && { arrivalStation: input.arrivalStation || null }),
+          ...(input.seatInfo !== undefined && { seatInfo: input.seatInfo || null }),
+          ...(input.notes !== undefined && { notes: input.notes || null }),
+        },
+      });
+
+      await logChange({
+        user,
+        tripId: segment.tripId,
+        actionType: "route_segment_updated",
+        entityType: "routeSegment",
+        entityId: segment.id,
+        entityName: `${segment.originCity} → ${segment.destinationCity}`,
+        description: `${user.displayName} updated ${segment.originCity} → ${segment.destinationCity} travel details`,
+        previousState: segment,
+        newState: updated,
+      });
+
+      return {
+        result: updated,
+        actionDescription: `Updated travel details for ${segment.originCity} → ${segment.destinationCity}`,
       };
     }
 

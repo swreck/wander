@@ -21,6 +21,7 @@ interface AnchorItem {
   detail?: string;
   lat?: number | null;
   lng?: number | null;
+  transportModeToHere?: string | null;
 }
 
 type TravelMode = "walk" | "subway" | "train" | "bus" | "taxi" | "shuttle" | "other";
@@ -138,6 +139,7 @@ export default function NowPage() {
         detail: detailParts.join(" · ") || undefined,
         lat: exp.latitude,
         lng: exp.longitude,
+        transportModeToHere: exp.transportModeToHere,
       });
     }
 
@@ -279,6 +281,10 @@ export default function NowPage() {
   const nextAnchor = nextAnchorIndex >= 0 ? anchors[nextAnchorIndex] : null;
   const nextTravelResult = nextAnchorIndex >= 0 ? travelResults.get(nextAnchorIndex) : null;
 
+  // Auto-adopt the next anchor's saved transport mode as the default
+  const nextAnchorMode = nextAnchor?.transportModeToHere as TravelMode | undefined;
+  const effectiveMode = nextAnchorMode && MODE_LABELS[nextAnchorMode] ? nextAnchorMode : travelMode;
+
   return (
     <div className="min-h-screen bg-[#faf8f5]">
       <FirstTimeGuide
@@ -367,7 +373,7 @@ export default function NowPage() {
                   Leave by {new Date(nextTravelResult.departureTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                 </div>
                 <div className="text-sm text-[#6b5d4a] mt-1">
-                  {nextTravelResult.durationMinutes} min {MODE_LABELS[travelMode]} + {nextTravelResult.bufferMinutes} min buffer to {nextAnchor.name}
+                  {nextTravelResult.durationMinutes} min {MODE_LABELS[effectiveMode]} + {nextTravelResult.bufferMinutes} min buffer to {nextAnchor.name}
                 </div>
                 {nextTravelResult.source === "fallback" && (
                   <div className="text-sm text-[#a89880] mt-1 italic">Estimated from distance</div>
@@ -377,13 +383,13 @@ export default function NowPage() {
 
             {/* Travel mode selector */}
             {nextAnchor.lat != null && nextAnchor.lng != null && userLat != null && (
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {(["walk", "subway", "train", "bus", "taxi", "shuttle"] as TravelMode[]).map((m) => (
                   <button
                     key={m}
                     onClick={() => setTravelMode(m)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                      travelMode === m
+                      effectiveMode === m
                         ? "bg-[#514636] text-white"
                         : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
                     }`}

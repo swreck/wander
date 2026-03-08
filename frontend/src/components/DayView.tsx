@@ -281,8 +281,12 @@ function TransportConnector({
     }
   }
 
-  if (!useSpatialOrder && !hasCoords) return null;
-  if (estMin != null && estMin < 1 && currentMode === "walk") return null;
+  // Always show if the user has explicitly set a non-walk mode
+  const hasExplicitMode = nextExp.transportModeToHere != null && nextExp.transportModeToHere !== "walk";
+  // Hide only if: no coords AND no explicit mode AND spatial ordering is off
+  if (!hasCoords && !hasExplicitMode && !useSpatialOrder) return null;
+  // Hide trivially short walks (< 1 min) unless mode was explicitly set
+  if (estMin != null && estMin < 1 && currentMode === "walk" && !hasExplicitMode) return null;
 
   return (
     <div className="py-0.5 px-4">

@@ -32,6 +32,13 @@ export interface ExtractedRouteSegment {
   destinationCity: string;
   transportMode: string;
   departureDate?: string;
+  serviceNumber?: string;
+  confirmationNumber?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  departureStation?: string;
+  arrivalStation?: string;
+  seatInfo?: string;
   notes?: string;
 }
 
@@ -63,7 +70,7 @@ Return a JSON object with this exact structure:
     { "cityName": "City Name", "dayDate": "YYYY-MM-DD", "name": "Activity Name", "description": "brief description", "timeWindow": "morning/afternoon/evening or specific time" }
   ],
   "routeSegments": [
-    { "originCity": "City A", "destinationCity": "City B", "transportMode": "train/flight/drive/ferry/other", "departureDate": "YYYY-MM-DD", "notes": "..." }
+    { "originCity": "City A", "destinationCity": "City B", "transportMode": "train/flight/drive/ferry/other", "departureDate": "YYYY-MM-DD", "serviceNumber": "flight number or train service (e.g. NH204, Nozomi 42)", "confirmationNumber": "booking reference if present", "departureTime": "HH:MM (24h)", "arrivalTime": "HH:MM (24h)", "departureStation": "station or airport name", "arrivalStation": "station or airport name", "seatInfo": "seat assignment if mentioned", "notes": "..." }
   ],
   "notes": "any important information that didn't fit the structure above"
 }
@@ -99,6 +106,8 @@ ROUTE SEGMENTS:
 - Only create route segments between BASE CITIES where the traveler actually travels between overnight stays.
 - Do NOT create segments between day-trip destinations.
 - "Bullet train" or "shinkansen" → transportMode "train". "Drive", "rent a car" → "drive". "Fly" → "flight".
+- Extract logistics details when present: flight/train numbers (serviceNumber), booking references (confirmationNumber), departure/arrival times (HH:MM 24h format), station/airport names, and seat assignments.
+- Omit logistics fields that aren't mentioned — don't invent them.
 
 GENERAL:
 - City names should be clean and standard (e.g., "Kyoto" not "Kyoto, Japan" — country goes in the country field).

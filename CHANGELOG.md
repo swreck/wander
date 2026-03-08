@@ -2,6 +2,24 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Transport System: Gap-Fill, UX Polish, Tests)
+
+### Added
+- **Standalone RouteSegmentsPanel (TripOverview)**: Collapsible "Travel" panel on the trip overview page for managing intercity segments independently of day view. Shows segment count, tap-to-edit cards, delete with confirmation, and "Add your first travel segment" prompt when empty. Persists expanded state in localStorage.
+- **AI chat tools for route segments**: `add_route_segment` and `update_route_segment` tools added to chat. Users can ask the AI to add/edit intercity transport with all logistics fields (flight numbers, confirmation numbers, times, stations, seats).
+- **Itinerary import extracts logistics**: When importing itineraries, the AI extraction prompt now pulls service numbers, confirmation numbers, departure/arrival times, stations, and seat info from the source text.
+- **NowPage auto-adopts saved transport mode**: When viewing leave-time for an experience, the mode picker defaults to that experience's saved `transportModeToHere` mode instead of always defaulting to walking.
+- **Chaos tests S63-S66**: Route segment CRUD with logistics fields, experience transportModeToHere with all 7 expanded modes, travel time with expanded modes, change log preservation on segment deletion.
+
+### Changed
+- **TransportConnector visibility**: Now shows between all consecutive experiences that have an explicit transport mode set, not just those with coordinates. Previously required both coordinates and spatial ordering.
+- **NowPage mode picker wraps on iPhone**: Uses flex-wrap so all 6 modes fit without horizontal scrolling on narrow screens.
+
+### Fixed
+- **S66 test bug**: Change log endpoint path was wrong (`/api/change-logs/{id}` → `/api/change-logs/trip/{id}`) and response field was `logs` not `items`.
+
+**SPEC UPDATE NEEDED**: Sections 6.2 (RouteSegment fields), 6.7 (TravelMode enum values), 14.3 (route segment UI + standalone panel), 22.2 (travel time modes), AI chat tools list.
+
 ## 2026-03-08 (cont'd — Transport System)
 
 ### Added

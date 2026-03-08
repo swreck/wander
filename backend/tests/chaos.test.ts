@@ -2163,9 +2163,9 @@ describe("Chaos Simulations", () => {
 
       // Change log should contain the previous state with logistics
       const logs = await request(app)
-        .get(`/api/change-logs/${tripId}`)
+        .get(`/api/change-logs/trip/${tripId}`)
         .set("Authorization", `Bearer ${aliceToken}`);
-      const deleteLog = logs.body.items.find(
+      const deleteLog = logs.body.logs.find(
         (l: any) => l.actionType === "route_segment_deleted" && l.entityName.includes("Nara")
       );
       expect(deleteLog).toBeDefined();

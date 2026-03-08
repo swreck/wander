@@ -8,6 +8,7 @@ import { APIProvider, Map as GoogleMap, AdvancedMarker, useMap } from "@vis.gl/r
 import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
 import type { Trip, City, Day, Experience, ChangeLogEntry } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
+import RouteSegmentsPanel from "../components/RouteSegmentsPanel";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -393,6 +394,15 @@ export default function TripOverview() {
           backroadsDays={backroadsDays}
           onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
         />
+
+        {/* Route segments — intercity travel logistics */}
+        {trip.routeSegments?.length > 0 && (
+          <RouteSegmentsPanel
+            tripId={trip.id}
+            segments={trip.routeSegments}
+            onRefresh={loadTrips}
+          />
+        )}
 
         {/* Candidate destinations — cities with no dates but with experiences */}
         <CandidateDestinations
