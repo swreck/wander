@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Runtime Crash Fixes, Playwright Smoke Tests)
+
+### Fixed
+- **Blank white page (dnd-kit import crash)**: `DragEndEvent`, `DragStartEvent`, `DragOverEvent` were imported as runtime values from `@dnd-kit/core`, but they're type-only exports. Vite's module loader failed silently, rendering a completely blank page. Fixed with `type` keyword on imports.
+- **"Something went wrong" after login (React error #310)**: `useMemo` for Backroads day badges was placed after early `return` statements in both TripOverview and PlanPage. React requires hooks in the same order every render — when the loading state transitioned, React saw extra hooks and crashed. Moved `useMemo` above early returns in both components.
+
+### Added
+- **Playwright smoke tests (5 tests, ~16s)**: Catches runtime crashes that TypeScript misses. Tests cover: login page rendering, login click stability, unauthenticated route redirects, and post-login rendering of TripOverview and PlanPage (the loading→loaded transition that triggered the hooks bug).
+- **Playwright added to dev dependencies**: `@playwright/test` with Chromium browser.
+
 ## 2026-03-08 (cont'd — iPhone Polish, Creator Badges, Login & Splash)
 
 ### Fixed
