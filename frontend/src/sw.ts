@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { NetworkFirst, StaleWhileRevalidate, CacheFirst } from 'workbox-strategies';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { clientsClaim } from 'workbox-core';
@@ -20,6 +20,8 @@ cleanupOutdatedCaches();
 const API_CACHE = 'wander-api-v1';
 const STATIC_CACHE = 'wander-static-v1';
 const DAY_CACHE = 'wander-days-v1';
+const MAP_CACHE = 'wander-maps-v1';
+const IMAGE_CACHE = 'wander-images-v1';
 
 // ── Static assets: StaleWhileRevalidate (serve cached, fetch update in background) ──
 registerRoute(
@@ -30,6 +32,44 @@ registerRoute(
     request.destination === 'image',
   new StaleWhileRevalidate({
     cacheName: STATIC_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+    ],
+  })
+);
+
+// ── Google Maps Static API images (city thumbnails, experience maps) ──
+registerRoute(
+  ({ url }) => url.hostname === 'maps.googleapis.com' && url.pathname.includes('/staticmap'),
+  new CacheFirst({
+    cacheName: MAP_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+    ],
+  })
+);
+
+// ── Google Maps JS API tiles (interactive map) ──
+registerRoute(
+  ({ url }) =>
+    (url.hostname.endsWith('.googleapis.com') || url.hostname.endsWith('.gstatic.com')) &&
+    (url.pathname.includes('/maps/') || url.pathname.includes('/vt/')),
+  new StaleWhileRevalidate({
+    cacheName: MAP_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+  })
+);
+
+// ── Cloudinary images (experience photos) ──
+registerRoute(
+  ({ url }) => url.hostname === 'res.cloudinary.com',
+  new CacheFirst({
+    cacheName: IMAGE_CACHE,
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 }),
@@ -84,6 +124,45 @@ registerRoute(
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+    networkTimeoutSeconds: 3,
+  })
+);
+
+// ── API: Accommodations — cache for offline Now page ──
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/api/accommodations'),
+  new NetworkFirst({
+    cacheName: API_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+    networkTimeoutSeconds: 3,
+  })
+);
+
+// ── API: Reservations — cache for offline Now page ──
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/api/reservations'),
+  new NetworkFirst({
+    cacheName: API_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 30, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+    networkTimeoutSeconds: 3,
+  })
+);
+
+// ── API: Route segments — cache for offline transport info ──
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/api/route-segments'),
+  new NetworkFirst({
+    cacheName: API_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 7 * 24 * 60 * 60 }),
     ],
     networkTimeoutSeconds: 3,
   })

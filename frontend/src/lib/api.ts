@@ -1,4 +1,26 @@
+import { queueRequest, getQueueCount } from "./offlineStore";
+
 const API_BASE = "/api";
+
+// Paths where offline queueing makes sense (user-initiated mutations)
+const QUEUEABLE_PATHS = [
+  "/experiences", "/reservations", "/accommodations",
+  "/days", "/cities", "/route-segments", "/captures",
+];
+
+function isQueueable(path: string, method: string): boolean {
+  if (method === "GET") return false;
+  return QUEUEABLE_PATHS.some((p) => path.startsWith(p));
+}
+
+function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError && (
+    (err as TypeError).message.includes("fetch") ||
+    (err as TypeError).message.includes("network") ||
+    (err as TypeError).message.includes("Failed to fetch") ||
+    (err as TypeError).message.includes("Load failed")
+  );
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("wander_token");
@@ -10,21 +32,43 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const method = options.method || "GET";
 
-  if (res.status === 401) {
-    localStorage.removeItem("wander_token");
-    localStorage.removeItem("wander_user");
-    window.location.href = "/login";
-    throw new Error("Unauthorized");
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+
+    if (res.status === 401) {
+      localStorage.removeItem("wander_token");
+      localStorage.removeItem("wander_user");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Request failed: ${res.status}`);
+    }
+
+    return res.json();
+  } catch (err) {
+    // Queue mutations when offline
+    if (isNetworkError(err) && isQueueable(path, method)) {
+      await queueRequest({
+        url: `${API_BASE}${path}`,
+        method,
+        headers,
+        body: options.body as string | null,
+        timestamp: Date.now(),
+      });
+
+      const count = await getQueueCount();
+      window.dispatchEvent(new CustomEvent("wander:offline-queued", { detail: { count, path } }));
+
+      // Return a synthetic response so the UI doesn't crash
+      return { _queued: true } as T;
+    }
+    throw err;
   }
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed: ${res.status}`);
-  }
-
-  return res.json();
 }
 
 async function uploadRequest<T>(path: string, formData: FormData): Promise<T> {

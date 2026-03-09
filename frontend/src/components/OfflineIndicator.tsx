@@ -1,11 +1,28 @@
+import { useState, useEffect } from 'react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { getQueueCount } from '../lib/offlineStore';
 
 /**
- * Subtle offline indicator -- small icon in the bottom-right corner.
- * Only visible when the device has no network connection.
+ * Offline indicator with queued item count.
+ * Shows when offline, and briefly after coming back online if items synced.
  */
 export default function OfflineIndicator() {
   const online = useOnlineStatus();
+  const [queuedCount, setQueuedCount] = useState(0);
+
+  // Update count when items are queued or on mount
+  useEffect(() => {
+    if (online) return;
+
+    getQueueCount().then(setQueuedCount).catch(() => {});
+
+    const handler = (e: Event) => {
+      const count = (e as CustomEvent).detail?.count ?? 0;
+      setQueuedCount(count);
+    };
+    window.addEventListener('wander:offline-queued', handler);
+    return () => window.removeEventListener('wander:offline-queued', handler);
+  }, [online]);
 
   if (online) return null;
 
@@ -33,6 +50,11 @@ export default function OfflineIndicator() {
         <line x1="2" y1="2" x2="22" y2="22" />
       </svg>
       Offline
+      {queuedCount > 0 && (
+        <span className="ml-0.5 px-1.5 py-0.5 bg-white/20 rounded-full text-[10px] font-medium">
+          {queuedCount} queued
+        </span>
+      )}
     </div>
   );
 }

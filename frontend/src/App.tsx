@@ -11,6 +11,7 @@ import ChatBubble from "./components/ChatBubble";
 import DailyGreeting from "./components/DailyGreeting";
 import NextUpOverlay from "./components/NextUpOverlay";
 import { ToastProvider } from "./contexts/ToastContext";
+import { useToast } from "./contexts/ToastContext";
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./lib/api";
 
@@ -141,6 +142,34 @@ function ChatOverlay() {
   );
 }
 
+function SyncNotifier() {
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const onQueued = (e: Event) => {
+      const count = (e as CustomEvent).detail?.count ?? 0;
+      showToast(`Saved offline (${count} queued)`, "info");
+    };
+    const onSynced = (e: Event) => {
+      const { success, failed } = (e as CustomEvent).detail || {};
+      if (success > 0) {
+        showToast(
+          `Synced ${success} change${success > 1 ? "s" : ""}${failed ? `, ${failed} failed` : ""}`,
+          failed ? "info" : "success",
+        );
+      }
+    };
+    window.addEventListener("wander:offline-queued", onQueued);
+    window.addEventListener("wander:offline-synced", onSynced);
+    return () => {
+      window.removeEventListener("wander:offline-queued", onQueued);
+      window.removeEventListener("wander:offline-synced", onSynced);
+    };
+  }, [showToast]);
+
+  return null;
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth();
 
@@ -170,6 +199,7 @@ export default function App() {
             <ChatOverlay />
             <ShortcutHelp />
             <OfflineIndicator />
+            <SyncNotifier />
           </ToastProvider>
         </AuthProvider>
       </BrowserRouter>

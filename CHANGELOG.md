@@ -2,6 +2,26 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-09 — Offline Cache Overhaul
+
+### Added
+- **Mutation queueing**: POST, PATCH, and DELETE requests to experiences, reservations, accommodations, days, cities, route segments, and captures are now queued in IndexedDB when offline instead of failing silently. Queued changes replay automatically when connectivity returns.
+- **Offline UI feedback**: OfflineIndicator now shows queued item count ("Offline · 3 queued"). Toast notifications appear when changes are saved offline and when they sync on reconnect.
+- **City image prefetch**: On app start, all city static map images (both TripOverview 120x120 and PlanPage 240x120 sizes) are eagerly fetched and cached. Clicking a city for the first time in a session shows the map instantly — no flash.
+- **Trip data prefetch**: On app start, active trip data (days with experiences/reservations/accommodations, trip structure with route segments) is eagerly fetched into the SW cache so the Now page and Plan page work instantly if the user goes offline.
+- **Google Maps tile caching**: Interactive map tiles from googleapis.com and gstatic.com are cached with StaleWhileRevalidate so the map renders offline from last-viewed tiles.
+- **Cloudinary image caching**: Experience photos from res.cloudinary.com are cached with CacheFirst strategy (30-day expiry, 100 entries). Viewed once online, available offline indefinitely.
+- **Explicit SW caching for accommodations, reservations, route-segments**: Previously only covered by the catch-all StaleWhileRevalidate rule (1-day expiry). Now each has a dedicated NetworkFirst rule with 7-day expiry and 3s timeout.
+
+### Changed
+- **api.ts**: Now catches `TypeError` (network failure) on mutation requests and routes them to the offline queue instead of throwing. Returns a synthetic `{ _queued: true }` response so the UI doesn't crash.
+- **Service worker**: Added `CacheFirst` import and 4 new caching rules (Google Static Maps, Google Maps tiles, Cloudinary, plus explicit accommodation/reservation/route-segment rules).
+
+### Fixed
+- **offlineStore.ts was never called**: The `queueRequest()` function existed since the offline system was built but was never imported or called by any code path. Now connected via api.ts.
+
+**SPEC UPDATE NEEDED**: Offline caching strategy section (Section 17), service worker cache rules, mutation queue behavior.
+
 ## 2026-03-08 (cont'd — Next-Up Overlay)
 
 ### Added
