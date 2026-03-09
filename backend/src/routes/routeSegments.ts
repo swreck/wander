@@ -81,14 +81,14 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     data: {
       ...(transportMode !== undefined && { transportMode }),
       ...(departureDate !== undefined && { departureDate: departureDate ? new Date(departureDate) : null }),
-      ...(notes !== undefined && { notes }),
-      ...(confirmationNumber !== undefined && { confirmationNumber }),
-      ...(serviceNumber !== undefined && { serviceNumber }),
-      ...(departureTime !== undefined && { departureTime }),
-      ...(arrivalTime !== undefined && { arrivalTime }),
-      ...(departureStation !== undefined && { departureStation }),
-      ...(arrivalStation !== undefined && { arrivalStation }),
-      ...(seatInfo !== undefined && { seatInfo }),
+      ...(notes !== undefined && { notes: notes || null }),
+      ...(confirmationNumber !== undefined && { confirmationNumber: confirmationNumber || null }),
+      ...(serviceNumber !== undefined && { serviceNumber: serviceNumber || null }),
+      ...(departureTime !== undefined && { departureTime: departureTime || null }),
+      ...(arrivalTime !== undefined && { arrivalTime: arrivalTime || null }),
+      ...(departureStation !== undefined && { departureStation: departureStation || null }),
+      ...(arrivalStation !== undefined && { arrivalStation: arrivalStation || null }),
+      ...(seatInfo !== undefined && { seatInfo: seatInfo || null }),
     },
   });
 

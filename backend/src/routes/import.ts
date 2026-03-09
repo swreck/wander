@@ -718,6 +718,13 @@ router.post("/replace-backbone", async (req: AuthRequest, res) => {
           sequenceOrder: seg.sequenceOrder,
           transportMode: seg.transportMode,
           departureDate: seg.departureDate,
+          serviceNumber: seg.serviceNumber,
+          confirmationNumber: seg.confirmationNumber,
+          departureTime: seg.departureTime,
+          arrivalTime: seg.arrivalTime,
+          departureStation: seg.departureStation,
+          arrivalStation: seg.arrivalStation,
+          seatInfo: seg.seatInfo,
           notes: seg.notes,
         },
       });

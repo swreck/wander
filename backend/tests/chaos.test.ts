@@ -2170,5 +2170,622 @@ describe("Chaos Simulations", () => {
       );
       expect(deleteLog).toBeDefined();
     });
+
+    it("S67: AI chat tool — add_route_segment creates segment with all logistics", async () => {
+      // Tests the executeTool path directly by calling the API endpoints the tool would call
+      const tripId = await createTrip(aliceToken, "AI Segment Trip", "2026-12-01", "2026-12-10", [
+        { name: "Tokyo", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Osaka", arrivalDate: "2026-12-05", departureDate: "2026-12-10" },
+      ]);
+
+      // Simulate what the add_route_segment tool does
+      const segRes = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          originCity: "Tokyo",
+          destinationCity: "Osaka",
+          transportMode: "train",
+          departureDate: "2026-12-05",
+          serviceNumber: "Nozomi 42",
+          confirmationNumber: "JR-EAST-ABC123",
+          departureTime: "09:30",
+          arrivalTime: "12:00",
+          departureStation: "Tokyo Station",
+          arrivalStation: "Shin-Osaka",
+          seatInfo: "Car 7, Seat 3A",
+          notes: "Reserve ekiben at platform kiosk",
+        });
+      expect(segRes.status).toBe(201);
+
+      // Fetch the trip and verify the segment has all fields
+      const tripRes = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const seg = tripRes.body.routeSegments.find((s: any) => s.serviceNumber === "Nozomi 42");
+      expect(seg).toBeDefined();
+      expect(seg.confirmationNumber).toBe("JR-EAST-ABC123");
+      expect(seg.departureTime).toBe("09:30");
+      expect(seg.arrivalTime).toBe("12:00");
+      expect(seg.departureStation).toBe("Tokyo Station");
+      expect(seg.arrivalStation).toBe("Shin-Osaka");
+      expect(seg.seatInfo).toBe("Car 7, Seat 3A");
+      expect(seg.notes).toBe("Reserve ekiben at platform kiosk");
+    });
+
+    it("S68: AI chat tool — update_route_segment modifies subset of fields", async () => {
+      const tripId = await createTrip(aliceToken, "AI Update Trip", "2026-12-01", "2026-12-10", [
+        { name: "Kyoto", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Hiroshima", arrivalDate: "2026-12-05", departureDate: "2026-12-10" },
+      ]);
+
+      const segRes = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          originCity: "Kyoto",
+          destinationCity: "Hiroshima",
+          transportMode: "train",
+          serviceNumber: "Nozomi 99",
+          confirmationNumber: "CONF-ORIG",
+          departureTime: "08:00",
+        });
+
+      // Update only confirmation number and seat — other fields should stay
+      const patchRes = await request(app)
+        .patch(`/api/route-segments/${segRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          confirmationNumber: "CONF-UPDATED",
+          seatInfo: "Car 3, Seat 12E",
+        });
+      expect(patchRes.status).toBe(200);
+      expect(patchRes.body.confirmationNumber).toBe("CONF-UPDATED");
+      expect(patchRes.body.seatInfo).toBe("Car 3, Seat 12E");
+      // Original fields preserved
+      expect(patchRes.body.serviceNumber).toBe("Nozomi 99");
+      expect(patchRes.body.departureTime).toBe("08:00");
+      expect(patchRes.body.transportMode).toBe("train");
+
+      // Verify change log captured both old and new state
+      const logs = await request(app)
+        .get(`/api/change-logs/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const editLog = logs.body.logs.find(
+        (l: any) => l.actionType === "route_segment_edited" && l.entityName.includes("Kyoto")
+      );
+      expect(editLog).toBeDefined();
+      expect(editLog.previousState).toBeDefined();
+      expect(editLog.newState).toBeDefined();
+    });
+
+    it("S69: Update nonexistent route segment returns 404", async () => {
+      const res = await request(app)
+        .patch("/api/route-segments/nonexistent-id-999")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ seatInfo: "Window" });
+      expect(res.status).toBe(404);
+    });
+
+    it("S70: Promote/demote cycle clears transportModeToHere on demote", async () => {
+      const tripId = await createTrip(aliceToken, "Mode Cycle", "2026-12-01", "2026-12-05", [
+        { name: "Nagoya", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+      ]);
+
+      // Create experience
+      const trip = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const city = trip.body.cities[0];
+      const dayId = trip.body.days[0].id;
+
+      const expRes = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ name: "Atsuta Shrine", tripId, cityId: city.id });
+
+      // Promote with transport mode
+      const promRes = await request(app)
+        .post(`/api/experiences/${expRes.body.id}/promote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ dayId, timeWindow: "morning", transportModeToHere: "subway" });
+      expect(promRes.status).toBe(200);
+      expect(promRes.body.transportModeToHere).toBe("subway");
+
+      // Demote — transportModeToHere should be cleared
+      const demRes = await request(app)
+        .post(`/api/experiences/${expRes.body.id}/demote`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(demRes.status).toBe(200);
+      expect(demRes.body.transportModeToHere).toBeNull();
+
+      // Re-promote without specifying mode — should be null
+      const repromRes = await request(app)
+        .post(`/api/experiences/${expRes.body.id}/promote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ dayId, timeWindow: "afternoon" });
+      expect(repromRes.status).toBe(200);
+      expect(repromRes.body.transportModeToHere).toBeNull();
+    });
+
+    it("S71: Route segment with minimal fields, then incrementally add logistics", async () => {
+      const tripId = await createTrip(aliceToken, "Incremental Seg", "2026-12-01", "2026-12-05", [
+        { name: "Fukuoka", arrivalDate: "2026-12-01", departureDate: "2026-12-03" },
+        { name: "Nagasaki", arrivalDate: "2026-12-03", departureDate: "2026-12-05" },
+      ]);
+
+      // Create with just the bare minimum
+      const segRes = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, originCity: "Fukuoka", destinationCity: "Nagasaki", transportMode: "train" });
+      expect(segRes.status).toBe(201);
+      expect(segRes.body.serviceNumber).toBeNull();
+      expect(segRes.body.confirmationNumber).toBeNull();
+      expect(segRes.body.seatInfo).toBeNull();
+
+      // Add service number
+      const p1 = await request(app)
+        .patch(`/api/route-segments/${segRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ serviceNumber: "Kamome 12" });
+      expect(p1.body.serviceNumber).toBe("Kamome 12");
+
+      // Add confirmation number
+      const p2 = await request(app)
+        .patch(`/api/route-segments/${segRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ confirmationNumber: "JR-KYU-456" });
+      expect(p2.body.confirmationNumber).toBe("JR-KYU-456");
+      // Service number still there from previous update
+      expect(p2.body.serviceNumber).toBe("Kamome 12");
+
+      // Add times and stations
+      const p3 = await request(app)
+        .patch(`/api/route-segments/${segRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          departureTime: "10:15",
+          arrivalTime: "12:05",
+          departureStation: "Hakata Station",
+          arrivalStation: "Nagasaki Station",
+        });
+      expect(p3.body.departureTime).toBe("10:15");
+      expect(p3.body.arrivalTime).toBe("12:05");
+      // All previous fields still intact
+      expect(p3.body.serviceNumber).toBe("Kamome 12");
+      expect(p3.body.confirmationNumber).toBe("JR-KYU-456");
+    });
+
+    it("S72: Deleting a city does NOT delete route segments referencing that city name", async () => {
+      const tripId = await createTrip(aliceToken, "City Del Seg", "2026-12-01", "2026-12-10", [
+        { name: "Sapporo", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Hakodate", arrivalDate: "2026-12-05", departureDate: "2026-12-08" },
+        { name: "Asahikawa", arrivalDate: "2026-12-08", departureDate: "2026-12-10" },
+      ]);
+
+      // Create segment Sapporo → Hakodate
+      await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, originCity: "Sapporo", destinationCity: "Hakodate", transportMode: "train", serviceNumber: "Super Hokuto 5" });
+
+      // Delete Hakodate city
+      const trip = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const hakodate = trip.body.cities.find((c: any) => c.name === "Hakodate");
+
+      await request(app)
+        .delete(`/api/cities/${hakodate.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      // Route segment should still exist — it uses city names, not FK
+      const segs = await request(app)
+        .get(`/api/route-segments/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(segs.body.length).toBe(1);
+      expect(segs.body[0].originCity).toBe("Sapporo");
+      expect(segs.body[0].destinationCity).toBe("Hakodate");
+      expect(segs.body[0].serviceNumber).toBe("Super Hokuto 5");
+    });
+
+    it("S73: Multiple segments on same trip maintain independent logistics", async () => {
+      const tripId = await createTrip(aliceToken, "Multi Seg", "2026-12-01", "2026-12-15", [
+        { name: "Tokyo", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Kyoto", arrivalDate: "2026-12-05", departureDate: "2026-12-10" },
+        { name: "Osaka", arrivalDate: "2026-12-10", departureDate: "2026-12-15" },
+      ]);
+
+      // Create three segments with different modes and logistics
+      const seg1 = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId, originCity: "Tokyo", destinationCity: "Kyoto",
+          transportMode: "train", serviceNumber: "Nozomi 1", departureTime: "06:00", arrivalTime: "08:15",
+          departureStation: "Tokyo Station", arrivalStation: "Kyoto Station",
+        });
+      const seg2 = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId, originCity: "Kyoto", destinationCity: "Osaka",
+          transportMode: "train", serviceNumber: "Thunderbird 9", departureTime: "14:00", arrivalTime: "14:30",
+        });
+      const seg3 = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId, originCity: "Osaka", destinationCity: "Tokyo",
+          transportMode: "flight", serviceNumber: "NH32", confirmationNumber: "ANA-XYZ",
+          departureStation: "Itami Airport", arrivalStation: "Haneda Airport",
+        });
+
+      // Fetch all segments — should be 3 with correct order
+      const segs = await request(app)
+        .get(`/api/route-segments/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(segs.body.length).toBe(3);
+
+      // Update seg2 — should NOT affect seg1 or seg3
+      await request(app)
+        .patch(`/api/route-segments/${seg2.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ confirmationNumber: "JR-WEST-789", seatInfo: "2A" });
+
+      // Re-fetch and verify independence
+      const updated = await request(app)
+        .get(`/api/route-segments/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const s1 = updated.body.find((s: any) => s.id === seg1.body.id);
+      const s2 = updated.body.find((s: any) => s.id === seg2.body.id);
+      const s3 = updated.body.find((s: any) => s.id === seg3.body.id);
+
+      expect(s1.serviceNumber).toBe("Nozomi 1");
+      expect(s1.confirmationNumber).toBeNull(); // never set
+      expect(s2.confirmationNumber).toBe("JR-WEST-789");
+      expect(s2.seatInfo).toBe("2A");
+      expect(s3.serviceNumber).toBe("NH32");
+      expect(s3.confirmationNumber).toBe("ANA-XYZ");
+    });
+
+    it("S74: Import commit with route segments preserves logistics fields", async () => {
+      // Simulate what the import/commit endpoint does with logistics
+      const tripId = await createTrip(aliceToken, "Import Logistics", "2026-12-01", "2026-12-10", [
+        { name: "Tokyo", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Kyoto", arrivalDate: "2026-12-05", departureDate: "2026-12-10" },
+      ]);
+
+      // Create a segment with full logistics as if import created it
+      const segRes = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          originCity: "Tokyo",
+          destinationCity: "Kyoto",
+          transportMode: "train",
+          departureDate: "2026-12-05",
+          serviceNumber: "Hikari 500",
+          confirmationNumber: "JR-CENTRAL-999",
+          departureTime: "11:00",
+          arrivalTime: "13:40",
+          departureStation: "Shinagawa",
+          arrivalStation: "Kyoto Station",
+          seatInfo: "Car 10, Seat 5D",
+          notes: "Green car (first class)",
+        });
+
+      // Fetch by ID and verify all fields roundtrip
+      const fetched = await request(app)
+        .get(`/api/route-segments/${segRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(fetched.status).toBe(200);
+      expect(fetched.body.serviceNumber).toBe("Hikari 500");
+      expect(fetched.body.confirmationNumber).toBe("JR-CENTRAL-999");
+      expect(fetched.body.departureTime).toBe("11:00");
+      expect(fetched.body.arrivalTime).toBe("13:40");
+      expect(fetched.body.departureStation).toBe("Shinagawa");
+      expect(fetched.body.arrivalStation).toBe("Kyoto Station");
+      expect(fetched.body.seatInfo).toBe("Car 10, Seat 5D");
+      expect(fetched.body.notes).toBe("Green car (first class)");
+    });
+
+    it("S75: Clearing logistics fields by sending empty strings", async () => {
+      const tripId = await createTrip(aliceToken, "Clear Fields", "2026-12-01", "2026-12-05", [
+        { name: "Kanazawa", arrivalDate: "2026-12-01", departureDate: "2026-12-03" },
+        { name: "Takayama", arrivalDate: "2026-12-03", departureDate: "2026-12-05" },
+      ]);
+
+      const segRes = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId, originCity: "Kanazawa", destinationCity: "Takayama",
+          transportMode: "drive",
+          serviceNumber: "Rental Toyota",
+          confirmationNumber: "HERTZ-123",
+          seatInfo: "Driver",
+        });
+
+      // User changes their mind — clears confirmation and seat by sending empty strings
+      const cleared = await request(app)
+        .patch(`/api/route-segments/${segRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ confirmationNumber: "", seatInfo: "" });
+      expect(cleared.body.confirmationNumber).toBeNull();
+      expect(cleared.body.seatInfo).toBeNull();
+      // Service number untouched
+      expect(cleared.body.serviceNumber).toBe("Rental Toyota");
+    });
+
+    it("S76: Both users can create and edit route segments on shared trip", async () => {
+      const tripId = await createTrip(aliceToken, "Collab Transport", "2026-12-01", "2026-12-10", [
+        { name: "Tokyo", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Osaka", arrivalDate: "2026-12-05", departureDate: "2026-12-10" },
+      ]);
+
+      // Alice creates a flight segment
+      const aliceSeg = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId, originCity: "Tokyo", destinationCity: "Osaka",
+          transportMode: "flight", serviceNumber: "NH121",
+        });
+
+      // Bob updates Alice's segment with confirmation and seat
+      const bobUpdate = await request(app)
+        .patch(`/api/route-segments/${aliceSeg.body.id}`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ confirmationNumber: "ANA-BOB-456", seatInfo: "14F" });
+      expect(bobUpdate.status).toBe(200);
+      expect(bobUpdate.body.serviceNumber).toBe("NH121"); // Alice's original
+      expect(bobUpdate.body.confirmationNumber).toBe("ANA-BOB-456"); // Bob's addition
+
+      // Bob creates their own segment (return trip)
+      const bobSeg = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({
+          tripId, originCity: "Osaka", destinationCity: "Tokyo",
+          transportMode: "train", serviceNumber: "Nozomi 300",
+        });
+      expect(bobSeg.status).toBe(201);
+
+      // Both segments exist
+      const segs = await request(app)
+        .get(`/api/route-segments/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(segs.body.length).toBe(2);
+
+      // Change log shows both users
+      const logs = await request(app)
+        .get(`/api/change-logs/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const aliceLog = logs.body.logs.find(
+        (l: any) => l.actionType === "route_segment_added" && l.description.includes("Alice")
+      );
+      const bobLog = logs.body.logs.find(
+        (l: any) => l.actionType === "route_segment_added" && l.description.includes("Bob")
+      );
+      expect(aliceLog).toBeDefined();
+      expect(bobLog).toBeDefined();
+    });
+  });
+
+  describe("10. Transport UX Edge Cases", () => {
+    it("S77: Experience with transportModeToHere survives city move", async () => {
+      const tripId = await createTrip(aliceToken, "Mode Move", "2026-12-01", "2026-12-10", [
+        { name: "Tokyo", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Kyoto", arrivalDate: "2026-12-05", departureDate: "2026-12-10" },
+      ]);
+
+      const trip = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const tokyo = trip.body.cities.find((c: any) => c.name === "Tokyo");
+      const kyoto = trip.body.cities.find((c: any) => c.name === "Kyoto");
+      const tokyoDay = trip.body.days.find((d: any) => d.cityId === tokyo.id);
+
+      // Create experience in Tokyo, promote, set transport mode
+      const expRes = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ name: "Meiji Shrine", tripId, cityId: tokyo.id });
+
+      await request(app)
+        .post(`/api/experiences/${expRes.body.id}/promote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ dayId: tokyoDay.id, timeWindow: "morning", transportModeToHere: "subway" });
+
+      // Move experience to Kyoto
+      const moveRes = await request(app)
+        .patch(`/api/experiences/${expRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ cityId: kyoto.id });
+      expect(moveRes.status).toBe(200);
+
+      // transportModeToHere should persist — it's a property of the experience, not the city
+      expect(moveRes.body.transportModeToHere).toBe("subway");
+    });
+
+    it("S78: Setting transportModeToHere via PATCH (not promote) works for already-selected experience", async () => {
+      const tripId = await createTrip(aliceToken, "Mode Patch", "2026-12-01", "2026-12-05", [
+        { name: "Osaka", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+      ]);
+
+      const trip = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const city = trip.body.cities[0];
+      const dayId = trip.body.days[0].id;
+
+      const expRes = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ name: "Dotonbori", tripId, cityId: city.id });
+
+      // Promote without transport mode
+      await request(app)
+        .post(`/api/experiences/${expRes.body.id}/promote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ dayId, timeWindow: "evening" });
+
+      // Now set transport mode via PATCH (this is what TransportConnector does)
+      const patchRes = await request(app)
+        .patch(`/api/experiences/${expRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ transportModeToHere: "taxi" });
+      expect(patchRes.status).toBe(200);
+      expect(patchRes.body.transportModeToHere).toBe("taxi");
+
+      // Change to different mode
+      const patchRes2 = await request(app)
+        .patch(`/api/experiences/${expRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ transportModeToHere: "bus" });
+      expect(patchRes2.body.transportModeToHere).toBe("bus");
+
+      // Clear it
+      const patchRes3 = await request(app)
+        .patch(`/api/experiences/${expRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ transportModeToHere: "" });
+      expect(patchRes3.body.transportModeToHere).toBeNull();
+    });
+
+    it("S79: Route segment mode change from train to flight updates correctly", async () => {
+      const tripId = await createTrip(aliceToken, "Mode Switch", "2026-12-01", "2026-12-10", [
+        { name: "Tokyo", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Sapporo", arrivalDate: "2026-12-05", departureDate: "2026-12-10" },
+      ]);
+
+      // Create as train — user hasn't decided yet
+      const segRes = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId, originCity: "Tokyo", destinationCity: "Sapporo",
+          transportMode: "train", serviceNumber: "Hayabusa 1",
+          departureStation: "Tokyo Station", arrivalStation: "Shin-Hakodate-Hokuto",
+        });
+
+      // User decides to fly instead — change mode AND all logistics
+      const updated = await request(app)
+        .patch(`/api/route-segments/${segRes.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          transportMode: "flight",
+          serviceNumber: "NH73",
+          departureStation: "Haneda Airport",
+          arrivalStation: "New Chitose Airport",
+          departureTime: "07:30",
+          arrivalTime: "09:10",
+          confirmationNumber: "ANA-FLY-789",
+        });
+      expect(updated.body.transportMode).toBe("flight");
+      expect(updated.body.serviceNumber).toBe("NH73");
+      expect(updated.body.departureStation).toBe("Haneda Airport");
+      expect(updated.body.arrivalStation).toBe("New Chitose Airport");
+
+      // Change log should show previous train details
+      const logs = await request(app)
+        .get(`/api/change-logs/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const editLog = logs.body.logs.find(
+        (l: any) => l.actionType === "route_segment_edited"
+      );
+      expect(editLog).toBeDefined();
+      const prev = typeof editLog.previousState === "string"
+        ? JSON.parse(editLog.previousState) : editLog.previousState;
+      expect(prev.transportMode).toBe("train");
+      expect(prev.serviceNumber).toBe("Hayabusa 1");
+    });
+
+    it("S80: Day with mixed transport modes — each experience keeps its own mode", async () => {
+      const tripId = await createTrip(aliceToken, "Mixed Modes", "2026-12-01", "2026-12-05", [
+        { name: "Kyoto", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+      ]);
+
+      const trip = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const city = trip.body.cities[0];
+      const dayId = trip.body.days[0].id;
+
+      // Create 4 experiences with different transport modes
+      const modes = ["walk", "bus", "subway", "taxi"];
+      const names = ["Kinkaku-ji", "Fushimi Inari", "Nishiki Market", "Gion"];
+      const expIds: string[] = [];
+
+      for (let i = 0; i < 4; i++) {
+        const res = await request(app)
+          .post("/api/experiences")
+          .set("Authorization", `Bearer ${aliceToken}`)
+          .send({ name: names[i], tripId, cityId: city.id });
+        expIds.push(res.body.id);
+
+        await request(app)
+          .post(`/api/experiences/${res.body.id}/promote`)
+          .set("Authorization", `Bearer ${aliceToken}`)
+          .send({ dayId, timeWindow: "morning", transportModeToHere: modes[i] });
+      }
+
+      // Fetch all experiences for this day and verify each has its own mode
+      const exps = await request(app)
+        .get(`/api/experiences/trip/${tripId}?dayId=${dayId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      for (let i = 0; i < 4; i++) {
+        const exp = exps.body.find((e: any) => e.name === names[i]);
+        expect(exp.transportModeToHere).toBe(modes[i]);
+      }
+    });
+
+    it("S81: Delete segment then recreate with different mode — no ghost data", async () => {
+      const tripId = await createTrip(aliceToken, "Delete Recreate", "2026-12-01", "2026-12-10", [
+        { name: "Osaka", arrivalDate: "2026-12-01", departureDate: "2026-12-05" },
+        { name: "Kobe", arrivalDate: "2026-12-05", departureDate: "2026-12-10" },
+      ]);
+
+      // Create ferry segment with full details
+      const seg1 = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId, originCity: "Osaka", destinationCity: "Kobe",
+          transportMode: "ferry", serviceNumber: "Kobe Ferry A",
+          departureStation: "Osaka Port", arrivalStation: "Kobe Harborland",
+          confirmationNumber: "FERRY-OLD",
+        });
+
+      // Delete it
+      await request(app)
+        .delete(`/api/route-segments/${seg1.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      // Recreate as train — should have NO ferry data carried over
+      const seg2 = await request(app)
+        .post("/api/route-segments")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId, originCity: "Osaka", destinationCity: "Kobe",
+          transportMode: "train", serviceNumber: "JR Rapid",
+        });
+      expect(seg2.body.transportMode).toBe("train");
+      expect(seg2.body.serviceNumber).toBe("JR Rapid");
+      expect(seg2.body.departureStation).toBeNull(); // not carried from deleted
+      expect(seg2.body.confirmationNumber).toBeNull();
+
+      // Trip should have exactly 1 segment, not 2
+      const segs = await request(app)
+        .get(`/api/route-segments/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(segs.body.length).toBe(1);
+    });
   });
 });
