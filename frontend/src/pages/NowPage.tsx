@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import type { Trip, Day, Experience } from "../lib/types";
 import FirstTimeGuide from "../components/FirstTimeGuide";
 import { useToast } from "../contexts/ToastContext";
+import { isNextUpEnabled, setNextUpEnabled } from "../components/NextUpOverlay";
 
 interface TravelTimeResult {
   durationMinutes: number;
@@ -593,6 +594,27 @@ export default function NowPage() {
         >
           Share Today's Plan
         </button>
+
+        {/* Next-up overlay setting */}
+        <div className="mt-6 flex items-center justify-between px-1">
+          <span className="text-xs text-[#a89880]">Show next-up reminder on open</span>
+          <button
+            onClick={() => {
+              const newVal = !isNextUpEnabled();
+              setNextUpEnabled(newVal);
+              showToast(newVal ? "Next-up reminders on" : "Next-up reminders off");
+            }}
+            className={`relative w-10 h-5 rounded-full transition-colors ${
+              isNextUpEnabled() ? "bg-[#514636]" : "bg-[#d9cfc0]"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                isNextUpEnabled() ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
       </div>
     </div>
   );

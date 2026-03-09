@@ -9,6 +9,7 @@ import CaptureSharePage from "./pages/CaptureSharePage";
 import OfflineIndicator from "./components/OfflineIndicator";
 import ChatBubble from "./components/ChatBubble";
 import DailyGreeting from "./components/DailyGreeting";
+import NextUpOverlay from "./components/NextUpOverlay";
 import { ToastProvider } from "./contexts/ToastContext";
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./lib/api";
@@ -165,6 +166,7 @@ export default function App() {
           <ToastProvider>
             <AppRoutes />
             <DailyGreeting />
+            <NextUpOverlay />
             <ChatOverlay />
             <ShortcutHelp />
             <OfflineIndicator />

@@ -175,10 +175,10 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
             <button
               onClick={() => setOpen(false)}
               className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3]"
-              aria-label="Close chat"
+              aria-label="Minimize chat"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9l6 6 6-6" />
               </svg>
             </button>
           </div>

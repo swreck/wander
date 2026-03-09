@@ -2,6 +2,26 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-08 (cont'd — Next-Up Overlay)
+
+### Added
+- **Next-up reminder overlay**: When opening Wander during your trip, a compact card slides up showing your next upcoming action (reservation, planned experience with a time, or transport departure) within the next 4 hours. Shows the name, time, and key details. Tap anywhere on the card to dismiss, or it auto-closes after 10 seconds. Only appears once per app session and only when there's high-confidence time-specific data for today — never guesses or shows generic content. Outside trip dates, nothing appears.
+- **Next-up setting toggle**: On/off toggle at the bottom of the Now page. On by default. Persisted in localStorage. Shows toast confirmation when toggled.
+- **Data sources for next-up**: Reservations (exact datetime), selected experiences with time windows (parsed: "morning"=9am, "afternoon"=2pm, "evening"=6pm, or exact times like "2:00 PM"), and route segments with departure date+time.
+
+**SPEC UPDATE NEEDED**: New component NextUpOverlay, Now page settings section.
+
+## 2026-03-08 (cont'd — Chat Tool Parity + UX)
+
+### Added
+- **8 new AI chat tools**: `delete_route_segment`, `update_reservation`, `add_accommodation`, `update_accommodation`, `delete_accommodation`, `create_day`, `delete_day`, `reorder_cities`. The assistant can now perform full CRUD on all major entities.
+- **Intentionally excluded `delete_trip`** from chat tools — too destructive for AI-initiated action.
+
+### Changed
+- **Chat close button**: Replaced X icon with down-chevron to signal "minimize" rather than "destroy." The close action preserves conversation context in localStorage; only the "Clear" button wipes it.
+
+**SPEC UPDATE NEEDED**: AI chat tools list (now 39 tools total).
+
 ## 2026-03-08 (cont'd — Transport System: Gap-Fill, UX Polish, Tests)
 
 ### Added

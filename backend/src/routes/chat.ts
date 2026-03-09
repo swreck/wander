@@ -371,6 +371,115 @@ const tools: Anthropic.Tool[] = [
       required: ["segmentId"],
     },
   },
+  {
+    name: "delete_route_segment",
+    description: "Delete a route segment (intercity travel leg). Use when the user wants to remove a duplicate or incorrect travel segment between cities.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        segmentId: { type: "string", description: "The route segment ID to delete" },
+      },
+      required: ["segmentId"],
+    },
+  },
+  {
+    name: "update_reservation",
+    description: "Update an existing reservation's details (time, name, notes, confirmation number). Use when the user wants to change a restaurant booking time, update a confirmation number, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        reservationId: { type: "string" },
+        name: { type: "string", description: "New name" },
+        type: { type: "string", enum: ["restaurant", "activity", "transport", "other"] },
+        datetime: { type: "string", description: "New ISO datetime string" },
+        notes: { type: "string" },
+        confirmationNumber: { type: "string" },
+      },
+      required: ["reservationId"],
+    },
+  },
+  {
+    name: "add_accommodation",
+    description: "Add a hotel, ryokan, Airbnb, or other lodging to a city. Use when the user mentions where they're staying.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        cityId: { type: "string" },
+        name: { type: "string", description: "Name of the hotel/accommodation" },
+        address: { type: "string" },
+        checkInTime: { type: "string", description: "Check-in time (e.g. '15:00')" },
+        checkOutTime: { type: "string", description: "Check-out time (e.g. '11:00')" },
+        confirmationNumber: { type: "string" },
+        notes: { type: "string" },
+      },
+      required: ["tripId", "cityId", "name"],
+    },
+  },
+  {
+    name: "update_accommodation",
+    description: "Update an existing accommodation's details. Use when the user wants to change hotel info, check-in times, add a confirmation number, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        accommodationId: { type: "string" },
+        name: { type: "string" },
+        address: { type: "string" },
+        checkInTime: { type: "string" },
+        checkOutTime: { type: "string" },
+        confirmationNumber: { type: "string" },
+        notes: { type: "string" },
+      },
+      required: ["accommodationId"],
+    },
+  },
+  {
+    name: "delete_accommodation",
+    description: "Delete an accommodation. Use when the user wants to remove a hotel or lodging entry.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        accommodationId: { type: "string" },
+      },
+      required: ["accommodationId"],
+    },
+  },
+  {
+    name: "create_day",
+    description: "Create a new day for a specific date and city. Use when the user wants to add an extra day to a city.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        cityId: { type: "string" },
+        date: { type: "string", description: "YYYY-MM-DD format" },
+        notes: { type: "string" },
+      },
+      required: ["tripId", "cityId", "date"],
+    },
+  },
+  {
+    name: "delete_day",
+    description: "Delete a day from the trip. Experiences on that day are demoted back to candidates. Use when the user wants to remove a day.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        dayId: { type: "string" },
+      },
+      required: ["dayId"],
+    },
+  },
+  {
+    name: "reorder_cities",
+    description: "Set the order of cities in the trip (pass all city IDs in desired order). Use when the user wants to rearrange their itinerary order.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        orderedIds: { type: "array", items: { type: "string" }, description: "Array of city IDs in desired order" },
+      },
+      required: ["orderedIds"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -1236,6 +1345,237 @@ async function executeTool(
       return {
         result: updated,
         actionDescription: `Updated travel details for ${segment.originCity} → ${segment.destinationCity}`,
+      };
+    }
+
+    case "delete_route_segment": {
+      const segment = await prisma.routeSegment.findUnique({ where: { id: input.segmentId } });
+      if (!segment) return { result: { error: "Route segment not found" } };
+
+      // Demote selected experiences on this segment back to "possible"
+      await prisma.experience.updateMany({
+        where: { routeSegmentId: segment.id, state: "selected" },
+        data: { state: "possible", routeSegmentId: null, timeWindow: null },
+      });
+
+      await prisma.routeSegment.delete({ where: { id: segment.id } });
+
+      await logChange({
+        user,
+        tripId: segment.tripId,
+        actionType: "route_segment_deleted",
+        entityType: "routeSegment",
+        entityId: segment.id,
+        entityName: `${segment.originCity} → ${segment.destinationCity}`,
+        description: `${user.displayName} removed route ${segment.originCity} → ${segment.destinationCity}`,
+        previousState: segment,
+      });
+
+      return {
+        result: { deleted: true },
+        actionDescription: `Deleted route segment ${segment.originCity} → ${segment.destinationCity}`,
+      };
+    }
+
+    case "update_reservation": {
+      const existing = await prisma.reservation.findUnique({ where: { id: input.reservationId } });
+      if (!existing) return { result: { error: "Reservation not found" } };
+
+      const data: any = {};
+      if (input.name !== undefined) data.name = input.name;
+      if (input.type !== undefined) data.type = input.type;
+      if (input.datetime !== undefined) data.datetime = new Date(input.datetime);
+      if (input.notes !== undefined) data.notes = input.notes || null;
+      if (input.confirmationNumber !== undefined) data.confirmationNumber = input.confirmationNumber || null;
+
+      const updated = await prisma.reservation.update({
+        where: { id: input.reservationId },
+        data,
+        include: { day: true },
+      });
+
+      await logChange({
+        user,
+        tripId: updated.tripId,
+        actionType: "reservation_edited",
+        entityType: "reservation",
+        entityId: updated.id,
+        entityName: updated.name,
+        description: `${user.displayName} updated reservation "${updated.name}"`,
+        previousState: existing,
+        newState: updated,
+      });
+
+      return {
+        result: updated,
+        actionDescription: `Updated reservation "${updated.name}"`,
+      };
+    }
+
+    case "add_accommodation": {
+      const acc = await prisma.accommodation.create({
+        data: {
+          tripId: input.tripId,
+          cityId: input.cityId,
+          name: input.name,
+          address: input.address || null,
+          checkInTime: input.checkInTime || null,
+          checkOutTime: input.checkOutTime || null,
+          confirmationNumber: input.confirmationNumber || null,
+          notes: input.notes || null,
+        },
+        include: { city: true },
+      });
+
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "accommodation_added",
+        entityType: "accommodation",
+        entityId: acc.id,
+        entityName: acc.name,
+        description: `${user.displayName} added accommodation "${acc.name}" in ${acc.city.name}`,
+        newState: acc,
+      });
+
+      return {
+        result: acc,
+        actionDescription: `Added accommodation "${acc.name}" in ${acc.city.name}`,
+      };
+    }
+
+    case "update_accommodation": {
+      const existing = await prisma.accommodation.findUnique({ where: { id: input.accommodationId } });
+      if (!existing) return { result: { error: "Accommodation not found" } };
+
+      const data: any = {};
+      if (input.name !== undefined) data.name = input.name;
+      if (input.address !== undefined) data.address = input.address || null;
+      if (input.checkInTime !== undefined) data.checkInTime = input.checkInTime || null;
+      if (input.checkOutTime !== undefined) data.checkOutTime = input.checkOutTime || null;
+      if (input.confirmationNumber !== undefined) data.confirmationNumber = input.confirmationNumber || null;
+      if (input.notes !== undefined) data.notes = input.notes || null;
+
+      const acc = await prisma.accommodation.update({
+        where: { id: input.accommodationId },
+        data,
+        include: { city: true },
+      });
+
+      await logChange({
+        user,
+        tripId: acc.tripId,
+        actionType: "accommodation_edited",
+        entityType: "accommodation",
+        entityId: acc.id,
+        entityName: acc.name,
+        description: `${user.displayName} updated accommodation "${acc.name}"`,
+        previousState: existing,
+        newState: acc,
+      });
+
+      return {
+        result: acc,
+        actionDescription: `Updated accommodation "${acc.name}"`,
+      };
+    }
+
+    case "delete_accommodation": {
+      const existing = await prisma.accommodation.findUnique({ where: { id: input.accommodationId }, include: { city: true } });
+      if (!existing) return { result: { error: "Accommodation not found" } };
+
+      await prisma.accommodation.delete({ where: { id: input.accommodationId } });
+
+      await logChange({
+        user,
+        tripId: existing.tripId,
+        actionType: "accommodation_deleted",
+        entityType: "accommodation",
+        entityId: existing.id,
+        entityName: existing.name,
+        description: `${user.displayName} deleted accommodation "${existing.name}"`,
+        previousState: existing,
+      });
+
+      return {
+        result: { deleted: true },
+        actionDescription: `Deleted accommodation "${existing.name}"`,
+      };
+    }
+
+    case "create_day": {
+      const day = await prisma.day.create({
+        data: {
+          tripId: input.tripId,
+          cityId: input.cityId,
+          date: new Date(input.date),
+          notes: input.notes || null,
+        },
+        include: { city: true },
+      });
+
+      await syncTripDates(input.tripId);
+
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "day_created",
+        entityType: "day",
+        entityId: day.id,
+        entityName: `Day ${day.date.toISOString().slice(0, 10)}`,
+        description: `${user.displayName} added day ${day.date.toISOString().slice(0, 10)}`,
+        newState: day,
+      });
+
+      return {
+        result: day,
+        actionDescription: `Created day ${day.date.toISOString().slice(0, 10)} in ${day.city.name}`,
+      };
+    }
+
+    case "delete_day": {
+      const existing = await prisma.day.findUnique({ where: { id: input.dayId }, include: { city: true } });
+      if (!existing) return { result: { error: "Day not found" } };
+
+      // Demote selected experiences on this day back to "possible"
+      await prisma.experience.updateMany({
+        where: { dayId: input.dayId, state: "selected" },
+        data: { state: "possible", dayId: null, timeWindow: null },
+      });
+
+      await prisma.day.delete({ where: { id: input.dayId } });
+      await syncTripDates(existing.tripId);
+
+      await logChange({
+        user,
+        tripId: existing.tripId,
+        actionType: "day_deleted",
+        entityType: "day",
+        entityId: existing.id,
+        entityName: `Day ${existing.date.toISOString().slice(0, 10)}`,
+        description: `${user.displayName} removed day ${existing.date.toISOString().slice(0, 10)}`,
+        previousState: existing,
+      });
+
+      return {
+        result: { deleted: true },
+        actionDescription: `Deleted day ${existing.date.toISOString().slice(0, 10)} from ${existing.city.name}`,
+      };
+    }
+
+    case "reorder_cities": {
+      if (!Array.isArray(input.orderedIds)) return { result: { error: "orderedIds array required" } };
+
+      for (let i = 0; i < input.orderedIds.length; i++) {
+        await prisma.city.update({
+          where: { id: input.orderedIds[i] },
+          data: { sequenceOrder: i },
+        });
+      }
+
+      return {
+        result: { reordered: true, count: input.orderedIds.length },
+        actionDescription: `Reordered ${input.orderedIds.length} cities`,
       };
     }
 
