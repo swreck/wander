@@ -31,8 +31,8 @@ export default function FirstTimeGuide({ id, lines }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
-      <div className="bg-white rounded-xl shadow-xl max-w-sm mx-4 p-5 border border-[#e0d8cc]">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30 backdrop-blur-[2px]" onClick={handleRemindMe}>
+      <div className="bg-white rounded-xl shadow-xl max-w-sm mx-4 p-5 border border-[#e0d8cc]" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-medium text-[#3a3128] mb-3">On this screen, you can:</h3>
         <ul className="space-y-2 mb-5">
           {lines.map((line, i) => (

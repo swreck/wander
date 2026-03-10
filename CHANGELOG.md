@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-10 — UI Polish & Settings Page
+
+### Added
+- **Settings page** (`/settings`): New page with city photo duration toggle (1/3/5 seconds, default 1s), next-up reminder on/off toggle, and "Reset all guides" button to re-show first-time orientation tips. Accessible via gear icon on Trip Overview's identity bar.
+- **DailyGreeting auto-dismiss**: Greeting overlay now auto-dismisses after 5 seconds (still dismissible by tap).
+
+### Fixed
+- **FirstTimeGuide backdrop dismissal**: Tapping the dark backdrop behind the guide panel now dismisses it (same as "Remind me" — shows again next session). Previously only the buttons worked.
+- **Travel geometry legend overlap**: Moved the walking-distance legend from upper-left (`LEFT_TOP`) to lower-left (`LEFT_BOTTOM`) so it no longer overlaps the day info card on iPhone and iPad.
+
+SPEC UPDATE NEEDED: Settings page not in SPEC.md.
+
 ## 2026-03-09 — Offline Cache Overhaul
 
 ### Added

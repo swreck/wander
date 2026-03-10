@@ -48,6 +48,13 @@ export default function DailyGreeting() {
     load();
   }, [user]);
 
+  // Auto-dismiss after 5 seconds
+  useEffect(() => {
+    if (!visible) return;
+    const t = setTimeout(() => setVisible(false), 5000);
+    return () => clearTimeout(t);
+  }, [visible]);
+
   function dismiss() {
     setVisible(false);
   }

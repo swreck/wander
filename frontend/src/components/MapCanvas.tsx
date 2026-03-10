@@ -436,9 +436,9 @@ function TravelGeometryOverlay({ geo, isDayScoped }: { geo: CircleGeo | null; is
   const label = `${scope}: ${count} ${itemWord} · ${diameterMi.toFixed(1)} mi · ${walkTime}`;
 
   return (
-    <MapControl position={ControlPosition.LEFT_TOP}>
+    <MapControl position={ControlPosition.LEFT_BOTTOM}>
       <div
-        className="ml-2 mt-24 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
+        className="ml-2 mb-2 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
         style={{ backgroundColor: "rgba(255,255,255,0.92)" }}
       >
         <div className="text-xs text-[#3a3128] font-medium flex items-center gap-1.5">
