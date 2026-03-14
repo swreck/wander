@@ -2,6 +2,12 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-14 — Bottom Action Bar, External App Handoffs, Layout Fixes
+
+### Fixed
+- **Action bar / filmstrip overlap on map page**: The bottom action bar (Home, List, Add, Chat) was overlapping the day filmstrip because it used a hardcoded pixel offset. Both are now merged into a single fixed-bottom container that stacks naturally — action bar on top, filmstrip below, no overlap.
+- **Backroads B badge missing on some calendar days**: Days with long city names (e.g., "Izu Peninsula") pushed the B badge below the visible area of the calendar cell, which has `overflow-hidden`. The badge is now absolute-positioned in the top-right corner where it always stays visible regardless of city name length.
+
 ## 2026-03-14 — Bottom Action Bar + External App Handoffs
 
 ### Added
