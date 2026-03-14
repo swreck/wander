@@ -170,7 +170,7 @@ export default function ExperienceDetail({
             )}
             <a
               href={exp.placeIdGoogle
-                ? `https://www.google.com/maps/place/?q=place_id:${exp.placeIdGoogle}`
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(exp.name)}&query_place_id=${exp.placeIdGoogle}`
                 : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(exp.name + (exp.city?.name ? ` ${exp.city.name}` : ""))}`}
               target="_blank"
               rel="noopener noreferrer"

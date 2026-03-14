@@ -6,7 +6,7 @@ interface Props {
 }
 
 function buildGoogleMapsUrl(placeId: string): string {
-  return `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+  return `https://www.google.com/maps/search/?api=1&query=place&query_place_id=${placeId}`;
 }
 
 export default function RatingsBadge({ ratings, placeIdGoogle }: Props) {
