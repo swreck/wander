@@ -32,5 +32,4 @@ body {
 
 .safe-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  margin-bottom: env(safe-area-inset-bottom, 0px);
 }
