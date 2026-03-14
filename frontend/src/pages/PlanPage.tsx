@@ -936,9 +936,9 @@ export default function PlanPage() {
           )}
 
           {/* Bottom dock: action bar + day filmstrip — single fixed container */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-[#e0d8cc]/60 z-30 safe-bottom-nav md:block">
+          <div className="fixed bottom-0 left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 safe-bottom-nav md:block">
             {/* Action bar — Home, List, Add, Chat (mobile only, compact) */}
-            <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40 md:hidden">
+            <div className="flex items-center justify-around px-2 py-0.5 md:hidden">
               <button onClick={() => navigate("/")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
@@ -986,7 +986,7 @@ export default function PlanPage() {
             </div>
             {/* Day filmstrip */}
             <div
-              className="flex gap-1.5 px-2 py-2 overflow-x-auto"
+              className="flex gap-1.5 px-2 pt-0.5 pb-2 overflow-x-auto"
               style={{ touchAction: "pan-x", overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" }}
             >
               {days.map((day, dayIdx) => {
