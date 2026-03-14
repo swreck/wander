@@ -5,9 +5,13 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 ## 2026-03-14 — External App Handoffs
 
 ### Added
-- **Experience detail action bar**: Directions (Apple Maps), Website (source URL in browser), Google (Maps place page or search), and Share (Web Share API) buttons below the hero image. Visible when coordinates, source URL, or place ID are available.
-- **Accommodation address → directions**: Tapping an accommodation address on the Day View opens Apple Maps directions (when coordinates exist). Previously plain text.
-- **Reservation name → directions**: Reservation names on the Day View link to Apple Maps directions when coordinates exist.
+- **Experience detail action bar**: Map (pin in Apple Maps), Website (source URL in browser), Google (Maps place page or search), and Share (Web Share API) buttons below the hero image. Visible when coordinates, source URL, or place ID are available.
+- **Accommodation address → Apple Maps**: Tapping an accommodation address on the Day View opens Apple Maps with a pin at the location. Previously plain text.
+- **Reservation name → Apple Maps**: Reservation names on the Day View link to Apple Maps pin when coordinates exist.
+
+### Changed
+- **Map links use pin, not directions**: All planning-context links to Apple Maps now drop a pin (`ll` + `q` parameters) instead of starting turn-by-turn directions (`daddr`). Directions from a different country/continent would fail. The "Now" screen retains directions links since those are used when physically nearby.
+- **Map GPS defaults to off**: The map no longer requests location permission automatically on load. GPS activates only when the user taps the location button, or when viewing the "Now" screen during trip dates. Reduces unnecessary location permission prompts.
 - **Copy confirmation number**: All confirmation numbers (accommodations, reservations, route segments) across Day View, Now page, and Route Segments panel are now tappable — copies to clipboard with a 📋 indicator and toast confirmation. Useful at check-in counters.
 
 SPEC UPDATE NEEDED: External app handoffs not in SPEC.md.

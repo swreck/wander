@@ -144,15 +144,15 @@ export default function ExperienceDetail({
           <div className="flex gap-3">
             {exp.latitude != null && exp.longitude != null && (
               <a
-                href={`https://maps.apple.com/?daddr=${exp.latitude},${exp.longitude}`}
+                href={`https://maps.apple.com/?ll=${exp.latitude},${exp.longitude}&q=${encodeURIComponent(exp.name)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0ece5] text-sm text-[#514636] hover:bg-[#e0d8cc] transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="3 11 22 2 13 21 11 13 3 11" />
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" />
                 </svg>
-                Directions
+                Map
               </a>
             )}
             {exp.sourceUrl && (

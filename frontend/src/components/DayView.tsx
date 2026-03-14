@@ -566,7 +566,7 @@ export default function DayView({
               <div className="font-medium text-[#3a3128]">{acc.name}</div>
               {acc.address && (
                 acc.latitude != null && acc.longitude != null ? (
-                  <a href={`https://maps.apple.com/?daddr=${acc.latitude},${acc.longitude}`} target="_blank" rel="noopener noreferrer"
+                  <a href={`https://maps.apple.com/?ll=${acc.latitude},${acc.longitude}&q=${encodeURIComponent(acc.name)}`} target="_blank" rel="noopener noreferrer"
                     className="text-sm text-[#8a7a62] mt-0.5 underline decoration-[#d0c9be] block">{acc.address}</a>
                 ) : (
                   <div className="text-sm text-[#8a7a62] mt-0.5">{acc.address}</div>
@@ -760,7 +760,7 @@ export default function DayView({
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-[#3a3128]">
                     {res.latitude != null && res.longitude != null ? (
-                      <a href={`https://maps.apple.com/?daddr=${res.latitude},${res.longitude}`} target="_blank" rel="noopener noreferrer"
+                      <a href={`https://maps.apple.com/?ll=${res.latitude},${res.longitude}&q=${encodeURIComponent(res.name)}`} target="_blank" rel="noopener noreferrer"
                         className="underline decoration-[#d0c9be]">{res.name}</a>
                     ) : res.name}
                   </span>

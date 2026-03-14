@@ -526,7 +526,7 @@ function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeThem
   );
 }
 
-export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = true, highlightedExpId, recenterKey, themeFilter, onThemeFilterChange, dayId }: Props) {
+export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = false, highlightedExpId, recenterKey, themeFilter, onThemeFilterChange, dayId }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
