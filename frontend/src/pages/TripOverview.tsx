@@ -686,6 +686,11 @@ function CalendarCluster({
                       <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
                     </>
                   )}
+                  {/* Backroads badge — absolute top-right so long city names can't push it offscreen */}
+                  {isBackroads && (
+                    <span className="absolute top-0.5 right-0.5 z-20 font-bold text-white rounded-sm leading-none"
+                      style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }}>B</span>
+                  )}
                   {/* Top: date */}
                   <div className="relative z-10 mt-1 text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
                     {dayNum}
@@ -695,12 +700,8 @@ function CalendarCluster({
                     style={{ wordBreak: "break-word" }}>
                     {city?.name || ""}
                   </div>
-                  {/* Bottom: plans icon + Backroads badge */}
-                  <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0.5">
-                    {isBackroads && (
-                      <span className="font-bold text-white rounded-sm leading-none"
-                        style={{ fontSize: 11, backgroundColor: "#c0392b", padding: "1px 2px" }}>B</span>
-                    )}
+                  {/* Bottom: plans icon */}
+                  <div className="relative z-10 mb-1 h-4 flex items-center justify-center">
                     {count > 0 && (
                       <span style={{ fontSize: 12, color: dotColor }}>🗓️</span>
                     )}

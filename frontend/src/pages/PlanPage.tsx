@@ -935,10 +935,10 @@ export default function PlanPage() {
             </div>
           )}
 
-          {/* Bottom action bar — Home, List, Add, Chat */}
-          <div className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#f0ece5] z-[35] md:hidden"
-            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 88px)" }}>
-            <div className="flex items-center justify-around px-2 py-1.5">
+          {/* Bottom dock: action bar + day filmstrip — single fixed container */}
+          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#f0ece5] z-30 safe-bottom-nav md:block">
+            {/* Action bar — Home, List, Add, Chat (mobile only) */}
+            <div className="flex items-center justify-around px-2 py-1 border-b border-[#f0ece5] md:hidden">
               <button onClick={() => navigate("/")} className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
@@ -984,10 +984,7 @@ export default function PlanPage() {
                 <span className="text-[10px]">Chat</span>
               </button>
             </div>
-          </div>
-
-          {/* Day filmstrip — fixed to bottom of screen with safe area */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#f0ece5] z-30 safe-bottom-nav">
+            {/* Day filmstrip */}
             <div
               className="flex gap-1.5 px-2 py-2 overflow-x-auto"
               style={{ touchAction: "pan-x", overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" }}
