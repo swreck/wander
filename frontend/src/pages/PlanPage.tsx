@@ -936,28 +936,28 @@ export default function PlanPage() {
           )}
 
           {/* Bottom dock: action bar + day filmstrip — single fixed container */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#f0ece5] z-30 safe-bottom-nav md:block">
-            {/* Action bar — Home, List, Add, Chat (mobile only) */}
-            <div className="flex items-center justify-around px-2 py-1 border-b border-[#f0ece5] md:hidden">
-              <button onClick={() => navigate("/")} className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-[#e0d8cc]/60 z-30 safe-bottom-nav md:block">
+            {/* Action bar — Home, List, Add, Chat (mobile only, compact) */}
+            <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40 md:hidden">
+              <button onClick={() => navigate("/")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
-                <span className="text-[10px]">Home</span>
+                <span className="text-[9px] leading-tight">Home</span>
               </button>
-              <button onClick={() => setMobileView("list")} className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <button onClick={() => setMobileView("list")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
                   <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
                 </svg>
-                <span className="text-[10px]">List</span>
+                <span className="text-[9px] leading-tight">List</span>
               </button>
               <div className="relative">
-                <button onClick={() => setShowAddMenu(!showAddMenu)} className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <button onClick={() => setShowAddMenu(!showAddMenu)} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  <span className="text-[10px]">Add</span>
+                  <span className="text-[9px] leading-tight">Add</span>
                 </button>
                 {showAddMenu && (
                   <>
@@ -976,12 +976,12 @@ export default function PlanPage() {
                   const chatBtn = document.querySelector('[aria-label="Open chat assistant"]') as HTMLButtonElement;
                   if (chatBtn) chatBtn.click();
                 }}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+                className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
                 </svg>
-                <span className="text-[10px]">Chat</span>
+                <span className="text-[9px] leading-tight">Chat</span>
               </button>
             </div>
             {/* Day filmstrip */}
