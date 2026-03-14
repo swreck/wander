@@ -39,6 +39,7 @@ export default function PlanPage() {
   });
   const [highlightedExpId, setHighlightedExpId] = useState<string | null>(null);
   const [splashCity, setSplashCity] = useState<string | null>(null);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [recenterKey, setRecenterKey] = useState(0);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
 
@@ -506,35 +507,11 @@ export default function PlanPage() {
 
   return (
     <div className="flex flex-col bg-[#faf8f5]" style={{ height: "100dvh" }}>
-      {/* Top bar — clean, minimal */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#f0ece5] bg-white shrink-0">
-        <button
-          onClick={() => navigate("/")}
-          className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
-        >
-          &larr; {trip.shortLabel || buildShortLabel(trip)}
-        </button>
-        <div className="flex items-center gap-2">
-          {isWithinDates && (
-            <button
-              onClick={() => navigate("/now")}
-              className="px-3 py-1 rounded text-xs font-medium text-[#514636] bg-[#f0ece5] hover:bg-[#e0d8cc] transition-colors"
-            >
-              Now
-            </button>
-          )}
-          <button
-            onClick={() => setShowImport(!showImport)}
-            className="px-3 py-1 rounded text-xs font-medium text-[#6b5d4a] bg-[#f0ece5] hover:bg-[#e0d8cc] transition-colors"
-          >
-            + Import
-          </button>
-        </div>
-      </div>
+      {/* Top bar removed — all navigation now in bottom action bar */}
 
       {/* Import panel — slides down from top */}
       {showImport && (
-        <div className="px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0">
+        <div className="px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
           <div className="max-w-2xl mx-auto">
             {/* Mode toggle */}
             {!importPreview && !recPreview && (
@@ -958,27 +935,56 @@ export default function PlanPage() {
             </div>
           )}
 
-          {/* Capture button — floating above filmstrip */}
-          <button
-            onClick={() => setShowCapture(true)}
-            className="fixed right-4 w-12 h-12 rounded-full bg-[#514636] text-white
-                       text-xl shadow-lg hover:bg-[#3a3128] transition-colors z-[35]
-                       flex items-center justify-center"
-            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 110px)" }}
-          >
-            +
-          </button>
-
-          {/* Mobile: activities toggle — calendar icon */}
-          <button
-            onClick={() => setMobileView("list")}
-            className="fixed md:hidden w-10 h-10 rounded-full bg-white shadow-lg
-                       text-sm text-[#514636] flex items-center justify-center z-[35]"
-            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 110px)", right: "4.5rem" }}
-            aria-label="Activities"
-          >
-            <span className="text-base">🗓️</span>
-          </button>
+          {/* Bottom action bar — Home, List, Add, Chat */}
+          <div className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#f0ece5] z-[35] md:hidden"
+            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 88px)" }}>
+            <div className="flex items-center justify-around px-2 py-1.5">
+              <button onClick={() => navigate("/")} className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+                <span className="text-[10px]">Home</span>
+              </button>
+              <button onClick={() => setMobileView("list")} className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+                <span className="text-[10px]">List</span>
+              </button>
+              <div className="relative">
+                <button onClick={() => setShowAddMenu(!showAddMenu)} className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span className="text-[10px]">Add</span>
+                </button>
+                {showAddMenu && (
+                  <>
+                    <div className="fixed inset-0 z-[1]" onClick={() => setShowAddMenu(false)} />
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-xl border border-[#e0d8cc] py-1 z-[2] whitespace-nowrap">
+                      <button onClick={() => { setShowCapture(true); setShowAddMenu(false); }}
+                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Capture</button>
+                      <button onClick={() => { setShowImport(true); setShowAddMenu(false); }}
+                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Import</button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  const chatBtn = document.querySelector('[aria-label="Open chat assistant"]') as HTMLButtonElement;
+                  if (chatBtn) chatBtn.click();
+                }}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+                <span className="text-[10px]">Chat</span>
+              </button>
+            </div>
+          </div>
 
           {/* Day filmstrip — fixed to bottom of screen with safe area */}
           <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-[#f0ece5] z-30 safe-bottom-nav">

@@ -128,6 +128,9 @@ function ChatOverlay() {
   // Pick up day/city context from PlanPage if available
   const wanderCtx = (window as any).__wanderContext || {};
 
+  // Hide the floating bubble on /plan (mobile) — Chat is in the bottom action bar there
+  const hideBubble = location.pathname === "/plan";
+
   return (
     <ChatBubble
       context={{
@@ -139,6 +142,7 @@ function ChatOverlay() {
         cityName: wanderCtx.cityName,
       }}
       onDataChanged={handleDataChanged}
+      hideBubble={hideBubble}
     />
   );
 }

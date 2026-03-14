@@ -19,6 +19,7 @@ interface ChatContext {
 interface ChatBubbleProps {
   context: ChatContext;
   onDataChanged?: () => void;
+  hideBubble?: boolean;
 }
 
 const CHAT_STORAGE_KEY = "wander-chat";
@@ -47,7 +48,7 @@ function clearMessages() {
   }
 }
 
-export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) {
+export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatBubbleProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [input, setInput] = useState("");
@@ -125,6 +126,7 @@ export default function ChatBubble({ context, onDataChanged }: ChatBubbleProps) 
   }, []);
 
   if (!open) {
+    if (hideBubble) return null;
     return (
       <button
         onClick={() => setOpen(true)}

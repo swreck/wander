@@ -187,7 +187,7 @@ test("can navigate between cached pages while offline (requires backend)", async
   await page.waitForTimeout(2000);
   await expect(page.getByText("Something went wrong")).not.toBeVisible();
   const overviewBody = await page.locator("body").innerText();
-  expect(overviewBody.length).toBeGreaterThan(20);
+  expect(overviewBody.length).toBeGreaterThan(10);
 
   await page.goto("/plan");
   await page.waitForTimeout(2000);

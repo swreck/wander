@@ -2,7 +2,7 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
-## 2026-03-14 — External App Handoffs
+## 2026-03-14 — Bottom Action Bar + External App Handoffs
 
 ### Added
 - **Experience detail action bar**: Map (pin in Apple Maps), Website (source URL in browser), Google (Maps place page or search), and Share (Web Share API) buttons below the hero image. Visible when coordinates, source URL, or place ID are available.
@@ -12,6 +12,9 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 ### Changed
 - **Map links use pin, not directions**: All planning-context links to Apple Maps now drop a pin (`ll` + `q` parameters) instead of starting turn-by-turn directions (`daddr`). Directions from a different country/continent would fail. The "Now" screen retains directions links since those are used when physically nearby.
 - **Map GPS defaults to off**: The map no longer requests location permission automatically on load. GPS activates only when the user taps the location button, or when viewing the "Now" screen during trip dates. Reduces unnecessary location permission prompts.
+- **Bottom action bar replaces floating buttons**: The map page now has a clean bottom bar with labeled icons (Home, List, Add, Chat) instead of scattered floating circles. "Add" opens a menu for Capture or Import. The old top bar with the hard-to-find back button is removed — Home is now always one thumb-tap away in the bottom bar. Chat bubble is hidden on the map page since Chat is in the bar.
+
+SPEC UPDATE NEEDED: Map page navigation pattern changed (top bar removed, bottom action bar added).
 - **Copy confirmation number**: All confirmation numbers (accommodations, reservations, route segments) across Day View, Now page, and Route Segments panel are now tappable — copies to clipboard with a 📋 indicator and toast confirmation. Useful at check-in counters.
 
 SPEC UPDATE NEEDED: External app handoffs not in SPEC.md.
