@@ -139,6 +139,69 @@ export default function ExperienceDetail({
           </div>
         )}
 
+        {/* Action bar — external app handoffs */}
+        {!editing && (
+          <div className="flex gap-3">
+            {exp.latitude != null && exp.longitude != null && (
+              <a
+                href={`https://maps.apple.com/?daddr=${exp.latitude},${exp.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0ece5] text-sm text-[#514636] hover:bg-[#e0d8cc] transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="3 11 22 2 13 21 11 13 3 11" />
+                </svg>
+                Directions
+              </a>
+            )}
+            {exp.sourceUrl && (
+              <a
+                href={exp.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0ece5] text-sm text-[#514636] hover:bg-[#e0d8cc] transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                </svg>
+                Website
+              </a>
+            )}
+            <a
+              href={exp.placeIdGoogle
+                ? `https://www.google.com/maps/place/?q=place_id:${exp.placeIdGoogle}`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(exp.name + (exp.city?.name ? ` ${exp.city.name}` : ""))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0ece5] text-sm text-[#514636] hover:bg-[#e0d8cc] transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              Google
+            </a>
+            {typeof navigator !== "undefined" && navigator.share && (
+              <button
+                onClick={() => {
+                  const text = [
+                    exp.name,
+                    exp.city?.name,
+                    exp.latitude != null && exp.longitude != null ? `https://maps.apple.com/?ll=${exp.latitude},${exp.longitude}` : null,
+                  ].filter(Boolean).join("\n");
+                  navigator.share({ text }).catch(() => {});
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0ece5] text-sm text-[#514636] hover:bg-[#e0d8cc] transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+                Share
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Name & city */}
         {editing ? (
           <input

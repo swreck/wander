@@ -240,7 +240,8 @@ function SegmentCard({
             </div>
           )}
           {segment.confirmationNumber && (
-            <div className="text-xs text-amber-500">Conf: {segment.confirmationNumber}</div>
+            <button onClick={() => { navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied confirmation number"); }}
+              className="text-xs text-amber-500 hover:text-amber-700 transition-colors">Conf: {segment.confirmationNumber} 📋</button>
           )}
           {segment.seatInfo && (
             <div className="text-xs text-amber-500">Seat: {segment.seatInfo}</div>

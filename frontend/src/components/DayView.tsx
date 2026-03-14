@@ -222,7 +222,8 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
             </div>
           )}
           {segment.confirmationNumber && (
-            <div className="text-xs text-amber-500">Conf: {segment.confirmationNumber}</div>
+            <button onClick={() => { navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied confirmation number"); }}
+              className="text-xs text-amber-500 hover:text-amber-700 transition-colors">Conf: {segment.confirmationNumber} 📋</button>
           )}
           {segment.seatInfo && (
             <div className="text-xs text-amber-500">Seat: {segment.seatInfo}</div>
@@ -563,11 +564,21 @@ export default function DayView({
           {accommodations.map((acc) => (
             <div key={acc.id} className="px-3 py-2.5 bg-[#f0ece5] rounded-lg text-sm">
               <div className="font-medium text-[#3a3128]">{acc.name}</div>
-              {acc.address && <div className="text-sm text-[#8a7a62] mt-0.5">{acc.address}</div>}
+              {acc.address && (
+                acc.latitude != null && acc.longitude != null ? (
+                  <a href={`https://maps.apple.com/?daddr=${acc.latitude},${acc.longitude}`} target="_blank" rel="noopener noreferrer"
+                    className="text-sm text-[#8a7a62] mt-0.5 underline decoration-[#d0c9be] block">{acc.address}</a>
+                ) : (
+                  <div className="text-sm text-[#8a7a62] mt-0.5">{acc.address}</div>
+                )
+              )}
               <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-[#a89880]">
                 {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
                 {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
-                {acc.confirmationNumber && <span>Conf: {acc.confirmationNumber}</span>}
+                {acc.confirmationNumber && (
+                  <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied confirmation number"); }}
+                    className="hover:text-[#514636] transition-colors">Conf: {acc.confirmationNumber} 📋</button>
+                )}
               </div>
               {acc.notes && <div className="text-sm text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
             </div>
@@ -747,13 +758,19 @@ export default function DayView({
             {reservations.map((res) => (
               <div key={res.id} className="px-3 py-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-[#3a3128]">{res.name}</span>
+                  <span className="text-sm font-medium text-[#3a3128]">
+                    {res.latitude != null && res.longitude != null ? (
+                      <a href={`https://maps.apple.com/?daddr=${res.latitude},${res.longitude}`} target="_blank" rel="noopener noreferrer"
+                        className="underline decoration-[#d0c9be]">{res.name}</a>
+                    ) : res.name}
+                  </span>
                   <span className="text-sm text-[#8a7a62]">
                     {new Date(res.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                   </span>
                 </div>
                 {res.confirmationNumber && (
-                  <div className="text-sm text-[#a89880] mt-0.5">Conf: {res.confirmationNumber}</div>
+                  <button onClick={() => { navigator.clipboard.writeText(res.confirmationNumber!); showToast("Copied confirmation number"); }}
+                    className="text-sm text-[#a89880] mt-0.5 hover:text-[#514636] transition-colors">Conf: {res.confirmationNumber} 📋</button>
                 )}
                 {res.notes && <p className="text-sm text-[#a89880] mt-0.5">{res.notes}</p>}
               </div>

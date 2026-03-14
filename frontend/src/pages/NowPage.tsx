@@ -343,7 +343,10 @@ export default function NowPage() {
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-sm text-[#8a7a62]">
                   {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
                   {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
-                  {acc.confirmationNumber && <span>Conf: {acc.confirmationNumber}</span>}
+                  {acc.confirmationNumber && (
+                    <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied confirmation number"); }}
+                      className="hover:text-[#514636] transition-colors">Conf: {acc.confirmationNumber} 📋</button>
+                  )}
                 </div>
                 {acc.notes && <div className="text-sm text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
               </div>
