@@ -390,6 +390,105 @@ export function getDailyGreeting(
   return `${timeGreeting}, ${userName}. Enjoy your wander.`;
 }
 
+// ── Pre-trip document nudges & destination teasers ──────────────────
+
+interface DocLike {
+  type: string;
+  data: Record<string, string>;
+}
+
+interface TripLike {
+  name: string;
+  startDate: string;
+  cities: { name: string; country: string | null }[];
+}
+
+/**
+ * Before the trip starts, gently nudge travelers about missing documents.
+ * Once documents are reasonably complete, switch to destination teasers
+ * personalized to each traveler's interests.
+ */
+export function getPreTripNudge(
+  userName: string,
+  documents: DocLike[],
+  trip: TripLike,
+): string | null {
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const hasPassport = documents.some((d) => d.type === "passport");
+  const hasInsurance = documents.some((d) => d.type === "insurance");
+  const hasFreqFlyer = documents.some((d) => d.type === "frequent_flyer");
+
+  // Document nudges — gentle, one at a time, rotating by day
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+
+  if (!hasPassport && dayOfYear % 3 === 0) {
+    return `${timeGreeting}, ${userName}. Quick thought — have you added your passport details to Wander yet? You can just tell me in the chat or tap your name on the home screen.`;
+  }
+  if (hasPassport && !hasInsurance && dayOfYear % 3 === 1) {
+    return `${timeGreeting}, ${userName}. Your passport's on file — nice. Travel insurance is worth adding too, so it's at your fingertips if you need it.`;
+  }
+  if (hasPassport && !hasFreqFlyer && dayOfYear % 3 === 2) {
+    return `${timeGreeting}, ${userName}. Got your passport, got your plans — want to add your frequent flyer numbers so they're handy at check-in?`;
+  }
+
+  // Documents reasonably complete — switch to destination teasers
+  const profile = profiles[userName];
+  const cities = trip.cities?.map((c) => c.name) || [];
+  const hash = simpleHash(new Date().toDateString() + userName + "teaser");
+
+  // Personalized teasers based on interests and destinations
+  const teasers: string[] = [];
+
+  if (cities.some((c) => /nagoya|arita|karatsu|tokoname|bizen|mashiko/i.test(c))) {
+    if (profile?.interests.some((i) => i.keywords.some((k) => /ceramic|pottery|kiln/i.test(k)))) {
+      teasers.push(
+        `${timeGreeting}, ${userName}. Did you know the first kilns in Nagoya date back to the 8th century? The local clay has a character you can feel in the finished pieces.`,
+        `${timeGreeting}, ${userName}. In Arita, they say the porcelain tradition started when a Korean potter discovered kaolin stone on Izumiyama in 1616. Four hundred years later, the kilns are still firing.`,
+        `${timeGreeting}, ${userName}. Karatsu ware is known as "the pottery of daily use" — potters there believe a piece isn't complete until someone drinks tea from it.`,
+      );
+    }
+  }
+
+  if (cities.some((c) => /tokyo|kyoto|nikko|osaka/i.test(c))) {
+    if (profile?.interests.some((i) => i.keywords.some((k) => /temple|zen|meditation|shrine/i.test(k)))) {
+      teasers.push(
+        `${timeGreeting}, ${userName}. Kyoto has over 2,000 temples and shrines. The ones tucked into residential neighborhoods, with no tour buses outside, are often the most moving.`,
+        `${timeGreeting}, ${userName}. Nikko's Toshogu Shrine took 15,000 artisans over two years to build. The "see no evil" monkeys are just the beginning.`,
+      );
+    }
+    if (profile?.interests.some((i) => i.keywords.some((k) => /food|cooking|culinary/i.test(k)))) {
+      teasers.push(
+        `${timeGreeting}, ${userName}. In Tokyo's Tsukiji outer market, the vendors have been selling to the same families for generations. The tamago (egg omelet) stalls open at 5am.`,
+        `${timeGreeting}, ${userName}. Kyoto's kaiseki tradition treats each dish as a small artwork. The best meals follow the season down to the garnish.`,
+      );
+    }
+    if (profile?.interests.some((i) => i.keywords.some((k) => /book|philosophy|reading/i.test(k)))) {
+      teasers.push(
+        `${timeGreeting}, ${userName}. Jimbocho in Tokyo is the world's largest neighborhood of bookstores — over 170, some specializing in subjects you didn't know had entire shops.`,
+      );
+    }
+    if (profile?.interests.some((i) => i.keywords.some((k) => /sweet|pastry|matcha|bakery|dessert|mochi/i.test(k)))) {
+      teasers.push(
+        `${timeGreeting}, ${userName}. Japan takes its seasonal sweets seriously — wagashi in spring are shaped like cherry blossoms, and the matcha served with them is whisked to order.`,
+        `${timeGreeting}, ${userName}. The melon pan in Japan is nothing like what you'd expect. Crispy cookie shell, soft bread inside. Some bakeries serve them warm.`,
+      );
+    }
+  }
+
+  // Generic teasers if nothing matched interests
+  if (teasers.length === 0) {
+    const genericDestination = cities[hash % cities.length] || trip.name;
+    teasers.push(
+      `${timeGreeting}, ${userName}. ${trip.name} is getting closer. Something good is waiting in ${genericDestination}.`,
+      `${timeGreeting}, ${userName}. The best travel moments are the ones you can't plan for. ${genericDestination} will have a few of those.`,
+    );
+  }
+
+  return teasers[hash % teasers.length];
+}
+
 function simpleHash(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {

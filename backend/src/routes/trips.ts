@@ -210,8 +210,8 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.trip.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Trip not found" }); return; }
 
-  await prisma.trip.delete({ where: { id: req.params.id as string } });
-
+  // Log before delete — the cascade will remove ChangeLogs too,
+  // but the FK constraint prevents inserting after the trip is gone
   await logChange({
     user: req.user!,
     tripId: existing.id,
@@ -222,6 +222,8 @@ router.delete("/:id", async (req: AuthRequest, res) => {
     description: `${req.user!.displayName} deleted trip "${existing.name}"`,
     previousState: existing,
   });
+
+  await prisma.trip.delete({ where: { id: req.params.id as string } });
 
   res.json({ deleted: true });
 });

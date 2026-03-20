@@ -18,6 +18,7 @@ import captureRoutes from "./routes/capture.js";
 import travelTimeRoutes from "./routes/travelTime.js";
 import observationRoutes from "./routes/observations.js";
 import chatRoutes from "./routes/chat.js";
+import travelerDocumentRoutes from "./routes/travelerDocuments.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -42,6 +43,7 @@ app.use("/api/capture", captureRoutes);
 app.use("/api/travel-time", travelTimeRoutes);
 app.use("/api/observations", observationRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/traveler-documents", travelerDocumentRoutes);
 
 // Serve frontend static files in production
 const publicPath = path.join(__dirname, "..", "public");

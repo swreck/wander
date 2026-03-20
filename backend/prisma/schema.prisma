@@ -63,6 +63,15 @@ enum TravelMode {
   other
 }
 
+enum DocumentType {
+  passport
+  visa
+  frequent_flyer
+  insurance
+  ticket
+  custom
+}
+
 model Trip {
   id        String     @id @default(cuid())
   name      String
@@ -73,13 +82,14 @@ model Trip {
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
-  cities        City[]
-  days          Day[]
-  routeSegments RouteSegment[]
-  experiences   Experience[]
-  accommodations Accommodation[]
-  reservations  Reservation[]
-  changeLogs    ChangeLog[]
+  cities            City[]
+  days              Day[]
+  routeSegments     RouteSegment[]
+  experiences       Experience[]
+  accommodations    Accommodation[]
+  reservations      Reservation[]
+  changeLogs        ChangeLog[]
+  travelerProfiles  TravelerProfile[]
 
   @@map("trips")
 }
@@ -254,4 +264,34 @@ model ChangeLog {
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@map("change_logs")
+}
+
+model TravelerProfile {
+  id          String   @id @default(cuid())
+  tripId      String   @map("trip_id")
+  userCode    String   @map("user_code")
+  displayName String   @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  trip      Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  documents TravelerDocument[]
+
+  @@unique([tripId, userCode])
+  @@map("traveler_profiles")
+}
+
+model TravelerDocument {
+  id        String       @id @default(cuid())
+  profileId String       @map("profile_id")
+  type      DocumentType
+  label     String?
+  data      Json         @default("{}")
+  isPrivate Boolean      @default(false) @map("is_private")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  profile TravelerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("traveler_documents")
 }

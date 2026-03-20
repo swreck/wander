@@ -2,6 +2,27 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-20 — Traveler Documents & Profile System
+
+### Added
+- **Traveler document storage**: Each traveler can store passport, visa, frequent flyer, insurance, ticket, and custom documents per trip. Documents use a flexible JSON data field so any key-value pairs can be stored per type.
+- **Profile page**: Tapping your name on the trip overview navigates to `/profile`, where you can add, edit, and delete documents grouped by type. Privacy toggle per document controls visibility to other travelers.
+- **5 AI chat tools**: `save_travel_document`, `update_travel_document`, `get_my_documents`, `get_shared_documents`, `check_travel_readiness` — chat can store, retrieve, and analyze travel docs conversationally.
+- **Travel readiness check**: API endpoint analyzes stored documents against trip destinations and flags gaps (missing passport, expiring passport, no insurance, no frequent flyer programs).
+- **Pre-trip daily greeting nudges**: Before the trip starts, DailyGreeting checks document completeness and shows gentle reminders (passport → insurance → frequent flyer, rotating by day). If documents are complete, shows personalized destination teasers based on traveler interests.
+- **Now page document cards**: On travel days, relevant document info surfaces contextually — passport name/number on transport days, hotel confirmation on check-in days. Values are copy-to-clipboard buttons.
+- **Privacy model**: Documents default to shared but can be marked private. Shared endpoint filters private documents from other travelers. Owner-only mutations (edit/delete) enforced server-side.
+- **13 chaos tests (S96–S108)**: Covering auto-profile creation, data merge on update, cascade delete, privacy filtering, owner-only mutations, duplicate prevention, invalid types, readiness checks, multi-traveler visibility, and double-delete idempotency.
+
+### Fixed
+- **Trip delete cascade error**: Deleting a trip with change logs failed with a 500 because `logChange` tried to insert a ChangeLog record after the trip (and its cascaded ChangeLogs) were already deleted. The log is now written before the delete.
+- **Google Maps link "no results found"**: `?q=place_id:XXX` URL format is broken/deprecated. Fixed to use Maps URLs API format `?api=1&query=...&query_place_id=XXX` in both experience detail and ratings badge.
+- **Rating hotlink missing**: Rating badge link was using the same broken place_id URL format. Fixed alongside Google Maps button.
+- **White strip below nav**: `safe-bottom-nav` CSS class had doubled safe-area inset (both padding-bottom and margin-bottom). Removed the redundant margin.
+- **Action bar transparency**: Increased from barely-visible 95% opacity to 55% (`bg-white/55`) for map visibility.
+
+SPEC UPDATE NEEDED: Traveler Documents feature (storage, profile page, chat tools, readiness check, pre-trip nudges, Now page surfacing) not in SPEC.md.
+
 ## 2026-03-14 — Bottom Action Bar, External App Handoffs, Layout Fixes
 
 ### Fixed

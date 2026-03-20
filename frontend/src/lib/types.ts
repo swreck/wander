@@ -125,6 +125,25 @@ export interface Trip {
   accommodations?: Accommodation[];
 }
 
+export interface TravelerProfile {
+  id: string;
+  tripId: string;
+  userCode: string;
+  displayName: string;
+  documents: TravelerDocument[];
+}
+
+export interface TravelerDocument {
+  id: string;
+  profileId: string;
+  type: "passport" | "visa" | "frequent_flyer" | "insurance" | "ticket" | "custom";
+  label: string | null;
+  data: Record<string, string>;
+  isPrivate: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChangeLogEntry {
   id: string;
   tripId: string;

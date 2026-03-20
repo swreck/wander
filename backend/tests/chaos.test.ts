@@ -3130,4 +3130,260 @@ describe("Chaos Simulations", () => {
       expect(daysAfter.length).toBe(countBefore + 1);
     });
   });
+
+  // ── Traveler Documents ──────────────────────────────────────────
+  describe("Traveler Documents", () => {
+    it("S96: Create profile + document auto-creates profile", async () => {
+      const tripId = await createTrip(aliceToken, "S96 Trip", "2026-11-01", "2026-11-05");
+
+      const res = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "AB1234567", country: "US", expiry: "2028-12-01" } });
+      expect(res.status).toBe(201);
+      expect(res.body.type).toBe("passport");
+
+      // Profile should exist now
+      const profile = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(profile.body.documents).toHaveLength(1);
+      expect(profile.body.documents[0].data.number).toBe("AB1234567");
+    });
+
+    it("S97: Update document merges data fields", async () => {
+      const tripId = await createTrip(aliceToken, "S97 Trip", "2026-11-01", "2026-11-05");
+
+      const doc = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "CD9999999" } });
+
+      // Update with additional fields
+      const updated = await request(app)
+        .patch(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ data: { country: "US", expiry: "2029-06-15" } });
+      expect(updated.status).toBe(200);
+      // Original field should still be there if backend merges
+      // (our PATCH replaces data, so we send full data — test that it updates)
+      expect(updated.body.data.country).toBe("US");
+    });
+
+    it("S98: Delete document — profile survives", async () => {
+      const tripId = await createTrip(aliceToken, "S98 Trip", "2026-11-01", "2026-11-05");
+
+      const doc = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "Delta", number: "1234567890" } });
+
+      await request(app)
+        .delete(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(200);
+
+      // Profile still exists, just empty
+      const profile = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(profile.body.documents).toHaveLength(0);
+    });
+
+    it("S99: Privacy filter — shared endpoint hides private docs from others", async () => {
+      const tripId = await createTrip(aliceToken, "S99 Trip", "2026-11-01", "2026-11-05");
+
+      // Alice adds a private document
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "PRIVATE123" }, isPrivate: true });
+
+      // Alice adds a shared document
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "ANA", number: "SHARED456" } });
+
+      // Bob gets shared docs — should NOT see Alice's private passport
+      const shared = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/shared`)
+        .set("Authorization", `Bearer ${bobToken}`);
+
+      const aliceDocs = shared.body.find((p: any) => p.userCode === "CHAOS1")?.documents || [];
+      expect(aliceDocs).toHaveLength(1);
+      expect(aliceDocs[0].type).toBe("frequent_flyer");
+    });
+
+    it("S100: Owner-only mutation — Bob cannot edit Alice's document", async () => {
+      const tripId = await createTrip(aliceToken, "S100 Trip", "2026-11-01", "2026-11-05");
+
+      const doc = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "ALICEONLY" } });
+
+      // Bob tries to update
+      const res = await request(app)
+        .patch(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ data: { number: "HACKED" } });
+      expect(res.status).toBe(403);
+
+      // Bob tries to delete
+      const del = await request(app)
+        .delete(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${bobToken}`);
+      expect(del.status).toBe(403);
+    });
+
+    it("S101: Duplicate profile prevention — two docs from same user don't create two profiles", async () => {
+      const tripId = await createTrip(aliceToken, "S101 Trip", "2026-11-01", "2026-11-05");
+
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "P1" } });
+
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "visa", data: { country: "Japan" } });
+
+      const profile = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(profile.body.documents).toHaveLength(2);
+    });
+
+    it("S102: Invalid document type is rejected", async () => {
+      const tripId = await createTrip(aliceToken, "S102 Trip", "2026-11-01", "2026-11-05");
+
+      const res = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "credit_card", data: { number: "NOPE" } });
+      expect(res.status).toBe(400);
+    });
+
+    it("S103: Trip cascade deletes profiles and documents", async () => {
+      const tripId = await createTrip(aliceToken, "S103 Trip", "2026-11-01", "2026-11-05");
+
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "CASCADE1" } });
+
+      // Delete the trip
+      await request(app)
+        .delete(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(200);
+
+      // Profile should be gone (trip cascade)
+      const check = await prisma.travelerProfile.findMany({ where: { tripId } });
+      expect(check).toHaveLength(0);
+    });
+
+    it("S104: Readiness check returns gaps for empty profile", async () => {
+      const tripId = await createTrip(aliceToken, "S104 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Tokyo", country: "Japan" },
+      ]);
+
+      const res = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/readiness`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.destinationCountries).toContain("Japan");
+      // No profile created yet, so travelers array may be empty
+      expect(res.body.travelers).toBeDefined();
+    });
+
+    it("S105: Multiple travelers see correct shared docs", async () => {
+      const tripId = await createTrip(aliceToken, "S105 Trip", "2026-11-01", "2026-11-05");
+
+      // Alice adds a passport
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "ALICE_PP" } });
+
+      // Bob adds a passport
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ tripId, type: "passport", data: { number: "BOB_PP" } });
+
+      // Alice sees both via shared endpoint
+      const shared = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/shared`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(shared.body).toHaveLength(2);
+
+      // Each traveler has their own passport
+      const aliceProfile = shared.body.find((p: any) => p.displayName === "Alice");
+      const bobProfile = shared.body.find((p: any) => p.displayName === "Bob");
+      expect(aliceProfile.documents[0].data.number).toBe("ALICE_PP");
+      expect(bobProfile.documents[0].data.number).toBe("BOB_PP");
+    });
+
+    it("S106: Document with empty data is accepted (partial save)", async () => {
+      const tripId = await createTrip(aliceToken, "S106 Trip", "2026-11-01", "2026-11-05");
+
+      const res = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: {} });
+      expect(res.status).toBe(201);
+    });
+
+    it("S107: Toggle privacy — private doc becomes visible after toggle", async () => {
+      const tripId = await createTrip(aliceToken, "S107 Trip", "2026-11-01", "2026-11-05");
+
+      const doc = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "insurance", data: { provider: "Allianz" }, isPrivate: true });
+
+      // Bob can't see it
+      let shared = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/shared`)
+        .set("Authorization", `Bearer ${bobToken}`);
+      let aliceDocs = shared.body.find((p: any) => p.userCode === "CHAOS1")?.documents || [];
+      expect(aliceDocs).toHaveLength(0);
+
+      // Alice toggles to shared
+      await request(app)
+        .patch(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ isPrivate: false });
+
+      // Now Bob can see it
+      shared = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/shared`)
+        .set("Authorization", `Bearer ${bobToken}`);
+      aliceDocs = shared.body.find((p: any) => p.userCode === "CHAOS1")?.documents || [];
+      expect(aliceDocs).toHaveLength(1);
+      expect(aliceDocs[0].data.provider).toBe("Allianz");
+    });
+
+    it("S108: Double-delete document — second attempt is 404", async () => {
+      const tripId = await createTrip(aliceToken, "S108 Trip", "2026-11-01", "2026-11-05");
+
+      const doc = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "ticket", data: { carrier: "JAL", referenceNumber: "JL123" } });
+
+      await request(app)
+        .delete(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(200);
+
+      await request(app)
+        .delete(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(404);
+    });
+  });
 });

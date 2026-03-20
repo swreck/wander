@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
-import type { Trip, Day } from "../lib/types";
+import type { Trip, Day, TravelerProfile } from "../lib/types";
 import {
   canShowDailyGreeting,
   recordDailyGreeting,
   getDailyGreeting,
+  getPreTripNudge,
 } from "../lib/travelerProfiles";
 
 export default function DailyGreeting() {
@@ -22,6 +23,23 @@ export default function DailyGreeting() {
         const trip = await api.get<Trip>("/trips/active");
         if (!trip) return;
 
+        // Check if we're before the trip — show document nudge or destination teaser
+        const now = new Date();
+        const tripStart = new Date(trip.startDate);
+        if (now < tripStart) {
+          // Pre-trip: check document completeness
+          const profileRes = await api.get<TravelerProfile | { documents: never[] }>(`/traveler-documents/trip/${trip.id}`).catch(() => ({ documents: [] }));
+          const docs = ("documents" in profileRes) ? profileRes.documents : [];
+          const nudge = getPreTripNudge(user!.displayName, docs, trip);
+          if (nudge) {
+            setMessage(nudge);
+            setVisible(true);
+            recordDailyGreeting(user!.displayName);
+            return;
+          }
+        }
+
+        // During/after trip: existing greeting logic
         const days = await api.get<Day[]>(`/days/trip/${trip.id}`);
         const todayStr = new Date().toISOString().split("T")[0];
         const today = days.find((d) => d.date.split("T")[0] === todayStr);

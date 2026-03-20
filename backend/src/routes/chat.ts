@@ -480,6 +480,61 @@ const tools: Anthropic.Tool[] = [
       required: ["orderedIds"],
     },
   },
+  // ── Traveler document tools ──────────────────────────────
+  {
+    name: "save_travel_document",
+    description: "Save a travel document for the current traveler. Extracts and stores passport, visa, frequent flyer, insurance, ticket, or custom document details. Creates the traveler profile automatically if needed. Use when user shares any travel document info.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        type: { type: "string", enum: ["passport", "visa", "frequent_flyer", "insurance", "ticket", "custom"], description: "Document type" },
+        data: {
+          type: "object",
+          description: "Document fields. Passport: number, country, expiry, nameAsOnPassport. Visa: country, visaType, number, expiry, status. FreqFlyer: airline, program, number. Insurance: provider, policyNumber, emergencyPhone. Ticket: carrier, referenceNumber, route, date. Custom: label, value.",
+        },
+        isPrivate: { type: "boolean", description: "If true, only visible to this traveler. Default false (shared with group)." },
+        label: { type: "string", description: "Optional label for custom documents or to distinguish multiples (e.g. 'Delta SkyMiles')" },
+      },
+      required: ["tripId", "type", "data"],
+    },
+  },
+  {
+    name: "update_travel_document",
+    description: "Update an existing travel document by ID. Use when the user wants to change or add fields to an existing document.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        documentId: { type: "string" },
+        data: { type: "object", description: "Updated document fields (merged with existing)" },
+        isPrivate: { type: "boolean", description: "Update privacy setting" },
+        label: { type: "string", description: "Update label" },
+      },
+      required: ["documentId"],
+    },
+  },
+  {
+    name: "get_my_documents",
+    description: "Get all travel documents for the current user on this trip (passport, visa, frequent flyer, insurance, tickets, etc.)",
+    input_schema: { type: "object" as const, properties: { tripId: { type: "string" } }, required: ["tripId"] },
+  },
+  {
+    name: "get_shared_documents",
+    description: "Get all shared (non-private) travel documents from all travelers on this trip. Use when the user asks about another traveler's info.",
+    input_schema: { type: "object" as const, properties: { tripId: { type: "string" } }, required: ["tripId"] },
+  },
+  {
+    name: "check_travel_readiness",
+    description: "Check travel readiness for the current traveler or all travelers. Analyzes what documents are stored vs. what's likely needed for the trip destinations. Returns a personalized status with specific gaps. Use when user asks 'am I ready?', 'what do I still need?', 'travel readiness', etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        travelerName: { type: "string", description: "Optional: check a specific traveler. If omitted, checks the current user." },
+      },
+      required: ["tripId"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -1579,6 +1634,188 @@ async function executeTool(
       };
     }
 
+    // ── Traveler document tool implementations ─────────────
+    case "save_travel_document": {
+      const profile = await prisma.travelerProfile.upsert({
+        where: { tripId_userCode: { tripId: input.tripId, userCode: user.code } },
+        update: { displayName: user.displayName },
+        create: { tripId: input.tripId, userCode: user.code, displayName: user.displayName },
+      });
+
+      const doc = await prisma.travelerDocument.create({
+        data: {
+          profileId: profile.id,
+          type: input.type,
+          label: input.label || null,
+          data: input.data || {},
+          isPrivate: input.isPrivate ?? false,
+        },
+      });
+
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "document_added",
+        entityType: "traveler_document",
+        entityId: doc.id,
+        entityName: `${input.type}${input.label ? ` (${input.label})` : ""}`,
+        description: `${user.displayName} added a ${input.type.replace("_", " ")} document`,
+        newState: doc,
+      });
+
+      return {
+        result: { saved: true, documentId: doc.id, type: input.type, data: input.data },
+        actionDescription: `Saved ${input.type.replace("_", " ")} for ${user.displayName}`,
+      };
+    }
+
+    case "update_travel_document": {
+      const existingDoc = await prisma.travelerDocument.findUnique({
+        where: { id: input.documentId },
+        include: { profile: true },
+      });
+      if (!existingDoc) return { result: { error: "Document not found" } };
+      if (existingDoc.profile.userCode !== user.code) return { result: { error: "You can only edit your own documents" } };
+
+      // Merge new data fields with existing data
+      const mergedData = input.data ? { ...(existingDoc.data as any), ...input.data } : undefined;
+
+      const updated = await prisma.travelerDocument.update({
+        where: { id: input.documentId },
+        data: {
+          ...(mergedData ? { data: mergedData } : {}),
+          ...(input.isPrivate !== undefined ? { isPrivate: input.isPrivate } : {}),
+          ...(input.label !== undefined ? { label: input.label } : {}),
+        },
+      });
+
+      await logChange({
+        user,
+        tripId: existingDoc.profile.tripId,
+        actionType: "document_updated",
+        entityType: "traveler_document",
+        entityId: updated.id,
+        entityName: `${updated.type}${updated.label ? ` (${updated.label})` : ""}`,
+        description: `${user.displayName} updated a ${updated.type.replace("_", " ")} document`,
+        previousState: existingDoc,
+        newState: updated,
+      });
+
+      return {
+        result: { updated: true, documentId: updated.id, type: updated.type, data: updated.data },
+        actionDescription: `Updated ${updated.type.replace("_", " ")} for ${user.displayName}`,
+      };
+    }
+
+    case "get_my_documents": {
+      const myProfile = await prisma.travelerProfile.findUnique({
+        where: { tripId_userCode: { tripId: input.tripId, userCode: user.code } },
+        include: { documents: { orderBy: { createdAt: "asc" } } },
+      });
+      return { result: myProfile?.documents || [] };
+    }
+
+    case "get_shared_documents": {
+      const allProfiles = await prisma.travelerProfile.findMany({
+        where: { tripId: input.tripId },
+        include: { documents: { orderBy: { createdAt: "asc" } } },
+      });
+      // Filter: show all own docs, only non-private from others
+      const shared = allProfiles.map((p) => ({
+        traveler: p.displayName,
+        documents: p.documents.filter(
+          (d) => p.userCode === user.code || !d.isPrivate,
+        ).map((d) => ({ id: d.id, type: d.type, label: d.label, data: d.data, isPrivate: d.isPrivate })),
+      }));
+      return { result: shared };
+    }
+
+    case "check_travel_readiness": {
+      const trip = await prisma.trip.findUnique({
+        where: { id: input.tripId },
+        include: {
+          cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
+          travelerProfiles: { include: { documents: true } },
+        },
+      });
+      if (!trip) return { result: { error: "Trip not found" } };
+
+      const countries = [...new Set(trip.cities.map((c) => c.country).filter(Boolean))];
+      const profilesToCheck = input.travelerName
+        ? trip.travelerProfiles.filter((p) => p.displayName.toLowerCase() === input.travelerName.toLowerCase())
+        : trip.travelerProfiles.filter((p) => p.userCode === user.code);
+
+      // If no profile exists yet for the user, report everything as missing
+      if (profilesToCheck.length === 0) {
+        return {
+          result: {
+            tripName: trip.name,
+            startDate: trip.startDate,
+            endDate: trip.endDate,
+            destinationCountries: countries,
+            travelers: [{
+              displayName: input.travelerName || user.displayName,
+              hasPassport: false,
+              passportExpiry: null,
+              hasInsurance: false,
+              visaCountries: [],
+              frequentFlyerCount: 0,
+              documentCount: 0,
+              gaps: ["No travel documents stored yet. Start by adding your passport details."],
+            }],
+          },
+        };
+      }
+
+      const readiness = profilesToCheck.map((p) => {
+        const docs = p.documents;
+        const passportDoc = docs.find((d) => d.type === "passport");
+        const hasPassport = !!passportDoc;
+        const passportExpiry = passportDoc ? (passportDoc.data as any)?.expiry : null;
+        const hasInsurance = docs.some((d) => d.type === "insurance");
+        const visaCountries = docs
+          .filter((d) => d.type === "visa")
+          .map((d) => (d.data as any)?.country)
+          .filter(Boolean);
+        const frequentFlyers = docs.filter((d) => d.type === "frequent_flyer");
+
+        const gaps: string[] = [];
+        if (!hasPassport) gaps.push("No passport on file.");
+        if (passportExpiry) {
+          const expDate = new Date(passportExpiry);
+          const tripEnd = new Date(trip.endDate);
+          const sixMonthsAfter = new Date(tripEnd);
+          sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6);
+          if (expDate < sixMonthsAfter) {
+            gaps.push(`Passport expires ${passportExpiry} — some countries require 6 months validity past your trip end date (${trip.endDate.toISOString().split("T")[0]}).`);
+          }
+        }
+        if (!hasInsurance) gaps.push("No travel insurance on file.");
+        if (frequentFlyers.length === 0) gaps.push("No frequent flyer numbers stored.");
+
+        return {
+          displayName: p.displayName,
+          hasPassport,
+          passportExpiry,
+          hasInsurance,
+          visaCountries,
+          frequentFlyerCount: frequentFlyers.length,
+          documentCount: docs.length,
+          gaps,
+        };
+      });
+
+      return {
+        result: {
+          tripName: trip.name,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          destinationCountries: countries,
+          travelers: readiness,
+        },
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -1682,7 +1919,12 @@ RULES:
 13. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.
 14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.
 15. Cities can be "hidden" (dismissed). When listing trip cities, only show visible ones. When the user asks to bring back, restore, or recall a dismissed city, use restore_city. When asked what was dismissed or archived, use list_hidden_cities.
-16. When the user asks to clear, dismiss, or archive recommendation cities, use hide_city with hideAll: true. Individual cities can be hidden with hide_city by cityId.`;
+16. When the user asks to clear, dismiss, or archive recommendation cities, use hide_city with hideAll: true. Individual cities can be hidden with hide_city by cityId.
+17. When the user shares passport details, frequent flyer numbers, insurance info, visa details, ticket references, or any travel document information, use save_travel_document IMMEDIATELY. Extract all relevant fields from the natural language. Do not ask for confirmation — just save it.
+18. When the user asks "what's my passport number?", "show my documents", or any question about their own travel info, use get_my_documents and answer from the results.
+19. When the user asks about another traveler's info (e.g., "what's Ken's frequent flyer number?"), use get_shared_documents. Only non-private documents from other travelers will be returned.
+20. When the user asks "am I ready?", "what do I still need?", "travel readiness", or similar, use check_travel_readiness. Give a personalized, specific answer — not a generic checklist. Mention exact expiry dates, specific country requirements, and concrete next steps.
+21. Never store financial data (credit cards, bank accounts, PINs). Travel document numbers (passport, visa, frequent flyer, tickets) are standard travel information shared routinely with airlines and countries.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];

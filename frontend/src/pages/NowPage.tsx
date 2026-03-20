@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import type { Trip, Day, Experience } from "../lib/types";
+import type { Trip, Day, Experience, TravelerDocument } from "../lib/types";
 import FirstTimeGuide from "../components/FirstTimeGuide";
 import { useToast } from "../contexts/ToastContext";
 import { isNextUpEnabled, setNextUpEnabled } from "../components/NextUpOverlay";
@@ -52,6 +52,7 @@ export default function NowPage() {
   const [quickCaptureName, setQuickCaptureName] = useState("");
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [travelDocs, setTravelDocs] = useState<TravelerDocument[]>([]);
 
   // Load trip and day data
   useEffect(() => {
@@ -60,7 +61,11 @@ export default function NowPage() {
       if (!t) { navigate("/"); return; }
       setTrip(t);
 
-      const days = await api.get<Day[]>(`/days/trip/${t.id}`);
+      const [days, profileRes] = await Promise.all([
+        api.get<Day[]>(`/days/trip/${t.id}`),
+        api.get<{ documents: TravelerDocument[] }>(`/traveler-documents/trip/${t.id}`).catch(() => ({ documents: [] })),
+      ]);
+      setTravelDocs(profileRes?.documents || []);
       const todayStr = new Date().toISOString().split("T")[0];
       const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
       setToday(todayDay || null);
@@ -492,6 +497,57 @@ export default function NowPage() {
             </div>
           </div>
         ))}
+
+        {/* Contextual travel docs — passport on travel days, hotel confirmation on check-in */}
+        {travelDocs.length > 0 && (() => {
+          const items: { label: string; value: string }[] = [];
+          // Check if today has a route segment (travel day)
+          const todayExps = today?.experiences || [];
+          const hasTransport = todayExps.some((e) => e.routeSegmentId);
+          const accom = today?.accommodations?.[0];
+
+          if (hasTransport) {
+            const passport = travelDocs.find((d) => d.type === "passport");
+            if (passport?.data) {
+              if (passport.data.nameAsOnPassport) items.push({ label: "Passport name", value: passport.data.nameAsOnPassport });
+              if (passport.data.number) items.push({ label: "Passport", value: passport.data.number });
+            }
+          }
+          if (accom?.confirmationNumber) {
+            items.push({ label: accom.name, value: `Conf: ${accom.confirmationNumber}` });
+          }
+          // Frequent flyer for travel days
+          if (hasTransport) {
+            travelDocs.filter((d) => d.type === "frequent_flyer").forEach((d) => {
+              if (d.data.airline && d.data.number) {
+                items.push({ label: d.data.airline, value: d.data.number });
+              }
+            });
+          }
+
+          if (items.length === 0) return null;
+          return (
+            <div className="mb-4 p-3 bg-[#f5f0e8] rounded-lg border border-[#e0d8cc]">
+              <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">Your travel docs</div>
+              <div className="space-y-1">
+                {items.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="text-[#8a7a62]">{item.label}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(item.value);
+                        showToast("Copied");
+                      }}
+                      className="text-[#3a3128] font-medium hover:text-[#514636] transition-colors"
+                    >
+                      {item.value} 📋
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Full schedule */}
         <section>
