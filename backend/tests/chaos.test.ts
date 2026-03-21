@@ -3711,5 +3711,541 @@ describe("Chaos Simulations", () => {
         .set("Authorization", `Bearer ${aliceToken}`);
       expect(res.status).toBe(404);
     });
+
+    // ══════════════════════════════════════════════════════════════
+    // Chat Tool Parity — Chaos Tests (S123–S140)
+    // These test the underlying operations that the 7 new chat tools
+    // perform, ensuring they work correctly under diverse conditions.
+    // ══════════════════════════════════════════════════════════════
+
+    // ── create_trip tool path ──
+
+    it("S123: Create trip with cities auto-generates days", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          name: "S123 Portugal Trip",
+          startDate: "2026-06-01",
+          endDate: "2026-06-10",
+          cities: [
+            { name: "Lisbon", country: "Portugal", arrivalDate: "2026-06-01", departureDate: "2026-06-04" },
+            { name: "Porto", country: "Portugal", arrivalDate: "2026-06-05", departureDate: "2026-06-08" },
+          ],
+        });
+      expect(res.status).toBe(201);
+
+      // Verify days were auto-generated
+      const days = await request(app)
+        .get(`/api/days/trip/${res.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      // Lisbon: Jun 1-4 = 4 days, Porto: Jun 5-8 = 4 days
+      expect(days.body.length).toBeGreaterThanOrEqual(8);
+
+      // Verify trip dates synced
+      const trip = await request(app)
+        .get(`/api/trips/${res.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(trip.body.name).toBe("S123 Portugal Trip");
+    });
+
+    it("S124: Create trip with no cities — minimal creation works", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ name: "S124 Empty Trip", startDate: "2026-07-01", endDate: "2026-07-10" });
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBeTruthy();
+
+      const cities = await request(app)
+        .get(`/api/cities/trip/${res.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(cities.body.length).toBe(0);
+    });
+
+    it("S125: Create trip then immediately add city, experience, and promote — full lifecycle", async () => {
+      // Simulates what a user would do via chat: create trip → add city → add experience → promote
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          name: "S125 Quick Trip",
+          startDate: "2026-08-01",
+          endDate: "2026-08-05",
+          cities: [{ name: "Barcelona", country: "Spain", arrivalDate: "2026-08-01", departureDate: "2026-08-03" }],
+        });
+      const tripId = tripRes.body.id;
+
+      const cities = await request(app)
+        .get(`/api/cities/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
+
+      // Add experience
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "La Sagrada Familia" });
+      expect(exp.status).toBe(201);
+
+      // Get a day to promote to
+      const days = await request(app)
+        .get(`/api/days/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(days.body.length).toBeGreaterThan(0);
+
+      // Promote
+      const promote = await request(app)
+        .patch(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ state: "selected", dayId: days.body[0].id, timeWindow: "morning" });
+      expect(promote.status).toBe(200);
+      expect(promote.body.state).toBe("selected");
+    });
+
+    // ── delete_travel_document tool path ──
+
+    it("S126: Delete own travel document succeeds", async () => {
+      const tripId = await createTrip(aliceToken, "S126 Trip", "2026-11-01", "2026-11-05");
+
+      const doc = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "X1234567", country: "US" } });
+      expect(doc.status).toBe(201);
+
+      // Delete it
+      await request(app)
+        .delete(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(200);
+
+      // Verify it's gone
+      const check = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const passports = check.body.documents?.filter((d: any) => d.type === "passport") || [];
+      expect(passports.length).toBe(0);
+    });
+
+    it("S127: Cannot delete another user's travel document", async () => {
+      const tripId = await createTrip(aliceToken, "S127 Trip", "2026-11-01", "2026-11-05");
+
+      const doc = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "insurance", data: { provider: "WorldNomads", policyNumber: "WN999" } });
+
+      // Bob tries to delete Alice's doc
+      const del = await request(app)
+        .delete(`/api/traveler-documents/${doc.body.id}`)
+        .set("Authorization", `Bearer ${bobToken}`);
+      expect(del.status).toBe(403);
+    });
+
+    it("S128: Delete document then re-create same type — no conflict", async () => {
+      const tripId = await createTrip(aliceToken, "S128 Trip", "2026-11-01", "2026-11-05");
+
+      const doc1 = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "ANA", number: "NH123456" } });
+
+      await request(app)
+        .delete(`/api/traveler-documents/${doc1.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(200);
+
+      // Create a new one with same type
+      const doc2 = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "JAL", number: "JL789012" } });
+      expect(doc2.status).toBe(201);
+      expect(doc2.body.data.airline).toBe("JAL");
+    });
+
+    // ── share_day_plan tool path (test data completeness) ──
+
+    it("S129: Day with experiences, reservations, and accommodation returns complete data", async () => {
+      const tripId = await createTrip(aliceToken, "S129 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Kyoto", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+
+      const cities = await request(app)
+        .get(`/api/cities/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
+
+      const days = await request(app)
+        .get(`/api/days/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const dayId = days.body[0].id;
+
+      // Add accommodation
+      await request(app)
+        .post("/api/accommodations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, dayId, name: "Hyatt Regency Kyoto" });
+
+      // Add experience and promote
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Kinkaku-ji" });
+      await request(app)
+        .patch(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ state: "selected", dayId, timeWindow: "morning" });
+
+      // Add reservation
+      await request(app)
+        .post("/api/reservations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          dayId,
+          name: "Kikunoi",
+          type: "restaurant",
+          datetime: "2026-11-01T18:00:00Z",
+        });
+
+      // Fetch day — should have all three
+      const fullDay = await request(app)
+        .get(`/api/days/${dayId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(fullDay.body.experiences.length).toBeGreaterThanOrEqual(1);
+      expect(fullDay.body.reservations.length).toBe(1);
+      expect(fullDay.body.accommodations.length).toBe(1);
+      expect(fullDay.body.city.name).toBe("Kyoto");
+    });
+
+    // ── get_travel_time tool path ──
+
+    it("S130: Travel time endpoint returns duration for valid coordinates", async () => {
+      // Tokyo Station to Senso-ji (~6km walk)
+      const res = await request(app)
+        .post("/api/travel-time")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          originLat: 35.6812,
+          originLng: 139.7671,
+          destLat: 35.7148,
+          destLng: 139.7967,
+          mode: "walk",
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.durationMinutes).toBeGreaterThan(0);
+      expect(res.body.bufferMinutes).toBe(10); // walk buffer
+      expect(res.body.mode).toBe("walk");
+      expect(["google", "fallback"]).toContain(res.body.source);
+    });
+
+    it("S131: Travel time with anchor time returns departure time", async () => {
+      const res = await request(app)
+        .post("/api/travel-time")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          originLat: 35.0116,
+          originLng: 135.7681,
+          destLat: 34.9671,
+          destLng: 135.7727,
+          mode: "subway",
+          anchorTime: "2026-11-01T10:00:00Z",
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.departureTime).toBeTruthy();
+      expect(res.body.mode).toBe("subway");
+    });
+
+    it("S132: Travel time with missing coordinates returns 400", async () => {
+      const res = await request(app)
+        .post("/api/travel-time")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ originLat: 35.0, mode: "walk" });
+      expect(res.status).toBe(400);
+    });
+
+    it("S133: Travel time with different modes returns different buffers", async () => {
+      // Same route, different modes — verify buffer logic differs
+      const walkRes = await request(app)
+        .post("/api/travel-time")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ originLat: 35.68, originLng: 139.77, destLat: 35.71, destLng: 139.80, mode: "walk" });
+      const taxiRes = await request(app)
+        .post("/api/travel-time")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ originLat: 35.68, originLng: 139.77, destLat: 35.71, destLng: 139.80, mode: "taxi" });
+
+      expect(walkRes.body.bufferMinutes).toBe(10);
+      expect(taxiRes.body.bufferMinutes).toBe(5);
+      // Walk should be slower than taxi
+      expect(walkRes.body.durationMinutes).toBeGreaterThanOrEqual(taxiRes.body.durationMinutes);
+    });
+
+    // ── cast_vote tool path ──
+
+    it("S134: Vote, change mind, re-vote — only latest vote counts", async () => {
+      const tripId = await createTrip(aliceToken, "S134 Trip", "2026-11-01", "2026-11-05");
+
+      const session = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          question: "Sushi or ramen tonight?",
+          options: [{ name: "Sushi Dai" }, { name: "Fuunji" }, { name: "Skip dinner" }],
+        });
+
+      // Alice votes: yes, no, maybe
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [
+          { optionIndex: 0, preference: "yes" },
+          { optionIndex: 1, preference: "no" },
+          { optionIndex: 2, preference: "maybe" },
+        ]})
+        .expect(200);
+
+      // Alice changes mind: no, yes, no
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [
+          { optionIndex: 0, preference: "no" },
+          { optionIndex: 1, preference: "yes" },
+          { optionIndex: 2, preference: "no" },
+        ]})
+        .expect(200);
+
+      // Check results — should reflect the LATEST votes only
+      const results = await request(app)
+        .get(`/api/voting/${session.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(results.body.results[0].no).toBe(1);
+      expect(results.body.results[0].yes).toBe(0);
+      expect(results.body.results[1].yes).toBe(1);
+      expect(results.body.results[1].no).toBe(0);
+      expect(results.body.results[2].no).toBe(1);
+      expect(results.body.results[2].maybe).toBe(0);
+    });
+
+    it("S135: Multiple users vote then one changes — tallies stay correct", async () => {
+      const tripId = await createTrip(aliceToken, "S135 Trip", "2026-11-01", "2026-11-05");
+
+      const session = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          question: "Morning or afternoon temple visit?",
+          options: [{ name: "Morning" }, { name: "Afternoon" }],
+        });
+
+      // Alice: morning yes, afternoon no
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "yes" }, { optionIndex: 1, preference: "no" }] });
+
+      // Bob: morning no, afternoon yes
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "no" }, { optionIndex: 1, preference: "yes" }] });
+
+      // Tied 1-1. Now Alice switches to afternoon
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "no" }, { optionIndex: 1, preference: "yes" }] });
+
+      const results = await request(app)
+        .get(`/api/voting/${session.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      // Morning: 0 yes, 2 no. Afternoon: 2 yes, 0 no.
+      expect(results.body.results[0].yes).toBe(0);
+      expect(results.body.results[0].no).toBe(2);
+      expect(results.body.results[1].yes).toBe(2);
+      expect(results.body.results[1].no).toBe(0);
+    });
+
+    // ── get_ratings tool path ──
+
+    it("S136: Experience with multiple rating platforms returns all", async () => {
+      const tripId = await createTrip(aliceToken, "S136 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+
+      const cities = await request(app)
+        .get(`/api/cities/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId: cities.body[0].id, name: "Tsukiji Outer Market" });
+
+      // Add Google + Tabelog ratings
+      await prisma.experienceRating.create({
+        data: { experienceId: exp.body.id, platform: "google", ratingValue: 4.3, reviewCount: 12500 },
+      });
+      await prisma.experienceRating.upsert({
+        where: { experienceId_platform: { experienceId: exp.body.id, platform: "tabelog" } },
+        create: { experienceId: exp.body.id, platform: "tabelog", ratingValue: 3.62, reviewCount: 890 },
+        update: { ratingValue: 3.62, reviewCount: 890 },
+      });
+
+      const full = await request(app)
+        .get(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(full.body.ratings.length).toBe(2);
+
+      const google = full.body.ratings.find((r: any) => r.platform === "google");
+      const tabelog = full.body.ratings.find((r: any) => r.platform === "tabelog");
+      expect(google.ratingValue).toBeCloseTo(4.3, 1);
+      expect(tabelog.ratingValue).toBeCloseTo(3.62, 1);
+    });
+
+    it("S137: Experience with no ratings returns empty array", async () => {
+      const tripId = await createTrip(aliceToken, "S137 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Osaka", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+
+      const cities = await request(app)
+        .get(`/api/cities/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId: cities.body[0].id, name: "Random Alley" });
+
+      const full = await request(app)
+        .get(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(full.body.ratings).toEqual([]);
+    });
+
+    // ── Cross-tool chaos: trip create → full lifecycle via chat tool paths ──
+
+    it("S138: Create trip, add everything, delete some, verify integrity", async () => {
+      // Simulates a full chat session: create trip, add city, add experience,
+      // add accommodation, add reservation, vote, then delete some things
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          name: "S138 Full Lifecycle",
+          startDate: "2026-09-01",
+          endDate: "2026-09-05",
+          cities: [{ name: "Rome", country: "Italy", arrivalDate: "2026-09-01", departureDate: "2026-09-03" }],
+        });
+      const tripId = tripRes.body.id;
+
+      const cities = await request(app)
+        .get(`/api/cities/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
+
+      const days = await request(app)
+        .get(`/api/days/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const dayId = days.body[0].id;
+
+      // Add accommodation
+      const accom = await request(app)
+        .post("/api/accommodations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, dayId, name: "Hotel de Russie" });
+
+      // Add 3 experiences
+      const exp1 = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Colosseum" });
+      const exp2 = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Vatican Museums" });
+      const exp3 = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Trastevere Walk" });
+
+      // Promote first two
+      await request(app)
+        .patch(`/api/experiences/${exp1.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ state: "selected", dayId });
+      await request(app)
+        .patch(`/api/experiences/${exp2.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ state: "selected", dayId });
+
+      // Add reservation
+      await request(app)
+        .post("/api/reservations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, dayId, name: "Da Enzo", type: "restaurant", datetime: "2026-09-01T19:30:00Z" });
+
+      // Create a vote
+      const vote = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, question: "Gelato spot?", options: [{ name: "Giolitti" }, { name: "Fatamorgana" }] });
+
+      // Now delete experience 3 and the accommodation
+      await request(app)
+        .delete(`/api/experiences/${exp3.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(200);
+      await request(app)
+        .delete(`/api/accommodations/${accom.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(200);
+
+      // Verify final state
+      const finalDay = await request(app)
+        .get(`/api/days/${dayId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(finalDay.body.experiences.length).toBe(2); // exp1 + exp2 promoted
+      expect(finalDay.body.reservations.length).toBe(1);
+      expect(finalDay.body.accommodations.length).toBe(0); // deleted
+
+      // Vote session still accessible
+      const voteCheck = await request(app)
+        .get(`/api/voting/${vote.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(voteCheck.status).toBe(200);
+    });
+
+    it("S139: Travel time — taxi vs walk on same route gives different durations", async () => {
+      // Fushimi Inari to Kyoto Station (~4km)
+      const walkRes = await request(app)
+        .post("/api/travel-time")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ originLat: 34.9671, originLng: 135.7727, destLat: 34.9858, destLng: 135.7588, mode: "walk" });
+      const taxiRes = await request(app)
+        .post("/api/travel-time")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ originLat: 34.9671, originLng: 135.7727, destLat: 34.9858, destLng: 135.7588, mode: "taxi" });
+
+      expect(walkRes.status).toBe(200);
+      expect(taxiRes.status).toBe(200);
+      // Walking should take longer than taxi (even in fallback mode)
+      if (walkRes.body.source === "fallback" && taxiRes.body.source === "fallback") {
+        expect(walkRes.body.durationMinutes).toBeGreaterThan(taxiRes.body.durationMinutes);
+      }
+    });
+
+    it("S140: Vote on nonexistent session returns 404", async () => {
+      const res = await request(app)
+        .post("/api/voting/nonexistent-session-id/vote")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "yes" }] });
+      expect(res.status).toBe(404);
+    });
   });
 });

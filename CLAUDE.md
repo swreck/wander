@@ -11,6 +11,26 @@ After implementing any feature add/remove/behavior change:
 - Include a line: "SPEC UPDATE NEEDED" if behavior now differs from SPEC.md.
 === END RULE ===
 
+## Product Intent
+
+**Why this exists:** Ken plans complex, multi-week international trips with family and friends (Larisa, Andy, Julie, Kyler). These trips involve dozens of experiences across multiple cities, and the gap between "research" (finding interesting places) and "execution" (knowing where to go today, right now) is where plans fall apart. Wander bridges that gap.
+
+**Core workflow:** Capture interesting places (from articles, friends, blogs) → organize by city/day → see everything on a map → build daily itineraries with realistic travel times → execute during the trip with real-time "what's next" awareness.
+
+**Key design decisions:**
+- Map-centric — every screen is built around a persistent map. Lists and panels layer on top. The map never disappears.
+- The itinerary is sacred — nothing moves, changes, or disappears without explicit user action. No AI reorganization.
+- Capture never blocks — saving an experience is instant; enrichment (geocoding, ratings, AI context) happens asynchronously
+- Collaborative but not social — small trusted groups share a trip, not public sharing
+- AI cultural context cards — Claude generates brief, respectful cultural context for destinations (not tourist tips, but genuine understanding)
+- Real transit data — actual train schedules, not estimates
+- Offline-first mutation queue — actions taken without connectivity sync when back online
+- Cloudinary for all images
+
+**What makes this app "Ken's":** The travel philosophy embedded in the non-negotiable principles (SPEC.md), the emphasis on calm execution over flashy discovery, the refusal to let AI reorganize plans, and the specific group of travelers it's built for. The SPEC.md document is the definitive product voice — a future AI should read it to understand not just what to build but *how the product should feel*.
+
+**Critical document:** `SPEC.md` is the canonical product specification (v3.0). It contains every architectural, UX, and behavioral decision. CLAUDE.md captures development workflow; SPEC.md captures product truth.
+
 ## WANDER DEVELOPMENT PROTOCOL
 
 ### CHANGELOG AUTOMATION RULE
@@ -68,3 +88,28 @@ Every implementation session must include testing before presenting work as comp
 - Tests run on an isolated Neon database branch (created automatically before tests, deleted after). Production data is never touched.
 - The branch isolation is handled by `tests/vitest-global-setup.ts` (creates branch, writes URL to temp file) and `tests/vitest-setup.ts` (reads URL in workers). No manual cleanup needed.
 - If `NEON_API_KEY` is not set, tests fall back to the production DB with a warning. Ensure the key is set in `.env`.
+
+### AI CHAT PARITY RULE
+
+The AI chat assistant should be able to perform any data operation the UI can. When adding a new UI action that creates, updates, or deletes data, also add a corresponding chat tool in `backend/src/routes/chat.ts`. This includes:
+1. A tool definition in the `tools` array (name, description, input_schema)
+2. A `case` in the `executeTool` switch
+3. A numbered rule in the system prompt explaining when to use it
+
+Current tool count: 46. Categories:
+- **Trip lifecycle**: create_trip, update_trip, shift_trip_dates, get_trip_summary
+- **City CRUD**: add_city, update_city, update_city_dates, delete_city, reorder_cities, hide_city, restore_city, list_hidden_cities
+- **Day operations**: create_day, delete_day, get_day_details, get_all_days, update_day_notes, update_day_date, reassign_day, share_day_plan
+- **Experience CRUD**: add_experience, update_experience, delete_experience, bulk_delete_experiences, promote_experience, demote_experience, move_experience, reorder_experiences, search_experiences, get_city_experiences, get_cultural_context, get_ratings
+- **Reservations**: add_reservation, update_reservation, delete_reservation
+- **Accommodations**: add_accommodation, update_accommodation, delete_accommodation
+- **Route segments**: add_route_segment, update_route_segment, delete_route_segment
+- **Traveler documents**: save_travel_document, update_travel_document, delete_travel_document, get_my_documents, get_shared_documents, check_travel_readiness
+- **Voting**: create_vote, cast_vote, get_vote_results
+- **Ratings**: set_tabelog_rating, get_ratings
+- **Transit**: check_transit_status, search_train_schedules
+- **Travel**: get_travel_time
+- **Import**: import_recommendations
+- **History**: get_change_log
+
+Intentionally excluded from chat: delete_trip (too destructive), client-side preferences (localStorage), map interactions (not data operations), screenshot capture (requires image upload).
