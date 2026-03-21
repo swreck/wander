@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Sky gradient -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b8fd4"/>
+      <stop offset="45%" stop-color="#6db4e2"/>
+      <stop offset="75%" stop-color="#a2d1ee"/>
+      <stop offset="100%" stop-color="#d4e9f5"/>
+    </linearGradient>
+    <linearGradient id="wetSand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c4a56a"/>
+      <stop offset="100%" stop-color="#b8975c"/>
+    </linearGradient>
+    <linearGradient id="drySand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e2c992"/>
+      <stop offset="50%" stop-color="#dcc288"/>
+      <stop offset="100%" stop-color="#d4b87a"/>
+    </linearGradient>
+    <filter id="sandGrain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="4" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray"/>
+      <feBlend in="SourceGraphic" in2="gray" mode="multiply"/>
+    </filter>
+    <filter id="cloudSoft">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <filter id="cloudSofter">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <!-- Directional motion blur for the W — blurs leftward (trailing) -->
+    <filter id="motionTrail" x="-20%" y="-5%" width="140%" height="110%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6 0.5"/>
+    </filter>
+    <!-- Gentle left-side fade mask for trailing edge softness -->
+    <linearGradient id="wFadeMask" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="white" stop-opacity="0.5"/>
+      <stop offset="25%" stop-color="white" stop-opacity="0.85"/>
+      <stop offset="50%" stop-color="white" stop-opacity="1"/>
+      <stop offset="100%" stop-color="white" stop-opacity="1"/>
+    </linearGradient>
+    <mask id="wMask">
+      <rect x="-300" y="-220" width="600" height="440" fill="url(#wFadeMask)"/>
+    </mask>
+  </defs>
+
+  <clipPath id="iconClip">
+    <rect width="512" height="512" rx="80"/>
+  </clipPath>
+
+  <g clip-path="url(#iconClip)">
+
+    <!-- Sky -->
+    <rect width="512" height="512" fill="url(#sky)"/>
+
+    <!-- ── Clouds with dense bright cores ── -->
+
+    <!-- Cloud 1: large right -->
+    <g filter="url(#cloudSoft)">
+      <!-- Outer wispy edges -->
+      <ellipse cx="365" cy="100" rx="48" ry="18" fill="white" opacity="0.35"/>
+      <ellipse cx="450" cy="90" rx="35" ry="15" fill="white" opacity="0.35"/>
+      <!-- Mid layer -->
+      <ellipse cx="405" cy="92" rx="72" ry="26" fill="white" opacity="0.55"/>
+      <ellipse cx="370" cy="96" rx="42" ry="19" fill="white" opacity="0.5"/>
+      <ellipse cx="440" cy="88" rx="40" ry="17" fill="white" opacity="0.5"/>
+      <!-- Bright dense core -->
+      <ellipse cx="408" cy="90" rx="45" ry="16" fill="white" opacity="0.85"/>
+      <ellipse cx="395" cy="88" rx="30" ry="12" fill="white" opacity="0.9"/>
+      <!-- Bottom underbelly (slightly gray = shadow) -->
+      <ellipse cx="405" cy="102" rx="50" ry="10" fill="#c0d8ea" opacity="0.3"/>
+    </g>
+
+    <!-- Cloud 2: left mid -->
+    <g filter="url(#cloudSoft)">
+      <ellipse cx="58" cy="130" rx="30" ry="12" fill="white" opacity="0.3"/>
+      <ellipse cx="148" cy="124" rx="28" ry="12" fill="white" opacity="0.3"/>
+      <ellipse cx="100" cy="128" rx="58" ry="22" fill="white" opacity="0.5"/>
+      <ellipse cx="130" cy="122" rx="38" ry="16" fill="white" opacity="0.5"/>
+      <!-- Core -->
+      <ellipse cx="108" cy="124" rx="38" ry="14" fill="white" opacity="0.8"/>
+      <ellipse cx="95" cy="122" rx="25" ry="10" fill="white" opacity="0.85"/>
+      <!-- Underbelly -->
+      <ellipse cx="105" cy="136" rx="40" ry="8" fill="#c0d8ea" opacity="0.25"/>
+    </g>
+
+    <!-- Cloud 3: wispy high -->
+    <g filter="url(#cloudSofter)">
+      <ellipse cx="255" cy="60" rx="48" ry="11" fill="white" opacity="0.3"/>
+      <ellipse cx="282" cy="56" rx="32" ry="9" fill="white" opacity="0.25"/>
+      <ellipse cx="230" cy="63" rx="25" ry="8" fill="white" opacity="0.2"/>
+      <!-- Slight core -->
+      <ellipse cx="260" cy="58" rx="28" ry="7" fill="white" opacity="0.45"/>
+    </g>
+
+    <!-- Cloud 4: low haze -->
+    <g filter="url(#cloudSofter)">
+      <ellipse cx="155" cy="296" rx="65" ry="14" fill="white" opacity="0.22"/>
+      <ellipse cx="195" cy="292" rx="40" ry="11" fill="white" opacity="0.18"/>
+      <ellipse cx="170" cy="293" rx="30" ry="8" fill="white" opacity="0.3"/>
+    </g>
+
+    <!-- ── Beach ── -->
+
+    <!-- Wet sand band -->
+    <path d="M0 362 Q80 354 170 360 Q280 368 380 358 Q460 352 512 356 L512 390 Q400 396 280 388 Q150 380 0 392 Z"
+      fill="url(#wetSand)"/>
+
+    <!-- Foam edge — layered for frothy look -->
+    <path d="M0 363 Q40 358 90 362 Q140 366 180 361 Q230 356 280 362 Q340 368 390 360 Q450 354 512 358"
+      fill="none" stroke="white" stroke-width="3" stroke-opacity="0.55"/>
+    <path d="M0 365 Q55 360 110 364 Q170 368 220 363 Q270 358 320 364 Q380 370 440 362 Q480 358 512 361"
+      fill="none" stroke="white" stroke-width="1.8" stroke-opacity="0.3"/>
+    <!-- Receding foam wisps -->
+    <path d="M30 370 Q60 368 80 371" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.2"/>
+    <path d="M200 370 Q230 367 260 371" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.18"/>
+    <path d="M380 368 Q410 365 440 369" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.15"/>
+
+    <!-- Dry sand with grain -->
+    <g filter="url(#sandGrain)">
+      <path d="M0 385 Q120 378 256 384 Q400 390 512 382 L512 512 L0 512 Z"
+        fill="url(#drySand)"/>
+    </g>
+
+    <!-- Sand ripples -->
+    <path d="M0 410 Q100 406 220 411 Q350 416 512 408" fill="none" stroke="#c4a060" stroke-opacity="0.2" stroke-width="1"/>
+    <path d="M0 440 Q130 435 270 441 Q400 447 512 438" fill="none" stroke="#c4a060" stroke-opacity="0.15" stroke-width="1"/>
+    <path d="M0 470 Q150 465 300 471 Q430 476 512 468" fill="none" stroke="#c4a060" stroke-opacity="0.12" stroke-width="1"/>
+
+    <!-- ── Speed lines — organic, irregular ── -->
+    <g transform="rotate(-3 280 277)" stroke="white" stroke-linecap="round" fill="none">
+      <path d="M20 197 Q65 194 115 199 Q138 201 150 198" stroke-width="3" opacity="0.4"/>
+      <path d="M60 222 Q90 219 125 223" stroke-width="2" opacity="0.3"/>
+      <path d="M30 245 Q75 241 110 247" stroke-width="3.2" opacity="0.45"/>
+      <path d="M122 243 Q138 241 152 245" stroke-width="1.8" opacity="0.25"/>
+      <path d="M10 272 Q60 267 115 273 Q145 277 165 272" stroke-width="3.5" opacity="0.5"/>
+      <path d="M80 295 Q110 292 140 296" stroke-width="2.2" opacity="0.32"/>
+      <path d="M35 317 Q80 322 130 317 Q152 315 168 319" stroke-width="3" opacity="0.42"/>
+      <path d="M65 337 Q95 334 120 338" stroke-width="2" opacity="0.28"/>
+      <path d="M130 335 Q148 333 162 337" stroke-width="1.5" opacity="0.2"/>
+      <path d="M45 359 Q90 363 135 358 Q155 356 168 360" stroke-width="2.5" opacity="0.36"/>
+    </g>
+
+    <!-- ── The W (50% larger: 285px) ── -->
+
+    <!-- Motion-blurred trailing ghost -->
+    <g transform="translate(245 272) rotate(-3)" filter="url(#motionTrail)" opacity="0.18">
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="285" font-weight="600"
+        fill="white" style="letter-spacing: -12px;">W</text>
+    </g>
+
+    <!-- Drop shadow -->
+    <g transform="translate(278 276) rotate(-3)">
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="285" font-weight="600"
+        fill="#2a7ab5" fill-opacity="0.12" style="letter-spacing: -12px;">W</text>
+    </g>
+
+    <!-- Main W with trailing-edge fade -->
+    <g transform="translate(275 272) rotate(-3)" mask="url(#wMask)">
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="285" font-weight="600"
+        fill="white" style="letter-spacing: -12px;">W</text>
+    </g>
+
+  </g>
+
+  <!-- Clean border -->
+  <rect width="512" height="512" rx="80" fill="none" stroke="#3b8fd4" stroke-width="1" stroke-opacity="0.2"/>
+</svg>
