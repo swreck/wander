@@ -13,6 +13,7 @@ import PhraseCard from "./components/PhraseCard";
 import ChatBubble from "./components/ChatBubble";
 import DailyGreeting from "./components/DailyGreeting";
 import NextUpOverlay from "./components/NextUpOverlay";
+import InterestOverlay from "./components/InterestOverlay";
 import { ToastProvider } from "./contexts/ToastContext";
 import { useToast } from "./contexts/ToastContext";
 import React, { useState, useEffect, useCallback } from "react";
@@ -205,6 +206,7 @@ export default function App() {
             <AppRoutes />
             <DailyGreeting />
             <NextUpOverlay />
+            <InterestOverlay />
             <ChatOverlay />
             <PhraseCard />
             <ShortcutHelp />

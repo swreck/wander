@@ -55,6 +55,28 @@ export interface CulturalNote {
   category: "etiquette" | "practical" | "timing";
 }
 
+export interface ExperienceInterest {
+  id: string;
+  experienceId: string;
+  tripId: string;
+  userCode: string;
+  displayName: string;
+  note: string | null;
+  createdAt: string;
+  experience?: { id: string; name: string; cityId: string; dayId: string | null; state: string; city: { name: string } };
+  reactions: InterestReaction[];
+}
+
+export interface InterestReaction {
+  id: string;
+  interestId: string;
+  userCode: string;
+  displayName: string;
+  reaction: "interested" | "maybe" | "pass";
+  note: string | null;
+  createdAt: string;
+}
+
 export interface VotingSession {
   id: string;
   tripId: string;

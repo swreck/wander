@@ -4247,5 +4247,364 @@ describe("Chaos Simulations", () => {
         .send({ votes: [{ optionIndex: 0, preference: "yes" }] });
       expect(res.status).toBe(404);
     });
+
+    // ── Group Interest System — Chaos Tests (S141–S155) ──────────────
+
+    it("S141: Float an experience to the group", async () => {
+      const tripId = await createTrip(aliceToken, "Interest Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "Interest City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Cool Temple", state: "possible" });
+
+      const res = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id, note: "Saw this on a blog" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.experienceId).toBe(exp.body.id);
+      expect(res.body.note).toBe("Saw this on a blog");
+      expect(res.body.displayName).toBe("Alice");
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S142: Float same experience twice is idempotent (upsert)", async () => {
+      const tripId = await createTrip(aliceToken, "Interest Upsert Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "Upsert City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Temple Again", state: "possible" });
+
+      await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id, note: "First thought" });
+
+      const res2 = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id, note: "Changed my mind about why" });
+
+      expect(res2.status).toBe(201);
+      expect(res2.body.note).toBe("Changed my mind about why");
+
+      // Should still be just one interest
+      const list = await request(app)
+        .get(`/api/interests/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(list.body.length).toBe(1);
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S143: Float nonexistent experience returns 404", async () => {
+      const res = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: "nonexistent-exp-id", note: "test" });
+      expect(res.status).toBe(404);
+    });
+
+    it("S144: React to a floated experience", async () => {
+      const tripId = await createTrip(aliceToken, "React Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "React City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Pottery Workshop", state: "possible" });
+
+      const float = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id });
+
+      const react = await request(app)
+        .post(`/api/interests/${float.body.id}/react`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ reaction: "interested", note: "Sounds fun!" });
+
+      expect(react.status).toBe(200);
+      expect(react.body.reaction).toBe("interested");
+      expect(react.body.displayName).toBe("Bob");
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S145: React with invalid reaction is rejected", async () => {
+      const tripId = await createTrip(aliceToken, "Bad React Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "Bad React City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Test Exp", state: "possible" });
+
+      const float = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id });
+
+      const react = await request(app)
+        .post(`/api/interests/${float.body.id}/react`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ reaction: "love_it" });
+
+      expect(react.status).toBe(400);
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S146: Change reaction (upsert behavior)", async () => {
+      const tripId = await createTrip(aliceToken, "Change React Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "Change React City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Ramen Shop", state: "possible" });
+
+      const float = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id });
+
+      await request(app)
+        .post(`/api/interests/${float.body.id}/react`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ reaction: "maybe" });
+
+      const react2 = await request(app)
+        .post(`/api/interests/${float.body.id}/react`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ reaction: "interested", note: "Actually yes!" });
+
+      expect(react2.status).toBe(200);
+      expect(react2.body.reaction).toBe("interested");
+      expect(react2.body.note).toBe("Actually yes!");
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S147: React to nonexistent interest returns 404", async () => {
+      const res = await request(app)
+        .post("/api/interests/nonexistent-interest-id/react")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ reaction: "interested" });
+      expect(res.status).toBe(404);
+    });
+
+    it("S148: Only the floater can retract", async () => {
+      const tripId = await createTrip(aliceToken, "Retract Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "Retract City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Market Tour", state: "possible" });
+
+      const float = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id });
+
+      // Bob tries to retract Alice's float — should fail
+      const bobRetract = await request(app)
+        .delete(`/api/interests/${float.body.id}`)
+        .set("Authorization", `Bearer ${bobToken}`);
+      expect(bobRetract.status).toBe(403);
+
+      // Alice can retract her own
+      const aliceRetract = await request(app)
+        .delete(`/api/interests/${float.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(aliceRetract.status).toBe(200);
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S149: Retract nonexistent interest returns 404", async () => {
+      const res = await request(app)
+        .delete("/api/interests/nonexistent-interest-id")
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("S150: Get interests for a trip returns all with reactions", async () => {
+      const tripId = await createTrip(aliceToken, "List Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "List City");
+      const exp1 = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Place A", state: "possible" });
+      const exp2 = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Place B", state: "possible" });
+
+      const float1 = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp1.body.id, note: "Love this" });
+
+      await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ experienceId: exp2.body.id });
+
+      await request(app)
+        .post(`/api/interests/${float1.body.id}/react`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ reaction: "interested" });
+
+      const list = await request(app)
+        .get(`/api/interests/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      expect(list.status).toBe(200);
+      expect(list.body.length).toBe(2);
+
+      const placeAInterest = list.body.find((i: any) => i.experience.name === "Place A");
+      expect(placeAInterest.reactions.length).toBe(1);
+      expect(placeAInterest.reactions[0].reaction).toBe("interested");
+      expect(placeAInterest.experience.city.name).toBe("List City");
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S151: Deleting experience cascades to interest", async () => {
+      const tripId = await createTrip(aliceToken, "Cascade Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "Cascade City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Doomed Exp", state: "possible" });
+
+      await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id, note: "Will be deleted" });
+
+      await request(app)
+        .delete(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      const list = await request(app)
+        .get(`/api/interests/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(list.body.length).toBe(0);
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S152: Float with no note works (note is optional)", async () => {
+      const tripId = await createTrip(aliceToken, "No Note Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "No Note City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Quick Float", state: "possible" });
+
+      const res = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id });
+
+      expect(res.status).toBe(201);
+      expect(res.body.note).toBeNull();
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S153: Full lifecycle — float, react, change mind, retract", async () => {
+      const tripId = await createTrip(aliceToken, "Lifecycle Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "Lifecycle City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Full Cycle Exp", state: "possible" });
+
+      // Alice floats
+      const float = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id, note: "What do you think?" });
+      expect(float.status).toBe(201);
+
+      // Bob reacts with maybe
+      await request(app)
+        .post(`/api/interests/${float.body.id}/react`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ reaction: "maybe" });
+
+      // Bob changes to interested
+      const change = await request(app)
+        .post(`/api/interests/${float.body.id}/react`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ reaction: "interested", note: "On second thought, yes!" });
+      expect(change.body.reaction).toBe("interested");
+
+      // Alice updates her note
+      const update = await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id, note: "Updated reason" });
+      expect(update.body.note).toBe("Updated reason");
+
+      // Verify full state
+      const list = await request(app)
+        .get(`/api/interests/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(list.body.length).toBe(1);
+      expect(list.body[0].note).toBe("Updated reason");
+      expect(list.body[0].reactions.length).toBe(1);
+      expect(list.body[0].reactions[0].reaction).toBe("interested");
+
+      // Alice retracts
+      await request(app)
+        .delete(`/api/interests/${float.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      const final = await request(app)
+        .get(`/api/interests/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(final.body.length).toBe(0);
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S154: Both users float same experience independently", async () => {
+      const tripId = await createTrip(aliceToken, "Both Float Trip", new Date("2026-11-01"), new Date("2026-11-03"));
+      const cityId = await addCity(aliceToken, tripId, "Both Float City");
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Popular Place", state: "possible" });
+
+      await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: exp.body.id, note: "Alice likes it" });
+
+      await request(app)
+        .post("/api/interests")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ experienceId: exp.body.id, note: "Bob likes it too" });
+
+      const list = await request(app)
+        .get(`/api/interests/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      // Both users floated independently — should be 2 interests
+      expect(list.body.length).toBe(2);
+
+      await prisma.trip.delete({ where: { id: tripId } });
+    });
+
+    it("S155: Interest requires auth", async () => {
+      const res = await request(app)
+        .post("/api/interests")
+        .send({ experienceId: "anything" });
+      expect(res.status).toBe(401);
+    });
   });
 });

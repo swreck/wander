@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
-import type { Trip, Day, Experience } from "../lib/types";
+import type { Trip, Day, Experience, ExperienceInterest } from "../lib/types";
 import MapCanvas, { getCityPastel } from "../components/MapCanvas";
 import ExperienceList from "../components/ExperienceList";
 import ExperienceDetail from "../components/ExperienceDetail";
@@ -21,6 +21,7 @@ export default function PlanPage() {
   const [trip, setTrip] = useState<Trip | null>(null);
   const [days, setDays] = useState<Day[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [interests, setInterests] = useState<Map<string, ExperienceInterest>>(new Map());
   const [loading, setLoading] = useState(true);
 
   // Navigation — days-based, plus dateless candidate cities
@@ -139,6 +140,18 @@ export default function PlanPage() {
   }, [trip]);
 
   useEffect(() => { loadExperiences(); }, [loadExperiences]);
+
+  const loadInterests = useCallback(async () => {
+    if (!trip) return;
+    try {
+      const list = await api.get<ExperienceInterest[]>(`/interests/trip/${trip.id}`);
+      const map = new Map<string, ExperienceInterest>();
+      for (const i of list) map.set(i.experienceId, i);
+      setInterests(map);
+    } catch { /* interests are optional */ }
+  }, [trip]);
+
+  useEffect(() => { loadInterests(); }, [loadInterests]);
 
   // ── Actions ───────────────────────────────────────────────────
 
@@ -1181,6 +1194,8 @@ export default function PlanPage() {
               onExperienceClick={(id) => setSelectedExpId(id)}
               onExperienceHover={setHighlightedExpId}
               onLocationResolved={loadExperiences}
+              interests={interests}
+              onInterestChanged={loadInterests}
             />
           )}
         </div>
@@ -1230,6 +1245,8 @@ export default function PlanPage() {
                   onDemote={handleDemote}
                   onExperienceClick={(id) => { setSelectedExpId(id); setMobileView("map"); }}
                   onLocationResolved={loadExperiences}
+                  interests={interests}
+                  onInterestChanged={loadInterests}
                 />
               )}
             </div>
@@ -1297,6 +1314,8 @@ export default function PlanPage() {
           onDemote={handleDemote}
           onDelete={handleDeleteExp}
           onRefresh={loadExperiences}
+          interest={interests.get(selectedExpId)}
+          onInterestChanged={loadInterests}
         />
       )}
 

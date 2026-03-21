@@ -20,11 +20,12 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Experience, Day, Trip } from "../lib/types";
+import type { Experience, Day, Trip, ExperienceInterest } from "../lib/types";
 import { api } from "../lib/api";
 import RatingsBadge from "./RatingsBadge";
 
 import { useToast } from "../contexts/ToastContext";
+import { useAuth } from "../contexts/AuthContext";
 
 function CreatorBadge({ exp }: { exp: Experience }) {
   // Show creator's first initial until someone else edits
@@ -44,6 +45,197 @@ function CreatorBadge({ exp }: { exp: Experience }) {
   return (
     <span className="ml-1 text-[10px] text-[#c8bba8] font-medium" title={`Added by ${exp.createdBy}`}>
       {initial}
+    </span>
+  );
+}
+
+// ── Inline Group Interest Controls ───────────────────────────────
+function GroupInterestBadge({
+  exp,
+  interest,
+  onInterestChanged,
+}: {
+  exp: Experience;
+  interest?: ExperienceInterest;
+  onInterestChanged: () => void;
+}) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [showReactions, setShowReactions] = useState(false);
+
+  const isFloatedByMe = interest?.userCode === user?.code;
+  const reactionCount = interest?.reactions?.length || 0;
+  const myReaction = interest?.reactions?.find((r) => r.userCode === user?.code);
+
+  async function handleFloat() {
+    setSubmitting(true);
+    try {
+      await api.post("/interests", { experienceId: exp.id, note: note || null });
+      showToast("Shared with group");
+      setShowForm(false);
+      setNote("");
+      onInterestChanged();
+    } catch {
+      showToast("Couldn't share", "error");
+    }
+    setSubmitting(false);
+  }
+
+  async function handleReact(reaction: "interested" | "maybe" | "pass") {
+    if (!interest) return;
+    try {
+      await api.post(`/interests/${interest.id}/react`, { reaction });
+      showToast(reaction === "interested" ? "Interested!" : reaction === "maybe" ? "Marked maybe" : "Passed");
+      setShowReactions(false);
+      onInterestChanged();
+    } catch {
+      showToast("Couldn't react", "error");
+    }
+  }
+
+  async function handleRetract() {
+    if (!interest) return;
+    try {
+      await api.delete(`/interests/${interest.id}`);
+      showToast("Retracted");
+      onInterestChanged();
+    } catch {
+      showToast("Couldn't retract", "error");
+    }
+  }
+
+  // If floated — show warm badge with reaction count
+  if (interest) {
+    const reactionEmoji = myReaction
+      ? myReaction.reaction === "interested" ? "+" : myReaction.reaction === "maybe" ? "~" : "-"
+      : null;
+
+    return (
+      <span className="relative inline-flex items-center ml-1.5">
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowReactions(!showReactions); }}
+          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+            isFloatedByMe
+              ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+              : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+          }`}
+          title={`${interest.displayName} is interested${interest.note ? `: ${interest.note}` : ""}`}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
+          </svg>
+          {reactionCount > 0 && <span>{reactionCount}</span>}
+        </button>
+        {showReactions && (
+          <div
+            className="absolute top-full left-0 mt-1 z-30 bg-white rounded-lg border border-[#e0d8cc] shadow-lg p-2 min-w-[180px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-xs text-[#8a7a62] mb-1.5">
+              <span className="font-medium text-[#3a3128]">{interest.displayName}</span> is interested
+              {interest.note && <span className="italic"> — "{interest.note}"</span>}
+            </div>
+            {interest.reactions.length > 0 && (
+              <div className="space-y-0.5 mb-1.5 border-t border-[#f0ece5] pt-1.5">
+                {interest.reactions.map((r) => (
+                  <div key={r.id} className="text-xs text-[#6b5d4a] flex items-center gap-1">
+                    <span>{r.reaction === "interested" ? "+" : r.reaction === "maybe" ? "~" : "-"}</span>
+                    <span className="font-medium">{r.displayName}</span>
+                    {r.note && <span className="text-[#a89880] italic truncate">"{r.note}"</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {!isFloatedByMe && user && (
+              <div className="flex gap-1 border-t border-[#f0ece5] pt-1.5">
+                <button
+                  onClick={() => handleReact("interested")}
+                  className={`flex-1 py-1 text-xs rounded transition-colors ${
+                    myReaction?.reaction === "interested" ? "bg-green-100 text-green-700" : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
+                  }`}
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => handleReact("maybe")}
+                  className={`flex-1 py-1 text-xs rounded transition-colors ${
+                    myReaction?.reaction === "maybe" ? "bg-amber-100 text-amber-700" : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
+                  }`}
+                >
+                  Maybe
+                </button>
+                <button
+                  onClick={() => handleReact("pass")}
+                  className={`flex-1 py-1 text-xs rounded transition-colors ${
+                    myReaction?.reaction === "pass" ? "bg-red-50 text-red-600" : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
+                  }`}
+                >
+                  Pass
+                </button>
+              </div>
+            )}
+            {isFloatedByMe && (
+              <button
+                onClick={handleRetract}
+                className="w-full py-1 text-xs text-red-500 hover:bg-red-50 rounded transition-colors border-t border-[#f0ece5] mt-1 pt-1.5"
+              >
+                Retract
+              </button>
+            )}
+          </div>
+        )}
+      </span>
+    );
+  }
+
+  // Not floated — show subtle share icon
+  return (
+    <span className="relative inline-flex items-center ml-1.5">
+      <button
+        onClick={(e) => { e.stopPropagation(); setShowForm(!showForm); }}
+        className="text-[#d0c8b8] hover:text-[#8a7a62] transition-colors p-0.5"
+        title="Share interest with group"
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
+        </svg>
+      </button>
+      {showForm && (
+        <div
+          className="absolute top-full left-0 mt-1 z-30 bg-white rounded-lg border border-[#e0d8cc] shadow-lg p-2 min-w-[200px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-xs text-[#8a7a62] mb-1.5">Tell the group you're interested</div>
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleFloat()}
+            placeholder="Why? (optional)"
+            className="w-full text-xs px-2 py-1.5 border border-[#e0d8cc] rounded bg-[#faf8f5]
+                       focus:outline-none focus:border-[#a89880] mb-1.5"
+          />
+          <div className="flex gap-1">
+            <button
+              onClick={handleFloat}
+              disabled={submitting}
+              className="flex-1 py-1 text-xs bg-[#514636] text-white rounded hover:bg-[#3a3128]
+                         disabled:opacity-40 transition-colors"
+            >
+              {submitting ? "..." : "Share"}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setNote(""); }}
+              className="px-2 py-1 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </span>
   );
 }
@@ -132,6 +324,8 @@ interface Props {
   onExperienceClick: (id: string) => void;
   onExperienceHover?: (id: string | null) => void;
   onLocationResolved?: () => void;
+  interests?: Map<string, ExperienceInterest>;
+  onInterestChanged?: () => void;
 }
 
 // ── Grip Handle SVG ────────────────────────────────────────────────
@@ -163,6 +357,8 @@ function SortableSelectedItem({
   locatingId,
   setLocatingId,
   onLocationResolved,
+  interest,
+  onInterestChanged,
 }: {
   exp: Experience;
   onDemote: (id: string) => void;
@@ -171,6 +367,8 @@ function SortableSelectedItem({
   locatingId: string | null;
   setLocatingId: (id: string | null) => void;
   onLocationResolved: () => void;
+  interest?: ExperienceInterest;
+  onInterestChanged: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exp.id,
@@ -209,6 +407,7 @@ function SortableSelectedItem({
               )}
               <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
               <CreatorBadge exp={exp} />
+              <GroupInterestBadge exp={exp} interest={interest} onInterestChanged={onInterestChanged} />
               {exp.timeWindow && (
                 <span className="text-sm text-[#a89880] ml-1.5">{exp.timeWindow}</span>
               )}
@@ -257,6 +456,8 @@ function SortablePossibleItem({
   locatingId,
   setLocatingId,
   onLocationResolved,
+  interest,
+  onInterestChanged,
 }: {
   exp: Experience;
   promotingId: string | null;
@@ -273,6 +474,8 @@ function SortablePossibleItem({
   locatingId: string | null;
   setLocatingId: (id: string | null) => void;
   onLocationResolved: () => void;
+  interest?: ExperienceInterest;
+  onInterestChanged: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exp.id,
@@ -312,6 +515,7 @@ function SortablePossibleItem({
               )}
               {exp.name}
               <CreatorBadge exp={exp} />
+              <GroupInterestBadge exp={exp} interest={interest} onInterestChanged={onInterestChanged} />
             </span>
             <button
               onClick={(e) => { e.stopPropagation(); setPromotingId(promotingId === exp.id ? null : exp.id); }}
@@ -391,6 +595,7 @@ function DragOverlayItem({ exp }: { exp: Experience }) {
 // ── Main Component ─────────────────────────────────────────────────
 export default function ExperienceList({
   selected, possible, days, trip, onPromote, onDemote, onExperienceClick, onExperienceHover, onLocationResolved,
+  interests, onInterestChanged,
 }: Props) {
   const { showToast } = useToast();
   const [promotingId, setPromotingId] = useState<string | null>(null);
@@ -600,6 +805,8 @@ export default function ExperienceList({
                   locatingId={locatingId}
                   setLocatingId={setLocatingId}
                   onLocationResolved={() => onLocationResolved?.()}
+                  interest={interests?.get(exp.id)}
+                  onInterestChanged={() => onInterestChanged?.()}
                 />
               ))}
             </div>
@@ -631,6 +838,8 @@ export default function ExperienceList({
                   locatingId={locatingId}
                   setLocatingId={setLocatingId}
                   onLocationResolved={() => onLocationResolved?.()}
+                  interest={interests?.get(exp.id)}
+                  onInterestChanged={() => onInterestChanged?.()}
                 />
               ))}
 

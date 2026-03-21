@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
-import type { Experience, Trip, Day } from "../lib/types";
+import type { Experience, Trip, Day, ExperienceInterest } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -16,10 +16,13 @@ interface Props {
   onDemote: (expId: string) => void;
   onDelete: (expId: string) => void;
   onRefresh: () => void;
+  interest?: ExperienceInterest;
+  onInterestChanged?: () => void;
 }
 
 export default function ExperienceDetail({
   experienceId, trip, days, onClose, onPromote, onDemote, onDelete, onRefresh,
+  interest, onInterestChanged,
 }: Props) {
   const { showToast } = useToast();
   const { user } = useAuth();
@@ -299,6 +302,13 @@ export default function ExperienceDetail({
           cachedNotes={exp.culturalNotes}
         />
 
+        {/* Group interest */}
+        <GroupInterestSection
+          exp={exp}
+          interest={interest}
+          onInterestChanged={onInterestChanged}
+        />
+
         {/* Source + attribution */}
         <div className="flex items-center justify-between text-sm text-[#a89880]">
           {exp.sourceUrl ? (
@@ -410,6 +420,163 @@ export default function ExperienceDetail({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function GroupInterestSection({
+  exp,
+  interest,
+  onInterestChanged,
+}: {
+  exp: Experience;
+  interest?: ExperienceInterest;
+  onInterestChanged?: () => void;
+}) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const isFloatedByMe = interest?.userCode === user?.code;
+  const myReaction = interest?.reactions?.find((r) => r.userCode === user?.code);
+
+  async function handleFloat() {
+    setSubmitting(true);
+    try {
+      await api.post("/interests", { experienceId: exp.id, note: note || null });
+      showToast("Shared with group");
+      setNote("");
+      onInterestChanged?.();
+    } catch {
+      showToast("Couldn't share", "error");
+    }
+    setSubmitting(false);
+  }
+
+  async function handleReact(reaction: "interested" | "maybe" | "pass") {
+    if (!interest) return;
+    try {
+      await api.post(`/interests/${interest.id}/react`, { reaction });
+      showToast(reaction === "interested" ? "Interested!" : reaction === "maybe" ? "Marked maybe" : "Passed");
+      onInterestChanged?.();
+    } catch {
+      showToast("Couldn't react", "error");
+    }
+  }
+
+  async function handleRetract() {
+    if (!interest) return;
+    try {
+      await api.delete(`/interests/${interest.id}`);
+      showToast("Retracted");
+      onInterestChanged?.();
+    } catch {
+      showToast("Couldn't retract", "error");
+    }
+  }
+
+  // If floated — show full interest info
+  if (interest) {
+    return (
+      <div className="p-3 bg-[#fdf8f0] rounded-lg border border-[#e8dcc8]">
+        <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+          Group Interest
+        </div>
+        <div className="text-sm text-[#3a3128] mb-1">
+          <span className="font-medium">{interest.displayName}</span> is interested
+          {interest.note && <span className="text-[#6b5d4a] italic"> — "{interest.note}"</span>}
+        </div>
+        {interest.reactions.length > 0 && (
+          <div className="space-y-1 mt-2 mb-2">
+            {interest.reactions.map((r) => (
+              <div key={r.id} className="text-sm text-[#6b5d4a] flex items-center gap-1.5">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${
+                  r.reaction === "interested" ? "bg-green-100 text-green-700"
+                    : r.reaction === "maybe" ? "bg-amber-100 text-amber-700"
+                    : "bg-red-50 text-red-500"
+                }`}>
+                  {r.reaction === "interested" ? "+" : r.reaction === "maybe" ? "~" : "-"}
+                </span>
+                <span className="font-medium">{r.displayName}</span>
+                <span className="text-[#a89880] capitalize">{r.reaction}</span>
+                {r.note && <span className="text-[#a89880] italic text-xs">"{r.note}"</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        {!isFloatedByMe && user && (
+          <div className="flex gap-1.5 mt-2">
+            <button
+              onClick={() => handleReact("interested")}
+              className={`flex-1 py-1.5 text-xs rounded-lg transition-colors ${
+                myReaction?.reaction === "interested"
+                  ? "bg-green-100 text-green-700 font-medium"
+                  : "bg-white border border-[#e0d8cc] text-[#6b5d4a] hover:bg-[#f0ece5]"
+              }`}
+            >
+              Interested
+            </button>
+            <button
+              onClick={() => handleReact("maybe")}
+              className={`flex-1 py-1.5 text-xs rounded-lg transition-colors ${
+                myReaction?.reaction === "maybe"
+                  ? "bg-amber-100 text-amber-700 font-medium"
+                  : "bg-white border border-[#e0d8cc] text-[#6b5d4a] hover:bg-[#f0ece5]"
+              }`}
+            >
+              Maybe
+            </button>
+            <button
+              onClick={() => handleReact("pass")}
+              className={`flex-1 py-1.5 text-xs rounded-lg transition-colors ${
+                myReaction?.reaction === "pass"
+                  ? "bg-red-50 text-red-500 font-medium"
+                  : "bg-white border border-[#e0d8cc] text-[#6b5d4a] hover:bg-[#f0ece5]"
+              }`}
+            >
+              Pass
+            </button>
+          </div>
+        )}
+        {isFloatedByMe && (
+          <button
+            onClick={handleRetract}
+            className="mt-2 text-xs text-red-500 hover:text-red-600 transition-colors"
+          >
+            Retract interest
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Not floated — show share option
+  return (
+    <div className="p-3 bg-[#faf8f5] rounded-lg border border-[#f0ece5]">
+      <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+        Share with Group
+      </div>
+      <div className="text-sm text-[#8a7a62] mb-2">
+        Let your travel companions know you're interested in this
+      </div>
+      <input
+        type="text"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleFloat()}
+        placeholder="Why? (optional)"
+        className="w-full text-sm px-3 py-1.5 border border-[#e0d8cc] rounded-lg bg-white
+                   focus:outline-none focus:border-[#a89880] mb-2"
+      />
+      <button
+        onClick={handleFloat}
+        disabled={submitting}
+        className="w-full py-2 text-sm bg-[#514636] text-white rounded-lg hover:bg-[#3a3128]
+                   disabled:opacity-40 transition-colors"
+      >
+        {submitting ? "Sharing..." : "I'm interested in this"}
+      </button>
     </div>
   );
 }

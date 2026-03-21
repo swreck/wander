@@ -2,6 +2,25 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-20 — Group Interest System (replaces Voting)
+
+### Added
+- **"Share with group" on experience cards**: Subtle group icon on every experience in the Plan page list. Tap to tell travel companions you're interested, with an optional note explaining why. One tap to share, no forms or setup.
+- **Inline reactions**: When someone shares interest, others see a warm badge on that experience card. Tap to react: Interested, Maybe, or Pass. Reactions update in place — change your mind anytime.
+- **Experience detail group section**: Full interest/reaction view in the experience detail panel. See who's interested, their notes, all reactions, and react yourself.
+- **App-open interest notification**: When you open the app and a travel companion has shared something new, a card slides up: "Ken is interested in Pottery Workshop in Kyoto." Tap to navigate there. Auto-dismisses after 12 seconds. Shows once per session.
+- **Backend interest API**: `/api/interests` — float (POST /), list by trip (GET /trip/:tripId), react (POST /:id/react), retract (DELETE /:id). Upsert-based so re-floats and reaction changes are idempotent.
+- **Chat tools**: `float_to_group`, `react_to_interest`, `get_group_interests` replace the 3 old voting tools in the AI assistant.
+- **15 chaos tests (S141-S155)**: Float, upsert, react, invalid reaction, change reaction, retract permissions, cascade delete, full lifecycle, multi-user scenarios, auth requirement.
+
+### Removed
+- **VotingCard component**: Removed from Trip Overview. The formal polling pattern (create poll → define options → vote) was replaced by the lightweight interest system that matches how travelers actually make group decisions — browsing, finding something interesting, and sharing it with one tap.
+
+### Changed
+- Total backend tests: 334 (was 319). All passing with Neon branch isolation.
+
+SPEC UPDATE NEEDED: Voting/polling sections should be replaced with Group Interest system description.
+
 ## 2026-03-20 — Chat Parity: 7 New Chat Tools
 
 ### Added

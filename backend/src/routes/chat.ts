@@ -535,34 +535,35 @@ const tools: Anthropic.Tool[] = [
       required: ["tripId"],
     },
   },
-  // ── Voting tools ──────────────────────────────
+  // ── Group interest tools ──────────────────────────────
   {
-    name: "create_vote",
-    description: "Start a vote for the group to pick between options (restaurants, activities, etc.). Use when user says 'let's vote on...', 'which should we pick?', or 'help us decide'. Creates a voting session that all travelers can participate in.",
+    name: "float_to_group",
+    description: "Flag an experience for group attention. Use when user says 'everyone should see this', 'float this to the group', 'I think we should do this', 'what does everyone think about X?'. One tap, optional note.",
     input_schema: {
       type: "object" as const,
       properties: {
-        tripId: { type: "string" },
-        question: { type: "string", description: "The question to vote on, e.g. 'Which ramen place for Thursday dinner?'" },
-        options: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              description: { type: "string" },
-            },
-            required: ["name"],
-          },
-          description: "Array of options to vote on. Each needs a name and optional description.",
-        },
+        experienceId: { type: "string" },
+        note: { type: "string", description: "Optional note about why they're interested (e.g. 'the ceramics here look incredible')" },
       },
-      required: ["tripId", "question", "options"],
+      required: ["experienceId"],
     },
   },
   {
-    name: "get_vote_results",
-    description: "Get the current results of a voting session. Use when user asks 'how did the vote go?', 'what did everyone pick?'",
+    name: "react_to_interest",
+    description: "React to an experience someone floated to the group. Use when user says 'I'm interested in that', 'maybe on Ichiran', 'pass on that one', 'count me in'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        interestId: { type: "string", description: "The interest ID (from get_group_interests)" },
+        reaction: { type: "string", enum: ["interested", "maybe", "pass"] },
+        note: { type: "string", description: "Optional note" },
+      },
+      required: ["interestId", "reaction"],
+    },
+  },
+  {
+    name: "get_group_interests",
+    description: "See what experiences have been floated to the group. Use when user asks 'what has everyone flagged?', 'any group suggestions?', 'what does the group think?'.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -691,29 +692,6 @@ const tools: Anthropic.Tool[] = [
         mode: { type: "string", enum: ["walk", "subway", "train", "bus", "taxi"], description: "Travel mode (default: walk)" },
       },
       required: ["originLat", "originLng", "destLat", "destLng"],
-    },
-  },
-  // ── Cast vote tool ──────────────────────────────
-  {
-    name: "cast_vote",
-    description: "Cast votes on a voting session. Use when user says 'vote yes on Ichiran', 'I prefer the first option', etc.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        sessionId: { type: "string" },
-        votes: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              optionIndex: { type: "number" },
-              preference: { type: "string", enum: ["yes", "maybe", "no"] },
-            },
-            required: ["optionIndex", "preference"],
-          },
-        },
-      },
-      required: ["sessionId", "votes"],
     },
   },
   // ── Get ratings tool ──────────────────────────────
@@ -2010,55 +1988,89 @@ async function executeTool(
     }
 
     // ── Voting tool implementations ─────────────
-    case "create_vote": {
-      const session = await prisma.votingSession.create({
-        data: {
-          tripId: input.tripId,
-          question: input.question,
-          options: input.options,
-          createdBy: user.code,
+    // ── Group interest tools ─────────────
+    case "float_to_group": {
+      const exp = await prisma.experience.findUnique({ where: { id: input.experienceId }, include: { city: true } });
+      if (!exp) return { result: { error: "Experience not found" } };
+
+      const interest = await prisma.experienceInterest.upsert({
+        where: { experienceId_userCode: { experienceId: input.experienceId, userCode: user.code } },
+        create: {
+          experienceId: input.experienceId,
+          tripId: exp.tripId,
+          userCode: user.code,
+          displayName: user.displayName,
+          note: input.note || null,
         },
+        update: { note: input.note || null, displayName: user.displayName },
       });
       await logChange({
         user,
-        tripId: input.tripId,
-        actionType: "vote_created",
-        entityType: "voting_session",
-        entityId: session.id,
-        entityName: input.question,
-        description: `${user.displayName} started a vote: "${input.question}"`,
-        newState: session,
+        tripId: exp.tripId,
+        actionType: "experience_floated",
+        entityType: "experience",
+        entityId: exp.id,
+        entityName: exp.name,
+        description: `${user.displayName} flagged "${exp.name}" for the group`,
       });
       return {
-        result: { sessionId: session.id, question: input.question, optionCount: input.options.length },
-        actionDescription: `Started vote: "${input.question}" with ${input.options.length} options`,
+        result: { interestId: interest.id, experience: exp.name, city: exp.city.name },
+        actionDescription: `Flagged "${exp.name}" for the group`,
       };
     }
 
-    case "get_vote_results": {
-      const sessions = await prisma.votingSession.findMany({
+    case "react_to_interest": {
+      const interest = await prisma.experienceInterest.findUnique({
+        where: { id: input.interestId },
+        include: { experience: true },
+      });
+      if (!interest) return { result: { error: "Interest not found" } };
+
+      await prisma.interestReaction.upsert({
+        where: { interestId_userCode: { interestId: input.interestId, userCode: user.code } },
+        create: {
+          interestId: input.interestId,
+          userCode: user.code,
+          displayName: user.displayName,
+          reaction: input.reaction,
+          note: input.note || null,
+        },
+        update: { reaction: input.reaction, note: input.note || null, displayName: user.displayName },
+      });
+      await logChange({
+        user,
+        tripId: interest.tripId,
+        actionType: "interest_reacted",
+        entityType: "experience",
+        entityId: interest.experienceId,
+        entityName: interest.experience.name,
+        description: `${user.displayName} is ${input.reaction} in "${interest.experience.name}"`,
+      });
+      return {
+        result: { reacted: true, experience: interest.experience.name, reaction: input.reaction },
+        actionDescription: `Reacted "${input.reaction}" to "${interest.experience.name}"`,
+      };
+    }
+
+    case "get_group_interests": {
+      const interests = await prisma.experienceInterest.findMany({
         where: { tripId: input.tripId },
-        include: { votes: true },
+        include: {
+          reactions: true,
+          experience: { select: { name: true, cityId: true, dayId: true, state: true, city: { select: { name: true } } } },
+        },
         orderBy: { createdAt: "desc" },
-        take: 5,
       });
-      const results = sessions.map((s) => {
-        const options = s.options as any[];
-        return {
-          question: s.question,
-          status: s.status,
-          options: options.map((opt: any, i: number) => {
-            const votes = s.votes.filter((v) => v.optionIndex === i);
-            return {
-              name: opt.name,
-              yes: votes.filter((v) => v.preference === "yes").length,
-              maybe: votes.filter((v) => v.preference === "maybe").length,
-              no: votes.filter((v) => v.preference === "no").length,
-            };
-          }),
-        };
-      });
-      return { result: results };
+      return {
+        result: interests.map((i) => ({
+          id: i.id,
+          experience: i.experience.name,
+          city: i.experience.city.name,
+          floatedBy: i.displayName,
+          note: i.note,
+          reactions: i.reactions.map((r) => ({ who: r.displayName, reaction: r.reaction, note: r.note })),
+        })),
+      };
     }
 
     // ── Tabelog rating ─────────────
@@ -2367,37 +2379,6 @@ async function executeTool(
       };
     }
 
-    // ── Cast vote ─────────────
-    case "cast_vote": {
-      const session = await prisma.votingSession.findUnique({ where: { id: input.sessionId } });
-      if (!session) return { result: { error: "Voting session not found" } };
-      if (session.status !== "open") return { result: { error: "This vote is closed" } };
-
-      for (const v of input.votes) {
-        await prisma.vote.upsert({
-          where: {
-            sessionId_userCode_optionIndex: {
-              sessionId: input.sessionId,
-              userCode: user.code,
-              optionIndex: v.optionIndex,
-            },
-          },
-          create: {
-            sessionId: input.sessionId,
-            userCode: user.code,
-            optionIndex: v.optionIndex,
-            preference: v.preference,
-          },
-          update: { preference: v.preference },
-        });
-      }
-
-      return {
-        result: { voted: true, session: session.question },
-        actionDescription: `Voted on "${session.question}"`,
-      };
-    }
-
     // ── Get ratings ─────────────
     case "get_ratings": {
       const exp = await prisma.experience.findUnique({
@@ -2531,7 +2512,7 @@ RULES:
 19. When the user asks about another traveler's info (e.g., "what's Ken's frequent flyer number?"), use get_shared_documents. Only non-private documents from other travelers will be returned.
 20. When the user asks "am I ready?", "what do I still need?", "travel readiness", or similar, use check_travel_readiness. Give a personalized, specific answer — not a generic checklist. Mention exact expiry dates, specific country requirements, and concrete next steps.
 21. Never store financial data (credit cards, bank accounts, PINs). Travel document numbers (passport, visa, frequent flyer, tickets) are standard travel information shared routinely with airlines and countries.
-22. When the user wants to vote or choose between options (restaurants, activities, etc.), use create_vote. Keep the question short and natural. Use get_vote_results to check results.
+22. When the user wants to flag an experience for the group, use float_to_group. When they want to react to someone else's floated experience, use react_to_interest. Use get_group_interests to see what's been floated. This is a lightweight "what does everyone think?" gesture, not a formal vote.
 23. When the user shares or asks about a Tabelog rating for a restaurant, use set_tabelog_rating. Tabelog is Japan's primary restaurant rating platform — more trusted than Google for Japanese restaurants. A Tabelog 3.5+ is excellent.
 24. When the user asks about train schedules, times, or routes in Japan, use search_train_schedules. Present results clearly: departure time, line name, transfers, duration.
 25. When the user asks about train delays or disruptions, use check_transit_status. Only mention disruptions that affect their specific route segments.
@@ -2540,7 +2521,7 @@ RULES:
 28. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
 29. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.
 30. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
-31. When the user wants to vote on a voting session, use cast_vote. Look up open sessions with get_vote_results first to find the session ID and option indices.
+31. When the user expresses interest in an experience ("this looks cool", "we should check this out"), proactively offer to float it to the group with float_to_group.
 32. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.`;
 
     // Build conversation with history for context
