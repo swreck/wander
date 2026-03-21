@@ -9,6 +9,7 @@ import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
 import type { Trip, City, Day, Experience, ChangeLogEntry } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import RouteSegmentsPanel from "../components/RouteSegmentsPanel";
+import VotingCard from "../components/VotingCard";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -420,6 +421,9 @@ export default function TripOverview() {
           experiences={experiences}
           onNavigate={(cityId) => navigate(`/plan?city=${cityId}`)}
         />
+
+        {/* Voting — group decisions */}
+        <VotingCard tripId={trip.id} />
 
         {/* Recent activity — collapsed to button, opens modal */}
         {recentActivity.length > 0 && (

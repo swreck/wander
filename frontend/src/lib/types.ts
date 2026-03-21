@@ -45,9 +45,63 @@ export interface RouteSegment {
 
 export interface ExperienceRating {
   id: string;
-  platform: "google" | "yelp" | "foursquare";
+  platform: "google" | "yelp" | "foursquare" | "tabelog";
   ratingValue: number;
   reviewCount: number;
+}
+
+export interface CulturalNote {
+  tip: string;
+  category: "etiquette" | "practical" | "timing";
+}
+
+export interface VotingSession {
+  id: string;
+  tripId: string;
+  question: string;
+  options: { name: string; description?: string }[];
+  status: "open" | "closed";
+  createdBy: string;
+  createdAt: string;
+  votes?: Vote[];
+  results?: VoteOptionResult[];
+}
+
+export interface Vote {
+  id: string;
+  sessionId: string;
+  userCode: string;
+  optionIndex: number;
+  preference: "yes" | "maybe" | "no";
+}
+
+export interface VoteOptionResult {
+  name: string;
+  description?: string;
+  yes: number;
+  maybe: number;
+  no: number;
+}
+
+export interface TransitRoute {
+  departureTime: string;
+  arrivalTime: string;
+  duration: string;
+  transfers: number;
+  fare: string | null;
+  steps: TransitStep[];
+}
+
+export interface TransitStep {
+  departureTime: string;
+  arrivalTime: string;
+  duration: string;
+  line: string;
+  vehicle: string;
+  departureStop: string;
+  arrivalStop: string;
+  numStops: number;
+  headsign: string;
 }
 
 export interface Experience {
@@ -79,6 +133,7 @@ export interface Experience {
   day?: Day;
   routeSegment?: RouteSegment;
   ratings: ExperienceRating[];
+  culturalNotes?: CulturalNote[] | null;
 }
 
 export interface Accommodation {

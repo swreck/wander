@@ -44,6 +44,7 @@ enum RatingPlatform {
   google
   yelp
   foursquare
+  tabelog
 }
 
 enum ReservationType {
@@ -90,6 +91,7 @@ model Trip {
   reservations      Reservation[]
   changeLogs        ChangeLog[]
   travelerProfiles  TravelerProfile[]
+  votingSessions    VotingSession[]
 
   @@map("trips")
 }
@@ -181,6 +183,9 @@ model Experience {
   lastEditedBy                String?         @map("last_edited_by")
   createdAt                   DateTime        @default(now()) @map("created_at")
   updatedAt                   DateTime        @updatedAt @map("updated_at")
+
+  culturalNotes Json?    @map("cultural_notes")
+  popularTimes  Json?    @map("popular_times")
 
   trip         Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city         City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
@@ -294,4 +299,34 @@ model TravelerDocument {
   profile TravelerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@map("traveler_documents")
+}
+
+model VotingSession {
+  id        String    @id @default(cuid())
+  tripId    String    @map("trip_id")
+  question  String
+  options   Json
+  status    String    @default("open")
+  createdBy String    @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  closedAt  DateTime? @map("closed_at")
+
+  trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  votes Vote[]
+
+  @@map("voting_sessions")
+}
+
+model Vote {
+  id          String   @id @default(cuid())
+  sessionId   String   @map("session_id")
+  userCode    String   @map("user_code")
+  optionIndex Int      @map("option_index")
+  preference  String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  session VotingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userCode, optionIndex])
+  @@map("votes")
 }

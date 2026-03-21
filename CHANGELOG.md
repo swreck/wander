@@ -2,6 +2,22 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-20 — Creative Features: Cultural Context, Voting, Transit, Voice, Tabelog, Predictive Caching
+
+### Added
+- **Cultural context cards (G4+A2)**: Each experience gets AI-generated cultural tips covering etiquette, practical info, and timing/crowd patterns. Loads on demand via "Cultural context" button in experience detail. Tips are cached on the experience so they only generate once. Categories are color-coded: amber (etiquette), blue (practical), emerald (timing).
+- **Preference voting (C2)**: Group decision-making with card-stack UI. Create a question with options, swipe through Yes/Maybe/No on each. Tallies combine across travelers. Sessions can be closed. Voting card appears on Trip Overview above Recent Activity.
+- **Transit disruption alerts (A3)**: Scrapes JR East and JR Central English status pages for train disruptions. 5-minute cache. Now page shows red alert banner when disruptions affect trip routes.
+- **Real train schedules (D3)**: Google Directions API with transit mode and rail filter. Returns up to 4 route options with departure/arrival times, line names, transfers, fare. Available via AI chat tool.
+- **Voice chat input (A6)**: Microphone button in chat panel uses Web Speech API for speech-to-text. Red pulse animation while listening. Works on iOS Safari 14.5+.
+- **Tabelog ratings (B3)**: Japan's restaurant rating platform added as a rating source. Set via AI chat tool (no public API). Displays as "T" badge in ratings with 3.0 low-warning threshold.
+- **Phrase card (modified D2)**: Floating button (left side) opens bottom sheet with 7 essential phrases: Hello, Thank you, Yes please, No thank you, How much?, Excuse me, Check please. English + romaji pronunciation only — no Japanese characters.
+- **Predictive caching (F1)**: Service worker pre-fetches next city's day and experience data when a city transition is within 2 days. Triggered from Now page load. Data cached for offline use before arrival.
+- **6 new AI chat tools**: `create_vote`, `get_vote_results`, `set_tabelog_rating`, `check_transit_status`, `search_train_schedules`, plus cultural notes generation.
+- **14 chaos tests (S109–S122)**: Voting CRUD, vote upsert, session close, multi-user tallies, Tabelog rating upsert, transit status structure, train schedule validation, cultural notes 404.
+
+SPEC UPDATE NEEDED: Cultural context cards, voting system, transit alerts, train schedules, voice input, Tabelog ratings, phrase card, predictive caching — none in SPEC.md.
+
 ## 2026-03-20 — Traveler Documents & Profile System
 
 ### Added

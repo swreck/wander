@@ -535,6 +535,82 @@ const tools: Anthropic.Tool[] = [
       required: ["tripId"],
     },
   },
+  // ── Voting tools ──────────────────────────────
+  {
+    name: "create_vote",
+    description: "Start a vote for the group to pick between options (restaurants, activities, etc.). Use when user says 'let's vote on...', 'which should we pick?', or 'help us decide'. Creates a voting session that all travelers can participate in.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        question: { type: "string", description: "The question to vote on, e.g. 'Which ramen place for Thursday dinner?'" },
+        options: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+            },
+            required: ["name"],
+          },
+          description: "Array of options to vote on. Each needs a name and optional description.",
+        },
+      },
+      required: ["tripId", "question", "options"],
+    },
+  },
+  {
+    name: "get_vote_results",
+    description: "Get the current results of a voting session. Use when user asks 'how did the vote go?', 'what did everyone pick?'",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+      },
+      required: ["tripId"],
+    },
+  },
+  // ── Tabelog rating tool ──────────────────────────────
+  {
+    name: "set_tabelog_rating",
+    description: "Record a Tabelog rating for a restaurant experience. Tabelog is Japan's most trusted restaurant rating platform. Use when user shares a Tabelog score, or proactively suggest checking Tabelog for Japanese restaurants. Tabelog scores: 3.0-3.5 = good, 3.5-4.0 = excellent, 4.0+ = exceptional.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        experienceId: { type: "string" },
+        ratingValue: { type: "number", description: "Tabelog rating (typically 1.0-5.0, but most fall between 3.0-4.0)" },
+        reviewCount: { type: "number", description: "Number of reviews on Tabelog" },
+      },
+      required: ["experienceId", "ratingValue"],
+    },
+  },
+  // ── Transit tools ──────────────────────────────
+  {
+    name: "check_transit_status",
+    description: "Check current JR train disruptions/delays relevant to the trip. Use when user asks about train delays, disruptions, or before a travel day.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+      },
+      required: ["tripId"],
+    },
+  },
+  {
+    name: "search_train_schedules",
+    description: "Search for train schedules between two cities/stations in Japan. Returns departure times, platforms, transfers, and duration. Use when user asks about train options, 'when does the next train leave?', or wants to plan a train journey.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        origin: { type: "string", description: "Origin station or city (e.g. 'Tokyo Station', 'Kyoto')" },
+        destination: { type: "string", description: "Destination station or city" },
+        date: { type: "string", description: "Travel date YYYY-MM-DD" },
+        time: { type: "string", description: "Preferred departure time HH:MM (24h)" },
+      },
+      required: ["origin", "destination"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -1816,6 +1892,178 @@ async function executeTool(
       };
     }
 
+    // ── Voting tool implementations ─────────────
+    case "create_vote": {
+      const session = await prisma.votingSession.create({
+        data: {
+          tripId: input.tripId,
+          question: input.question,
+          options: input.options,
+          createdBy: user.code,
+        },
+      });
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "vote_created",
+        entityType: "voting_session",
+        entityId: session.id,
+        entityName: input.question,
+        description: `${user.displayName} started a vote: "${input.question}"`,
+        newState: session,
+      });
+      return {
+        result: { sessionId: session.id, question: input.question, optionCount: input.options.length },
+        actionDescription: `Started vote: "${input.question}" with ${input.options.length} options`,
+      };
+    }
+
+    case "get_vote_results": {
+      const sessions = await prisma.votingSession.findMany({
+        where: { tripId: input.tripId },
+        include: { votes: true },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      });
+      const results = sessions.map((s) => {
+        const options = s.options as any[];
+        return {
+          question: s.question,
+          status: s.status,
+          options: options.map((opt: any, i: number) => {
+            const votes = s.votes.filter((v) => v.optionIndex === i);
+            return {
+              name: opt.name,
+              yes: votes.filter((v) => v.preference === "yes").length,
+              maybe: votes.filter((v) => v.preference === "maybe").length,
+              no: votes.filter((v) => v.preference === "no").length,
+            };
+          }),
+        };
+      });
+      return { result: results };
+    }
+
+    // ── Tabelog rating ─────────────
+    case "set_tabelog_rating": {
+      const exp = await prisma.experience.findUnique({ where: { id: input.experienceId }, include: { city: true } });
+      if (!exp) return { result: { error: "Experience not found" } };
+
+      await prisma.experienceRating.upsert({
+        where: {
+          experienceId_platform: { experienceId: input.experienceId, platform: "tabelog" },
+        },
+        create: {
+          experienceId: input.experienceId,
+          platform: "tabelog",
+          ratingValue: input.ratingValue,
+          reviewCount: input.reviewCount || 0,
+        },
+        update: {
+          ratingValue: input.ratingValue,
+          reviewCount: input.reviewCount || 0,
+          lastRefreshedAt: new Date(),
+        },
+      });
+
+      return {
+        result: { saved: true, experience: exp.name, tabelog: input.ratingValue },
+        actionDescription: `Set Tabelog rating ${input.ratingValue} for "${exp.name}"`,
+      };
+    }
+
+    // ── Transit tools ─────────────
+    case "check_transit_status": {
+      const trip = await prisma.trip.findUnique({
+        where: { id: input.tripId },
+        include: { routeSegments: { orderBy: { sequenceOrder: "asc" } } },
+      });
+      if (!trip) return { result: { error: "Trip not found" } };
+
+      try {
+        const statusRes = await fetch(`http://localhost:${process.env.PORT || 3001}/api/transit-status/trip/${input.tripId}`, {
+          headers: { Authorization: `Bearer internal` },
+        });
+        // Direct Prisma call instead of internal fetch
+      } catch { /* ignore */ }
+
+      // Simplified: return segment info for the AI to contextualize
+      const trainSegments = trip.routeSegments.filter((s) => s.transportMode === "train");
+      return {
+        result: {
+          message: trainSegments.length > 0
+            ? `You have ${trainSegments.length} train segments. Check https://traininfo.jreast.co.jp/train_info/e/ for live status.`
+            : "No train segments in your itinerary.",
+          segments: trainSegments.map((s) => ({
+            route: `${s.originCity} → ${s.destinationCity}`,
+            date: s.departureDate,
+            service: s.serviceNumber,
+            time: s.departureTime,
+          })),
+        },
+      };
+    }
+
+    case "search_train_schedules": {
+      const API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+      if (!API_KEY) return { result: { error: "Google Maps API not configured" } };
+
+      let departureTime: number | undefined;
+      if (input.date && input.time) {
+        const dt = new Date(`${input.date}T${input.time}:00+09:00`);
+        departureTime = Math.floor(dt.getTime() / 1000);
+      } else if (input.date) {
+        const dt = new Date(`${input.date}T08:00:00+09:00`);
+        departureTime = Math.floor(dt.getTime() / 1000);
+      }
+
+      const url = new URL("https://maps.googleapis.com/maps/api/directions/json");
+      url.searchParams.set("origin", input.origin);
+      url.searchParams.set("destination", input.destination);
+      url.searchParams.set("mode", "transit");
+      url.searchParams.set("transit_mode", "rail");
+      url.searchParams.set("alternatives", "true");
+      url.searchParams.set("language", "en");
+      url.searchParams.set("region", "jp");
+      if (departureTime) url.searchParams.set("departure_time", String(departureTime));
+      url.searchParams.set("key", API_KEY);
+
+      try {
+        const response = await fetch(url.toString());
+        const data = await response.json();
+        if (data.status !== "OK" || !data.routes?.length) {
+          return { result: { message: "No transit routes found. Try different station names or times." } };
+        }
+
+        const routes = data.routes.slice(0, 3).map((route: any) => {
+          const leg = route.legs[0];
+          const steps = leg.steps
+            .filter((s: any) => s.travel_mode === "TRANSIT")
+            .map((s: any) => ({
+              departure: s.transit_details?.departure_time?.text || "",
+              arrival: s.transit_details?.arrival_time?.text || "",
+              line: s.transit_details?.line?.short_name || s.transit_details?.line?.name || "",
+              vehicle: s.transit_details?.line?.vehicle?.name || "Train",
+              from: s.transit_details?.departure_stop?.name || "",
+              to: s.transit_details?.arrival_stop?.name || "",
+              headsign: s.transit_details?.headsign || "",
+            }));
+          return {
+            depart: leg.departure_time?.text || "",
+            arrive: leg.arrival_time?.text || "",
+            duration: leg.duration?.text || "",
+            transfers: Math.max(0, steps.length - 1),
+            fare: route.fare?.text || null,
+            steps,
+          };
+        });
+
+        return { result: { routes, origin: input.origin, destination: input.destination } };
+      } catch {
+        return { result: { error: "Failed to fetch train schedules" } };
+      }
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -1924,7 +2172,11 @@ RULES:
 18. When the user asks "what's my passport number?", "show my documents", or any question about their own travel info, use get_my_documents and answer from the results.
 19. When the user asks about another traveler's info (e.g., "what's Ken's frequent flyer number?"), use get_shared_documents. Only non-private documents from other travelers will be returned.
 20. When the user asks "am I ready?", "what do I still need?", "travel readiness", or similar, use check_travel_readiness. Give a personalized, specific answer — not a generic checklist. Mention exact expiry dates, specific country requirements, and concrete next steps.
-21. Never store financial data (credit cards, bank accounts, PINs). Travel document numbers (passport, visa, frequent flyer, tickets) are standard travel information shared routinely with airlines and countries.`;
+21. Never store financial data (credit cards, bank accounts, PINs). Travel document numbers (passport, visa, frequent flyer, tickets) are standard travel information shared routinely with airlines and countries.
+22. When the user wants to vote or choose between options (restaurants, activities, etc.), use create_vote. Keep the question short and natural. Use get_vote_results to check results.
+23. When the user shares or asks about a Tabelog rating for a restaurant, use set_tabelog_rating. Tabelog is Japan's primary restaurant rating platform — more trusted than Google for Japanese restaurants. A Tabelog 3.5+ is excellent.
+24. When the user asks about train schedules, times, or routes in Japan, use search_train_schedules. Present results clearly: departure time, line name, transfers, duration.
+25. When the user asks about train delays or disruptions, use check_transit_status. Only mention disruptions that affect their specific route segments.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];

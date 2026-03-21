@@ -5,6 +5,7 @@ import RatingsBadge from "./RatingsBadge";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
 import { getNudgeForExperience } from "../lib/travelerProfiles";
+import CulturalNotes from "./CulturalNotes";
 
 interface Props {
   experienceId: string;
@@ -291,6 +292,12 @@ export default function ExperienceDetail({
         >
           Update location & ratings
         </button>
+
+        {/* Cultural context — etiquette, timing, practical tips */}
+        <CulturalNotes
+          experienceId={exp.id}
+          cachedNotes={exp.culturalNotes}
+        />
 
         {/* Source + attribution */}
         <div className="flex items-center justify-between text-sm text-[#a89880]">

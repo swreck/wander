@@ -3385,5 +3385,331 @@ describe("Chaos Simulations", () => {
         .set("Authorization", `Bearer ${aliceToken}`)
         .expect(404);
     });
+
+    // ── Voting tests (S109–S116) ──
+
+    it("S109: Create voting session and cast votes", async () => {
+      const tripId = await createTrip(aliceToken, "S109 Trip", "2026-11-01", "2026-11-05");
+
+      const session = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          question: "Which ramen shop?",
+          options: [
+            { name: "Ichiran", description: "Tonkotsu classic" },
+            { name: "Fuunji", description: "Tsukemen style" },
+          ],
+        });
+      expect(session.status).toBe(201);
+      expect(session.body.id).toBeTruthy();
+      expect(session.body.status).toBe("open");
+
+      // Alice votes
+      const voteRes = await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          votes: [
+            { optionIndex: 0, preference: "yes" },
+            { optionIndex: 1, preference: "maybe" },
+          ],
+        });
+      expect(voteRes.status).toBe(200);
+
+      // Get results
+      const results = await request(app)
+        .get(`/api/voting/${session.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(results.status).toBe(200);
+      expect(results.body.results).toBeTruthy();
+      expect(results.body.results[0].yes).toBe(1);
+      expect(results.body.results[1].maybe).toBe(1);
+    });
+
+    it("S110: Two users vote on same session — tallies combine", async () => {
+      const tripId = await createTrip(aliceToken, "S110 Trip", "2026-11-01", "2026-11-05");
+
+      const session = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          question: "Day trip destination?",
+          options: [{ name: "Nikko" }, { name: "Kamakura" }],
+        });
+
+      // Alice votes yes on Nikko
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "yes" }, { optionIndex: 1, preference: "no" }] })
+        .expect(200);
+
+      // Bob votes yes on Kamakura
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "no" }, { optionIndex: 1, preference: "yes" }] })
+        .expect(200);
+
+      const results = await request(app)
+        .get(`/api/voting/${session.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(results.body.results[0].yes).toBe(1);
+      expect(results.body.results[0].no).toBe(1);
+      expect(results.body.results[1].yes).toBe(1);
+      expect(results.body.results[1].no).toBe(1);
+    });
+
+    it("S111: User changes vote — upsert replaces old vote", async () => {
+      const tripId = await createTrip(aliceToken, "S111 Trip", "2026-11-01", "2026-11-05");
+
+      const session = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          question: "Dinner spot?",
+          options: [{ name: "Sushi Dai" }],
+        });
+
+      // Vote no first
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "no" }] })
+        .expect(200);
+
+      // Change to yes
+      await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "yes" }] })
+        .expect(200);
+
+      const results = await request(app)
+        .get(`/api/voting/${session.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      // Should be 1 yes, 0 no (not 1 yes + 1 no)
+      expect(results.body.results[0].yes).toBe(1);
+      expect(results.body.results[0].no).toBe(0);
+    });
+
+    it("S112: Close voting session — no further votes accepted", async () => {
+      const tripId = await createTrip(aliceToken, "S112 Trip", "2026-11-01", "2026-11-05");
+
+      const session = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          question: "Which temple first?",
+          options: [{ name: "Kinkaku-ji" }],
+        });
+
+      // Close it
+      await request(app)
+        .post(`/api/voting/${session.body.id}/close`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .expect(200);
+
+      // Try to vote on closed session
+      const voteRes = await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "yes" }] });
+      expect(voteRes.status).toBe(400);
+    });
+
+    it("S113: Get open sessions for a trip — only open ones returned", async () => {
+      const tripId = await createTrip(aliceToken, "S113 Trip", "2026-11-01", "2026-11-05");
+
+      const s1 = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, question: "Q1?", options: [{ name: "A" }] });
+
+      const s2 = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, question: "Q2?", options: [{ name: "B" }] });
+
+      // Close s1
+      await request(app)
+        .post(`/api/voting/${s1.body.id}/close`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      const openSessions = await request(app)
+        .get(`/api/voting/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(openSessions.body.length).toBe(1);
+      expect(openSessions.body[0].id).toBe(s2.body.id);
+    });
+
+    it("S114: Vote on non-existent session returns 404", async () => {
+      await request(app)
+        .post("/api/voting/nonexistent-id/vote")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 0, preference: "yes" }] })
+        .expect(404);
+    });
+
+    it("S115: Voting session survives trip with many operations", async () => {
+      const tripId = await createTrip(aliceToken, "S115 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+
+      // Create voting session
+      const session = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, question: "Activity?", options: [{ name: "X" }, { name: "Y" }] });
+
+      // Do some trip mutations
+      const cities = await request(app)
+        .get(`/api/cities/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
+
+      await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Random Place" });
+
+      // Voting session should still be accessible
+      const check = await request(app)
+        .get(`/api/voting/${session.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(check.status).toBe(200);
+      expect(check.body.question).toBe("Activity?");
+    });
+
+    it("S116: Vote with invalid option index is handled gracefully", async () => {
+      const tripId = await createTrip(aliceToken, "S116 Trip", "2026-11-01", "2026-11-05");
+
+      const session = await request(app)
+        .post("/api/voting")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, question: "Q?", options: [{ name: "Only option" }] });
+
+      // Vote on index 5 (doesn't exist) — should still work (DB stores it)
+      const res = await request(app)
+        .post(`/api/voting/${session.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ votes: [{ optionIndex: 5, preference: "yes" }] });
+      expect(res.status).toBe(200);
+    });
+
+    // ── Tabelog / Ratings tests (S117–S118) ──
+
+    it("S117: Set Tabelog rating on experience via Prisma upsert", async () => {
+      const tripId = await createTrip(aliceToken, "S117 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Osaka", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+
+      const cities = await request(app)
+        .get(`/api/cities/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId: cities.body[0].id, name: "Ramen Shop" });
+
+      // Set tabelog rating directly (same path as chat tool uses)
+      await prisma.experienceRating.upsert({
+        where: { experienceId_platform: { experienceId: exp.body.id, platform: "tabelog" } },
+        create: { experienceId: exp.body.id, platform: "tabelog", ratingValue: 3.58, reviewCount: 245 },
+        update: { ratingValue: 3.58, reviewCount: 245 },
+      });
+
+      // Verify it's on the experience
+      const full = await request(app)
+        .get(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const tabelog = full.body.ratings?.find((r: any) => r.platform === "tabelog");
+      expect(tabelog).toBeTruthy();
+      expect(tabelog.ratingValue).toBeCloseTo(3.58, 1);
+      expect(tabelog.reviewCount).toBe(245);
+    });
+
+    it("S118: Update Tabelog rating — upsert replaces old value", async () => {
+      const tripId = await createTrip(aliceToken, "S118 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Kyoto", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+
+      const cities = await request(app)
+        .get(`/api/cities/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId: cities.body[0].id, name: "Tempura Place" });
+
+      // First rating
+      await prisma.experienceRating.upsert({
+        where: { experienceId_platform: { experienceId: exp.body.id, platform: "tabelog" } },
+        create: { experienceId: exp.body.id, platform: "tabelog", ratingValue: 3.2, reviewCount: 100 },
+        update: { ratingValue: 3.2, reviewCount: 100 },
+      });
+
+      // Update with new value
+      await prisma.experienceRating.upsert({
+        where: { experienceId_platform: { experienceId: exp.body.id, platform: "tabelog" } },
+        create: { experienceId: exp.body.id, platform: "tabelog", ratingValue: 3.8, reviewCount: 150 },
+        update: { ratingValue: 3.8, reviewCount: 150 },
+      });
+
+      const full = await request(app)
+        .get(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const tabelogRatings = full.body.ratings?.filter((r: any) => r.platform === "tabelog");
+      // Should be exactly 1, not 2
+      expect(tabelogRatings.length).toBe(1);
+      expect(tabelogRatings[0].ratingValue).toBeCloseTo(3.8, 1);
+    });
+
+    // ── Transit / Train schedule tests (S119–S121) ──
+
+    it("S119: Transit status endpoint returns data structure", async () => {
+      const res = await request(app)
+        .get("/api/transit-status/status")
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("disruptions");
+      expect(Array.isArray(res.body.disruptions)).toBe(true);
+    });
+
+    it("S120: Transit status for trip returns structure", async () => {
+      const tripId = await createTrip(aliceToken, "S120 Trip", "2026-11-01", "2026-11-05");
+
+      const res = await request(app)
+        .get(`/api/transit-status/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("allDisruptions");
+      expect(res.body).toHaveProperty("relevantToTrip");
+      expect(res.body).toHaveProperty("checkedAt");
+    });
+
+    it("S121: Train schedule search with missing params returns 400", async () => {
+      // The endpoint requires origin and destination query params
+      const res = await request(app)
+        .get("/api/train-schedules")
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(res.status).toBe(400);
+    });
+
+    // ── Cultural notes test (S122) ──
+
+    it("S122: Cultural notes for non-existent experience returns 404", async () => {
+      const res = await request(app)
+        .post("/api/cultural-notes/experience/nonexistent-id")
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(res.status).toBe(404);
+    });
   });
 });

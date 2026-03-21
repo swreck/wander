@@ -13,7 +13,8 @@ export default function RatingsBadge({ ratings, placeIdGoogle }: Props) {
   if (!ratings || ratings.length === 0) return null;
 
   const lowWarnings = ratings.filter((r) =>
-    (r.platform !== "foursquare" && r.ratingValue < 3.8) ||
+    (r.platform === "tabelog" && r.ratingValue < 3.0) ||
+    (r.platform !== "foursquare" && r.platform !== "tabelog" && r.ratingValue < 3.8) ||
     (r.platform === "foursquare" && r.ratingValue < 6.5)
   );
 
@@ -24,7 +25,7 @@ export default function RatingsBadge({ ratings, placeIdGoogle }: Props) {
           const content = (
             <>
               <span className="font-medium">
-                {r.platform === "google" ? "G" : r.platform === "yelp" ? "Y" : "4sq"}
+                {r.platform === "google" ? "G" : r.platform === "yelp" ? "Y" : r.platform === "tabelog" ? "T" : "4sq"}
               </span>
               <span>{"\u2605"}</span>
               <span>{r.ratingValue.toFixed(1)}</span>
@@ -34,7 +35,7 @@ export default function RatingsBadge({ ratings, placeIdGoogle }: Props) {
             </>
           );
 
-          const canLink = r.platform === "google" && placeIdGoogle;
+          const canLink = (r.platform === "google" && placeIdGoogle) || r.platform === "tabelog";
 
           return canLink ? (
             <a
@@ -55,7 +56,7 @@ export default function RatingsBadge({ ratings, placeIdGoogle }: Props) {
       </div>
       {lowWarnings.map((r) => (
         <div key={r.platform} className="text-sm text-amber-600 mt-0.5">
-          Reviews are mixed on {r.platform === "google" ? "Google" : r.platform === "yelp" ? "Yelp" : "Foursquare"}
+          Reviews are mixed on {r.platform === "google" ? "Google" : r.platform === "yelp" ? "Yelp" : r.platform === "tabelog" ? "Tabelog" : "Foursquare"}
         </div>
       ))}
     </div>

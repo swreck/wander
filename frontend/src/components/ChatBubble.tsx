@@ -53,8 +53,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [listening, setListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Persist messages to localStorage
   useEffect(() => {
@@ -124,6 +126,42 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, maxH) + "px";
   }, []);
+
+  const toggleVoice = useCallback(() => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((r: any) => r[0].transcript)
+        .join("");
+      setInput(transcript);
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+    };
+
+    recognition.onerror = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }, [listening]);
+
+  const hasSpeechRecognition = typeof window !== "undefined" &&
+    ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   if (!open) {
     if (hideBubble) return null;
@@ -249,6 +287,24 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               rows={1}
               className="flex-1 bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-sm text-[#3a3128] placeholder:text-[#a89a82] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50 resize-none"
             />
+            {hasSpeechRecognition && (
+              <button
+                onClick={toggleVoice}
+                className={`p-2.5 rounded-xl transition-colors ${
+                  listening
+                    ? "bg-red-500 text-white animate-pulse"
+                    : "bg-[#f0ebe3] text-[#8a7a62] hover:bg-[#e0d8cc]"
+                }`}
+                aria-label={listening ? "Stop listening" : "Voice input"}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              </button>
+            )}
             <button
               onClick={sendMessage}
               disabled={sending || !input.trim()}

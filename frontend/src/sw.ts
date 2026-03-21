@@ -257,9 +257,35 @@ function idbGet(store: IDBObjectStore, key: IDBValidKey): Promise<any> {
   });
 }
 
+// ── F1: Predictive city-transition-aware caching ──
+// When the app detects an upcoming city change (within 2 days), it sends a
+// PREFETCH_CITY message with the relevant API URLs. We fetch and cache them
+// so the data is available offline before the traveler arrives.
+async function prefetchUrls(urls: string[]) {
+  const cache = await caches.open(DAY_CACHE);
+  for (const url of urls) {
+    try {
+      // Only fetch if not already cached
+      const existing = await cache.match(url);
+      if (!existing) {
+        const response = await fetch(url, { credentials: 'same-origin' });
+        if (response.ok) {
+          await cache.put(url, response);
+        }
+      }
+    } catch {
+      // Offline or failed — skip silently
+    }
+  }
+}
+
 // ── Handle messages from clients ──
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+
+  if (event.data?.type === 'PREFETCH_CITY' && Array.isArray(event.data.urls)) {
+    event.waitUntil(prefetchUrls(event.data.urls));
   }
 });

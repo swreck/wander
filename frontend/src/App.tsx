@@ -9,6 +9,7 @@ import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import OfflineIndicator from "./components/OfflineIndicator";
+import PhraseCard from "./components/PhraseCard";
 import ChatBubble from "./components/ChatBubble";
 import DailyGreeting from "./components/DailyGreeting";
 import NextUpOverlay from "./components/NextUpOverlay";
@@ -205,6 +206,7 @@ export default function App() {
             <DailyGreeting />
             <NextUpOverlay />
             <ChatOverlay />
+            <PhraseCard />
             <ShortcutHelp />
             <OfflineIndicator />
             <SyncNotifier />

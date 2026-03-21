@@ -6,6 +6,13 @@ import FirstTimeGuide from "../components/FirstTimeGuide";
 import { useToast } from "../contexts/ToastContext";
 import { isNextUpEnabled, setNextUpEnabled } from "../components/NextUpOverlay";
 
+interface TransitDisruption {
+  line: string;
+  status: string;
+  detail: string;
+  source: string;
+}
+
 interface TravelTimeResult {
   durationMinutes: number;
   bufferMinutes: number;
@@ -53,6 +60,7 @@ export default function NowPage() {
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [travelDocs, setTravelDocs] = useState<TravelerDocument[]>([]);
+  const [transitAlerts, setTransitAlerts] = useState<TransitDisruption[]>([]);
 
   // Load trip and day data
   useEffect(() => {
@@ -69,6 +77,28 @@ export default function NowPage() {
       const todayStr = new Date().toISOString().split("T")[0];
       const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
       setToday(todayDay || null);
+
+      // Fetch transit disruption alerts for the trip
+      api.get<{ allDisruptions: TransitDisruption[] }>(`/transit-status/trip/${t.id}`)
+        .then((res) => setTransitAlerts(res?.allDisruptions || []))
+        .catch(() => {});
+
+      // F1: Predictive caching — prefetch next city's data if transition within 2 days
+      const todayMs = new Date(todayStr).getTime();
+      const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+      const upcomingDays = days.filter((d) => {
+        const dayMs = new Date(d.date.split("T")[0]).getTime();
+        return dayMs > todayMs && dayMs <= todayMs + twoDaysMs;
+      });
+      const nextCityIds = new Set(upcomingDays.map((d) => d.cityId));
+      if (nextCityIds.size > 0 && navigator.serviceWorker?.controller) {
+        const urls = [
+          `/api/days/trip/${t.id}`,
+          ...Array.from(nextCityIds).map((cid) => `/api/experiences/city/${cid}`),
+        ];
+        navigator.serviceWorker.controller.postMessage({ type: "PREFETCH_CITY", urls });
+      }
+
       setLoading(false);
     }
     load();
@@ -497,6 +527,20 @@ export default function NowPage() {
             </div>
           </div>
         ))}
+
+        {/* Transit disruption alerts */}
+        {transitAlerts.length > 0 && (
+          <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
+            <div className="text-xs font-medium uppercase tracking-wider text-red-700 mb-2">Train Alerts</div>
+            {transitAlerts.map((alert, i) => (
+              <div key={i} className="text-sm text-red-800 mb-1 last:mb-0">
+                <span className="font-medium">{alert.line}</span>
+                <span className="text-red-600 ml-1">— {alert.status}</span>
+                {alert.detail && <p className="text-xs text-red-600 mt-0.5">{alert.detail}</p>}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Contextual travel docs — passport on travel days, hotel confirmation on check-in */}
         {travelDocs.length > 0 && (() => {
