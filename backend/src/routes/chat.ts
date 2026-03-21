@@ -611,6 +611,123 @@ const tools: Anthropic.Tool[] = [
       required: ["origin", "destination"],
     },
   },
+  // ── Trip creation tool ──────────────────────────────
+  {
+    name: "create_trip",
+    description: "Create a new trip. Use when the user says 'plan a trip to...', 'start a new trip', etc. Optionally include cities with dates.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "Trip name, e.g. 'Japan 2026'" },
+        startDate: { type: "string", description: "YYYY-MM-DD trip start" },
+        endDate: { type: "string", description: "YYYY-MM-DD trip end" },
+        cities: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              country: { type: "string" },
+              arrivalDate: { type: "string", description: "YYYY-MM-DD" },
+              departureDate: { type: "string", description: "YYYY-MM-DD" },
+            },
+            required: ["name"],
+          },
+          description: "Optional list of cities to add to the trip",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  // ── Delete traveler document tool ──────────────────────────────
+  {
+    name: "delete_travel_document",
+    description: "Delete a traveler document by ID. Use when user says 'remove my passport info', 'delete that document', etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        documentId: { type: "string" },
+      },
+      required: ["documentId"],
+    },
+  },
+  // ── Cultural context tool ──────────────────────────────
+  {
+    name: "get_cultural_context",
+    description: "Get AI-generated cultural tips (etiquette, practical info, timing) for a specific experience. Use when user asks 'what should I know about this place?', 'etiquette at temples?', 'best time to visit?', etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        experienceId: { type: "string" },
+      },
+      required: ["experienceId"],
+    },
+  },
+  // ── Share day plan tool ──────────────────────────────
+  {
+    name: "share_day_plan",
+    description: "Generate a shareable text summary of a day's plan (schedule, reservations, hotel). Use when user says 'share today's plan', 'send me the itinerary for Tuesday', 'text me the plan'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        dayId: { type: "string" },
+      },
+      required: ["dayId"],
+    },
+  },
+  // ── Travel time tool ──────────────────────────────
+  {
+    name: "get_travel_time",
+    description: "Get estimated travel time between two locations. Use when user asks 'how long to walk to...', 'how far is it to...', etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        originName: { type: "string", description: "Name of origin (for display)" },
+        destName: { type: "string", description: "Name of destination (for display)" },
+        originLat: { type: "number" },
+        originLng: { type: "number" },
+        destLat: { type: "number" },
+        destLng: { type: "number" },
+        mode: { type: "string", enum: ["walk", "subway", "train", "bus", "taxi"], description: "Travel mode (default: walk)" },
+      },
+      required: ["originLat", "originLng", "destLat", "destLng"],
+    },
+  },
+  // ── Cast vote tool ──────────────────────────────
+  {
+    name: "cast_vote",
+    description: "Cast votes on a voting session. Use when user says 'vote yes on Ichiran', 'I prefer the first option', etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        sessionId: { type: "string" },
+        votes: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              optionIndex: { type: "number" },
+              preference: { type: "string", enum: ["yes", "maybe", "no"] },
+            },
+            required: ["optionIndex", "preference"],
+          },
+        },
+      },
+      required: ["sessionId", "votes"],
+    },
+  },
+  // ── Get ratings tool ──────────────────────────────
+  {
+    name: "get_ratings",
+    description: "Get all ratings (Google, Yelp, Tabelog, Foursquare) for an experience. Use when user asks 'what are the ratings?', 'is this place good?', 'how is it reviewed?'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        experienceId: { type: "string" },
+      },
+      required: ["experienceId"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -2064,6 +2181,247 @@ async function executeTool(
       }
     }
 
+    // ── Create trip ─────────────
+    case "create_trip": {
+      const cities = input.cities || [];
+      const trip = await prisma.trip.create({
+        data: {
+          name: input.name,
+          startDate: input.startDate ? new Date(input.startDate) : new Date(),
+          endDate: input.endDate ? new Date(input.endDate) : new Date(),
+          status: "active",
+          cities: {
+            create: cities.map((c: any, i: number) => ({
+              name: c.name,
+              country: c.country || null,
+              arrivalDate: c.arrivalDate ? new Date(c.arrivalDate) : null,
+              departureDate: c.departureDate ? new Date(c.departureDate) : null,
+              sequenceOrder: i,
+            })),
+          },
+        },
+        include: { cities: true },
+      });
+
+      // Auto-generate days for cities with dates
+      for (const city of trip.cities) {
+        if (city.arrivalDate && city.departureDate) {
+          const start = new Date(city.arrivalDate);
+          const end = new Date(city.departureDate);
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split("T")[0];
+            const existing = await prisma.day.findFirst({ where: { tripId: trip.id, date: new Date(dateStr) } });
+            if (!existing) {
+              await prisma.day.create({ data: { tripId: trip.id, cityId: city.id, date: new Date(dateStr) } });
+            }
+          }
+        }
+      }
+
+      await syncTripDates(trip.id);
+      await logChange({
+        user,
+        tripId: trip.id,
+        actionType: "trip_created",
+        entityType: "trip",
+        entityId: trip.id,
+        entityName: trip.name,
+        description: `${user.displayName} created trip "${trip.name}" (via chat)`,
+        newState: trip,
+      });
+
+      return {
+        result: { id: trip.id, name: trip.name, cities: trip.cities.map((c) => c.name) },
+        actionDescription: `Created trip "${trip.name}" with ${trip.cities.length} cities`,
+      };
+    }
+
+    // ── Delete travel document ─────────────
+    case "delete_travel_document": {
+      const doc = await prisma.travelerDocument.findUnique({ where: { id: input.documentId }, include: { profile: true } });
+      if (!doc) return { result: { error: "Document not found" } };
+      if (doc.profile.userCode !== user.code) return { result: { error: "You can only delete your own documents" } };
+
+      await prisma.travelerDocument.delete({ where: { id: input.documentId } });
+      return {
+        result: { deleted: true },
+        actionDescription: `Deleted ${doc.type} document`,
+      };
+    }
+
+    // ── Get cultural context ─────────────
+    case "get_cultural_context": {
+      const exp = await prisma.experience.findUnique({
+        where: { id: input.experienceId },
+        include: { city: true },
+      });
+      if (!exp) return { result: { error: "Experience not found" } };
+
+      // Return cached notes if available
+      if (exp.culturalNotes) {
+        return { result: { experience: exp.name, city: exp.city.name, tips: exp.culturalNotes } };
+      }
+
+      // Generate via internal API call
+      try {
+        const notesResponse = await fetch(`http://localhost:${process.env.PORT || 3001}/api/cultural-notes/experience/${exp.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await notesResponse.json();
+        return { result: { experience: exp.name, city: exp.city.name, tips: data.notes || data } };
+      } catch {
+        return { result: { error: "Failed to generate cultural tips" } };
+      }
+    }
+
+    // ── Share day plan ─────────────
+    case "share_day_plan": {
+      const day = await prisma.day.findUnique({
+        where: { id: input.dayId },
+        include: {
+          city: true,
+          experiences: { where: { state: "selected" }, orderBy: { priorityOrder: "asc" } },
+          reservations: { orderBy: { datetime: "asc" } },
+          accommodations: true,
+        },
+      });
+      if (!day) return { result: { error: "Day not found" } };
+
+      const dateStr = day.date.toLocaleDateString("en-US", {
+        weekday: "long", month: "long", day: "numeric", year: "numeric",
+      });
+      let text = `${dateStr}\n${day.city.name}\n`;
+      if (day.accommodations.length > 0) text += `\nHotel: ${day.accommodations[0].name}\n`;
+      if (day.experiences.length > 0) {
+        text += "\n";
+        for (const e of day.experiences) {
+          text += `- ${e.name}`;
+          if (e.timeWindow) text += ` (${e.timeWindow})`;
+          text += "\n";
+        }
+      }
+      if (day.reservations.length > 0) {
+        text += "\n";
+        for (const r of day.reservations) {
+          const time = r.datetime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          text += `Reservation: ${r.name} at ${time}\n`;
+        }
+      }
+      if (day.notes) text += `\nNotes: ${day.notes}\n`;
+
+      return { result: { plan: text, date: dateStr, city: day.city.name } };
+    }
+
+    // ── Get travel time ─────────────
+    case "get_travel_time": {
+      const API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+      const mode = input.mode || "walk";
+      const originName = input.originName || "origin";
+      const destName = input.destName || "destination";
+
+      if (API_KEY) {
+        try {
+          const gmMode = mode === "subway" || mode === "train" || mode === "bus" ? "transit" : mode === "taxi" ? "driving" : "walking";
+          const url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json");
+          url.searchParams.set("origins", `${input.originLat},${input.originLng}`);
+          url.searchParams.set("destinations", `${input.destLat},${input.destLng}`);
+          url.searchParams.set("mode", gmMode);
+          url.searchParams.set("key", API_KEY);
+          const res = await fetch(url.toString());
+          const data = await res.json();
+          const element = data.rows?.[0]?.elements?.[0];
+          if (element?.status === "OK") {
+            const mins = Math.round(element.duration.value / 60);
+            return {
+              result: {
+                from: originName,
+                to: destName,
+                mode,
+                durationMinutes: mins,
+                distance: element.distance?.text || null,
+              },
+            };
+          }
+        } catch { /* fall through to estimate */ }
+      }
+
+      // Fallback: haversine estimate
+      const R = 6371;
+      const dLat = ((input.destLat - input.originLat) * Math.PI) / 180;
+      const dLng = ((input.destLng - input.originLng) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(input.originLat * Math.PI / 180) * Math.cos(input.destLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const speeds: Record<string, number> = { walk: 4.5, subway: 30, train: 25, bus: 20, taxi: 30 };
+      const mins = Math.round((km / (speeds[mode] || 4.5)) * 60);
+
+      return {
+        result: {
+          from: originName,
+          to: destName,
+          mode,
+          durationMinutes: mins,
+          distance: `~${km.toFixed(1)} km`,
+          estimated: true,
+        },
+      };
+    }
+
+    // ── Cast vote ─────────────
+    case "cast_vote": {
+      const session = await prisma.votingSession.findUnique({ where: { id: input.sessionId } });
+      if (!session) return { result: { error: "Voting session not found" } };
+      if (session.status !== "open") return { result: { error: "This vote is closed" } };
+
+      for (const v of input.votes) {
+        await prisma.vote.upsert({
+          where: {
+            sessionId_userCode_optionIndex: {
+              sessionId: input.sessionId,
+              userCode: user.code,
+              optionIndex: v.optionIndex,
+            },
+          },
+          create: {
+            sessionId: input.sessionId,
+            userCode: user.code,
+            optionIndex: v.optionIndex,
+            preference: v.preference,
+          },
+          update: { preference: v.preference },
+        });
+      }
+
+      return {
+        result: { voted: true, session: session.question },
+        actionDescription: `Voted on "${session.question}"`,
+      };
+    }
+
+    // ── Get ratings ─────────────
+    case "get_ratings": {
+      const exp = await prisma.experience.findUnique({
+        where: { id: input.experienceId },
+        include: { ratings: true },
+      });
+      if (!exp) return { result: { error: "Experience not found" } };
+
+      if (exp.ratings.length === 0) {
+        return { result: { experience: exp.name, ratings: [], message: "No ratings recorded yet" } };
+      }
+
+      return {
+        result: {
+          experience: exp.name,
+          ratings: exp.ratings.map((r) => ({
+            platform: r.platform,
+            rating: r.ratingValue,
+            reviews: r.reviewCount,
+          })),
+        },
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -2176,7 +2534,14 @@ RULES:
 22. When the user wants to vote or choose between options (restaurants, activities, etc.), use create_vote. Keep the question short and natural. Use get_vote_results to check results.
 23. When the user shares or asks about a Tabelog rating for a restaurant, use set_tabelog_rating. Tabelog is Japan's primary restaurant rating platform — more trusted than Google for Japanese restaurants. A Tabelog 3.5+ is excellent.
 24. When the user asks about train schedules, times, or routes in Japan, use search_train_schedules. Present results clearly: departure time, line name, transfers, duration.
-25. When the user asks about train delays or disruptions, use check_transit_status. Only mention disruptions that affect their specific route segments.`;
+25. When the user asks about train delays or disruptions, use check_transit_status. Only mention disruptions that affect their specific route segments.
+26. When the user wants to create a new trip, use create_trip. Infer a reasonable name from the conversation. If they mention cities, include them with dates if provided.
+27. When the user asks to delete a travel document, use delete_travel_document. Look up their documents first with get_my_documents to find the right ID.
+28. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
+29. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.
+30. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
+31. When the user wants to vote on a voting session, use cast_vote. Look up open sessions with get_vote_results first to find the session ID and option indices.
+32. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];

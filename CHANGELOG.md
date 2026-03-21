@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-20 — Chat Parity: 7 New Chat Tools
+
+### Added
+- **create_trip chat tool**: Users can now create a new trip entirely via chat ("plan a trip to Portugal in June"). Auto-generates days for cities with dates.
+- **delete_travel_document chat tool**: Remove travel documents via chat ("delete my frequent flyer info").
+- **get_cultural_context chat tool**: Ask about etiquette, practical tips, or best timing for any experience via chat. Generates and caches AI cultural notes.
+- **share_day_plan chat tool**: Generate a shareable text summary of any day's schedule via chat ("share Tuesday's plan").
+- **get_travel_time chat tool**: Ask how long it takes to get between places via chat. Uses Google Distance Matrix with haversine fallback.
+- **cast_vote chat tool**: Vote on open voting sessions via chat ("vote yes on Ichiran"). Upserts to allow changing votes.
+- **get_ratings chat tool**: Ask about ratings for any experience via chat ("how is this place reviewed?").
+- Total chat tools: 46 (was 39).
+
 ## 2026-03-20 — Creative Features: Cultural Context, Voting, Transit, Voice, Tabelog, Predictive Caching
 
 ### Added
