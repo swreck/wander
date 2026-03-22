@@ -472,19 +472,21 @@ export default function TripOverview() {
         {!localStorage.getItem("wander:overview-oriented") && experiences.length > 0 && (
           <div className="mb-6 p-4 bg-white rounded-lg border border-[#e0d8cc]">
             <p className="text-sm font-medium text-[#3a3128] mb-2">
-              Your trip at a glance
+              Quick start
             </p>
             <ul className="text-sm text-[#6b5d4a] space-y-1 list-none">
-              <li>• Tap "Day by Day" or any day below to see your map with activities</li>
-              <li>• Colors match cities across all views</li>
+              {!window.matchMedia("(display-mode: standalone)").matches && (
+                <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen (toggle "web app" so it's green)</li>
+              )}
+              <li>• Tap any day below to see your map + activities</li>
               <li>• Use <strong>Import</strong> on the map to add plans</li>
-              <li>• The AI assistant can help rearrange things</li>
+              <li>• The AI chat can help rearrange things</li>
             </ul>
             <button
               onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); loadTrips(); }}
               className="text-sm text-[#c8bba8] hover:text-[#6b5d4a] mt-2 transition-colors"
             >
-              dismiss
+              got it
             </button>
           </div>
         )}
