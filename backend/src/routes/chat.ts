@@ -733,6 +733,20 @@ const tools: Anthropic.Tool[] = [
       required: ["experienceId"],
     },
   },
+  // ── Phrase tools ──────────────────────────────
+  {
+    name: "add_phrase",
+    description: "Add a Japanese phrase to the shared trip phrase card. Use when user says 'add a phrase', 'how do you say X in Japanese', 'I need to know how to say...'. Always provide both the English meaning and the romaji (Latin-alphabet) pronunciation. NEVER include Japanese characters — romaji only.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        english: { type: "string", description: "English meaning (e.g. 'Where is the station?')" },
+        romaji: { type: "string", description: "Romaji pronunciation (e.g. 'Eki wa doko desu ka?'). NO Japanese characters." },
+      },
+      required: ["tripId", "english", "romaji"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -2505,6 +2519,21 @@ async function executeTool(
       };
     }
 
+    case "add_phrase": {
+      const phrase = await prisma.tripPhrase.create({
+        data: {
+          tripId: input.tripId,
+          english: input.english,
+          romaji: input.romaji,
+          addedBy: user.displayName,
+        },
+      });
+      return {
+        result: { saved: true, english: phrase.english, romaji: phrase.romaji },
+        actionDescription: `Added phrase: "${phrase.english}" → ${phrase.romaji}`,
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -2627,6 +2656,7 @@ RULES:
 24. When the user asks about train schedules, times, or routes in Japan, use search_train_schedules. Present results clearly: departure time, line name, transfers, duration.
 25. When the user asks about train delays or disruptions, use check_transit_status. Only mention disruptions that affect their specific route segments.
 26. When the user wants to create a new trip, use create_trip. Infer a reasonable name from the conversation. If they mention cities, include them with dates if provided.
+27. When the user asks "how do you say X in Japanese?", "add a phrase", or wants to learn/save a Japanese phrase, use add_phrase. Always provide romaji (Latin-alphabet pronunciation) — NEVER Japanese characters. The phrase appears on everyone's shared phrase card automatically.
 27. When the user asks to delete a travel document, use delete_travel_document. Look up their documents first with get_my_documents to find the right ID.
 28. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
 29. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.

@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { api } from "../lib/api";
 
 interface Phrase {
+  id: string;
   english: string;
   romaji: string;
+  addedBy: string;
 }
 
-const DEFAULT_PHRASES: Phrase[] = [
+const DEFAULT_PHRASES: Omit<Phrase, "id" | "addedBy">[] = [
   { english: "Hello", romaji: "Konnichiwa" },
   { english: "Thank you", romaji: "Arigatou gozaimasu" },
   { english: "Yes please", romaji: "Hai, onegaishimasu" },
@@ -15,56 +18,114 @@ const DEFAULT_PHRASES: Phrase[] = [
   { english: "Check please", romaji: "Okaikei onegaishimasu" },
 ];
 
-const STORAGE_KEY = "wander:phrases";
+const ORDER_KEY = "wander:phrase-order";  // local ordering
+const HIDDEN_KEY = "wander:phrase-hidden"; // local removals
 
-function loadPhrases(): Phrase[] {
+function getLocalOrder(): string[] {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
-  return DEFAULT_PHRASES;
+    const saved = localStorage.getItem(ORDER_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
 }
-
-function savePhrases(phrases: Phrase[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(phrases)); } catch { /* ignore */ }
+function setLocalOrder(order: string[]) {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(order)); } catch {}
+}
+function getHiddenIds(): Set<string> {
+  try {
+    const saved = localStorage.getItem(HIDDEN_KEY);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch { return new Set(); }
+}
+function setHiddenIds(ids: Set<string>) {
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...ids])); } catch {}
 }
 
 export default function PhraseCard() {
   const [open, setOpen] = useState(false);
-  const [phrases, setPhrases] = useState<Phrase[]>(loadPhrases);
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const dragStartY = useRef(0);
-  const dragCurrentY = useRef(0);
+  const [sharedPhrases, setSharedPhrases] = useState<Phrase[]>([]);
+  const [localOrder, setLocalOrderState] = useState<string[]>(getLocalOrder);
+  const [hiddenIds, setHiddenIdsState] = useState<Set<string>>(getHiddenIds);
+  const [tripId, setTripId] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Persist on change
-  useEffect(() => { savePhrases(phrases); }, [phrases]);
+  // Get active trip
+  useEffect(() => {
+    api.get<any>("/trips/active").then((t) => {
+      if (t?.id) setTripId(t.id);
+    }).catch(() => {});
+  }, []);
 
-  const handleRemove = useCallback((idx: number) => {
-    setPhrases((prev) => prev.filter((_, i) => i !== idx));
+  // Fetch shared phrases when panel opens
+  useEffect(() => {
+    if (!open || !tripId) return;
+    api.get<Phrase[]>(`/phrases/trip/${tripId}`).then((data) => {
+      setSharedPhrases(data);
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, [open, tripId]);
+
+  // Listen for chat-driven data changes (new phrase added via AI)
+  useEffect(() => {
+    const handler = () => {
+      if (tripId) {
+        api.get<Phrase[]>(`/phrases/trip/${tripId}`).then(setSharedPhrases).catch(() => {});
+      }
+    };
+    window.addEventListener("wander:data-changed", handler);
+    return () => window.removeEventListener("wander:data-changed", handler);
+  }, [tripId]);
+
+  // Build visible, ordered list
+  const visiblePhrases = (() => {
+    const visible = sharedPhrases.filter((p) => !hiddenIds.has(p.id));
+
+    // Apply local order: known IDs in saved order first, then any new ones at the end
+    if (localOrder.length === 0) return visible;
+
+    const byId = new Map(visible.map((p) => [p.id, p]));
+    const ordered: Phrase[] = [];
+    for (const id of localOrder) {
+      const p = byId.get(id);
+      if (p) {
+        ordered.push(p);
+        byId.delete(id);
+      }
+    }
+    // Append any new phrases (not yet in local order) at the bottom
+    for (const p of byId.values()) {
+      ordered.push(p);
+    }
+    return ordered;
+  })();
+
+  // Use defaults if no shared phrases exist yet
+  const showDefaults = loaded && sharedPhrases.length === 0;
+
+  const handleHide = useCallback((id: string) => {
+    setHiddenIdsState((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      setHiddenIds(next);
+      return next;
+    });
   }, []);
 
   const handleMoveUp = useCallback((idx: number) => {
     if (idx === 0) return;
-    setPhrases((prev) => {
-      const next = [...prev];
-      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-      return next;
-    });
-  }, []);
+    const ids = visiblePhrases.map((p) => p.id);
+    [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+    setLocalOrderState(ids);
+    setLocalOrder(ids);
+  }, [visiblePhrases]);
 
   const handleMoveDown = useCallback((idx: number) => {
-    setPhrases((prev) => {
-      if (idx >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-      return next;
-    });
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setPhrases(DEFAULT_PHRASES);
-  }, []);
+    const ids = visiblePhrases.map((p) => p.id);
+    if (idx >= ids.length - 1) return;
+    [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+    setLocalOrderState(ids);
+    setLocalOrder(ids);
+  }, [visiblePhrases]);
 
   if (!open) {
     return (
@@ -80,18 +141,17 @@ export default function PhraseCard() {
     );
   }
 
+  // Render defaults (no backend phrases yet — e.g. before anyone seeds them)
+  const defaultList = showDefaults ? DEFAULT_PHRASES : null;
+
   return (
     <>
-      {/* Backdrop */}
       <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setOpen(false)} />
-
-      {/* Panel */}
       <div
         className="fixed z-50 inset-x-0 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border-t border-[#e5ddd0] flex flex-col"
         style={{
           maxHeight: "50vh",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          touchAction: "none",
         }}
       >
         {/* Header */}
@@ -110,20 +170,28 @@ export default function PhraseCard() {
         {/* Scrollable phrase list */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto overscroll-contain px-4 py-2 space-y-1"
+          className="flex-1 overflow-y-auto overscroll-contain px-4 py-2 space-y-1 min-h-0"
           style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
         >
-          {phrases.length === 0 ? (
+          {defaultList ? (
+            // Show hardcoded defaults before anyone adds shared phrases
+            defaultList.map((p, i) => (
+              <div key={i} className="flex items-center gap-2 py-2">
+                <div className="w-6 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-base font-medium text-[#3a3128]">{p.romaji}</div>
+                  <div className="text-xs text-[#8a7a62]">{p.english}</div>
+                </div>
+              </div>
+            ))
+          ) : visiblePhrases.length === 0 ? (
             <div className="text-sm text-[#a89880] text-center py-4">
-              No phrases. <button onClick={handleReset} className="underline">Restore defaults</button>
+              All phrases hidden. Ask the AI to add new ones.
             </div>
           ) : (
-            phrases.map((p, i) => (
-              <div
-                key={`${p.english}-${p.romaji}-${i}`}
-                className="flex items-center gap-2 py-2 rounded-lg"
-              >
-                {/* Grip handle + reorder */}
+            visiblePhrases.map((p, i) => (
+              <div key={p.id} className="flex items-center gap-2 py-2">
+                {/* Reorder arrows */}
                 <div className="flex flex-col items-center shrink-0 gap-0.5">
                   <button
                     onClick={() => handleMoveUp(i)}
@@ -137,7 +205,7 @@ export default function PhraseCard() {
                   </button>
                   <button
                     onClick={() => handleMoveDown(i)}
-                    disabled={i === phrases.length - 1}
+                    disabled={i === visiblePhrases.length - 1}
                     className="text-[#c8bba8] disabled:opacity-30 active:text-[#6b5d4a] p-0.5"
                     aria-label="Move down"
                   >
@@ -153,9 +221,9 @@ export default function PhraseCard() {
                   <div className="text-xs text-[#8a7a62]">{p.english}</div>
                 </div>
 
-                {/* Remove button */}
+                {/* Hide (local removal) */}
                 <button
-                  onClick={() => handleRemove(i)}
+                  onClick={() => handleHide(p.id)}
                   className="shrink-0 p-1.5 text-[#c8bba8] hover:text-red-400 active:text-red-500 transition-colors"
                   aria-label={`Remove "${p.english}"`}
                 >
@@ -166,6 +234,13 @@ export default function PhraseCard() {
               </div>
             ))
           )}
+        </div>
+
+        {/* Tip */}
+        <div className="px-4 py-2 border-t border-[#f0ece5] shrink-0">
+          <p className="text-xs text-[#a89880] text-center">
+            Ask the AI to add phrases — they'll appear for everyone
+          </p>
         </div>
       </div>
     </>

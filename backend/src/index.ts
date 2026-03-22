@@ -25,6 +25,7 @@ import votingRoutes from "./routes/voting.js";
 import trainScheduleRoutes from "./routes/trainSchedules.js";
 import transitStatusRoutes from "./routes/transitStatus.js";
 import interestRoutes from "./routes/interests.js";
+import phraseRoutes from "./routes/phrases.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -55,6 +56,7 @@ app.use("/api/voting", votingRoutes);
 app.use("/api/train-schedules", trainScheduleRoutes);
 app.use("/api/transit-status", transitStatusRoutes);
 app.use("/api/interests", interestRoutes);
+app.use("/api/phrases", phraseRoutes);
 
 // Serve frontend static files in production
 const publicPath = path.join(__dirname, "..", "public");

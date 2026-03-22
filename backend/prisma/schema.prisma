@@ -96,6 +96,7 @@ model Trip {
   experienceInterests ExperienceInterest[]
   tripMembers       TripMember[]
   tripInvites       TripInvite[]
+  tripPhrases       TripPhrase[]
 
   @@map("trips")
 }
@@ -394,6 +395,19 @@ model TripMember {
 
   @@unique([tripId, travelerId])
   @@map("trip_members")
+}
+
+model TripPhrase {
+  id        String   @id @default(cuid())
+  tripId    String   @map("trip_id")
+  english   String
+  romaji    String
+  addedBy   String   @map("added_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("trip_phrases")
 }
 
 model TripInvite {
