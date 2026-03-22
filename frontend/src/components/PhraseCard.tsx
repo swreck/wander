@@ -22,10 +22,7 @@ export default function PhraseCard() {
         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 140px)" }}
         aria-label="Japanese phrases"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          <path d="M8 9h2" /><path d="M14 9h2" /><path d="M8 13h8" />
-        </svg>
+        <span className="text-base font-bold leading-none" style={{ fontFamily: "serif" }}>日</span>
       </button>
     );
   }
