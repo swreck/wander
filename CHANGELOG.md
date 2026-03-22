@@ -1,6 +1,22 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-22 — Shared Phrase System
+
+### Added
+- **Shared phrase card**: `TripPhrase` table stores phrases per trip in the database. When anyone adds a phrase (via AI chat), it appears at the bottom of everyone's phrase panel automatically.
+- **AI chat tool `add_phrase`**: Ask the AI "how do you say X in Japanese?" and it saves the phrase with English meaning and romaji pronunciation to the shared pool. Rule 27 in the system prompt.
+- **Local reorder and hide**: Each traveler can reorder phrases (up/down arrows) and remove phrases (× button) locally without affecting others. Stored in localStorage.
+- **日 icon**: Phrase button uses the kanji character instead of a generic speech bubble.
+- **Scroll fix**: Phrase panel now scrolls properly on iPhone — won't scroll the page behind it.
+- **Phrase API**: `GET /api/phrases/trip/:tripId`, `POST /api/phrases`, `DELETE /api/phrases/:id`.
+
+### Changed
+- Total chat tools: 48 (was 47). New: `add_phrase`.
+- Orientation banner on Trip Overview tightened: "Quick start" with PWA save tip, shorter wording, "got it" dismiss.
+
+SPEC UPDATE NEEDED: Phrase system (TripPhrase table, shared pool, chat tool) and chat tool count (48) are new.
+
 ## 2026-03-22 — Identity System: Database-Backed Travelers with Invite Links
 
 ### Added
