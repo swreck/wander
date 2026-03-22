@@ -50,7 +50,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req: AuthRequest, res) => {
   const { name, startDate, endDate, cities, routeSegments } = req.body;
 
-  // Archive any existing active trip
+  // Deactivate other trips (they remain accessible, just not "current")
   await prisma.trip.updateMany({
     where: { status: "active" },
     data: { status: "archived" },
@@ -129,6 +129,50 @@ router.post("/", async (req: AuthRequest, res) => {
     description: `${req.user!.displayName} created trip "${trip.name}"`,
     newState: trip,
   });
+
+  // Carry forward portable documents (passport, frequent_flyer, insurance) from any existing trip
+  try {
+    const portableTypes = ["passport", "frequent_flyer", "insurance"];
+    const existingProfiles = await prisma.travelerProfile.findMany({
+      where: { tripId: { not: trip.id } },
+      include: { documents: { where: { type: { in: portableTypes as any[] } } } },
+    });
+
+    for (const profile of existingProfiles) {
+      if (profile.documents.length === 0) continue;
+
+      // Create profile for this trip if needed
+      const newProfile = await prisma.travelerProfile.upsert({
+        where: { tripId_userCode: { tripId: trip.id, userCode: profile.userCode } },
+        create: {
+          tripId: trip.id,
+          userCode: profile.userCode,
+          displayName: profile.displayName,
+        },
+        update: {},
+      });
+
+      // Copy portable documents (skip if same type already exists)
+      for (const doc of profile.documents) {
+        const exists = await prisma.travelerDocument.findFirst({
+          where: { profileId: newProfile.id, type: doc.type },
+        });
+        if (!exists) {
+          await prisma.travelerDocument.create({
+            data: {
+              profileId: newProfile.id,
+              type: doc.type,
+              label: doc.label,
+              data: doc.data as any,
+              isPrivate: doc.isPrivate,
+            },
+          });
+        }
+      }
+    }
+  } catch {
+    // Document carry-over is best-effort — don't fail trip creation
+  }
 
   const full = await prisma.trip.findUnique({
     where: { id: trip.id },

@@ -529,6 +529,7 @@ function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeThem
 export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = false, highlightedExpId, recenterKey, themeFilter, onThemeFilterChange, dayId }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [quickAction, setQuickAction] = useState<{ exp: Experience } | null>(null);
 
   // Track user's GPS position
   useEffect(() => {
@@ -616,6 +617,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
   }
 
   return (
+    <div className="relative w-full h-full">
     <APIProvider apiKey={API_KEY}>
       <Map
         defaultCenter={center}
@@ -646,7 +648,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
           <AdvancedMarker
             key={exp.id}
             position={{ lat: exp.latitude!, lng: exp.longitude! }}
-            onClick={() => onExperienceClick(exp.id)}
+            onClick={() => setQuickAction(quickAction?.exp.id === exp.id ? null : { exp })}
             title={exp.name}
             zIndex={highlightedExpId === exp.id ? 900 : 100}
           >
@@ -659,7 +661,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
           <AdvancedMarker
             key={exp.id}
             position={{ lat: exp.latitude!, lng: exp.longitude! }}
-            onClick={() => onExperienceClick(exp.id)}
+            onClick={() => setQuickAction(quickAction?.exp.id === exp.id ? null : { exp })}
             title={exp.name}
             zIndex={highlightedExpId === exp.id ? 900 : 50}
           >
@@ -709,6 +711,40 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
           </MapControl>
         )}
       </Map>
+
+      {/* Quick action popup — "Take me here" + Details */}
+      {quickAction && (
+        <div
+          className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 bg-white rounded-xl shadow-xl border border-[#e0d8cc] px-4 py-3 max-w-[280px] w-full"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-sm font-medium text-[#3a3128] truncate mb-2">{quickAction.exp.name}</div>
+          <div className="flex gap-2">
+            <a
+              href={`https://maps.apple.com/?daddr=${quickAction.exp.latitude},${quickAction.exp.longitude}&q=${encodeURIComponent(quickAction.exp.name)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-2 text-center text-xs font-medium rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
+              onClick={() => setQuickAction(null)}
+            >
+              Take me here
+            </a>
+            <button
+              onClick={() => { onExperienceClick(quickAction.exp.id); setQuickAction(null); }}
+              className="flex-1 py-2 text-center text-xs font-medium rounded-lg border border-[#e0d8cc] text-[#6b5d4a] hover:bg-[#f0ece5] transition-colors"
+            >
+              Details
+            </button>
+          </div>
+          <button
+            onClick={() => setQuickAction(null)}
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-[#e0d8cc] text-[#8a7a62] flex items-center justify-center text-xs shadow-sm"
+          >
+            &times;
+          </button>
+        </div>
+      )}
     </APIProvider>
+    </div>
   );
 }

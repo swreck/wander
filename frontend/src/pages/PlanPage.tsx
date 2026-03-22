@@ -1182,6 +1182,7 @@ export default function PlanPage() {
               onDemote={handleDemote}
               onExperienceClick={(id) => setSelectedExpId(id)}
               onRefresh={() => { loadExperiences(); loadTrip(); }}
+              interests={interests}
             />
           ) : (
             <ExperienceList

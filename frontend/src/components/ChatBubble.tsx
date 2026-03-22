@@ -48,15 +48,20 @@ function clearMessages() {
   }
 }
 
+const CHAT_TIMEOUT_MS = 45000; // 45 seconds
+
 export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatBubbleProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [listening, setListening] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [lastFailedText, setLastFailedText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Persist messages to localStorage
   useEffect(() => {
@@ -77,38 +82,63 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
   }, [open]);
 
-  const sendMessage = useCallback(async () => {
-    const text = input.trim();
+  const sendMessage = useCallback(async (retryText?: string) => {
+    const text = retryText || input.trim();
     if (!text || sending) return;
 
-    setInput("");
-    if (inputRef.current) inputRef.current.style.height = "auto";
-    setMessages((prev) => [...prev, { role: "user", text }]);
+    if (!retryText) {
+      setInput("");
+      if (inputRef.current) inputRef.current.style.height = "auto";
+      setMessages((prev) => [...prev, { role: "user", text }]);
+    }
     setSending(true);
+    setFailed(false);
+    setLastFailedText("");
+
+    // Abort controller for timeout
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
 
     try {
-      // Send recent history so the bot has conversation context
       const history = messages.slice(-10).map((m) => ({ role: m.role, text: m.text }));
-      const res = await api.post<{ reply: string; actions: string[]; hasActions: boolean }>(
-        "/chat",
-        { message: text, context, history },
-      );
+      const token = localStorage.getItem("wander_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ message: text, context, history }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+      const data = await res.json();
+
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: res.reply, actions: res.actions },
+        { role: "assistant", text: data.reply, actions: data.actions },
       ]);
-      if (res.hasActions && onDataChanged) {
+      if (data.hasActions && onDataChanged) {
         onDataChanged();
       }
     } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", text: "Sorry, something went wrong. Try again." },
-      ]);
+      clearTimeout(timeoutId);
+      const isTimeout = err?.name === "AbortError";
+      const errorMsg = isTimeout
+        ? "That took too long. Want me to try again?"
+        : "Something went wrong. Want me to try again?";
+      setMessages((prev) => [...prev, { role: "assistant", text: errorMsg }]);
+      setFailed(true);
+      setLastFailedText(text);
     } finally {
       setSending(false);
+      abortRef.current = null;
     }
-  }, [input, sending, context, onDataChanged]);
+  }, [input, sending, context, onDataChanged, messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -127,6 +157,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     el.style.height = Math.min(el.scrollHeight, maxH) + "px";
   }, []);
 
+  // Track final transcript for auto-send
+  const voiceTranscriptRef = useRef("");
+
   const toggleVoice = useCallback(() => {
     if (listening) {
       recognitionRef.current?.stop();
@@ -141,16 +174,33 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = "en-US";
+    voiceTranscriptRef.current = "";
 
     recognition.onresult = (event: any) => {
       const transcript = Array.from(event.results)
         .map((r: any) => r[0].transcript)
         .join("");
       setInput(transcript);
+      // Track if we have a final result
+      const lastResult = event.results[event.results.length - 1];
+      if (lastResult.isFinal) {
+        voiceTranscriptRef.current = transcript;
+      }
     };
 
     recognition.onend = () => {
       setListening(false);
+      // Auto-send the final transcript
+      const finalText = voiceTranscriptRef.current.trim();
+      if (finalText) {
+        // Small delay so state updates settle
+        setTimeout(() => {
+          setInput("");
+          setMessages((prev) => [...prev, { role: "user", text: finalText }]);
+          // Trigger send directly with the transcript
+          sendMessage(finalText);
+        }, 100);
+      }
     };
 
     recognition.onerror = () => setListening(false);
@@ -158,7 +208,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     recognitionRef.current = recognition;
     recognition.start();
     setListening(true);
-  }, [listening]);
+  }, [listening, sendMessage]);
 
   const hasSpeechRecognition = typeof window !== "undefined" &&
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -269,6 +319,22 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                   <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
                 </span>
               </div>
+            </div>
+          )}
+          {failed && lastFailedText && (
+            <div className="flex gap-2 justify-start">
+              <button
+                onClick={() => { setFailed(false); sendMessage(lastFailedText); }}
+                className="px-3 py-1.5 text-xs rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
+              >
+                Try again
+              </button>
+              <button
+                onClick={() => { setFailed(false); setLastFailedText(""); }}
+                className="px-3 py-1.5 text-xs rounded-lg bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc] transition-colors"
+              >
+                Move on
+              </button>
             </div>
           )}
         </div>

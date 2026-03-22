@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { api } from "../lib/api";
-import type { Day, Experience, Trip, RouteSegment } from "../lib/types";
+import type { Day, Experience, Trip, RouteSegment, ExperienceInterest } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
 import AIObservations from "./AIObservations";
 import FirstTimeGuide from "./FirstTimeGuide";
@@ -31,6 +31,7 @@ interface Props {
   onDemote: (expId: string) => void;
   onExperienceClick: (id: string) => void;
   onRefresh: () => void;
+  interests?: Map<string, ExperienceInterest>;
 }
 
 function AIObsDisclosure({ dayId }: { dayId: string }) {
@@ -324,7 +325,7 @@ function TransportConnector({
 }
 
 export default function DayView({
-  day, experiences, trip, onClose, onPromote, onDemote, onExperienceClick, onRefresh,
+  day, experiences, trip, onClose, onPromote, onDemote, onExperienceClick, onRefresh, interests,
 }: Props) {
   const { showToast } = useToast();
   const dayDate = new Date(day.date);
@@ -661,7 +662,15 @@ export default function DayView({
               onClick={() => onExperienceClick(exp.id)}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
+                <span className="text-sm font-medium text-[#3a3128] flex items-center gap-1">
+                  {exp.name}
+                  {interests?.get(exp.id) && (
+                    <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-amber-100 text-amber-700"
+                      title={`${interests.get(exp.id)!.displayName} is interested`}>
+                      {interests.get(exp.id)!.reactions.length + 1}
+                    </span>
+                  )}
+                </span>
                 <div className="flex items-center gap-2">
                   {exp.timeWindow && (
                     <span className="text-sm text-[#a89880]">{exp.timeWindow}</span>
@@ -853,7 +862,15 @@ export default function DayView({
             onClick={() => onExperienceClick(exp.id)}
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm text-[#3a3128]">{exp.name}</span>
+              <span className="text-sm text-[#3a3128] flex items-center gap-1">
+                {exp.name}
+                {interests?.get(exp.id) && (
+                  <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-amber-100 text-amber-700"
+                    title={`${interests.get(exp.id)!.displayName} is interested`}>
+                    {interests.get(exp.id)!.reactions.length + 1}
+                  </span>
+                )}
+              </span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

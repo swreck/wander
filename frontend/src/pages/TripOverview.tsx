@@ -29,6 +29,7 @@ export default function TripOverview() {
   const [editTagline, setEditTagline] = useState("");
   const [recentActivity, setRecentActivity] = useState<ChangeLogEntry[]>([]);
   const [collabWelcome, setCollabWelcome] = useState<{ names: string[]; tripName: string } | null>(null);
+  const [showTripSwitcher, setShowTripSwitcher] = useState(false);
 
   useKeyboardShortcuts();
 
@@ -170,6 +171,17 @@ export default function TripOverview() {
     );
   }
 
+  async function handleSwitchTrip(tripId: string) {
+    try {
+      await api.post(`/trips/${tripId}/activate`, {});
+      setShowTripSwitcher(false);
+      showToast("Switched trip");
+      loadTrips();
+    } catch {
+      showToast("Couldn't switch trip", "error");
+    }
+  }
+
   const archivedTrips = allTrips.filter((t) => t.status === "archived");
   const isWithinDates = (() => {
     const now = new Date();
@@ -209,6 +221,67 @@ export default function TripOverview() {
             </p>
             <div className="mt-4 text-center">
               <span className="text-sm text-[#c8bba8]">tap anywhere to continue</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trip switcher bottom sheet */}
+      {showTripSwitcher && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/20 backdrop-blur-sm"
+          onClick={() => setShowTripSwitcher(false)}>
+          <div
+            className="w-full sm:max-w-md sm:mx-4 bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[60vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
+          >
+            <div className="px-4 pt-4 pb-2 border-b border-[#f0ece5] flex items-center justify-between">
+              <h3 className="text-sm font-medium text-[#3a3128]">Your Trips</h3>
+              <button onClick={() => setShowTripSwitcher(false)} className="text-[#c8bba8] hover:text-[#8a7a62] text-lg">&times;</button>
+            </div>
+            {/* Active trip */}
+            <div className="px-4 py-3 bg-[#faf8f5]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-[#3a3128]">{trip.name}</div>
+                  <div className="text-xs text-[#8a7a62]">{formatDate(trip.startDate)} — {formatDate(trip.endDate)}</div>
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+              </div>
+            </div>
+            {/* Archived trips */}
+            {archivedTrips.length > 0 && (
+              <div className="px-4 pt-3">
+                <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">Other Trips</div>
+                <div className="space-y-2">
+                  {archivedTrips.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between py-2 border-b border-[#f0ece5] last:border-0">
+                      <div>
+                        <div className="text-sm text-[#3a3128]">{t.name}</div>
+                        <div className="text-xs text-[#a89880]">
+                          {formatDate(t.startDate)} — {formatDate(t.endDate)}
+                          {t.cities?.length > 0 && ` · ${t.cities.length} cities`}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleSwitchTrip(t.id)}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
+                      >
+                        Switch
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* New trip */}
+            <div className="px-4 pt-3 pb-2">
+              <button
+                onClick={() => { setShowTripSwitcher(false); setShowCreate(true); }}
+                className="w-full py-2.5 rounded-lg border border-dashed border-[#c8bba8] text-sm text-[#8a7a62] hover:bg-[#faf8f5] transition-colors"
+              >
+                + Plan a new trip
+              </button>
             </div>
           </div>
         </div>
@@ -267,7 +340,17 @@ export default function TripOverview() {
           {/* Trip name overlay on map */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#faf8f5] to-transparent pt-12 pb-4 px-4">
             <div className="max-w-2xl mx-auto">
-              <h1 className="text-2xl font-light text-[#3a3128]">{trip.name}</h1>
+              <button
+                onClick={() => archivedTrips.length > 0 && setShowTripSwitcher(true)}
+                className="text-left group"
+              >
+                <h1 className="text-2xl font-light text-[#3a3128] inline">
+                  {trip.name}
+                </h1>
+                {archivedTrips.length > 0 && (
+                  <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
+                )}
+              </button>
               {trip.tagline && (
                 <p className="text-sm text-[#6b5d4a] italic">{trip.tagline}</p>
               )}
@@ -295,7 +378,17 @@ export default function TripOverview() {
         {/* Header — only when there's no map */}
         {!hasMap && (
           <div className="mb-8">
-            <h1 className="text-2xl font-light text-[#3a3128]">{trip.name}</h1>
+            <button
+              onClick={() => archivedTrips.length > 0 && setShowTripSwitcher(true)}
+              className="text-left group"
+            >
+              <h1 className="text-2xl font-light text-[#3a3128] inline">
+                {trip.name}
+              </h1>
+              {archivedTrips.length > 0 && (
+                <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
+              )}
+            </button>
             {trip.tagline && (
               <p className="text-sm text-[#6b5d4a] mt-0.5 italic">{trip.tagline}</p>
             )}

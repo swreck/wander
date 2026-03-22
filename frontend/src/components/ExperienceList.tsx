@@ -125,7 +125,7 @@ function GroupInterestBadge({
           title={`${interest.displayName} is interested${interest.note ? `: ${interest.note}` : ""}`}
         >
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
           </svg>
           {reactionCount > 0 && <span>{reactionCount}</span>}
         </button>
@@ -200,7 +200,7 @@ function GroupInterestBadge({
         title="Share interest with group"
       >
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
         </svg>
       </button>
       {showForm && (
@@ -397,12 +397,11 @@ function SortableSelectedItem({
               {exp.locationStatus !== "confirmed" && (
                 <button
                   title="Tap to set map location"
-                  className="text-sm text-[#c8bba8] relative inline-block hover:text-[#8a7a62] transition-colors"
-                  style={{ width: 14, height: 14, flexShrink: 0 }}
+                  className="inline-flex items-center justify-center rounded bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
+                  style={{ width: 18, height: 18, flexShrink: 0 }}
                   onClick={(e) => { e.stopPropagation(); setLocatingId(locatingId === exp.id ? null : exp.id); }}
                 >
-                  <span style={{ position: "absolute", fontSize: 12 }}>📍</span>
-                  <span style={{ position: "absolute", top: -1, left: 2, fontSize: 14, color: "#d44" }}>╲</span>
+                  <span style={{ fontSize: 10 }}>📍</span>
                 </button>
               )}
               <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
@@ -505,12 +504,11 @@ function SortablePossibleItem({
               {exp.locationStatus !== "confirmed" && (
                 <button
                   title="Tap to set map location"
-                  className="inline-block relative hover:opacity-70 transition-opacity"
-                  style={{ width: 12, height: 12, flexShrink: 0 }}
+                  className="inline-flex items-center justify-center rounded bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
+                  style={{ width: 16, height: 16, flexShrink: 0 }}
                   onClick={(e) => { e.stopPropagation(); setLocatingId(locatingId === exp.id ? null : exp.id); }}
                 >
-                  <span style={{ position: "absolute", fontSize: 10 }}>📍</span>
-                  <span style={{ position: "absolute", top: -1, left: 1, fontSize: 12, color: "#d44" }}>╲</span>
+                  <span style={{ fontSize: 9 }}>📍</span>
                 </button>
               )}
               {exp.name}
@@ -746,6 +744,16 @@ export default function ExperienceList({
             {selected.length} Selected · {possible.length} Possible
           </span>
         </div>
+        {(() => {
+          const unlocated = [...selected, ...possible].filter((e) => e.locationStatus !== "confirmed").length;
+          if (unlocated === 0) return null;
+          return (
+            <div className="mb-2 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center gap-1.5">
+              <span style={{ fontSize: 12 }}>📍</span>
+              {unlocated} {unlocated === 1 ? "item" : "items"} not on map — tap the pin icon to locate
+            </div>
+          );
+        })()}
 
         {/* Cross-zone promote panel — calendar strip (city days only) */}
         {crossZonePromoteId && (() => {

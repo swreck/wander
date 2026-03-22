@@ -2,6 +2,26 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-21 — UX Polish: Trip Switcher, Chat Resilience, Map Navigation
+
+### Added
+- **Trip switcher**: Tap the trip name on the overview screen to open a bottom sheet showing all your trips. Switch between active and archived trips, or start a new one. Subtle chevron hint — stays out of the way until you need it.
+- **"Take me here" quick-tap on map markers**: Tapping a pin on the map now shows a compact popup with two options: "Take me here" (opens Apple Maps directions) and "Details" (opens the experience panel). Faster than going through the detail view.
+- **Chat timeout + retry**: Chat now times out after 45 seconds instead of hanging forever. Shows "Try again" and "Move on" buttons on failure.
+- **Voice auto-send**: After dictating via the microphone button, the message sends automatically when speech recognition ends — no need to tap Send.
+- **Document carry-over**: When creating a new trip, portable documents (passport, frequent flyer, insurance) are automatically copied from existing traveler profiles. No re-entry needed.
+- **Unlocated item banner**: Experience list now shows a clear amber banner when items aren't on the map, with the count and a hint to tap the pin icon.
+- **Group interest badge in Day View**: Day-by-day view now shows interest count badges on experiences that have group interest activity.
+
+### Changed
+- **Group interest icon audit**: Fixed broken SVG path data in the people icon across ExperienceList. Improved unlocated-item pin indicator from a tiny crossed-out emoji to a visible amber-bordered button.
+- **Map marker click behavior**: Markers now show the quick-action popup instead of immediately opening the detail panel. Dismiss by tapping X or clicking elsewhere.
+
+### Fixed
+- **Chat freeze on slow AI responses**: Previously, if the Anthropic API was slow, the chat input locked permanently (the `sending` flag never cleared). Now uses AbortController with a 45-second timeout.
+
+SPEC UPDATE NEEDED: Trip switching UI, "Take me here" map navigation, and document carry-over are new behaviors not in SPEC.md.
+
 ## 2026-03-20 — Group Interest System (replaces Voting)
 
 ### Added
