@@ -1,6 +1,22 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-22 — Fix: Chat Fails to Save Frequent Flyer Numbers
+
+### Fixed
+- **Fast-path hijacking travel documents**: Pasting frequent flyer numbers into chat triggered the recommendation import shortcut (≥3 lines + >200 chars), bypassing Claude entirely. Added pattern detection for travel document keywords (airline names, "SkyMiles", "MileagePlus", etc.) so document text falls through to the normal AI loop where Rule 17 correctly triggers `save_travel_document`.
+
+### Added
+- **`save_travel_documents_bulk` chat tool**: Save multiple documents in one call (e.g., 20 frequent flyer numbers across 3 travelers). Eliminates the need for 20+ sequential tool calls that would time out.
+- **`forTraveler` parameter on save_travel_document**: Ken can now save Larisa's and Kyler's documents on their behalf. Resolves traveler names against the access code system. Works on both single and bulk save tools.
+- **5 chaos tests (S156–S160)**: Frequent flyer save, multiple FF per traveler, privacy on shared endpoint, fast-path pattern detection, document carry-over to new trips.
+
+### Changed
+- Total chat tools: 47 (was 46). New: `save_travel_documents_bulk`.
+- System prompt Rule 17 updated to guide Claude toward bulk saves for batches and `forTraveler` for multi-person saves.
+
+SPEC UPDATE NEEDED: Chat tool count and traveler document capabilities (forTraveler, bulk save) are new behaviors not in SPEC.md.
+
 
 ## 2026-03-21 — UX Polish: Trip Switcher, Chat Resilience, Map Navigation
 

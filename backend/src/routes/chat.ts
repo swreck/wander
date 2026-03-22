@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
-import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { requireAuth, parseAccessCodes, type AuthRequest } from "../middleware/auth.js";
 import { extractRecommendations } from "../services/itineraryExtractor.js";
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 import { findDuplicate } from "../services/dedup.js";
@@ -483,7 +483,7 @@ const tools: Anthropic.Tool[] = [
   // ── Traveler document tools ──────────────────────────────
   {
     name: "save_travel_document",
-    description: "Save a travel document for the current traveler. Extracts and stores passport, visa, frequent flyer, insurance, ticket, or custom document details. Creates the traveler profile automatically if needed. Use when user shares any travel document info.",
+    description: "Save a travel document for the current traveler (or another traveler by name). Extracts and stores passport, visa, frequent flyer, insurance, ticket, or custom document details. Creates the traveler profile automatically if needed. Use forTraveler to save for someone else (e.g. Larisa, Kyler).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -495,8 +495,35 @@ const tools: Anthropic.Tool[] = [
         },
         isPrivate: { type: "boolean", description: "If true, only visible to this traveler. Default false (shared with group)." },
         label: { type: "string", description: "Optional label for custom documents or to distinguish multiples (e.g. 'Delta SkyMiles')" },
+        forTraveler: { type: "string", description: "Display name of the traveler to save for (e.g. 'Larisa', 'Kyler'). Omit to save for yourself." },
       },
       required: ["tripId", "type", "data"],
+    },
+  },
+  {
+    name: "save_travel_documents_bulk",
+    description: "Save multiple travel documents in one call, optionally for different travelers. Use when the user shares a batch of frequent flyer numbers, passport details, or other documents — especially across multiple people. Each entry specifies the traveler name and document details.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        documents: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              forTraveler: { type: "string", description: "Display name of the traveler (e.g. 'Larisa', 'Ken'). If omitted, saves for the current user." },
+              type: { type: "string", enum: ["passport", "visa", "frequent_flyer", "insurance", "ticket", "custom"] },
+              data: { type: "object", description: "Document fields (same schema as save_travel_document)" },
+              isPrivate: { type: "boolean" },
+              label: { type: "string", description: "Label to distinguish multiples (e.g. 'Delta SkyMiles')" },
+            },
+            required: ["type", "data"],
+          },
+          description: "Array of documents to save",
+        },
+      },
+      required: ["tripId", "documents"],
     },
   },
   {
@@ -1807,10 +1834,24 @@ async function executeTool(
 
     // ── Traveler document tool implementations ─────────────
     case "save_travel_document": {
+      let targetCode = user.code;
+      let targetName = user.displayName;
+
+      if (input.forTraveler) {
+        const codes = parseAccessCodes();
+        const match = [...codes.entries()].find(
+          ([, name]) => name.toLowerCase() === input.forTraveler.toLowerCase()
+        );
+        if (!match) {
+          return { result: { error: `Unknown traveler "${input.forTraveler}". Known travelers: ${[...codes.values()].join(", ")}` } };
+        }
+        [targetCode, targetName] = match;
+      }
+
       const profile = await prisma.travelerProfile.upsert({
-        where: { tripId_userCode: { tripId: input.tripId, userCode: user.code } },
-        update: { displayName: user.displayName },
-        create: { tripId: input.tripId, userCode: user.code, displayName: user.displayName },
+        where: { tripId_userCode: { tripId: input.tripId, userCode: targetCode } },
+        update: { displayName: targetName },
+        create: { tripId: input.tripId, userCode: targetCode, displayName: targetName },
       });
 
       const doc = await prisma.travelerDocument.create({
@@ -1830,13 +1871,74 @@ async function executeTool(
         entityType: "traveler_document",
         entityId: doc.id,
         entityName: `${input.type}${input.label ? ` (${input.label})` : ""}`,
-        description: `${user.displayName} added a ${input.type.replace("_", " ")} document`,
+        description: `${user.displayName} added a ${input.type.replace("_", " ")} document for ${targetName}`,
         newState: doc,
       });
 
       return {
-        result: { saved: true, documentId: doc.id, type: input.type, data: input.data },
-        actionDescription: `Saved ${input.type.replace("_", " ")} for ${user.displayName}`,
+        result: { saved: true, documentId: doc.id, type: input.type, data: input.data, forTraveler: targetName },
+        actionDescription: `Saved ${input.type.replace("_", " ")} for ${targetName}`,
+      };
+    }
+
+    case "save_travel_documents_bulk": {
+      const codes = parseAccessCodes();
+      const results: { traveler: string; type: string; label?: string; saved: boolean; error?: string }[] = [];
+
+      for (const entry of input.documents) {
+        let targetCode = user.code;
+        let targetName = user.displayName;
+
+        if (entry.forTraveler) {
+          const match = [...codes.entries()].find(
+            ([, name]) => name.toLowerCase() === entry.forTraveler.toLowerCase()
+          );
+          if (!match) {
+            results.push({ traveler: entry.forTraveler, type: entry.type, saved: false, error: "Unknown traveler" });
+            continue;
+          }
+          [targetCode, targetName] = match;
+        }
+
+        try {
+          const profile = await prisma.travelerProfile.upsert({
+            where: { tripId_userCode: { tripId: input.tripId, userCode: targetCode } },
+            update: { displayName: targetName },
+            create: { tripId: input.tripId, userCode: targetCode, displayName: targetName },
+          });
+
+          const doc = await prisma.travelerDocument.create({
+            data: {
+              profileId: profile.id,
+              type: entry.type,
+              label: entry.label || null,
+              data: entry.data || {},
+              isPrivate: entry.isPrivate ?? false,
+            },
+          });
+
+          await logChange({
+            user,
+            tripId: input.tripId,
+            actionType: "document_added",
+            entityType: "traveler_document",
+            entityId: doc.id,
+            entityName: `${entry.type}${entry.label ? ` (${entry.label})` : ""}`,
+            description: `${user.displayName} added a ${entry.type.replace("_", " ")} document for ${targetName}`,
+            newState: doc,
+          });
+
+          results.push({ traveler: targetName, type: entry.type, label: entry.label, saved: true });
+        } catch {
+          results.push({ traveler: targetName, type: entry.type, saved: false, error: "Save failed" });
+        }
+      }
+
+      const saved = results.filter((r) => r.saved).length;
+      const failed = results.filter((r) => !r.saved).length;
+      return {
+        result: { saved, failed, details: results },
+        actionDescription: `Saved ${saved} travel document${saved !== 1 ? "s" : ""}${failed > 0 ? ` (${failed} failed)` : ""}`,
       };
     }
 
@@ -2446,7 +2548,15 @@ router.post("/", async (req: AuthRequest, res) => {
         }
       }
     }
-    if (looksLikeRecs) {
+    // Skip fast-path if text looks like travel documents (frequent flyer, passport, etc.)
+    const travelDocPatterns = [
+      /frequent\s*flyer/i, /passport/i, /\bvisa\b/i, /insurance/i,
+      /sky\s*miles/i, /mileage\s*plus/i, /aadvantage/i, /rapid\s*rewards/i,
+      /loyalty\s*(number|program|#)/i, /member(ship)?\s*(number|#|id)/i,
+      /\b(american|united|delta|southwest|alaska|jetblue|continental)\s*(air|airline)?/i,
+    ];
+    const looksLikeTravelDocs = travelDocPatterns.some(p => p.test(recText));
+    if (looksLikeRecs && !looksLikeTravelDocs) {
       console.log("Chat fast-path: detected recommendation text, importing directly");
       try {
         const { result, actionDescription } = await executeTool(
@@ -2507,7 +2617,7 @@ RULES:
 14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.
 15. Cities can be "hidden" (dismissed). When listing trip cities, only show visible ones. When the user asks to bring back, restore, or recall a dismissed city, use restore_city. When asked what was dismissed or archived, use list_hidden_cities.
 16. When the user asks to clear, dismiss, or archive recommendation cities, use hide_city with hideAll: true. Individual cities can be hidden with hide_city by cityId.
-17. When the user shares passport details, frequent flyer numbers, insurance info, visa details, ticket references, or any travel document information, use save_travel_document IMMEDIATELY. Extract all relevant fields from the natural language. Do not ask for confirmation — just save it.
+17. When the user shares passport details, frequent flyer numbers, insurance info, visa details, ticket references, or any travel document information, save them IMMEDIATELY. For multiple documents (e.g. a list of frequent flyer numbers), use save_travel_documents_bulk to save them all in one call. For a single document, use save_travel_document. If the user specifies documents for other travelers by name (e.g. "Larisa's Delta SkyMiles is 123456"), use the forTraveler field. Extract all relevant fields from the natural language. Do not ask for confirmation — just save everything at once.
 18. When the user asks "what's my passport number?", "show my documents", or any question about their own travel info, use get_my_documents and answer from the results.
 19. When the user asks about another traveler's info (e.g., "what's Ken's frequent flyer number?"), use get_shared_documents. Only non-private documents from other travelers will be returned.
 20. When the user asks "am I ready?", "what do I still need?", "travel readiness", or similar, use check_travel_readiness. Give a personalized, specific answer — not a generic checklist. Mention exact expiry dates, specific country requirements, and concrete next steps.

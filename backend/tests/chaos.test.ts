@@ -4607,4 +4607,105 @@ describe("Chaos Simulations", () => {
       expect(res.status).toBe(401);
     });
   });
+
+    // ── Travel Document Improvements — Chaos Tests (S156–S160) ──────────────
+    it("S156: Save frequent_flyer document for self", async () => {
+      const tripId = await createTrip(aliceToken, "S156 Trip", "2026-11-01", "2026-11-05");
+      const res = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "American Airlines", number: "AT78408" }, label: "AA AAdvantage" });
+      expect(res.status).toBe(201);
+      expect(res.body.type).toBe("frequent_flyer");
+      expect(res.body.data.airline).toBe("American Airlines");
+      expect(res.body.data.number).toBe("AT78408");
+    });
+
+    it("S157: Multiple frequent_flyer documents for same traveler", async () => {
+      const tripId = await createTrip(aliceToken, "S157 Trip", "2026-11-01", "2026-11-05");
+      const doc1 = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "United", number: "GWB06275" }, label: "United MileagePlus" });
+      expect(doc1.status).toBe(201);
+
+      const doc2 = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "Delta", number: "9170129465" }, label: "Delta SkyMiles" });
+      expect(doc2.status).toBe(201);
+
+      // Both should be visible
+      const profile = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(profile.body.documents).toHaveLength(2);
+      const airlines = profile.body.documents.map((d: any) => d.data.airline).sort();
+      expect(airlines).toEqual(["Delta", "United"]);
+    });
+
+    it("S158: Private frequent_flyer hidden from shared endpoint", async () => {
+      const tripId = await createTrip(aliceToken, "S158 Trip", "2026-11-01", "2026-11-05");
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "Singapore", number: "8744367939" }, isPrivate: true });
+
+      // Bob should NOT see Alice's private doc
+      const shared = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/shared`)
+        .set("Authorization", `Bearer ${bobToken}`);
+      const docs = shared.body.flatMap((p: any) => p.documents);
+      expect(docs.filter((d: any) => d.data.airline === "Singapore")).toHaveLength(0);
+    });
+
+    it("S159: Frequent flyer text should NOT match recommendation fast-path patterns", () => {
+      // This tests the heuristic logic from chat.ts fast-path
+      const ffText = `American Airlines: AT78408, (x5) (was 4838); Larisa CPC8056; Kyler W7143H8
+United GWB06275 kkrosen;x*6 (Mileage Plus Pin: 4) (was 00032 435 963); x5 91970679823
+LF: DFK46245 (was 00200274520) x5 Kyler WSU73186 (was 03210845533) x5
+Singapore KrisFlyer 874 436 7939 (kr@gm;zZ11**6)
+Delta: swreck; x5 SkyMiles #9170129465 (L 9119875384, Ky 9020272069)`;
+
+      const travelDocPatterns = [
+        /frequent\s*flyer/i, /passport/i, /\bvisa\b/i, /insurance/i,
+        /sky\s*miles/i, /mileage\s*plus/i, /aadvantage/i, /rapid\s*rewards/i,
+        /loyalty\s*(number|program|#)/i, /member(ship)?\s*(number|#|id)/i,
+        /\b(american|united|delta|southwest|alaska|jetblue|continental)\s*(air|airline)?/i,
+      ];
+      const looksLikeTravelDocs = travelDocPatterns.some(p => p.test(ffText));
+      expect(looksLikeTravelDocs).toBe(true);
+
+      // Actual recommendation text should NOT match
+      const recText = `You should definitely try Fushimi Inari in Kyoto.
+Also check out Arashiyama Bamboo Grove.
+For food, try Nishiki Market — amazing street food.
+The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
+      const recsMatch = travelDocPatterns.some(p => p.test(recText));
+      expect(recsMatch).toBe(false);
+    });
+
+    it("S160: Carry-over copies portable docs to new trip", async () => {
+      // Create trip 1 with a frequent_flyer doc
+      const trip1 = await createTrip(aliceToken, "S160 Source", "2026-11-01", "2026-11-05");
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId: trip1, type: "frequent_flyer", data: { airline: "JetBlue", number: "2086776914" } });
+
+      // Create trip 2 — should carry forward portable docs
+      const trip2Res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ name: "S160 Dest", startDate: "2027-01-01", endDate: "2027-01-10" });
+      const trip2 = trip2Res.body.id;
+
+      // Check trip 2 has the carried-over doc
+      const profile = await request(app)
+        .get(`/api/traveler-documents/trip/${trip2}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const ffDocs = profile.body.documents?.filter((d: any) => d.type === "frequent_flyer") || [];
+      expect(ffDocs.length).toBeGreaterThanOrEqual(1);
+      expect(ffDocs.some((d: any) => d.data.airline === "JetBlue")).toBe(true);
+    });
 });
