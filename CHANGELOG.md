@@ -1,6 +1,24 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-22 — Identity System: Database-Backed Travelers with Invite Links
+
+### Added
+- **Traveler table**: Users are now stored in the database instead of only in the ACCESS_CODES env var. Existing ACCESS_CODES users are auto-seeded on first boot (idempotent). Login page fetches the traveler list from the API — no more hard-coded names in the frontend.
+- **Invite link system**: Every trip gets a shareable invite link (e.g., `wander.app/join/abc123`). The organizer enters expected guest names, shares the link, and invitees open it and tap their name to join. New travelers are created automatically.
+- **Smart invite security**: Wander tracks expected guests via TripInvite records. Fuzzy name matching (Jaro-Winkler) auto-claims invites. Unexpected joins (someone not on the list) are flagged in server logs. Duplicate joins return gracefully.
+- **Trip membership**: TripMember table tracks who belongs to each trip with roles (owner/member). Trip creator is auto-added as owner.
+- **Members & Invite UI**: New "Travelers" section on Trip Overview shows current members, pending invites, the invite link (with copy button), and a form to add expected guest names.
+- **Join page**: New `/join/:token` page with the Wander design language — shows trip name, expected names as tap-to-join buttons, and a custom name input for others.
+- **14 chaos tests (S161–S174)**: Traveler list, login via DB and ACCESS_CODES, invite creation, join flow (expected/unexpected/duplicate), fuzzy matching, member listing.
+
+### Changed
+- Login page now fetches traveler list from `GET /api/auth/travelers` instead of using a hard-coded array. All users in the Traveler table appear automatically — no code changes needed to add Kyler or anyone else.
+- Login accepts display names directly (e.g., "Ken") in addition to ACCESS_CODES (e.g., "CHAOS1") for backward compatibility.
+- `POST /api/trips` now generates an `inviteToken` and creates a TripMember record for the trip creator.
+
+SPEC UPDATE NEEDED: Identity system (Traveler table, invite links, TripMember, TripInvite) is entirely new and not in SPEC.md. AUTH section needs rewrite.
+
 ## 2026-03-22 — Fix: Chat Fails to Save Frequent Flyer Numbers
 
 ### Fixed

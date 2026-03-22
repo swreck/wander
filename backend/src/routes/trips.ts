@@ -1,5 +1,6 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
+import crypto from "crypto";
 import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
@@ -62,8 +63,16 @@ router.post("/", async (req: AuthRequest, res) => {
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       status: "active",
+      inviteToken: crypto.randomBytes(6).toString("hex"),
     },
   });
+
+  // Add creator as trip owner
+  if (req.user?.travelerId) {
+    await prisma.tripMember.create({
+      data: { tripId: trip.id, travelerId: req.user.travelerId, role: "owner" },
+    });
+  }
 
   // Create cities if provided
   if (cities && Array.isArray(cities)) {
@@ -270,6 +279,97 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   await prisma.trip.delete({ where: { id: req.params.id as string } });
 
   res.json({ deleted: true });
+});
+
+// ── POST /:id/invite ─────────────────────────────────────────
+// Add expected guest names and get/generate the invite link
+router.post("/:id/invite", async (req: AuthRequest, res) => {
+  const { names } = req.body; // string[]
+  const trip = await prisma.trip.findUnique({
+    where: { id: req.params.id as string },
+  });
+  if (!trip) {
+    res.status(404).json({ error: "Trip not found" });
+    return;
+  }
+
+  // Generate invite token if missing
+  let inviteToken = trip.inviteToken;
+  if (!inviteToken) {
+    inviteToken = crypto.randomBytes(6).toString("hex");
+    await prisma.trip.update({
+      where: { id: trip.id },
+      data: { inviteToken },
+    });
+  }
+
+  // Create TripInvite records for each expected name
+  const created: string[] = [];
+  if (names && Array.isArray(names)) {
+    for (const rawName of names) {
+      const expectedName = (rawName as string).trim();
+      if (!expectedName) continue;
+
+      // Skip if already invited (unclaimed)
+      const existing = await prisma.tripInvite.findFirst({
+        where: {
+          tripId: trip.id,
+          expectedName: { equals: expectedName, mode: "insensitive" },
+          claimedByTravelerId: null,
+        },
+      });
+      if (existing) continue;
+
+      await prisma.tripInvite.create({
+        data: { tripId: trip.id, expectedName },
+      });
+      created.push(expectedName);
+    }
+  }
+
+  const protocol = req.get("x-forwarded-proto") || req.protocol;
+  const host = req.get("host");
+  const inviteLink = `${protocol}://${host}/join/${inviteToken}`;
+
+  const invites = await prisma.tripInvite.findMany({
+    where: { tripId: trip.id },
+    orderBy: { createdAt: "asc" },
+  });
+
+  res.json({ inviteLink, inviteToken, invites, created });
+});
+
+// ── GET /:id/members ─────────────────────────────────────────
+// List trip members and pending invites
+router.get("/:id/members", async (req: AuthRequest, res) => {
+  const trip = await prisma.trip.findUnique({
+    where: { id: req.params.id as string },
+    include: {
+      tripMembers: { include: { traveler: true }, orderBy: { joinedAt: "asc" } },
+      tripInvites: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!trip) {
+    res.status(404).json({ error: "Trip not found" });
+    return;
+  }
+
+  const members = trip.tripMembers.map((m) => ({
+    id: m.id,
+    travelerId: m.travelerId,
+    displayName: m.traveler.displayName,
+    role: m.role,
+    joinedAt: m.joinedAt,
+  }));
+
+  const invites = trip.tripInvites.map((i) => ({
+    id: i.id,
+    expectedName: i.expectedName,
+    claimed: !!i.claimedByTravelerId,
+    claimedAt: i.claimedAt,
+  }));
+
+  res.json({ members, invites, inviteToken: trip.inviteToken });
 });
 
 export default router;

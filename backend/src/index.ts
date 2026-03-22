@@ -4,6 +4,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.js";
+import { seedTravelers } from "./services/seedTravelers.js";
 import tripRoutes from "./routes/trips.js";
 import cityRoutes from "./routes/cities.js";
 import dayRoutes from "./routes/days.js";
@@ -64,6 +65,7 @@ app.get("/{*splat}", (_req, res) => {
 
 export { app };
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Wander API running on port ${PORT}`);
+  try { await seedTravelers(); } catch (e: any) { console.error("[seed] Error:", e.message); }
 });

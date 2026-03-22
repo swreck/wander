@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 export interface AuthPayload {
   code: string;
   displayName: string;
+  travelerId?: string;
 }
 
 export interface AuthRequest extends Request {

@@ -8,6 +8,7 @@ import HistoryPage from "./pages/HistoryPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
+import JoinPage from "./pages/JoinPage";
 import OfflineIndicator from "./components/OfflineIndicator";
 import PhraseCard from "./components/PhraseCard";
 import ChatBubble from "./components/ChatBubble";
@@ -186,6 +187,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/join/:token" element={<JoinPage />} />
       <Route path="/" element={<ProtectedRoute><TripOverview /></ProtectedRoute>} />
       <Route path="/plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
       <Route path="/now" element={<ProtectedRoute><NowPage /></ProtectedRoute>} />

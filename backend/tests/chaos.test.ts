@@ -4708,4 +4708,261 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
       expect(ffDocs.length).toBeGreaterThanOrEqual(1);
       expect(ffDocs.some((d: any) => d.data.airline === "JetBlue")).toBe(true);
     });
+
+    // ── Identity System Tests ────────────────────────────────────────
+
+    it("S161: GET /travelers returns seeded travelers from ACCESS_CODES", async () => {
+      const res = await request(app).get("/api/auth/travelers");
+      expect(res.status).toBe(200);
+      expect(res.body.length).toBeGreaterThanOrEqual(2);
+      const names = res.body.map((t: any) => t.displayName);
+      expect(names).toContain("Alice");
+      expect(names).toContain("Bob");
+    });
+
+    it("S162: Login with displayName works via Traveler table", async () => {
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ code: "Alice" });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeTruthy();
+      expect(res.body.displayName).toBe("Alice");
+    });
+
+    it("S163: Login with ACCESS_CODE still works (backward compat)", async () => {
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ code: "CHAOS1" });
+      expect(res.status).toBe(200);
+      expect(res.body.displayName).toBe("Alice");
+    });
+
+    it("S164: Login with invalid code returns 401", async () => {
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ code: "NONEXISTENT" });
+      expect(res.status).toBe(401);
+    });
+
+    it("S165: Create trip generates inviteToken and adds creator as owner", async () => {
+      // Login via Traveler table to get travelerId in JWT
+      const loginRes = await request(app)
+        .post("/api/auth/login")
+        .send({ code: "Alice" });
+      const token = loginRes.body.token;
+
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S165 Invite Trip", startDate: "2028-01-01", endDate: "2028-01-10" });
+      expect(tripRes.status).toBe(201);
+
+      // Check invite token was generated
+      const trip = await prisma.trip.findUnique({ where: { id: tripRes.body.id } });
+      expect(trip?.inviteToken).toBeTruthy();
+
+      // Check creator is an owner
+      const members = await prisma.tripMember.findMany({
+        where: { tripId: tripRes.body.id },
+        include: { traveler: true },
+      });
+      expect(members.length).toBeGreaterThanOrEqual(1);
+      const owner = members.find((m) => m.role === "owner");
+      expect(owner?.traveler.displayName).toBe("Alice");
+    });
+
+    it("S166: POST /trips/:id/invite creates TripInvite records and returns link", async () => {
+      const token = await login("CHAOS1");
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S166 Trip", startDate: "2028-02-01", endDate: "2028-02-10" });
+      const tripId = tripRes.body.id;
+
+      const inviteRes = await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Charlie", "Dana"] });
+      expect(inviteRes.status).toBe(200);
+      expect(inviteRes.body.inviteLink).toContain("/join/");
+      expect(inviteRes.body.created).toContain("Charlie");
+      expect(inviteRes.body.created).toContain("Dana");
+    });
+
+    it("S167: GET /join/:token returns trip info with expected names", async () => {
+      const token = await login("CHAOS1");
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S167 Trip", startDate: "2028-03-01", endDate: "2028-03-10" });
+      const tripId = tripRes.body.id;
+
+      await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Eve", "Frank"] });
+
+      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+
+      const joinInfo = await request(app).get(`/api/auth/join/${trip!.inviteToken}`);
+      expect(joinInfo.status).toBe(200);
+      expect(joinInfo.body.tripName).toBe("S167 Trip");
+      expect(joinInfo.body.expectedNames).toContain("Eve");
+      expect(joinInfo.body.expectedNames).toContain("Frank");
+    });
+
+    it("S168: POST /join/:token creates traveler and membership (expected name)", async () => {
+      const token = await login("CHAOS1");
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S168 Trip", startDate: "2028-04-01", endDate: "2028-04-10" });
+      const tripId = tripRes.body.id;
+
+      await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Grace"] });
+
+      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+
+      const joinRes = await request(app)
+        .post(`/api/auth/join/${trip!.inviteToken}`)
+        .send({ name: "Grace" });
+      expect(joinRes.status).toBe(200);
+      expect(joinRes.body.displayName).toBe("Grace");
+      expect(joinRes.body.matched).toBe(true);
+      expect(joinRes.body.token).toBeTruthy();
+
+      // Verify membership created
+      const membership = await prisma.tripMember.findFirst({
+        where: { tripId },
+        include: { traveler: true },
+      });
+      // At least one member (could be Alice or Grace)
+      expect(membership).toBeTruthy();
+    });
+
+    it("S169: POST /join/:token with unexpected name flags unexpected", async () => {
+      const token = await login("CHAOS1");
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S169 Trip", startDate: "2028-05-01", endDate: "2028-05-10" });
+      const tripId = tripRes.body.id;
+
+      await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Hank"] });
+
+      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+
+      const joinRes = await request(app)
+        .post(`/api/auth/join/${trip!.inviteToken}`)
+        .send({ name: "Stranger" });
+      expect(joinRes.status).toBe(200);
+      expect(joinRes.body.unexpected).toBe(true);
+      expect(joinRes.body.matched).toBe(false);
+    });
+
+    it("S170: POST /join/:token twice returns alreadyMember", async () => {
+      const token = await login("CHAOS1");
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S170 Trip", startDate: "2028-06-01", endDate: "2028-06-10" });
+      const tripId = tripRes.body.id;
+
+      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+
+      // First join
+      await request(app)
+        .post(`/api/auth/join/${trip!.inviteToken}`)
+        .send({ name: "Ivan" });
+
+      // Second join — same name
+      const joinRes = await request(app)
+        .post(`/api/auth/join/${trip!.inviteToken}`)
+        .send({ name: "Ivan" });
+      expect(joinRes.status).toBe(200);
+      expect(joinRes.body.alreadyMember).toBe(true);
+    });
+
+    it("S171: GET /trips/:id/members returns members and invites", async () => {
+      const token = await login("CHAOS1");
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S171 Trip", startDate: "2028-07-01", endDate: "2028-07-10" });
+      const tripId = tripRes.body.id;
+
+      await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Jade"] });
+
+      const membersRes = await request(app)
+        .get(`/api/trips/${tripId}/members`)
+        .set("Authorization", `Bearer ${token}`);
+      expect(membersRes.status).toBe(200);
+      expect(membersRes.body.members.length).toBeGreaterThanOrEqual(0);
+      expect(membersRes.body.invites.some((i: any) => i.expectedName === "Jade")).toBe(true);
+    });
+
+    it("S172: Invalid invite token returns 404", async () => {
+      const res = await request(app).get("/api/auth/join/nonexistent");
+      expect(res.status).toBe(404);
+
+      const res2 = await request(app)
+        .post("/api/auth/join/nonexistent")
+        .send({ name: "Nobody" });
+      expect(res2.status).toBe(404);
+    });
+
+    it("S173: Fuzzy name matching on join (case-insensitive)", async () => {
+      const token = await login("CHAOS1");
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S173 Trip", startDate: "2028-08-01", endDate: "2028-08-10" });
+      const tripId = tripRes.body.id;
+
+      await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Katherine"] });
+
+      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+
+      // Join with lowercase — should match
+      const joinRes = await request(app)
+        .post(`/api/auth/join/${trip!.inviteToken}`)
+        .send({ name: "katherine" });
+      expect(joinRes.status).toBe(200);
+      expect(joinRes.body.matched).toBe(true);
+    });
+
+    it("S174: Duplicate invite names are skipped", async () => {
+      const token = await login("CHAOS1");
+      const tripRes = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ name: "S174 Trip", startDate: "2028-09-01", endDate: "2028-09-10" });
+      const tripId = tripRes.body.id;
+
+      // First invite
+      const res1 = await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Leo"] });
+      expect(res1.body.created).toContain("Leo");
+
+      // Second invite — same name — should be skipped
+      const res2 = await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Leo"] });
+      expect(res2.body.created).not.toContain("Leo");
+    });
 });

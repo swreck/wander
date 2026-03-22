@@ -82,6 +82,7 @@ model Trip {
   status    TripStatus @default(active)
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
+  inviteToken String?  @unique @map("invite_token")
 
   cities            City[]
   days              Day[]
@@ -93,6 +94,8 @@ model Trip {
   travelerProfiles  TravelerProfile[]
   votingSessions    VotingSession[]
   experienceInterests ExperienceInterest[]
+  tripMembers       TripMember[]
+  tripInvites       TripInvite[]
 
   @@map("trips")
 }
@@ -363,4 +366,46 @@ model Vote {
 
   @@unique([sessionId, userCode, optionIndex])
   @@map("votes")
+}
+
+// ── Identity & Invitation System ───────────────────────────────
+
+model Traveler {
+  id          String   @id @default(cuid())
+  displayName String   @unique @map("display_name")
+  pinHash     String?  @map("pin_hash")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tripMembers  TripMember[]
+  tripInvites  TripInvite[]
+
+  @@map("travelers")
+}
+
+model TripMember {
+  id         String   @id @default(cuid())
+  tripId     String   @map("trip_id")
+  travelerId String   @map("traveler_id")
+  role       String   @default("member")
+  joinedAt   DateTime @default(now()) @map("joined_at")
+
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, travelerId])
+  @@map("trip_members")
+}
+
+model TripInvite {
+  id                 String    @id @default(cuid())
+  tripId             String    @map("trip_id")
+  expectedName       String    @map("expected_name")
+  claimedByTravelerId String?  @map("claimed_by_traveler_id")
+  claimedAt          DateTime? @map("claimed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  trip       Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  claimedBy  Traveler? @relation(fields: [claimedByTravelerId], references: [id])
+
+  @@map("trip_invites")
 }

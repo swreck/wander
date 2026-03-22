@@ -2,12 +2,10 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
-const TRAVELERS = [
-  { name: "Ken", code: "Ken" },
-  { name: "Julie", code: "Julie" },
-  { name: "Andy", code: "Andy" },
-  { name: "Larisa", code: "Larisa" },
-];
+interface TravelerOption {
+  id: string;
+  displayName: string;
+}
 
 // Curated travel photos — gorgeous, identifiable but not cliche
 const PHOTOS = [
@@ -24,6 +22,8 @@ export default function LoginPage() {
   const [signing, setSigning] = useState<string | null>(null);
   const [photoIdx] = useState(() => Math.floor(Math.random() * PHOTOS.length));
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [travelers, setTravelers] = useState<TravelerOption[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const img = new Image();
@@ -31,11 +31,24 @@ export default function LoginPage() {
     img.src = PHOTOS[photoIdx];
   }, [photoIdx]);
 
-  async function handleSelect(traveler: { name: string; code: string }) {
+  // Fetch travelers from API
+  useEffect(() => {
+    fetch("/api/auth/travelers")
+      .then((r) => r.json())
+      .then((data: TravelerOption[]) => {
+        setTravelers(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  async function handleSelect(traveler: TravelerOption) {
     setError("");
-    setSigning(traveler.name);
+    setSigning(traveler.displayName);
     try {
-      await login(traveler.code);
+      await login(traveler.displayName);
       navigate("/");
     } catch {
       setError("Couldn't sign in. Try again.");
@@ -69,23 +82,29 @@ export default function LoginPage() {
           Who's wandering?
         </p>
 
-        <div className="grid grid-cols-2 gap-3">
-          {TRAVELERS.map((t) => (
-            <button
-              key={t.name}
-              onClick={() => handleSelect(t)}
-              disabled={signing !== null}
-              className={`py-4 px-3 rounded-xl text-base font-medium transition-all backdrop-blur-md
-                ${signing === t.name
-                  ? "bg-white text-[#3a3128] scale-95"
-                  : "bg-white/15 text-white border border-white/30 hover:bg-white/25 active:scale-95"
-                }
-                disabled:opacity-60`}
-            >
-              {signing === t.name ? "..." : t.name}
-            </button>
-          ))}
-        </div>
+        {loading ? (
+          <div className="text-white/50 text-sm">Loading...</div>
+        ) : travelers.length === 0 ? (
+          <div className="text-white/50 text-sm">No travelers configured yet.</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {travelers.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => handleSelect(t)}
+                disabled={signing !== null}
+                className={`py-4 px-3 rounded-xl text-base font-medium transition-all backdrop-blur-md
+                  ${signing === t.displayName
+                    ? "bg-white text-[#3a3128] scale-95"
+                    : "bg-white/15 text-white border border-white/30 hover:bg-white/25 active:scale-95"
+                  }
+                  disabled:opacity-60`}
+              >
+                {signing === t.displayName ? "..." : t.displayName}
+              </button>
+            ))}
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-red-300 mt-4">{error}</p>

@@ -514,6 +514,9 @@ export default function TripOverview() {
           onNavigate={(cityId) => navigate(`/plan?city=${cityId}`)}
         />
 
+        {/* Trip members & invite */}
+        {trip && <TripMembers tripId={trip.id} />}
+
         {/* Recent activity — collapsed to button, opens modal */}
         {recentActivity.length > 0 && (
           <RecentActivityButton activity={recentActivity} />
@@ -960,6 +963,143 @@ function CandidateDestinations({
         </div>
       ))}
       </>)}
+    </section>
+  );
+}
+
+// ── Trip Members & Invite ────────────────────────────────────────
+
+function TripMembers({ tripId }: { tripId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [members, setMembers] = useState<{ displayName: string; role: string }[]>([]);
+  const [invites, setInvites] = useState<{ expectedName: string; claimed: boolean }[]>([]);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [newNames, setNewNames] = useState("");
+  const [sending, setSending] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function loadMembers() {
+    try {
+      const data = await api.get<{
+        members: { displayName: string; role: string }[];
+        invites: { expectedName: string; claimed: boolean }[];
+        inviteToken: string | null;
+      }>(`/trips/${tripId}/members`);
+      setMembers(data.members);
+      setInvites(data.invites);
+      setInviteToken(data.inviteToken);
+    } catch { /* ignore — might not have members yet */ }
+  }
+
+  useEffect(() => {
+    if (expanded) loadMembers();
+  }, [expanded, tripId]);
+
+  async function handleInvite() {
+    const names = newNames.split(",").map((n) => n.trim()).filter(Boolean);
+    if (names.length === 0) return;
+    setSending(true);
+    try {
+      const data = await api.post<{ inviteLink: string; inviteToken: string }>(`/trips/${tripId}/invite`, { names });
+      setInviteToken(data.inviteToken);
+      setNewNames("");
+      loadMembers();
+    } catch { /* ignore */ }
+    setSending(false);
+  }
+
+  function copyLink() {
+    if (!inviteToken) return;
+    const link = `${window.location.origin}/join/${inviteToken}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const pendingInvites = invites.filter((i) => !i.claimed);
+
+  return (
+    <section className="mb-6">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left flex items-center justify-between mb-2"
+      >
+        <h2 className="text-sm font-medium text-[#3a3128]">
+          Travelers
+          {members.length > 0 && (
+            <span className="ml-2 text-[#a89880] font-normal">{members.length} members</span>
+          )}
+        </h2>
+        <span className="text-sm text-[#a89880]">{expanded ? "\u25B4" : "\u25BE"}</span>
+      </button>
+
+      {expanded && (
+        <div className="p-4 bg-white rounded-lg border border-[#e0d8cc] space-y-3">
+          {/* Current members */}
+          {members.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {members.map((m) => (
+                <span
+                  key={m.displayName}
+                  className="px-3 py-1 rounded-full bg-[#f0ece5] text-sm text-[#3a3128]"
+                >
+                  {m.displayName}
+                  {m.role === "owner" && (
+                    <span className="ml-1 text-xs text-[#a89880]">(organizer)</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Pending invites */}
+          {pendingInvites.length > 0 && (
+            <div className="text-xs text-[#a89880]">
+              Waiting for: {pendingInvites.map((i) => i.expectedName).join(", ")}
+            </div>
+          )}
+
+          {/* Invite link */}
+          {inviteToken && (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 text-xs text-[#8a7a62] bg-[#faf8f5] px-3 py-2 rounded-lg truncate border border-[#f0ece5]">
+                {window.location.origin}/join/{inviteToken}
+              </div>
+              <button
+                onClick={copyLink}
+                className="px-3 py-2 text-xs rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors whitespace-nowrap"
+              >
+                {copied ? "Copied!" : "Copy Link"}
+              </button>
+            </div>
+          )}
+
+          {/* Add names */}
+          <div>
+            <label className="text-xs text-[#8a7a62] block mb-1">
+              Invite travelers (comma-separated names):
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newNames}
+                onChange={(e) => setNewNames(e.target.value)}
+                placeholder="e.g. Kyler, Sarah"
+                className="flex-1 px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-sm text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#514636]/30 placeholder-[#c8bba8]"
+                onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+              />
+              <button
+                onClick={handleInvite}
+                disabled={sending || !newNames.trim()}
+                className="px-4 py-2 rounded-lg bg-[#514636] text-white text-sm hover:bg-[#3a3128] transition-colors disabled:opacity-50"
+              >
+                {sending ? "..." : "Invite"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
