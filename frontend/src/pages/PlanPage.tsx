@@ -859,7 +859,7 @@ export default function PlanPage() {
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Map — always visible on desktop, toggleable on mobile */}
-        <div className={`flex-1 relative ${mobileView !== "map" ? "hidden md:block" : ""}`}>
+        <div className={`flex-1 relative ${mobileView !== "map" ? "hidden lg:block" : ""}`}>
           <MapCanvas
             center={mapCenter}
             experiences={cityExperiences}
@@ -935,7 +935,7 @@ export default function PlanPage() {
                 <div className="text-sm text-[#6b5d4a] leading-snug">
                   <p className="font-medium mb-1">Map view</p>
                   <p>• Swipe days at bottom to navigate</p>
-                  <p>• Tap 🗓️ for activity list</p>
+                  <p>• Tap <strong>List</strong> below for activities</p>
                   <p>• <strong>+ Import</strong> to add plans</p>
                 </div>
                 <button
@@ -949,9 +949,9 @@ export default function PlanPage() {
           )}
 
           {/* Bottom dock: action bar + day filmstrip — single fixed container */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 safe-bottom-nav md:block">
+          <div className="fixed bottom-0 left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 safe-bottom-nav lg:block">
             {/* Action bar — Home, List, Add, Chat (mobile only, compact) */}
-            <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40 md:hidden">
+            <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40 lg:hidden">
               <button onClick={() => navigate("/")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
@@ -1171,7 +1171,7 @@ export default function PlanPage() {
         </div>
 
         {/* Desktop side panel */}
-        <div className="w-96 border-l border-[#f0ece5] bg-white overflow-y-auto hidden md:block">
+        <div className="w-96 border-l border-[#f0ece5] bg-white overflow-y-auto hidden lg:block">
           {showDayView && selectedDay ? (
             <DayView
               day={selectedDay}
@@ -1203,7 +1203,7 @@ export default function PlanPage() {
 
         {/* Mobile list view — full screen when active */}
         {mobileView === "list" && (
-          <div className="fixed inset-0 z-40 bg-[#faf8f5] md:hidden flex flex-col">
+          <div className="fixed inset-0 z-40 bg-[#faf8f5] lg:hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0"
                  style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
               <button
