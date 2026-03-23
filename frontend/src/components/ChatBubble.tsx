@@ -147,6 +147,20 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
   };
 
+  // Catches insertLineBreak on iOS when keyDown doesn't fire
+  const handleBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const nativeEvent = e.nativeEvent as InputEvent;
+    if (nativeEvent.inputType === "insertLineBreak") {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage();
+  };
+
   // Auto-resize textarea to fit content (up to 40% of chat panel)
   const autoResize = useCallback(() => {
     const el = inputRef.current;
@@ -340,7 +354,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         </div>
 
         {/* Input */}
-        <div className="px-3 py-3 border-t border-[#e5ddd0]">
+        <form onSubmit={handleFormSubmit} className="px-3 py-3 border-t border-[#e5ddd0]">
           <div className="flex items-end gap-2">
             <textarea
               ref={inputRef}
@@ -348,6 +362,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               onChange={(e) => { setInput(e.target.value); autoResize(); }}
               onPaste={() => setTimeout(autoResize, 0)}
               onKeyDown={handleKeyDown}
+              onBeforeInput={handleBeforeInput}
+              enterKeyHint="send"
               placeholder="Ask or tell me what to do..."
               disabled={sending}
               rows={1}
@@ -372,7 +388,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               </button>
             )}
             <button
-              onClick={sendMessage}
+              type="submit"
               disabled={sending || !input.trim()}
               className="p-2.5 rounded-xl transition-colors disabled:opacity-30"
               style={{ backgroundColor: "#514636", color: "#faf8f5" }}
@@ -383,7 +399,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               </svg>
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </>
   );
