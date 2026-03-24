@@ -23,6 +23,25 @@ async function neonFetch(path: string, options: RequestInit = {}): Promise<any> 
   return res.json();
 }
 
+async function cleanupStaleBranches(projectId: string, orgId: string): Promise<void> {
+  console.log("[neon-branch] Checking for stale test branches...");
+  const result = await neonFetch(`/projects/${projectId}/branches?org_id=${orgId}`);
+  const branches = result.branches || [];
+  const stale = branches.filter((b: any) => b.name.startsWith("test-"));
+  if (stale.length === 0) {
+    console.log("[neon-branch] No stale branches found.");
+    return;
+  }
+  console.log(`[neon-branch] Found ${stale.length} stale test branch(es), cleaning up...`);
+  for (const b of stale) {
+    console.log(`[neon-branch] Deleting stale branch "${b.name}" (${b.id})...`);
+    await neonFetch(`/projects/${projectId}/branches/${b.id}?org_id=${orgId}`, {
+      method: "DELETE",
+    });
+  }
+  console.log(`[neon-branch] Cleanup complete.`);
+}
+
 export async function createTestBranch(): Promise<string> {
   // Read env vars at call time (after dotenv has loaded)
   apiKey = process.env.NEON_API_KEY || null;
@@ -38,10 +57,12 @@ export async function createTestBranch(): Promise<string> {
     );
   }
 
+  const orgId = process.env.NEON_ORG_ID || "org-little-glitter-64029838";
+  await cleanupStaleBranches(projectId, orgId);
+
   const branchName = `test-${Date.now()}`;
   console.log(`[neon-branch] Creating branch "${branchName}"...`);
 
-  const orgId = process.env.NEON_ORG_ID || "org-little-glitter-64029838";
   const result = await neonFetch(`/projects/${projectId}/branches?org_id=${orgId}`, {
     method: "POST",
     body: JSON.stringify({
