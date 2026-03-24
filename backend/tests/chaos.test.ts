@@ -3386,220 +3386,216 @@ describe("Chaos Simulations", () => {
         .expect(404);
     });
 
-    // ── Voting tests (S109–S116) ──
+    // ── Decision tests (S109–S116) ──
 
-    it("S109: Create voting session and cast votes", async () => {
-      const tripId = await createTrip(aliceToken, "S109 Trip", "2026-11-01", "2026-11-05");
+    it("S109: Create decision and add options", async () => {
+      const tripId = await createTrip(aliceToken, "S109 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
 
-      const session = await request(app)
-        .post("/api/voting")
+      const dec = await request(app)
+        .post("/api/decisions")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({
-          tripId,
-          question: "Which ramen shop?",
-          options: [
-            { name: "Ichiran", description: "Tonkotsu classic" },
-            { name: "Fuunji", description: "Tsukemen style" },
-          ],
-        });
-      expect(session.status).toBe(201);
-      expect(session.body.id).toBeTruthy();
-      expect(session.body.status).toBe("open");
+        .send({ tripId, cityId, title: "Where to eat?" });
+      expect(dec.status).toBe(201);
+      expect(dec.body.status).toBe("open");
+      expect(dec.body.title).toBe("Where to eat?");
+
+      // Add option by name
+      const opt = await request(app)
+        .post(`/api/decisions/${dec.body.id}/options`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ name: "Ichiran Ramen" });
+      expect(opt.status).toBe(200);
+      expect(opt.body.options.length).toBe(1);
+      expect(opt.body.options[0].name).toBe("Ichiran Ramen");
+    });
+
+    it("S110: Vote on decision — one vote per person", async () => {
+      const tripId = await createTrip(aliceToken, "S110 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Kyoto", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
+
+      const dec = await request(app)
+        .post("/api/decisions")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, title: "Temple pick?" });
+
+      // Add two options
+      await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Kinkaku-ji" });
+      const updated = await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Fushimi Inari" });
+      const optionId = updated.body.options[0].id;
 
       // Alice votes
-      const voteRes = await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
+      const vote = await request(app)
+        .post(`/api/decisions/${dec.body.id}/vote`)
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({
-          votes: [
-            { optionIndex: 0, preference: "yes" },
-            { optionIndex: 1, preference: "maybe" },
-          ],
-        });
-      expect(voteRes.status).toBe(200);
+        .send({ optionId });
+      expect(vote.status).toBe(200);
 
-      // Get results
-      const results = await request(app)
-        .get(`/api/voting/${session.body.id}`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      expect(results.status).toBe(200);
-      expect(results.body.results).toBeTruthy();
-      expect(results.body.results[0].yes).toBe(1);
-      expect(results.body.results[1].maybe).toBe(1);
+      // Alice changes vote — should upsert, not duplicate
+      const vote2 = await request(app)
+        .post(`/api/decisions/${dec.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ optionId: updated.body.options[1].id });
+      expect(vote2.status).toBe(200);
+
+      // Check — should be exactly 1 vote total
+      const check = await request(app).get(`/api/decisions/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const d = check.body.find((x: any) => x.id === dec.body.id);
+      expect(d.votes.length).toBe(1);
     });
 
-    it("S110: Two users vote on same session — tallies combine", async () => {
-      const tripId = await createTrip(aliceToken, "S110 Trip", "2026-11-01", "2026-11-05");
+    it("S111: Happy-with-any vote (null optionId)", async () => {
+      const tripId = await createTrip(aliceToken, "S111 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Osaka", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
 
-      const session = await request(app)
-        .post("/api/voting")
+      const dec = await request(app)
+        .post("/api/decisions")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({
-          tripId,
-          question: "Day trip destination?",
-          options: [{ name: "Nikko" }, { name: "Kamakura" }],
-        });
+        .send({ tripId, cityId, title: "Dinner spot?" });
+      await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Sushi Dai" });
 
-      // Alice votes yes on Nikko
-      await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
+      // Vote with null = happy with any
+      const vote = await request(app)
+        .post(`/api/decisions/${dec.body.id}/vote`)
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "yes" }, { optionIndex: 1, preference: "no" }] })
-        .expect(200);
-
-      // Bob votes yes on Kamakura
-      await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
-        .set("Authorization", `Bearer ${bobToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "no" }, { optionIndex: 1, preference: "yes" }] })
-        .expect(200);
-
-      const results = await request(app)
-        .get(`/api/voting/${session.body.id}`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      expect(results.body.results[0].yes).toBe(1);
-      expect(results.body.results[0].no).toBe(1);
-      expect(results.body.results[1].yes).toBe(1);
-      expect(results.body.results[1].no).toBe(1);
+        .send({});
+      expect(vote.status).toBe(200);
+      expect(vote.body.optionId).toBeNull();
     });
 
-    it("S111: User changes vote — upsert replaces old vote", async () => {
-      const tripId = await createTrip(aliceToken, "S111 Trip", "2026-11-01", "2026-11-05");
+    it("S112: Resolve decision — winners to selected, others to possible", async () => {
+      const tripId = await createTrip(aliceToken, "S112 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
 
-      const session = await request(app)
-        .post("/api/voting")
+      const dec = await request(app)
+        .post("/api/decisions")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({
-          tripId,
-          question: "Dinner spot?",
-          options: [{ name: "Sushi Dai" }],
-        });
+        .send({ tripId, cityId, title: "Which ramen?" });
 
-      // Vote no first
-      await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
+      await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Winner Ramen" });
+      const updated = await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Loser Ramen" });
+      const winnerId = updated.body.options.find((o: any) => o.name === "Winner Ramen").id;
+
+      const resolve = await request(app)
+        .post(`/api/decisions/${dec.body.id}/resolve`)
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "no" }] })
-        .expect(200);
+        .send({ winnerIds: [winnerId] });
+      expect(resolve.status).toBe(200);
+      expect(resolve.body.winners).toContain("Winner Ramen");
 
-      // Change to yes
-      await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "yes" }] })
-        .expect(200);
-
-      const results = await request(app)
-        .get(`/api/voting/${session.body.id}`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      // Should be 1 yes, 0 no (not 1 yes + 1 no)
-      expect(results.body.results[0].yes).toBe(1);
-      expect(results.body.results[0].no).toBe(0);
+      // Check experience states
+      const exps = await request(app).get(`/api/experiences/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const winner = exps.body.find((e: any) => e.name === "Winner Ramen");
+      const loser = exps.body.find((e: any) => e.name === "Loser Ramen");
+      expect(winner.state).toBe("selected");
+      expect(loser.state).toBe("possible");
     });
 
-    it("S112: Close voting session — no further votes accepted", async () => {
-      const tripId = await createTrip(aliceToken, "S112 Trip", "2026-11-01", "2026-11-05");
+    it("S113: Delete decision returns options to possible", async () => {
+      const tripId = await createTrip(aliceToken, "S113 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Nara", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
 
-      const session = await request(app)
-        .post("/api/voting")
+      const dec = await request(app)
+        .post("/api/decisions")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({
-          tripId,
-          question: "Which temple first?",
-          options: [{ name: "Kinkaku-ji" }],
-        });
+        .send({ tripId, cityId, title: "Cancel me" });
+      await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Orphan Option" });
 
-      // Close it
       await request(app)
-        .post(`/api/voting/${session.body.id}/close`)
+        .delete(`/api/decisions/${dec.body.id}`)
         .set("Authorization", `Bearer ${aliceToken}`)
         .expect(200);
 
-      // Try to vote on closed session
-      const voteRes = await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "yes" }] });
-      expect(voteRes.status).toBe(400);
+      // Option should be back to possible
+      const exps = await request(app).get(`/api/experiences/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const orphan = exps.body.find((e: any) => e.name === "Orphan Option");
+      expect(orphan.state).toBe("possible");
+      expect(orphan.decisionId).toBeNull();
     });
 
-    it("S113: Get open sessions for a trip — only open ones returned", async () => {
-      const tripId = await createTrip(aliceToken, "S113 Trip", "2026-11-01", "2026-11-05");
-
-      const s1 = await request(app)
-        .post("/api/voting")
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ tripId, question: "Q1?", options: [{ name: "A" }] });
-
-      const s2 = await request(app)
-        .post("/api/voting")
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ tripId, question: "Q2?", options: [{ name: "B" }] });
-
-      // Close s1
+    it("S114: Vote on non-existent decision returns 404", async () => {
       await request(app)
-        .post(`/api/voting/${s1.body.id}/close`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-
-      const openSessions = await request(app)
-        .get(`/api/voting/trip/${tripId}`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      expect(openSessions.body.length).toBe(1);
-      expect(openSessions.body[0].id).toBe(s2.body.id);
-    });
-
-    it("S114: Vote on non-existent session returns 404", async () => {
-      await request(app)
-        .post("/api/voting/nonexistent-id/vote")
+        .post("/api/decisions/nonexistent-id/vote")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "yes" }] })
+        .send({ optionId: null })
         .expect(404);
     });
 
-    it("S115: Voting session survives trip with many operations", async () => {
+    it("S115: Cannot add options to resolved decision", async () => {
       const tripId = await createTrip(aliceToken, "S115 Trip", "2026-11-01", "2026-11-05", [
-        { name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+        { name: "Hiroshima", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
       ]);
-
-      // Create voting session
-      const session = await request(app)
-        .post("/api/voting")
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ tripId, question: "Activity?", options: [{ name: "X" }, { name: "Y" }] });
-
-      // Do some trip mutations
-      const cities = await request(app)
-        .get(`/api/cities/trip/${tripId}`)
-        .set("Authorization", `Bearer ${aliceToken}`);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
       const cityId = cities.body[0].id;
 
-      await request(app)
-        .post("/api/experiences")
+      const dec = await request(app)
+        .post("/api/decisions")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ tripId, cityId, name: "Random Place" });
+        .send({ tripId, cityId, title: "Resolved already" });
 
-      // Voting session should still be accessible
-      const check = await request(app)
-        .get(`/api/voting/${session.body.id}`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      expect(check.status).toBe(200);
-      expect(check.body.question).toBe("Activity?");
+      // Resolve with no winners
+      await request(app)
+        .post(`/api/decisions/${dec.body.id}/resolve`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ winnerIds: [] });
+
+      // Try to add option — should fail
+      const res = await request(app)
+        .post(`/api/decisions/${dec.body.id}/options`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ name: "Too late" });
+      expect(res.status).toBe(400);
     });
 
-    it("S116: Vote with invalid option index is handled gracefully", async () => {
-      const tripId = await createTrip(aliceToken, "S116 Trip", "2026-11-01", "2026-11-05");
+    it("S116: Two users vote on same decision — both recorded", async () => {
+      const tripId = await createTrip(aliceToken, "S116 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Kobe", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
 
-      const session = await request(app)
-        .post("/api/voting")
+      const dec = await request(app)
+        .post("/api/decisions")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ tripId, question: "Q?", options: [{ name: "Only option" }] });
+        .send({ tripId, cityId, title: "Beef or seafood?" });
+      const opt1 = await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Kobe Beef" });
+      await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Seafood" });
 
-      // Vote on index 5 (doesn't exist) — should still work (DB stores it)
-      const res = await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
+      const beefId = opt1.body.options[0].id;
+
+      // Alice votes beef
+      await request(app)
+        .post(`/api/decisions/${dec.body.id}/vote`)
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [{ optionIndex: 5, preference: "yes" }] });
-      expect(res.status).toBe(200);
+        .send({ optionId: beefId })
+        .expect(200);
+
+      // Bob votes happy with any
+      await request(app)
+        .post(`/api/decisions/${dec.body.id}/vote`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({})
+        .expect(200);
+
+      // Check — should be 2 votes
+      const check = await request(app).get(`/api/decisions/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const d = check.body.find((x: any) => x.id === dec.body.id);
+      expect(d.votes.length).toBe(2);
     });
 
     // ── Tabelog / Ratings tests (S117–S118) ──
@@ -3985,90 +3981,75 @@ describe("Chaos Simulations", () => {
 
     // ── cast_vote tool path ──
 
-    it("S134: Vote, change mind, re-vote — only latest vote counts", async () => {
-      const tripId = await createTrip(aliceToken, "S134 Trip", "2026-11-01", "2026-11-05");
+    it("S134: Decision vote change mind — upsert replaces previous pick", async () => {
+      const tripId = await createTrip(aliceToken, "S134 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
 
-      const session = await request(app)
-        .post("/api/voting")
+      const dec = await request(app)
+        .post("/api/decisions")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({
-          tripId,
-          question: "Sushi or ramen tonight?",
-          options: [{ name: "Sushi Dai" }, { name: "Fuunji" }, { name: "Skip dinner" }],
-        });
+        .send({ tripId, cityId, title: "Sushi or ramen?" });
 
-      // Alice votes: yes, no, maybe
+      await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Sushi" });
+      const updated = await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Ramen" });
+      const sushiId = updated.body.options.find((o: any) => o.name === "Sushi").id;
+      const ramenId = updated.body.options.find((o: any) => o.name === "Ramen").id;
+
+      // Vote sushi first
       await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
+        .post(`/api/decisions/${dec.body.id}/vote`)
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [
-          { optionIndex: 0, preference: "yes" },
-          { optionIndex: 1, preference: "no" },
-          { optionIndex: 2, preference: "maybe" },
-        ]})
+        .send({ optionId: sushiId })
         .expect(200);
 
-      // Alice changes mind: no, yes, no
+      // Change to ramen
       await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
+        .post(`/api/decisions/${dec.body.id}/vote`)
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [
-          { optionIndex: 0, preference: "no" },
-          { optionIndex: 1, preference: "yes" },
-          { optionIndex: 2, preference: "no" },
-        ]})
+        .send({ optionId: ramenId })
         .expect(200);
 
-      // Check results — should reflect the LATEST votes only
-      const results = await request(app)
-        .get(`/api/voting/${session.body.id}`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      expect(results.body.results[0].no).toBe(1);
-      expect(results.body.results[0].yes).toBe(0);
-      expect(results.body.results[1].yes).toBe(1);
-      expect(results.body.results[1].no).toBe(0);
-      expect(results.body.results[2].no).toBe(1);
-      expect(results.body.results[2].maybe).toBe(0);
+      // Should be 1 vote for ramen, 0 for sushi
+      const check = await request(app).get(`/api/decisions/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const d = check.body.find((x: any) => x.id === dec.body.id);
+      expect(d.votes.length).toBe(1);
+      expect(d.votes[0].optionId).toBe(ramenId);
     });
 
-    it("S135: Multiple users vote then one changes — tallies stay correct", async () => {
-      const tripId = await createTrip(aliceToken, "S135 Trip", "2026-11-01", "2026-11-05");
+    it("S135: Two users vote on decision, one changes — counts correct", async () => {
+      const tripId = await createTrip(aliceToken, "S135 Trip", "2026-11-01", "2026-11-05", [
+        { name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      ]);
+      const cities = await request(app).get(`/api/cities/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const cityId = cities.body[0].id;
 
-      const session = await request(app)
-        .post("/api/voting")
+      const dec = await request(app)
+        .post("/api/decisions")
         .set("Authorization", `Bearer ${aliceToken}`)
-        .send({
-          tripId,
-          question: "Morning or afternoon temple visit?",
-          options: [{ name: "Morning" }, { name: "Afternoon" }],
-        });
+        .send({ tripId, cityId, title: "Morning or afternoon?" });
 
-      // Alice: morning yes, afternoon no
-      await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "yes" }, { optionIndex: 1, preference: "no" }] });
+      await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Morning" });
+      const updated = await request(app).post(`/api/decisions/${dec.body.id}/options`).set("Authorization", `Bearer ${aliceToken}`).send({ name: "Afternoon" });
+      const morningId = updated.body.options.find((o: any) => o.name === "Morning").id;
+      const afternoonId = updated.body.options.find((o: any) => o.name === "Afternoon").id;
 
-      // Bob: morning no, afternoon yes
-      await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
-        .set("Authorization", `Bearer ${bobToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "no" }, { optionIndex: 1, preference: "yes" }] });
+      // Alice votes morning
+      await request(app).post(`/api/decisions/${dec.body.id}/vote`).set("Authorization", `Bearer ${aliceToken}`).send({ optionId: morningId });
+      // Bob votes afternoon
+      await request(app).post(`/api/decisions/${dec.body.id}/vote`).set("Authorization", `Bearer ${bobToken}`).send({ optionId: afternoonId });
 
-      // Tied 1-1. Now Alice switches to afternoon
-      await request(app)
-        .post(`/api/voting/${session.body.id}/vote`)
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ votes: [{ optionIndex: 0, preference: "no" }, { optionIndex: 1, preference: "yes" }] });
+      // Alice changes to afternoon
+      await request(app).post(`/api/decisions/${dec.body.id}/vote`).set("Authorization", `Bearer ${aliceToken}`).send({ optionId: afternoonId });
 
-      const results = await request(app)
-        .get(`/api/voting/${session.body.id}`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      // Morning: 0 yes, 2 no. Afternoon: 2 yes, 0 no.
-      expect(results.body.results[0].yes).toBe(0);
-      expect(results.body.results[0].no).toBe(2);
-      expect(results.body.results[1].yes).toBe(2);
-      expect(results.body.results[1].no).toBe(0);
+      const check = await request(app).get(`/api/decisions/trip/${tripId}`).set("Authorization", `Bearer ${aliceToken}`);
+      const d = check.body.find((x: any) => x.id === dec.body.id);
+      expect(d.votes.length).toBe(2);
+      // Both should now be on afternoon
+      const afternoonVotes = d.votes.filter((v: any) => v.optionId === afternoonId);
+      expect(afternoonVotes.length).toBe(2);
     });
 
     // ── get_ratings tool path ──

@@ -77,33 +77,6 @@ export interface InterestReaction {
   createdAt: string;
 }
 
-export interface VotingSession {
-  id: string;
-  tripId: string;
-  question: string;
-  options: { name: string; description?: string }[];
-  status: "open" | "closed";
-  createdBy: string;
-  createdAt: string;
-  votes?: Vote[];
-  results?: VoteOptionResult[];
-}
-
-export interface Vote {
-  id: string;
-  sessionId: string;
-  userCode: string;
-  optionIndex: number;
-  preference: "yes" | "maybe" | "no";
-}
-
-export interface VoteOptionResult {
-  name: string;
-  description?: string;
-  yes: number;
-  maybe: number;
-  no: number;
-}
 
 export interface TransitRoute {
   departureTime: string;

@@ -1,6 +1,20 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Old Voting Removal, Decision Nudge, City Selector Fix
+
+### Removed
+- **Old voting system** — `VotingCard.tsx`, `voting.ts` route, `VotingSession`/`Vote`/`VoteOptionResult` types all deleted. The card-stack vote UI is fully replaced by the inline Decide Together section. Old voting tests (S109-S116) replaced with 8 decision system tests.
+
+### Added
+- **3-day decision nudge** — Decisions open longer than 3 days get a stronger amber border and "Open N days — time to decide?" prompt, nudging the group to resolve.
+- **8 decision chaos tests** (S109-S116) — Create decision, vote (upsert), happy-with-any, resolve (winner/loser states), delete (options return to possible), 404 on missing, reject options on resolved, two-user voting.
+
+### Changed
+- **City selector in Manual entry** — Replaced horizontal scrolling pill buttons (bad UX with many cities, names cut off) with a native dropdown select. Full city names visible, works on all screen sizes.
+
+SPEC UPDATE NEEDED: Voting section — old preference voting system removed, replaced by Decide Together.
+
 ## 2026-03-24 — Group Decision System
 
 ### Added

@@ -75,21 +75,18 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
         </div>
 
         {/* City selector */}
-        <div className="flex gap-1 mb-3 overflow-x-auto">
+        <select
+          value={cityId}
+          onChange={(e) => setCityId(e.target.value)}
+          className="w-full mb-3 px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
+                     text-[#3a3128] text-sm appearance-none
+                     focus:outline-none focus:ring-2 focus:ring-[#a89880]"
+          style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23a89880' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")", backgroundPosition: "right 0.5rem center", backgroundRepeat: "no-repeat", backgroundSize: "1.5em 1.5em", paddingRight: "2.5rem" }}
+        >
           {trip.cities.map((city) => (
-            <button
-              key={city.id}
-              onClick={() => setCityId(city.id)}
-              className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors ${
-                cityId === city.id
-                  ? "bg-[#514636] text-white"
-                  : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
-              }`}
-            >
-              {city.name}
-            </button>
+            <option key={city.id} value={city.id}>{city.name}</option>
           ))}
-        </div>
+        </select>
 
         <div className="space-y-3">
           <input

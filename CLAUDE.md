@@ -96,7 +96,7 @@ The AI chat assistant should be able to perform any data operation the UI can. W
 2. A `case` in the `executeTool` switch
 3. A numbered rule in the system prompt explaining when to use it
 
-Current tool count: 55. Categories:
+Current tool count: 52. Categories:
 - **Trip lifecycle**: create_trip, update_trip, shift_trip_dates, get_trip_summary
 - **City CRUD**: add_city, update_city, update_city_dates, delete_city, reorder_cities, hide_city, restore_city, list_hidden_cities
 - **Day operations**: create_day, delete_day, get_day_details, get_all_days, update_day_notes, update_day_date, reassign_day, share_day_plan, bulk_update_days
@@ -106,7 +106,7 @@ Current tool count: 55. Categories:
 - **Route segments**: add_route_segment, update_route_segment, delete_route_segment
 - **Traveler documents**: save_travel_document, save_travel_documents_bulk, update_travel_document, delete_travel_document, get_my_documents, get_shared_documents, check_travel_readiness
 - **Decisions**: create_decision, add_decision_option, cast_decision_vote, resolve_decision, get_open_decisions
-- **Voting (legacy)**: create_vote, cast_vote, get_vote_results
+
 - **Ratings**: set_tabelog_rating, get_ratings
 - **Transit**: check_transit_status, search_train_schedules
 - **Travel**: get_travel_time

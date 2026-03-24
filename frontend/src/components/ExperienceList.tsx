@@ -679,8 +679,18 @@ function DecisionGroup({
     ? decision.options.filter((o) => (voteCounts.get(o.id)?.voters.length || 0) === maxVotes).map((o) => o.id)
     : [];
 
+  // 3-day nudge
+  const ageMs = Date.now() - new Date(decision.createdAt).getTime();
+  const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+  const isStale = ageDays >= 3;
+
   return (
-    <div className="rounded-lg border-2 border-amber-200 bg-amber-50/50 p-2.5">
+    <div className={`rounded-lg border-2 p-2.5 ${isStale ? "border-amber-400 bg-amber-100/60" : "border-amber-200 bg-amber-50/50"}`}>
+      {isStale && (
+        <div className="text-xs text-amber-700 mb-1.5 font-medium">
+          Open {ageDays} days — time to decide?
+        </div>
+      )}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-amber-700">{decision.title}</span>
         <button
