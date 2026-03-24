@@ -192,7 +192,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
     voiceTranscriptRef.current = "";
@@ -202,33 +202,43 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         .map((r: any) => r[0].transcript)
         .join("");
       setInput(transcript);
-      // Track if we have a final result
-      const lastResult = event.results[event.results.length - 1];
-      if (lastResult.isFinal) {
-        voiceTranscriptRef.current = transcript;
+      // Track final results as they come in
+      const finals = Array.from(event.results)
+        .filter((r: any) => r.isFinal)
+        .map((r: any) => r[0].transcript)
+        .join("");
+      if (finals) {
+        voiceTranscriptRef.current = finals;
       }
     };
 
     recognition.onend = () => {
       setListening(false);
       // Auto-send the final transcript
-      const finalText = voiceTranscriptRef.current.trim();
+      const finalText = (voiceTranscriptRef.current || (document.querySelector<HTMLTextAreaElement>(".chat-voice-input")?.value ?? "")).trim();
       if (finalText) {
-        // Small delay so state updates settle
         setTimeout(() => {
           setInput("");
           setMessages((prev) => [...prev, { role: "user", text: finalText }]);
-          // Trigger send directly with the transcript
           sendMessage(finalText);
         }, 100);
       }
     };
 
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = (event: any) => {
+      setListening(false);
+      if (event.error === "not-allowed") {
+        alert("Microphone access was denied. Check your browser settings to allow it.");
+      }
+    };
 
     recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
   }, [listening, sendMessage]);
 
   const hasSpeechRecognition = typeof window !== "undefined" &&
