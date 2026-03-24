@@ -885,7 +885,7 @@ export default function PlanPage() {
             <div className="absolute left-2 right-2 z-10 pointer-events-none flex justify-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
               <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-3 py-2 pointer-events-auto max-w-sm">
                 <div className="text-xs font-medium text-[#3a3128]">
-                  {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                  {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })}
                   {" — "}
                   {selectedDay.city.name}
                   {selectedDay.city.tagline && (
@@ -1018,8 +1018,8 @@ export default function PlanPage() {
                 const isTravel = prevDay && prevDay.cityId !== day.cityId;
                 const prevColor = isTravel ? getCityPastel(trip.cities, prevDay.cityId) : null;
 
-                const dayOfWeek = new Date(day.date).toLocaleDateString("en-US", { weekday: "short" });
-                const dateLabel = new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                const dayOfWeek = new Date(day.date).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+                const dateLabel = new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
                 return (
                   <button
@@ -1441,5 +1441,5 @@ function buildShortLabel(trip: Trip): string {
 }
 
 function formatShortDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }

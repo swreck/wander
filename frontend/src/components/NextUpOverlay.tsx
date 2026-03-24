@@ -27,7 +27,8 @@ export function setNextUpEnabled(enabled: boolean) {
 }
 
 function parseTimeWindow(tw: string, dayDate: string): Date | null {
-  const day = new Date(dayDate);
+  const dateStr = dayDate.split("T")[0];
+  const day = new Date(dateStr + "T12:00:00");
   const lower = tw.toLowerCase();
   if (lower === "morning") { day.setHours(9, 0, 0, 0); return day; }
   if (lower === "afternoon") { day.setHours(14, 0, 0, 0); return day; }

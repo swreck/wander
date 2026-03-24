@@ -225,7 +225,7 @@ function SegmentCard({
           <div className="text-sm text-amber-700">
             {segment.transportMode.charAt(0).toUpperCase() + segment.transportMode.slice(1)}
             {segment.serviceNumber && ` \u00B7 ${segment.serviceNumber}`}
-            {segment.departureDate && ` \u00B7 ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+            {segment.departureDate && ` \u00B7 ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`}
           </div>
           {(segment.departureTime || segment.arrivalTime) && (
             <div className="text-sm text-amber-600">

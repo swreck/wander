@@ -354,7 +354,7 @@ export default function ExperienceDetail({
                   <div className="flex gap-1 overflow-x-auto pb-1">
                     {days.map((d) => {
                       const isMatchCity = exp ? d.cityId === exp.cityId : false;
-                      const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+                      const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" });
                       const cityAbbr = d.city.name.slice(0, 3).toUpperCase();
                       return (
                         <button

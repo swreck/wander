@@ -11,13 +11,13 @@ interface Phrase {
 }
 
 const DEFAULT_PHRASES: Omit<Phrase, "id" | "addedBy">[] = [
-  { english: "Hello", romaji: "Konnichiwa" },
-  { english: "Thank you", romaji: "Arigatou gozaimasu" },
-  { english: "Yes please", romaji: "Hai, onegaishimasu" },
-  { english: "No thank you", romaji: "Iie, kekkou desu" },
-  { english: "How much?", romaji: "Ikura desu ka?" },
-  { english: "Excuse me", romaji: "Sumimasen" },
-  { english: "Check please", romaji: "Okaikei onegaishimasu" },
+  { english: "Hello (Koh-nee-chee-wah)", romaji: "Konnichiwa" },
+  { english: "Thank you (Ah-ree-gah-toh go-zah-ee-mahs)", romaji: "Arigatou gozaimasu" },
+  { english: "Yes please (Hai, oh-neh-guy-shee-mahs)", romaji: "Hai, onegaishimasu" },
+  { english: "No thank you (Ee-eh, kek-koh dess)", romaji: "Iie, kekkou desu" },
+  { english: "How much? (Ee-koo-rah dess kah?)", romaji: "Ikura desu ka?" },
+  { english: "Excuse me (Sue-mee-mah-sen)", romaji: "Sumimasen" },
+  { english: "Check please (Oh-kai-keh oh-neh-guy-shee-mahs)", romaji: "Okaikei onegaishimasu" },
 ];
 
 const ORDER_KEY = "wander:phrase-order";  // local ordering
@@ -155,9 +155,12 @@ export default function PhraseCard() {
     <>
       <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setOpen(false)} />
       <div
-        className="fixed z-40 inset-x-0 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border-t border-[#e5ddd0] flex flex-col"
+        className="fixed z-40 left-1/2 -translate-x-1/2 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border border-b-0 border-[#e5ddd0] flex flex-col"
         style={{
           maxHeight: "50vh",
+          maxWidth: "340px",
+          width: "auto",
+          minWidth: "280px",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >

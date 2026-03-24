@@ -537,7 +537,7 @@ function SortablePossibleItem({
             </div>
             <div className="flex gap-1 overflow-x-auto pb-1">
               {showDays.map((d) => {
-                const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+                const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" });
                 return (
                   <button
                     key={d.id}
@@ -767,7 +767,7 @@ export default function ExperienceList({
               </div>
               <div className="flex gap-1 overflow-x-auto pb-1">
                 {showDays.map((d) => {
-                  const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+                  const shortDate = new Date(d.date).toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" });
                   return (
                     <button
                       key={d.id}
@@ -870,7 +870,7 @@ export default function ExperienceList({
 }
 
 function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 function ratingBorderClass(exp: Experience): string {

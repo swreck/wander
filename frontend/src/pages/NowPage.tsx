@@ -373,7 +373,7 @@ export default function NowPage() {
             Today
           </h2>
           <h1 className="text-2xl font-light text-[#3a3128]">
-            {new Date(today.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            {new Date(today.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}
           </h1>
           <p className="text-sm text-[#8a7a62] mt-1">
             {today.city.name}
@@ -756,7 +756,8 @@ function buildAlarmLink(time: Date): string {
 }
 
 function parseTimeWindow(tw: string, dayDate: string): Date | null {
-  const day = new Date(dayDate);
+  const dateStr = dayDate.split("T")[0];
+  const day = new Date(dateStr + "T12:00:00");
   const lower = tw.toLowerCase();
   if (lower === "morning") { day.setHours(9, 0); return day; }
   if (lower === "afternoon") { day.setHours(14, 0); return day; }
@@ -779,7 +780,7 @@ function parseTimeWindow(tw: string, dayDate: string): Date | null {
 
 function sharePlan(day: Day, exps: Experience[], reservations: any[], accommodations: any[], showToast: (msg: string, type?: string) => void) {
   const date = new Date(day.date).toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
+    weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC",
   });
 
   let text = `${date}\n${day.city.name}\n`;

@@ -330,7 +330,7 @@ export default function DayView({
   const { showToast } = useToast();
   const dayDate = new Date(day.date);
   const formattedDate = dayDate.toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric",
+    weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
   });
 
   // Selected experiences for this day
@@ -383,7 +383,7 @@ export default function DayView({
       for (const adj of adjacent) {
         const adjCount = experiences.filter(e => e.state === "selected" && e.dayId === adj.id).length;
         if (adjCount <= 1) {
-          const adjDate = new Date(adj.date).toLocaleDateString("en-US", { weekday: "long" });
+          const adjDate = new Date(adj.date).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
           alerts.push({
             key: `density-${day.id}-${adj.id}`,
             message: `${selectedForDay.length} planned here — ${adjDate} is open. Consider spreading out.`,

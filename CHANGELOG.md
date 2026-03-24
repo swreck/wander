@@ -1,6 +1,15 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Timezone Fix, Phrase Panel Polish
+
+### Fixed
+- **All dates display correctly regardless of user timezone** — Previously, UTC midnight dates (e.g., Oct 1) displayed as the previous day (Sept 30) for users in US timezones. Fixed across all 8 frontend files (~20 call sites) by adding `timeZone: "UTC"` to every date formatter. Affects: nav strip, day cards, overview calendar, Now page, day picker, route segments.
+
+### Changed
+- **Phrase panel width** — Panel is now compact (280-340px centered) instead of full-width. Delete button no longer stranded far from content.
+- **Phrase pronunciations** — Default phrases now include English syllable-by-syllable pronunciation guides in parentheses (e.g., "Hello (Koh-nee-chee-wah)").
+
 ## 2026-03-24 — Day Trip Rule, Data Cleanup
 
 ### Changed

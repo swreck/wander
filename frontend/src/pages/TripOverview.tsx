@@ -100,7 +100,7 @@ export default function TripOverview() {
   }
 
   function formatDate(d: string) {
-    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
   }
 
   function nights(arrival: string | null, departure: string | null): number {
@@ -719,11 +719,11 @@ function CalendarCluster({
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   // Month header
-  const monthLabel = firstDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  const endMonthLabel = lastDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthLabel = firstDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const endMonthLabel = lastDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   const headerLabel = monthLabel === endMonthLabel
     ? monthLabel
-    : `${firstDate.toLocaleDateString("en-US", { month: "short" })} — ${lastDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`;
+    : `${firstDate.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })} — ${lastDate.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}`;
 
   return (
     <div className="mb-4">
