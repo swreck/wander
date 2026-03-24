@@ -12,60 +12,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Wander</title>
     <style>
-      /* Inline critical styles so the first paint is already correct —
-         no flash of white or unstyled content before CSS/JS loads */
       html, body { margin: 0; padding: 0; background: #3a3128; }
-      #shell {
-        min-height: 100dvh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-end;
-        position: relative;
-        overflow: hidden;
-        background: #3a3128;
-      }
-      #shell .gradient {
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.2), transparent);
-      }
-      #shell .content {
-        position: relative;
-        z-index: 10;
-        width: 100%;
-        max-width: 20rem;
-        text-align: center;
-        padding: 0 1rem;
-        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
-      }
-      #shell h1 {
-        font-family: system-ui, -apple-system, sans-serif;
-        font-size: 2.25rem;
-        font-weight: 300;
-        letter-spacing: -0.025em;
-        color: white;
-        margin: 0 0 0.25rem;
-      }
-      #shell p {
-        font-family: system-ui, -apple-system, sans-serif;
-        font-size: 0.875rem;
-        color: rgba(255,255,255,0.7);
-        margin: 0;
-      }
     </style>
   </head>
   <body>
-    <div id="root">
-      <!-- Static shell: visible instantly on first paint, replaced when React mounts -->
-      <div id="shell">
-        <div class="gradient"></div>
-        <div class="content">
-          <h1>Wander</h1>
-          <p>Who's wandering?</p>
-        </div>
-      </div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
