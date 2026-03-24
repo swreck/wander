@@ -17,7 +17,9 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Only show loading state if there's a token to verify.
+  // No token = skip straight to login page (no intermediate null render).
+  const [loading, setLoading] = useState(() => !!localStorage.getItem("wander_token"));
 
   useEffect(() => {
     const token = localStorage.getItem("wander_token");
