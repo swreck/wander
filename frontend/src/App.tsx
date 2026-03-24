@@ -182,7 +182,7 @@ function SyncNotifier() {
 function AppRoutes() {
   const { user, loading } = useAuth();
 
-  if (loading) return <div className="min-h-screen bg-[#3a3128]" />;
+  if (loading) return null;
 
   return (
     <Routes>
