@@ -15,6 +15,15 @@ const DEFAULT_TRAVELERS: TravelerOption[] = [
   { id: "larisa", displayName: "Larisa" },
 ];
 
+// Pick a stable photo per day (not random per render)
+const PHOTOS = [
+  "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1200&q=80",
+  "https://images.unsplash.com/photo-1528164344705-47542687000d?w=1200&q=80",
+  "https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=1200&q=80",
+  "https://images.unsplash.com/photo-1524413840807-0c3cb6fa808d?w=1200&q=80",
+];
+const PHOTO_URL = PHOTOS[new Date().getDate() % PHOTOS.length];
+
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -47,11 +56,24 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-[100dvh] flex flex-col items-center justify-end bg-[#3a3128]"
+      className="min-h-[100dvh] relative flex flex-col items-center justify-end overflow-hidden bg-[#3a3128]"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)" }}
     >
-      <div className="w-full max-w-xs text-center px-4">
-        <h1 className="text-4xl font-light tracking-tight text-white mb-1">
+      {/* Background photo — always in DOM, no JS loading, no transitions.
+          Browser handles loading natively; dark bg shows until image arrives. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `url(${PHOTO_URL})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+      {/* Gradient overlay for text legibility */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+      <div className="relative z-10 w-full max-w-xs text-center px-4">
+        <h1 className="text-4xl font-light tracking-tight text-white mb-1 drop-shadow-lg">
           Wander
         </h1>
         <p className="text-sm text-white/70 mb-8">
@@ -64,7 +86,7 @@ export default function LoginPage() {
               key={t.id}
               onClick={() => handleSelect(t)}
               disabled={signing !== null}
-              className={`py-4 px-3 rounded-xl text-base font-medium
+              className={`py-4 px-3 rounded-xl text-base font-medium backdrop-blur-md
                 ${signing === t.displayName
                   ? "bg-white text-[#3a3128] scale-95"
                   : "bg-white/15 text-white border border-white/30 active:scale-95"
