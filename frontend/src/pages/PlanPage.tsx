@@ -950,15 +950,15 @@ export default function PlanPage() {
 
           {/* Bottom dock: action bar + day filmstrip — single fixed container */}
           <div className="fixed bottom-0 left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 safe-bottom-nav lg:block">
-            {/* Action bar — Home, List, Add, Chat (mobile only, compact) */}
-            <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40 lg:hidden">
+            {/* Action bar — Home, List, Add, Chat */}
+            <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40">
               <button onClick={() => navigate("/")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
                 <span className="text-[9px] leading-tight">Home</span>
               </button>
-              <button onClick={() => setMobileView("list")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
+              <button onClick={() => setMobileView("list")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors lg:hidden">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
                   <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />

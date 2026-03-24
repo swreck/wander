@@ -58,10 +58,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] relative flex flex-col items-center justify-end overflow-hidden">
-      {/* Background photo */}
+    <div className="min-h-[100dvh] relative flex flex-col items-center justify-end overflow-hidden bg-[#3a3128]">
+      {/* Background photo — fades in when loaded */}
       <div
-        className="absolute inset-0 bg-[#3a3128] transition-opacity duration-1000"
+        className="absolute inset-0 transition-opacity duration-700"
         style={{
           opacity: imageLoaded ? 1 : 0,
           backgroundImage: `url(${PHOTOS[photoIdx]})`,
@@ -69,12 +69,14 @@ export default function LoginPage() {
           backgroundPosition: "center",
         }}
       />
-      {/* Gradient overlay — darker at bottom for text legibility */}
+      {/* Gradient overlay — always visible so text is legible against dark bg */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-      {/* Content */}
-      <div className="relative z-10 w-full max-w-xs text-center px-4 pb-16"
-           style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)" }}>
+      {/* Content — title always visible, buttons appear once loaded (no "Loading..." flash) */}
+      <div
+        className="relative z-10 w-full max-w-xs text-center px-4"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)" }}
+      >
         <h1 className="text-4xl font-light tracking-tight text-white mb-1 drop-shadow-lg">
           Wander
         </h1>
@@ -82,11 +84,9 @@ export default function LoginPage() {
           Who's wandering?
         </p>
 
-        {loading ? (
-          <div className="text-white/50 text-sm">Loading...</div>
-        ) : travelers.length === 0 ? (
+        {!loading && travelers.length === 0 ? (
           <div className="text-white/50 text-sm">No travelers configured yet.</div>
-        ) : (
+        ) : travelers.length > 0 ? (
           <div className="grid grid-cols-2 gap-3">
             {travelers.map((t) => (
               <button
@@ -104,7 +104,7 @@ export default function LoginPage() {
               </button>
             ))}
           </div>
-        )}
+        ) : null /* loading — show nothing, no "Loading..." text to flash */}
 
         {error && (
           <p className="text-sm text-red-300 mt-4">{error}</p>

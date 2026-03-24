@@ -10,18 +10,36 @@ import { test, expect } from "@playwright/test";
 
 // ── No-backend tests ─────────────────────────────────────────────
 
-test("login page renders name buttons", async ({ page }) => {
+test("login page renders without crashing", async ({ page }) => {
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Wander" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ken" })).toBeVisible();
+  // Heading should always appear (content fades in once API responds)
+  await expect(page.getByRole("heading", { name: "Wander" })).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText("Something went wrong")).not.toBeVisible();
+});
+
+test("login page shows name buttons (requires backend)", async ({ page }) => {
+  try {
+    await page.request.get("http://localhost:3001/api/auth/me");
+  } catch {
+    test.skip(true, "Backend not running on :3001");
+  }
+
+  await page.goto("/login");
+  await expect(page.getByRole("button", { name: "Ken" })).toBeVisible({ timeout: 10000 });
   await expect(page.getByRole("button", { name: "Larisa" })).toBeVisible();
 });
 
-test("login click does not crash the page", async ({ page }) => {
-  await page.goto("/login");
-  await expect(page.getByRole("button", { name: "Ken" })).toBeVisible();
+test("login click does not crash the page (requires backend)", async ({ page }) => {
+  try {
+    await page.request.get("http://localhost:3001/api/auth/me");
+  } catch {
+    test.skip(true, "Backend not running on :3001");
+  }
 
-  // Click Ken — login may fail if backend codes differ, but page should not crash
+  await page.goto("/login");
+  await expect(page.getByRole("button", { name: "Ken" })).toBeVisible({ timeout: 10000 });
+
+  // Click Ken — page should not crash
   await page.getByRole("button", { name: "Ken" }).click();
   await page.waitForTimeout(2000);
 

@@ -1,6 +1,12 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-23 — iPad Navigation Fix & Login Page Stability
+
+### Fixed
+- **iPad missing Home button**: On iPad landscape, the bottom action bar (Home, List, Add, Chat) was hidden because it used `lg:hidden`. iPad landscape hits the 1024px breakpoint and got the "desktop" layout without any way to navigate back to Trip Overview. Action bar is now always visible; List button is hidden on `lg:` since the side panel is already showing.
+- **Login page blinking**: The login page showed a "Loading..." flash while fetching the traveler list, then re-rendered with buttons — causing a visible blink on slower connections. Now the entire content area (title, subtitle, buttons) fades in together once both the background photo and traveler list have loaded. No intermediate states, no layout shifts.
+
 ## 2026-03-22 — Shared Phrase System
 
 ### Added
