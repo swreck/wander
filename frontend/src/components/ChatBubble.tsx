@@ -82,6 +82,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
   }, [open]);
 
+  // Listen for custom event to open chat (used by Plan page action bar)
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener("wander-open-chat", handler);
+    return () => window.removeEventListener("wander-open-chat", handler);
+  }, []);
+
   const sendMessage = useCallback(async (retryText?: string) => {
     const text = retryText || input.trim();
     if (!text || sending) return;
@@ -228,7 +235,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   if (!open) {
-    if (hideBubble) return null;
+    if (hideBubble) {
+      // Stay mounted for wander-open-chat event listener, but render nothing
+      return <></>;
+    }
     return (
       <button
         onClick={() => setOpen(true)}

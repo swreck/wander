@@ -976,8 +976,7 @@ export default function PlanPage() {
               </div>
               <button
                 onClick={() => {
-                  const chatBtn = document.querySelector('[aria-label="Open chat assistant"]') as HTMLButtonElement;
-                  if (chatBtn) chatBtn.click();
+                  window.dispatchEvent(new Event("wander-open-chat"));
                 }}
                 className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors"
               >

@@ -142,43 +142,49 @@ router.post("/", async (req: AuthRequest, res) => {
     newState: trip,
   });
 
-  // Carry forward portable documents (passport, frequent_flyer, insurance) from any existing trip
+  // Carry forward portable documents (passport, frequent_flyer, insurance) from the most recent other trip
   try {
     const portableTypes = ["passport", "frequent_flyer", "insurance"];
-    const existingProfiles = await prisma.travelerProfile.findMany({
-      where: { tripId: { not: trip.id } },
-      include: { documents: { where: { type: { in: portableTypes as any[] } } } },
+    // Only look at the most recent other trip to avoid scanning all historical data
+    const recentTrip = await prisma.trip.findFirst({
+      where: { id: { not: trip.id } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
     });
-
-    for (const profile of existingProfiles) {
-      if (profile.documents.length === 0) continue;
-
-      // Create profile for this trip if needed
-      const newProfile = await prisma.travelerProfile.upsert({
-        where: { tripId_userCode: { tripId: trip.id, userCode: profile.userCode } },
-        create: {
-          tripId: trip.id,
-          userCode: profile.userCode,
-          displayName: profile.displayName,
-        },
-        update: {},
+    if (recentTrip) {
+      const existingProfiles = await prisma.travelerProfile.findMany({
+        where: { tripId: recentTrip.id },
+        include: { documents: { where: { type: { in: portableTypes as any[] } } } },
       });
 
-      // Copy portable documents (skip if same type already exists)
-      for (const doc of profile.documents) {
-        const exists = await prisma.travelerDocument.findFirst({
-          where: { profileId: newProfile.id, type: doc.type },
+      for (const profile of existingProfiles) {
+        if (profile.documents.length === 0) continue;
+
+        const newProfile = await prisma.travelerProfile.upsert({
+          where: { tripId_userCode: { tripId: trip.id, userCode: profile.userCode } },
+          create: {
+            tripId: trip.id,
+            userCode: profile.userCode,
+            displayName: profile.displayName,
+          },
+          update: {},
         });
-        if (!exists) {
-          await prisma.travelerDocument.create({
-            data: {
-              profileId: newProfile.id,
-              type: doc.type,
-              label: doc.label,
-              data: doc.data as any,
-              isPrivate: doc.isPrivate,
-            },
+
+        for (const doc of profile.documents) {
+          const exists = await prisma.travelerDocument.findFirst({
+            where: { profileId: newProfile.id, type: doc.type },
           });
+          if (!exists) {
+            await prisma.travelerDocument.create({
+              data: {
+                profileId: newProfile.id,
+                type: doc.type,
+                label: doc.label,
+                data: doc.data as any,
+                isPrivate: doc.isPrivate,
+              },
+            });
+          }
         }
       }
     }
