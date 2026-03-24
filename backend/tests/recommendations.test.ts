@@ -38,7 +38,7 @@ describe("Recommendation Import — Full Test Suite", () => {
     const tripRes = await request(app)
       .post("/api/trips")
       .set("Authorization", `Bearer ${token}`)
-      .send({ name: TRIP_NAME, startDate: "2026-10-18", endDate: "2026-10-31" });
+      .send({ name: TRIP_NAME, startDate: "2026-10-18", endDate: "2026-10-31", skipDocumentCarryOver: true });
     tripId = tripRes.body.id;
 
     const tokyo = await request(app)

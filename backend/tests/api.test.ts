@@ -134,6 +134,7 @@ describe("Wander API — Comprehensive Test Suite", () => {
           routeSegments: [
             { originCity: "Tokyo", destinationCity: "Kyoto", transportMode: "train" },
           ],
+          skipDocumentCarryOver: true,
         });
       expect(res.status).toBe(201);
       expect(res.body.name).toBe("Comprehensive Test Trip");
@@ -1244,6 +1245,7 @@ describe("Wander API — Comprehensive Test Suite", () => {
             { name: "Berlin", country: "Germany", arrivalDate: "2026-07-01", departureDate: "2026-07-05" },
           ],
           routeSegments: [],
+          skipDocumentCarryOver: true,
         });
       const tid = trip.body.id;
       const cid = trip.body.cities[0].id;
@@ -1550,7 +1552,7 @@ describe("Wander API — Comprehensive Test Suite", () => {
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
-        .send({ name: "UX Lifecycle Trip", startDate: "2026-06-01", endDate: "2026-06-10" });
+        .send({ name: "UX Lifecycle Trip", startDate: "2026-06-01", endDate: "2026-06-10", skipDocumentCarryOver: true });
       uxTripId = tripRes.body.id;
 
       // Create city A with dates June 1-5

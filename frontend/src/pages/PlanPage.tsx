@@ -512,9 +512,11 @@ export default function PlanPage() {
     <div className="flex flex-col bg-[#faf8f5]" style={{ height: "100dvh" }}>
       {/* Top bar removed — all navigation now in bottom action bar */}
 
-      {/* Import panel — slides down from top */}
+      {/* Import panel — bottom drawer */}
       {showImport && (
-        <div className="px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/20" onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); setRecPreview(null); setImportMode("itinerary"); }} />
+          <div className="relative bg-white rounded-t-2xl px-4 py-4 max-h-[80vh] overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}>
           <div className="max-w-2xl mx-auto">
             {/* Mode toggle */}
             {!importPreview && !recPreview && (
@@ -843,6 +845,7 @@ export default function PlanPage() {
               </div>
             )}
           </div>
+          </div>
         </div>
       )}
 
@@ -942,32 +945,32 @@ export default function PlanPage() {
           <div className="fixed bottom-0 left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 safe-bottom-nav lg:block">
             {/* Action bar — Home, List, Add, Chat */}
             <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40">
-              <button onClick={() => navigate("/")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <button onClick={() => navigate("/")} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
-                <span className="text-[9px] leading-tight">Home</span>
+                <span className="text-[10px] leading-tight">Home</span>
               </button>
-              <button onClick={() => setMobileView("list")} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors lg:hidden">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <button onClick={() => setMobileView("list")} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors lg:hidden">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
                   <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
                 </svg>
-                <span className="text-[9px] leading-tight">List</span>
+                <span className="text-[10px] leading-tight">List</span>
               </button>
               <div className="relative">
-                <button onClick={() => setShowAddMenu(!showAddMenu)} className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <button onClick={() => setShowAddMenu(!showAddMenu)} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  <span className="text-[9px] leading-tight">Add</span>
+                  <span className="text-[10px] leading-tight">Add</span>
                 </button>
                 {showAddMenu && (
                   <>
                     <div className="fixed inset-0 z-[1]" onClick={() => setShowAddMenu(false)} />
                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-xl border border-[#e0d8cc] py-1 z-[2] whitespace-nowrap">
                       <button onClick={() => { setShowCapture(true); setShowAddMenu(false); }}
-                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Capture</button>
+                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Manual</button>
                       <button onClick={() => { setShowImport(true); setShowAddMenu(false); }}
                         className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Import</button>
                     </div>
@@ -978,16 +981,16 @@ export default function PlanPage() {
                 onClick={() => {
                   window.dispatchEvent(new Event("wander-open-chat"));
                 }}
-                className="flex flex-col items-center px-3 py-0.5 text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+                className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
                 </svg>
-                <span className="text-[9px] leading-tight">Chat</span>
+                <span className="text-[10px] leading-tight">Chat</span>
               </button>
-              <button onClick={() => navigate("/guide#shaping")} className="flex flex-col items-center px-3 py-0.5 text-[#c8bba8] hover:text-[#8a7a62] transition-colors" aria-label="Guide">
+              <button onClick={() => navigate("/guide#shaping")} className="flex flex-col items-center px-3 py-0.5 text-[#a89880] hover:text-[#6b5d4a] transition-colors" aria-label="Guide">
                 <span className="text-sm leading-none font-light">?</span>
-                <span className="text-[9px] leading-tight">&nbsp;</span>
+                <span className="text-[10px] leading-tight">&nbsp;</span>
               </button>
             </div>
             {/* Day filmstrip */}
@@ -1249,7 +1252,7 @@ export default function PlanPage() {
                 onClick={() => { setShowCapture(true); setMobileView("map"); }}
                 className="flex-1 py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium"
               >
-                + Capture
+                + Manual
               </button>
               {!showDayView && selectedDay && (
                 <button

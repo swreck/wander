@@ -49,7 +49,7 @@ router.get("/:id", async (req, res) => {
 
 // Create trip
 router.post("/", async (req: AuthRequest, res) => {
-  const { name, startDate, endDate, cities, routeSegments } = req.body;
+  const { name, startDate, endDate, cities, routeSegments, skipDocumentCarryOver } = req.body;
 
   if (!name?.trim()) { res.status(400).json({ error: "Trip name is required" }); return; }
   if (!startDate || !endDate) { res.status(400).json({ error: "Start and end dates are required" }); return; }
@@ -142,22 +142,28 @@ router.post("/", async (req: AuthRequest, res) => {
     newState: trip,
   });
 
-  // Carry forward portable documents (passport, frequent_flyer, insurance) from the most recent other trip
-  try {
+  // Carry forward portable documents (passport, frequent_flyer, insurance) from the creating user's most recent other trip
+  if (!skipDocumentCarryOver) try {
     const portableTypes = ["passport", "frequent_flyer", "insurance"];
-    // Only look at the most recent other trip to avoid scanning all historical data
-    const recentTrip = await prisma.trip.findFirst({
-      where: { id: { not: trip.id } },
+    // Find the most recent trip where this user has a traveler profile with portable documents
+    const recentProfile = await prisma.travelerProfile.findFirst({
+      where: {
+        userCode: req.user!.code,
+        tripId: { not: trip.id },
+        documents: { some: { type: { in: portableTypes as any[] } } },
+      },
       orderBy: { createdAt: "desc" },
-      select: { id: true },
+      include: { documents: { where: { type: { in: portableTypes as any[] } } } },
     });
-    if (recentTrip) {
-      const existingProfiles = await prisma.travelerProfile.findMany({
-        where: { tripId: recentTrip.id },
+
+    if (recentProfile) {
+      // Also carry over other users' portable docs from the same trip
+      const allProfiles = await prisma.travelerProfile.findMany({
+        where: { tripId: recentProfile.tripId },
         include: { documents: { where: { type: { in: portableTypes as any[] } } } },
       });
 
-      for (const profile of existingProfiles) {
+      for (const profile of allProfiles) {
         if (profile.documents.length === 0) continue;
 
         const newProfile = await prisma.travelerProfile.upsert({
@@ -191,6 +197,9 @@ router.post("/", async (req: AuthRequest, res) => {
   } catch {
     // Document carry-over is best-effort — don't fail trip creation
   }
+
+  // Ensure this trip is still active (guards against concurrent trip creation by another user)
+  await prisma.trip.update({ where: { id: trip.id }, data: { status: "active" } });
 
   const full = await prisma.trip.findUnique({
     where: { id: trip.id },

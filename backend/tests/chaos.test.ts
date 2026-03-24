@@ -46,7 +46,7 @@ async function createTrip(
   const res = await request(app)
     .post("/api/trips")
     .set("Authorization", `Bearer ${token}`)
-    .send({ name, startDate: start, endDate: end, cities });
+    .send({ name, startDate: start, endDate: end, cities, skipDocumentCarryOver: true });
   expect(res.status).toBe(201);
   return res.body.id;
 }

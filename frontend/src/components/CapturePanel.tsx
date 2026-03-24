@@ -114,7 +114,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                     rounded-t-2xl shadow-2xl max-h-[70vh] overflow-y-auto safe-bottom">
       <div className="p-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-[#3a3128]">Capture Experience</h3>
+          <h3 className="text-sm font-medium text-[#3a3128]">Add Experience</h3>
           <button onClick={onClose} className="text-[#c8bba8] hover:text-[#6b5d4a] text-lg">
             &times;
           </button>
