@@ -195,7 +195,7 @@ export default function NextUpOverlay() {
 
   return (
     <div
-      className={`fixed z-[60] left-0 right-0 flex justify-center transition-all duration-300 ease-out
+      className={`fixed z-50 left-0 right-0 flex justify-center transition-all duration-300 ease-out
         ${animateIn ? "opacity-100" : "opacity-0 translate-y-4"}`}
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 200px)" }}
     >

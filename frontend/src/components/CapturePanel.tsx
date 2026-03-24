@@ -130,7 +130,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
           ] as [CaptureMode, string][]).map(([m, label]) => (
             <button
               key={m}
-              onClick={() => { setMode(m); setListChoice(null); setPreviewResult(null); }}
+              onClick={() => { setMode(m); setListChoice(null); setPreviewResult(null); setError(""); }}
               className={`px-3 py-1 rounded text-xs transition-colors ${
                 mode === m
                   ? "bg-[#514636] text-white"

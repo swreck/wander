@@ -30,6 +30,7 @@ export default function TripOverview() {
   const [recentActivity, setRecentActivity] = useState<ChangeLogEntry[]>([]);
   const [collabWelcome, setCollabWelcome] = useState<{ names: string[]; tripName: string } | null>(null);
   const [showTripSwitcher, setShowTripSwitcher] = useState(false);
+  const [savingTrip, setSavingTrip] = useState(false);
 
   useKeyboardShortcuts();
 
@@ -82,6 +83,7 @@ export default function TripOverview() {
 
   async function handleSaveTrip() {
     if (!trip) return;
+    setSavingTrip(true);
     try {
       await api.patch(`/trips/${trip.id}`, {
         name: editName,
@@ -92,6 +94,8 @@ export default function TripOverview() {
       loadTrips();
     } catch {
       showToast("Couldn't update trip", "error");
+    } finally {
+      setSavingTrip(false);
     }
   }
 
@@ -208,10 +212,11 @@ export default function TripOverview() {
     <div className="min-h-screen bg-[#faf8f5]">
       {/* Collaboration welcome */}
       {collabWelcome && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm"
+          onClick={() => setCollabWelcome(null)}>
           <div
             className="mx-6 max-w-sm w-full bg-white rounded-2xl shadow-xl p-6 animate-greetingFadeIn"
-            onClick={() => setCollabWelcome(null)}
+            onClick={(e) => e.stopPropagation()}
           >
             <p className="text-[15px] text-[#3a3128] leading-relaxed">
               {formatNameList(collabWelcome.names)}{" "}
@@ -456,9 +461,9 @@ export default function TripOverview() {
               Dates are set automatically from your city schedules
             </p>
             <div className="flex gap-2">
-              <button onClick={handleSaveTrip}
-                className="px-3 py-1 text-xs bg-[#514636] text-white rounded hover:bg-[#3a3128]">
-                Save
+              <button onClick={handleSaveTrip} disabled={savingTrip}
+                className="px-3 py-1 text-xs bg-[#514636] text-white rounded hover:bg-[#3a3128] disabled:opacity-40">
+                {savingTrip ? "Saving..." : "Save"}
               </button>
               <button onClick={() => setEditingTrip(false)}
                 className="px-3 py-1 text-sm text-[#8a7a62] hover:text-[#3a3128]">
@@ -501,13 +506,11 @@ export default function TripOverview() {
         />
 
         {/* Route segments — intercity travel logistics */}
-        {trip.routeSegments?.length > 0 && (
-          <RouteSegmentsPanel
-            tripId={trip.id}
-            segments={trip.routeSegments}
-            onRefresh={loadTrips}
-          />
-        )}
+        <RouteSegmentsPanel
+          tripId={trip.id}
+          segments={trip.routeSegments ?? []}
+          onRefresh={loadTrips}
+        />
 
         {/* Candidate destinations — cities with no dates but with experiences */}
         <CandidateDestinations

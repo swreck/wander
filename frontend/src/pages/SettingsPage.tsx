@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { isNextUpEnabled, setNextUpEnabled } from "../components/NextUpOverlay";
+import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 
 const DURATION_OPTIONS = [
@@ -19,6 +20,7 @@ function getSplashDuration(): number {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const { showToast } = useToast();
   const [splashDuration, setSplashDuration] = useState(getSplashDuration);
   const [nextUp, setNextUp] = useState(isNextUpEnabled);
@@ -100,6 +102,16 @@ export default function SettingsPage() {
             className="py-2 px-4 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a] hover:bg-[#f0ece5] transition-colors"
           >
             Reset all guides
+          </button>
+        </section>
+
+        {/* Logout */}
+        <section>
+          <button
+            onClick={() => { logout(); navigate("/login"); }}
+            className="w-full py-3 rounded-xl bg-red-50 text-red-600 border border-red-200 text-sm font-medium hover:bg-red-100 transition-colors"
+          >
+            Log out
           </button>
         </section>
       </div>

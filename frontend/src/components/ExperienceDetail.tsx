@@ -402,7 +402,7 @@ export default function ExperienceDetail({
               </p>
               <div className="flex gap-3">
                 <button
-                  onClick={() => { onDelete(exp.id); }}
+                  onClick={() => { onDelete(exp.id); onClose(); }}
                   className="flex-1 py-2 rounded-lg bg-red-500 text-white text-sm font-medium
                              hover:bg-red-600 transition-colors"
                 >

@@ -138,7 +138,7 @@ export default function PhraseCard() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed z-40 flex items-center justify-center rounded-full shadow-md transition-all hover:scale-105 active:scale-95
+        className="fixed z-30 flex items-center justify-center rounded-full shadow-md transition-all hover:scale-105 active:scale-95
           left-4 w-9 h-9 bg-[#f0ece5] text-[#6b5d4a] border border-[#e0d8cc]"
         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 140px)" }}
         aria-label="Japanese phrases"
@@ -155,7 +155,7 @@ export default function PhraseCard() {
     <>
       <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setOpen(false)} />
       <div
-        className="fixed z-50 inset-x-0 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border-t border-[#e5ddd0] flex flex-col"
+        className="fixed z-40 inset-x-0 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border-t border-[#e5ddd0] flex flex-col"
         style={{
           maxHeight: "50vh",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",

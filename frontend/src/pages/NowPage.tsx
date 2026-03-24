@@ -62,54 +62,66 @@ export default function NowPage() {
   const [travelDocs, setTravelDocs] = useState<TravelerDocument[]>([]);
   const [transitAlerts, setTransitAlerts] = useState<TransitDisruption[]>([]);
 
-  // Load trip and day data
-  useEffect(() => {
-    async function load() {
-      const t = await api.get<Trip>("/trips/active");
-      if (!t) { navigate("/"); return; }
-      setTrip(t);
+  // Load trip and day data — extracted so it can be called on mount and on data-changed
+  const loadData = useCallback(async () => {
+    const t = await api.get<Trip>("/trips/active");
+    if (!t) { navigate("/"); return; }
+    setTrip(t);
 
-      const [days, profileRes] = await Promise.all([
-        api.get<Day[]>(`/days/trip/${t.id}`),
-        api.get<{ documents: TravelerDocument[] }>(`/traveler-documents/trip/${t.id}`).catch(() => ({ documents: [] })),
-      ]);
-      setTravelDocs(profileRes?.documents || []);
-      const todayStr = new Date().toISOString().split("T")[0];
-      const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
-      setToday(todayDay || null);
+    const [days, profileRes] = await Promise.all([
+      api.get<Day[]>(`/days/trip/${t.id}`),
+      api.get<{ documents: TravelerDocument[] }>(`/traveler-documents/trip/${t.id}`).catch(() => ({ documents: [] })),
+    ]);
+    setTravelDocs(profileRes?.documents || []);
+    const todayStr = new Date().toISOString().split("T")[0];
+    const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
+    setToday(todayDay || null);
 
-      // Fetch transit disruption alerts for the trip
-      api.get<{ allDisruptions: TransitDisruption[] }>(`/transit-status/trip/${t.id}`)
-        .then((res) => setTransitAlerts(res?.allDisruptions || []))
-        .catch(() => {});
+    // Fetch transit disruption alerts for the trip
+    api.get<{ allDisruptions: TransitDisruption[] }>(`/transit-status/trip/${t.id}`)
+      .then((res) => setTransitAlerts(res?.allDisruptions || []))
+      .catch(() => {});
 
-      // F1: Predictive caching — prefetch next city's data if transition within 2 days
-      const todayMs = new Date(todayStr).getTime();
-      const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
-      const upcomingDays = days.filter((d) => {
-        const dayMs = new Date(d.date.split("T")[0]).getTime();
-        return dayMs > todayMs && dayMs <= todayMs + twoDaysMs;
-      });
-      const nextCityIds = new Set(upcomingDays.map((d) => d.cityId));
-      if (nextCityIds.size > 0 && navigator.serviceWorker?.controller) {
-        const urls = [
-          `/api/days/trip/${t.id}`,
-          ...Array.from(nextCityIds).map((cid) => `/api/experiences/city/${cid}`),
-        ];
-        navigator.serviceWorker.controller.postMessage({ type: "PREFETCH_CITY", urls });
-      }
-
-      setLoading(false);
+    // F1: Predictive caching — prefetch next city's data if transition within 2 days
+    const todayMs = new Date(todayStr).getTime();
+    const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+    const upcomingDays = days.filter((d) => {
+      const dayMs = new Date(d.date.split("T")[0]).getTime();
+      return dayMs > todayMs && dayMs <= todayMs + twoDaysMs;
+    });
+    const nextCityIds = new Set(upcomingDays.map((d) => d.cityId));
+    if (nextCityIds.size > 0 && navigator.serviceWorker?.controller) {
+      const urls = [
+        `/api/days/trip/${t.id}`,
+        ...Array.from(nextCityIds).map((cid) => `/api/experiences/city/${cid}`),
+      ];
+      navigator.serviceWorker.controller.postMessage({ type: "PREFETCH_CITY", urls });
     }
-    load();
+
+    setLoading(false);
   }, [navigate]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Refresh when chat makes changes
   useEffect(() => {
-    const handler = () => { window.location.reload(); };
+    const handler = () => { loadData(); };
     window.addEventListener("wander:data-changed", handler);
     return () => window.removeEventListener("wander:data-changed", handler);
-  }, []);
+  }, [loadData]);
+
+  // Periodically refresh transit alerts every 5 minutes
+  useEffect(() => {
+    if (!trip) return;
+    const transitInterval = setInterval(() => {
+      api.get<{ allDisruptions: TransitDisruption[] }>(`/transit-status/trip/${trip.id}`)
+        .then((res) => setTransitAlerts(res?.allDisruptions || []))
+        .catch(() => {});
+    }, 300000);
+    return () => clearInterval(transitInterval);
+  }, [trip]);
 
   // Request GPS position, fall back to hotel coords
   useEffect(() => {
@@ -246,7 +258,7 @@ export default function NowPage() {
       setNow(new Date());
       const freshAnchors = buildAnchors();
       fetchTravelTimes(freshAnchors);
-    }, 60000);
+    }, 15000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -271,9 +283,9 @@ export default function NowPage() {
       });
       setQuickCaptureName("");
       setShowQuickCapture(false);
-      showToast("Discovery saved");
-      // Reload to show new experience
-      window.location.reload();
+      showToast("Discovery saved", "success");
+      // Refresh data to show new experience
+      window.dispatchEvent(new CustomEvent("wander:data-changed"));
     } finally {
       setCapturing(false);
     }
@@ -691,7 +703,7 @@ export default function NowPage() {
 
         {/* Share plan */}
         <button
-          onClick={() => sharePlan(today, selectedExps, reservations, accommodations)}
+          onClick={() => sharePlan(today, selectedExps, reservations, accommodations, showToast)}
           className="mt-4 w-full py-3 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
                      hover:bg-[#f0ece5] transition-colors"
         >
@@ -756,7 +768,7 @@ function parseTimeWindow(tw: string, dayDate: string): Date | null {
   return null;
 }
 
-function sharePlan(day: Day, exps: Experience[], reservations: any[], accommodations: any[]) {
+function sharePlan(day: Day, exps: Experience[], reservations: any[], accommodations: any[], showToast: (msg: string, type?: string) => void) {
   const date = new Date(day.date).toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
@@ -792,5 +804,6 @@ function sharePlan(day: Day, exps: Experience[], reservations: any[], accommodat
     navigator.share({ text });
   } else {
     navigator.clipboard.writeText(text);
+    showToast("Copied to clipboard", "success");
   }
 }

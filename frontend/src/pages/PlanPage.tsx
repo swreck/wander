@@ -278,17 +278,7 @@ export default function PlanPage() {
       const result = await api.upload<any>("/import/extract", formData);
       setImportPreview(result);
     } catch {
-      const formData = new FormData();
-      formData.append("tripId", trip.id);
-      formData.append("cityId", activeCityId);
-      formData.append("text", importText.trim());
-      formData.append("mode", "all");
-      await api.upload("/capture", formData);
-      setShowImport(false);
-      setImportText("");
-      setImportPreview(null);
-      showToast("Imported successfully");
-      await loadExperiences();
+      showToast("Couldn't extract recommendations. Try a shorter or clearer format.", "error");
     } finally {
       setImporting(false);
     }
