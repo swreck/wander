@@ -138,7 +138,7 @@ export interface Experience {
   latitude: number | null;
   longitude: number | null;
   placeIdGoogle: string | null;
-  state: "possible" | "selected";
+  state: "possible" | "selected" | "voting";
   dayId: string | null;
   routeSegmentId: string | null;
   timeWindow: string | null;
@@ -232,4 +232,24 @@ export interface ChangeLogEntry {
   entityName: string;
   description: string;
   createdAt: string;
+}
+
+export interface DecisionVote {
+  id: string;
+  optionId: string | null;
+  userCode: string;
+  displayName: string;
+}
+
+export interface Decision {
+  id: string;
+  tripId: string;
+  cityId: string;
+  title: string;
+  status: string;
+  createdBy: string;
+  createdAt: string;
+  city: { id: string; name: string };
+  options: Experience[];
+  votes: DecisionVote[];
 }

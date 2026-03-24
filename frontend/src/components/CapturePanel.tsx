@@ -16,19 +16,45 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
   const [userNotes, setUserNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [decisionTitle, setDecisionTitle] = useState("");
+  const [showDecisionTitle, setShowDecisionTitle] = useState(false);
 
-  async function handleSubmit() {
+  async function handleSave(destination: "maybe" | "plan" | "decide") {
     if (!cityId || !name.trim()) return;
+    if (destination === "decide" && !showDecisionTitle) {
+      setDecisionTitle(name.trim() + "?");
+      setShowDecisionTitle(true);
+      return;
+    }
     setError("");
     setSubmitting(true);
     try {
-      await api.post("/capture", {
+      const result = await api.post<{ experiences: { id: string }[] }>("/capture", {
         tripId: trip.id,
         cityId,
         name: name.trim(),
         description: description.trim() || null,
         userNotes: userNotes.trim() || null,
       });
+      const expId = result.experiences[0]?.id;
+
+      if (destination === "plan" && expId) {
+        // Find a day in this city to promote to (first available)
+        const days = trip.days?.filter((d) => d.cityId === cityId) || [];
+        if (days.length > 0) {
+          await api.post(`/experiences/${expId}/promote`, { dayId: days[0].id });
+        }
+      }
+
+      if (destination === "decide" && expId) {
+        const dec = await api.post<{ id: string }>("/decisions", {
+          tripId: trip.id,
+          cityId,
+          title: decisionTitle.trim() || name.trim() + "?",
+        });
+        await api.post(`/decisions/${dec.id}/options`, { experienceId: expId });
+      }
+
       onCaptured();
     } catch (err: any) {
       setError(err.message || "Save failed");
@@ -97,16 +123,65 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
           <p className="text-xs text-[#a89880]">Location will be looked up automatically</p>
         </div>
 
+        {/* Decision title (shown when "Decide together" tapped) */}
+        {showDecisionTitle && (
+          <div className="mt-3 p-2.5 bg-amber-50 rounded-lg border border-amber-200">
+            <label className="text-xs text-amber-700 font-medium mb-1 block">Decision question</label>
+            <input
+              type="text"
+              value={decisionTitle}
+              onChange={(e) => setDecisionTitle(e.target.value)}
+              placeholder="e.g. Where should we eat in Kyoto?"
+              autoFocus
+              className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white
+                         text-[#3a3128] placeholder-[#c8bba8] text-sm
+                         focus:outline-none focus:ring-2 focus:ring-amber-300"
+            />
+          </div>
+        )}
+
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
 
-        <button
-          onClick={handleSubmit}
-          disabled={submitting || !name.trim()}
-          className="mt-4 w-full py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium
-                     hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-        >
-          {submitting ? "Saving..." : "Save"}
-        </button>
+        {/* Three destination buttons */}
+        <div className="mt-4 flex gap-2">
+          {!showDecisionTitle ? (
+            <>
+              <button
+                onClick={() => handleSave("plan")}
+                disabled={submitting || !name.trim()}
+                className="flex-1 py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium
+                           hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
+              >
+                {submitting ? "..." : "Plan it"}
+              </button>
+              <button
+                onClick={() => handleSave("maybe")}
+                disabled={submitting || !name.trim()}
+                className="flex-1 py-2.5 rounded-lg border border-[#e0d8cc] text-[#6b5d4a] text-sm font-medium
+                           hover:bg-[#f0ece5] disabled:opacity-40 transition-colors"
+              >
+                {submitting ? "..." : "Maybe"}
+              </button>
+              <button
+                onClick={() => handleSave("decide")}
+                disabled={submitting || !name.trim()}
+                className="flex-1 py-2.5 rounded-lg border border-amber-300 text-amber-700 text-sm font-medium
+                           bg-amber-50 hover:bg-amber-100 disabled:opacity-40 transition-colors"
+              >
+                {submitting ? "..." : "Decide"}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => handleSave("decide")}
+              disabled={submitting || !name.trim() || !decisionTitle.trim()}
+              className="flex-1 py-2.5 rounded-lg bg-amber-600 text-white text-sm font-medium
+                         hover:bg-amber-700 disabled:opacity-40 transition-colors"
+            >
+              {submitting ? "Saving..." : "Start Decision"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

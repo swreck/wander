@@ -29,6 +29,7 @@ enum LocationStatus {
 enum ExperienceState {
   possible
   selected
+  voting
 }
 
 enum Theme {
@@ -92,6 +93,7 @@ model Trip {
   reservations      Reservation[]
   changeLogs        ChangeLog[]
   travelerProfiles  TravelerProfile[]
+  decisions         Decision[]
   votingSessions    VotingSession[]
   experienceInterests ExperienceInterest[]
   tripMembers       TripMember[]
@@ -141,6 +143,7 @@ model City {
   days           Day[]
   experiences    Experience[]
   accommodations Accommodation[]
+  decisions      Decision[]
 
   @@map("cities")
 }
@@ -192,12 +195,16 @@ model Experience {
   culturalNotes Json?    @map("cultural_notes")
   popularTimes  Json?    @map("popular_times")
 
+  decisionId   String?           @map("decision_id")
+
   trip         Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city         City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
   day          Day?              @relation(fields: [dayId], references: [id], onDelete: SetNull)
   routeSegment RouteSegment?     @relation(fields: [routeSegmentId], references: [id], onDelete: SetNull)
+  decision     Decision?         @relation(fields: [decisionId], references: [id], onDelete: SetNull)
   ratings      ExperienceRating[]
-  interests    ExperienceInterest[]
+  interests      ExperienceInterest[]
+  decisionVotes  DecisionVote[]
 
   @@map("experiences")
 }
@@ -337,6 +344,42 @@ model InterestReaction {
 
   @@unique([interestId, userCode])
   @@map("interest_reactions")
+}
+
+
+// ── Group Decisions ────────────────────────────────────────────
+
+model Decision {
+  id        String    @id @default(cuid())
+  tripId    String    @map("trip_id")
+  cityId    String    @map("city_id")
+  title     String
+  status    String    @default("open") // open | resolved
+  createdBy String    @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  resolvedAt DateTime? @map("resolved_at")
+
+  trip    Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  city    City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  options Experience[]
+  votes   DecisionVote[]
+
+  @@map("decisions")
+}
+
+model DecisionVote {
+  id          String   @id @default(cuid())
+  decisionId  String   @map("decision_id")
+  optionId    String?  @map("option_id") // null = "happy with any"
+  userCode    String   @map("user_code")
+  displayName String   @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  decision Decision    @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  option   Experience? @relation(fields: [optionId], references: [id], onDelete: SetNull)
+
+  @@unique([decisionId, userCode])
+  @@map("decision_votes")
 }
 
 model VotingSession {

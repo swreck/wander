@@ -47,9 +47,9 @@ Wander works offline too; changes sync when you're back on wifi or cellular.`,
     title: "Shaping the Plan Together",
     body: `Other than an easy reference, a point of having a shared app is we can change or discuss shared days without a long text thread. Activities in black at the top are "sure things." Grey items at the bottom are options from the system or any of us. When you're browsing activities on a day, tap the **up arrow** (↑) next to any activity to promote it onto the day's schedule, then pick which day. Tap the **down arrow** (↓) to move something off the schedule and back to candidates. The map updates. Nothing is permanent, and everything can be moved back.
 
-If a **vote card** pops up, someone's asking us to weigh in. Swipe through and tap yes, maybe, or no.
+In the activity list, you may see a **Decide Together** section — that's the group choosing between options. Tap the one you'd pick, or tap "Happy with any" if you're flexible. When everyone's weighed in, someone taps **Resolve** to lock it in.
 
-Found a place you want to add? Tell the chat — _"add Café Kitsune to Thursday"_ — or tap the **+** button on the plan screen.`,
+Found a place you want to add? Tell the chat — _"add Café Kitsune to Thursday"_ — or tap **+** then **Manual**. You'll get three choices: **Plan it** (onto the schedule), **Maybe** (save for later), or **Decide** (start a group decision with this as the first option).`,
   },
   {
     id: "browsing",

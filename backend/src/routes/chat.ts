@@ -7,6 +7,7 @@ import { requireAuth, parseAccessCodes, type AuthRequest } from "../middleware/a
 import { extractRecommendations } from "../services/itineraryExtractor.js";
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 import { findDuplicate } from "../services/dedup.js";
+import { enrichExperience } from "../services/capture.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -809,6 +810,78 @@ const tools: Anthropic.Tool[] = [
           description: "Day IDs to delete (experiences will be demoted to possible)",
           items: { type: "string" },
         },
+      },
+      required: ["tripId"],
+    },
+  },
+  // ── Decision tools ─────────────────────────────────
+  {
+    name: "create_decision",
+    description: "Start a group decision. Use when someone says 'let's decide', 'help us pick', 'we need to choose between'. Creates an open decision that others can vote on.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        cityId: { type: "string", description: "City this decision relates to" },
+        title: { type: "string", description: "The question, e.g. 'Where should we eat in Kyoto?'" },
+        options: {
+          type: "array",
+          description: "Optional initial options (experience names). Will be created as new experiences in voting state.",
+          items: { type: "string" },
+        },
+      },
+      required: ["tripId", "cityId", "title"],
+    },
+  },
+  {
+    name: "add_decision_option",
+    description: "Add an option to an existing open decision. Can link an existing experience or create a new one.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        decisionId: { type: "string" },
+        experienceId: { type: "string", description: "Link an existing experience as an option" },
+        name: { type: "string", description: "Or create a new experience with this name" },
+        description: { type: "string", description: "Description for new experience (optional)" },
+      },
+      required: ["decisionId"],
+    },
+  },
+  {
+    name: "cast_decision_vote",
+    description: "Cast a vote on an open decision. Set optionId to null for 'happy with any'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        decisionId: { type: "string" },
+        optionId: { type: "string", description: "Experience ID to vote for, or null for 'happy with any'" },
+      },
+      required: ["decisionId"],
+    },
+  },
+  {
+    name: "resolve_decision",
+    description: "Resolve a decision. Winners move to planned (selected), others to maybe (possible).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        decisionId: { type: "string" },
+        winnerIds: {
+          type: "array",
+          description: "Experience IDs that won. Can be multiple.",
+          items: { type: "string" },
+        },
+      },
+      required: ["decisionId", "winnerIds"],
+    },
+  },
+  {
+    name: "get_open_decisions",
+    description: "Get all open decisions for the trip. Shows options and current votes.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
       },
       required: ["tripId"],
     },
@@ -2727,6 +2800,185 @@ async function executeTool(
       };
     }
 
+    case "create_decision": {
+      const decision = await prisma.decision.create({
+        data: {
+          tripId: input.tripId,
+          cityId: input.cityId,
+          title: input.title,
+          createdBy: user.code,
+        },
+      });
+
+      // Add initial options if provided
+      if (input.options?.length) {
+        for (const optName of input.options) {
+          const exp = await prisma.experience.create({
+            data: {
+              tripId: input.tripId,
+              cityId: input.cityId,
+              name: optName,
+              createdBy: user.code,
+              state: "voting",
+              decisionId: decision.id,
+              locationStatus: "unlocated",
+            },
+          });
+          enrichExperience(exp.id).catch(() => {});
+        }
+      }
+
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "decision_created",
+        entityType: "decision",
+        entityId: decision.id,
+        entityName: decision.title,
+        description: `${user.displayName} started a decision: "${decision.title}"${input.options?.length ? ` with ${input.options.length} options` : ""}`,
+      });
+
+      const full = await prisma.decision.findUnique({
+        where: { id: decision.id },
+        include: {
+          city: { select: { id: true, name: true } },
+          options: { select: { id: true, name: true } },
+          votes: true,
+        },
+      });
+
+      return {
+        result: full,
+        actionDescription: `Started decision "${decision.title}"${input.options?.length ? ` with options: ${input.options.join(", ")}` : ""}`,
+      };
+    }
+
+    case "add_decision_option": {
+      const dec = await prisma.decision.findUnique({
+        where: { id: input.decisionId },
+        select: { id: true, tripId: true, cityId: true, title: true, status: true },
+      });
+      if (!dec) return { result: { error: "Decision not found" } };
+      if (dec.status !== "open") return { result: { error: "Decision is already resolved" } };
+
+      let exp;
+      if (input.experienceId) {
+        exp = await prisma.experience.update({
+          where: { id: input.experienceId },
+          data: { state: "voting", decisionId: dec.id },
+        });
+      } else if (input.name?.trim()) {
+        exp = await prisma.experience.create({
+          data: {
+            tripId: dec.tripId,
+            cityId: dec.cityId,
+            name: input.name.trim(),
+            description: input.description?.trim() || null,
+            createdBy: user.code,
+            state: "voting",
+            decisionId: dec.id,
+            locationStatus: "unlocated",
+          },
+        });
+        enrichExperience(exp.id).catch(() => {});
+      } else {
+        return { result: { error: "Provide experienceId or name" } };
+      }
+
+      return {
+        result: { added: exp.name, decisionTitle: dec.title },
+        actionDescription: `Added "${exp.name}" to decision "${dec.title}"`,
+      };
+    }
+
+    case "cast_decision_vote": {
+      const dec = await prisma.decision.findUnique({
+        where: { id: input.decisionId },
+        select: { id: true, status: true, title: true },
+      });
+      if (!dec) return { result: { error: "Decision not found" } };
+      if (dec.status !== "open") return { result: { error: "Decision is already resolved" } };
+
+      await prisma.decisionVote.upsert({
+        where: {
+          decisionId_userCode: { decisionId: input.decisionId, userCode: user.code },
+        },
+        create: {
+          decisionId: input.decisionId,
+          optionId: input.optionId || null,
+          userCode: user.code,
+          displayName: user.displayName,
+        },
+        update: {
+          optionId: input.optionId || null,
+        },
+      });
+
+      return {
+        result: { voted: true, optionId: input.optionId || "happy with any" },
+        actionDescription: `Voted on "${dec.title}"`,
+      };
+    }
+
+    case "resolve_decision": {
+      const dec = await prisma.decision.findUnique({
+        where: { id: input.decisionId },
+        include: { options: { select: { id: true, name: true } } },
+      });
+      if (!dec) return { result: { error: "Decision not found" } };
+
+      const winnerSet = new Set(input.winnerIds || []);
+      for (const opt of dec.options) {
+        if (winnerSet.has(opt.id)) {
+          await prisma.experience.update({
+            where: { id: opt.id },
+            data: { state: "selected", decisionId: null },
+          });
+        } else {
+          await prisma.experience.update({
+            where: { id: opt.id },
+            data: { state: "possible", decisionId: null },
+          });
+        }
+      }
+
+      await prisma.decision.update({
+        where: { id: input.decisionId },
+        data: { status: "resolved", resolvedAt: new Date() },
+      });
+
+      const winnerNames = dec.options.filter(o => winnerSet.has(o.id)).map(o => o.name);
+      await logChange({
+        user,
+        tripId: dec.tripId,
+        actionType: "decision_resolved",
+        entityType: "decision",
+        entityId: dec.id,
+        entityName: dec.title,
+        description: `${user.displayName} resolved "${dec.title}" → ${winnerNames.join(", ") || "none selected"}`,
+      });
+
+      return {
+        result: { resolved: true, winners: winnerNames },
+        actionDescription: `Resolved "${dec.title}" → ${winnerNames.join(", ") || "none"}`,
+      };
+    }
+
+    case "get_open_decisions": {
+      const decisions = await prisma.decision.findMany({
+        where: { tripId: input.tripId, status: "open" },
+        include: {
+          city: { select: { id: true, name: true } },
+          options: { select: { id: true, name: true, description: true } },
+          votes: { select: { id: true, optionId: true, userCode: true, displayName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return {
+        result: decisions.length > 0 ? decisions : { message: "No open decisions" },
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -2859,7 +3111,8 @@ RULES:
 34. When the user asks to restructure, shift, or rearrange days across the trip, use bulk_update_days. NEVER promise to "fire all updates simultaneously" unless you are about to call this single tool. If a restructure requires more than 3 tool calls, stop, explain what you need to do, and use bulk_update_days in ONE call. Do not make promises you cannot fulfill in the current response.
 35. When the user asks about a specific place, wants to see what somewhere looks like, or is deciding whether to visit, use lookup_place. This returns a photo and details from Google. Use it proactively when discussing restaurants, temples, hotels, or attractions — don't just describe them in words when you can show a photo card. Include the city or neighborhood in the query for better results (e.g. "Fushimi Inari Kyoto" not just "Fushimi Inari").
 36. When the user asks about something NOT in the trip data — restaurant recommendations, opening hours, crowd levels, "is X worth visiting", "best Y near Z", current conditions, travel tips — use web_search. Synthesize the results into a concise, helpful answer. Do NOT dump raw search results. Never use web_search for questions answerable from trip data (use other tools instead). You can combine web_search with lookup_place in the same response — search for information, then show a photo card for the top recommendation.
-37. When a user asks to add a destination as a "day trip", "excursion", or "side trip" from an existing city, use add_experience to create it within that city — do NOT use add_city. Day trips are experiences you return from, not separate overnight bases. Only use add_city when the user wants a new base/overnight destination with its own date range.`;
+37. When a user asks to add a destination as a "day trip", "excursion", or "side trip" from an existing city, use add_experience to create it within that city — do NOT use add_city. Day trips are experiences you return from, not separate overnight bases. Only use add_city when the user wants a new base/overnight destination with its own date range.
+38. When someone says "let's decide", "help us choose", "we need to pick between", or "start a vote", use create_decision with options. Use get_open_decisions to see current decisions. Use cast_decision_vote to vote (set optionId to null for "happy with any"). Use resolve_decision when someone says "go with X" or "let's do X". Use add_decision_option to add more choices to an existing decision. This is the primary group decision mechanism — prefer it over the older interest-floating system for formal choices.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];

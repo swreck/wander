@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
-import type { Trip, Day, Experience, ExperienceInterest } from "../lib/types";
+import type { Trip, Day, Experience, ExperienceInterest, Decision } from "../lib/types";
 import MapCanvas, { getCityPastel } from "../components/MapCanvas";
 import ExperienceList from "../components/ExperienceList";
 import ExperienceDetail from "../components/ExperienceDetail";
@@ -22,6 +22,7 @@ export default function PlanPage() {
   const [days, setDays] = useState<Day[]>([]);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [interests, setInterests] = useState<Map<string, ExperienceInterest>>(new Map());
+  const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Navigation — days-based, plus dateless candidate cities
@@ -141,6 +142,16 @@ export default function PlanPage() {
   }, [trip]);
 
   useEffect(() => { loadExperiences(); }, [loadExperiences]);
+
+  const loadDecisions = useCallback(async () => {
+    if (!trip) return;
+    try {
+      const decs = await api.get<Decision[]>(`/decisions/trip/${trip.id}`);
+      setDecisions(decs);
+    } catch { /* decisions are optional */ }
+  }, [trip]);
+
+  useEffect(() => { loadDecisions(); }, [loadDecisions]);
 
   const loadInterests = useCallback(async () => {
     if (!trip) return;
@@ -290,7 +301,7 @@ export default function PlanPage() {
     try {
       const formData = new FormData();
       formData.append("tripId", trip.id);
-      formData.append("cityId", selectedCityId);
+      formData.append("cityId", activeCityId);
       if (importText.trim()) formData.append("text", importText.trim());
       if (importFile) formData.append("image", importFile);
 
@@ -483,6 +494,7 @@ export default function PlanPage() {
 
   const selected = cityExperiences.filter((e) => e.state === "selected");
   const possible = cityExperiences.filter((e) => e.state === "possible");
+  const cityDecisions = decisions.filter((d) => d.cityId === activeCityId);
 
   // Friction dots for filmstrip
   const dayFrictionMap = new Map<string, boolean>();
@@ -1135,6 +1147,8 @@ export default function PlanPage() {
               onLocationResolved={() => { loadExperiences(); setRecenterKey((k) => k + 1); }}
               interests={interests}
               onInterestChanged={loadInterests}
+              decisions={cityDecisions}
+              onDecisionsChanged={() => { loadDecisions(); loadExperiences(); }}
             />
           )}
         </div>
@@ -1186,6 +1200,8 @@ export default function PlanPage() {
                   onLocationResolved={() => { loadExperiences(); setRecenterKey((k) => k + 1); }}
                   interests={interests}
                   onInterestChanged={loadInterests}
+                  decisions={cityDecisions}
+                  onDecisionsChanged={() => { loadDecisions(); loadExperiences(); }}
                 />
               )}
             </div>

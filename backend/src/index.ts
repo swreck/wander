@@ -26,6 +26,7 @@ import trainScheduleRoutes from "./routes/trainSchedules.js";
 import transitStatusRoutes from "./routes/transitStatus.js";
 import interestRoutes from "./routes/interests.js";
 import phraseRoutes from "./routes/phrases.js";
+import decisionRoutes from "./routes/decisions.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -57,6 +58,7 @@ app.use("/api/train-schedules", trainScheduleRoutes);
 app.use("/api/transit-status", transitStatusRoutes);
 app.use("/api/interests", interestRoutes);
 app.use("/api/phrases", phraseRoutes);
+app.use("/api/decisions", decisionRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
 app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

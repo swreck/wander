@@ -20,7 +20,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Experience, Day, Trip, ExperienceInterest } from "../lib/types";
+import type { Experience, Day, Trip, ExperienceInterest, Decision, DecisionVote } from "../lib/types";
 import { api } from "../lib/api";
 import RatingsBadge from "./RatingsBadge";
 
@@ -326,6 +326,8 @@ interface Props {
   onLocationResolved?: () => void;
   interests?: Map<string, ExperienceInterest>;
   onInterestChanged?: () => void;
+  decisions?: Decision[];
+  onDecisionsChanged?: () => void;
 }
 
 // ── Grip Handle SVG ────────────────────────────────────────────────
@@ -590,10 +592,228 @@ function DragOverlayItem({ exp }: { exp: Experience }) {
   );
 }
 
+// ── Decision Group ────────────────────────────────────────────────
+function DecisionGroup({
+  decision,
+  onDecisionsChanged,
+  onExperienceClick,
+}: {
+  decision: Decision;
+  onDecisionsChanged: () => void;
+  onExperienceClick: (id: string) => void;
+}) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const [resolving, setResolving] = useState(false);
+  const [showAddOption, setShowAddOption] = useState(false);
+  const [newOptionName, setNewOptionName] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const myVote = decision.votes.find((v) => v.userCode === user?.code);
+  const isHappyWithAny = myVote && myVote.optionId === null;
+
+  async function handleVote(optionId: string | null) {
+    try {
+      await api.post(`/decisions/${decision.id}/vote`, { optionId });
+      onDecisionsChanged();
+    } catch {
+      showToast("Couldn't vote", "error");
+    }
+  }
+
+  async function handleResolve(winnerIds: string[]) {
+    setResolving(true);
+    try {
+      await api.post(`/decisions/${decision.id}/resolve`, { winnerIds });
+      showToast("Decision resolved");
+      onDecisionsChanged();
+    } catch {
+      showToast("Couldn't resolve", "error");
+    }
+    setResolving(false);
+  }
+
+  async function handleAddOption() {
+    if (!newOptionName.trim()) return;
+    setAdding(true);
+    try {
+      await api.post(`/decisions/${decision.id}/options`, { name: newOptionName.trim() });
+      setNewOptionName("");
+      setShowAddOption(false);
+      onDecisionsChanged();
+    } catch {
+      showToast("Couldn't add option", "error");
+    }
+    setAdding(false);
+  }
+
+  async function handleDelete() {
+    try {
+      await api.delete(`/decisions/${decision.id}`);
+      showToast("Decision cancelled");
+      onDecisionsChanged();
+    } catch {
+      showToast("Couldn't delete", "error");
+    }
+  }
+
+  // Count votes per option
+  const voteCounts = new Map<string, { voters: string[] }>();
+  let happyWithAnyCount = 0;
+  for (const v of decision.votes) {
+    if (v.optionId === null) {
+      happyWithAnyCount++;
+    } else {
+      const existing = voteCounts.get(v.optionId) || { voters: [] };
+      existing.voters.push(v.displayName);
+      voteCounts.set(v.optionId, existing);
+    }
+  }
+
+  // Find the leading option(s)
+  let maxVotes = 0;
+  for (const [, { voters }] of voteCounts) {
+    if (voters.length > maxVotes) maxVotes = voters.length;
+  }
+  const leaders = maxVotes > 0
+    ? decision.options.filter((o) => (voteCounts.get(o.id)?.voters.length || 0) === maxVotes).map((o) => o.id)
+    : [];
+
+  return (
+    <div className="rounded-lg border-2 border-amber-200 bg-amber-50/50 p-2.5">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-amber-700">{decision.title}</span>
+        <button
+          onClick={handleDelete}
+          className="text-xs text-[#c8bba8] hover:text-red-500 transition-colors"
+          title="Cancel decision"
+        >
+          &times;
+        </button>
+      </div>
+
+      <div className="space-y-1.5">
+        {decision.options.map((opt) => {
+          const votes = voteCounts.get(opt.id);
+          const isMyPick = myVote?.optionId === opt.id;
+          const isLeader = leaders.includes(opt.id);
+          return (
+            <div
+              key={opt.id}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                isMyPick
+                  ? "border-amber-400 bg-amber-100"
+                  : "border-[#e0d8cc] bg-white hover:border-amber-300"
+              }`}
+              onClick={() => handleVote(opt.id)}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm text-[#3a3128] truncate">{opt.name}</span>
+                  {isLeader && maxVotes > 0 && (
+                    <span className="text-xs text-amber-600">*</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {votes && votes.voters.length > 0 && (
+                  <div className="flex -space-x-1">
+                    {votes.voters.map((name, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-medium border border-white"
+                        title={name}
+                      >
+                        {name[0]}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onExperienceClick(opt.id); }}
+                  className="w-5 h-5 rounded-full border border-[#e0d8cc] text-[#a89880] hover:text-[#6b5d4a]
+                             flex items-center justify-center text-xs transition-colors"
+                  title="Details"
+                >
+                  i
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Happy with any */}
+      <div className="mt-2 flex items-center justify-between">
+        <button
+          onClick={() => handleVote(null)}
+          className={`text-xs transition-colors ${
+            isHappyWithAny
+              ? "text-amber-700 font-medium"
+              : "text-[#a89880] hover:text-amber-600"
+          }`}
+        >
+          {isHappyWithAny ? "You're happy with any" : "Happy with any"}
+          {happyWithAnyCount > 0 && !isHappyWithAny && (
+            <span className="ml-1 text-amber-600">({happyWithAnyCount})</span>
+          )}
+        </button>
+
+        {/* Add option */}
+        <button
+          onClick={() => setShowAddOption(!showAddOption)}
+          className="text-xs text-[#a89880] hover:text-amber-600 transition-colors"
+        >
+          + option
+        </button>
+      </div>
+
+      {showAddOption && (
+        <div className="mt-1.5 flex gap-1">
+          <input
+            type="text"
+            value={newOptionName}
+            onChange={(e) => setNewOptionName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddOption()}
+            placeholder="New option..."
+            autoFocus
+            className="flex-1 text-xs px-2 py-1.5 border border-[#e0d8cc] rounded bg-white
+                       focus:outline-none focus:border-amber-400"
+          />
+          <button
+            onClick={handleAddOption}
+            disabled={adding || !newOptionName.trim()}
+            className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700
+                       disabled:opacity-40 transition-colors"
+          >
+            Add
+          </button>
+        </div>
+      )}
+
+      {/* Resolve — show when there are votes */}
+      {decision.votes.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-amber-200">
+          <button
+            onClick={() => handleResolve(leaders)}
+            disabled={resolving || leaders.length === 0}
+            className="w-full py-1.5 text-xs font-medium rounded bg-amber-600 text-white
+                       hover:bg-amber-700 disabled:opacity-40 transition-colors"
+          >
+            {resolving ? "..." : leaders.length > 0
+              ? `Resolve → ${decision.options.filter((o) => leaders.includes(o.id)).map((o) => o.name).join(", ")}`
+              : "Vote to resolve"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────
 export default function ExperienceList({
   selected, possible, days, trip, onPromote, onDemote, onExperienceClick, onExperienceHover, onLocationResolved,
-  interests, onInterestChanged,
+  interests, onInterestChanged, decisions, onDecisionsChanged,
 }: Props) {
   const { showToast } = useToast();
   const [promotingId, setPromotingId] = useState<string | null>(null);
@@ -601,6 +821,31 @@ export default function ExperienceList({
   const [promoteTimeWindow, setPromoteTimeWindow] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [locatingId, setLocatingId] = useState<string | null>(null);
+
+  // New decision form
+  const [showNewDecision, setShowNewDecision] = useState(false);
+  const [newDecisionTitle, setNewDecisionTitle] = useState("");
+  const [creatingDecision, setCreatingDecision] = useState(false);
+
+  async function handleCreateDecision() {
+    if (!newDecisionTitle.trim() || !trip) return;
+    const cityId = selected[0]?.cityId || possible[0]?.cityId;
+    if (!cityId) return;
+    setCreatingDecision(true);
+    try {
+      await api.post("/decisions", {
+        tripId: trip.id,
+        cityId,
+        title: newDecisionTitle.trim(),
+      });
+      setNewDecisionTitle("");
+      setShowNewDecision(false);
+      onDecisionsChanged?.();
+    } catch {
+      showToast("Couldn't create decision", "error");
+    }
+    setCreatingDecision(false);
+  }
 
   // Cross-zone drag: if dragging from possible to selected, show inline day selector
   const [crossZonePromoteId, setCrossZonePromoteId] = useState<string | null>(null);
@@ -741,7 +986,7 @@ export default function ExperienceList({
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
-            {selected.length} Selected · {possible.length} Possible
+            {selected.length} Planned{decisions && decisions.length > 0 ? ` · ${decisions.length} Deciding` : ""} · {possible.length} Maybe
           </span>
         </div>
         {(() => {
@@ -821,10 +1066,71 @@ export default function ExperienceList({
           </SortableContext>
         </DroppableZone>
 
+        {/* Decide section */}
+        {(decisions?.length || 0) === 0 && !showNewDecision && (
+          <div className="my-2 text-center">
+            <button
+              onClick={() => setShowNewDecision(true)}
+              className="text-xs text-amber-600 hover:text-amber-700 transition-colors"
+            >
+              + Start a group decision
+            </button>
+          </div>
+        )}
+        {((decisions && decisions.length > 0) || showNewDecision) && (
+          <>
+            <div className="border-t border-dashed border-amber-200 my-3" />
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium uppercase tracking-wider text-amber-600">
+                Decide Together
+              </span>
+              <button
+                onClick={() => setShowNewDecision(!showNewDecision)}
+                className="text-xs text-amber-600 hover:text-amber-700 transition-colors"
+                title="New decision"
+              >
+                +
+              </button>
+            </div>
+            {showNewDecision && (
+              <div className="mb-2 flex gap-1">
+                <input
+                  type="text"
+                  value={newDecisionTitle}
+                  onChange={(e) => setNewDecisionTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateDecision()}
+                  placeholder="What should we decide?"
+                  autoFocus
+                  className="flex-1 text-xs px-2 py-1.5 border border-amber-200 rounded bg-amber-50
+                             focus:outline-none focus:border-amber-400"
+                />
+                <button
+                  onClick={handleCreateDecision}
+                  disabled={creatingDecision || !newDecisionTitle.trim()}
+                  className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700
+                             disabled:opacity-40 transition-colors"
+                >
+                  Go
+                </button>
+              </div>
+            )}
+            <div className="space-y-2 mb-3">
+              {decisions?.map((dec) => (
+                <DecisionGroup
+                  key={dec.id}
+                  decision={dec}
+                  onDecisionsChanged={() => onDecisionsChanged?.()}
+                  onExperienceClick={onExperienceClick}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
         {/* Divider */}
         <div className="border-t border-dashed border-[#e0d8cc] my-3" />
 
-        {/* Possible zone */}
+        {/* Maybe zone */}
         <DroppableZone id="possible-zone">
           <SortableContext items={possibleIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5 min-h-[40px]">

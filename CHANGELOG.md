@@ -1,6 +1,22 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Group Decision System
+
+### Added
+- **Decide Together section** in experience list — Sits between Planned and Maybe. Each decision shows a question (e.g., "Where should we eat in Kyoto?") with tappable options. Each person picks ONE option per decision; vote dots show who picked what. "Happy with any" option for flexible travelers. Resolve button promotes winners to Planned, moves others to Maybe.
+- **Three-way save on manual entry** — When adding an experience via Manual (+), three buttons replace the old single "Save": **Plan it** (adds to itinerary), **Maybe** (saves as candidate), **Decide** (creates a group decision with this as the first option, prompts for a decision question).
+- **"+ Start a group decision" link** in experience list when no decisions exist, plus a + button in the Decide section header to create new decisions.
+- **Decision data model** — `Decision` table (tripId, cityId, title, status, createdBy) with `DecisionVote` (one vote per person per decision, nullable optionId for "happy with any"). Experiences gain `voting` state and `decisionId` link.
+- **Decision API** — `GET /api/decisions/trip/:tripId`, `POST /api/decisions`, `POST /:id/options`, `POST /:id/vote`, `POST /:id/resolve`, `DELETE /:id`. Full CRUD with change logging.
+- **5 AI chat tools** — `create_decision`, `add_decision_option`, `cast_decision_vote`, `resolve_decision`, `get_open_decisions`. Rule 38 teaches AI when to use them (triggered by "let's decide", "help us choose", "start a vote", etc.).
+- **Fixed**: `enrichExperience` import missing in chat.ts (pre-existing bug), `selectedCityId` reference in import (was undefined, now uses `activeCityId`).
+
+### Changed
+- **Experience list header** — Now reads "X Planned · Y Deciding · Z Maybe" instead of "X Selected · Y Possible".
+
+SPEC UPDATE NEEDED: Activities section — decision/voting system, three-way save flow, "Decide Together" section in experience list.
+
 ## 2026-03-24 — Unified Import (Manual + Import replaces 5 modes)
 
 ### Changed
