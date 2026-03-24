@@ -235,12 +235,11 @@ router.post("/reorder", async (req: AuthRequest, res) => {
     return;
   }
 
-  for (let i = 0; i < orderedIds.length; i++) {
-    await prisma.experience.update({
-      where: { id: orderedIds[i] },
-      data: { priorityOrder: i },
-    });
-  }
+  await prisma.$transaction(
+    orderedIds.map((id: string, i: number) =>
+      prisma.experience.update({ where: { id }, data: { priorityOrder: i } })
+    )
+  );
 
   res.json({ reordered: true });
 });

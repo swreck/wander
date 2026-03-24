@@ -113,13 +113,14 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.day.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Day not found" }); return; }
 
-  // Demote selected experiences on this day back to "possible" before deleting
-  await prisma.experience.updateMany({
-    where: { dayId: req.params.id as string, state: "selected" },
-    data: { state: "possible", dayId: null, timeWindow: null },
-  });
-
-  await prisma.day.delete({ where: { id: req.params.id as string } });
+  // Demote selected experiences and delete day atomically
+  await prisma.$transaction([
+    prisma.experience.updateMany({
+      where: { dayId: req.params.id as string, state: "selected" },
+      data: { state: "possible", dayId: null, timeWindow: null },
+    }),
+    prisma.day.delete({ where: { id: req.params.id as string } }),
+  ]);
 
   await syncTripDates(existing.tripId);
 

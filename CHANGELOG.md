@@ -1,6 +1,20 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-23 — Backend Safety & Frontend UX Polish
+
+### Fixed
+- **Accommodation PATCH security**: Was passing raw `req.body` to Prisma, allowing clients to tamper with `tripId`, `cityId`, or any field. Now cherry-picks only allowed fields (name, address, coordinates, check-in/out times, confirmation number, notes, dayId).
+- **Accommodation PATCH log type**: Change log recorded edits as `"accommodation_added"` instead of `"accommodation_edited"`. Fixed.
+- **Reservation PATCH security**: Same raw `req.body` issue as accommodations. Now cherry-picks fields (name, type, datetime, duration, coordinates, confirmation number, notes, transport mode, dayId).
+- **Experience reorder atomicity**: Reorder loop updated each experience individually — partial failure left inconsistent order. Now wrapped in `prisma.$transaction()`.
+- **City reorder atomicity**: Same transaction fix as experience reorder.
+- **Day deletion atomicity**: Experience demotion and day deletion were separate calls — if delete failed, experiences were already demoted with nowhere to go. Now wrapped in `prisma.$transaction()`.
+- **No global API error handler**: Unhandled errors returned HTML stack traces instead of JSON. Added Express error handler for `/api` routes that returns `{ error: message }` with proper status codes.
+
+### Changed
+- **Frontend UX polish (13 fixes)**: Logout button on settings page; experience detail panel closes after delete; route segments panel always visible; collab modal backdrop click fix; edit trip save button shows loading state; z-index hierarchy normalized (z-30 floating buttons → z-40 panels → z-50 overlays); NowPage uses data refetch instead of full page reload (preserves GPS/timers); 15-second timer refresh; quick capture dispatches data-changed event; clipboard share fallback with toast; transit alerts refresh every 5 minutes; import failure shows error toast; capture panel clears errors on mode switch.
+
 ## 2026-03-23 — Login & Join Page Stability
 
 ### Fixed

@@ -50,12 +50,22 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.reservation.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Reservation not found" }); return; }
 
-  const data: any = { ...req.body };
-  if (data.datetime) data.datetime = new Date(data.datetime);
+  const { name, type, datetime, durationMinutes, latitude, longitude, confirmationNumber, notes, transportModeToHere, dayId } = req.body;
 
   const reservation = await prisma.reservation.update({
     where: { id: req.params.id as string },
-    data,
+    data: {
+      ...(name !== undefined && { name }),
+      ...(type !== undefined && { type }),
+      ...(datetime !== undefined && { datetime: new Date(datetime) }),
+      ...(durationMinutes !== undefined && { durationMinutes: durationMinutes || null }),
+      ...(latitude !== undefined && { latitude: latitude || null }),
+      ...(longitude !== undefined && { longitude: longitude || null }),
+      ...(confirmationNumber !== undefined && { confirmationNumber: confirmationNumber || null }),
+      ...(notes !== undefined && { notes: notes || null }),
+      ...(transportModeToHere !== undefined && { transportModeToHere: transportModeToHere || null }),
+      ...(dayId !== undefined && { dayId }),
+    },
     include: { day: true },
   });
 

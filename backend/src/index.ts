@@ -58,6 +58,13 @@ app.use("/api/transit-status", transitStatusRoutes);
 app.use("/api/interests", interestRoutes);
 app.use("/api/phrases", phraseRoutes);
 
+// Global error handler for API routes — returns JSON instead of HTML stack traces
+app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("[api error]", err?.message || err);
+  const status = err?.status || err?.statusCode || 500;
+  res.status(status).json({ error: err?.message || "Internal server error" });
+});
+
 // Serve frontend static files in production
 const publicPath = path.join(__dirname, "..", "public");
 // Hashed assets can be cached forever; index.html must always be fresh

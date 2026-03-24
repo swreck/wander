@@ -51,16 +51,28 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.accommodation.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Accommodation not found" }); return; }
 
+  const { name, address, latitude, longitude, checkInTime, checkOutTime, confirmationNumber, notes, dayId } = req.body;
+
   const acc = await prisma.accommodation.update({
     where: { id: req.params.id as string },
-    data: req.body,
+    data: {
+      ...(name !== undefined && { name }),
+      ...(address !== undefined && { address: address || null }),
+      ...(latitude !== undefined && { latitude: latitude || null }),
+      ...(longitude !== undefined && { longitude: longitude || null }),
+      ...(checkInTime !== undefined && { checkInTime: checkInTime || null }),
+      ...(checkOutTime !== undefined && { checkOutTime: checkOutTime || null }),
+      ...(confirmationNumber !== undefined && { confirmationNumber: confirmationNumber || null }),
+      ...(notes !== undefined && { notes: notes || null }),
+      ...(dayId !== undefined && { dayId: dayId || null }),
+    },
     include: { city: true },
   });
 
   await logChange({
     user: req.user!,
     tripId: acc.tripId,
-    actionType: "accommodation_added",
+    actionType: "accommodation_edited",
     entityType: "accommodation",
     entityId: acc.id,
     entityName: acc.name,
