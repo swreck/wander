@@ -14,10 +14,20 @@
     <style>
       html, body { margin: 0; padding: 0; background: #3a3128; }
     </style>
-    <script type="module" crossorigin src="/assets/index-gj5ojqDt.js"></script>
+    <script type="module" crossorigin src="/assets/index-C33m7q2N.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-C0f5k1LJ.css">
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // One-time cleanup: unregister stale service workers that may be
+      // serving old cached code and causing reload loops or broken JS.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+          if (regs.length > 0) location.reload();
+        });
+      }
+    </script>
   </body>
 </html>

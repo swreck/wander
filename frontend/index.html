@@ -17,6 +17,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // One-time cleanup: unregister stale service workers that may be
+      // serving old cached code and causing reload loops or broken JS.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+          if (regs.length > 0) location.reload();
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
