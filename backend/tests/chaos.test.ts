@@ -4711,7 +4711,19 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
 
     // ── Identity System Tests ────────────────────────────────────────
 
-    it("S161: GET /travelers returns seeded travelers from ACCESS_CODES", async () => {
+    it("S161: GET /travelers returns travelers", async () => {
+      // Seed Alice and Bob in the Traveler table (test branch has production data)
+      await prisma.traveler.upsert({
+        where: { displayName: "Alice" },
+        create: { displayName: "Alice" },
+        update: {},
+      });
+      await prisma.traveler.upsert({
+        where: { displayName: "Bob" },
+        create: { displayName: "Bob" },
+        update: {},
+      });
+
       const res = await request(app).get("/api/auth/travelers");
       expect(res.status).toBe(200);
       expect(res.body.length).toBeGreaterThanOrEqual(2);
