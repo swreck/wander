@@ -10,14 +10,24 @@ interface Phrase {
   addedBy: string;
 }
 
+const PRONUNCIATIONS: Record<string, string> = {
+  "Konnichiwa": "Koh-nee-chee-wah",
+  "Arigatou gozaimasu": "Ah-ree-gah-toh go-zah-ee-mahs",
+  "Hai, onegaishimasu": "Hai, oh-neh-guy-shee-mahs",
+  "Iie, kekkou desu": "Ee-eh, kek-koh dess",
+  "Ikura desu ka?": "Ee-koo-rah dess kah?",
+  "Sumimasen": "Sue-mee-mah-sen",
+  "Okaikei onegaishimasu": "Oh-kai-keh oh-neh-guy-shee-mahs",
+};
+
 const DEFAULT_PHRASES: Omit<Phrase, "id" | "addedBy">[] = [
-  { english: "Hello (Koh-nee-chee-wah)", romaji: "Konnichiwa" },
-  { english: "Thank you (Ah-ree-gah-toh go-zah-ee-mahs)", romaji: "Arigatou gozaimasu" },
-  { english: "Yes please (Hai, oh-neh-guy-shee-mahs)", romaji: "Hai, onegaishimasu" },
-  { english: "No thank you (Ee-eh, kek-koh dess)", romaji: "Iie, kekkou desu" },
-  { english: "How much? (Ee-koo-rah dess kah?)", romaji: "Ikura desu ka?" },
-  { english: "Excuse me (Sue-mee-mah-sen)", romaji: "Sumimasen" },
-  { english: "Check please (Oh-kai-keh oh-neh-guy-shee-mahs)", romaji: "Okaikei onegaishimasu" },
+  { english: "Hello", romaji: "Konnichiwa" },
+  { english: "Thank you", romaji: "Arigatou gozaimasu" },
+  { english: "Yes please", romaji: "Hai, onegaishimasu" },
+  { english: "No thank you", romaji: "Iie, kekkou desu" },
+  { english: "How much?", romaji: "Ikura desu ka?" },
+  { english: "Excuse me", romaji: "Sumimasen" },
+  { english: "Check please", romaji: "Okaikei onegaishimasu" },
 ];
 
 const ORDER_KEY = "wander:phrase-order";  // local ordering
@@ -189,7 +199,12 @@ export default function PhraseCard() {
               <div key={i} className="flex items-center gap-2 py-2">
                 <div className="w-6 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-base font-medium text-[#3a3128]">{p.romaji}</div>
+                  <div className="text-base font-medium text-[#3a3128]">
+                    {p.romaji}
+                    {PRONUNCIATIONS[p.romaji] && (
+                      <span className="text-xs font-normal text-[#a89880] ml-1.5">({PRONUNCIATIONS[p.romaji]})</span>
+                    )}
+                  </div>
                   <div className="text-xs text-[#8a7a62]">{p.english}</div>
                 </div>
               </div>
@@ -227,7 +242,12 @@ export default function PhraseCard() {
 
                 {/* Phrase content */}
                 <div className="flex-1 min-w-0">
-                  <div className="text-base font-medium text-[#3a3128]">{p.romaji}</div>
+                  <div className="text-base font-medium text-[#3a3128]">
+                    {p.romaji}
+                    {PRONUNCIATIONS[p.romaji] && (
+                      <span className="text-xs font-normal text-[#a89880] ml-1.5">({PRONUNCIATIONS[p.romaji]})</span>
+                    )}
+                  </div>
                   <div className="text-xs text-[#8a7a62]">{p.english}</div>
                 </div>
 
