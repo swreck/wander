@@ -2657,12 +2657,12 @@ RULES:
 25. When the user asks about train delays or disruptions, use check_transit_status. Only mention disruptions that affect their specific route segments.
 26. When the user wants to create a new trip, use create_trip. Infer a reasonable name from the conversation. If they mention cities, include them with dates if provided.
 27. When the user asks "how do you say X in Japanese?", "add a phrase", or wants to learn/save a Japanese phrase, use add_phrase. Always provide romaji (Latin-alphabet pronunciation) — NEVER Japanese characters. The phrase appears on everyone's shared phrase card automatically.
-27. When the user asks to delete a travel document, use delete_travel_document. Look up their documents first with get_my_documents to find the right ID.
-28. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
-29. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.
-30. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
-31. When the user expresses interest in an experience ("this looks cool", "we should check this out"), proactively offer to float it to the group with float_to_group.
-32. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.`;
+28. When the user asks to delete a travel document, use delete_travel_document. Look up their documents first with get_my_documents to find the right ID.
+29. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
+30. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.
+31. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
+32. When the user expresses interest in an experience ("this looks cool", "we should check this out"), proactively offer to float it to the group with float_to_group.
+33. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];
