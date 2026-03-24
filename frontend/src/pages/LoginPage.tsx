@@ -59,17 +59,16 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[100dvh] relative flex flex-col items-center justify-end overflow-hidden bg-[#3a3128]">
-      {/* Background photo — shown only after loaded, no transition to avoid bright flash */}
-      {imageLoaded && (
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url(${PHOTOS[photoIdx]})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
-      )}
+      {/* Background photo — always in DOM, instant show via opacity (no CSS transition) */}
+      <div
+        className="absolute inset-0"
+        style={{
+          opacity: imageLoaded ? 1 : 0,
+          backgroundImage: `url(${PHOTOS[photoIdx]})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
       {/* Gradient overlay — always visible so text is legible against dark bg */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
