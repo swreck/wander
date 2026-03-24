@@ -49,9 +49,10 @@ export default function PlanPage() {
   const [importStartDate, setImportStartDate] = useState("");
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any>(null);
-  const [importMode, setImportMode] = useState<"itinerary" | "recommendations">("itinerary");
   const [recPreview, setRecPreview] = useState<any>(null);
   const [senderLabel, setSenderLabel] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   // Nudge state
   const [nudgeMessage, setNudgeMessage] = useState<{ place: any; nudge: string } | null>(null);
@@ -273,17 +274,47 @@ export default function PlanPage() {
 
   // ── Import ────────────────────────────────────────────────────
 
-  async function handleImportExtract() {
-    if (!trip || !importText.trim()) return;
+  function resetImport() {
+    setShowImport(false);
+    setImportText("");
+    setImportStartDate("");
+    setImportPreview(null);
+    setRecPreview(null);
+    setSenderLabel("");
+    setImportFile(null);
+  }
+
+  async function handleSmartExtract() {
+    if (!trip || (!importText.trim() && !importFile)) return;
     setImporting(true);
     try {
       const formData = new FormData();
-      formData.append("text", importText.trim());
-      if (importStartDate) formData.append("startDate", importStartDate);
-      const result = await api.upload<any>("/import/extract", formData);
-      setImportPreview(result);
+      formData.append("tripId", trip.id);
+      formData.append("cityId", selectedCityId);
+      if (importText.trim()) formData.append("text", importText.trim());
+      if (importFile) formData.append("image", importFile);
+
+      const result = await api.upload<any>("/import/smart-extract", formData);
+
+      if (result.type === "simple") {
+        // Auto-saved — close panel and refresh
+        resetImport();
+        showToast(`Added ${result.saved} experience${result.saved !== 1 ? "s" : ""}`);
+        await loadExperiences();
+        return;
+      }
+
+      if (result.type === "recommendations") {
+        setRecPreview(result);
+        return;
+      }
+
+      if (result.type === "itinerary") {
+        setImportPreview(result);
+        return;
+      }
     } catch {
-      showToast("Couldn't extract recommendations. Try a shorter or clearer format.", "error");
+      showToast("Couldn't process input. Try a shorter or clearer format.", "error");
     } finally {
       setImporting(false);
     }
@@ -294,10 +325,7 @@ export default function PlanPage() {
     setImporting(true);
     try {
       await api.post("/import/merge", { tripId: trip.id, ...importPreview });
-      setShowImport(false);
-      setImportText("");
-      setImportStartDate("");
-      setImportPreview(null);
+      resetImport();
       showToast("Import added to trip");
       await loadTrip();
       await loadExperiences();
@@ -316,10 +344,7 @@ export default function PlanPage() {
         "/import/replace-backbone",
         { tripId: trip.id, ...importPreview }
       );
-      setShowImport(false);
-      setImportText("");
-      setImportStartDate("");
-      setImportPreview(null);
+      resetImport();
       const { before, after } = result.repositioned;
       const moved = before + after;
       showToast(
@@ -338,22 +363,6 @@ export default function PlanPage() {
     (e) => e.sourceText === "Imported from itinerary document" || e.sourceText === "Merged from imported text"
   );
 
-  async function handleRecExtract() {
-    if (!importText.trim()) return;
-    setImporting(true);
-    try {
-      const result = await api.post<any>("/import/extract-recommendations", {
-        text: importText.trim(),
-        country: trip?.cities[0]?.country || "Japan",
-      });
-      setRecPreview(result);
-    } catch {
-      showToast("Extraction failed", "error");
-    } finally {
-      setImporting(false);
-    }
-  }
-
   async function handleRecCommit() {
     if (!trip || !recPreview) return;
     setImporting(true);
@@ -362,13 +371,9 @@ export default function PlanPage() {
         tripId: trip.id,
         recommendations: recPreview.recommendations,
         senderNotes: recPreview.senderNotes,
-        senderLabel: senderLabel || "Friend's recommendations",
+        senderLabel: senderLabel || "Imported recommendations",
       });
-      setShowImport(false);
-      setImportText("");
-      setRecPreview(null);
-      setSenderLabel("");
-      setImportMode("itinerary");
+      resetImport();
       showToast(
         `Imported ${result.imported} recommendations: ${result.category1} to existing cities, ${result.category2} to new cities${result.category3 > 0 ? `, ${result.category3} to Ideas` : ""}`
       );
@@ -520,109 +525,55 @@ export default function PlanPage() {
       {/* Import panel — bottom drawer */}
       {showImport && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/20" onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); setRecPreview(null); setImportMode("itinerary"); }} />
+          <div className="absolute inset-0 bg-black/20" onClick={resetImport} />
           <div className="relative bg-white rounded-t-2xl px-4 py-4 max-h-[80vh] overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}>
           <div className="max-w-2xl mx-auto">
-            {/* Mode toggle */}
+
+            {/* ── Unified input ── */}
             {!importPreview && !recPreview && (
-              <div className="flex gap-1 mb-3">
-                <button
-                  onClick={() => setImportMode("itinerary")}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                    importMode === "itinerary"
-                      ? "bg-[#514636] text-white"
-                      : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
-                  }`}
-                >
-                  Itinerary
-                </button>
-                <button
-                  onClick={() => setImportMode("recommendations")}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                    importMode === "recommendations"
-                      ? "bg-[#514636] text-white"
-                      : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
-                  }`}
-                >
-                  Recommendations
-                </button>
-              </div>
-            )}
-
-            {/* ── Itinerary mode ── */}
-            {importMode === "itinerary" && !importPreview && !recPreview && (
               <>
-                <textarea
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Paste itinerary text, tour details, or chatbot output..."
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
-                             text-[#3a3128] placeholder-[#c8bba8] text-sm resize-y
-                             focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-                />
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <input
-                    type="date"
-                    value={importStartDate}
-                    onChange={(e) => setImportStartDate(e.target.value)}
-                    className="px-2 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#3a3128]
-                               focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-                  />
-                  <span className="text-sm text-[#c8bba8] hidden sm:inline">Start date (if text uses "Day 1, Day 2")</span>
-                  <div className="flex-1" />
-                  <button
-                    onClick={handleImportExtract}
-                    disabled={importing || !importText.trim()}
-                    className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-                  >
-                    {importing ? "Analyzing..." : "Extract & Review"}
-                  </button>
-                  <button
-                    onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); setRecPreview(null); setImportMode("itinerary"); }}
-                    className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-[#3a3128]">Import</h3>
+                  <button onClick={resetImport} className="text-[#c8bba8] hover:text-[#6b5d4a] text-lg">&times;</button>
                 </div>
-              </>
-            )}
-
-            {/* ── Recommendations mode ── */}
-            {importMode === "recommendations" && !importPreview && !recPreview && (
-              <>
+                <p className="text-xs text-[#a89880] mb-3">
+                  Paste text, a URL, or upload a screenshot. AI will figure out the rest.
+                </p>
                 <textarea
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Paste recommendations from a friend, email, blog post, or any list of suggestions..."
-                  rows={6}
+                  placeholder="Paste anything — a URL, friend's recommendations, itinerary, article..."
+                  rows={5}
+                  autoFocus
                   className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
                              text-[#3a3128] placeholder-[#c8bba8] text-sm resize-y
                              focus:outline-none focus:ring-2 focus:ring-[#a89880]"
                 />
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept="image/*,.pdf,application/pdf"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <input
-                    type="text"
-                    value={senderLabel}
-                    onChange={(e) => setSenderLabel(e.target.value)}
-                    placeholder="From whom? (e.g. Larisa)"
-                    className="px-2 py-1.5 rounded border border-[#e0d8cc] text-xs text-[#3a3128]
-                               placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880] w-40"
-                  />
+                  <button
+                    onClick={() => importFileRef.current?.click()}
+                    className="px-3 py-1.5 rounded border border-dashed border-[#e0d8cc] text-xs text-[#8a7a62]
+                               hover:border-[#a89880] transition-colors"
+                  >
+                    {importFile ? importFile.name : "Upload screenshot or PDF"}
+                  </button>
                   <div className="flex-1" />
                   <button
-                    onClick={handleRecExtract}
-                    disabled={importing || !importText.trim()}
+                    onClick={handleSmartExtract}
+                    disabled={importing || (!importText.trim() && !importFile)}
                     className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
                                hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
                   >
-                    {importing ? "Analyzing..." : "Extract & Review"}
+                    {importing ? "Analyzing..." : "Go"}
                   </button>
-                  <button
-                    onClick={() => { setShowImport(false); setImportText(""); setSenderLabel(""); setRecPreview(null); setImportMode("itinerary"); }}
-                    className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
-                  >
+                  <button onClick={resetImport} className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]">
                     Cancel
                   </button>
                 </div>
@@ -724,7 +675,7 @@ export default function PlanPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => { setShowImport(false); setImportText(""); setImportStartDate(""); setImportPreview(null); setImportMode("itinerary"); }}
+                    onClick={resetImport}
                     className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     Cancel
@@ -841,7 +792,7 @@ export default function PlanPage() {
                     {importing ? "Importing..." : "Import All"}
                   </button>
                   <button
-                    onClick={() => { setShowImport(false); setImportText(""); setRecPreview(null); setSenderLabel(""); setImportMode("itinerary"); }}
+                    onClick={resetImport}
                     className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
                   >
                     Cancel

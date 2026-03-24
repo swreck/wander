@@ -1,6 +1,18 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Unified Import (Manual + Import replaces 5 modes)
+
+### Changed
+- **Add menu simplified to 2 options: Manual and Import.** Previously had Manual, Paste Text, URL, Screenshot as capture modes plus a separate Import panel with Itinerary/Recommendations toggle — 5 input paths total. Now: Manual for structured entry (name + description), Import for everything else. AI auto-detects whether content is a single place, recommendation list, or structured itinerary and routes accordingly.
+- **Import panel** — Single textarea accepts text, URLs, or file uploads (screenshots/PDFs). No mode selection needed. Placeholder reads "Paste anything — a URL, friend's recommendations, itinerary, article..." AI classifies using Haiku (fast), then routes to appropriate extractor.
+- **CapturePanel** — Stripped to manual-only: name, description, notes, city selector. Clean and focused.
+
+### Added
+- **`POST /api/import/smart-extract`** — New unified extraction endpoint. Auto-detects URL in text, classifies content (simple/recommendations/itinerary), routes to existing extractors, returns typed response. Simple items auto-save; recommendations and itineraries show review UI.
+
+SPEC UPDATE NEEDED: Capture system section — manual + import replaces multi-mode capture.
+
 ## 2026-03-24 — Timezone Fix, Phrase Panel Polish
 
 ### Fixed

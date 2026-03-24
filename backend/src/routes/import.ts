@@ -1,9 +1,11 @@
 import { Router } from "express";
 import multer from "multer";
+import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { extractItinerary, extractRecommendations, type ExtractionResult, type RecommendationResult } from "../services/itineraryExtractor.js";
+import { extractFromText, extractFromUrl, extractFromImage, enrichExperience } from "../services/capture.js";
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { findDuplicate } from "../services/dedup.js";
@@ -1188,6 +1190,192 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
   } catch (err: any) {
     console.error("Commit recommendations error:", err);
     res.status(500).json({ error: err.message || "Failed to commit recommendations" });
+  }
+});
+
+// ── Smart extract: unified input that auto-classifies ────────────
+
+const classifyAnthropic = new Anthropic();
+
+const CLASSIFY_PROMPT = `You classify travel-related text into one of three categories. Respond with ONLY the category word — nothing else.
+
+Categories:
+- "simple" — 1-3 specific places or a short note about a single experience (e.g. "Ippudo ramen near Shinjuku station" or a restaurant review)
+- "recommendations" — an informal list of suggestions, tips from a friend, blog excerpts, or scattered places without dates/structure (e.g. "You should try X, Y, and Z while in Kyoto")
+- "itinerary" — a structured travel plan with cities AND dates, day-by-day schedules, tour company output, or organized trip planning (e.g. "Day 1: Tokyo - Visit Meiji Shrine...")
+
+If it mentions dates, day numbers, or has city-by-city structure with logistics → "itinerary"
+If it's a list of places without dates → "recommendations"
+If it's 1-3 places or a single article/review → "simple"`;
+
+router.post("/smart-extract", upload.single("image"), async (req: AuthRequest, res) => {
+  try {
+    const { tripId, cityId, text, userNotes } = req.body;
+    const file = req.file;
+
+    if (!tripId) {
+      res.status(400).json({ error: "tripId is required" });
+      return;
+    }
+    if (!text && !file) {
+      res.status(400).json({ error: "text or image is required" });
+      return;
+    }
+
+    // Step 1: Get raw content
+    let rawContent = "";
+    let isImage = false;
+    let imageBase64 = "";
+    let imageMime = "";
+
+    if (file) {
+      // Image or PDF upload
+      isImage = true;
+      imageBase64 = file.buffer.toString("base64");
+      imageMime = file.mimetype;
+    } else if (text) {
+      const trimmed = text.trim();
+      // Auto-detect URL
+      if (/^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed)) {
+        try {
+          const url = trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed;
+          const fetchRes = await fetch(url);
+          const html = await fetchRes.text();
+          const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
+          const title = titleMatch ? titleMatch[1].trim() : "";
+          rawContent = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 8000);
+          rawContent = `Title: ${title}\n\nContent: ${rawContent}`;
+        } catch {
+          rawContent = trimmed;
+        }
+      } else {
+        rawContent = trimmed;
+      }
+    }
+
+    // Step 2: Classify content
+    let classification = "simple";
+    const contentForClassify = isImage ? "User uploaded a screenshot or photo of travel content" : rawContent;
+
+    if (contentForClassify.length > 100 || isImage) {
+      const classifyRes = await classifyAnthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 10,
+        system: CLASSIFY_PROMPT,
+        messages: [{ role: "user", content: contentForClassify.slice(0, 2000) }],
+      });
+      const classifyText = classifyRes.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("")
+        .trim()
+        .toLowerCase();
+
+      if (classifyText.includes("itinerary")) classification = "itinerary";
+      else if (classifyText.includes("recommendations")) classification = "recommendations";
+      else classification = "simple";
+    }
+
+    // Step 3: Route to appropriate extractor
+    if (classification === "itinerary") {
+      // Use full itinerary extractor
+      let result: ExtractionResult;
+      if (isImage) {
+        result = await extractItinerary("", [{ base64: imageBase64, mediaType: imageMime }]);
+      } else {
+        result = await extractItinerary(rawContent);
+      }
+      res.json({ type: "itinerary", ...result });
+      return;
+    }
+
+    if (classification === "recommendations") {
+      // Use recommendations extractor
+      const trip = await prisma.trip.findUnique({
+        where: { id: tripId },
+        include: { cities: { where: { hidden: false } } },
+      });
+      const country = trip?.cities[0]?.country || "Japan";
+      const contentToExtract = isImage
+        ? (await extractFromImage(imageBase64, imageMime)).experiences.map(e => `${e.name}: ${e.description}`).join("\n")
+        : rawContent;
+      const result = await extractRecommendations(contentToExtract, country);
+      res.json({ type: "recommendations", ...result });
+      return;
+    }
+
+    // Simple: extract and auto-save to city
+    if (!cityId) {
+      res.status(400).json({ error: "cityId is required for simple captures" });
+      return;
+    }
+
+    let captureResult;
+    if (isImage) {
+      captureResult = await extractFromImage(imageBase64, imageMime);
+    } else {
+      captureResult = await extractFromText(rawContent);
+    }
+
+    // If AI found many items, upgrade to recommendations
+    if (captureResult.experiences.length > 3) {
+      const contentToExtract = isImage
+        ? captureResult.experiences.map(e => `${e.name}: ${e.description}`).join("\n")
+        : rawContent;
+      const trip = await prisma.trip.findUnique({
+        where: { id: tripId },
+        include: { cities: { where: { hidden: false } } },
+      });
+      const country = trip?.cities[0]?.country || "Japan";
+      const result = await extractRecommendations(contentToExtract, country);
+      res.json({ type: "recommendations", ...result });
+      return;
+    }
+
+    // Save directly
+    const saved = [];
+    for (const exp of captureResult.experiences) {
+      const created = await prisma.experience.create({
+        data: {
+          tripId,
+          cityId,
+          name: exp.name,
+          description: exp.description || null,
+          userNotes: userNotes || null,
+          sourceUrl: exp.sourceUrl || null,
+          createdBy: req.user!.code,
+          state: "possible",
+          locationStatus: "unlocated",
+        },
+        include: { city: true },
+      });
+      saved.push(created);
+      enrichExperience(created.id).catch(() => {});
+      logChange({
+        user: req.user!,
+        tripId,
+        actionType: "experience_created",
+        entityType: "experience",
+        entityId: created.id,
+        entityName: created.name,
+        description: `${req.user!.displayName} added "${created.name}" to ${created.city.name} via import`,
+      }).catch(() => {});
+    }
+
+    res.json({
+      type: "simple",
+      saved: saved.length,
+      experiences: saved.map(s => ({ id: s.id, name: s.name, description: s.description })),
+    });
+  } catch (err: any) {
+    console.error("Smart extract error:", err);
+    res.status(500).json({ error: err.message || "Extraction failed" });
   }
 });
 
