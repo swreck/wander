@@ -31,6 +31,10 @@ router.post("/", async (req: AuthRequest, res) => {
           confirmationNumber, serviceNumber, departureTime, arrivalTime,
           departureStation, arrivalStation, seatInfo } = req.body;
 
+  if (!tripId) { res.status(400).json({ error: "tripId is required" }); return; }
+  if (!originCity?.trim()) { res.status(400).json({ error: "Origin city is required" }); return; }
+  if (!destinationCity?.trim()) { res.status(400).json({ error: "Destination city is required" }); return; }
+
   const maxSeg = await prisma.routeSegment.findFirst({
     where: { tripId },
     orderBy: { sequenceOrder: "desc" },

@@ -2055,7 +2055,8 @@ async function executeTool(
       }
 
       const readiness = profilesToCheck.map((p) => {
-        const docs = p.documents;
+        // Filter out private documents when viewing another traveler's readiness
+        const docs = p.userCode === user.code ? p.documents : p.documents.filter((d) => !d.isPrivate);
         const passportDoc = docs.find((d) => d.type === "passport");
         const hasPassport = !!passportDoc;
         const passportExpiry = passportDoc ? (passportDoc.data as any)?.expiry : null;

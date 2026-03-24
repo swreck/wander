@@ -34,6 +34,9 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req: AuthRequest, res) => {
   const { tripId, name, country, arrivalDate, departureDate, sequenceOrder } = req.body;
 
+  if (!tripId) { res.status(400).json({ error: "tripId is required" }); return; }
+  if (!name?.trim()) { res.status(400).json({ error: "City name is required" }); return; }
+
   // Default sequence order to end
   let order = sequenceOrder;
   if (order === undefined) {

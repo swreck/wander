@@ -51,6 +51,9 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req: AuthRequest, res) => {
   const { name, startDate, endDate, cities, routeSegments } = req.body;
 
+  if (!name?.trim()) { res.status(400).json({ error: "Trip name is required" }); return; }
+  if (!startDate || !endDate) { res.status(400).json({ error: "Start and end dates are required" }); return; }
+
   // Deactivate other trips (they remain accessible, just not "current")
   await prisma.trip.updateMany({
     where: { status: "active" },

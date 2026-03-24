@@ -37,6 +37,10 @@ router.post("/", async (req: AuthRequest, res) => {
   const { tripId, cityId, name, description, sourceUrl, sourceText, themes, userNotes,
     latitude, longitude, locationStatus, placeIdGoogle } = req.body;
 
+  if (!tripId) { res.status(400).json({ error: "tripId is required" }); return; }
+  if (!cityId) { res.status(400).json({ error: "cityId is required" }); return; }
+  if (!name?.trim()) { res.status(400).json({ error: "Experience name is required" }); return; }
+
   const exp = await prisma.experience.create({
     data: {
       tripId,

@@ -18,6 +18,11 @@ router.get("/trip/:tripId", async (req, res) => {
 router.post("/", async (req: AuthRequest, res) => {
   const { tripId, dayId, name, type, datetime, durationMinutes, latitude, longitude, confirmationNumber, notes, transportModeToHere } = req.body;
 
+  if (!tripId) { res.status(400).json({ error: "tripId is required" }); return; }
+  if (!dayId) { res.status(400).json({ error: "dayId is required" }); return; }
+  if (!name?.trim()) { res.status(400).json({ error: "Reservation name is required" }); return; }
+  if (!datetime) { res.status(400).json({ error: "datetime is required" }); return; }
+
   const reservation = await prisma.reservation.create({
     data: {
       tripId, dayId, name, type,

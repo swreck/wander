@@ -1,6 +1,13 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Chat Button Fix, Input Validation, Privacy
+
+### Fixed
+- **Chat button invisible on day pages**: Chat panel z-index was lowered to z-40 (same as mobile day view overlay), making the button unresponsive on day pages. Restored to z-50 so chat always layers above page content.
+- **Readiness check privacy leak**: `check_travel_readiness` chat tool included private documents (marked `isPrivate`) when checking another traveler's status. Now filters private docs for non-owners.
+- **Input validation on all creation endpoints**: Trip, city, experience, accommodation, reservation, and route segment POST endpoints now reject empty/missing required fields with clear error messages instead of passing garbage to the database.
+
 ## 2026-03-23 — Backend Safety & Frontend UX Polish
 
 ### Fixed

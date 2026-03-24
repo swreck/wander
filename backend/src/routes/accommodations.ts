@@ -17,6 +17,10 @@ router.get("/trip/:tripId", async (req, res) => {
 router.post("/", async (req: AuthRequest, res) => {
   const { tripId, cityId, dayId, name, address, latitude, longitude, checkInTime, checkOutTime, confirmationNumber, notes } = req.body;
 
+  if (!tripId) { res.status(400).json({ error: "tripId is required" }); return; }
+  if (!cityId) { res.status(400).json({ error: "cityId is required" }); return; }
+  if (!name?.trim()) { res.status(400).json({ error: "Accommodation name is required" }); return; }
+
   const acc = await prisma.accommodation.create({
     data: {
       tripId, cityId,

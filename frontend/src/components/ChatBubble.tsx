@@ -249,14 +249,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     <>
       {/* Backdrop on mobile */}
       <div
-        className="fixed inset-0 bg-black/20 z-40 sm:hidden"
+        className="fixed inset-0 bg-black/20 z-50 sm:hidden"
         onClick={() => setOpen(false)}
       />
 
       {/* Chat panel — bottom sheet on mobile, side panel on desktop */}
       <div
         data-chat-panel
-        className="fixed z-40 flex flex-col bg-[#faf8f5] shadow-2xl border border-[#e5ddd0]
+        className="fixed z-50 flex flex-col bg-[#faf8f5] shadow-2xl border border-[#e5ddd0]
           inset-x-0 bottom-0 max-h-[75vh] rounded-t-2xl
           sm:inset-auto sm:bottom-6 sm:right-6 sm:w-96 sm:max-h-[500px] sm:rounded-2xl"
       >
