@@ -1,6 +1,18 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Backroads Fix, Bulk Day Tool, Chat & Safety Fixes
+
+### Fixed
+- **Backroads "B" badge on wrong days**: Itinerary-imported experiences were stuck on pre-trip days (Oct 1, Oct 6-7) due to date restructuring, causing the Backroads badge to span Oct 1-19 instead of Oct 15-22. Moved 7 misplaced activities to correct Backroads days, fixed Jogasaki Coast city assignment (Kyoto → Izu Peninsula), and promoted 7 unassigned itinerary activities (Irohazaka, Lake Chuzenji, Kinugawa rafting, waterfalls, Senjogahara, bullet train) to their correct Backroads days.
+- **Trip day structure**: Fixed overlapping days from Kyoto's wide date range (Oct 5-23 spanning other cities), removed departure-day duplicates across all cities, resulting in clean 23-day schedule.
+
+### Added
+- **`bulk_update_days` chat tool**: AI can now update, create, and delete multiple days in a single operation, enabling trip restructuring that previously timed out with sequential tool calls. Includes Rule 34 in system prompt for when to use it.
+- **AI system prompt guardrails**: Rule 10 updated to reference bulk operations; new Rule 34 guides AI on multi-day restructuring.
+
+SPEC UPDATE NEEDED: Tool count increased to 48 (was 46). New bulk_update_days tool.
+
 ## 2026-03-24 — Chat Button Fix, Input Validation, Privacy
 
 ### Fixed

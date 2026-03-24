@@ -747,6 +747,47 @@ const tools: Anthropic.Tool[] = [
       required: ["tripId", "english", "romaji"],
     },
   },
+  // ── Bulk day operations ──────────────────────────────
+  {
+    name: "bulk_update_days",
+    description: "Update multiple day dates and/or create new days in one operation. Use this when restructuring an itinerary, shifting dates, or aligning days to city date ranges. Much more efficient than calling update_day_date many times.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string", description: "Trip ID" },
+        updates: {
+          type: "array",
+          description: "Days to update (change their date)",
+          items: {
+            type: "object",
+            properties: {
+              dayId: { type: "string" },
+              newDate: { type: "string", description: "YYYY-MM-DD" },
+            },
+            required: ["dayId", "newDate"],
+          },
+        },
+        creates: {
+          type: "array",
+          description: "New days to create",
+          items: {
+            type: "object",
+            properties: {
+              cityId: { type: "string" },
+              date: { type: "string", description: "YYYY-MM-DD" },
+            },
+            required: ["cityId", "date"],
+          },
+        },
+        deletes: {
+          type: "array",
+          description: "Day IDs to delete (experiences will be demoted to possible)",
+          items: { type: "string" },
+        },
+      },
+      required: ["tripId"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -2535,6 +2576,63 @@ async function executeTool(
       };
     }
 
+    case "bulk_update_days": {
+      const results = { updated: 0, created: 0, deleted: 0, errors: [] as string[] };
+
+      // Delete days first (demote their experiences)
+      if (input.deletes?.length) {
+        await prisma.experience.updateMany({
+          where: { dayId: { in: input.deletes }, state: "selected" },
+          data: { state: "possible", dayId: null, timeWindow: null },
+        });
+        await prisma.day.deleteMany({ where: { id: { in: input.deletes } } });
+        results.deleted = input.deletes.length;
+      }
+
+      // Update existing days
+      if (input.updates?.length) {
+        await prisma.$transaction(
+          input.updates.map((u: any) =>
+            prisma.day.update({
+              where: { id: u.dayId },
+              data: { date: new Date(u.newDate) },
+            })
+          )
+        );
+        results.updated = input.updates.length;
+      }
+
+      // Create new days
+      if (input.creates?.length) {
+        await prisma.day.createMany({
+          data: input.creates.map((c: any) => ({
+            tripId: input.tripId,
+            cityId: c.cityId,
+            date: new Date(c.date),
+          })),
+        });
+        results.created = input.creates.length;
+      }
+
+      // Sync trip dates
+      await syncTripDates(input.tripId);
+
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "days_bulk_updated",
+        entityType: "trip",
+        entityId: input.tripId,
+        entityName: "Day schedule",
+        description: `${user.displayName} restructured days: ${results.updated} updated, ${results.created} created, ${results.deleted} deleted`,
+      });
+
+      return {
+        result: results,
+        actionDescription: `Restructured days: ${results.updated} updated, ${results.created} created, ${results.deleted} deleted`,
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -2635,7 +2733,7 @@ RULES:
 2. When performing actions, confirm what you did briefly.
 3. If the user asks to add something, do it — don't just explain how.
 9. When the user asks to shift, move, or reschedule the trip (e.g., "move everything one week earlier"), use shift_trip_dates with the correct offsetDays. Calculate the offset from their description — e.g., "Oct 18 to Oct 11" = -7 days.
-10. When moving a single day's date, use update_day_date.
+10. When moving a single day's date, use update_day_date. For multiple days, use bulk_update_days instead.
 4. Use the tools to read data before answering questions about trip state.
 5. When the user says "add X to Tuesday" or similar, look up the correct day ID first.
 6. For date references like "Tuesday" or "day 3", use get_all_days to find the right day.
@@ -2663,7 +2761,8 @@ RULES:
 30. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.
 31. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
 32. When the user expresses interest in an experience ("this looks cool", "we should check this out"), proactively offer to float it to the group with float_to_group.
-33. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.`;
+33. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.
+34. When the user asks to restructure, shift, or rearrange days across the trip, use bulk_update_days. NEVER promise to "fire all updates simultaneously" unless you are about to call this single tool. If a restructure requires more than 3 tool calls, stop, explain what you need to do, and use bulk_update_days in ONE call. Do not make promises you cannot fulfill in the current response.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];

@@ -1,16 +1,12 @@
-// Self-destruct service worker: clears all caches and unregisters itself.
-// Deployed to break the cycle where an old SW serves stale cached code.
-self.addEventListener('install', function() { self.skipWaiting(); });
-self.addEventListener('activate', function(event) {
+// Self-destructing service worker — clears old caches and unregisters itself
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(function(keys) {
-      return Promise.all(keys.map(function(key) { return caches.delete(key); }));
-    }).then(function() {
+    caches.keys().then((keys) =>
+      Promise.all(keys.map((k) => caches.delete(k)))
+    ).then(() => self.clients.matchAll()).then((clients) => {
+      clients.forEach((c) => c.navigate(c.url));
       return self.registration.unregister();
-    }).then(function() {
-      return self.clients.matchAll();
-    }).then(function(clients) {
-      clients.forEach(function(client) { client.navigate(client.url); });
     })
   );
 });
