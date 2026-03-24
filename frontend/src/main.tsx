@@ -20,17 +20,8 @@ if ('serviceWorker' in navigator) {
       );
       console.log('[Wander] SW registered, scope:', reg.scope);
 
-      // When a new SW takes over, reload to get fresh assets
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
-            // New SW activated — reload to pick up new code
-            window.location.reload();
-          }
-        });
-      });
+      // New SW will take effect on next navigation via skipWaiting+clientsClaim.
+      // No forced reload — that causes visible page blinks during updates.
     } catch (err) {
       console.warn('[Wander] SW registration failed:', err);
     }
