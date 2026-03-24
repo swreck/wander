@@ -198,6 +198,18 @@ export default function JoinPage() {
         </form>
 
         {error && <p className="text-sm text-red-500 mt-4">{error}</p>}
+
+        {tripInfo.currentMembers.length > 0 && (
+          <p className="text-xs text-[#8a7a62] mt-6">
+            Already a member?{" "}
+            <button
+              onClick={() => navigate("/login")}
+              className="underline text-[#514636] font-medium"
+            >
+              Log in
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );
