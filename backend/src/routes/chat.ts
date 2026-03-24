@@ -733,6 +733,31 @@ const tools: Anthropic.Tool[] = [
       required: ["experienceId"],
     },
   },
+  // ── Place lookup tool ──────────────────────────────
+  {
+    name: "lookup_place",
+    description: "Look up a real-world place and get its photo, rating, address, and details from Google. Use when user asks about a specific place, wants to see what it looks like, or is deciding whether to visit. Returns a rich card with photo. Also use when the user asks 'show me X', 'what does X look like', 'tell me about X restaurant/temple/etc'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Place name and optional location (e.g. 'Fushimi Inari Kyoto', 'Café Kitsune Tokyo')" },
+        location: { type: "string", description: "Optional lat,lng to bias results (e.g. '35.0116,135.7681' for Kyoto)" },
+      },
+      required: ["query"],
+    },
+  },
+  // ── Web search tool ──────────────────────────────
+  {
+    name: "web_search",
+    description: "Search the web for current, real-time information. Use when the user asks about something NOT in the trip data: restaurant recommendations, opening hours, travel tips, crowd levels, weather, current events, 'is X worth visiting', 'best Y near Z', etc. Do NOT use for questions answerable from trip data (use other tools instead).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string", description: "Search query (e.g. 'best ramen near Shinjuku', 'Fushimi Inari crowded October')" },
+      },
+      required: ["query"],
+    },
+  },
   // ── Phrase tools ──────────────────────────────
   {
     name: "add_phrase",
@@ -795,7 +820,7 @@ async function executeTool(
   toolName: string,
   input: any,
   user: { code: string; displayName: string },
-): Promise<{ result: any; actionDescription?: string }> {
+): Promise<{ result: any; actionDescription?: string; placeCards?: any[] }> {
   switch (toolName) {
     case "get_trip_summary": {
       const trip = await prisma.trip.findUnique({
@@ -2561,6 +2586,75 @@ async function executeTool(
       };
     }
 
+    // ── Place lookup ─────────────
+    case "lookup_place": {
+      const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+      if (!apiKey) return { result: { error: "Google Maps API key not configured" } };
+
+      const fields = "place_id,name,formatted_address,geometry,rating,user_ratings_total,photos,price_level";
+      let findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(input.query)}&inputtype=textquery&fields=${fields}&key=${apiKey}`;
+      if (input.location) {
+        findUrl += `&locationbias=circle:20000@${input.location}`;
+      }
+
+      const findRes = await fetch(findUrl);
+      const findData = await findRes.json() as any;
+      const candidate = findData?.candidates?.[0];
+      if (!candidate) return { result: { found: false, message: `No place found for "${input.query}"` } };
+
+      const photoRef = candidate.photos?.[0]?.photo_reference;
+      const photoUrl = photoRef
+        ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoRef}&key=${apiKey}`
+        : null;
+
+      const placeData = {
+        found: true,
+        name: candidate.name,
+        address: candidate.formatted_address || "",
+        rating: candidate.rating || null,
+        ratingCount: candidate.user_ratings_total || null,
+        priceLevel: candidate.price_level ?? null,
+        latitude: candidate.geometry?.location?.lat,
+        longitude: candidate.geometry?.location?.lng,
+        photoUrl,
+      };
+
+      return {
+        result: placeData,
+        placeCards: [placeData],
+      };
+    }
+
+    // ── Web search ─────────────
+    case "web_search": {
+      const braveKey = process.env.BRAVE_SEARCH_API_KEY;
+      if (!braveKey) return { result: { error: "Web search not configured. Answering from existing knowledge." } };
+
+      const searchUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(input.query)}&count=5`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+
+      try {
+        const searchRes = await fetch(searchUrl, {
+          headers: { "X-Subscription-Token": braveKey, Accept: "application/json" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        const searchData = await searchRes.json() as any;
+
+        const results = (searchData.web?.results || []).slice(0, 5).map((r: any) => ({
+          title: r.title,
+          snippet: r.description,
+          url: r.url,
+        }));
+
+        return { result: { query: input.query, results } };
+      } catch {
+        clearTimeout(timeout);
+        return { result: { error: "Search timed out. Answering from existing knowledge.", query: input.query } };
+      }
+    }
+
     case "add_phrase": {
       const phrase = await prisma.tripPhrase.create({
         data: {
@@ -2762,7 +2856,9 @@ RULES:
 31. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
 32. When the user expresses interest in an experience ("this looks cool", "we should check this out"), proactively offer to float it to the group with float_to_group.
 33. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.
-34. When the user asks to restructure, shift, or rearrange days across the trip, use bulk_update_days. NEVER promise to "fire all updates simultaneously" unless you are about to call this single tool. If a restructure requires more than 3 tool calls, stop, explain what you need to do, and use bulk_update_days in ONE call. Do not make promises you cannot fulfill in the current response.`;
+34. When the user asks to restructure, shift, or rearrange days across the trip, use bulk_update_days. NEVER promise to "fire all updates simultaneously" unless you are about to call this single tool. If a restructure requires more than 3 tool calls, stop, explain what you need to do, and use bulk_update_days in ONE call. Do not make promises you cannot fulfill in the current response.
+35. When the user asks about a specific place, wants to see what somewhere looks like, or is deciding whether to visit, use lookup_place. This returns a photo and details from Google. Use it proactively when discussing restaurants, temples, hotels, or attractions — don't just describe them in words when you can show a photo card. Include the city or neighborhood in the query for better results (e.g. "Fushimi Inari Kyoto" not just "Fushimi Inari").
+36. When the user asks about something NOT in the trip data — restaurant recommendations, opening hours, crowd levels, "is X worth visiting", "best Y near Z", current conditions, travel tips — use web_search. Synthesize the results into a concise, helpful answer. Do NOT dump raw search results. Never use web_search for questions answerable from trip data (use other tools instead). You can combine web_search with lookup_place in the same response — search for information, then show a photo card for the top recommendation.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];
@@ -2779,6 +2875,7 @@ RULES:
       : message;
     messages.push({ role: "user", content: augmentedMessage });
     const actions: string[] = [];
+    const placeCards: any[] = [];
     let finalReply = "";
 
     for (let turn = 0; turn < 8; turn++) {
@@ -2807,8 +2904,9 @@ RULES:
         const toolBlock = block as Anthropic.ToolUseBlock;
         console.log(`Chat tool call: ${toolBlock.name}`, JSON.stringify(toolBlock.input).slice(0, 200));
         try {
-          const { result, actionDescription } = await executeTool(toolBlock.name, toolBlock.input, user);
+          const { result, actionDescription, placeCards: cards } = await executeTool(toolBlock.name, toolBlock.input, user);
           if (actionDescription) actions.push(actionDescription);
+          if (cards) placeCards.push(...cards);
           console.log(`Chat tool result: ${toolBlock.name} OK`);
           toolResults.push({
             type: "tool_result",
@@ -2835,6 +2933,7 @@ RULES:
       reply: finalReply,
       actions,
       hasActions: actions.length > 0,
+      ...(placeCards.length > 0 && { places: placeCards }),
     });
   } catch (err: any) {
     console.error("Chat error:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));

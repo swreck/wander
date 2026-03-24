@@ -1,6 +1,29 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Photo Cards, Web Search, Geolocation UX, Voice Fix
+
+### Added
+- **Google Places photo cards in chat** — AI shows inline photo cards with rating, address, and image when discussing places. New `lookup_place` tool (tool #49). Appears in chat panel.
+- **Web search in chat** — AI can search the web via Brave Search API for current info (reviews, opening hours, crowd levels, recommendations). New `web_search` tool (tool #50). Requires BRAVE_SEARCH_API_KEY env var; degrades gracefully without it.
+- **Place details API** — New `/api/place-details` endpoint returns Google Places data for any query.
+
+### Changed
+- **Capture panel** — Removed misleading "Just add to list" / "Look up & place on map" toggle. All experiences are auto-geocoded. Simple note replaces toggle.
+- **Map recenters after location resolve** — When user confirms a location via pin icon, map now pans to include the new pin.
+- **Delayed re-fetch after capture** — After adding an experience, a second fetch runs 2.5s later to pick up async geocoding results and recenter the map.
+- **Voice input** — Fixed Safari crash on mic permission denial (try/catch around recognition.start). Switched to continuous listening mode so pauses don't auto-stop.
+- **Control bar icons** — Larger (16→18px) and darker (#6b5d4a) for better visibility, bar height unchanged.
+- **"Capture" renamed to "Manual"** throughout the UI.
+- **Import panel** — Moved from top slide-down to bottom drawer for consistency with Manual panel.
+
+### Fixed
+- **63 test failures** — Fixed document carry-over pollution and parallel worker race condition in traveler document tests. 352/353 passing.
+- **Stale Neon branch cleanup** — Test setup now auto-deletes orphaned test branches before each run.
+- **Stale data** — Removed test traveler accounts (Grace, Stranger, Ivan, katherine) and orphaned experiences (Backroads Tour, Tokyo) from production.
+
+SPEC UPDATE NEEDED: Chat tools section — add lookup_place and web_search tools.
+
 ## 2026-03-24 — Guide, Test Safety, Backroads Fix, Bulk Day Tool
 
 ### Added

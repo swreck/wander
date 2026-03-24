@@ -123,4 +123,47 @@ router.get("/city-photo", async (req: AuthRequest, res) => {
   }
 });
 
+// Place details — returns name, rating, address, photo URL for a place query
+// Used by chat AI to show rich place cards
+router.get("/place-details", async (req: AuthRequest, res) => {
+  const { query, location } = req.query as { query?: string; location?: string };
+  if (!query) { res.status(400).json({ error: "query required" }); return; }
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) { res.status(500).json({ error: "No API key" }); return; }
+
+  try {
+    const fields = "place_id,name,formatted_address,geometry,rating,user_ratings_total,photos,opening_hours,price_level";
+    let findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=${fields}&key=${apiKey}`;
+    if (location) {
+      findUrl += `&locationbias=circle:20000@${location}`;
+    }
+    const findRes = await fetch(findUrl);
+    const findData = await findRes.json() as any;
+    const candidate = findData?.candidates?.[0];
+    if (!candidate) { res.json({ found: false }); return; }
+
+    const photoRef = candidate.photos?.[0]?.photo_reference;
+    const photoUrl = photoRef
+      ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoRef}&key=${apiKey}`
+      : null;
+
+    res.json({
+      found: true,
+      placeId: candidate.place_id,
+      name: candidate.name,
+      address: candidate.formatted_address || "",
+      latitude: candidate.geometry?.location?.lat,
+      longitude: candidate.geometry?.location?.lng,
+      rating: candidate.rating || null,
+      ratingCount: candidate.user_ratings_total || null,
+      priceLevel: candidate.price_level ?? null,
+      openNow: candidate.opening_hours?.open_now ?? null,
+      photoUrl,
+    });
+  } catch {
+    res.json({ found: false });
+  }
+});
+
 export default router;

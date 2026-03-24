@@ -1,10 +1,20 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
 
+interface PlaceCard {
+  name: string;
+  address?: string;
+  rating?: number | null;
+  ratingCount?: number | null;
+  priceLevel?: number | null;
+  photoUrl?: string | null;
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   text: string;
   actions?: string[];
+  places?: PlaceCard[];
 }
 
 interface ChatContext {
@@ -127,7 +137,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data.reply, actions: data.actions },
+        { role: "assistant", text: data.reply, actions: data.actions, places: data.places },
       ]);
       if (data.hasActions && onDataChanged) {
         onDataChanged();
@@ -332,6 +342,40 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                 }`}
               >
                 <p className="whitespace-pre-wrap">{msg.text}</p>
+                {msg.places && msg.places.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {msg.places.map((place, pi) => (
+                      <div key={pi} className="rounded-lg overflow-hidden bg-white/80 border border-[#e0d8cc]/60">
+                        {place.photoUrl && (
+                          <img
+                            src={place.photoUrl}
+                            alt={place.name}
+                            className="w-full h-32 object-cover"
+                            loading="lazy"
+                          />
+                        )}
+                        <div className="px-3 py-2">
+                          <div className="font-medium text-sm text-[#3a3128]">{place.name}</div>
+                          {place.address && (
+                            <div className="text-xs text-[#8a7a62] mt-0.5 line-clamp-1">{place.address}</div>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            {place.rating && (
+                              <span className="text-xs text-[#6b5d4a]">
+                                ★ {place.rating}{place.ratingCount ? ` (${place.ratingCount})` : ""}
+                              </span>
+                            )}
+                            {place.priceLevel != null && (
+                              <span className="text-xs text-[#a89880]">
+                                {"$".repeat(place.priceLevel)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {msg.actions && msg.actions.length > 0 && (
                   <div className="mt-1.5 pt-1.5 border-t border-[#d9cfc0]/50 space-y-0.5">
                     {msg.actions.map((a, j) => (

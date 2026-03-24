@@ -194,6 +194,11 @@ export default function PlanPage() {
     setShowCapture(false);
     showToast("Experience captured");
     await loadExperiences();
+    // Re-fetch after a delay to pick up async geocoding results
+    setTimeout(async () => {
+      await loadExperiences();
+      setRecenterKey((k) => k + 1);
+    }, 2500);
   }
 
   const [confirmHideCity, setConfirmHideCity] = useState<{ id: string; name: string } | null>(null);
@@ -1190,7 +1195,7 @@ export default function PlanPage() {
               onDemote={handleDemote}
               onExperienceClick={(id) => setSelectedExpId(id)}
               onExperienceHover={setHighlightedExpId}
-              onLocationResolved={loadExperiences}
+              onLocationResolved={() => { loadExperiences(); setRecenterKey((k) => k + 1); }}
               interests={interests}
               onInterestChanged={loadInterests}
             />
@@ -1241,7 +1246,7 @@ export default function PlanPage() {
                   onPromote={handlePromote}
                   onDemote={handleDemote}
                   onExperienceClick={(id) => { setSelectedExpId(id); setMobileView("map"); }}
-                  onLocationResolved={loadExperiences}
+                  onLocationResolved={() => { loadExperiences(); setRecenterKey((k) => k + 1); }}
                   interests={interests}
                   onInterestChanged={loadInterests}
                 />

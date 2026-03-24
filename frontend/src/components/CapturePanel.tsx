@@ -26,8 +26,6 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
   const [previewResult, setPreviewResult] = useState<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [geocode, setGeocode] = useState(false);
-
   async function handleSubmit() {
     if (!cityId) return;
     setError("");
@@ -42,7 +40,6 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
           name: name.trim(),
           description: description.trim() || null,
           userNotes: userNotes.trim() || null,
-          geocode,
         });
         onCaptured();
       } else if (mode === "text") {
@@ -182,26 +179,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                            text-[#3a3128] placeholder-[#c8bba8] text-sm resize-none
                            focus:outline-none focus:ring-2 focus:ring-[#a89880]"
               />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setGeocode(false)}
-                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    !geocode ? "bg-[#514636] text-white" : "bg-[#f0ece5] text-[#6b5d4a]"
-                  }`}
-                >
-                  Just add to list
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGeocode(true)}
-                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    geocode ? "bg-[#514636] text-white" : "bg-[#f0ece5] text-[#6b5d4a]"
-                  }`}
-                >
-                  📍 Look up &amp; place on map
-                </button>
-              </div>
+              <p className="text-xs text-[#a89880]">Location will be looked up automatically</p>
             </>
           )}
 

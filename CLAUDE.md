@@ -96,7 +96,7 @@ The AI chat assistant should be able to perform any data operation the UI can. W
 2. A `case` in the `executeTool` switch
 3. A numbered rule in the system prompt explaining when to use it
 
-Current tool count: 48. Categories:
+Current tool count: 50. Categories:
 - **Trip lifecycle**: create_trip, update_trip, shift_trip_dates, get_trip_summary
 - **City CRUD**: add_city, update_city, update_city_dates, delete_city, reorder_cities, hide_city, restore_city, list_hidden_cities
 - **Day operations**: create_day, delete_day, get_day_details, get_all_days, update_day_notes, update_day_date, reassign_day, share_day_plan
@@ -110,6 +110,8 @@ Current tool count: 48. Categories:
 - **Transit**: check_transit_status, search_train_schedules
 - **Travel**: get_travel_time
 - **Import**: import_recommendations
+- **Places**: lookup_place
+- **Search**: web_search
 - **Phrases**: add_phrase
 - **History**: get_change_log
 
