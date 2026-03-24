@@ -1,6 +1,14 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Day Trip Rule, Data Cleanup
+
+### Changed
+- **AI chat day-trip behavior (Rule 37)** — When users ask to add a destination as a day trip from an existing city, AI now uses `add_experience` within that city instead of incorrectly creating a new standalone city. Fixes issue where pottery town requests created empty duplicate cities instead of experiences.
+
+### Fixed
+- **Stale data cleanup** — Removed 4 duplicate cities (Mashiko, Shigaraki, Bizen, Arita) incorrectly created by AI chat, 10 city-name stub experiences, and 1 test experience from production.
+
 ## 2026-03-24 — Photo Cards, Web Search, Geolocation UX, Voice Fix
 
 ### Added
