@@ -63,7 +63,11 @@ export default function HistoryPage() {
           >
             &larr; Back
           </button>
-          <span className="text-sm text-[#c8bba8]">{total} changes</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[#c8bba8]">{total} changes</span>
+            <button onClick={() => navigate("/guide")} className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors" aria-label="Guide">?</button>
+
+          </div>
         </div>
 
         <h1 className="text-2xl font-light text-[#3a3128] mb-4">History</h1>

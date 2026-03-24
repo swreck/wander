@@ -1,6 +1,18 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Guide, Test Safety, Backroads Fix, Bulk Day Tool
+
+### Added
+- **In-app guide** (`/guide`): Card-based walkthrough for new users — Quick Start, navigation, chat assistant, travel days, group planning, map filtering, profile. Designed for phone screens with Wander visual language.
+- **Printable guide** (`/guide.html`): Standalone two-column HTML version of the same content, styled for PDF export (File → Print → Save as PDF). For sending to trip companions before the trip.
+- **"?" icon on all screens**: Subtle link to the guide from Trip Overview (identity bar), Plan page (bottom action bar), Now page (header), History page (header), and Settings page ("View guide" button).
+- **Auto-show guide on first join**: New users joining via invite link see the guide immediately after picking their name. Subsequent visits go straight to the trip.
+
+### Fixed
+- **Test isolation safety**: Tests that fail to create a Neon database branch now abort instead of silently running against production. Previously, a branch creation failure would fall back to production DB, causing test trips to appear in the live app and overwrite the active trip.
+- **Cleaned 156 test trips from production**: Test data leaked into production during a branch isolation failure. Reactivated the real Japan 2026 trip.
+
 ## 2026-03-24 — Backroads Fix, Bulk Day Tool, Chat & Safety Fixes
 
 ### Fixed

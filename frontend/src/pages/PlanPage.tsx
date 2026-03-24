@@ -985,6 +985,10 @@ export default function PlanPage() {
                 </svg>
                 <span className="text-[9px] leading-tight">Chat</span>
               </button>
+              <button onClick={() => navigate("/guide#shaping")} className="flex flex-col items-center px-3 py-0.5 text-[#c8bba8] hover:text-[#8a7a62] transition-colors" aria-label="Guide">
+                <span className="text-sm leading-none font-light">?</span>
+                <span className="text-[9px] leading-tight">&nbsp;</span>
+              </button>
             </div>
             {/* Day filmstrip */}
             <div

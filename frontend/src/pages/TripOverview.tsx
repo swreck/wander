@@ -418,6 +418,13 @@ export default function TripOverview() {
         {/* Identity bar */}
         <div className="flex items-center justify-end gap-3 mb-6">
           <button
+            onClick={() => navigate("/guide#getting-around")}
+            className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+            aria-label="Guide"
+          >
+            ?
+          </button>
+          <button
             onClick={() => navigate("/history")}
             className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
           >
@@ -627,7 +634,6 @@ function CalendarGrid({
   const sortedDays = [...days].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
-  const totalPlanned = Object.values(selectedPerDay).reduce((a, b) => a + b, 0);
 
   // Group days into contiguous clusters (gaps > 7 days = new cluster)
   const clusters: Day[][] = [];
@@ -647,13 +653,6 @@ function CalendarGrid({
 
   return (
     <section className="mb-6">
-      <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-sm font-medium text-[#3a3128]">Itinerary</h2>
-        <span className="text-sm text-[#a89880]">
-          {days.length} days · {totalPlanned} planned
-        </span>
-      </div>
-
       {clusters.map((cluster, ci) => (
         <CalendarCluster
           key={ci}

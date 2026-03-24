@@ -32,8 +32,10 @@ export async function createTestBranch(): Promise<string> {
   const dbPassword = decodeURIComponent(parsed.password);
 
   if (!apiKey) {
-    console.warn("[neon-branch] No NEON_API_KEY — tests will run against production DB");
-    return process.env.DATABASE_URL!;
+    throw new Error(
+      "[neon-branch] NEON_API_KEY is not set. Refusing to run tests against production DB. " +
+      "Set NEON_API_KEY in .env to enable test branch isolation."
+    );
   }
 
   const branchName = `test-${Date.now()}`;
@@ -52,9 +54,10 @@ export async function createTestBranch(): Promise<string> {
   const host = result.endpoints?.[0]?.host;
 
   if (!branchId || !host) {
-    console.error("[neon-branch] Failed to create branch:", JSON.stringify(result));
-    console.warn("[neon-branch] Falling back to production DB");
-    return process.env.DATABASE_URL!;
+    throw new Error(
+      "[neon-branch] Failed to create branch: " + JSON.stringify(result) +
+      "\nRefusing to run tests against production DB."
+    );
   }
 
   // Build connection string for the branch

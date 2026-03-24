@@ -353,9 +353,18 @@ export default function NowPage() {
           >
             &larr; Planning
           </button>
-          <span className="text-sm text-[#c8bba8]">
-            {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[#c8bba8]">
+              {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            </span>
+            <button
+              onClick={() => navigate("/guide#travel-days")}
+              className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+              aria-label="Guide"
+            >
+              ?
+            </button>
+          </div>
         </div>
 
         {/* Today — morning briefing header */}

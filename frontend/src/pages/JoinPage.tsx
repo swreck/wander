@@ -63,7 +63,13 @@ export default function JoinPage() {
       // Force auth context to pick up the new user
       await login(data.displayName);
 
-      navigate("/");
+      // Show guide on first join
+      if (!localStorage.getItem("wander:seen-guide")) {
+        localStorage.setItem("wander:seen-guide", "1");
+        navigate("/guide");
+      } else {
+        navigate("/");
+      }
     } catch (e: any) {
       setError(e.message || "Couldn't join. Try again.");
       setJoining(false);

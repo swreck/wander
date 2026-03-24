@@ -105,6 +105,16 @@ export default function SettingsPage() {
           </button>
         </section>
 
+        {/* Guide */}
+        <section>
+          <button
+            onClick={() => navigate("/guide")}
+            className="py-2 px-4 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a] hover:bg-[#f0ece5] transition-colors"
+          >
+            View guide
+          </button>
+        </section>
+
         {/* Logout */}
         <section>
           <button

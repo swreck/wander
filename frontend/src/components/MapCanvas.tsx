@@ -486,6 +486,57 @@ function MapPanner({ center, circleGeo, recenterKey }: { center: { lat: number; 
 
 // ── Main Component ──────────────────────────────────────────────
 
+function ThemeFilterButton({ theme, isActive, dimmed, onSelect, style }: {
+  theme: string;
+  isActive: boolean;
+  dimmed: boolean;
+  onSelect: () => void;
+  style: { bg: string; border: string; emoji: string };
+}) {
+  const [tooltip, setTooltip] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const startPress = useCallback(() => {
+    timerRef.current = setTimeout(() => setTooltip(true), 500);
+  }, []);
+
+  const endPress = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    setTooltip(false);
+  }, []);
+
+  const label = THEME_LABELS[theme] || theme;
+
+  return (
+    <div className="relative flex items-center justify-center">
+      {tooltip && (
+        <div className="absolute right-full mr-2 whitespace-nowrap bg-[#514636] text-white text-xs px-2 py-1 rounded pointer-events-none z-50">
+          {label}
+        </div>
+      )}
+      <button
+        onClick={onSelect}
+        onTouchStart={startPress}
+        onTouchEnd={endPress}
+        onTouchCancel={endPress}
+        onMouseDown={startPress}
+        onMouseUp={endPress}
+        onMouseLeave={endPress}
+        className="w-10 h-10 rounded-full shadow-md border-2 flex items-center justify-center text-base transition-all"
+        style={{
+          backgroundColor: isActive ? style.bg : "white",
+          borderColor: isActive ? style.border : "#e0d8cc",
+          opacity: dimmed ? 0.4 : 1,
+        }}
+        title={label}
+      >
+        {style.emoji}
+      </button>
+    </div>
+  );
+}
+
 function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeTheme: string | null; onSelect: (t: string | null) => void; availableThemes: Set<string> }) {
   if (availableThemes.size <= 1) return null;
   const themes = [...availableThemes].sort();
@@ -495,7 +546,7 @@ function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeThem
         {activeTheme && (
           <button
             onClick={() => onSelect(null)}
-            className="w-8 h-8 rounded-full bg-white shadow-md border border-[#e0d8cc]
+            className="w-10 h-10 rounded-full bg-white shadow-md border border-[#e0d8cc]
                        flex items-center justify-center text-xs text-[#8a7a62] hover:bg-[#f0ece5]"
             title="Show all"
           >
@@ -503,22 +554,17 @@ function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeThem
           </button>
         )}
         {themes.map((t) => {
-          const style = THEME_STYLES[t] || THEME_STYLES.other;
+          const s = THEME_STYLES[t] || THEME_STYLES.other;
           const isActive = activeTheme === t;
           return (
-            <button
+            <ThemeFilterButton
               key={t}
-              onClick={() => onSelect(isActive ? null : t)}
-              className="w-8 h-8 rounded-full shadow-md border-2 flex items-center justify-center text-sm transition-all"
-              style={{
-                backgroundColor: isActive ? style.bg : "white",
-                borderColor: isActive ? style.border : "#e0d8cc",
-                opacity: activeTheme && !isActive ? 0.4 : 1,
-              }}
-              title={THEME_LABELS[t] || t}
-            >
-              {style.emoji}
-            </button>
+              theme={t}
+              isActive={isActive}
+              dimmed={!!(activeTheme && !isActive)}
+              onSelect={() => onSelect(isActive ? null : t)}
+              style={s}
+            />
           );
         })}
       </div>

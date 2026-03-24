@@ -8,6 +8,7 @@ import HistoryPage from "./pages/HistoryPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
+import GuidePage from "./pages/GuidePage";
 import JoinPage from "./pages/JoinPage";
 import OfflineIndicator from "./components/OfflineIndicator";
 import PhraseCard from "./components/PhraseCard";
@@ -195,6 +196,7 @@ function AppRoutes() {
       <Route path="/capture-share" element={<ProtectedRoute><CaptureSharePage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/guide" element={<ProtectedRoute><GuidePage /></ProtectedRoute>} />
     </Routes>
   );
 }
