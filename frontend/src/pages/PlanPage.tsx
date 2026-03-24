@@ -528,14 +528,15 @@ export default function PlanPage() {
           <div className="absolute inset-0 bg-black/20" onClick={resetImport} />
           <div className="relative bg-white rounded-t-2xl px-4 py-4 max-h-[80vh] overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}>
           <div className="max-w-2xl mx-auto">
+            {/* Persistent close X */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-[#3a3128]">Import</h3>
+              <button onClick={resetImport} className="text-[#c8bba8] hover:text-[#6b5d4a] text-lg">&times;</button>
+            </div>
 
             {/* ── Unified input ── */}
             {!importPreview && !recPreview && (
               <>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-[#3a3128]">Import</h3>
-                  <button onClick={resetImport} className="text-[#c8bba8] hover:text-[#6b5d4a] text-lg">&times;</button>
-                </div>
                 <p className="text-xs text-[#a89880] mb-3">
                   Paste text, a URL, or upload a screenshot. AI will figure out the rest.
                 </p>
@@ -572,9 +573,6 @@ export default function PlanPage() {
                                hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
                   >
                     {importing ? "Analyzing..." : "Go"}
-                  </button>
-                  <button onClick={resetImport} className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]">
-                    Cancel
                   </button>
                 </div>
               </>
@@ -674,12 +672,6 @@ export default function PlanPage() {
                       {importing ? "Replacing..." : "Replace Backbone"}
                     </button>
                   )}
-                  <button
-                    onClick={resetImport}
-                    className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
-                  >
-                    Cancel
-                  </button>
                 </div>
               </div>
             )}
@@ -790,12 +782,6 @@ export default function PlanPage() {
                                hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
                   >
                     {importing ? "Importing..." : "Import All"}
-                  </button>
-                  <button
-                    onClick={resetImport}
-                    className="px-3 py-1.5 text-sm text-[#8a7a62] hover:text-[#3a3128]"
-                  >
-                    Cancel
                   </button>
                 </div>
               </div>
