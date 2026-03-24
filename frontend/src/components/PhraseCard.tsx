@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 
 interface Phrase {
@@ -41,6 +43,8 @@ function setHiddenIds(ids: Set<string>) {
 }
 
 export default function PhraseCard() {
+  const { user } = useAuth();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [sharedPhrases, setSharedPhrases] = useState<Phrase[]>([]);
   const [localOrder, setLocalOrderState] = useState<string[]>(getLocalOrder);
@@ -49,12 +53,13 @@ export default function PhraseCard() {
   const [loaded, setLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Get active trip
+  // Get active trip (only when logged in)
   useEffect(() => {
+    if (!user) return;
     api.get<any>("/trips/active").then((t) => {
       if (t?.id) setTripId(t.id);
     }).catch(() => {});
-  }, []);
+  }, [user]);
 
   // Fetch shared phrases when panel opens
   useEffect(() => {
@@ -126,6 +131,8 @@ export default function PhraseCard() {
     setLocalOrderState(ids);
     setLocalOrder(ids);
   }, [visiblePhrases]);
+
+  if (!user || location.pathname === "/login") return null;
 
   if (!open) {
     return (
