@@ -60,8 +60,11 @@ app.use("/api/phrases", phraseRoutes);
 
 // Serve frontend static files in production
 const publicPath = path.join(__dirname, "..", "public");
-app.use(express.static(publicPath));
+// Hashed assets can be cached forever; index.html must always be fresh
+app.use("/assets", express.static(path.join(publicPath, "assets"), { maxAge: "1y", immutable: true }));
+app.use(express.static(publicPath, { maxAge: 0 }));
 app.get("/{*splat}", (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.sendFile(path.join(publicPath, "index.html"));
 });
 

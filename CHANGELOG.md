@@ -1,11 +1,13 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
-## 2026-03-23 — iPad Navigation Fix & Login Page Stability
+## 2026-03-23 — Login & Join Page Stability
 
 ### Fixed
-- **iPad missing Home button**: On iPad landscape, the bottom action bar (Home, List, Add, Chat) was hidden because it used `lg:hidden`. iPad landscape hits the 1024px breakpoint and got the "desktop" layout without any way to navigate back to Trip Overview. Action bar is now always visible; List button is hidden on `lg:` since the side panel is already showing.
-- **Login page blinking**: The login page showed a "Loading..." flash while fetching the traveler list, then re-rendered with buttons — causing a visible blink on slower connections. Now the entire content area (title, subtitle, buttons) fades in together once both the background photo and traveler list have loaded. No intermediate states, no layout shifts.
+- **Service worker reload loop**: The inline SW unregister script called `location.reload()` without waiting for `unregister()` to complete, causing infinite reload loops on devices with stale SWs. Now waits for all unregistrations via `Promise.all` and uses a `sessionStorage` flag to ensure at most one reload per session. This was causing the tab cycling/blinking and preventing login buttons from working.
+- **Stale index.html cache**: Express served `index.html` without cache-control headers, so browsers cached old HTML pointing to old JS bundles. Now serves `index.html` with `no-cache, no-store, must-revalidate` and hashed assets with 1-year immutable cache.
+- **Login page blinking**: Removed JS image preloading and opacity transitions. Background photo now uses pure CSS `background-image` (browser handles loading natively). AuthContext skips loading state when no token exists, eliminating the null render frame for new users.
+- **iPad missing Home button**: Action bar visibility fixed for iPad landscape breakpoint.
 
 ## 2026-03-22 — Shared Phrase System
 

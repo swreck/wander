@@ -20,12 +20,15 @@
   <body>
     <div id="root"></div>
     <script>
-      // One-time cleanup: unregister stale service workers that may be
-      // serving old cached code and causing reload loops or broken JS.
-      if ('serviceWorker' in navigator) {
+      // One-time cleanup: unregister stale service workers.
+      // Uses sessionStorage flag to prevent reload loops.
+      if ('serviceWorker' in navigator && !sessionStorage.getItem('sw_clean')) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
-          regs.forEach(function(r) { r.unregister(); });
-          if (regs.length > 0) location.reload();
+          if (regs.length === 0) return;
+          Promise.all(regs.map(function(r) { return r.unregister(); })).then(function() {
+            sessionStorage.setItem('sw_clean', '1');
+            location.reload();
+          });
         });
       }
     </script>
