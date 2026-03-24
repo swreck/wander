@@ -438,11 +438,11 @@ function TravelGeometryOverlay({ geo, isDayScoped }: { geo: CircleGeo | null; is
   return (
     <MapControl position={ControlPosition.LEFT_BOTTOM}>
       <div
-        className="ml-2 mb-2 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
-        style={{ backgroundColor: "rgba(255,255,255,0.92)" }}
+        className="ml-2 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
+        style={{ backgroundColor: "rgba(255,255,255,0.92)", marginBottom: "120px" }}
       >
         <div className="text-xs text-[#3a3128] font-medium flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full border-2 border-[#8a7a62] inline-block" style={{ backgroundColor: "rgba(200,187,168,0.3)" }} />
+          <span className="w-3 h-3 rounded-full border-2 border-[#8a7a62] inline-block shrink-0" style={{ backgroundColor: "rgba(200,187,168,0.3)" }} />
           {label}
         </div>
       </div>
