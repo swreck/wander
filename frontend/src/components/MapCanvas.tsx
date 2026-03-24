@@ -435,18 +435,23 @@ function TravelGeometryOverlay({ geo, isDayScoped }: { geo: CircleGeo | null; is
     : `~${walkingMin} min walk`;
   const label = `${scope}: ${count} ${itemWord} · ${diameterMi.toFixed(1)} mi · ${walkTime}`;
 
+  // Position label at bottom of circle (center lat minus radius in degrees)
+  const bottomLat = center.lat - (radiusM / 111320);
+
   return (
-    <MapControl position={ControlPosition.LEFT_BOTTOM}>
+    <AdvancedMarker
+      position={{ lat: bottomLat, lng: center.lng }}
+      zIndex={5}
+    >
       <div
-        className="ml-2 px-3 py-1.5 rounded-lg shadow-md border border-[#e0d8cc]"
-        style={{ backgroundColor: "rgba(255,255,255,0.92)", marginBottom: "120px" }}
+        className="px-2.5 py-1 rounded-full shadow-md border border-[#d4c9b8] whitespace-nowrap"
+        style={{ backgroundColor: "rgba(255,255,255,0.93)", transform: "translateY(4px)" }}
       >
-        <div className="text-xs text-[#3a3128] font-medium flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full border-2 border-[#8a7a62] inline-block shrink-0" style={{ backgroundColor: "rgba(200,187,168,0.3)" }} />
-          {label}
+        <div className="text-sm text-[#3a3128] font-medium">
+          {diameterMi.toFixed(1)} mi · {walkTime}
         </div>
       </div>
-    </MapControl>
+    </AdvancedMarker>
   );
 }
 
