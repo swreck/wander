@@ -158,32 +158,53 @@ const profiles: Record<string, TravelerProfile> = {
   Andy: {
     interests: [
       {
-        keywords: ["temple", "meditation", "zen", "buddhist", "dharma", "monastery", "shrine", "zazen", "mindfulness", "contemplative"],
+        keywords: ["ocean", "sea", "marine", "coral", "reef", "coast", "beach", "harbor", "port", "fishing", "aquarium", "whale", "dolphin", "tide pool", "seashore", "bay", "waterfront"],
+        placeTypes: ["aquarium", "natural_feature"],
+        nudges: [
+          "Andy, this stretch of coast has some of the clearest water in the region. Locals say the fishing communities here have been working to keep it that way.",
+          "Andy, there's a marine conservation effort near here — the local fishermen partner with researchers on reef restoration.",
+          "Andy, I noticed a harbor nearby where the fishing cooperative runs a sustainable catch program. The waterfront is worth a walk.",
+          "Andy, this coastline has a cleanup volunteer program that welcomes visitors. Just mentioning it in case it connects.",
+          "Andy, the ocean views from here are supposed to be something. The area has stayed clean because the community protects it.",
+        ],
+      },
+      {
+        keywords: ["hiking", "trail", "mountain", "forest", "park", "nature", "garden", "outdoor", "walk", "waterfall", "river", "lake", "gorge", "valley", "wilderness", "camping"],
+        placeTypes: ["park", "national_park", "campground"],
+        nudges: [
+          "Andy, there's a trail near here that locals use — not a tourist path, just a good walk through the trees.",
+          "Andy, this park is known for pulling people outside. The kind of place where you just start walking and don't want to stop.",
+          "Andy, I noticed a nature reserve nearby. The trails are maintained by volunteers from the community.",
+          "Andy, the outdoor access here is the real thing — forests, water, quiet. Thought you'd want to know it's close.",
+          "Andy, this area has a community trail system that was built and maintained by locals who wanted to share the land.",
+        ],
+      },
+      {
+        keywords: ["volunteer", "community", "nonprofit", "charity", "service", "local", "cooperative", "social enterprise", "help", "give back", "foundation"],
+        placeTypes: ["community_center"],
+        nudges: [
+          "Andy, there's a community project near here that welcomes visiting hands. They work with local families.",
+          "Andy, I noticed a social enterprise nearby — they train locals and reinvest everything back into the neighborhood.",
+          "Andy, this area has a cooperative that does good work. Some travelers have stopped by to see what they're building.",
+        ],
+      },
+      {
+        keywords: ["temple", "shrine", "buddhism", "buddhist", "zen", "meditation", "monastery", "dharma", "mindfulness", "pagoda", "torii", "prayer"],
         placeTypes: ["buddhist_temple", "hindu_temple", "place_of_worship"],
         nudges: [
-          "Andy, this temple is known for morning meditation — might be worth an early start.",
-          "Andy, locals come here to sit quietly. The garden is supposed to be exceptional.",
-          "Andy, I noticed a Zen temple nearby with public meditation sessions.",
-          "Andy, this place has a contemplative garden that draws people in the early morning.",
-          "Andy, there's a temple nearby known for its stillness. Thought you'd want to know.",
+          "Andy, there's a temple nearby that's been practicing Zen for centuries. The garden alone is worth the walk.",
+          "Andy, I noticed a Buddhist temple close by — the morning meditation sessions are open to visitors.",
+          "Andy, this shrine has a quiet courtyard that most people pass right by. The monks keep it immaculate.",
+          "Andy, the temple here sits at the edge of a forest trail. The path between nature and practice is literal.",
         ],
       },
       {
-        keywords: ["ai", "artificial intelligence", "technology", "startup", "innovation", "robotics", "tech hub", "coworking"],
-        placeTypes: [],
+        keywords: ["technology", "tech", "innovation", "robotics", "electronics", "AI", "digital", "science", "engineering", "maker", "lab", "startup"],
+        placeTypes: ["electronics_store", "museum"],
         nudges: [
-          "Andy, there's a tech innovation space nearby — might spark some thinking.",
-          "Andy, this area has an interesting AI and startup scene emerging.",
-          "Andy, I noticed a technology venue close by. Could be worth a conversation.",
-        ],
-      },
-      {
-        keywords: ["bookstore", "book shop", "philosophy", "reading room"],
-        placeTypes: ["book_store"],
-        nudges: [
-          "Andy, there's an independent bookstore nearby — the philosophy and technology sections might have something.",
-          "Andy, I noticed a bookshop that carries deeper titles. Thought of you.",
-          "Andy, this bookstore is known for carrying things you won't find elsewhere.",
+          "Andy, there's a tech space nearby where local makers build and share projects. It's the kind of place that sparks ideas.",
+          "Andy, I noticed an innovation hub close by — they do open demos and welcome curious visitors.",
+          "Andy, this area has a science museum that goes deep on robotics and engineering. Hands-on, not just displays.",
         ],
       },
     ],
@@ -464,9 +485,27 @@ export function getPreTripNudge(
         `${timeGreeting}, ${userName}. Kyoto's kaiseki tradition treats each dish as a small artwork. The best meals follow the season down to the garnish.`,
       );
     }
-    if (profile?.interests.some((i) => i.keywords.some((k) => /book|philosophy|reading/i.test(k)))) {
+    if (profile?.interests.some((i) => i.keywords.some((k) => /ocean|sea|marine|coast|harbor/i.test(k)))) {
       teasers.push(
-        `${timeGreeting}, ${userName}. Jimbocho in Tokyo is the world's largest neighborhood of bookstores — over 170, some specializing in subjects you didn't know had entire shops.`,
+        `${timeGreeting}, ${userName}. Tokyo Bay has a surprising amount of marine life. The city's waterfront communities have been working on restoration for years — the water is cleaner than it's been in decades.`,
+        `${timeGreeting}, ${userName}. Osaka's port area has a deep fishing heritage. The local cooperative still runs the morning auction the old way, and the waterfront is one of the most honest parts of the city.`,
+      );
+    }
+    if (profile?.interests.some((i) => i.keywords.some((k) => /hiking|trail|mountain|forest|outdoor|nature/i.test(k)))) {
+      teasers.push(
+        `${timeGreeting}, ${userName}. Kyoto's Higashiyama hills have walking trails that most visitors never find. The bamboo forests thin out into views that make you stop and breathe.`,
+        `${timeGreeting}, ${userName}. Tokyo has more green space than people realize. Meiji Shrine's forest was planted a hundred years ago by volunteers from across Japan — 100,000 trees, all donated.`,
+      );
+    }
+    if (profile?.interests.some((i) => i.keywords.some((k) => /volunteer|community|service|cooperative/i.test(k)))) {
+      teasers.push(
+        `${timeGreeting}, ${userName}. Osaka has a history of mutual aid that runs deep. The city's community kitchens and neighborhood cooperatives are part of the fabric, not tourist attractions.`,
+      );
+    }
+    if (profile?.interests.some((i) => i.keywords.some((k) => /technology|tech|innovation|robotics|electronics/i.test(k)))) {
+      teasers.push(
+        `${timeGreeting}, ${userName}. Akihabara started as a black market for radio parts after the war. Now it's six floors of everything electronic — but the maker spirit is still the same.`,
+        `${timeGreeting}, ${userName}. Kyoto's tech scene is quieter than Tokyo's but deeper. Nintendo, Omron, and Kyocera all started here. The local maker spaces carry that same precision.`,
       );
     }
     if (profile?.interests.some((i) => i.keywords.some((k) => /sweet|pastry|matcha|bakery|dessert|mochi/i.test(k)))) {

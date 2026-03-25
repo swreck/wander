@@ -1,6 +1,12 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+## 2026-03-24 — Andy's Traveler Profile: Three Os + Buddhism + Tech
+
+### Changed
+- **Andy's interest profile** — Replaced vague bookstore/philosophy interests with his "Three Os" (Oceans, Outdoors, service to Others) plus Buddhism/temples and tech/innovation. Five interest categories with tailored nudges and city-specific teasers for Tokyo, Kyoto, Osaka. Easter eggs conversationally connect to his passions without being cloying.
+- **City teasers** — Added ocean (Tokyo Bay restoration, Osaka fishing heritage), outdoor (Higashiyama trails, Meiji Shrine forest), community service (Osaka mutual aid), tech (Akihabara maker spirit, Kyoto tech scene), and temple/Buddhism teasers. Removed bookstore teaser.
+
 ## 2026-03-24 — Old Voting Removal, Decision Nudge, City Selector Fix
 
 ### Removed
