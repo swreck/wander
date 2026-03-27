@@ -2,10 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
-## 2026-03-27 — Import Chaos Testing + Bug Fixes
+## 2026-03-27 — Import Chaos Testing, Capture UX Consistency
 
 ### Added
 - **36 import chaos tests (S175–S210)** — Covers input validation, dedup/idempotency, special characters, emoji names, mixed-language names, version updates, merge edge cases, URL extraction errors, session expiry, and non-travel content. Total test count: 389.
+
+### Changed
+- **Paste/drop now works on Trip Overview** — Universal capture was only wired to the experience list page. Now also active on Trip Overview, where most large imports happen.
+- **Removed chat paste split UX** — Previously, pasting into chat showed Import/Discuss/Cancel buttons (a different flow from pasting elsewhere). Now paste always behaves the same: paste into chat = paste text into chat. Paste outside any text field = universal capture toast. One behavior, no branching.
 
 ### Fixed
 - **commit-recommendations crash on missing urls/themes** — Endpoint crashed with `Cannot read properties of undefined` when recommendations had no `urls` or `themes` fields. Now handles missing optional fields gracefully.

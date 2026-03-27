@@ -8,6 +8,7 @@ import { APIProvider, Map as GoogleMap, AdvancedMarker, useMap } from "@vis.gl/r
 import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
 import type { Trip, City, Day, Experience, ChangeLogEntry } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
+import useUniversalCapture from "../hooks/useUniversalCapture";
 import RouteSegmentsPanel from "../components/RouteSegmentsPanel";
 import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
 import ContributorView from "../components/ContributorView";
@@ -36,6 +37,7 @@ export default function TripOverview() {
   const [contributorViewCode, setContributorViewCode] = useState<string | null>(null);
 
   useKeyboardShortcuts();
+  useUniversalCapture(trip?.id);
 
   async function loadTrips() {
     setLoading(true);

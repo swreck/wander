@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
-import { useCapture } from "../contexts/CaptureContext";
 
 interface PlaceCard {
   name: string;
@@ -258,59 +257,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const hasSpeechRecognition = typeof window !== "undefined" &&
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
-  // Chat paste detection — offer Import / Let's discuss for travel content
-  const captureCtx = useCapture();
-  const [pastedContent, setPastedContent] = useState<string | null>(null);
-
-  function looksLikeTravelContent(text: string): boolean {
-    const lines = text.split("\n").filter(l => l.trim().length > 0);
-    return lines.length >= 3 && text.length > 150;
-  }
-
-  function handleChatPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const text = e.clipboardData?.getData("text/plain");
-    if (text && looksLikeTravelContent(text)) {
-      e.preventDefault();
-      setPastedContent(text);
-    }
-  }
-
-  function handlePasteImport() {
-    if (!pastedContent || !context.tripId) return;
-    // Feed into universal capture flow
-    captureCtx.startCapture("chat", pastedContent, null);
-    const formData = new FormData();
-    formData.append("tripId", context.tripId);
-    formData.append("text", pastedContent);
-    if (context.cityId) formData.append("cityId", context.cityId);
-    api.upload<any>("/import/universal-extract", formData).then(result => {
-      captureCtx.setExtractionResults({
-        items: result.items || [],
-        versionMatches: result.versionMatches || [],
-        newItemIndices: result.newItemIndices || [],
-        sessionId: result.sessionId || null,
-        sessionItemCount: result.sessionItemCount || 0,
-        defaultCityId: result.defaultCityId || null,
-        defaultCityName: result.defaultCityName || null,
-      });
-      captureCtx.openReview();
-    }).catch(() => {
-      captureCtx.reset();
-    });
-    setPastedContent(null);
-    setOpen(false);
-  }
-
-  function handlePasteDiscuss() {
-    if (!pastedContent) return;
-    setInput(pastedContent);
-    setPastedContent(null);
-    setTimeout(autoResize, 0);
-  }
-
-  function handlePasteCancel() {
-    setPastedContent(null);
-  }
+  // Chat paste: no special handling — paste into chat just pastes as text.
+  // Universal capture handles paste outside text fields.
 
   if (!open) {
     if (hideBubble) {
@@ -479,36 +427,6 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           )}
         </div>
 
-        {/* Paste detection prompt */}
-        {pastedContent && (
-          <div className="px-3 py-2 bg-amber-50 border-t border-amber-200">
-            <p className="text-xs text-amber-800 mb-2">
-              That looks like travel recommendations ({pastedContent.split("\n").filter(l => l.trim()).length} lines)
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePasteImport}
-                className="px-3 py-1.5 rounded-lg bg-[#514636] text-white text-xs font-medium
-                           hover:bg-[#3a3128] transition-colors"
-              >
-                Import
-              </button>
-              <button
-                onClick={handlePasteDiscuss}
-                className="text-xs text-[#8a7a62] hover:text-[#3a3128] underline underline-offset-2"
-              >
-                Let's discuss
-              </button>
-              <button
-                onClick={handlePasteCancel}
-                className="text-xs text-[#c8bba8] hover:text-[#8a7a62] ml-auto"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Input */}
         <form onSubmit={handleFormSubmit} className="px-3 py-3 border-t border-[#e5ddd0]">
           <div className="flex items-end gap-2">
@@ -516,7 +434,6 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               ref={inputRef}
               value={input}
               onChange={(e) => { setInput(e.target.value); autoResize(); }}
-              onPaste={handleChatPaste}
               onKeyDown={handleKeyDown}
               onBeforeInput={handleBeforeInput}
               enterKeyHint="send"
