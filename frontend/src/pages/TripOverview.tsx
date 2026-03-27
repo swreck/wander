@@ -211,7 +211,9 @@ export default function TripOverview() {
   // Derive visit order from the actual day sequence (not city arrivalDates).
   // Walk through days sorted by date. Each time the city changes, that's a new visit.
   // This correctly handles return visits (e.g., Kyoto Oct 5-7 then Kyoto Oct 20-23 = visits 2 and 8).
+  const cities = trip?.cities || [];
   const cityMarkers = useMemo(() => {
+    if (!cities.length || !days.length) return [];
     const sortedDays = [...days].sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
@@ -231,7 +233,7 @@ export default function TripOverview() {
     // Group by city: collect all visit numbers for each city
     const cityMap = new Map<string, { city: City; visitNumbers: number[] }>();
     for (const { cityId, visitNumber } of visits) {
-      const city = trip.cities.find((c) => c.id === cityId);
+      const city = cities.find((c) => c.id === cityId);
       if (!city || !city.latitude || !city.longitude || city.hidden) continue;
       const existing = cityMap.get(cityId);
       if (existing) {
@@ -241,8 +243,8 @@ export default function TripOverview() {
       }
     }
     return Array.from(cityMap.values());
-  }, [days, trip.cities]);
-  const locatedCities = trip.cities.filter((c) => c.latitude && c.longitude && c.arrivalDate && !c.hidden);
+  }, [days, cities]);
+  const locatedCities = cities.filter((c) => c.latitude && c.longitude && c.arrivalDate && !c.hidden);
   const hasMap = API_KEY && cityMarkers.length > 0;
 
   return (
