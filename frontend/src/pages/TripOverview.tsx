@@ -433,7 +433,7 @@ export default function TripOverview() {
                     const dayNum = Math.abs(daysUntil) + 1;
                     return dayNum <= totalDays
                       ? `Day ${dayNum} of ${totalDays}`
-                      : "Trip complete";
+                      : "Welcome home";
                   }
                 })()}
                 {" · "}
