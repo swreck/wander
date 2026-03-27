@@ -70,6 +70,13 @@ accuracy matter here, not personality.
 Run every user-visible string through the test above. Fix violations in
 the same pass — don't just flag them for later. Group fixes by file to
 minimize churn.
+
+### When changing how a feature works
+Search for every user-facing string that *describes* the changed feature
+— onboarding tips, quick start text, guide pages, tooltips, chat system
+prompts, first-time cards. These strings don't reference the feature in
+code; they describe it in words. That semantic connection is easy to miss
+because it's not a dependency graph — it's meaning. Look anyway.
 === END RULE ===
 
 === REACT HOOKS SAFETY CHECK (PERMANENT) ===
