@@ -208,26 +208,41 @@ export default function TripOverview() {
     }
   }
 
-  // Only show itinerary cities (dated, not hidden) on the overview map
-  const itineraryCities = trip.cities
-    .filter((c) => c.arrivalDate && !c.hidden)
-    .sort((a, b) => new Date(a.arrivalDate!).getTime() - new Date(b.arrivalDate!).getTime());
-  // Group multi-visit cities (same name, same location) into single markers with combined numbers
-  const cityMarkers = (() => {
-    const grouped = new Map<string, { city: City; visitNumbers: number[] }>();
-    itineraryCities.forEach((city, i) => {
-      if (!city.latitude || !city.longitude) return;
-      const key = city.name.toLowerCase();
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.visitNumbers.push(i + 1);
-      } else {
-        grouped.set(key, { city, visitNumbers: [i + 1] });
+  // Derive visit order from the actual day sequence (not city arrivalDates).
+  // Walk through days sorted by date. Each time the city changes, that's a new visit.
+  // This correctly handles return visits (e.g., Kyoto Oct 5-7 then Kyoto Oct 20-23 = visits 2 and 8).
+  const cityMarkers = useMemo(() => {
+    const sortedDays = [...days].sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    // Build visit sequence: each city transition = new visit number
+    const visits: { cityId: string; visitNumber: number }[] = [];
+    let lastCityId: string | null = null;
+    let visitCount = 0;
+    for (const day of sortedDays) {
+      if (day.cityId && day.cityId !== lastCityId) {
+        visitCount++;
+        visits.push({ cityId: day.cityId, visitNumber: visitCount });
+        lastCityId = day.cityId;
       }
-    });
-    return Array.from(grouped.values());
-  })();
-  const locatedCities = itineraryCities.filter((c) => c.latitude && c.longitude);
+    }
+
+    // Group by city: collect all visit numbers for each city
+    const cityMap = new Map<string, { city: City; visitNumbers: number[] }>();
+    for (const { cityId, visitNumber } of visits) {
+      const city = trip.cities.find((c) => c.id === cityId);
+      if (!city || !city.latitude || !city.longitude || city.hidden) continue;
+      const existing = cityMap.get(cityId);
+      if (existing) {
+        existing.visitNumbers.push(visitNumber);
+      } else {
+        cityMap.set(cityId, { city, visitNumbers: [visitNumber] });
+      }
+    }
+    return Array.from(cityMap.values());
+  }, [days, trip.cities]);
+  const locatedCities = trip.cities.filter((c) => c.latitude && c.longitude && c.arrivalDate && !c.hidden);
   const hasMap = API_KEY && cityMarkers.length > 0;
 
   return (
