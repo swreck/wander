@@ -72,6 +72,21 @@ the same pass — don't just flag them for later. Group fixes by file to
 minimize churn.
 === END RULE ===
 
+=== REACT HOOKS SAFETY CHECK (PERMANENT) ===
+Before committing any change to a React component that has early returns
+(loading guards, null checks, conditional redirects):
+
+1. Find every hook call in the component (useState, useEffect, useMemo,
+   useCallback, useContext, useRef, custom hooks).
+2. Verify ALL of them are ABOVE every early return statement.
+3. If you added or moved a hook, re-verify.
+
+React requires the same hooks to run in the same order on every render.
+An early return before a hook means that hook runs on some renders but
+not others — this crashes the app. This is not a runtime-testable bug;
+it's a structural error visible in the source code. Check by reading.
+=== END RULE ===
+
 ## Product Intent
 
 **Why this exists:** Ken plans complex, multi-week international trips with family and friends (Larisa, Andy, Julie, Kyler). These trips involve dozens of experiences across multiple cities, and the gap between "research" (finding interesting places) and "execution" (knowing where to go today, right now) is where plans fall apart. Wander bridges that gap.
