@@ -10,6 +10,7 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 ### Changed
 - **Paste/drop now works on Trip Overview** — Universal capture was only wired to the experience list page. Now also active on Trip Overview, where most large imports happen.
 - **Removed chat paste split UX** — Previously, pasting into chat showed Import/Discuss/Cancel buttons (a different flow from pasting elsewhere). Now paste always behaves the same: paste into chat = paste text into chat. Paste outside any text field = universal capture toast. One behavior, no branching.
+- **Map city markers now show correct calendar order** — Was using database insertion order (sequenceOrder), now sorted by arrivalDate. Tokyo (Oct 1) = 1, Kyoto (Oct 5) = 2, etc. Multi-visit cities (e.g., Kyoto visited twice) show combined numbers in a pill: "2 · 8".
 
 ### Fixed
 - **commit-recommendations crash on missing urls/themes** — Endpoint crashed with `Cannot read properties of undefined` when recommendations had no `urls` or `themes` fields. Now handles missing optional fields gracefully.

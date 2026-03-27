@@ -209,9 +209,26 @@ export default function TripOverview() {
   }
 
   // Only show itinerary cities (dated, not hidden) on the overview map
-  const itineraryCities = trip.cities.filter((c) => c.arrivalDate && !c.hidden);
+  const itineraryCities = trip.cities
+    .filter((c) => c.arrivalDate && !c.hidden)
+    .sort((a, b) => new Date(a.arrivalDate!).getTime() - new Date(b.arrivalDate!).getTime());
+  // Group multi-visit cities (same name, same location) into single markers with combined numbers
+  const cityMarkers = (() => {
+    const grouped = new Map<string, { city: City; visitNumbers: number[] }>();
+    itineraryCities.forEach((city, i) => {
+      if (!city.latitude || !city.longitude) return;
+      const key = city.name.toLowerCase();
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.visitNumbers.push(i + 1);
+      } else {
+        grouped.set(key, { city, visitNumbers: [i + 1] });
+      }
+    });
+    return Array.from(grouped.values());
+  })();
   const locatedCities = itineraryCities.filter((c) => c.latitude && c.longitude);
-  const hasMap = API_KEY && locatedCities.length > 0;
+  const hasMap = API_KEY && cityMarkers.length > 0;
 
   return (
     <div className="min-h-screen bg-[#faf8f5]">
@@ -316,34 +333,46 @@ export default function TripOverview() {
               >
                 <OverviewFitter cities={locatedCities} />
                 <RoutePolyline cities={itineraryCities} />
-                {itineraryCities.map((city, i) => city.latitude && city.longitude && (
-                  <AdvancedMarker
-                    key={city.id}
-                    position={{ lat: city.latitude, lng: city.longitude }}
-                    onClick={() => navigate(`/plan?city=${city.id}`)}
-                    title={city.name}
-                  >
-                    <div className="flex flex-col items-center">
-                      <div
-                        className="flex items-center justify-center rounded-full shadow-lg border-3 border-white"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          backgroundColor: CITY_PASTELS[i % CITY_PASTELS.length],
-                          borderWidth: 3,
-                          boxShadow: `0 3px 10px rgba(0,0,0,0.3), 0 0 0 2px ${CITY_PASTELS[i % CITY_PASTELS.length]}`,
-                        }}
-                      >
-                        <span className="text-sm font-bold text-[#3a3128]">
-                          {i + 1}
-                        </span>
+                {cityMarkers.map(({ city, visitNumbers }) => {
+                  const firstIdx = visitNumbers[0] - 1;
+                  const pastel = CITY_PASTELS[firstIdx % CITY_PASTELS.length];
+                  const label = visitNumbers.length > 1
+                    ? visitNumbers.join(" · ")
+                    : String(visitNumbers[0]);
+                  const isMultiVisit = visitNumbers.length > 1;
+                  return (
+                    <AdvancedMarker
+                      key={city.id}
+                      position={{ lat: city.latitude!, lng: city.longitude! }}
+                      onClick={() => navigate(`/plan?city=${city.id}`)}
+                      title={city.name}
+                    >
+                      <div className="flex flex-col items-center">
+                        <div
+                          className="flex items-center justify-center shadow-lg"
+                          style={{
+                            minWidth: 40,
+                            height: 40,
+                            padding: isMultiVisit ? "0 10px" : undefined,
+                            borderRadius: isMultiVisit ? 20 : "50%",
+                            backgroundColor: pastel,
+                            borderWidth: 3,
+                            borderColor: "white",
+                            borderStyle: "solid",
+                            boxShadow: `0 3px 10px rgba(0,0,0,0.3), 0 0 0 2px ${pastel}`,
+                          }}
+                        >
+                          <span className="text-sm font-bold text-[#3a3128]">
+                            {label}
+                          </span>
+                        </div>
+                        <div className="mt-1 px-2 py-0.5 rounded bg-white/90 shadow-sm">
+                          <span className="text-xs font-semibold text-[#3a3128]">{city.name}</span>
+                        </div>
                       </div>
-                      <div className="mt-1 px-2 py-0.5 rounded bg-white/90 shadow-sm">
-                        <span className="text-xs font-semibold text-[#3a3128]">{city.name}</span>
-                      </div>
-                    </div>
-                  </AdvancedMarker>
-                ))}
+                    </AdvancedMarker>
+                  );
+                })}
               </GoogleMap>
             </APIProvider>
           </div>
