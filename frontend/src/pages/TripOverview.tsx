@@ -412,21 +412,19 @@ export default function TripOverview() {
               )}
               <p className="text-sm text-[#8a7a62] mt-1">
                 {(() => {
-                  const now = new Date();
-                  now.setHours(0, 0, 0, 0);
-                  const start = new Date(trip.startDate + "T00:00:00");
-                  const end = new Date(trip.endDate + "T00:00:00");
+                  // UTC arithmetic — immune to DST shifts
+                  const today = new Date();
+                  const nowUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+                  const [sy, sm, sd] = trip.startDate.split("-").map(Number);
+                  const [ey, em, ed] = trip.endDate.split("-").map(Number);
+                  const startUTC = Date.UTC(sy, sm - 1, sd);
+                  const endUTC = Date.UTC(ey, em - 1, ed);
                   const msPerDay = 86400000;
-                  const daysUntil = Math.ceil((start.getTime() - now.getTime()) / msPerDay);
-                  const totalDays = Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+                  const daysUntil = Math.round((startUTC - nowUTC) / msPerDay);
+                  const totalDays = Math.round((endUTC - startUTC) / msPerDay) + 1;
 
-                  if (daysUntil > 30) {
+                  if (daysUntil > 1) {
                     return `${daysUntil} days away`;
-                  } else if (daysUntil > 7) {
-                    const weeks = Math.round(daysUntil / 7);
-                    return `${weeks} week${weeks > 1 ? "s" : ""} away`;
-                  } else if (daysUntil > 1) {
-                    return `${daysUntil} days!`;
                   } else if (daysUntil === 1) {
                     return "Tomorrow!";
                   } else if (daysUntil === 0) {
