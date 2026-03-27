@@ -567,11 +567,11 @@ export default function TripOverview() {
             </p>
             <ul className="text-sm text-[#6b5d4a] space-y-1 list-none">
               {!window.matchMedia("(display-mode: standalone)").matches && (
-                <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen (toggle "web app" so it's green)</li>
+                <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen</li>
               )}
-              <li>• Tap any day below to see your map + activities</li>
-              <li>• Use <strong>Import</strong> on the map to add plans</li>
-              <li>• The AI chat can help rearrange things</li>
+              <li>• Tap any day below to see your map and what's planned</li>
+              <li>• Paste or drop anything — an article, a friend's list, a screenshot — and Wander picks it up</li>
+              <li>• The chat can answer questions, rearrange your plans, or look things up</li>
             </ul>
             <button
               onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); loadTrips(); }}
