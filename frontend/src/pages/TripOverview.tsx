@@ -349,7 +349,7 @@ export default function TripOverview() {
                 style={{ width: "100%", height: "100%" }}
               >
                 <OverviewFitter cities={locatedCities} />
-                <RoutePolyline cities={itineraryCities} />
+                <RoutePolyline cities={locatedCities} />
                 {cityMarkers.map(({ city, visitNumbers }) => {
                   const firstIdx = visitNumbers[0] - 1;
                   const pastel = CITY_PASTELS[firstIdx % CITY_PASTELS.length];
@@ -411,6 +411,34 @@ export default function TripOverview() {
                 <p className="text-sm text-[#6b5d4a] italic">{trip.tagline}</p>
               )}
               <p className="text-sm text-[#8a7a62] mt-1">
+                {(() => {
+                  const now = new Date();
+                  now.setHours(0, 0, 0, 0);
+                  const start = new Date(trip.startDate + "T00:00:00");
+                  const end = new Date(trip.endDate + "T00:00:00");
+                  const msPerDay = 86400000;
+                  const daysUntil = Math.ceil((start.getTime() - now.getTime()) / msPerDay);
+                  const totalDays = Math.round((end.getTime() - start.getTime()) / msPerDay) + 1;
+
+                  if (daysUntil > 30) {
+                    return `${daysUntil} days away`;
+                  } else if (daysUntil > 7) {
+                    const weeks = Math.round(daysUntil / 7);
+                    return `${weeks} week${weeks > 1 ? "s" : ""} away`;
+                  } else if (daysUntil > 1) {
+                    return `${daysUntil} days!`;
+                  } else if (daysUntil === 1) {
+                    return "Tomorrow!";
+                  } else if (daysUntil === 0) {
+                    return "Today!";
+                  } else {
+                    const dayNum = Math.abs(daysUntil) + 1;
+                    return dayNum <= totalDays
+                      ? `Day ${dayNum} of ${totalDays}`
+                      : "Trip complete";
+                  }
+                })()}
+                {" · "}
                 {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
                 <button
                   onClick={() => {
@@ -872,7 +900,7 @@ function CalendarCluster({
                   onClick={() => onDayClick(day.cityId)}
                   className="aspect-[3/4] rounded-lg flex flex-col items-center justify-between relative overflow-hidden
                              hover:shadow-md transition-shadow"
-                  style={{ backgroundColor: cityColor }}
+                  style={{ backgroundColor: cityColor, borderLeft: `4px solid ${dotColor}` }}
                 >
                   {/* Map background with city color tint */}
                   {mapUrl && (

@@ -858,6 +858,7 @@ export default function PlanPage() {
               onInterestChanged={loadInterests}
               decisions={cityDecisions}
               onDecisionsChanged={() => { loadDecisions(); loadExperiences(); }}
+              cityName={trip?.cities.find((c) => c.id === activeCityId)?.name}
             />
           )}
         </div>
@@ -911,6 +912,7 @@ export default function PlanPage() {
                   onInterestChanged={loadInterests}
                   decisions={cityDecisions}
                   onDecisionsChanged={() => { loadDecisions(); loadExperiences(); }}
+                  cityName={trip?.cities.find((c) => c.id === activeCityId)?.name}
                 />
               )}
             </div>

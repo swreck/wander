@@ -326,6 +326,7 @@ interface Props {
   onInterestChanged?: () => void;
   decisions?: Decision[];
   onDecisionsChanged?: () => void;
+  cityName?: string;
 }
 
 // ── Grip Handle SVG ────────────────────────────────────────────────
@@ -834,7 +835,7 @@ function DecisionGroup({
 // ── Main Component ─────────────────────────────────────────────────
 export default function ExperienceList({
   selected, possible, days, trip, onPromote, onDemote, onExperienceClick, onExperienceHover, onLocationResolved,
-  interests, onInterestChanged, decisions, onDecisionsChanged,
+  interests, onInterestChanged, decisions, onDecisionsChanged, cityName,
 }: Props) {
   const { showToast } = useToast();
   const [promotingId, setPromotingId] = useState<string | null>(null);
@@ -1242,8 +1243,13 @@ export default function ExperienceList({
               ))}
 
               {possible.length === 0 && selected.length === 0 && (
-                <div className="text-center py-8 text-sm text-[#c8bba8]">
-                  No experiences yet. Tap + to capture one.
+                <div className="text-center py-10 px-6">
+                  <p className="text-[15px] text-[#8a7a62] leading-relaxed">
+                    {cityName ? `${cityName} is wide open.` : "Nothing here yet."}
+                  </p>
+                  <p className="text-sm text-[#c8bba8] mt-1">
+                    Paste something you've found, or ask the chat what's worth seeing.
+                  </p>
                 </div>
               )}
             </div>
