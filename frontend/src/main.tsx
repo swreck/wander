@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { replayQueue } from './lib/offlineStore'
+import { replayQueue, replayCaptureQueue } from './lib/offlineStore'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -18,13 +18,18 @@ createRoot(document.getElementById('root')!).render(
 //
 // TODO: Re-enable SW registration after all users have loaded this version.
 
-// When coming back online, replay any queued captures (works without SW)
+// When coming back online, replay any queued mutations and captures (works without SW)
 window.addEventListener('online', async () => {
-  const { success, failed } = await replayQueue();
-  if (success > 0) {
-    console.log(`[Wander] Synced ${success} queued item(s), ${failed} failed`);
+  const [mutations, captures] = await Promise.all([
+    replayQueue(),
+    replayCaptureQueue(),
+  ]);
+  const totalSuccess = mutations.success + captures.success;
+  const totalFailed = mutations.failed + captures.failed;
+  if (totalSuccess > 0) {
+    console.log(`[Wander] Synced ${totalSuccess} queued item(s), ${totalFailed} failed`);
     window.dispatchEvent(new CustomEvent('wander:offline-synced', {
-      detail: { success, failed },
+      detail: { success: totalSuccess, failed: totalFailed },
     }));
     window.dispatchEvent(new CustomEvent('wander:data-changed'));
   }

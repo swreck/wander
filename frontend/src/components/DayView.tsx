@@ -5,6 +5,7 @@ import RatingsBadge from "./RatingsBadge";
 import AIObservations from "./AIObservations";
 import FirstTimeGuide from "./FirstTimeGuide";
 import { useToast } from "../contexts/ToastContext";
+import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
 
 type IntraCityMode = "walk" | "subway" | "train" | "bus" | "taxi" | "shuttle" | "other";
 
@@ -401,9 +402,10 @@ export default function DayView({
       const dy = (curr.longitude! - prev.longitude!) * 111 * Math.cos(prev.latitude! * Math.PI / 180);
       const distKm = Math.sqrt(dx * dx + dy * dy);
       if (distKm > 3) {
+        const walkMin = Math.round((distKm / 5) * 60);
         alerts.push({
           key: `distance-${prev.id}-${curr.id}`,
-          message: `${prev.name} and ${curr.name} are ~${distKm.toFixed(1)}km apart.`,
+          message: `${prev.name} and ${curr.name} are ${distKm.toFixed(1)}km apart (~${walkMin} min walk)`,
         });
       }
     }
@@ -533,9 +535,9 @@ export default function DayView({
       <FirstTimeGuide
         id="day-view"
         lines={[
-          "Experiences are sorted by walking distance for the best route",
-          "Amber alerts warn when a day is packed or distances are long",
-          "Tap an experience to see details, or the arrow to move it",
+          "Experiences are sorted by walking distance, respecting morning/afternoon/evening preferences",
+          "Amber alerts appear when a day is packed or distances are long",
+          "Tap an experience to see details. Use the down arrow to move it to candidates — you can always add it back",
           "Add reservations with times so the Now screen can remind you",
         ]}
       />
@@ -615,20 +617,20 @@ export default function DayView({
           {useSpatialOrder ? (
             <>
               <span className="text-xs uppercase tracking-wider text-[#a89880]">
-                Route order
+                Suggested route by distance
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleApplySpatialOrder}
                   className="text-xs text-[#514636] hover:text-[#3a3128] font-medium"
                 >
-                  Save this order
+                  Lock in this order
                 </button>
                 <button
                   onClick={() => setSpatialOverridden(true)}
                   className="text-sm text-[#c8bba8] hover:text-[#8a7a62]"
                 >
-                  Use my order
+                  Keep my order
                 </button>
               </div>
             </>
@@ -637,7 +639,7 @@ export default function DayView({
               onClick={() => setSpatialOverridden(false)}
               className="text-xs uppercase tracking-wider text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
             >
-              Show route order
+              View distance-optimized route
             </button>
           )}
         </div>
@@ -692,9 +694,19 @@ export default function DayView({
               )}
               <div className="flex items-center gap-2 mt-1">
                 <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
-                {exp.createdBy && (
-                  <span className="text-sm text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
-                )}
+                {exp.createdBy && (() => {
+                  const cc = getContributorColor(exp.createdBy);
+                  return (
+                    <span className="flex items-center gap-1 ml-auto">
+                      <span
+                        className="w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: cc.bg, color: cc.text, border: `1px solid ${cc.border}` }}
+                      >
+                        {getContributorInitial(exp.createdBy)}
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -890,9 +902,19 @@ export default function DayView({
             )}
             <div className="flex items-center gap-2 mt-0.5">
               <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
-              {exp.createdBy && (
-                <span className="text-sm text-[#c8bba8] ml-auto">by {exp.createdBy}</span>
-              )}
+              {exp.createdBy && (() => {
+                const cc = getContributorColor(exp.createdBy);
+                return (
+                  <span className="flex items-center gap-1 ml-auto">
+                    <span
+                      className="w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: cc.bg, color: cc.text, border: `1px solid ${cc.border}` }}
+                    >
+                      {getContributorInitial(exp.createdBy)}
+                    </span>
+                  </span>
+                );
+              })()}
             </div>
           </div>
         ))}

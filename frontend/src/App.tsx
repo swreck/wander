@@ -18,6 +18,8 @@ import NextUpOverlay from "./components/NextUpOverlay";
 import InterestOverlay from "./components/InterestOverlay";
 import { ToastProvider } from "./contexts/ToastContext";
 import { useToast } from "./contexts/ToastContext";
+import { CaptureProvider } from "./contexts/CaptureContext";
+import CaptureToast from "./components/CaptureToast";
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./lib/api";
 
@@ -207,15 +209,18 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
           <ToastProvider>
-            <AppRoutes />
-            <DailyGreeting />
-            <NextUpOverlay />
-            <InterestOverlay />
-            <ChatOverlay />
-            <PhraseCard />
-            <ShortcutHelp />
-            <OfflineIndicator />
-            <SyncNotifier />
+            <CaptureProvider>
+              <AppRoutes />
+              <DailyGreeting />
+              <NextUpOverlay />
+              <InterestOverlay />
+              <ChatOverlay />
+              <CaptureToast />
+              <PhraseCard />
+              <ShortcutHelp />
+              <OfflineIndicator />
+              <SyncNotifier />
+            </CaptureProvider>
           </ToastProvider>
         </AuthProvider>
       </BrowserRouter>

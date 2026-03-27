@@ -6,10 +6,13 @@ import MapCanvas, { getCityPastel } from "../components/MapCanvas";
 import ExperienceList from "../components/ExperienceList";
 import ExperienceDetail from "../components/ExperienceDetail";
 import CapturePanel from "../components/CapturePanel";
+import UniversalCapturePanel from "../components/UniversalCapturePanel";
 import DayView from "../components/DayView";
 import CitySplash from "../components/CitySplash";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useCapture } from "../contexts/CaptureContext";
+import useUniversalCapture from "../hooks/useUniversalCapture";
 import { getNudgesForPlace } from "../lib/travelerProfiles";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
@@ -34,7 +37,7 @@ export default function PlanPage() {
   const [showCapture, setShowCapture] = useState(false);
   const [selectedExpId, setSelectedExpId] = useState<string | null>(null);
   const [showDayView, setShowDayView] = useState(false);
-  const [showImport, setShowImport] = useState(false);
+  // showImport replaced by captureCtx.reviewOpen
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const [candidatesExpanded, setCandidatesExpanded] = useState(() => {
     try { return localStorage.getItem("wander:candidates-expanded") === "true"; } catch { return false; }
@@ -45,15 +48,10 @@ export default function PlanPage() {
   const [recenterKey, setRecenterKey] = useState(0);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
 
-  // Import state
-  const [importText, setImportText] = useState("");
-  const [importStartDate, setImportStartDate] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [importPreview, setImportPreview] = useState<any>(null);
-  const [recPreview, setRecPreview] = useState<any>(null);
-  const [senderLabel, setSenderLabel] = useState("");
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const importFileRef = useRef<HTMLInputElement>(null);
+  // Universal capture
+  const captureCtx = useCapture();
+  useUniversalCapture(trip?.id);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   // Nudge state
   const [nudgeMessage, setNudgeMessage] = useState<{ place: any; nudge: string } | null>(null);
@@ -77,15 +75,21 @@ export default function PlanPage() {
   // Keyboard shortcuts
   const shortcutActions = useMemo(() => ({
     toggleCapture: () => setShowCapture((v) => !v),
-    toggleImport: () => setShowImport((v) => !v),
+    toggleImport: () => {
+      if (captureCtx.reviewOpen || captureCtx.active) {
+        captureCtx.reset();
+      } else {
+        captureCtx.openReview();
+      }
+    },
     toggleMobileView: () => setMobileView((v) => v === "map" ? "list" : "map"),
     closePanel: () => {
       if (selectedExpId) { setSelectedExpId(null); return; }
       if (showDayView) { setShowDayView(false); return; }
       if (showCapture) { setShowCapture(false); return; }
-      if (showImport) { setShowImport(false); setImportPreview(null); setRecPreview(null); return; }
+      if (captureCtx.reviewOpen) { captureCtx.reset(); return; }
     },
-  }), [selectedExpId, showDayView, showCapture, showImport]);
+  }), [selectedExpId, showDayView, showCapture, captureCtx]);
   useKeyboardShortcuts(shortcutActions);
 
   // Expose current day/city to chat assistant via global
@@ -177,17 +181,17 @@ export default function PlanPage() {
       showToast("Added to itinerary");
       await loadExperiences();
     } catch {
-      showToast("Couldn't add to itinerary", "error");
+      showToast("Couldn't add — check your connection and try again", "error");
     }
   }
 
   async function handleDemote(expId: string) {
     try {
       await api.post(`/experiences/${expId}/demote`, {});
-      showToast("Moved to candidates");
+      showToast("Moved to Maybe list");
       await loadExperiences();
     } catch {
-      showToast("Couldn't move to candidates", "error");
+      showToast("Couldn't move — check your connection and try again", "error");
     }
   }
 
@@ -198,7 +202,7 @@ export default function PlanPage() {
       showToast("Experience deleted");
       await loadExperiences();
     } catch {
-      showToast("Couldn't delete", "error");
+      showToast("Couldn't delete — check your connection and try again", "error");
     }
   }
 
@@ -235,7 +239,7 @@ export default function PlanPage() {
         action: { label: "Undo", onClick: () => undoHideCity(cityId, cityName) },
       });
     } catch {
-      showToast("Couldn't dismiss city", "error");
+      showToast("Couldn't dismiss — check your connection and try again", "error");
     }
   }
 
@@ -246,7 +250,7 @@ export default function PlanPage() {
       await loadTrip();
       await loadExperiences();
     } catch {
-      showToast("Couldn't restore city", "error");
+      showToast("Couldn't restore — check your connection and try again", "error");
     }
   }
 
@@ -279,123 +283,72 @@ export default function PlanPage() {
       await loadTrip();
       await loadExperiences();
     } catch {
-      showToast("Couldn't dismiss cities", "error");
+      showToast("Couldn't dismiss — check your connection and try again", "error");
     }
   }
 
-  // ── Import ────────────────────────────────────────────────────
+  // ── Import (via UniversalCapturePanel) ───────────────────────
 
-  function resetImport() {
-    setShowImport(false);
-    setImportText("");
-    setImportStartDate("");
-    setImportPreview(null);
-    setRecPreview(null);
-    setSenderLabel("");
-    setImportFile(null);
-  }
-
-  async function handleSmartExtract() {
-    if (!trip || (!importText.trim() && !importFile)) return;
-    setImporting(true);
-    try {
-      const formData = new FormData();
-      formData.append("tripId", trip.id);
-      formData.append("cityId", activeCityId);
-      if (importText.trim()) formData.append("text", importText.trim());
-      if (importFile) formData.append("image", importFile);
-
-      const result = await api.upload<any>("/import/smart-extract", formData);
-
-      if (result.type === "simple") {
-        // Auto-saved — close panel and refresh
-        resetImport();
-        showToast(`Added ${result.saved} experience${result.saved !== 1 ? "s" : ""}`);
-        await loadExperiences();
-        return;
-      }
-
-      if (result.type === "recommendations") {
-        setRecPreview(result);
-        return;
-      }
-
-      if (result.type === "itinerary") {
-        setImportPreview(result);
-        return;
-      }
-    } catch {
-      showToast("Couldn't process input. Try a shorter or clearer format.", "error");
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  async function handleImportMerge() {
-    if (!trip || !importPreview) return;
-    setImporting(true);
-    try {
-      await api.post("/import/merge", { tripId: trip.id, ...importPreview });
-      resetImport();
-      showToast("Import added to trip");
-      await loadTrip();
-      await loadExperiences();
-    } catch {
-      showToast("Import failed", "error");
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  async function handleReplaceBackbone() {
-    if (!trip || !importPreview) return;
-    setImporting(true);
-    try {
-      const result = await api.post<{ archivedTripName: string; repositioned: { before: number; after: number } }>(
-        "/import/replace-backbone",
-        { tripId: trip.id, ...importPreview }
-      );
-      resetImport();
-      const { before, after } = result.repositioned;
-      const moved = before + after;
-      showToast(
-        `Backbone replaced. Old plan archived. ${moved > 0 ? `${moved} surrounding day${moved !== 1 ? "s" : ""} repositioned.` : ""}`
-      );
-      await loadTrip();
-      await loadExperiences();
-    } catch {
-      showToast("Replace failed", "error");
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  const hasBackbone = experiences.some(
-    (e) => e.sourceText === "Imported from itinerary document" || e.sourceText === "Merged from imported text"
-  );
-
-  async function handleRecCommit() {
-    if (!trip || !recPreview) return;
-    setImporting(true);
-    try {
-      const result = await api.post<any>("/import/commit-recommendations", {
-        tripId: trip.id,
-        recommendations: recPreview.recommendations,
-        senderNotes: recPreview.senderNotes,
-        senderLabel: senderLabel || "Imported recommendations",
+  function handleCameraCapture(file: File) {
+    if (!trip) return;
+    captureCtx.startCapture("camera", null, file);
+    // Extract via universal endpoint
+    const formData = new FormData();
+    formData.append("tripId", trip.id);
+    formData.append("cityId", activeCityId);
+    formData.append("image", file);
+    if (captureCtx.sessionId) formData.append("sessionId", captureCtx.sessionId);
+    api.upload<any>("/import/universal-extract", formData).then(result => {
+      captureCtx.setExtractionResults({
+        items: result.items || [],
+        versionMatches: result.versionMatches || [],
+        newItemIndices: result.newItemIndices || [],
+        sessionId: result.sessionId || null,
+        sessionItemCount: result.sessionItemCount || 0,
+        defaultCityId: result.defaultCityId || activeCityId,
+        defaultCityName: result.defaultCityName || null,
       });
-      resetImport();
-      showToast(
-        `Imported ${result.imported} recommendations: ${result.category1} to existing cities, ${result.category2} to new cities${result.category3 > 0 ? `, ${result.category3} to Ideas` : ""}`
-      );
-      await loadTrip();
-      await loadExperiences();
-    } catch {
-      showToast("Import failed", "error");
-    } finally {
-      setImporting(false);
-    }
+    }).catch(() => {
+      captureCtx.reset();
+      showToast("Couldn't process image — try again or paste the text instead", "error");
+    });
   }
+
+  async function handleImportCommitted() {
+    await loadTrip();
+    await loadExperiences();
+    // Re-fetch after delay for geocoding
+    setTimeout(async () => {
+      await loadExperiences();
+      setRecenterKey(k => k + 1);
+    }, 2500);
+  }
+
+  // Keep old handleRecCommit as fallback (will be removed once fully migrated)
+  async function handleRecCommitLegacy() {
+    // no-op: old import panel removed
+  }
+  void handleRecCommitLegacy; // suppress unused warning
+
+  // First activity welcome message
+  const [firstActivityShown, setFirstActivityShown] = useState(false);
+  useEffect(() => {
+    if (!user || !trip) return;
+    // Check if this user has added any experiences to this trip
+    const userExps = experiences.filter(e => e.createdBy === user.code);
+    if (userExps.length === 1 && !firstActivityShown) {
+      const key = `wander:first-activity-${user.code}-${trip.id}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, "1");
+        setFirstActivityShown(true);
+        showToast(
+          "Thanks for adding your first activity. Ken mentioned I needed to make that work well so everyone can be part of the planning.",
+          "info",
+          { duration: 8000 },
+        );
+      }
+    }
+  }, [experiences, user, trip, firstActivityShown, showToast]);
 
   // ── Nearby + Nudges ───────────────────────────────────────────
 
@@ -436,7 +389,7 @@ export default function PlanPage() {
       showToast(`${place.name} added`);
       await loadExperiences();
     } catch {
-      showToast("Couldn't add place", "error");
+      showToast("Couldn't add — check your connection and try again", "error");
     }
   }
 
@@ -534,274 +487,28 @@ export default function PlanPage() {
     <div className="flex flex-col bg-[#faf8f5]" style={{ height: "100dvh" }}>
       {/* Top bar removed — all navigation now in bottom action bar */}
 
-      {/* Import panel — bottom drawer */}
-      {showImport && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/20" onClick={resetImport} />
-          <div className="relative bg-white rounded-t-2xl px-4 py-4 max-h-[80vh] overflow-y-auto" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}>
-          <div className="max-w-2xl mx-auto">
-            {/* Persistent close X */}
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-[#3a3128]">Import</h3>
-              <button onClick={resetImport} className="text-[#c8bba8] hover:text-[#6b5d4a] text-lg">&times;</button>
-            </div>
-
-            {/* ── Unified input ── */}
-            {!importPreview && !recPreview && (
-              <>
-                <p className="text-xs text-[#a89880] mb-3">
-                  Paste text, a URL, or upload a screenshot. AI will figure out the rest.
-                </p>
-                <textarea
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Paste anything — a URL, friend's recommendations, itinerary, article..."
-                  rows={5}
-                  autoFocus
-                  className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
-                             text-[#3a3128] placeholder-[#c8bba8] text-sm resize-y
-                             focus:outline-none focus:ring-2 focus:ring-[#a89880]"
-                />
-                <input
-                  ref={importFileRef}
-                  type="file"
-                  accept="image/*,.pdf,application/pdf"
-                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                  className="hidden"
-                />
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <button
-                    onClick={() => importFileRef.current?.click()}
-                    className="px-3 py-1.5 rounded border border-dashed border-[#e0d8cc] text-xs text-[#8a7a62]
-                               hover:border-[#a89880] transition-colors"
-                  >
-                    {importFile ? importFile.name : "Upload screenshot or PDF"}
-                  </button>
-                  <div className="flex-1" />
-                  <button
-                    onClick={handleSmartExtract}
-                    disabled={importing || (!importText.trim() && !importFile)}
-                    className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-                  >
-                    {importing ? "Analyzing..." : "Go"}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* ── Itinerary review ── */}
-            {importPreview && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-[#3a3128]">Review before adding to trip</h3>
-                  <button
-                    onClick={() => setImportPreview(null)}
-                    className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
-                  >
-                    &larr; Edit text
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm max-h-48 overflow-y-auto">
-                  {importPreview.cities?.length > 0 && (
-                    <div>
-                      <span className="font-medium text-[#a89880] uppercase tracking-wider">
-                        {importPreview.cities.filter((c: any) => !trip.cities.some((tc) => tc.name.toLowerCase() === c.name.toLowerCase())).length} new cities
-                      </span>
-                      <div className="mt-1 space-y-0.5">
-                        {importPreview.cities.map((c: any, i: number) => {
-                          const exists = trip.cities.some((tc) => tc.name.toLowerCase() === c.name.toLowerCase());
-                          return (
-                            <div key={i} className={`px-2 py-1 rounded ${exists ? "text-[#c8bba8]" : "bg-[#f0ece5] text-[#3a3128]"}`}>
-                              {c.name} {exists && <span className="text-xs">(exists)</span>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {importPreview.experiences?.length > 0 && (
-                    <div>
-                      <span className="font-medium text-[#a89880] uppercase tracking-wider">
-                        {importPreview.experiences.length} experiences
-                      </span>
-                      <div className="mt-1 space-y-0.5">
-                        {importPreview.experiences.map((e: any, i: number) => (
-                          <div key={i} className="px-2 py-1 rounded bg-[#f0ece5] text-[#3a3128]">
-                            {e.name} <span className="text-[#a89880]">· {e.cityName}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    {importPreview.accommodations?.length > 0 && (
-                      <div className="mb-2">
-                        <span className="font-medium text-[#a89880] uppercase tracking-wider">
-                          {importPreview.accommodations.length} hotels
-                        </span>
-                        <div className="mt-1 space-y-0.5">
-                          {importPreview.accommodations.map((a: any, i: number) => (
-                            <div key={i} className="px-2 py-1 rounded bg-[#f0ece5] text-[#3a3128]">
-                              {a.name} <span className="text-[#a89880]">· {a.cityName}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {importPreview.routeSegments?.length > 0 && (
-                      <div>
-                        <span className="font-medium text-[#a89880] uppercase tracking-wider">
-                          {importPreview.routeSegments.length} routes
-                        </span>
-                        <div className="mt-1 space-y-0.5">
-                          {importPreview.routeSegments.map((r: any, i: number) => (
-                            <div key={i} className="px-2 py-1 rounded bg-[#f0ece5] text-[#3a3128]">
-                              {r.originCity} → {r.destinationCity}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <button
-                    onClick={handleImportMerge}
-                    disabled={importing}
-                    className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-                  >
-                    {importing ? "Adding..." : "Add to Trip"}
-                  </button>
-                  {hasBackbone && (
-                    <button
-                      onClick={handleReplaceBackbone}
-                      disabled={importing}
-                      className="px-4 py-1.5 rounded bg-[#c0392b] text-white text-xs font-medium
-                                 hover:bg-[#a93226] disabled:opacity-40 transition-colors"
-                    >
-                      {importing ? "Replacing..." : "Replace Backbone"}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ── Recommendations review ── */}
-            {recPreview && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-[#3a3128]">
-                    {recPreview.recommendations?.length || 0} recommendations extracted
-                  </h3>
-                  <button
-                    onClick={() => setRecPreview(null)}
-                    className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
-                  >
-                    &larr; Edit text
-                  </button>
-                </div>
-                <div className="text-sm max-h-64 overflow-y-auto space-y-3">
-                  {/* Group by: existing city, new city, no city */}
-                  {(() => {
-                    const recs = recPreview.recommendations || [];
-                    const tripCities = trip.cities.map((c) => c.name.toLowerCase());
-                    function matchesTripCity(name: string): boolean {
-                      const lower = name.toLowerCase();
-                      if (tripCities.includes(lower)) return true;
-                      if (lower.length >= 4) {
-                        return tripCities.some((tc) => tc.includes(lower) || lower.includes(tc));
-                      }
-                      return false;
-                    }
-                    const inTrip = recs.filter((r: any) => r.city && matchesTripCity(r.city));
-                    const newCity = recs.filter((r: any) => r.city && !matchesTripCity(r.city));
-                    const noCity = recs.filter((r: any) => !r.city);
-                    // Group newCity by region
-                    const byRegion: Record<string, any[]> = {};
-                    for (const r of newCity) {
-                      const key = r.region || r.city || "Other";
-                      if (!byRegion[key]) byRegion[key] = [];
-                      byRegion[key].push(r);
-                    }
-                    return (
-                      <>
-                        {inTrip.length > 0 && (
-                          <div>
-                            <div className="font-medium text-[#3a3128] mb-1 flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                              {inTrip.length} items for cities on your trip
-                            </div>
-                            <div className="space-y-0.5 ml-3.5">
-                              {inTrip.map((r: any, i: number) => (
-                                <div key={i} className="px-2 py-1 rounded bg-green-50 text-[#3a3128]">
-                                  {r.name} <span className="text-[#a89880]">· {r.city}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {Object.keys(byRegion).length > 0 && (
-                          <div>
-                            <div className="font-medium text-[#3a3128] mb-1 flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
-                              {newCity.length} items for new locations
-                            </div>
-                            {Object.entries(byRegion).map(([region, items]) => (
-                              <div key={region} className="ml-3.5 mb-1">
-                                <div className="text-xs font-medium text-[#a89880] uppercase">{region}</div>
-                                <div className="space-y-0.5">
-                                  {items.map((r: any, i: number) => (
-                                    <div key={i} className="px-2 py-1 rounded bg-amber-50 text-[#3a3128]">
-                                      {r.name} <span className="text-[#a89880]">· {r.city}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {noCity.length > 0 && (
-                          <div>
-                            <div className="font-medium text-[#3a3128] mb-1 flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
-                              {noCity.length} general ideas
-                            </div>
-                            <div className="space-y-0.5 ml-3.5">
-                              {noCity.map((r: any, i: number) => (
-                                <div key={i} className="px-2 py-1 rounded bg-gray-50 text-[#3a3128]">
-                                  {r.name}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                  {recPreview.senderNotes && (
-                    <div className="px-2 py-1.5 bg-[#faf8f5] rounded text-[#8a7a62] italic">
-                      {recPreview.senderNotes}
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={handleRecCommit}
-                    disabled={importing}
-                    className="px-4 py-1.5 rounded bg-[#514636] text-white text-xs font-medium
-                               hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
-                  >
-                    {importing ? "Importing..." : "Import All"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          </div>
-        </div>
+      {/* Universal capture panel — replaces old import panel */}
+      {captureCtx.reviewOpen && (
+        <UniversalCapturePanel
+          trip={trip}
+          defaultCityId={activeCityId}
+          onCommitted={handleImportCommitted}
+        />
       )}
+
+      {/* Hidden camera input */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleCameraCapture(file);
+          e.target.value = "";
+        }}
+        className="hidden"
+      />
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
@@ -881,8 +588,8 @@ export default function PlanPage() {
               <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-3 py-2 flex items-center gap-2 max-w-sm">
                 <div className="text-sm text-[#6b5d4a] leading-snug">
                   <p className="font-medium mb-1">Map view</p>
-                  <p>• Swipe days at bottom to navigate</p>
-                  <p>• Tap <strong>List</strong> below for activities</p>
+                  <p>• Swipe days to navigate</p>
+                  <p>• Tap <strong>List</strong> to see all activities</p>
                   <p>• <strong>+ Import</strong> to add plans</p>
                 </div>
                 <button
@@ -925,8 +632,10 @@ export default function PlanPage() {
                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-xl border border-[#e0d8cc] py-1 z-[2] whitespace-nowrap">
                       <button onClick={() => { setShowCapture(true); setShowAddMenu(false); }}
                         className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Manual</button>
-                      <button onClick={() => { setShowImport(true); setShowAddMenu(false); }}
+                      <button onClick={() => { captureCtx.openReview(); setShowAddMenu(false); }}
                         className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Import</button>
+                      <button onClick={() => { cameraRef.current?.click(); setShowAddMenu(false); }}
+                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Camera</button>
                     </div>
                   </>
                 )}

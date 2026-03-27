@@ -9,6 +9,8 @@ import { extractFromText, extractFromUrl, extractFromImage, enrichExperience } f
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { findDuplicate } from "../services/dedup.js";
+import { findVersionMatches, type VersionMatch } from "../services/versionMatch.js";
+import { createSession, getSession, appendToSession, deleteSession, getSessionCount } from "../services/captureSession.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -21,7 +23,7 @@ const upload = multer({
 // Extract itinerary from text or images — returns structured data for review
 router.post("/extract", upload.array("images", 10), async (req: AuthRequest, res) => {
   try {
-    const { text, startDate } = req.body;
+    const { text, startDate } = req.body || {};
     const files = req.files as Express.Multer.File[] | undefined;
 
     if (!text && (!files || files.length === 0)) {
@@ -1118,7 +1120,7 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
       // Build description from rec fields
       const descParts: string[] = [];
       if (rec.description) descParts.push(rec.description);
-      if (rec.urls.length > 0) descParts.push(rec.urls.join("\n"));
+      if (rec.urls && rec.urls.length > 0) descParts.push(rec.urls.join("\n"));
 
       // Map extracted themes to valid enum values
       const validThemes = new Set(["ceramics", "architecture", "food", "temples", "nature", "other"]);
@@ -1127,7 +1129,7 @@ router.post("/commit-recommendations", async (req: AuthRequest, res) => {
         museums: "architecture", art: "architecture", history: "architecture",
         sake: "food", shopping: "other", culture: "other", trains: "other",
       };
-      const mappedThemes = rec.themes
+      const mappedThemes = (rec.themes || [])
         .map((t: string) => validThemes.has(t) ? t : (themeMap[t] || "other"))
         .filter((t: string, i: number, arr: string[]) => arr.indexOf(t) === i);
 
@@ -1376,6 +1378,423 @@ router.post("/smart-extract", upload.single("image"), async (req: AuthRequest, r
   } catch (err: any) {
     console.error("Smart extract error:", err);
     res.status(500).json({ error: err.message || "Extraction failed" });
+  }
+});
+
+// ── Universal Capture ──────────────────────────────────────────
+
+// Classify + extract + version match + session grouping
+router.post("/universal-extract", upload.single("image"), async (req: AuthRequest, res) => {
+  try {
+    const { tripId, cityId, text, sessionId } = req.body;
+    const file = req.file;
+
+    if (!tripId) {
+      res.status(400).json({ error: "tripId is required" });
+      return;
+    }
+    if (!text && !file) {
+      res.status(400).json({ error: "text or image is required" });
+      return;
+    }
+
+    // Step 1: Get raw content
+    let rawContent = "";
+    let isImage = false;
+    let imageBase64 = "";
+    let imageMime = "";
+
+    if (file) {
+      isImage = true;
+      imageBase64 = file.buffer.toString("base64");
+      imageMime = file.mimetype;
+    } else if (text) {
+      const trimmed = text.trim();
+      // Auto-detect URL
+      if (/^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed)) {
+        try {
+          const url = trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed;
+          const fetchRes = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0 (compatible; Wander/1.0)" },
+            signal: AbortSignal.timeout(15000),
+          });
+          const html = await fetchRes.text();
+          const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
+          const title = titleMatch ? titleMatch[1].trim() : "";
+          rawContent = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 8000);
+          rawContent = `Title: ${title}\n\nContent: ${rawContent}`;
+        } catch {
+          rawContent = trimmed;
+        }
+      } else {
+        rawContent = trimmed;
+      }
+    }
+
+    // Step 2: Classify
+    let classification = "simple";
+    const contentForClassify = isImage ? "User uploaded a screenshot or photo of travel content" : rawContent;
+
+    if (contentForClassify.length > 100 || isImage) {
+      const classifyRes = await classifyAnthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 10,
+        system: CLASSIFY_PROMPT,
+        messages: [{ role: "user", content: contentForClassify.slice(0, 2000) }],
+      });
+      const classifyText = classifyRes.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map(b => b.text)
+        .join("")
+        .trim()
+        .toLowerCase();
+
+      if (classifyText.includes("itinerary")) classification = "itinerary";
+      else if (classifyText.includes("recommendations")) classification = "recommendations";
+    }
+
+    // Step 3: Extract
+    let extractedItems: { name: string; description: string | null; userNotes: string | null; cityName: string | null; themes: string[]; timeWindow: string | null }[] = [];
+
+    if (classification === "itinerary") {
+      let result: ExtractionResult;
+      if (isImage) {
+        result = await extractItinerary("", [{ base64: imageBase64, mediaType: imageMime }]);
+      } else {
+        result = await extractItinerary(rawContent);
+      }
+      extractedItems = (result.experiences || []).map(e => ({
+        name: e.name,
+        description: e.description || null,
+        userNotes: null,
+        cityName: e.cityName || null,
+        themes: [],
+        timeWindow: e.timeWindow || null,
+      }));
+    } else if (classification === "recommendations") {
+      const trip = await prisma.trip.findUnique({
+        where: { id: tripId },
+        include: { cities: { where: { hidden: false } } },
+      });
+      const country = trip?.cities[0]?.country || "Japan";
+      const contentToExtract = isImage
+        ? (await extractFromImage(imageBase64, imageMime)).experiences.map(e => `${e.name}: ${e.description}`).join("\n")
+        : rawContent;
+      const result = await extractRecommendations(contentToExtract, country);
+      extractedItems = (result.recommendations || []).map(r => ({
+        name: r.name,
+        description: r.description || null,
+        userNotes: null,
+        cityName: r.city || null,
+        themes: r.themes || [],
+        timeWindow: null,
+      }));
+    } else {
+      // Simple extraction
+      let captureResult;
+      if (isImage) {
+        captureResult = await extractFromImage(imageBase64, imageMime);
+      } else {
+        captureResult = await extractFromText(rawContent);
+      }
+      extractedItems = captureResult.experiences.map(e => ({
+        name: e.name,
+        description: e.description || null,
+        userNotes: null,
+        cityName: null,
+        themes: [],
+        timeWindow: null,
+      }));
+
+      // Upgrade to recommendations if too many
+      if (extractedItems.length > 3) {
+        const trip = await prisma.trip.findUnique({
+          where: { id: tripId },
+          include: { cities: { where: { hidden: false } } },
+        });
+        const country = trip?.cities[0]?.country || "Japan";
+        const contentToExtract = isImage
+          ? captureResult.experiences.map(e => `${e.name}: ${e.description}`).join("\n")
+          : rawContent;
+        const result = await extractRecommendations(contentToExtract, country);
+        extractedItems = (result.recommendations || []).map(r => ({
+          name: r.name,
+          description: r.description || null,
+          userNotes: null,
+          cityName: r.city || null,
+          themes: r.themes || [],
+          timeWindow: null,
+        }));
+      }
+    }
+
+    // Step 4: Version matching
+    let versionMatches: VersionMatch[] = [];
+    let newItemIndices: number[] = extractedItems.map((_, i) => i);
+
+    if (extractedItems.length > 0) {
+      const matchResult = await findVersionMatches(
+        tripId,
+        cityId || null,
+        extractedItems,
+      );
+      versionMatches = matchResult.matches;
+      newItemIndices = matchResult.newItems;
+    }
+
+    // Step 5: Session grouping (for multi-page captures)
+    let activeSessionId = sessionId || null;
+    let sessionItemCount = 0;
+
+    if (sessionId) {
+      const session = appendToSession(sessionId, extractedItems.map(item => ({
+        name: item.name,
+        description: item.description,
+        userNotes: item.userNotes,
+        themes: item.themes,
+        cityName: item.cityName,
+        sourceImageUrl: null,
+      })));
+      if (session) {
+        activeSessionId = session.id;
+        sessionItemCount = session.items.length;
+      }
+    } else if (isImage) {
+      // Start a new session for image captures (multi-page grouping)
+      const session = createSession(tripId);
+      session.items = extractedItems.map(item => ({
+        name: item.name,
+        description: item.description,
+        userNotes: item.userNotes,
+        themes: item.themes,
+        cityName: item.cityName,
+        sourceImageUrl: null,
+      }));
+      session.updatedAt = Date.now();
+      activeSessionId = session.id;
+      sessionItemCount = session.items.length;
+    }
+
+    // Default city/day from context
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: { cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } } },
+    });
+    const defaultCityId = cityId || trip?.cities[0]?.id || null;
+    const defaultCityName = trip?.cities.find(c => c.id === defaultCityId)?.name || null;
+
+    res.json({
+      type: classification,
+      items: extractedItems,
+      versionMatches,
+      newItemIndices,
+      sessionId: activeSessionId,
+      sessionItemCount,
+      defaultCityId,
+      defaultCityName,
+    });
+  } catch (err: any) {
+    console.error("Universal extract error:", err);
+    res.status(500).json({ error: err.message || "Extraction failed" });
+  }
+});
+
+// Commit reviewed items with version update support
+router.post("/universal-commit", async (req: AuthRequest, res) => {
+  try {
+    const { tripId, items, versionUpdates, sessionId } = req.body;
+
+    if (!tripId) {
+      res.status(400).json({ error: "tripId is required" });
+      return;
+    }
+
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: {
+        cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
+        days: { orderBy: { date: "asc" } },
+      },
+    });
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    // Handle version updates (fill blanks on existing experiences)
+    if (Array.isArray(versionUpdates)) {
+      for (const update of versionUpdates) {
+        if (!update.existingId || !update.fields) continue;
+        const data: any = {};
+        for (const [field, value] of Object.entries(update.fields)) {
+          if (value != null && value !== "") {
+            if (field === "notes") data.userNotes = value;
+            else if (field === "timing") data.timeWindow = value;
+            else data[field] = value;
+          }
+        }
+        if (Object.keys(data).length > 0) {
+          // Only fill blank fields — never overwrite existing values
+          const existing = await prisma.experience.findUnique({
+            where: { id: update.existingId },
+          });
+          if (existing) {
+            const filteredData: any = {};
+            for (const [key, val] of Object.entries(data)) {
+              if ((existing as any)[key] == null || (existing as any)[key] === "") {
+                filteredData[key] = val;
+              }
+            }
+            if (Object.keys(filteredData).length > 0) {
+              await prisma.experience.update({
+                where: { id: update.existingId },
+                data: filteredData,
+              });
+            }
+          }
+          updated++;
+
+          logChange({
+            user: req.user!,
+            tripId,
+            actionType: "experience_updated",
+            entityType: "experience",
+            entityId: update.existingId,
+            entityName: update.existingName || "experience",
+            description: `${req.user!.displayName} added details to "${update.existingName}" from import`,
+          }).catch(() => {});
+        }
+      }
+    }
+
+    // Handle new items
+    if (Array.isArray(items)) {
+      // Theme mapping (same as commit-recommendations)
+      const themeMap: Record<string, string> = {
+        pottery: "ceramics", ceramic: "ceramics", kiln: "ceramics",
+        onsen: "nature", garden: "nature", park: "nature", hiking: "nature",
+        museum: "architecture", castle: "architecture", shrine: "temples",
+        temple: "temples", market: "shopping", cafe: "food", restaurant: "food",
+        ramen: "food", sushi: "food", izakaya: "food", bar: "nightlife",
+        gallery: "art", theater: "art", theatre: "art",
+      };
+
+      for (const item of items) {
+        if (!item.name?.trim()) continue;
+
+        // Resolve city
+        let cityId = item.cityId;
+        if (!cityId && item.cityName) {
+          const match = trip.cities.find(c =>
+            c.name.toLowerCase() === item.cityName.toLowerCase()
+          );
+          if (match) {
+            cityId = match.id;
+          } else {
+            // Create candidate city
+            const newCity = await prisma.city.create({
+              data: {
+                tripId,
+                name: item.cityName,
+                country: trip.cities[0]?.country || null,
+                sequenceOrder: trip.cities.length,
+              },
+            });
+            cityId = newCity.id;
+            geocodeCity(newCity.id).catch(() => {});
+          }
+        }
+        if (!cityId) {
+          cityId = trip.cities[0]?.id;
+        }
+        if (!cityId) { skipped++; continue; }
+
+        // Dedup check
+        const dup = await findDuplicate(tripId, item.name, cityId);
+        if (dup) { skipped++; continue; }
+
+        // Map theme
+        let theme = "other";
+        const itemThemes: string[] = item.themes || [];
+        for (const t of itemThemes) {
+          const mapped = themeMap[t.toLowerCase()];
+          if (mapped) { theme = mapped; break; }
+        }
+
+        // Determine state and dayId
+        let state: "possible" | "selected" | "voting" = "possible";
+        let dayId: string | null = null;
+        if (item.dayId) {
+          dayId = item.dayId;
+          state = "selected";
+        } else if (item.destination === "plan") {
+          // Find first day in this city
+          const cityDay = trip.days.find((d: any) => d.cityId === cityId);
+          if (cityDay) {
+            dayId = cityDay.id;
+            state = "selected";
+          }
+        }
+
+        try {
+          const exp = await prisma.experience.create({
+            data: {
+              tripId,
+              cityId,
+              dayId,
+              name: item.name.trim(),
+              description: item.description || null,
+              userNotes: item.userNotes || null,
+              timeWindow: item.timeWindow || null,
+              themes: [theme] as any,
+              state,
+              createdBy: req.user!.code,
+              locationStatus: "unlocated",
+              sourceText: item.sourceText || "Imported via universal capture",
+            },
+          });
+
+          created++;
+          enrichExperience(exp.id).catch(() => {});
+
+          logChange({
+            user: req.user!,
+            tripId,
+            actionType: "experience_created",
+            entityType: "experience",
+            entityId: exp.id,
+            entityName: exp.name,
+            description: `${req.user!.displayName} added "${exp.name}" via import`,
+          }).catch(() => {});
+        } catch (createErr: any) {
+          // Skip items with invalid references (e.g., bad cityId FK constraint)
+          skipped++;
+        }
+      }
+    }
+
+    // Clean up session
+    if (sessionId) {
+      deleteSession(sessionId);
+    }
+
+    // Sync trip dates
+    await syncTripDates(tripId);
+
+    res.json({ created, updated, skipped });
+  } catch (err: any) {
+    console.error("Universal commit error:", err);
+    res.status(500).json({ error: err.message || "Commit failed" });
   }
 });
 

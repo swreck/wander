@@ -9,6 +9,8 @@ import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
 import type { Trip, City, Day, Experience, ChangeLogEntry } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import RouteSegmentsPanel from "../components/RouteSegmentsPanel";
+import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
+import ContributorView from "../components/ContributorView";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -31,6 +33,7 @@ export default function TripOverview() {
   const [collabWelcome, setCollabWelcome] = useState<{ names: string[]; tripName: string } | null>(null);
   const [showTripSwitcher, setShowTripSwitcher] = useState(false);
   const [savingTrip, setSavingTrip] = useState(false);
+  const [contributorViewCode, setContributorViewCode] = useState<string | null>(null);
 
   useKeyboardShortcuts();
 
@@ -93,7 +96,7 @@ export default function TripOverview() {
       showToast("Trip updated");
       loadTrips();
     } catch {
-      showToast("Couldn't update trip", "error");
+      showToast("Couldn't save — check your connection and try again", "error");
     } finally {
       setSavingTrip(false);
     }
@@ -150,7 +153,7 @@ export default function TripOverview() {
             setShowCreate(false);
             loadTrips();
           } catch {
-            showToast("Couldn't switch trip", "error");
+            showToast("Couldn't switch — check your connection and try again", "error");
           }
         }}
       />
@@ -168,7 +171,7 @@ export default function TripOverview() {
             await api.post(`/trips/${tripId}/activate`, {});
             loadTrips();
           } catch {
-            showToast("Couldn't switch trip", "error");
+            showToast("Couldn't switch — check your connection and try again", "error");
           }
         }}
       />
@@ -182,7 +185,7 @@ export default function TripOverview() {
       showToast("Switched trip");
       loadTrips();
     } catch {
-      showToast("Couldn't switch trip", "error");
+      showToast("Couldn't switch — check your connection and try again", "error");
     }
   }
 
@@ -528,6 +531,55 @@ export default function TripOverview() {
 
         {/* Trip members & invite */}
         {trip && <TripMembers tripId={trip.id} />}
+
+        {/* Contributor summary — colored chips with counts */}
+        {(() => {
+          const byCreator: Record<string, number> = {};
+          for (const exp of experiences) {
+            if (exp.createdBy) {
+              byCreator[exp.createdBy] = (byCreator[exp.createdBy] || 0) + 1;
+            }
+          }
+          const creators = Object.entries(byCreator).sort((a, b) => b[1] - a[1]);
+          if (creators.length <= 1) return null;
+          return (
+            <div className="mb-6">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">Contributions</h3>
+              <div className="flex flex-wrap gap-2">
+                {creators.map(([code, count]) => {
+                  const cc = getContributorColor(code);
+                  return (
+                    <button
+                      key={code}
+                      onClick={() => setContributorViewCode(code)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors hover:shadow-sm"
+                      style={{ backgroundColor: cc.bg, borderColor: cc.border }}
+                    >
+                      <span
+                        className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
+                        style={{ backgroundColor: cc.border, color: "#fff" }}
+                      >
+                        {getContributorInitial(code)}
+                      </span>
+                      <span className="text-sm font-medium" style={{ color: cc.text }}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ContributorView overlay */}
+        {contributorViewCode && trip && (
+          <ContributorView
+            travelerCode={contributorViewCode}
+            experiences={experiences}
+            trip={trip}
+            onClose={() => setContributorViewCode(null)}
+            onExperienceClick={(id) => { setContributorViewCode(null); navigate(`/plan?highlight=${id}`); }}
+          />
+        )}
 
         {/* Recent activity — collapsed to button, opens modal */}
         {recentActivity.length > 0 && (

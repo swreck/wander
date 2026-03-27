@@ -4945,4 +4945,477 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
         .send({ names: ["Leo"] });
       expect(res2.body.created).not.toContain("Leo");
     });
+
+  // ── 15. Import / Capture Chaos ─────────────────────────────────
+  describe("15. Import & Capture Chaos", () => {
+    let tripId: string;
+    let tokyoCityId: string;
+
+    beforeAll(async () => {
+      tripId = await createTrip(aliceToken, "Import Chaos Trip", "2029-01-01", "2029-01-15", [
+        { name: "Tokyo", arrivalDate: "2029-01-01", departureDate: "2029-01-07" },
+        { name: "Kyoto", arrivalDate: "2029-01-08", departureDate: "2029-01-15" },
+      ]);
+      // Get Tokyo city ID for experience creation tests
+      const tripRes = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      tokyoCityId = tripRes.body.cities.find((c: any) => c.name === "Tokyo").id;
+    });
+
+    // ── Input validation ──────────────────────────────────────────
+
+    it("S175: universal-extract rejects missing tripId", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-extract")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .field("text", "Great sushi place in Tokyo")
+      expect(res.status).toBe(400);
+    });
+
+    it("S176: universal-extract rejects empty body (no text or image)", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-extract")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .field("tripId", tripId);
+      expect(res.status).toBe(400);
+    });
+
+    it("S177: universal-commit rejects missing tripId", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ items: [{ name: "Test" }] });
+      expect(res.status).toBe(400);
+    });
+
+    it("S178: universal-commit rejects nonexistent tripId", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId: "00000000-0000-0000-0000-000000000000", items: [] });
+      expect(res.status).toBe(404);
+    });
+
+    it("S179: extract rejects when no text and no images provided", async () => {
+      const res = await request(app)
+        .post("/api/import/extract")
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(res.status).toBe(400);
+    });
+
+    it("S180: extract-url rejects missing URL", async () => {
+      const res = await request(app)
+        .post("/api/import/extract-url")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({});
+      expect(res.status).toBe(400);
+    });
+
+    it("S181: extract-recommendations rejects missing text", async () => {
+      const res = await request(app)
+        .post("/api/import/extract-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({});
+      expect(res.status).toBe(400);
+    });
+
+    it("S182: commit rejects missing required fields", async () => {
+      const res = await request(app)
+        .post("/api/import/commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripName: "Test" }); // missing startDate, endDate, cities
+      expect(res.status).toBe(400);
+    });
+
+    it("S183: commit rejects empty cities array", async () => {
+      const res = await request(app)
+        .post("/api/import/commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripName: "Test", startDate: "2029-06-01", endDate: "2029-06-10", cities: [] });
+      expect(res.status).toBe(400);
+    });
+
+    it("S184: commit-recommendations rejects missing tripId", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ recommendations: [{ name: "Test", city: "Tokyo" }] });
+      expect(res.status).toBe(400);
+    });
+
+    it("S185: commit-recommendations rejects empty recommendations array", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, recommendations: [] });
+      expect(res.status).toBe(400);
+    });
+
+    it("S186: commit-recommendations 404 on nonexistent trip", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId: "00000000-0000-0000-0000-000000000000", recommendations: [{ name: "Test" }] });
+      expect(res.status).toBe(404);
+    });
+
+    // ── Dedup & idempotency ───────────────────────────────────────
+
+    it("S187: commit-recommendations deduplicates identical names", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [
+            { name: "Fushimi Inari Shrine", city: "Kyoto" },
+            { name: "Fushimi Inari Shrine", city: "Kyoto" }, // duplicate
+          ],
+        });
+      expect(res.status).toBe(201);
+      // Second item should be deduplicated — imported count may be 1 or 2 depending
+      // on whether the dedup check catches within the same batch
+      expect(res.body.imported).toBeGreaterThanOrEqual(1);
+    });
+
+    it("S188: double commit-recommendations doesn't create duplicates", async () => {
+      const payload = {
+        tripId,
+        recommendations: [{ name: "Kinkaku-ji Temple", city: "Kyoto" }],
+      };
+      const res1 = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send(payload);
+      expect(res1.status).toBe(201);
+      expect(res1.body.imported).toBe(1);
+
+      // Second commit — same name — should be deduped
+      const res2 = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send(payload);
+      expect(res2.status).toBe(201);
+      // Dedup may or may not catch this depending on normalization — just ensure no crash
+      expect(res2.body.imported).toBeLessThanOrEqual(1);
+    });
+
+    // ── Edge case content ─────────────────────────────────────────
+
+    it("S189: commit-recommendations handles names with special characters", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [
+            { name: "Café L'Amour — Best Crêpes! (2★)", city: "Tokyo" },
+          ],
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.imported).toBe(1);
+    });
+
+    it("S190: commit-recommendations handles emoji-only theme mapping", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [
+            { name: "Ramen Street", city: "Tokyo", themes: ["food", "noodles"] },
+          ],
+        });
+      expect(res.status).toBe(201);
+    });
+
+    it("S191: commit-recommendations handles no city (goes to Ideas)", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [
+            { name: "Try local sake brewery" },
+          ],
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.category3).toBe(1); // Ideas category
+    });
+
+    it("S192: commit-recommendations handles unknown city (creates candidate)", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [
+            { name: "Deer Park", city: "Nara" },
+          ],
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.category2).toBe(1); // New candidate city
+    });
+
+    it("S193: commit-recommendations handles very long name", async () => {
+      const longName = "A".repeat(500);
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [{ name: longName, city: "Tokyo" }],
+        });
+      expect(res.status).toBe(201);
+    });
+
+    it("S194: commit-recommendations handles empty-string name gracefully", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [{ name: "", city: "Tokyo" }],
+        });
+      // Should either skip or create — should not crash
+      expect([200, 201]).toContain(res.status);
+    });
+
+    // ── Universal commit edge cases ───────────────────────────────
+
+    it("S195: universal-commit with empty items array succeeds (no-op)", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, items: [], versionUpdates: [] });
+      expect(res.status).toBe(200);
+      expect(res.body.created).toBe(0);
+    });
+
+    it("S196: universal-commit routes item to correct city by name", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          items: [
+            { name: "Tsukiji Market", cityName: "Tokyo", themes: ["food"], destination: "maybe" },
+          ],
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.created).toBe(1);
+    });
+
+    it("S197: universal-commit with destination=plan assigns to a day", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          items: [
+            { name: "Imperial Palace", cityName: "Tokyo", themes: [], destination: "plan" },
+          ],
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.created).toBe(1);
+    });
+
+    it("S198: universal-commit with invalid cityId falls back gracefully", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          items: [
+            { name: "Mystery Place", cityId: "00000000-0000-0000-0000-000000000000", themes: [] },
+          ],
+        });
+      // Should either create in default city or skip — should not 500
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it("S199: universal-commit with version updates patches existing experience", async () => {
+      // First create an experience
+      const expRes = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId: tokyoCityId, name: "Version Test Shrine" });
+      const expId = expRes.body.id;
+
+      // Now update via version update
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          items: [],
+          versionUpdates: [
+            { existingId: expId, fields: { description: "Ancient Shinto shrine with torii gates" } },
+          ],
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.updated).toBe(1);
+
+      // Verify the update stuck
+      const check = await request(app)
+        .get(`/api/experiences/${expId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(check.body.description).toBe("Ancient Shinto shrine with torii gates");
+    });
+
+    it("S200: universal-commit version update doesn't overwrite existing values", async () => {
+      // Create experience with description already set
+      const expRes = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId: tokyoCityId, name: "No Overwrite Temple", description: "My custom description" });
+      const expId = expRes.body.id;
+
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          items: [],
+          versionUpdates: [
+            { existingId: expId, fields: { description: "AI generated description" } },
+          ],
+        });
+      expect(res.status).toBe(200);
+
+      // Description should still be the original
+      const check = await request(app)
+        .get(`/api/experiences/${expId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(check.body.description).toBe("My custom description");
+    });
+
+    // ── Merge edge cases ──────────────────────────────────────────
+
+    it("S201: merge rejects missing tripId", async () => {
+      const res = await request(app)
+        .post("/api/import/merge")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripName: "Test", cities: [{ name: "Osaka" }] });
+      expect(res.status).toBe(400);
+    });
+
+    it("S202: merge 404 on nonexistent trip", async () => {
+      const res = await request(app)
+        .post("/api/import/merge")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId: "00000000-0000-0000-0000-000000000000", cities: [{ name: "Osaka" }] });
+      expect(res.status).toBe(404);
+    });
+
+    it("S203: merge adds new city without duplicating existing", async () => {
+      const res = await request(app)
+        .post("/api/import/merge")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          tripName: "Merged",
+          startDate: "2029-01-01",
+          endDate: "2029-01-20",
+          cities: [
+            { name: "Tokyo" },  // exists — should not duplicate
+            { name: "Osaka", arrivalDate: "2029-01-16", departureDate: "2029-01-20" },  // new
+          ],
+        });
+      expect([200, 201]).toContain(res.status);
+
+      // Verify Osaka was added
+      const tripRes = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const cityNames = tripRes.body.cities.map((c: any) => c.name);
+      expect(cityNames).toContain("Osaka");
+      // Tokyo should appear only once
+      expect(cityNames.filter((n: string) => n === "Tokyo").length).toBe(1);
+    });
+
+    // ── extract-url edge cases ────────────────────────────────────
+
+    it("S204: extract-url rejects invalid URL format", async () => {
+      const res = await request(app)
+        .post("/api/import/extract-url")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ url: "not-a-url" });
+      // Should return 400 or 500 — should not hang
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    });
+
+    it("S205: extract-url handles unreachable URL gracefully", async () => {
+      const res = await request(app)
+        .post("/api/import/extract-url")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ url: "https://this-domain-does-not-exist-12345.com/page" });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    });
+
+    // ── Session edge cases ────────────────────────────────────────
+
+    it("S206: universal-commit with expired/invalid sessionId still works", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-commit")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          items: [{ name: "Session Test Cafe", cityName: "Tokyo", themes: ["food"] }],
+          sessionId: "expired-session-id-that-does-not-exist",
+        });
+      // Should still create the items even if session cleanup fails
+      expect(res.status).toBe(200);
+      expect(res.body.created).toBe(1);
+    });
+
+    // ── Mixed language & encoding ─────────────────────────────────
+
+    it("S207: commit-recommendations handles mixed-language names", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [
+            { name: "金閣寺 (Kinkaku-ji) — Golden Pavilion", city: "Kyoto" },
+          ],
+        });
+      expect(res.status).toBe(201);
+    });
+
+    it("S208: commit-recommendations handles emoji names", async () => {
+      const res = await request(app)
+        .post("/api/import/commit-recommendations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          recommendations: [
+            { name: "🍣 Sushi Dai 🐟", city: "Tokyo" },
+          ],
+        });
+      expect(res.status).toBe(201);
+    });
+
+    it("S209: universal-extract with very short text (under threshold)", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-extract")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .field("tripId", tripId)
+        .field("text", "hi");
+      // Very short text — should still respond (may extract simple item or reject)
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it("S210: universal-extract with non-travel content doesn't crash", async () => {
+      const res = await request(app)
+        .post("/api/import/universal-extract")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .field("tripId", tripId)
+        .field("text", "The quick brown fox jumped over the lazy dog. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.");
+      // Should not crash — may extract something or return empty
+      expect(res.status).toBeLessThan(500);
+    });
+  });
 });

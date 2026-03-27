@@ -77,7 +77,7 @@ export default function ProfilePage() {
       const p = await api.get<TravelerProfile | { documents: [] }>(`/traveler-documents/trip/${tripId}`);
       setProfile(p && "id" in p ? p : null);
     } catch {
-      showToast("Couldn't save document", "error");
+      showToast("Couldn't save — check your connection and try again", "error");
     }
   }
 
@@ -94,18 +94,19 @@ export default function ProfilePage() {
       const p = await api.get<TravelerProfile | { documents: [] }>(`/traveler-documents/trip/${tripId}`);
       setProfile(p && "id" in p ? p : null);
     } catch {
-      showToast("Couldn't update document", "error");
+      showToast("Couldn't update — check your connection and try again", "error");
     }
   }
 
   async function handleDelete(docId: string) {
+    if (!window.confirm("Delete this document? This can't be undone.")) return;
     try {
       await api.delete(`/traveler-documents/${docId}`);
       showToast("Document deleted");
       const p = await api.get<TravelerProfile | { documents: [] }>(`/traveler-documents/trip/${tripId}`);
       setProfile(p && "id" in p ? p : null);
     } catch {
-      showToast("Couldn't delete document", "error");
+      showToast("Couldn't delete — check your connection and try again", "error");
     }
   }
 
@@ -284,10 +285,10 @@ function DocumentForm({
               : "border-[#e0d8cc] text-[#8a7a62] hover:bg-[#f0ece5]"
           }`}
         >
-          {isPrivate ? "🔒 Private" : "👥 Shared"}
+          {isPrivate ? "🔒 Only me" : "👥 Everyone in this trip"}
         </button>
         <span className="text-xs text-[#c8bba8] flex-1">
-          {isPrivate ? "Only you can see this" : "Visible to your travel group"}
+          {isPrivate ? "Only you can see this" : "Visible to everyone in the trip"}
         </span>
       </div>
       <div className="flex gap-2 pt-1">

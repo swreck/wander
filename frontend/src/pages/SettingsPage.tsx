@@ -58,8 +58,8 @@ export default function SettingsPage() {
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* City Photo Duration */}
         <section>
-          <h2 className="text-sm font-medium text-[#3a3128] mb-1">City photo duration</h2>
-          <p className="text-xs text-[#8a7a62] mb-3">How long the city splash photo shows when you enter a new city on the map.</p>
+          <h2 className="text-sm font-medium text-[#3a3128] mb-1">City intro photo</h2>
+          <p className="text-xs text-[#8a7a62] mb-3">When you switch to a new city, its photo appears briefly. Quick (1s) or longer view (5s).</p>
           <div className="flex gap-2">
             {DURATION_OPTIONS.map((opt) => (
               <button

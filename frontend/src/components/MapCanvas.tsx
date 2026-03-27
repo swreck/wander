@@ -772,7 +772,9 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
           <div className="text-sm font-medium text-[#3a3128] truncate mb-2">{quickAction.exp.name}</div>
           <div className="flex gap-2">
             <a
-              href={`https://maps.apple.com/?daddr=${quickAction.exp.latitude},${quickAction.exp.longitude}&q=${encodeURIComponent(quickAction.exp.name)}`}
+              href={/android/i.test(navigator.userAgent)
+                ? `https://maps.google.com/?q=${quickAction.exp.latitude},${quickAction.exp.longitude}`
+                : `https://maps.apple.com/?daddr=${quickAction.exp.latitude},${quickAction.exp.longitude}&q=${encodeURIComponent(quickAction.exp.name)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 py-2 text-center text-xs font-medium rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"

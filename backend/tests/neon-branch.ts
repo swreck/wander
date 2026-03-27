@@ -96,6 +96,28 @@ export async function createTestBranch(): Promise<string> {
     if (state === "active") break;
   }
 
+  // Verify actual Postgres connectivity with pg — Neon endpoint can report "active"
+  // and DNS can resolve before the Postgres process accepts TCP connections.
+  const { Client } = await import("pg");
+  console.log(`[neon-branch] Verifying Postgres connectivity...`);
+  for (let i = 0; i < 30; i++) {
+    try {
+      const client = new Client({ connectionString: branchUrl, ssl: { rejectUnauthorized: false } });
+      await client.connect();
+      await client.query("SELECT 1");
+      await client.end();
+      console.log(`[neon-branch] Postgres connection verified (attempt ${i + 1}).`);
+      break;
+    } catch (err: any) {
+      if (i === 29) {
+        console.error(`[neon-branch] Failed to connect after 30 attempts: ${err.message}`);
+        throw new Error(`[neon-branch] Cannot connect to branch database at ${host}`);
+      }
+      console.log(`[neon-branch] Not ready: ${(err.message || "").slice(0, 80)} (attempt ${i + 1})`);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+
   console.log(`[neon-branch] Ready. Tests will run against branch.`);
   return branchUrl;
 }

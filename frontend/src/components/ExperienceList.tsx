@@ -26,24 +26,22 @@ import RatingsBadge from "./RatingsBadge";
 
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
+import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
+import ContributorView from "./ContributorView";
 
 function CreatorBadge({ exp }: { exp: Experience }) {
   // Show creator's first initial until someone else edits
   if (exp.lastEditedBy && exp.lastEditedBy !== exp.createdBy) return null;
 
-  // Backroads itinerary items show "B"
-  if (exp.sourceText === "Imported from itinerary document") {
-    return (
-      <span className="ml-1 text-[10px] text-[#c8bba8] font-medium" title="Backroads itinerary">
-        B
-      </span>
-    );
-  }
+  const color = getContributorColor(exp.createdBy);
+  const initial = getContributorInitial(exp.createdBy);
 
-  const initial = exp.createdBy?.[0]?.toUpperCase();
-  if (!initial) return null;
   return (
-    <span className="ml-1 text-[10px] text-[#c8bba8] font-medium" title={`Added by ${exp.createdBy}`}>
+    <span
+      className="ml-1 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0"
+      style={{ backgroundColor: color.bg, color: color.text, border: `1px solid ${color.border}` }}
+      title={`Added by ${exp.createdBy}`}
+    >
       {initial}
     </span>
   );
@@ -383,11 +381,14 @@ function SortableSelectedItem({
     opacity: isDragging ? 0.4 : 1,
   };
 
+  const contributorColor = getContributorColor(exp.createdBy);
+
   return (
     <div ref={setNodeRef} style={style}>
       <div
         className="px-3 py-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
                    hover:border-[#a89880] transition-colors"
+        style={{ borderLeftWidth: 3, borderLeftColor: contributorColor.dot }}
         onClick={() => onExperienceClick(exp.id)}
         onMouseEnter={() => onHover?.(exp.id)}
         onMouseLeave={() => onHover?.(null)}
@@ -425,7 +426,7 @@ function SortableSelectedItem({
               <button
                 onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
                 className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
-                title="Move to candidates"
+                title="Remove from itinerary (keep as idea)"
               >
                 &darr;
               </button>
@@ -608,17 +609,21 @@ function DecisionGroup({
   const [showAddOption, setShowAddOption] = useState(false);
   const [newOptionName, setNewOptionName] = useState("");
   const [adding, setAdding] = useState(false);
+  const [voting, setVoting] = useState(false);
 
   const myVote = decision.votes.find((v) => v.userCode === user?.code);
   const isHappyWithAny = myVote && myVote.optionId === null;
 
   async function handleVote(optionId: string | null) {
+    if (voting) return;
+    setVoting(true);
     try {
       await api.post(`/decisions/${decision.id}/vote`, { optionId });
       onDecisionsChanged();
     } catch {
-      showToast("Couldn't vote", "error");
+      showToast("Couldn't vote — check your connection and try again", "error");
     }
+    setVoting(false);
   }
 
   async function handleResolve(winnerIds: string[]) {
@@ -648,12 +653,13 @@ function DecisionGroup({
   }
 
   async function handleDelete() {
+    if (!window.confirm("Cancel this decision? All votes will be lost.")) return;
     try {
       await api.delete(`/decisions/${decision.id}`);
       showToast("Decision cancelled");
       onDecisionsChanged();
     } catch {
-      showToast("Couldn't delete", "error");
+      showToast("Couldn't cancel — check your connection and try again", "error");
     }
   }
 
@@ -710,12 +716,14 @@ function DecisionGroup({
           return (
             <div
               key={opt.id}
-              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${
+                voting ? "opacity-50 cursor-wait" : "cursor-pointer"
+              } ${
                 isMyPick
                   ? "border-amber-400 bg-amber-100"
                   : "border-[#e0d8cc] bg-white hover:border-amber-300"
               }`}
-              onClick={() => handleVote(opt.id)}
+              onClick={() => !voting && handleVote(opt.id)}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
@@ -757,7 +765,10 @@ function DecisionGroup({
       <div className="mt-2 flex items-center justify-between">
         <button
           onClick={() => handleVote(null)}
+          disabled={voting}
           className={`text-xs transition-colors ${
+            voting ? "opacity-50 cursor-wait" : ""
+          } ${
             isHappyWithAny
               ? "text-amber-700 font-medium"
               : "text-[#a89880] hover:text-amber-600"
@@ -832,6 +843,10 @@ export default function ExperienceList({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [locatingId, setLocatingId] = useState<string | null>(null);
 
+  // Contributor filter
+  const [contributorFilter, setContributorFilter] = useState<string | null>(null);
+  const [contributorViewCode, setContributorViewCode] = useState<string | null>(null);
+
   // New decision form
   const [showNewDecision, setShowNewDecision] = useState(false);
   const [newDecisionTitle, setNewDecisionTitle] = useState("");
@@ -883,6 +898,16 @@ export default function ExperienceList({
     const map = new Map(possible.map((e) => [e.id, e]));
     return possibleOrder.map((id) => map.get(id)).filter(Boolean) as Experience[];
   }, [possible, possibleOrder]);
+
+  // Apply contributor filter
+  const filteredSelected = useMemo(() =>
+    contributorFilter ? orderedSelected.filter(e => e.createdBy === contributorFilter) : orderedSelected,
+    [orderedSelected, contributorFilter],
+  );
+  const filteredPossible = useMemo(() =>
+    contributorFilter ? orderedPossible.filter(e => e.createdBy === contributorFilter) : orderedPossible,
+    [orderedPossible, contributorFilter],
+  );
 
   const selectedIds = useMemo(() => orderedSelected.map((e) => e.id), [orderedSelected]);
   const possibleIds = useMemo(() => orderedPossible.map((e) => e.id), [orderedPossible]);
@@ -985,6 +1010,7 @@ export default function ExperienceList({
   const activeExp = activeId ? allExperiences.get(activeId) : null;
 
   return (
+    <>
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
@@ -999,13 +1025,61 @@ export default function ExperienceList({
             {selected.length} Planned{decisions && decisions.length > 0 ? ` · ${decisions.length} Deciding` : ""} · {possible.length} Maybe
           </span>
         </div>
+        {/* Contributor filter */}
+        {(() => {
+          const allExps = [...selected, ...possible];
+          const contributors = [...new Set(allExps.map(e => e.createdBy).filter(Boolean))];
+          if (contributors.length <= 1) return null;
+          return (
+            <div className="flex gap-1.5 mb-2 overflow-x-auto" style={{ touchAction: "pan-x" }}>
+              {contributors.map(c => {
+                const color = getContributorColor(c);
+                const initial = getContributorInitial(c);
+                const isActive = contributorFilter === c;
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setContributorFilter(isActive ? null : c)}
+                    className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-all"
+                    style={isActive
+                      ? { backgroundColor: color.dot, color: "white" }
+                      : { backgroundColor: color.bg, color: color.text, border: `1px solid ${color.border}` }
+                    }
+                  >
+                    <span className="w-3 h-3 rounded-full text-[8px] font-bold flex items-center justify-center"
+                          style={isActive ? { backgroundColor: "white", color: color.dot } : { backgroundColor: color.dot, color: "white" }}>
+                      {initial}
+                    </span>
+                    {c}
+                  </button>
+                );
+              })}
+              {contributorFilter && (
+                <>
+                  <button
+                    onClick={() => setContributorViewCode(contributorFilter)}
+                    className="shrink-0 text-xs text-[#a89880] hover:text-[#514636] px-1 underline underline-offset-2"
+                  >
+                    See all across trip
+                  </button>
+                  <button
+                    onClick={() => setContributorFilter(null)}
+                    className="shrink-0 text-xs text-[#c8bba8] hover:text-[#8a7a62] px-1"
+                  >
+                    All
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })()}
         {(() => {
           const unlocated = [...selected, ...possible].filter((e) => e.locationStatus !== "confirmed").length;
           if (unlocated === 0) return null;
           return (
             <div className="mb-2 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center gap-1.5">
               <span style={{ fontSize: 12 }}>📍</span>
-              {unlocated} {unlocated === 1 ? "item" : "items"} not on map — tap the pin icon to locate
+              {unlocated} {unlocated === 1 ? "item needs" : "items need"} a location to appear on the map
             </div>
           );
         })()}
@@ -1053,12 +1127,12 @@ export default function ExperienceList({
         <DroppableZone id="selected-zone">
           <SortableContext items={selectedIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5 mb-3 min-h-[40px]">
-              {orderedSelected.length === 0 && (
+              {filteredSelected.length === 0 && (
                 <div className="py-4 text-center text-sm text-[#c8bba8] border-2 border-dashed border-[#e0d8cc] rounded-lg">
-                  Drag experiences here to add to itinerary
+                  {contributorFilter ? `No planned items from ${contributorFilter}` : "No planned items yet — add from the Maybe section below, or tap + to create new ones"}
                 </div>
               )}
-              {orderedSelected.map((exp) => (
+              {filteredSelected.map((exp) => (
                 <SortableSelectedItem
                   key={exp.id}
                   exp={exp}
@@ -1144,7 +1218,7 @@ export default function ExperienceList({
         <DroppableZone id="possible-zone">
           <SortableContext items={possibleIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5 min-h-[40px]">
-              {orderedPossible.map((exp) => (
+              {filteredPossible.map((exp) => (
                 <SortablePossibleItem
                   key={exp.id}
                   exp={exp}
@@ -1182,6 +1256,18 @@ export default function ExperienceList({
         {activeExp ? <DragOverlayItem exp={activeExp} /> : null}
       </DragOverlay>
     </DndContext>
+
+    {/* ContributorView overlay */}
+    {contributorViewCode && (
+      <ContributorView
+        travelerCode={contributorViewCode}
+        experiences={[...selected, ...possible]}
+        trip={trip}
+        onClose={() => setContributorViewCode(null)}
+        onExperienceClick={(id) => { setContributorViewCode(null); onExperienceClick(id); }}
+      />
+    )}
+    </>
   );
 }
 

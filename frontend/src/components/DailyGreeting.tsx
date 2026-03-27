@@ -80,16 +80,20 @@ export default function DailyGreeting() {
   if (!visible || !message) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+    <div
+      className="fixed z-50 left-0 right-0 flex justify-center pointer-events-none"
+      style={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)" }}
+    >
       <div
-        className="mx-6 max-w-sm w-full bg-white rounded-2xl shadow-xl p-6 animate-greetingFadeIn"
+        className="pointer-events-auto mx-4 max-w-sm w-full bg-white rounded-2xl shadow-xl p-5 border border-[#e0d8cc]
+                   animate-greetingFadeIn cursor-pointer"
         onClick={dismiss}
       >
         <p className="text-[15px] text-[#3a3128] leading-relaxed">
           {message}
         </p>
-        <div className="mt-4 text-center">
-          <span className="text-xs text-[#c8bba8]">tap anywhere to continue</span>
+        <div className="mt-2 text-right">
+          <span className="text-xs text-[#c8bba8]">tap to dismiss</span>
         </div>
       </div>
     </div>

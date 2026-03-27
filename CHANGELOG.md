@@ -1,6 +1,71 @@
 # Wander Change Log
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
+
+## 2026-03-27 — Import Chaos Testing + Bug Fixes
+
+### Added
+- **36 import chaos tests (S175–S210)** — Covers input validation, dedup/idempotency, special characters, emoji names, mixed-language names, version updates, merge edge cases, URL extraction errors, session expiry, and non-travel content. Total test count: 389.
+
+### Fixed
+- **commit-recommendations crash on missing urls/themes** — Endpoint crashed with `Cannot read properties of undefined` when recommendations had no `urls` or `themes` fields. Now handles missing optional fields gracefully.
+- **extract endpoint crash on empty body** — `req.body` was undefined when no multipart form data sent. Now returns 400 instead of 500.
+- **universal-commit FK constraint on invalid cityId** — Invalid city IDs caused unhandled Prisma error. Now skips the item gracefully instead of 500.
+- **universal-commit version updates overwriting existing values** — Version updates now only fill blank/null fields, never overwrite user's existing data.
+
+## 2026-03-26 — Offline Capture Queue, P2 UX Fixes, Test Infrastructure
+
+### Added
+- **Offline capture queue** — Paste or drop content while offline and it's saved in IndexedDB (`capture-queue` store). When connectivity returns, queued captures are automatically re-submitted for AI extraction. Uses existing offline mutation pattern.
+- **Capture queue replay on reconnect** — `main.tsx` replays both mutation queue and capture queue in parallel when `online` event fires.
+- **6 new Playwright tests** — Chat clear confirmation, profile page rendering, settings labels, first-time guide non-blocking, contributor indicators, daily greeting non-blocking.
+
+### Changed
+- **Vote buttons debounced** — Decision vote options and "Happy with any" button now show loading state and prevent double-tap race conditions.
+- **Decision cancel confirmation** — Canceling a group decision now asks "Cancel this decision? All votes will be lost." before proceeding.
+- **Document delete confirmation** — Deleting travel documents on Profile page now asks for confirmation.
+- **All error toasts improved** — Every "Couldn't save/delete/update" error across ProfilePage, PlanPage, and TripOverview now includes "check your connection and try again" instead of terse messages.
+- **PlanPage "Moved to candidates" → "Moved to Maybe list"** — Consistent with the UX audit's plain language standard.
+
+### Fixed
+- **Neon test branch reliability** — Added `pg` connection warmup in vitest-setup.ts worker process. Neon branch endpoints report "active" before Prisma's Rust engine can connect; the `pg` probe ensures connectivity before tests run. Upgraded DB_VERSION to 2 for IndexedDB migration.
+- **Chat clear button** — Now requires confirmation dialog before wiping conversation history.
+- **Voice input** — Shows helpful alert ("Voice input isn't supported in this browser") instead of silently doing nothing when SpeechRecognition API is unavailable.
+
+## 2026-03-26 — Contributor Attribution, Map Calendar Order, Full UX Audit
+
+### Added
+- **Contributor attribution** — Every activity shows a colored circle with the contributor's initial (Ken = warm brown, Larisa = soft rose, Andy = sage green, Julie = sky blue). Visible in ExperienceList, DayView, and TripOverview.
+- **Contributor filter bar** — Tappable colored name chips above experience lists. Filter to one person's additions. "See all across trip" link opens a trip-wide ContributorView overlay.
+- **ContributorView** — Full-screen overlay showing everything one person has contributed across all cities, grouped by city with state labels (planned/maybe/deciding).
+- **Contributor summary on Trip Overview** — Between "Trip members" and "Recent activity", shows colored chips with counts per contributor. Tap any chip to open their full contribution list.
+- **`get_contributions_by_traveler` chat tool** — Ask "What has Larisa added?" and the AI returns a grouped summary of their contributions across all cities. Tool #53.
+- **Map city markers show calendar order** — Cities numbered 1 through N based on visit order instead of activity count. Multi-visit cities are separate records in data model.
+
+### Changed — UX Audit (Plain Language + Smart Defaults)
+- **DayView**: "Route order" → "Suggested route by distance", "Save this order" → "Lock in this order", "Use my order" → "Keep my order", "Show route order" → "View distance-optimized route"
+- **DayView**: Distance warnings now include walking time estimate (~N min walk)
+- **ExperienceList**: "Move to candidates" → "Remove from itinerary (keep as idea)", empty planned state now says "No planned items yet — add from the Maybe section below, or tap + to create new ones"
+- **ExperienceList**: Unlocated items hint changed from "not on map — tap the pin icon to locate" → "items need a location to appear on the map"
+- **ChatBubble**: Timeout error now says "That took over 45 seconds — the connection might be slow" instead of "That took too long"
+- **ChatBubble**: Placeholder changed to example prompts: `e.g. 'What's planned for Tuesday?' or 'Add this to Kyoto'`
+- **ChatBubble**: Clear button now asks for confirmation before wiping conversation
+- **ChatBubble**: Voice input shows helpful alert when browser doesn't support speech recognition instead of silently failing
+- **SettingsPage**: "City photo duration" → "City intro photo" with warmer description
+- **ProfilePage**: "🔒 Private" → "🔒 Only me", "👥 Shared" → "👥 Everyone in this trip"
+- **PlanPage**: Removed iPad-specific layout assumptions ("Swipe days at bottom" → "Swipe days", "Tap List below" → "Tap List to see all activities")
+- **PlanPage**: "Moved to candidates" toast → "Moved to Maybe list"
+- **BatchReviewList**: "Swipe left to remove" → "Tap the × to remove"
+- **VersionMatchPanel**: "Add details to N activities" → "Update N activities with new info"
+- **UniversalCapturePanel**: "Adding to import" → "N activities so far — add more or confirm"
+- **NextUpOverlay**: Type label "Planned" → "Activity"
+- **FirstTimeGuide**: Converted from blocking full-screen modal to inline non-blocking card (SPEC compliance — no modal UI)
+- **DailyGreeting**: Converted from blocking full-screen modal to non-blocking floating top card, "tap anywhere to continue" → "tap to dismiss"
+- **MapCanvas**: Platform-aware map URLs — Apple Maps for iOS, Google Maps for Android
+- **All error toasts** now include "check your connection and try again" instead of terse "Couldn't save/delete/update" messages (ProfilePage, PlanPage, TripOverview)
+
+SPEC UPDATE NEEDED: Contributor attribution section — colored indicators, filter bar, ContributorView, chat tool. FirstTimeGuide — no longer modal. DailyGreeting — floating card, not full-screen overlay.
+
 ## 2026-03-24 — Andy's Traveler Profile: Three Os + Buddhism + Tech
 
 ### Changed

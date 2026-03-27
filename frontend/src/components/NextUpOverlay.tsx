@@ -188,7 +188,7 @@ export default function NextUpOverlay() {
 
   const typeLabel = item.type === "reservation" ? "Reservation"
     : item.type === "transport" ? "Departure"
-    : "Planned";
+    : "Activity";
 
   const timeDescription = item.minutesUntil < 60
     ? `in ${item.minutesUntil} min`

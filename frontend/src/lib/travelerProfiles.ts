@@ -8,6 +8,46 @@ interface TravelerProfile {
   interests: Interest[];
 }
 
+// Contributor colors — consistent across the app
+export const TRAVELER_COLORS: Record<string, { bg: string; text: string; dot: string; border: string }> = {
+  Ken:     { bg: "#f5ebe0", text: "#6b5d4a", dot: "#8a7a62", border: "#d4c5b0" },
+  Larisa:  { bg: "#fce4ec", text: "#8e3a4a", dot: "#c06070", border: "#f0b8c0" },
+  Andy:    { bg: "#e8f5e9", text: "#3a6840", dot: "#5a9060", border: "#b8d8b8" },
+  Julie:   { bg: "#e3f2fd", text: "#2a5480", dot: "#4888c0", border: "#a0c8e8" },
+};
+
+// Fallback for unknown travelers or imports
+const DEFAULT_COLOR = { bg: "#f0ece5", text: "#6b5d4a", dot: "#a89880", border: "#d4c5b0" };
+const IMPORT_COLOR  = { bg: "#f5f5f5", text: "#757575", dot: "#9e9e9e", border: "#d0d0d0" };
+
+/**
+ * Get the color scheme for a contributor by their access code or display name.
+ * Access codes map to display names in the auth system.
+ */
+export function getContributorColor(createdBy: string): typeof DEFAULT_COLOR {
+  // Direct name match
+  if (TRAVELER_COLORS[createdBy]) return TRAVELER_COLORS[createdBy];
+  // Check if createdBy is an access code — map common codes to names
+  // The app stores createdBy as the access code, not the display name
+  for (const [name, color] of Object.entries(TRAVELER_COLORS)) {
+    if (createdBy.toLowerCase().includes(name.toLowerCase())) return color;
+  }
+  // System imports
+  if (createdBy === "system" || createdBy === "import") return IMPORT_COLOR;
+  return DEFAULT_COLOR;
+}
+
+/**
+ * Get display initial for a contributor (first letter of their name).
+ */
+export function getContributorInitial(createdBy: string): string {
+  for (const name of Object.keys(TRAVELER_COLORS)) {
+    if (createdBy.toLowerCase().includes(name.toLowerCase())) return name[0];
+  }
+  if (createdBy === "system" || createdBy === "import") return "B";
+  return createdBy[0]?.toUpperCase() || "?";
+}
+
 const profiles: Record<string, TravelerProfile> = {
   Ken: {
     interests: [

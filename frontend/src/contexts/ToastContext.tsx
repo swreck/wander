@@ -14,6 +14,7 @@ interface Toast {
 
 interface ToastOptions {
   action?: ToastAction;
+  duration?: number;
 }
 
 interface ToastContextValue {
@@ -33,7 +34,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const showToast = useCallback((message: string, type: "success" | "error" | "info" = "success", options?: ToastOptions) => {
     const id = nextId.current++;
     setToasts((prev) => [...prev, { id, message, type, action: options?.action }]);
-    const duration = options?.action ? 6000 : 3000;
+    const duration = options?.duration || (options?.action ? 6000 : 3000);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, duration);

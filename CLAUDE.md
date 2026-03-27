@@ -84,10 +84,24 @@ Every implementation session must include testing before presenting work as comp
 - New features that involve data mutation (create, update, delete, move, hide) need chaos tests covering: normal operation, idempotent re-application, edge cases (invalid IDs, already-deleted items, empty inputs), and interaction with existing features
 - AI chat tools are especially important to chaos-test because users ask unpredictable things and the AI decides which tools to call
 
+**Test execution (CRITICAL — survives context compression):**
+- ALWAYS run tests in FOREGROUND with `timeout: 600000`. Never use `run_in_background: true` for tests.
+- Use `cd backend && npx vitest run 2>&1 | tail -30` to get the summary.
+- NEVER pipe through `tee | grep` (stalls due to line buffering).
+- NEVER run multiple test suites simultaneously (each creates a Neon branch).
+- If you started tests in background, STOP and switch to foreground.
+
 **Test database safety:**
 - Tests run on an isolated Neon database branch (created automatically before tests, deleted after). Production data is never touched.
 - The branch isolation is handled by `tests/vitest-global-setup.ts` (creates branch, writes URL to temp file) and `tests/vitest-setup.ts` (reads URL in workers). No manual cleanup needed.
 - If `NEON_API_KEY` is not set, tests fall back to the production DB with a warning. Ensure the key is set in `.env`.
+
+**Neon branch connectivity (CRITICAL — do not remove the pg warmup):**
+- `tests/vitest-setup.ts` contains a `pg` Client SELECT 1 probe that MUST run before Prisma code. DO NOT REMOVE IT.
+- Neon branch endpoints report "active" via API and DNS resolves, but Prisma's Rust query engine cannot connect until `pg` has warmed the connection FROM THE SAME WORKER PROCESS.
+- Without this probe, 336/353 tests fail with PrismaClientInitializationError ("Can't reach database server").
+- `pg` is a devDependency installed specifically for this purpose.
+- If tests mass-fail with connection errors, check `vitest-setup.ts` first.
 
 ### AI CHAT PARITY RULE
 
@@ -96,7 +110,7 @@ The AI chat assistant should be able to perform any data operation the UI can. W
 2. A `case` in the `executeTool` switch
 3. A numbered rule in the system prompt explaining when to use it
 
-Current tool count: 52. Categories:
+Current tool count: 53. Categories:
 - **Trip lifecycle**: create_trip, update_trip, shift_trip_dates, get_trip_summary
 - **City CRUD**: add_city, update_city, update_city_dates, delete_city, reorder_cities, hide_city, restore_city, list_hidden_cities
 - **Day operations**: create_day, delete_day, get_day_details, get_all_days, update_day_notes, update_day_date, reassign_day, share_day_plan, bulk_update_days

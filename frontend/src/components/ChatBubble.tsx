@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
+import { useCapture } from "../contexts/CaptureContext";
 
 interface PlaceCard {
   name: string;
@@ -146,7 +147,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       clearTimeout(timeoutId);
       const isTimeout = err?.name === "AbortError";
       const errorMsg = isTimeout
-        ? "That took too long. Want me to try again?"
+        ? "That took over 45 seconds — the connection might be slow. Want me to try again?"
         : "Something went wrong. Want me to try again?";
       setMessages((prev) => [...prev, { role: "assistant", text: errorMsg }]);
       setFailed(true);
@@ -199,7 +200,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    if (!SpeechRecognition) {
+      alert("Voice input isn't supported in this browser. Try Safari or Chrome.");
+      return;
+    }
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
@@ -254,6 +258,60 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const hasSpeechRecognition = typeof window !== "undefined" &&
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
+  // Chat paste detection — offer Import / Let's discuss for travel content
+  const captureCtx = useCapture();
+  const [pastedContent, setPastedContent] = useState<string | null>(null);
+
+  function looksLikeTravelContent(text: string): boolean {
+    const lines = text.split("\n").filter(l => l.trim().length > 0);
+    return lines.length >= 3 && text.length > 150;
+  }
+
+  function handleChatPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const text = e.clipboardData?.getData("text/plain");
+    if (text && looksLikeTravelContent(text)) {
+      e.preventDefault();
+      setPastedContent(text);
+    }
+  }
+
+  function handlePasteImport() {
+    if (!pastedContent || !context.tripId) return;
+    // Feed into universal capture flow
+    captureCtx.startCapture("chat", pastedContent, null);
+    const formData = new FormData();
+    formData.append("tripId", context.tripId);
+    formData.append("text", pastedContent);
+    if (context.cityId) formData.append("cityId", context.cityId);
+    api.upload<any>("/import/universal-extract", formData).then(result => {
+      captureCtx.setExtractionResults({
+        items: result.items || [],
+        versionMatches: result.versionMatches || [],
+        newItemIndices: result.newItemIndices || [],
+        sessionId: result.sessionId || null,
+        sessionItemCount: result.sessionItemCount || 0,
+        defaultCityId: result.defaultCityId || null,
+        defaultCityName: result.defaultCityName || null,
+      });
+      captureCtx.openReview();
+    }).catch(() => {
+      captureCtx.reset();
+    });
+    setPastedContent(null);
+    setOpen(false);
+  }
+
+  function handlePasteDiscuss() {
+    if (!pastedContent) return;
+    setInput(pastedContent);
+    setPastedContent(null);
+    setTimeout(autoResize, 0);
+  }
+
+  function handlePasteCancel() {
+    setPastedContent(null);
+  }
+
   if (!open) {
     if (hideBubble) {
       // Stay mounted for wander-open-chat event listener, but render nothing
@@ -299,7 +357,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
               <button
-                onClick={() => { setMessages([]); clearMessages(); }}
+                onClick={() => {
+                  if (window.confirm("Clear the conversation? This can't be undone.")) {
+                    setMessages([]); clearMessages();
+                  }
+                }}
                 className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3] text-xs"
                 title="Clear chat"
               >
@@ -417,6 +479,36 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           )}
         </div>
 
+        {/* Paste detection prompt */}
+        {pastedContent && (
+          <div className="px-3 py-2 bg-amber-50 border-t border-amber-200">
+            <p className="text-xs text-amber-800 mb-2">
+              That looks like travel recommendations ({pastedContent.split("\n").filter(l => l.trim()).length} lines)
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePasteImport}
+                className="px-3 py-1.5 rounded-lg bg-[#514636] text-white text-xs font-medium
+                           hover:bg-[#3a3128] transition-colors"
+              >
+                Import
+              </button>
+              <button
+                onClick={handlePasteDiscuss}
+                className="text-xs text-[#8a7a62] hover:text-[#3a3128] underline underline-offset-2"
+              >
+                Let's discuss
+              </button>
+              <button
+                onClick={handlePasteCancel}
+                className="text-xs text-[#c8bba8] hover:text-[#8a7a62] ml-auto"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Input */}
         <form onSubmit={handleFormSubmit} className="px-3 py-3 border-t border-[#e5ddd0]">
           <div className="flex items-end gap-2">
@@ -424,11 +516,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               ref={inputRef}
               value={input}
               onChange={(e) => { setInput(e.target.value); autoResize(); }}
-              onPaste={() => setTimeout(autoResize, 0)}
+              onPaste={handleChatPaste}
               onKeyDown={handleKeyDown}
               onBeforeInput={handleBeforeInput}
               enterKeyHint="send"
-              placeholder="Ask or tell me what to do..."
+              placeholder="e.g. 'What's planned for Tuesday?' or 'Add this to Kyoto'"
               disabled={sending}
               rows={1}
               className="flex-1 bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-sm text-[#3a3128] placeholder:text-[#a89a82] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50 resize-none"

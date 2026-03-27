@@ -886,6 +886,18 @@ const tools: Anthropic.Tool[] = [
       required: ["tripId"],
     },
   },
+  {
+    name: "get_contributions_by_traveler",
+    description: "Show all activities added by a specific traveler, grouped by city. Use when someone asks 'What has [name] added?' or 'Show me [name]'s contributions'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        travelerName: { type: "string", description: "The display name or code of the traveler" },
+      },
+      required: ["tripId", "travelerName"],
+    },
+  },
 ];
 
 // Execute a tool call and return the result
@@ -2979,6 +2991,40 @@ async function executeTool(
       };
     }
 
+    case "get_contributions_by_traveler": {
+      const experiences = await prisma.experience.findMany({
+        where: { tripId: input.tripId, createdBy: { contains: input.travelerName, mode: "insensitive" } },
+        include: { city: true, day: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (experiences.length === 0) {
+        return { result: { message: `No activities found from ${input.travelerName}` } };
+      }
+      // Group by city
+      const byCity: Record<string, any[]> = {};
+      for (const exp of experiences) {
+        const cityName = exp.city.name;
+        if (!byCity[cityName]) byCity[cityName] = [];
+        byCity[cityName].push({
+          name: exp.name,
+          state: exp.state,
+          day: exp.day?.date || null,
+          description: exp.description?.slice(0, 100) || null,
+        });
+      }
+      const summary = Object.entries(byCity)
+        .map(([city, items]) => `${city} (${items.length}): ${items.map(i => i.name).join(", ")}`)
+        .join("\n");
+      return {
+        result: {
+          traveler: input.travelerName,
+          total: experiences.length,
+          byCity,
+          summary,
+        },
+      };
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -3112,7 +3158,8 @@ RULES:
 35. When the user asks about a specific place, wants to see what somewhere looks like, or is deciding whether to visit, use lookup_place. This returns a photo and details from Google. Use it proactively when discussing restaurants, temples, hotels, or attractions — don't just describe them in words when you can show a photo card. Include the city or neighborhood in the query for better results (e.g. "Fushimi Inari Kyoto" not just "Fushimi Inari").
 36. When the user asks about something NOT in the trip data — restaurant recommendations, opening hours, crowd levels, "is X worth visiting", "best Y near Z", current conditions, travel tips — use web_search. Synthesize the results into a concise, helpful answer. Do NOT dump raw search results. Never use web_search for questions answerable from trip data (use other tools instead). You can combine web_search with lookup_place in the same response — search for information, then show a photo card for the top recommendation.
 37. When a user asks to add a destination as a "day trip", "excursion", or "side trip" from an existing city, use add_experience to create it within that city — do NOT use add_city. Day trips are experiences you return from, not separate overnight bases. Only use add_city when the user wants a new base/overnight destination with its own date range.
-38. When someone says "let's decide", "help us choose", "we need to pick between", or "start a vote", use create_decision with options. Use get_open_decisions to see current decisions. Use cast_decision_vote to vote (set optionId to null for "happy with any"). Use resolve_decision when someone says "go with X" or "let's do X". Use add_decision_option to add more choices to an existing decision. This is the primary group decision mechanism — prefer it over the older interest-floating system for formal choices.`;
+38. When someone says "let's decide", "help us choose", "we need to pick between", or "start a vote", use create_decision with options. Use get_open_decisions to see current decisions. Use cast_decision_vote to vote (set optionId to null for "happy with any"). Use resolve_decision when someone says "go with X" or "let's do X". Use add_decision_option to add more choices to an existing decision. This is the primary group decision mechanism — prefer it over the older interest-floating system for formal choices.
+39. Use get_contributions_by_traveler when the user asks what someone has added, contributed, or wants to see a specific traveler's activities.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];
