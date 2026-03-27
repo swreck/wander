@@ -72,12 +72,12 @@ function GroupInterestBadge({
     setSubmitting(true);
     try {
       await api.post("/interests", { experienceId: exp.id, note: note || null });
-      showToast("Shared with group");
+      showToast("Shared");
       setShowForm(false);
       setNote("");
       onInterestChanged();
     } catch {
-      showToast("Couldn't share", "error");
+      showToast("That didn't go through — try again?", "error");
     }
     setSubmitting(false);
   }
@@ -86,11 +86,11 @@ function GroupInterestBadge({
     if (!interest) return;
     try {
       await api.post(`/interests/${interest.id}/react`, { reaction });
-      showToast(reaction === "interested" ? "Interested!" : reaction === "maybe" ? "Marked maybe" : "Passed");
+      showToast(reaction === "interested" ? "Interested!" : reaction === "maybe" ? "Maybe" : "Passed");
       setShowReactions(false);
       onInterestChanged();
     } catch {
-      showToast("Couldn't react", "error");
+      showToast("That didn't go through — try again?", "error");
     }
   }
 
@@ -98,10 +98,10 @@ function GroupInterestBadge({
     if (!interest) return;
     try {
       await api.delete(`/interests/${interest.id}`);
-      showToast("Retracted");
+      showToast("Withdrawn");
       onInterestChanged();
     } catch {
-      showToast("Couldn't retract", "error");
+      showToast("That didn't go through — try again?", "error");
     }
   }
 
@@ -195,7 +195,7 @@ function GroupInterestBadge({
       <button
         onClick={(e) => { e.stopPropagation(); setShowForm(!showForm); }}
         className="text-[#d0c8b8] hover:text-[#8a7a62] transition-colors p-0.5"
-        title="Share interest with group"
+        title="Share with the group"
       >
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
@@ -263,10 +263,10 @@ function LocationResolver({ exp, onResolved }: { exp: Experience; onResolved: ()
         longitude: result.longitude,
         placeIdGoogle: result.placeId,
       });
-      showToast("Location set");
+      showToast("Found it");
       onResolved();
     } catch {
-      showToast("Couldn't set location", "error");
+      showToast("Couldn't place that on the map — try again?", "error");
     }
     setConfirming(false);
   }
@@ -622,7 +622,7 @@ function DecisionGroup({
       await api.post(`/decisions/${decision.id}/vote`, { optionId });
       onDecisionsChanged();
     } catch {
-      showToast("Couldn't vote — check your connection and try again", "error");
+      showToast("Vote didn't go through — check your connection?", "error");
     }
     setVoting(false);
   }
@@ -631,10 +631,10 @@ function DecisionGroup({
     setResolving(true);
     try {
       await api.post(`/decisions/${decision.id}/resolve`, { winnerIds });
-      showToast("Decision resolved");
+      showToast("Settled!");
       onDecisionsChanged();
     } catch {
-      showToast("Couldn't resolve", "error");
+      showToast("That didn't go through — try again?", "error");
     }
     setResolving(false);
   }
@@ -648,19 +648,19 @@ function DecisionGroup({
       setShowAddOption(false);
       onDecisionsChanged();
     } catch {
-      showToast("Couldn't add option", "error");
+      showToast("Couldn't add that — try again?", "error");
     }
     setAdding(false);
   }
 
   async function handleDelete() {
-    if (!window.confirm("Cancel this decision? All votes will be lost.")) return;
+    if (!window.confirm("Clear this decision? Everyone's votes will go away.")) return;
     try {
       await api.delete(`/decisions/${decision.id}`);
-      showToast("Decision cancelled");
+      showToast("Cleared");
       onDecisionsChanged();
     } catch {
-      showToast("Couldn't cancel — check your connection and try again", "error");
+      showToast("That didn't go through — check your connection?", "error");
     }
   }
 
@@ -868,7 +868,7 @@ export default function ExperienceList({
       setShowNewDecision(false);
       onDecisionsChanged?.();
     } catch {
-      showToast("Couldn't create decision", "error");
+      showToast("Couldn't start that — try again?", "error");
     }
     setCreatingDecision(false);
   }
@@ -986,9 +986,9 @@ export default function ExperienceList({
 
       // Persist reorder to backend
       api.post("/experiences/reorder", { orderedIds: newOrder }).then(() => {
-        showToast("Order saved");
+        showToast("Got it");
       }).catch(() => {
-        showToast("Couldn't save order", "error");
+        showToast("Couldn't save that order — try again?", "error");
         if (activeZone === "selected") setSelectedOrder(null);
         else setPossibleOrder(null);
       });

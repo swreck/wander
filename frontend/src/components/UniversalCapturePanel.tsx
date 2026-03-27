@@ -60,7 +60,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
       capture.openReview();
       setInputMode(false);
     } catch {
-      showToast("Couldn't process input. Try a shorter or clearer format.", "error");
+      showToast("Couldn't make sense of that — try pasting the text directly?", "error");
     } finally {
       setExtracting(false);
     }
@@ -88,11 +88,11 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
       const parts = [];
       if (result.created > 0) parts.push(`${result.created} added`);
       if (result.skipped > 0) parts.push(`${result.skipped} duplicates skipped`);
-      showToast(parts.join(", ") || "Import complete");
+      showToast(parts.join(", ") || "All set — take a look");
       capture.reset();
       onCommitted();
     } catch {
-      showToast("Import failed", "error");
+      showToast("That didn't go through — try again?", "error");
     } finally {
       setCommitting(false);
     }
@@ -107,12 +107,12 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
         versionUpdates: updates,
         sessionId: capture.sessionId,
       });
-      showToast(`Updated ${updates.length} existing activities`);
+      showToast(`Added new details to ${updates.length} activities`);
       // Remove matched items from the view
       setShowVersionMatches(false);
       onCommitted();
     } catch {
-      showToast("Update failed", "error");
+      showToast("That didn't go through — try again?", "error");
     } finally {
       setCommitting(false);
     }
@@ -156,7 +156,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
               onClick={() => setShowVersionMatches(true)}
               className="mt-1 text-xs text-amber-600 hover:text-amber-700 font-medium"
             >
-              {versionMatches.length} match{versionMatches.length !== 1 ? "es" : ""} with existing activities — tap to review
+              {versionMatches.length} of these look familiar — tap to compare
             </button>
           )}
         </div>

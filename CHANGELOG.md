@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-27 — Tone Audit, UX Polish, Import Chaos Testing
+
+### Changed
+- **Full tone audit across all user-facing strings** — Every toast, error, empty state, confirmation, status message, and loading indicator rewritten to sound like a warm travel companion, not software. ~70 strings changed across 13 files. Examples: "Save failed" → "That didn't save — try again?", "Import complete" → "All set — take a look", "Decision resolved" → "Settled!", "No reservations yet" → "Nothing booked yet", "Are you sure you want to delete X? This cannot be undone." → "Remove X from your trip?", "Synced 3 changes" → "You're back — caught up on 3 things". Permanent tone audit rule added to CLAUDE.md.
+- **Trip countdown uses UTC math** — Was using local-time millisecond subtraction with Math.ceil, which could be off by 1 day across DST boundaries. Now uses Date.UTC arithmetic. Shows exact day count always (no imprecise "weeks away" rounding). "Trip complete" → "Welcome home".
+- **City color bands on overview calendar** — Each day cell in the Trip Overview calendar shows a colored left border matching its city.
+- **Warm empty state for cities** — "No experiences yet" → "Kyoto is wide open. Paste something you've found, or ask the chat what's worth seeing."
+
 ## 2026-03-27 — Import Chaos Testing, Capture UX Consistency
 
 ### Added

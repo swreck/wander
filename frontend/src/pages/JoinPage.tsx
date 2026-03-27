@@ -79,7 +79,7 @@ export default function JoinPage() {
   if (loading) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-[#faf8f5]">
-        <p className="text-[#8a7a62]">Loading invite...</p>
+        <p className="text-[#8a7a62]">Opening your invite...</p>
       </div>
     );
   }

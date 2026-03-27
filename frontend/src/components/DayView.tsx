@@ -113,10 +113,10 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
         });
       }
       setEditing(false);
-      showToast("Travel details saved");
+      showToast("Got it");
       onRefresh();
     } catch {
-      showToast("Couldn't save travel details", "error");
+      showToast("That didn't save — try again?", "error");
     }
   }
 
@@ -224,7 +224,7 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
             </div>
           )}
           {segment.confirmationNumber && (
-            <button onClick={() => { navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied confirmation number"); }}
+            <button onClick={() => { navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied"); }}
               className="text-xs text-amber-500 hover:text-amber-700 transition-colors">Conf: {segment.confirmationNumber} 📋</button>
           )}
           {segment.seatInfo && (
@@ -236,7 +236,7 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
         </div>
       ) : (
         <div className="text-sm text-amber-600 mt-0.5 italic">
-          No travel details yet — tap to add
+          Tap to add travel details
         </div>
       )}
     </div>
@@ -280,7 +280,7 @@ function TransportConnector({
       onRefresh();
     } catch {
       setLocalMode(null);
-      showToast("Couldn't update travel mode", "error");
+      showToast("That didn't save — try again?", "error");
     }
   }
 
@@ -477,10 +477,10 @@ export default function DayView({
     try {
       await api.patch(`/days/${day.id}`, { notes: notesText || null });
       setEditingNotes(false);
-      showToast("Notes saved");
+      showToast("Got it");
       onRefresh();
     } catch {
-      showToast("Couldn't save notes", "error");
+      showToast("That didn't save — try again?", "error");
     }
   }
 
@@ -488,10 +488,10 @@ export default function DayView({
     try {
       await api.patch(`/days/${day.id}`, { explorationZone: zoneText || null });
       setEditingZone(false);
-      showToast("Exploration zone saved");
+      showToast("Got it");
       onRefresh();
     } catch {
-      showToast("Couldn't save zone", "error");
+      showToast("That didn't save — try again?", "error");
     }
   }
 
@@ -511,10 +511,10 @@ export default function DayView({
       setResName("");
       setResTime("");
       setResNotes("");
-      showToast("Reservation added");
+      showToast("Added");
       onRefresh();
     } catch {
-      showToast("Couldn't add reservation", "error");
+      showToast("Couldn't add that — try again?", "error");
     }
   }
 
@@ -522,10 +522,10 @@ export default function DayView({
     const orderedIds = spatiallyOrdered.map(e => e.id);
     try {
       await api.post("/experiences/reorder", { orderedIds });
-      showToast("Route order applied");
+      showToast("Reordered");
       onRefresh();
     } catch {
-      showToast("Couldn't save order", "error");
+      showToast("Couldn't save that order — try again?", "error");
     }
   }
 
@@ -579,7 +579,7 @@ export default function DayView({
                 {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
                 {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
                 {acc.confirmationNumber && (
-                  <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied confirmation number"); }}
+                  <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied"); }}
                     className="hover:text-[#514636] transition-colors">Conf: {acc.confirmationNumber} 📋</button>
                 )}
               </div>
@@ -732,7 +732,7 @@ export default function DayView({
               type="text"
               value={resName}
               onChange={(e) => setResName(e.target.value)}
-              placeholder="Restaurant or activity name"
+              placeholder="What's it called?"
               className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
                          placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
             />
@@ -760,7 +760,7 @@ export default function DayView({
               type="text"
               value={resNotes}
               onChange={(e) => setResNotes(e.target.value)}
-              placeholder="Notes (confirmation number, seat, etc.)"
+              placeholder="Confirmation number, notes..."
               className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
                          placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
             />
@@ -770,7 +770,7 @@ export default function DayView({
               className="w-full py-1.5 rounded bg-[#514636] text-white text-xs font-medium
                          hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
             >
-              Add Reservation
+              Add reservation
             </button>
           </div>
         )}
@@ -790,7 +790,7 @@ export default function DayView({
                   </span>
                 </div>
                 {res.confirmationNumber && (
-                  <button onClick={() => { navigator.clipboard.writeText(res.confirmationNumber!); showToast("Copied confirmation number"); }}
+                  <button onClick={() => { navigator.clipboard.writeText(res.confirmationNumber!); showToast("Copied"); }}
                     className="text-sm text-[#a89880] mt-0.5 hover:text-[#514636] transition-colors">Conf: {res.confirmationNumber} 📋</button>
                 )}
                 {res.notes && <p className="text-sm text-[#a89880] mt-0.5">{res.notes}</p>}
@@ -798,7 +798,7 @@ export default function DayView({
             ))}
           </div>
         ) : !addingRes && (
-          <p className="text-sm text-[#c8bba8]">No reservations yet</p>
+          <p className="text-sm text-[#c8bba8]">Nothing booked yet</p>
         )}
       </div>
 
@@ -810,7 +810,7 @@ export default function DayView({
               type="text"
               value={zoneText}
               onChange={(e) => setZoneText(e.target.value)}
-              placeholder="e.g. Higashiyama district"
+              placeholder="Higashiyama district, Arashiyama..."
               className="w-full px-2 py-1.5 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
                          placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
             />
@@ -889,7 +889,7 @@ export default function DayView({
                   onPromote(exp.id, day.id);
                 }}
                 className="text-sm text-[#a89880] hover:text-[#514636] p-1"
-                aria-label="Add to this day"
+                aria-label="Add to today"
               >
                 &uarr;
               </button>

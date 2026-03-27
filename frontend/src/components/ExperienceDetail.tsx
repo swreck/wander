@@ -52,12 +52,12 @@ export default function ExperienceDetail({
         userNotes: editNotes || null,
       });
       setEditing(false);
-      showToast("Changes saved");
+      showToast("Got it");
       onRefresh();
       const updated = await api.get<Experience>(`/experiences/${experienceId}`);
       setExp(updated);
     } catch {
-      showToast("Couldn't save changes", "error");
+      showToast("That didn't save — try again?", "error");
     }
   }
 
@@ -69,14 +69,14 @@ export default function ExperienceDetail({
       setExp(updated);
       onRefresh();
       if (updated.locationStatus === "confirmed") {
-        showToast("Location confirmed");
+        showToast("Found it");
       } else if (result?.confidence === "low") {
-        showToast("Location found — needs review", "info");
+        showToast("Found a possible match — worth checking", "info");
       } else {
-        showToast("No location match found", "info");
+        showToast("Couldn't find this one on the map", "info");
       }
     } catch {
-      showToast("Location search failed", "error");
+      showToast("Couldn't look that up — try again?", "error");
     }
   }
 
@@ -86,9 +86,9 @@ export default function ExperienceDetail({
       await api.post(`/geocoding/experience/${exp.id}`, {});
       const updated = await api.get<Experience>(`/experiences/${experienceId}`);
       setExp(updated);
-      showToast("Ratings updated");
+      showToast("Updated");
     } catch {
-      showToast("Couldn't refresh ratings", "error");
+      showToast("Couldn't update — try again?", "error");
     }
   }
 
@@ -229,9 +229,9 @@ export default function ExperienceDetail({
         {/* Location status */}
         <div className="flex items-center gap-2">
           {exp.locationStatus === "confirmed" ? (
-            <span className="text-xs text-green-600">Location confirmed</span>
+            <span className="text-xs text-green-600">On the map</span>
           ) : exp.locationStatus === "pending" ? (
-            <span className="text-sm text-amber-600">Location pending review</span>
+            <span className="text-sm text-amber-600">Location needs a look</span>
           ) : (
             <button
               onClick={handleGeocode}
@@ -293,7 +293,7 @@ export default function ExperienceDetail({
           onClick={handleRefreshRatings}
           className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
         >
-          Update location & ratings
+          Look this up
         </button>
 
         {/* Cultural context — etiquette, timing, practical tips */}
@@ -333,7 +333,7 @@ export default function ExperienceDetail({
             className="w-full py-2 rounded-lg bg-[#514636] text-white text-sm font-medium
                        hover:bg-[#3a3128] transition-colors"
           >
-            Save Changes
+            Save
           </button>
         )}
 
@@ -350,7 +350,7 @@ export default function ExperienceDetail({
               </button>
               {showPromote && (
                 <div className="p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-                  <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">Tap a day to add</div>
+                  <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">Which day?</div>
                   <div className="flex gap-1 overflow-x-auto pb-1">
                     {days.map((d) => {
                       const isMatchCity = exp ? d.cityId === exp.cityId : false;
@@ -381,7 +381,7 @@ export default function ExperienceDetail({
               className="w-full py-2.5 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]
                          hover:bg-[#f0ece5] transition-colors"
             >
-              Move to Candidates
+              Keep as an idea
             </button>
           )}
 
@@ -398,7 +398,7 @@ export default function ExperienceDetail({
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
               <p className="text-sm text-[#3a3128] mb-4">
-                Are you sure you want to delete <strong>{exp.name}</strong>? This cannot be undone.
+                Remove <strong>{exp.name}</strong> from your trip?
               </p>
               <div className="flex gap-3">
                 <button
@@ -445,11 +445,11 @@ function GroupInterestSection({
     setSubmitting(true);
     try {
       await api.post("/interests", { experienceId: exp.id, note: note || null });
-      showToast("Shared with group");
+      showToast("Shared");
       setNote("");
       onInterestChanged?.();
     } catch {
-      showToast("Couldn't share", "error");
+      showToast("That didn't go through — try again?", "error");
     }
     setSubmitting(false);
   }
@@ -458,10 +458,10 @@ function GroupInterestSection({
     if (!interest) return;
     try {
       await api.post(`/interests/${interest.id}/react`, { reaction });
-      showToast(reaction === "interested" ? "Interested!" : reaction === "maybe" ? "Marked maybe" : "Passed");
+      showToast(reaction === "interested" ? "Interested!" : reaction === "maybe" ? "Maybe" : "Passed");
       onInterestChanged?.();
     } catch {
-      showToast("Couldn't react", "error");
+      showToast("That didn't go through — try again?", "error");
     }
   }
 
@@ -469,10 +469,10 @@ function GroupInterestSection({
     if (!interest) return;
     try {
       await api.delete(`/interests/${interest.id}`);
-      showToast("Retracted");
+      showToast("Withdrawn");
       onInterestChanged?.();
     } catch {
-      showToast("Couldn't retract", "error");
+      showToast("That didn't go through — try again?", "error");
     }
   }
 

@@ -183,7 +183,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
         setMode("review");
       }
     } catch (err: any) {
-      setError(err.message || "Extraction failed");
+      setError(err.message || "Couldn't make sense of that — try again?");
     } finally {
       setExtracting(false);
     }
@@ -196,7 +196,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
       await api.post("/import/commit", data);
       onCreated();
     } catch (err: any) {
-      setError(err.message || "Failed to create trip");
+      setError(err.message || "Couldn't create your trip — try again?");
     } finally {
       setSubmitting(false);
     }
@@ -250,7 +250,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
       });
       onCreated();
     } catch (err: any) {
-      setError(err.message || "Failed to create trip");
+      setError(err.message || "Couldn't create your trip — try again?");
     } finally {
       setSubmitting(false);
     }

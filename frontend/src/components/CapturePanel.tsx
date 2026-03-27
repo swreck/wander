@@ -57,7 +57,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
 
       onCaptured();
     } catch (err: any) {
-      setError(err.message || "Save failed");
+      setError(err.message || "That didn't save — try again?");
     } finally {
       setSubmitting(false);
     }

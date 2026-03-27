@@ -240,7 +240,7 @@ export default function ProfilePage() {
             )}
 
             {section.docs.length === 0 && addingType !== section.value && (
-              <p className="text-xs text-[#c8bba8] mb-2">None added yet</p>
+              <p className="text-xs text-[#c8bba8] mb-2">Nothing here yet</p>
             )}
           </section>
         ))}

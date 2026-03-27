@@ -80,7 +80,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
       return (
         <div className="min-h-screen flex items-center justify-center bg-[#faf8f5] p-8">
           <div className="max-w-md text-center">
-            <h1 className="text-lg font-medium text-[#3a3128] mb-2">Something went wrong</h1>
+            <h1 className="text-lg font-medium text-[#3a3128] mb-2">Hmm, something broke</h1>
             <p className="text-sm text-[#8a7a62] mb-4">{this.state.error.message}</p>
             <pre className="text-xs text-left bg-[#f0ebe3] rounded-lg p-3 mb-4 max-h-40 overflow-auto whitespace-pre-wrap text-[#6b5d4a]">{this.state.error.stack?.split("\n").slice(0, 6).join("\n")}</pre>
             <button
@@ -99,7 +99,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-[#8a7a62]">Loading...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-[#8a7a62]">Finding your trip...</div>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -160,13 +160,13 @@ function SyncNotifier() {
   useEffect(() => {
     const onQueued = (e: Event) => {
       const count = (e as CustomEvent).detail?.count ?? 0;
-      showToast(`Saved offline (${count} queued)`, "info");
+      showToast("Saved for now — you're offline", "info");
     };
     const onSynced = (e: Event) => {
       const { success, failed } = (e as CustomEvent).detail || {};
       if (success > 0) {
         showToast(
-          `Synced ${success} change${success > 1 ? "s" : ""}${failed ? `, ${failed} failed` : ""}`,
+          `You're back — caught up on ${success === 1 ? "1 thing" : `${success} things`}${failed ? ` (${failed} didn't go through)` : ""}`,
           failed ? "info" : "success",
         );
       }

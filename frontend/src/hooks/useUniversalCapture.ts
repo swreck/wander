@@ -76,7 +76,7 @@ export default function useUniversalCapture(tripId: string | undefined, cityId?:
             timestamp: Date.now(),
           };
           await queueCapture(entry);
-          capture.showToast("Saved offline — will process when back online");
+          capture.showToast("Saved for now — I'll finish when you're back online");
           // Auto-dismiss after 3 seconds
           setTimeout(() => capture.dismissToast(), 3000);
         } catch {

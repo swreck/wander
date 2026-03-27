@@ -54,7 +54,7 @@ export default function CulturalNotes({ experienceId, cachedNotes, onNotesLoaded
           <path d="M12 16v-4" />
           <path d="M12 8h.01" />
         </svg>
-        {loading ? "Loading..." : expanded ? "Hide cultural context" : "Cultural context"}
+        {loading ? "Looking up..." : expanded ? "Hide context" : "Cultural context"}
       </button>
 
       {expanded && notes && notes.length > 0 && (

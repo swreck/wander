@@ -283,7 +283,7 @@ export default function NowPage() {
       });
       setQuickCaptureName("");
       setShowQuickCapture(false);
-      showToast("Discovery saved", "success");
+      showToast("Saved", "success");
       // Refresh data to show new experience
       window.dispatchEvent(new CustomEvent("wander:data-changed"));
     } finally {
@@ -400,7 +400,7 @@ export default function NowPage() {
                   {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
                   {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
                   {acc.confirmationNumber && (
-                    <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied confirmation number"); }}
+                    <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied"); }}
                       className="hover:text-[#514636] transition-colors">Conf: {acc.confirmationNumber} 📋</button>
                   )}
                 </div>
@@ -814,6 +814,6 @@ function sharePlan(day: Day, exps: Experience[], reservations: any[], accommodat
     navigator.share({ text });
   } else {
     navigator.clipboard.writeText(text);
-    showToast("Copied to clipboard", "success");
+    showToast("Copied — ready to share", "success");
   }
 }

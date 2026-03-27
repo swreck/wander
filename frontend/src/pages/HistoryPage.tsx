@@ -85,7 +85,7 @@ export default function HistoryPage() {
 
         {/* Log entries */}
         {loading ? (
-          <div className="text-center py-8 text-sm text-[#8a7a62]">Loading...</div>
+          <div className="text-center py-8 text-sm text-[#8a7a62]">Looking back...</div>
         ) : (
           <div className="space-y-2">
             {logs.map((log) => (

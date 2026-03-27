@@ -43,7 +43,7 @@ function SegmentForm({
 
   async function handleSave() {
     if (!initial && (!originCity.trim() || !destinationCity.trim())) {
-      showToast("Origin and destination are required", "error");
+      showToast("Need both a starting point and destination", "error");
       return;
     }
     setSaving(true);
@@ -71,10 +71,10 @@ function SegmentForm({
           destinationCity: destinationCity.trim(),
         });
       }
-      showToast(initial ? "Segment updated" : "Segment added");
+      showToast("Got it");
       onSave();
     } catch {
-      showToast("Couldn't save segment", "error");
+      showToast("That didn't save — try again?", "error");
     } finally {
       setSaving(false);
     }
@@ -190,10 +190,10 @@ function SegmentCard({
   async function handleDelete() {
     try {
       await api.delete(`/route-segments/${segment.id}`);
-      showToast("Segment deleted");
+      showToast("Removed");
       onRefresh();
     } catch {
-      showToast("Couldn't delete segment", "error");
+      showToast("Couldn't remove that — try again?", "error");
     }
   }
 
@@ -240,7 +240,7 @@ function SegmentCard({
             </div>
           )}
           {segment.confirmationNumber && (
-            <button onClick={() => { navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied confirmation number"); }}
+            <button onClick={() => { navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied"); }}
               className="text-xs text-amber-500 hover:text-amber-700 transition-colors">Conf: {segment.confirmationNumber} 📋</button>
           )}
           {segment.seatInfo && (
@@ -256,7 +256,7 @@ function SegmentCard({
       <div className="px-3 py-1.5 border-t border-amber-100 flex justify-end">
         {confirmDelete ? (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-amber-600">Delete this segment?</span>
+            <span className="text-xs text-amber-600">Remove this?</span>
             <button onClick={handleDelete}
               className="text-xs text-red-600 font-medium hover:text-red-800">Yes</button>
             <button onClick={() => setConfirmDelete(false)}
