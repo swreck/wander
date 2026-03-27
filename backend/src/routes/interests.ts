@@ -54,7 +54,7 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
     where: { tripId },
     include: {
       reactions: true,
-      experience: { select: { id: true, name: true, cityId: true, dayId: true, state: true, city: { select: { name: true } } } },
+      experience: { select: { id: true, name: true, cityId: true, dayId: true, state: true, createdBy: true, city: { select: { name: true } } } },
     },
     orderBy: { createdAt: "desc" },
   });

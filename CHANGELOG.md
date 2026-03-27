@@ -2,6 +2,15 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-27 — Interest Notifications, Quick Start Update, UX Polish
+
+### Added
+- **Creator interest notifications** — When someone shows interest in an activity you added, you see a notification next time you open Wander: "[Name] is interested in your activity [name]" with "OK" and "Take me there" buttons. Creator notifications persist across sessions (tracked in localStorage) until explicitly dismissed. Takes priority over general unreacted-interest notifications.
+
+### Changed
+- **Quick Start text updated** — Was still referencing the old import method ("Use Import on the map"). Now says: "Paste or drop anything — an article, a friend's list, a screenshot — and Wander picks it up."
+- **Phrase card icon raised** — Japanese phrase button moved up to avoid overlap with the home navigation icon.
+
 ## 2026-03-27 — Tone Audit, UX Polish, Import Chaos Testing
 
 ### Changed
