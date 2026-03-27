@@ -92,13 +92,13 @@ export default function useUniversalCapture(tripId: string | undefined, cityId?:
   // Paste handler
   useEffect(() => {
     function handlePaste(e: ClipboardEvent) {
-      if (isTypingInField()) return;
       if (!tripIdRef.current) return;
 
       const items = e.clipboardData?.items;
       if (!items) return;
+      const inTextField = isTypingInField();
 
-      // Check for image
+      // Image pastes always trigger capture — images can't go into text fields
       for (const item of items) {
         if (item.type.startsWith("image/")) {
           const file = item.getAsFile();
@@ -110,7 +110,8 @@ export default function useUniversalCapture(tripId: string | undefined, cityId?:
         }
       }
 
-      // Check for text
+      // Text pastes only trigger capture when NOT in a text field
+      if (inTextField) return;
       const text = e.clipboardData?.getData("text/plain");
       if (text && text.trim().length > 20) {
         e.preventDefault();
