@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
 import ImportReview from "./ImportReview";
 
 interface CityInput {
@@ -12,7 +13,7 @@ interface CityInput {
 
 interface Props {
   onCreated: () => void;
-  existingTrips?: { id: string; name: string; startDate: string; endDate: string; status: string }[];
+  existingTrips?: { id: string; name: string; startDate: string | null; endDate: string | null; status: string }[];
   onSwitchTrip?: (tripId: string) => void;
 }
 
@@ -42,6 +43,7 @@ export interface ExtractionResult {
     name: string;
     description?: string;
     timeWindow?: string;
+    choiceGroup?: string;
   }[];
   routeSegments: {
     originCity: string;
@@ -51,6 +53,7 @@ export interface ExtractionResult {
     notes?: string;
   }[];
   notes: string;
+  gapWarnings?: string[];
 }
 
 // Detect if a string looks like a URL
@@ -80,7 +83,9 @@ function describeInput(text: string, files: File[]): string | null {
 
 export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: Props) {
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const [mode, setMode] = useState<Mode>("main");
+  const [inviteLinks, setInviteLinks] = useState<{ name: string; token: string }[]>([]);
 
   // Unified import state
   const [inputText, setInputText] = useState("");
@@ -95,8 +100,11 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
 
   // Manual mode state
   const [name, setName] = useState("");
+  const [dateState, setDateState] = useState<"known" | "roughly" | "not_yet">("known");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [memberInput, setMemberInput] = useState("");
+  const [memberNames, setMemberNames] = useState<string[]>([]);
   const [cities, setCities] = useState<CityInput[]>([
     { name: "", country: "", arrivalDate: "", departureDate: "" },
   ]);
@@ -224,9 +232,23 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
     setCities(cities.filter((_, i) => i !== index));
   }
 
+  function addMember() {
+    const trimmed = memberInput.trim();
+    if (!trimmed) return;
+    // Split by comma for bulk add
+    const names = trimmed.split(",").map((n) => n.trim()).filter(Boolean);
+    setMemberNames((prev) => [...prev, ...names.filter((n) => !prev.includes(n))]);
+    setMemberInput("");
+  }
+
+  function removeMember(name: string) {
+    setMemberNames((prev) => prev.filter((n) => n !== name));
+  }
+
   async function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !startDate || !endDate) return;
+    if (!name.trim()) return;
+    if (dateState !== "not_yet" && (!startDate || !endDate)) return;
 
     setError("");
     setSubmitting(true);
@@ -241,19 +263,104 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
           });
         }
       }
-      await api.post("/trips", {
+      const result = await api.post<{ invites?: { expectedName: string; inviteToken: string }[] }>("/trips", {
         name: name.trim(),
-        startDate,
-        endDate,
+        startDate: dateState !== "not_yet" ? startDate : undefined,
+        endDate: dateState !== "not_yet" ? endDate : undefined,
+        dateState,
         cities: cities.filter((c) => c.name.trim()),
         routeSegments: segments,
+        members: memberNames,
       });
-      onCreated();
+      // If members were added, show invite sharing screen before proceeding
+      if (result.invites && result.invites.length > 0) {
+        setInviteLinks(result.invites.map((inv) => ({ name: inv.expectedName, token: inv.inviteToken })));
+      } else {
+        onCreated();
+      }
     } catch (err: any) {
       setError(err.message || "Couldn't create your trip — try again?");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // --- Mode: Invite sharing (after trip creation with members) ---
+  if (inviteLinks.length > 0) {
+    function buildLink(token: string) {
+      return `${window.location.origin}/join/${token}`;
+    }
+
+    async function copyOne(token: string, personName: string) {
+      try {
+        await navigator.clipboard.writeText(buildLink(token));
+        showToast(`Copied link for ${personName}`);
+      } catch {
+        showToast("Couldn't copy — try selecting the link manually", "error");
+      }
+    }
+
+    async function copyAll() {
+      const text = inviteLinks
+        .map((inv) => `${inv.name}: ${buildLink(inv.token)}`)
+        .join("\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("All links copied");
+      } catch {
+        showToast("Couldn't copy — try one at a time", "error");
+      }
+    }
+
+    return (
+      <div className="min-h-screen bg-[#faf8f5]">
+        <div className="max-w-xl mx-auto px-4 py-12">
+          <h1 className="text-2xl font-light text-[#3a3128] mb-2">
+            Trip created — share the invite links
+          </h1>
+          <p className="text-[15px] text-[#6b5d4a] mb-8 leading-relaxed">
+            Each person has their own link. Send it however you like — text, email, carrier pigeon.
+          </p>
+
+          <button
+            onClick={copyAll}
+            className="w-full mb-6 py-2.5 rounded-lg border border-[#e5ddd0] bg-white text-sm
+                       font-medium text-[#514636] hover:bg-[#f0ece5] transition-colors"
+          >
+            Copy all links
+          </button>
+
+          <div className="space-y-3">
+            {inviteLinks.map((inv) => (
+              <div
+                key={inv.token}
+                className="flex items-center justify-between gap-3 px-4 py-3 bg-white rounded-lg border border-[#e5ddd0]"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-[#3a3128]">{inv.name}</div>
+                  <div className="text-xs text-[#a89880] truncate">{buildLink(inv.token)}</div>
+                </div>
+                <button
+                  onClick={() => copyOne(inv.token, inv.name)}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#f0ece5] text-xs font-medium
+                             text-[#514636] hover:bg-[#e5ddd0] transition-colors"
+                >
+                  Copy
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={onCreated}
+            className="w-full mt-8 py-3 rounded-lg bg-[#514636] text-white text-sm font-medium
+                       hover:bg-[#3a3128] transition-colors"
+          >
+            Done — go to the trip
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // --- Mode: Review ---
@@ -271,6 +378,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
 
   // --- Mode: Manual ---
   if (mode === "manual") {
+    const canSubmit = name.trim() && (dateState === "not_yet" || (startDate && endDate));
     return (
       <div className="min-h-screen bg-[#faf8f5]">
         <div className="max-w-xl mx-auto px-4 py-8">
@@ -284,36 +392,130 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
           <h1 className="text-2xl font-light text-[#3a3128] mb-6">New Trip</h1>
 
           <form onSubmit={handleManualSubmit} className="space-y-6">
+            {/* Trip name */}
             <div>
               <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
-                Trip Name
+                What are you calling it?
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Japan 2026"
-                className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
-                           text-[#3a3128] placeholder-[#c8bba8]
+                placeholder="Fong Family Vietnam"
+                className="w-full px-3 py-2.5 rounded-lg border border-[#e0d8cc] bg-white
+                           text-[#3a3128] placeholder-[#c8bba8] text-base
                            focus:outline-none focus:ring-2 focus:ring-[#a89880]"
+                autoFocus
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">Start Date</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">End Date</label>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
+            {/* Date state selector */}
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+                When?
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: "known" as const, label: "I know the dates" },
+                  { value: "roughly" as const, label: "Roughly" },
+                  { value: "not_yet" as const, label: "Not yet" },
+                ]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setDateState(opt.value)}
+                    className={`py-2.5 px-2 rounded-lg text-sm font-medium transition-all
+                      ${dateState === opt.value
+                        ? "bg-[#514636] text-white"
+                        : "bg-white border border-[#e0d8cc] text-[#6b5d4a] hover:border-[#a89880]"
+                      }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
+            {/* Date pickers — visible for "known" and "roughly" */}
+            {dateState !== "not_yet" && (
+              <div>
+                {dateState === "roughly" && (
+                  <p className="text-xs text-[#a89880] mb-2 italic">
+                    These might shift — that's fine
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">Start</label>
+                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">End</label>
+                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Who's coming */}
             <div>
-              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">Cities</label>
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+                Who's coming?
+              </label>
+              {memberNames.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {memberNames.map((n) => (
+                    <span
+                      key={n}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f0ece5] text-sm text-[#3a3128]"
+                    >
+                      {n}
+                      <button
+                        type="button"
+                        onClick={() => removeMember(n)}
+                        className="text-[#c8bba8] hover:text-red-500 text-xs leading-none"
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={memberInput}
+                  onChange={(e) => setMemberInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      addMember();
+                    }
+                  }}
+                  placeholder="Type a name and press enter"
+                  className="flex-1 px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-2 focus:ring-[#a89880]"
+                />
+                <button
+                  type="button"
+                  onClick={addMember}
+                  disabled={!memberInput.trim()}
+                  className="px-3 py-2 rounded-lg bg-[#f0ece5] text-sm text-[#6b5d4a] hover:bg-[#e0d8cc] disabled:opacity-40 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+              <p className="text-xs text-[#c8bba8] mt-1">
+                Each person gets their own invite link. You can add more later.
+              </p>
+            </div>
+
+            {/* Cities */}
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">
+                Cities <span className="normal-case font-normal">(optional — add later too)</span>
+              </label>
               <div className="space-y-3">
                 {cities.map((city, i) => (
                   <div key={i} className="p-3 bg-white rounded-lg border border-[#f0ece5] space-y-2">
@@ -328,12 +530,14 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                         <button type="button" onClick={() => removeCity(i)} className="px-2 text-[#c8bba8] hover:text-red-500 transition-colors">&times;</button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="date" value={city.arrivalDate} onChange={(e) => updateCity(i, "arrivalDate", e.target.value)}
-                        className="px-3 py-1.5 rounded border border-[#e0d8cc] bg-white text-[#3a3128] text-sm focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
-                      <input type="date" value={city.departureDate} onChange={(e) => updateCity(i, "departureDate", e.target.value)}
-                        className="px-3 py-1.5 rounded border border-[#e0d8cc] bg-white text-[#3a3128] text-sm focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
-                    </div>
+                    {dateState !== "not_yet" && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="date" value={city.arrivalDate} onChange={(e) => updateCity(i, "arrivalDate", e.target.value)}
+                          className="px-3 py-1.5 rounded border border-[#e0d8cc] bg-white text-[#3a3128] text-sm focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
+                        <input type="date" value={city.departureDate} onChange={(e) => updateCity(i, "departureDate", e.target.value)}
+                          className="px-3 py-1.5 rounded border border-[#e0d8cc] bg-white text-[#3a3128] text-sm focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -342,9 +546,9 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <button type="submit" disabled={submitting || !name.trim() || !startDate || !endDate}
+            <button type="submit" disabled={submitting || !canSubmit}
               className="w-full py-3 rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              {submitting ? "Creating..." : "Create Trip"}
+              {submitting ? "Setting things up..." : "Create Trip"}
             </button>
           </form>
         </div>
@@ -490,6 +694,16 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
             {extracting ? "Reading your itinerary..." : "Extract & Review"}
           </button>
 
+          <div className="text-center pt-2">
+            <button
+              type="button"
+              onClick={() => setMode("manual")}
+              className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+            >
+              Or start from scratch
+            </button>
+          </div>
+
         </div>
 
         {/* Existing trips — tap to switch */}
@@ -511,9 +725,10 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                     <span className="text-xs uppercase text-[#c8bba8]">{t.status}</span>
                   </div>
                   <div className="text-xs text-[#a89880] mt-0.5">
-                    {new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    {" — "}
-                    {new Date(t.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    {t.startDate && t.endDate
+                      ? `${new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — ${new Date(t.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                      : "Dates TBD"
+                    }
                   </div>
                 </button>
               ))}

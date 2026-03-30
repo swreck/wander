@@ -121,7 +121,7 @@ test("chat panel close button is a chevron that preserves messages (requires bac
   const chatBtn = page.getByLabel("Open chat assistant");
   await expect(chatBtn).toBeVisible({ timeout: 10000 });
   await chatBtn.click();
-  await expect(page.getByText("Wander Assistant")).toBeVisible();
+  await expect(page.getByText("Scout")).toBeVisible();
 
   // The minimize button should have aria-label "Minimize chat" (not "Close chat")
   const minimizeBtn = page.getByLabel("Minimize chat");
@@ -137,7 +137,7 @@ test("chat panel close button is a chevron that preserves messages (requires bac
   await minimizeBtn.click();
 
   // Chat panel should be gone, bubble should be back
-  await expect(page.getByText("Wander Assistant")).not.toBeVisible();
+  await expect(page.getByText("Scout")).not.toBeVisible();
   await expect(page.getByLabel("Open chat assistant")).toBeVisible();
 });
 

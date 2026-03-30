@@ -6,9 +6,9 @@ const sections = [
   {
     id: "quick-start",
     title: "Quick Start",
-    body: `Wander is where the trip lives — every city, day, restaurant and temple. There's an AI chat assistant that knows our whole plan, so you can ask questions any time.
+    body: `Wander is where the trip lives — every city, day, restaurant and temple. Scout is your travel companion inside the app — ask questions, make changes, or just chat about what to do next.
 
-Tap the link I send you, pick your name, and you're in the trip overview. Tap a day to see its city and activities. Details are below.`,
+Tap the link you were sent, pick your name, and you're in the trip overview. Tap a day to see its city and activities. Details are below.`,
   },
   {
     id: "getting-around",
@@ -19,21 +19,21 @@ The **home screen** shows a calendar, where each cell is a day, color-coded by c
 
 The **day-by-day** shows that day's activities on the map with the full schedule alongside — reservations, accommodations, and notes. A scrollable strip of day cards runs along the bottom; swipe to move between days.
 
-Above the day strip: **Home** (back to the overview), **Add** (capture a new place or import), and **Chat** (the AI assistant). On a phone, there's also a **List** button to switch between the map and list views — on a larger screen, both are visible side by side.`,
+Above the day strip: **Home** (back to the overview), **Add** (capture a new place or import), and **Scout** (your travel companion). On a phone, there's also a **List** button to switch between the map and list views — on a larger screen, both are visible side by side.`,
   },
   {
     id: "chat",
-    title: "The Chat Assistant",
-    body: `The chat bubble in the bottom-right corner (or the **Chat** button on the plan screen) is an AI that knows our trip. And it knows what you tell it about you, e.g., your passport number. No financial info (it's not secure enough). The assistant can do most of what the app can do for you by asking, so it's often the fastest way to get answers or make changes.
+    title: "Scout — Your Travel Companion",
+    body: `The chat bubble in the bottom-right corner is Scout. Scout knows your whole trip — every city, day, reservation, and activity. You can ask questions, make changes, or just think out loud.
 
 _"What's planned for Tuesday?"_
 _"Add Fushimi Inari to the Kyoto days"_
 _"How far is the hotel from the temple?"_
 _"What are we doing in Osaka?"_
 
-It can also store your travel info if you just tell it: _"My Delta SkyMiles number is 1234567."_
+Scout also stores your travel info if you tell it: _"My Delta SkyMiles number is 1234567."_
 
-Where it falls short: it won't offer opinions on whether you'll love a place, and it doesn't know things outside the trip data. If it misunderstands, just rephrase. You can type or tap the microphone and talk to it.`,
+Scout won't offer opinions on whether you'll love a place, and doesn't know things outside the trip data. If it misunderstands, just rephrase. You can type or tap the microphone and talk.`,
   },
   {
     id: "travel-days",
@@ -49,7 +49,7 @@ Wander works offline too; changes sync when you're back on wifi or cellular.`,
 
 In the activity list, you may see a **Decide Together** section — that's the group choosing between options. Tap the one you'd pick, or tap "Happy with any" if you're flexible. When everyone's weighed in, someone taps **Resolve** to lock it in.
 
-Found a place you want to add? Tell the chat — _"add Café Kitsune to Thursday"_ — or tap **+** then **Manual**. You'll get three choices: **Plan it** (onto the schedule), **Maybe** (save for later), or **Decide** (start a group decision with this as the first option).`,
+Found a place you want to add? Tell Scout — _"add Café Kitsune to Thursday"_ — or tap **+** then **Manual**. You'll get three choices: **Plan it** (onto the schedule), **Maybe** (save for later), or **Decide** (start a group decision with this as the first option).`,
   },
   {
     id: "browsing",
@@ -107,7 +107,7 @@ export default function GuidePage() {
   }, [location.hash]);
 
   return (
-    <div className="min-h-screen bg-[#faf8f5]">
+    <div className="min-h-screen bg-[#faf8f5] pb-20">
       <div className="max-w-lg mx-auto px-4 py-6 pb-16">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

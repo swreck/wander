@@ -2,6 +2,257 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-29 — Overnight: Advisories, Onboarding, Nav Redesign, Extraction Fixes
+
+### Added
+- **Health & visa advisory system** — Static data service for Vietnam, Cambodia, Japan covering visa requirements, CDC vaccine recommendations, health/safety notes, connectivity info, currency details. REST endpoint `GET /api/travel-advisory/trip/:tripId` derives countries from trip cities. Chat tool `get_travel_advisories` (tool #55) proactively suggests when a new country is added. (NowPage pre-trip view, chat, backend service)
+  - SPEC UPDATE NEEDED: Section on travel preparation / pre-trip checklist
+- **NowPage "Before you go" section** — Pre-trip view now shows visa warnings, vaccine recommendations, and connectivity heads-up pulled from travel advisory service. (NowPage)
+- **NowPage day-level decision voting** — When the current day has unresolved choices (from extraction or Scout), shows compact voting cards at the top of the timeline. (NowPage active trip view)
+- **Onboarding activated** — `NewMemberOnboarding.tsx` was dead code (written but never imported). Now wired into App.tsx with three dismiss paths: save interests, remind me later (24hr snooze), skip for now (permanent). Checks localStorage state and existing preferences to avoid re-showing. Returns "You can always update this in Settings." (App.tsx overlay)
+
+### Changed
+- **Bottom nav: 4 tabs → 3** — Dropped Profile tab (used once or twice, not worth permanent real estate). Tabs: Home, Plan, Now. "Overview" renamed to "Home." (BottomNav)
+- **PlanPage single action bar** — Global BottomNav now hides on `/plan`. PlanPage's own bar includes Home + Now navigation alongside List, Add, Chat. Eliminates 3-level nav stacking. (PlanPage, BottomNav)
+- **SSE exponential backoff** — EventSource reconnection now uses 1s→2s→4s→8s→16s→30s backoff instead of native auto-retry. Disconnects when offline, reconnects when online. (useTripSync)
+
+### Fixed
+- **Extraction: startDate hint missing for PDFs** — When uploading images/PDFs without text, the startDate hint was only added to the text content path. "Day 1" through "Day 8" stayed as relative labels instead of converting to calendar dates. Now added to image prompt path. (itineraryExtractor)
+- **Extraction: duplicate cities from PDF** — Backroads PDFs sometimes mention the same city in different sections. Import commit now deduplicates by name, extending existing city date ranges instead of creating duplicates. (import.ts)
+- **Offline test Scout rename** — `offline.spec.ts` still referenced "Wander Assistant" in chat panel assertions. Changed to "Scout." (offline.spec.ts)
+
+## 2026-03-29 — UX Completion: Extraction + Sync + Navigation + Split Days + Polish
+
+### Added
+- **SSE real-time sync** — Other travelers' changes appear as a tap-to-refresh banner at the top of the screen. Backend broadcasts via Server-Sent Events after every change log entry. (All authenticated pages)
+  - SPEC UPDATE NEEDED: Section on real-time collaboration
+- **Persistent bottom navigation** — 4-tab bar (Overview / Plan / Now / Profile) visible on all authenticated pages. PlanPage keeps its own action bar stacked above. (All pages)
+  - SPEC UPDATE NEEDED: Section on navigation architecture
+- **Split-day choices (Decisions tied to days)** — Decision model now has optional `dayId`. Extracted "OR" activities create day-level Decisions. DayView shows choice cards with voting. Chat tool `create_day_choice` available. (DayView, import pipeline, chat)
+  - SPEC UPDATE NEEDED: Section on group decisions, section on extraction
+- **Extraction: choice group detection** — "relax at hotel OR visit Royal Citadel" now creates separate experiences linked by a Decision, not dropped or merged. (Import pipeline)
+- **Extraction: missing-page detection** — If day sequence has gaps (Day 1-4 then 7-8), shows a yellow warning banner on the review screen. (ImportReview)
+- **Extraction: prose-embedded activities** — "we stop for lunch at a local restaurant" now extracted as an experience. Prompt detects verbs like "stop at", "visit", "explore". (itineraryExtractor)
+- **Extraction: operational warnings kept** — "Please Note" schedule changes preserved in notes, not filtered as general advice. (itineraryExtractor)
+- **Extraction: hotel contact details** — Phone numbers, websites, addresses in hotel descriptions go into accommodation notes. (itineraryExtractor)
+- **Extraction: max_tokens 4096→8192** — Handles 8+ day itineraries without truncation. (itineraryExtractor)
+- **"Start a vote" in Add menu** — PlanPage's Add popover now has a "Start a vote" option that opens Scout with a prefill. (PlanPage action bar)
+- **Join page city photo** — Personal invite pages show a photo of the first trip destination. (JoinPage)
+- **Trip Story learning prompt** — "Anything you'd do differently?" input at the bottom of TripStoryPage saves a learning. (TripStoryPage)
+- **Chat tool: `create_day_choice`** — Scout can create day-level activity choices. Tool #54. (chat.ts)
+
+### Changed
+- **PlanPage action bar loses Home button** — Home navigation now handled by persistent bottom nav. PlanPage bar stacks above it. (PlanPage)
+- **Capture toast during trips** — "All set — take a look" → "Nice find — saved for today" when capturing during active trip dates. (UniversalCapturePanel)
+- **Playwright test updated** — "Wander Assistant" → "Scout" in chat test assertion. (capture-ux.spec.ts)
+- **All authenticated pages have bottom padding** — `pb-20` prevents content hiding behind bottom nav. (8 pages)
+
+### Fixed
+- **ImportReview: choice groups displayed** — Grouped experiences shown in blue "Choose one" cards instead of flat list. (ImportReview)
+
+## 2026-03-29 — UX Audit Fixes (Pass 2)
+
+### Fixed
+- **HistoryPage restore silently failed** — Used `"wander:token"` (colon) but auth stores as `"wander_token"` (underscore). Every "Bring back" button returned 401.
+- **LearningsPanel same token bug** — Same colon vs underscore mismatch in auth headers. All learning CRUD silently failed.
+- **LearningsPanel delete invisible on mobile** — Used `opacity-0 group-hover:opacity-100` which has no effect on touch devices. Now always visible with subtle color.
+- **Trip switch toast used undefined variable** — `switchedTrip` wasn't in scope. Now correctly finds the trip name from `allTrips`.
+- **Photo upload crashes offline** — `uploadRequest()` had no network error handling. Now shows a clear message: "You're offline — photos need a connection to upload."
+- **Scout search only checked names** — `search_experiences` tool only searched the `name` field. Now also searches `description` and `userNotes`. "Find that ramen place" works even if the name is "Ichiran".
+- **CreateTrip manual mode unreachable** — ~450 lines of trip creation code (name, dates, cities, members, invite links) had no button to reach it. Added "Or start from scratch" link on the main import view.
+- **CityBoard unreachable for dated cities** — No navigation path to `/city/:cityId` for cities on the calendar. Added "browse ideas" chips below the calendar grid.
+- **ProfilePage used native browser confirm** — `window.confirm("Remove this document?")` replaced with inline Remove/Keep buttons matching app tone.
+- **ExperienceList used native browser confirm** — `window.confirm("Clear this decision?")` replaced with inline confirmation.
+- **ChatBubble used native browser confirm** — "Start a fresh conversation?" dialog replaced with inline Clear/Keep buttons.
+
+### Changed
+- **PlanPage tone: "Added to itinerary"** → "On the plan"
+- **PlanPage tone: "Moved to Maybe list"** → "Back in the idea pile"
+- **Vote error tone** — "Vote didn't go through — check your connection?" → "Vote didn't stick — try again?"
+- **CulturalNotes empty state** — "No cultural context available for this place." → "We don't have specific tips for this one yet"
+- **UniversalCapturePanel placeholder** — "Activity name" → "What's it called?"
+- **UniversalCapturePanel progress** — "Analyzing..." → "Reading your itinerary..."
+- **All loading states warmed** — Replaced generic "Loading..." with context-specific messages:
+  - TripOverview: "Finding your trip..."
+  - PlanPage: "Getting your plan ready..."
+  - NowPage: "Checking what's next..."
+  - ExperienceDetail: "Pulling up the details..."
+  - CaptureSharePage: "Getting things ready..."
+  - ProfilePage learnings: "Finding your learnings..."
+
+SPEC UPDATE NEEDED: CityBoard browse chips on TripOverview, CreateTrip "start from scratch" entry point, search_experiences now searches description/notes.
+
+## 2026-03-29 — UX Audit Fixes (Pass 1)
+
+### Fixed
+- **"Ask Scout" broken everywhere** — CityBoard, CaptureFAB, and ImportCard dispatched `wander:open-chat` (colon) but ChatBubble listened for `wander-open-chat` (hyphen). All 5 dispatch sites now use the correct event name.
+- **Chat prefill never worked** — ChatBubble's event handler ignored `detail.prefill`. Now reads the prefill text and populates the chat input, so "Ask Scout about X" pre-fills the question.
+- **City photo never loaded on CityBoard** — Frontend sent `?city=X&country=Y` but backend expects `?query=X`. Also read `photoUrl` from response but backend returns `url`. Both fixed.
+- **"Add an idea" lost city context** — CityBoard's "Add an idea" button navigated to `/plan` without passing `?city=cityId`. Now includes the city so PlanPage opens in the right context.
+- **"Ask Scout" on CityBoard navigated away** — Tapping "Ask Scout" or scout nudges navigated to `/plan` before opening chat. Now opens chat directly on the current page.
+
+### Changed
+- **Calendar renders before phase content on TripOverview** — Phase nudges and progress now appear below the calendar, not above. Users see their trip structure first.
+- **Past phase hides calendar** — When a trip is over, TripOverview shows the summary card (with "See your trip story" link) instead of the full calendar grid.
+- **Post-trip Now page links to story** — Added "See your trip story" button in the post-trip summary view on NowPage.
+- **ScoutNudge dismiss button** — Changed from "Dismiss" (software language) to "Got it" (travel companion voice).
+- **PlanningProgress reframed** — Open days no longer feel like a deficit counter. Now says "left to fill (or leave open)" to frame unplanned days as flexibility.
+- **ActivityFeed icons clarified** — Changed from ✨/💬/📝 to ＋/❤️/💬 (additions, reactions, notes) for clearer meaning at a glance.
+
+SPEC UPDATE NEEDED: TripOverview layout order, past-phase calendar hiding, post-trip story links.
+
+## 2026-03-29 — Wander 2.0 UX Builds (2–11)
+
+### Added
+
+**Build 2: City Idea Boards**
+- New `/city/:cityId` page (CityBoard) — browse a city's ideas grouped by theme (food, temples, art, etc.)
+- iMessage-style emoji reactions on experiences (❤️ 👍 🔥 + custom) — toggle on/off, grouped with counts
+- Inline notes on experience cards — quick thoughts from any traveler
+- Personal items per day — private reminders only visible to the creator
+- Photo header from Google Places, accommodation info, stats bar
+- "Ask Scout" button on each idea card opens chat with context
+- Backend routes: `/api/reactions`, `/api/experience-notes`, `/api/personal-items`
+- Schema: ExperienceReaction, ExperienceNote, PersonalItem models
+- DatelessTripView and CandidateDestinations now navigate to CityBoard instead of PlanPage
+- SPEC UPDATE NEEDED: CityBoard is a new page not in SPEC.md
+
+**Build 3: Phase-Aware Dashboard**
+- Trip phase detection: dreaming → planning → soon → active → past
+- PlanningProgress component shows day coverage and cities needing attention
+- ScoutNudge component — dismissable contextual thoughts, persisted in localStorage
+- TripPhaseContent on dashboard adapts by phase: today preview (active), trip stats (past), readiness nudge (soon)
+- Calendar day cells now show theme emojis (🍜⛩️🏺 etc.) instead of generic 🗓️ icon
+- SPEC UPDATE NEEDED: Phase-aware dashboard is a new behavior not in SPEC.md
+
+**Build 4: Phase-Aware Now Screen**
+- Now page shows planning insights before the trip (busy days, food-heavy cities, open days)
+- Pre-trip preview of what Now becomes during travel
+- Post-trip summary with stats (cities, days, things done)
+- PlanningInsight component — tappable, dismissable insight cards
+- SPEC UPDATE NEEDED: Pre/post-trip Now page content is new behavior
+
+**Build 5: Scout as a Presence**
+- Backend `/api/scout/suggestions` endpoint — contextual rule-based suggestions per view
+- useScoutSuggestions hook for fetching suggestions in any component
+- Scout suggestions on CityBoard (theme-heavy, unscheduled ideas)
+- "Ask Scout" inline action on every idea card
+- Day-level suggestions (nearby restaurants for free time)
+
+**Build 6: Activity Feed**
+- Backend `/api/activity-feed/trip/:tripId` — merges ChangeLog, reactions, and notes into unified feed
+- ActivityFeed component replaces old RecentActivityButton on dashboard
+- Shows recent actions with time-ago formatting, type icons, expand/collapse
+- Feed refreshes on `wander:data-changed` events
+
+**Build 7: Reflections and Trip Story**
+- Reflection model (per-day, per-traveler: highlights, note, media URLs)
+- Backend `/api/reflections` — CRUD for daily reflections
+- ReflectionCard — evening prompt (after 6pm during trip) to mark highlights and save notes
+- TripStory page (`/story`) — scrollable city-by-city, day-by-day narrative
+- Highlighted experiences shown with ⭐, reflection notes shown as quotes
+- SPEC UPDATE NEEDED: Reflections and trip story are new features
+
+**Build 8: Onboarding Enhancement**
+- Join page now shows trip snapshot: city count, experience count, date range
+- Scout introduction text on personal invite page
+- Backend auth endpoint enriched with trip context data
+
+**Build 9: Capture FAB**
+- CaptureFAB floating action button on all pages (except login/join/guide/story)
+- Tap: camera capture. Long-press: paste, camera, or voice options
+- Context-aware — uses existing capture pipeline underneath
+- SPEC UPDATE NEEDED: CaptureFAB replaces scattered capture entry points
+
+**Build 10: Voice and Tone Audit**
+- Fixed 7 tone violations across NowPage and CityBoard
+- "Saved" → "Added to today", "Copied" → "Ready to paste"
+- "Next-up reminders on/off" → warm conversational alternatives
+- "Loading..." → "Getting the board ready..."
+- "City not found" → "Couldn't find that city — try heading back"
+
+**Build 11: Testing and Verification**
+- All 481 backend tests pass
+- 13/19 Playwright tests pass (6 failures are documented offline/SW-disabled tests)
+- Fixed CaptureFAB hooks-order violation (early return before useCallback hooks caused crash on unauthenticated routes)
+
+### Changed
+- TripOverview uses `getTripPhase()` instead of manual date comparison for `isWithinDates`
+- Calendar day cells show dominant theme emojis from scheduled activities
+- Dateless trip city clicks navigate to CityBoard instead of PlanPage
+- Candidate destination clicks navigate to CityBoard
+
+### New Files
+- `frontend/src/pages/CityBoard.tsx` — City idea board
+- `frontend/src/pages/TripStoryPage.tsx` — Trip narrative page
+- `frontend/src/lib/tripPhase.ts` — Phase detection utility
+- `frontend/src/components/ScoutNudge.tsx` — Dismissable Scout thoughts
+- `frontend/src/components/PlanningProgress.tsx` — Day coverage progress
+- `frontend/src/components/TripPhaseContent.tsx` — Phase-specific dashboard content
+- `frontend/src/components/PlanningInsight.tsx` — Tappable insight cards
+- `frontend/src/components/ActivityFeed.tsx` — Unified activity stream
+- `frontend/src/components/ReflectionCard.tsx` — Evening reflection prompt
+- `frontend/src/components/CaptureFAB.tsx` — Floating capture button
+- `frontend/src/hooks/useScoutSuggestions.ts` — Scout suggestions hook
+- `backend/src/routes/scout.ts` — Scout suggestions endpoint
+- `backend/src/routes/activityFeed.ts` — Activity feed endpoint
+- `backend/src/routes/reflections.ts` — Reflections CRUD
+
+## 2026-03-28 — Build 6: Multi-Trip Test Suite
+
+### Added
+- 6 new backend test files covering all multi-trip features (92 new tests, 481 total)
+- `auth-invite.test.ts` — Personal invite creation, claim, duplicate handling, trip-level invites, resend, preferences
+- `learnings.test.ts` — Learning CRUD, scope filtering (general/trip-specific), experience linking
+- `approvals.test.ts` — Approval creation, planner approve/reject, auto-execution of bulk_delete and shift_dates payloads
+- `roles.test.ts` — Creator-as-planner, role promotion/demotion, member management, role enforcement on approvals
+- `restore.test.ts` — Entity recovery from ChangeLog (experience, reservation, accommodation), double-restore 409 conflict
+- `dateless-trips.test.ts` — Dateless trip creation, content operations, trip switching/activation, anchor dates
+
+### Fixed
+- ChangeLog `actionType` values: reservation uses `reservation_deleted`, accommodation uses `accommodation_deleted` (not generic `deleted`)
+- Traveler identity in tests: ACCESS_CODE login requires re-login by displayName after Traveler record creation to get travelerId in JWT
+- Test isolation: unique displayNames per test file prevent cross-file Traveler collisions
+- Learnings list tests gracefully handle active-trip role check when running in full suite
+
+## 2026-03-28 — Multi-Trip Foundation: Schema, Auth, Roles, Scout, Recovery
+
+### Added
+- **Multi-trip database schema** — Trip dates now nullable (dateless trips supported), Day model has dayNumber for relative numbering, Traveler has preferences JSON for interests/dietary/travel style. Three new models: Learning (trip wisdom), ApprovalRequest (queued big changes), LoginEvent (device tracking).
+- **Personal invite links** — Each trip member gets a unique invite token. Tapping the link auto-identifies the person (no name entry needed). Planners can resend links (regenerates token, invalidates old one). "Lost access? Ask your trip planner" messaging.
+- **Planner/Traveler roles** — Per-trip role assignment. Planners get full access; Travelers see a warm confirmation when deleting someone else's addition ("[Name] added this one. Remove it?"). Role middleware enforces access on mutation endpoints.
+- **ApprovalQueue panel** — Planners see a badge on Trip Overview ("2 to review") when Travelers request big changes. Slide-up panel with approve/reject per request. SPEC UPDATE NEEDED: Roles section.
+- **LearningsPanel** — Planners can view, add, edit, and delete trip learnings (wisdom captured during travel). Scope filter: "All trips" / "This trip" / "Everything". Accessible from Trip Overview header.
+- **9 new Scout chat tools** — save_learning, get_learnings, update_learning, delete_learning, get_pending_approvals, review_approval, add_trip_members, change_member_role, set_trip_anchor. Total tools: 62. System prompt rules 40-48 added.
+- **Restore endpoint** — POST /api/restore/:changeLogId recreates deleted entities from ChangeLog previousState. Supports experiences, reservations, accommodations, route segments, days.
+- **Undo toast on deletions** — Deleting an experience shows a 10-second toast with "Undo" button that calls the restore endpoint. History page shows "Bring back" links on deletion entries (Planners only).
+- **Profile page rewrite** — Three sections: "About You" (interest tags, editable preferences), "Your Documents" (existing travel doc management), "Your Learnings" (Planner-only). Header: "Here's what Scout knows about you — to help make every trip better."
+- **New member onboarding** — First-time visitors see interest picker (food, nature, art, history, etc.) with "Skip for now" option. Preferences persist across trips.
+- **ImportCard on Trip Overview** — Permanent "Have something to add?" entry point with Camera, Paste, and Ask Scout buttons. Replaces dismissable Quick Start as primary import entry.
+- **Dynamic traveler colors** — Color palette scales to 12+ travelers (was hardcoded to 4). Colors assigned dynamically and stay consistent within sessions.
+- **Dateless trip creation** — Three date states: "I know the dates" / "Roughly" / "Not yet". Dateless trips show "Day 1, Day 2, Day 3..." until anchor date set via Scout ("Day 1 is December 25").
+- **Trip switching** — Tap trip name on overview to see all trips. Switch between them without logging out.
+- **Traveler preferences endpoint** — GET/PATCH /api/auth/travelers/:id for reading and updating preference data.
+- **Login event tracking** — Records IP and user agent on every login for future anomaly detection.
+
+- **Invite link sharing screen** — After creating a trip with members, planner immediately sees all personal invite links with copy buttons. No hunting in submenus.
+- **Dateless trip city view** — Trips without dates show cities as tappable cards instead of a calendar. Prompt: "When dates are ready, tell Scout: Day 1 is December 25."
+- **Proactive learning surfacing** — Scout sees all relevant learnings (general + trip-specific) in its context before every message. Planners only.
+- **Trip switching auto-restore** — App remembers last-viewed trip. Opening Wander brings you back to where you were.
+- **Approval auto-execution** — When planner approves a queued change, the operation executes automatically (bulk deletes, date shifts, day rearrangements).
+- **5 new Scout tools** — activate_trip, delete_decision, retract_interest, restore_entity, resend_invite. Total: 67 tools.
+
+### Changed
+- **AI agent renamed to Scout** — System prompt, chat bubble, guide page, and all user-facing strings now reference "Scout" instead of "the chat assistant" or "Wander Assistant".
+- **Trip creation flow** — Now accepts member names (generates personal invite links), optional dates with three states, optional cities. Creator automatically becomes Planner.
+- **History page** — Deletion entries now show "Bring back" restore links (Planner-only). Warm empty states.
+- **ExperienceDetail delete confirmation** — Shows author attribution when deleting someone else's addition.
+
+### Fixed
+- **change_member_role chat tool** — Schema defined `travelerName`/`role` but implementation read `memberName`/`newRole`. Now matches.
+
+SPEC UPDATE NEEDED: Roles & permissions, invite links, Scout identity, dateless trips, learnings, approval flow, profile page, multi-trip switching.
+
 ## 2026-03-27 — Interest Notifications, Quick Start Update, UX Polish
 
 ### Added

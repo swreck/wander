@@ -78,8 +78,10 @@ model Trip {
   id        String     @id @default(cuid())
   name      String
   tagline   String?
-  startDate DateTime   @map("start_date")
-  endDate   DateTime   @map("end_date")
+  startDate DateTime?  @map("start_date")
+  endDate   DateTime?  @map("end_date")
+  datesKnown Boolean   @default(true) @map("dates_known")
+  anchorDate DateTime? @map("anchor_date")
   status    TripStatus @default(active)
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
@@ -99,6 +101,8 @@ model Trip {
   tripMembers       TripMember[]
   tripInvites       TripInvite[]
   tripPhrases       TripPhrase[]
+  learnings         Learning[]
+  approvalRequests  ApprovalRequest[]
 
   @@map("trips")
 }
@@ -153,6 +157,8 @@ model Day {
   tripId          String  @map("trip_id")
   cityId          String  @map("city_id")
   date            DateTime
+  dayNumber       Int?    @map("day_number")
+  dayType         String  @default("free") @map("day_type") // "free" | "guided"
   explorationZone String? @map("exploration_zone")
   notes           String?
 
@@ -161,6 +167,9 @@ model Day {
   experiences    Experience[]
   accommodations Accommodation[]
   reservations   Reservation[]
+  personalItems  PersonalItem[]
+  reflections    Reflection[]
+  decisions      Decision[]
 
   @@map("days")
 }
@@ -205,6 +214,8 @@ model Experience {
   ratings      ExperienceRating[]
   interests      ExperienceInterest[]
   decisionVotes  DecisionVote[]
+  reactions      ExperienceReaction[]
+  notes          ExperienceNote[]
 
   @@map("experiences")
 }
@@ -353,6 +364,7 @@ model Decision {
   id        String    @id @default(cuid())
   tripId    String    @map("trip_id")
   cityId    String    @map("city_id")
+  dayId     String?   @map("day_id")
   title     String
   status    String    @default("open") // open | resolved
   createdBy String    @map("created_by")
@@ -361,6 +373,7 @@ model Decision {
 
   trip    Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city    City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  day     Day?              @relation(fields: [dayId], references: [id], onDelete: SetNull)
   options Experience[]
   votes   DecisionVote[]
 
@@ -418,10 +431,19 @@ model Traveler {
   id          String   @id @default(cuid())
   displayName String   @unique @map("display_name")
   pinHash     String?  @map("pin_hash")
+  preferences Json?
   createdAt   DateTime @default(now()) @map("created_at")
 
-  tripMembers  TripMember[]
-  tripInvites  TripInvite[]
+  tripMembers         TripMember[]
+  tripInvites         TripInvite[]
+  learnings           Learning[]
+  personalItems       PersonalItem[]
+  experienceReactions ExperienceReaction[]
+  experienceNotes     ExperienceNote[]
+  reflections         Reflection[]
+  approvalRequests    ApprovalRequest[]   @relation("ApprovalRequester")
+  reviewedApprovals   ApprovalRequest[]   @relation("ApprovalReviewer")
+  loginEvents         LoginEvent[]
 
   @@map("travelers")
 }
@@ -457,6 +479,7 @@ model TripInvite {
   id                 String    @id @default(cuid())
   tripId             String    @map("trip_id")
   expectedName       String    @map("expected_name")
+  inviteToken        String?   @unique @map("invite_token")
   claimedByTravelerId String?  @map("claimed_by_traveler_id")
   claimedAt          DateTime? @map("claimed_at")
   createdAt          DateTime  @default(now()) @map("created_at")
@@ -465,4 +488,119 @@ model TripInvite {
   claimedBy  Traveler? @relation(fields: [claimedByTravelerId], references: [id])
 
   @@map("trip_invites")
+}
+
+// ── Experience Reactions (iMessage-style emoji) ──────────────
+model ExperienceReaction {
+  id           String   @id @default(cuid())
+  experienceId String   @map("experience_id")
+  travelerId   String   @map("traveler_id")
+  emoji        String   // "❤️" | "👍" | "🔥" | custom
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  traveler   Traveler   @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@unique([experienceId, travelerId, emoji])
+  @@map("experience_reactions")
+}
+
+// ── Experience Notes (group comments on ideas) ───────────────
+model ExperienceNote {
+  id           String   @id @default(cuid())
+  experienceId String   @map("experience_id")
+  travelerId   String   @map("traveler_id")
+  content      String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  traveler   Traveler   @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@map("experience_notes")
+}
+
+// ── Personal Items (private per-person day reminders) ─────────
+model PersonalItem {
+  id         String   @id @default(cuid())
+  dayId      String   @map("day_id")
+  travelerId String   @map("traveler_id")
+  content    String
+  timeWindow String?  @map("time_window") // "morning" | "afternoon" | "evening"
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  day      Day      @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@map("personal_items")
+}
+
+// ── Learnings ─────────────────────────────────────────────────
+model Learning {
+  id           String    @id @default(cuid())
+  travelerId   String    @map("traveler_id")
+  tripId       String?   @map("trip_id")
+  experienceId String?   @map("experience_id")
+  content      String
+  scope        String    @default("general") // legacy, being replaced by visibility
+  visibility   String    @default("group")   // "group" | "private"
+  locationTag  String?   @map("location_tag") // city or country name for surfacing
+  source       String    @default("chat")    // "chat" | "activity" | "dedicated"
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  traveler   Traveler    @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+  trip       Trip?       @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@map("learnings")
+}
+
+// ── Approval Requests ─────────────────────────────────────────
+model ApprovalRequest {
+  id            String    @id @default(cuid())
+  tripId        String    @map("trip_id")
+  requesterId   String    @map("requester_id")
+  type          String    // "bulk_delete" | "rearrange_day" | "shift_dates" | "bulk_update"
+  description   String
+  payload       Json
+  status        String    @default("pending") // "pending" | "approved" | "rejected"
+  reviewedById  String?   @map("reviewed_by_id")
+  reviewedAt    DateTime? @map("reviewed_at")
+  reviewNote    String?   @map("review_note")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  trip       Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  requester  Traveler  @relation("ApprovalRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  reviewedBy Traveler? @relation("ApprovalReviewer", fields: [reviewedById], references: [id])
+
+  @@map("approval_requests")
+}
+
+// ── Reflections ──────────────────────────────────────────────
+model Reflection {
+  id          String   @id @default(cuid())
+  dayId       String   @map("day_id")
+  travelerId  String   @map("traveler_id")
+  highlights  String[] // experience IDs marked as highlights
+  note        String?  // freeform reflection text
+  mediaUrls   String[] @map("media_urls") // Cloudinary URLs
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  day      Day      @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@unique([dayId, travelerId])
+  @@map("reflections")
+}
+
+// ── Login Events ──────────────────────────────────────────────
+model LoginEvent {
+  id         String   @id @default(cuid())
+  travelerId String   @map("traveler_id")
+  ipAddress  String   @map("ip_address")
+  userAgent  String   @map("user_agent")
+  country    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@map("login_events")
 }

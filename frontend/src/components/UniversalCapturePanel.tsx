@@ -88,7 +88,12 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
       const parts = [];
       if (result.created > 0) parts.push(`${result.created} added`);
       if (result.skipped > 0) parts.push(`${result.skipped} duplicates skipped`);
-      showToast(parts.join(", ") || "All set — take a look");
+      // During active trip dates, use a warmer toast
+      const today = new Date().toISOString().split("T")[0];
+      const duringTrip = trip.startDate && trip.endDate &&
+        today >= trip.startDate.split("T")[0] && today <= trip.endDate.split("T")[0];
+      const defaultMsg = duringTrip ? "Nice find — saved for today" : "All set — take a look";
+      showToast(parts.join(", ") || defaultMsg);
       capture.reset();
       onCommitted();
     } catch {
@@ -202,7 +207,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
                     className="px-4 py-1.5 rounded-lg bg-[#514636] text-white text-xs font-medium
                                hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
                   >
-                    {extracting ? "Analyzing..." : "Go"}
+                    {extracting ? "Reading your itinerary..." : "Go"}
                   </button>
                 </div>
               </>
@@ -225,7 +230,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
                   type="text"
                   value={items[0].name}
                   onChange={e => handleSingleItemEdit("name", e.target.value)}
-                  placeholder="Activity name"
+                  placeholder="What's it called?"
                   className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
                              text-[#3a3128] text-sm focus:outline-none focus:ring-2 focus:ring-[#a89880]"
                 />

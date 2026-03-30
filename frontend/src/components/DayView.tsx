@@ -1,27 +1,24 @@
-import { useState, useMemo } from "react";
+/**
+ * DayView — Container for a single day's content.
+ *
+ * 2.0: The body is now a DayTimeline (continuous time-ordered flow) instead of
+ * separate sections for experiences, reservations, and candidates. The candidate
+ * zone is gone — possible experiences belong to the city board, not the day.
+ */
+
+import { useState, useEffect, useMemo } from "react";
 import { api } from "../lib/api";
-import type { Day, Experience, Trip, RouteSegment, ExperienceInterest } from "../lib/types";
-import RatingsBadge from "./RatingsBadge";
+import type { Day, Experience, Trip, ExperienceInterest, Decision } from "../lib/types";
 import AIObservations from "./AIObservations";
 import FirstTimeGuide from "./FirstTimeGuide";
+import DayTimeline from "./DayTimeline";
 import { useToast } from "../contexts/ToastContext";
-import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
-
-type IntraCityMode = "walk" | "subway" | "train" | "bus" | "taxi" | "shuttle" | "other";
+import { useAuth } from "../contexts/AuthContext";
 
 const MODE_EMOJI: Record<string, string> = {
-  flight: "✈️", train: "🚃", ferry: "⛴️", drive: "🚗", other: "🚐",
-  walk: "🚶", subway: "🚇", bus: "🚌", taxi: "🚕", shuttle: "🚐",
+  flight: "\u2708\uFE0F", train: "\uD83D\uDE83", ferry: "\u26F4\uFE0F",
+  drive: "\uD83D\uDE97", other: "\uD83D\uDE90",
 };
-
-const INTRA_MODES: { value: IntraCityMode; label: string; emoji: string }[] = [
-  { value: "walk", label: "Walk", emoji: "🚶" },
-  { value: "subway", label: "Subway", emoji: "🚇" },
-  { value: "train", label: "Train", emoji: "🚃" },
-  { value: "bus", label: "Bus", emoji: "🚌" },
-  { value: "taxi", label: "Taxi", emoji: "🚕" },
-  { value: "shuttle", label: "Shuttle", emoji: "🚐" },
-];
 
 interface Props {
   day: Day;
@@ -35,6 +32,8 @@ interface Props {
   interests?: Map<string, ExperienceInterest>;
 }
 
+// ─── Sub-components ──────────────────────────────────────────────
+
 function AIObsDisclosure({ dayId }: { dayId: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -47,14 +46,14 @@ function AIObsDisclosure({ dayId }: { dayId: string }) {
           i
         </span>
         <span>AI Observations</span>
-        <span className="text-[8px]">{open ? "▲" : "▼"}</span>
+        <span className="text-[8px]">{open ? "\u25B2" : "\u25BC"}</span>
       </button>
       {open && <AIObservations dayId={dayId} />}
     </div>
   );
 }
 
-/** Intercity travel card — shows route segment with full logistics on city-transition days */
+/** Intercity travel card — shown on city-transition days */
 function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefresh: () => void }) {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -66,16 +65,14 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
   const dayIdx = sortedDays.findIndex((d) => d.id === day.id);
   const prev = dayIdx > 0 ? sortedDays[dayIdx - 1] : null;
 
-  // Only show on city transition days
   if (!prev || prev.cityId === day.cityId) return null;
 
   const segment = trip.routeSegments?.find(
     (rs) => rs.originCity === prev.city.name && rs.destinationCity === day.city.name
   );
 
-  const emoji = segment ? (MODE_EMOJI[segment.transportMode.toLowerCase()] || "🚐") : "🚐";
+  const emoji = segment ? (MODE_EMOJI[segment.transportMode.toLowerCase()] || "\uD83D\uDE90") : "\uD83D\uDE90";
 
-  // Edit form state
   const [mode, setMode] = useState(segment?.transportMode || "train");
   const [depDate, setDepDate] = useState(segment?.departureDate?.split("T")[0] || "");
   const [depTime, setDepTime] = useState(segment?.departureTime || "");
@@ -116,7 +113,7 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
       showToast("Got it");
       onRefresh();
     } catch {
-      showToast("That didn't save — try again?", "error");
+      showToast("That didn't save \u2014 try again?", "error");
     }
   }
 
@@ -124,9 +121,8 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
     return (
       <div className="mb-4 px-3 py-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
         <div className="text-sm font-medium text-amber-800 mb-2">
-          {prev.city.name} → {day.city.name}
+          {prev.city.name} \u2192 {day.city.name}
         </div>
-        {/* Mode selector */}
         <div className="flex gap-1.5 flex-wrap">
           {(["flight", "train", "ferry", "drive", "other"] as const).map((m) => (
             <button
@@ -140,7 +136,6 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
             </button>
           ))}
         </div>
-        {/* Service number + confirmation */}
         <div className="flex gap-2">
           <input type="text" value={serviceNum} onChange={(e) => setServiceNum(e.target.value)}
             placeholder={mode === "flight" ? "Flight # (e.g. NH204)" : "Service # (e.g. Nozomi 42)"}
@@ -149,7 +144,6 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
             placeholder="Confirmation #"
             className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
         </div>
-        {/* Date + departure/arrival times */}
         <div className="flex gap-2">
           <input type="date" value={depDate} onChange={(e) => setDepDate(e.target.value)}
             className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] focus:outline-none focus:ring-1 focus:ring-amber-400" />
@@ -160,7 +154,6 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
             placeholder="Arrive"
             className="w-24 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] focus:outline-none focus:ring-1 focus:ring-amber-400" />
         </div>
-        {/* Stations */}
         <div className="flex gap-2">
           <input type="text" value={depStation} onChange={(e) => setDepStation(e.target.value)}
             placeholder="From station/airport"
@@ -169,7 +162,6 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
             placeholder="To station/airport"
             className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
         </div>
-        {/* Seat + notes */}
         <div className="flex gap-2">
           <input type="text" value={seat} onChange={(e) => setSeat(e.target.value)}
             placeholder="Seat info"
@@ -178,7 +170,6 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
             placeholder="Notes"
             className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
         </div>
-        {/* Save / Cancel */}
         <div className="flex gap-2 pt-1">
           <button onClick={saveSegment}
             className="px-4 py-1.5 rounded bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 transition-colors">
@@ -200,7 +191,7 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
     >
       <div className="flex items-center justify-between">
         <div className="text-sm font-medium text-amber-800">
-          {emoji} {prev.city.name} → {day.city.name}
+          {emoji} {prev.city.name} \u2192 {day.city.name}
         </div>
         <span className="text-xs text-amber-500">tap to edit</span>
       </div>
@@ -208,24 +199,24 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
         <div className="mt-1 space-y-0.5">
           <div className="text-sm text-amber-700">
             {segment.transportMode.charAt(0).toUpperCase() + segment.transportMode.slice(1)}
-            {segment.serviceNumber && ` · ${segment.serviceNumber}`}
-            {segment.departureDate && ` · ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+            {segment.serviceNumber && ` \u00B7 ${segment.serviceNumber}`}
+            {segment.departureDate && ` \u00B7 ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
           </div>
           {(segment.departureTime || segment.arrivalTime) && (
             <div className="text-sm text-amber-600">
               {segment.departureTime && `Depart ${segment.departureTime}`}
-              {segment.departureTime && segment.arrivalTime && " → "}
+              {segment.departureTime && segment.arrivalTime && " \u2192 "}
               {segment.arrivalTime && `Arrive ${segment.arrivalTime}`}
             </div>
           )}
           {(segment.departureStation || segment.arrivalStation) && (
             <div className="text-sm text-amber-600">
-              {segment.departureStation}{segment.departureStation && segment.arrivalStation && " → "}{segment.arrivalStation}
+              {segment.departureStation}{segment.departureStation && segment.arrivalStation && " \u2192 "}{segment.arrivalStation}
             </div>
           )}
           {segment.confirmationNumber && (
             <button onClick={() => { navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied"); }}
-              className="text-xs text-amber-500 hover:text-amber-700 transition-colors">Conf: {segment.confirmationNumber} 📋</button>
+              className="text-xs text-amber-500 hover:text-amber-700 transition-colors">Conf: {segment.confirmationNumber} \uD83D\uDCCB</button>
           )}
           {segment.seatInfo && (
             <div className="text-xs text-amber-500">Seat: {segment.seatInfo}</div>
@@ -243,110 +234,46 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
   );
 }
 
-/** Transport connector between two experiences — shows mode + estimated time */
-function TransportConnector({
-  prevExp, nextExp, useSpatialOrder, onRefresh,
-}: {
-  prevExp: Experience;
-  nextExp: Experience;
-  useSpatialOrder: boolean;
-  onRefresh: () => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [localMode, setLocalMode] = useState<IntraCityMode | null>(null);
-  const { showToast } = useToast();
-
-  // Calculate distance-based estimates
-  const hasCoords = prevExp.latitude != null && nextExp.latitude != null;
-  const distKm = hasCoords ? (() => {
-    const dx = (nextExp.latitude! - prevExp.latitude!) * 111;
-    const dy = (nextExp.longitude! - prevExp.longitude!) * 111 * Math.cos(prevExp.latitude! * Math.PI / 180);
-    return Math.sqrt(dx * dx + dy * dy);
-  })() : null;
-
-  // Current mode for this experience (stored on the destination experience)
-  const currentMode = localMode || (nextExp.transportModeToHere as IntraCityMode) || "walk";
-  const modeEmoji = MODE_EMOJI[currentMode] || "🚶";
-
-  // Estimate minutes based on mode
-  const speeds: Record<string, number> = { walk: 5, subway: 30, train: 25, bus: 20, taxi: 30, shuttle: 25, other: 20 };
-  const estMin = distKm ? Math.round((distKm * 1.4 / (speeds[currentMode] || 5)) * 60) : null;
-
-  async function handleSetMode(mode: IntraCityMode) {
-    try {
-      setLocalMode(mode);
-      setExpanded(false);
-      await api.patch(`/experiences/${nextExp.id}`, { transportModeToHere: mode });
-      onRefresh();
-    } catch {
-      setLocalMode(null);
-      showToast("That didn't save — try again?", "error");
-    }
-  }
-
-  // Always show if the user has explicitly set a non-walk mode
-  const hasExplicitMode = nextExp.transportModeToHere != null && nextExp.transportModeToHere !== "walk";
-  // Hide only if: no coords AND no explicit mode AND spatial ordering is off
-  if (!hasCoords && !hasExplicitMode && !useSpatialOrder) return null;
-  // Hide trivially short walks (< 1 min) unless mode was explicitly set
-  if (estMin != null && estMin < 1 && currentMode === "walk" && !hasExplicitMode) return null;
-
-  return (
-    <div className="py-0.5 px-4">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
-      >
-        <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
-        <span className="flex items-center gap-1 shrink-0">
-          {modeEmoji}
-          {estMin != null && <span>{estMin} min</span>}
-        </span>
-        <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
-      </button>
-      {expanded && (
-        <div className="flex gap-1 justify-center mt-1 mb-0.5">
-          {INTRA_MODES.map((m) => (
-            <button
-              key={m.value}
-              onClick={() => handleSetMode(m.value)}
-              className={`px-2 py-1 rounded text-xs transition-colors ${
-                currentMode === m.value
-                  ? "bg-[#514636] text-white"
-                  : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"
-              }`}
-            >
-              {m.emoji} {m.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// ─── Main DayView ────────────────────────────────────────────────
 
 export default function DayView({
   day, experiences, trip, onClose, onPromote, onDemote, onExperienceClick, onRefresh, interests,
 }: Props) {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const isGuided = day.dayType === "guided";
+
+  // Day-level decisions (choices)
+  const [dayDecisions, setDayDecisions] = useState<Decision[]>([]);
+  const [voting, setVoting] = useState(false);
+
+  useEffect(() => {
+    api.get<Decision[]>(`/decisions/trip/${trip.id}`)
+      .then((decs) => setDayDecisions(decs.filter((d) => d.dayId === day.id && d.status === "open")))
+      .catch(() => {});
+  }, [trip.id, day.id]);
+
+  async function castVote(decisionId: string, optionId: string | null) {
+    setVoting(true);
+    try {
+      await api.post(`/decisions/${decisionId}/vote`, { optionId });
+      showToast("Vote cast");
+      const decs = await api.get<Decision[]>(`/decisions/trip/${trip.id}`);
+      setDayDecisions(decs.filter((d) => d.dayId === day.id && d.status === "open"));
+    } catch {
+      showToast("Vote didn't stick — try again?", "error");
+    } finally {
+      setVoting(false);
+    }
+  }
   const dayDate = new Date(day.date);
   const formattedDate = dayDate.toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", timeZone: "UTC",
   });
 
-  // Selected experiences for this day
   const selectedForDay = experiences.filter(
     (e) => e.state === "selected" && e.dayId === day.id
   );
-
-  // Possible experiences for this city
-  const possibleForCity = experiences.filter(
-    (e) => e.state === "possible" && e.cityId === day.cityId
-  );
-
-  // Reservations (already included in day data)
-  const reservations = day.reservations || [];
-  const accommodations = day.accommodations || [];
 
   // Day notes editing
   const [editingNotes, setEditingNotes] = useState(false);
@@ -354,7 +281,7 @@ export default function DayView({
   const [editingZone, setEditingZone] = useState(false);
   const [zoneText, setZoneText] = useState(day.explorationZone || "");
 
-  // Friction alerts
+  // Friction alerts — suppressed for guided days
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem("wander:dismissed-alerts");
@@ -372,9 +299,10 @@ export default function DayView({
   }
 
   const frictionAlerts = useMemo(() => {
+    if (isGuided) return []; // Guided days don't need planning alerts
+
     const alerts: { key: string; message: string }[] = [];
 
-    // Density imbalance
     if (selectedForDay.length >= 5 && trip.days) {
       const sameCityDays = trip.days
         .filter(d => d.cityId === day.cityId)
@@ -387,13 +315,12 @@ export default function DayView({
           const adjDate = new Date(adj.date).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
           alerts.push({
             key: `density-${day.id}-${adj.id}`,
-            message: `${selectedForDay.length} planned here — ${adjDate} is open. Consider spreading out.`,
+            message: `${selectedForDay.length} planned here \u2014 ${adjDate} is open. Consider spreading out.`,
           });
         }
       }
     }
 
-    // Distance warnings between consecutive experiences
     const locatedSelected = selectedForDay.filter(e => e.latitude != null && e.longitude != null);
     for (let i = 1; i < locatedSelected.length; i++) {
       const prev = locatedSelected[i - 1];
@@ -411,62 +338,9 @@ export default function DayView({
     }
 
     return alerts.filter(a => !dismissedAlerts.has(a.key));
-  }, [selectedForDay, experiences, day, trip.days, dismissedAlerts]);
+  }, [selectedForDay, experiences, day, trip.days, dismissedAlerts, isGuided]);
 
-  // Spatial sequence — ON by default when 2+ located experiences exist
-  const canShowSpatial = selectedForDay.filter(e => e.latitude != null).length >= 2;
-  const [spatialOverridden, setSpatialOverridden] = useState(false);
-
-  const spatiallyOrdered = useMemo(() => {
-    const located = selectedForDay.filter(e => e.latitude != null && e.longitude != null);
-    if (located.length < 2) return selectedForDay;
-
-    const startLat = accommodations[0]?.latitude ?? located[0].latitude!;
-    const startLng = accommodations[0]?.longitude ?? located[0].longitude!;
-
-    // Nearest-neighbor greedy sort, respecting time windows
-    const morning = located.filter(e => e.timeWindow?.toLowerCase() === "morning");
-    const afternoon = located.filter(e => e.timeWindow?.toLowerCase() === "afternoon");
-    const evening = located.filter(e => e.timeWindow?.toLowerCase() === "evening");
-    const unslotted = located.filter(e => !["morning", "afternoon", "evening"].includes(e.timeWindow?.toLowerCase() || ""));
-
-    function nearestSort(items: Experience[], fromLat: number, fromLng: number): Experience[] {
-      const result: Experience[] = [];
-      const remaining = [...items];
-      let curLat = fromLat, curLng = fromLng;
-      while (remaining.length > 0) {
-        let bestIdx = 0, bestDist = Infinity;
-        for (let i = 0; i < remaining.length; i++) {
-          const dx = (remaining[i].latitude! - curLat) * 111;
-          const dy = (remaining[i].longitude! - curLng) * 111 * Math.cos(curLat * Math.PI / 180);
-          const dist = dx * dx + dy * dy;
-          if (dist < bestDist) { bestDist = dist; bestIdx = i; }
-        }
-        const next = remaining.splice(bestIdx, 1)[0];
-        result.push(next);
-        curLat = next.latitude!;
-        curLng = next.longitude!;
-      }
-      return result;
-    }
-
-    const sortedMorning = nearestSort(morning, startLat, startLng);
-    const lastMorning = sortedMorning.length > 0 ? sortedMorning[sortedMorning.length - 1] : null;
-    const sortedUnslotted = nearestSort(unslotted, lastMorning?.latitude ?? startLat, lastMorning?.longitude ?? startLng);
-    const lastMid = sortedUnslotted.length > 0 ? sortedUnslotted[sortedUnslotted.length - 1] : lastMorning;
-    const sortedAfternoon = nearestSort(afternoon, lastMid?.latitude ?? startLat, lastMid?.longitude ?? startLng);
-    const lastAfternoon = sortedAfternoon.length > 0 ? sortedAfternoon[sortedAfternoon.length - 1] : lastMid;
-    const sortedEvening = nearestSort(evening, lastAfternoon?.latitude ?? startLat, lastAfternoon?.longitude ?? startLng);
-
-    const unlocated = selectedForDay.filter(e => e.latitude == null || e.longitude == null);
-    return [...sortedMorning, ...sortedUnslotted, ...sortedAfternoon, ...sortedEvening, ...unlocated];
-  }, [selectedForDay, accommodations]);
-
-  // Show spatial order by default (unless user turned it off)
-  const useSpatialOrder = canShowSpatial && !spatialOverridden;
-  const displaySelected = useSpatialOrder ? spatiallyOrdered : selectedForDay;
-
-  // Add reservation
+  // Add reservation form
   const [addingRes, setAddingRes] = useState(false);
   const [resName, setResName] = useState("");
   const [resTime, setResTime] = useState("");
@@ -480,7 +354,7 @@ export default function DayView({
       showToast("Got it");
       onRefresh();
     } catch {
-      showToast("That didn't save — try again?", "error");
+      showToast("That didn't save \u2014 try again?", "error");
     }
   }
 
@@ -491,7 +365,7 @@ export default function DayView({
       showToast("Got it");
       onRefresh();
     } catch {
-      showToast("That didn't save — try again?", "error");
+      showToast("That didn't save \u2014 try again?", "error");
     }
   }
 
@@ -514,41 +388,38 @@ export default function DayView({
       showToast("Added");
       onRefresh();
     } catch {
-      showToast("Couldn't add that — try again?", "error");
-    }
-  }
-
-  async function handleApplySpatialOrder() {
-    const orderedIds = spatiallyOrdered.map(e => e.id);
-    try {
-      await api.post("/experiences/reorder", { orderedIds });
-      showToast("Reordered");
-      onRefresh();
-    } catch {
-      showToast("Couldn't save that order — try again?", "error");
+      showToast("Couldn't add that \u2014 try again?", "error");
     }
   }
 
   return (
     <div className="p-4" style={{ paddingTop: "max(16px, env(safe-area-inset-top, 16px))" }}>
-      {/* First-time guide for day view */}
+      {/* First-time guide */}
       <FirstTimeGuide
-        id="day-view"
+        id="day-view-2"
         lines={[
-          "Experiences are sorted by walking distance, respecting morning/afternoon/evening preferences",
-          "Amber alerts appear when a day is packed or distances are long",
-          "Tap an experience to see details. Use the down arrow to move it to candidates — you can always add it back",
-          "Add reservations with times so the Now screen can remind you",
+          "Your day flows from morning to evening \u2014 reservations and activities in time order",
+          "A dashed rose outline means a place that usually needs a reservation",
+          "Tap any item to see details, use the arrow to move it back to city ideas",
+          "Add personal reminders that only you can see",
         ]}
       />
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-light text-[#3a3128]">{formattedDate}</h2>
-          <p className="text-sm text-[#8a7a62]">
-            {day.city.name}
-            {day.city.tagline && <span className="ml-1 text-[#a89880]">· {day.city.tagline}</span>}
-          </p>
+        <div className="flex items-center gap-2">
+          {isGuided && (
+            <span className="w-6 h-6 rounded-full bg-indigo-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
+              B
+            </span>
+          )}
+          <div>
+            <h2 className="text-lg font-light text-[#3a3128]">{formattedDate}</h2>
+            <p className="text-sm text-[#8a7a62]">
+              {day.city.name}
+              {day.city.tagline && <span className="ml-1 text-[#a89880]">\u00B7 {day.city.tagline}</span>}
+            </p>
+          </div>
         </div>
         <button
           onClick={onClose}
@@ -558,43 +429,68 @@ export default function DayView({
         </button>
       </div>
 
-      {/* Travel card — shown on city transition days */}
+      {/* Travel card — city transition days */}
       <TransportCard day={day} trip={trip} onRefresh={onRefresh} />
 
-      {/* Accommodation anchor — with full details */}
-      {accommodations.length > 0 && (
-        <div className="mb-6">
-          {accommodations.map((acc) => (
-            <div key={acc.id} className="px-3 py-2.5 bg-[#f0ece5] rounded-lg text-sm">
-              <div className="font-medium text-[#3a3128]">{acc.name}</div>
-              {acc.address && (
-                acc.latitude != null && acc.longitude != null ? (
-                  <a href={`https://maps.apple.com/?ll=${acc.latitude},${acc.longitude}&q=${encodeURIComponent(acc.name)}`} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-[#8a7a62] mt-0.5 underline decoration-[#d0c9be] block">{acc.address}</a>
-                ) : (
-                  <div className="text-sm text-[#8a7a62] mt-0.5">{acc.address}</div>
-                )
-              )}
-              <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-[#a89880]">
-                {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
-                {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
-                {acc.confirmationNumber && (
-                  <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied"); }}
-                    className="hover:text-[#514636] transition-colors">Conf: {acc.confirmationNumber} 📋</button>
-                )}
+      {/* Day-level choices (decisions) */}
+      {dayDecisions.length > 0 && (
+        <div className="space-y-3 mb-4">
+          {dayDecisions.map((dec) => {
+            const myVote = dec.votes.find((v) => v.userCode === user?.code);
+            return (
+              <div key={dec.id} className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs font-medium text-blue-700 mb-2">Today's choice: {dec.title}</p>
+                <div className="space-y-1.5">
+                  {dec.options.map((opt) => {
+                    const voteCount = dec.votes.filter((v) => v.optionId === opt.id).length;
+                    const isMyVote = myVote?.optionId === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => castVote(dec.id, opt.id)}
+                        disabled={voting}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                          isMyVote
+                            ? "bg-blue-600 text-white"
+                            : "bg-white border border-blue-200 text-[#3a3128] hover:bg-blue-100"
+                        }`}
+                      >
+                        <span className="font-medium">{opt.name}</span>
+                        {opt.description && (
+                          <span className="text-xs ml-1 opacity-70">— {opt.description}</span>
+                        )}
+                        {voteCount > 0 && (
+                          <span className={`ml-2 text-xs ${isMyVote ? "text-blue-200" : "text-blue-500"}`}>
+                            {voteCount} {voteCount === 1 ? "vote" : "votes"}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => castVote(dec.id, null)}
+                  disabled={voting}
+                  className={`mt-1.5 text-xs transition-colors ${
+                    myVote && !myVote.optionId
+                      ? "text-blue-700 font-medium"
+                      : "text-blue-400 hover:text-blue-600"
+                  }`}
+                >
+                  Happy with either
+                </button>
               </div>
-              {acc.notes && <div className="text-sm text-[#6b5d4a] mt-1 italic">{acc.notes}</div>}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* AI Observations — hidden behind disclosure icon */}
-      {selectedForDay.length > 0 && (
+      {/* AI Observations — hidden behind disclosure */}
+      {selectedForDay.length > 0 && !isGuided && (
         <AIObsDisclosure dayId={day.id} />
       )}
 
-      {/* Friction alerts */}
+      {/* Friction alerts — suppressed for guided days */}
       {frictionAlerts.length > 0 && (
         <div className="space-y-1.5 mb-4">
           {frictionAlerts.map(alert => (
@@ -611,113 +507,21 @@ export default function DayView({
         </div>
       )}
 
-      {/* Spatial sequence indicator — shown when active */}
-      {canShowSpatial && (
-        <div className="flex items-center justify-between mb-2">
-          {useSpatialOrder ? (
-            <>
-              <span className="text-xs uppercase tracking-wider text-[#a89880]">
-                Suggested route by distance
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleApplySpatialOrder}
-                  className="text-xs text-[#514636] hover:text-[#3a3128] font-medium"
-                >
-                  Lock in this order
-                </button>
-                <button
-                  onClick={() => setSpatialOverridden(true)}
-                  className="text-sm text-[#c8bba8] hover:text-[#8a7a62]"
-                >
-                  Keep my order
-                </button>
-              </div>
-            </>
-          ) : (
-            <button
-              onClick={() => setSpatialOverridden(false)}
-              className="text-xs uppercase tracking-wider text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
-            >
-              View distance-optimized route
-            </button>
-          )}
-        </div>
-      )}
+      {/* ─── THE TIMELINE ─── */}
+      <DayTimeline
+        day={day}
+        experiences={experiences}
+        trip={trip}
+        onExperienceClick={onExperienceClick}
+        onDemote={onDemote}
+        onRefresh={onRefresh}
+      />
 
-      {/* Selected experiences */}
-      <div className="space-y-4 mb-6">
-        {displaySelected.map((exp, idx) => (
-          <div key={exp.id}>
-            {/* Transport connector between consecutive experiences */}
-            {idx > 0 && (
-              <TransportConnector
-                prevExp={displaySelected[idx - 1]}
-                nextExp={exp}
-                useSpatialOrder={useSpatialOrder}
-                onRefresh={onRefresh}
-              />
-            )}
-            <div
-              className="px-4 py-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] cursor-pointer
-                         hover:border-[#a89880] transition-colors active:bg-[#f0ece5]"
-              onClick={() => onExperienceClick(exp.id)}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-[#3a3128] flex items-center gap-1">
-                  {exp.name}
-                  {interests?.get(exp.id) && (
-                    <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-amber-100 text-amber-700"
-                      title={`${interests.get(exp.id)!.displayName} is interested`}>
-                      {interests.get(exp.id)!.reactions.length + 1}
-                    </span>
-                  )}
-                </span>
-                <div className="flex items-center gap-2">
-                  {exp.timeWindow && (
-                    <span className="text-sm text-[#a89880]">{exp.timeWindow}</span>
-                  )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
-                    className="text-sm text-[#c8bba8] hover:text-[#8a7a62] p-1"
-                    aria-label="Move to candidates"
-                  >
-                    &darr;
-                  </button>
-                </div>
-              </div>
-              {exp.description && (
-                <p className="text-sm text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</p>
-              )}
-              {exp.userNotes && (
-                <p className="text-sm text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</p>
-              )}
-              <div className="flex items-center gap-2 mt-1">
-                <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
-                {exp.createdBy && (() => {
-                  const cc = getContributorColor(exp.createdBy);
-                  return (
-                    <span className="flex items-center gap-1 ml-auto">
-                      <span
-                        className="w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: cc.bg, color: cc.text, border: `1px solid ${cc.border}` }}
-                      >
-                        {getContributorInitial(exp.createdBy)}
-                      </span>
-                    </span>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Reservations */}
-      <div className="mb-6">
+      {/* Add reservation (kept as a separate action below timeline) */}
+      <div className="mt-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
-            Reservations
+            Add a reservation
           </h3>
           <button
             onClick={() => setAddingRes(!addingRes)}
@@ -727,7 +531,7 @@ export default function DayView({
           </button>
         </div>
         {addingRes && (
-          <div className="mb-3 p-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] space-y-2">
+          <div className="p-3 bg-[#faf8f5] rounded-lg border border-[#e0d8cc] space-y-2">
             <input
               type="text"
               value={resName}
@@ -774,36 +578,10 @@ export default function DayView({
             </button>
           </div>
         )}
-        {reservations.length > 0 ? (
-          <div className="space-y-2">
-            {reservations.map((res) => (
-              <div key={res.id} className="px-3 py-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-[#3a3128]">
-                    {res.latitude != null && res.longitude != null ? (
-                      <a href={`https://maps.apple.com/?ll=${res.latitude},${res.longitude}&q=${encodeURIComponent(res.name)}`} target="_blank" rel="noopener noreferrer"
-                        className="underline decoration-[#d0c9be]">{res.name}</a>
-                    ) : res.name}
-                  </span>
-                  <span className="text-sm text-[#8a7a62]">
-                    {new Date(res.datetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                  </span>
-                </div>
-                {res.confirmationNumber && (
-                  <button onClick={() => { navigator.clipboard.writeText(res.confirmationNumber!); showToast("Copied"); }}
-                    className="text-sm text-[#a89880] mt-0.5 hover:text-[#514636] transition-colors">Conf: {res.confirmationNumber} 📋</button>
-                )}
-                {res.notes && <p className="text-sm text-[#a89880] mt-0.5">{res.notes}</p>}
-              </div>
-            ))}
-          </div>
-        ) : !addingRes && (
-          <p className="text-sm text-[#c8bba8]">Nothing booked yet</p>
-        )}
       </div>
 
       {/* Exploration zone */}
-      <div className="mb-6">
+      <div className="mb-4">
         {editingZone ? (
           <div className="space-y-2">
             <input
@@ -831,7 +609,7 @@ export default function DayView({
       </div>
 
       {/* Day notes */}
-      <div className="mb-6">
+      <div className="mb-4">
         {editingNotes ? (
           <div className="space-y-2">
             <textarea
@@ -856,68 +634,6 @@ export default function DayView({
             <span className="text-sm text-[#8a7a62]">{day.notes || "Tap to add notes..."}</span>
           </div>
         )}
-      </div>
-
-      {/* Divider */}
-      <div className="border-t border-dashed border-[#e0d8cc] my-4" />
-
-      {/* Candidate zone */}
-      <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
-        {possibleForCity.length} Possible in {day.city.name}
-      </h3>
-      <div className="space-y-1.5">
-        {possibleForCity.map((exp) => (
-          <div
-            key={exp.id}
-            className="px-3 py-2 bg-white rounded-lg border border-[#f0ece5]
-                       hover:border-[#e0d8cc] cursor-pointer transition-colors active:bg-[#faf8f5]"
-            onClick={() => onExperienceClick(exp.id)}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[#3a3128] flex items-center gap-1">
-                {exp.name}
-                {interests?.get(exp.id) && (
-                  <span className="inline-flex items-center px-1 py-0.5 rounded-full text-[9px] font-medium bg-amber-100 text-amber-700"
-                    title={`${interests.get(exp.id)!.displayName} is interested`}>
-                    {interests.get(exp.id)!.reactions.length + 1}
-                  </span>
-                )}
-              </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPromote(exp.id, day.id);
-                }}
-                className="text-sm text-[#a89880] hover:text-[#514636] p-1"
-                aria-label="Add to today"
-              >
-                &uarr;
-              </button>
-            </div>
-            {exp.description && (
-              <p className="text-sm text-[#a89880] mt-0.5 line-clamp-1">{exp.description}</p>
-            )}
-            {exp.userNotes && (
-              <p className="text-sm text-[#6b5d4a] mt-0.5 italic line-clamp-1">{exp.userNotes}</p>
-            )}
-            <div className="flex items-center gap-2 mt-0.5">
-              <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
-              {exp.createdBy && (() => {
-                const cc = getContributorColor(exp.createdBy);
-                return (
-                  <span className="flex items-center gap-1 ml-auto">
-                    <span
-                      className="w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: cc.bg, color: cc.text, border: `1px solid ${cc.border}` }}
-                    >
-                      {getContributorInitial(exp.createdBy)}
-                    </span>
-                  </span>
-                );
-              })()}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );

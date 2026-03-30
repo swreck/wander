@@ -53,7 +53,7 @@ export default function CaptureSharePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
-        Loading...
+        Getting things ready...
       </div>
     );
   }
@@ -61,7 +61,7 @@ export default function CaptureSharePage() {
   if (!trip) return null;
 
   return (
-    <div className="min-h-screen bg-[#faf8f5]">
+    <div className="min-h-screen bg-[#faf8f5] pb-20">
       <div className="max-w-md mx-auto px-4 py-8">
         <h1 className="text-xl font-light text-[#3a3128] mb-1">Save to Wander</h1>
         <p className="text-sm text-[#8a7a62] mb-6">Add this to your trip</p>

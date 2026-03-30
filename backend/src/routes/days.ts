@@ -7,7 +7,7 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 const router = Router();
 router.use(requireAuth);
 
-router.get("/trip/:tripId", async (req, res) => {
+router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   const days = await prisma.day.findMany({
     where: { tripId: req.params.tripId as string },
     orderBy: { date: "asc" },
@@ -16,12 +16,15 @@ router.get("/trip/:tripId", async (req, res) => {
       experiences: { orderBy: { priorityOrder: "asc" }, include: { ratings: true } },
       reservations: { orderBy: { datetime: "asc" } },
       accommodations: true,
+      personalItems: req.user?.travelerId
+        ? { where: { travelerId: req.user.travelerId } }
+        : false,
     },
   });
   res.json(days);
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: AuthRequest, res) => {
   const day = await prisma.day.findUnique({
     where: { id: req.params.id as string },
     include: {
@@ -29,6 +32,9 @@ router.get("/:id", async (req, res) => {
       experiences: { orderBy: { priorityOrder: "asc" }, include: { ratings: true } },
       reservations: { orderBy: { datetime: "asc" } },
       accommodations: true,
+      personalItems: req.user?.travelerId
+        ? { where: { travelerId: req.user.travelerId } }
+        : false,
     },
   });
   if (!day) { res.status(404).json({ error: "Day not found" }); return; }

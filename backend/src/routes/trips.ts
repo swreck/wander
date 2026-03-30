@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { getUserRole } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -49,10 +50,12 @@ router.get("/:id", async (req, res) => {
 
 // Create trip
 router.post("/", async (req: AuthRequest, res) => {
-  const { name, startDate, endDate, cities, routeSegments, skipDocumentCarryOver } = req.body;
+  const { name, startDate, endDate, cities, routeSegments, skipDocumentCarryOver, members, dateState } = req.body;
 
   if (!name?.trim()) { res.status(400).json({ error: "Trip name is required" }); return; }
-  if (!startDate || !endDate) { res.status(400).json({ error: "Start and end dates are required" }); return; }
+
+  // Dateless trips: startDate/endDate no longer required
+  const datesKnown = dateState !== "not_yet";
 
   // Deactivate other trips (they remain accessible, just not "current")
   await prisma.trip.updateMany({
@@ -63,18 +66,35 @@ router.post("/", async (req: AuthRequest, res) => {
   const trip = await prisma.trip.create({
     data: {
       name,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+      datesKnown,
       status: "active",
       inviteToken: crypto.randomBytes(6).toString("hex"),
     },
   });
 
-  // Add creator as trip owner
+  // Add creator as planner (was "owner", now "planner")
   if (req.user?.travelerId) {
     await prisma.tripMember.create({
-      data: { tripId: trip.id, travelerId: req.user.travelerId, role: "owner" },
+      data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner" },
     });
+  }
+
+  // Generate personal invite tokens for named members
+  if (members && Array.isArray(members)) {
+    for (const rawName of members) {
+      const memberName = (rawName as string).trim();
+      if (!memberName) continue;
+      const personalToken = crypto.randomBytes(8).toString("hex");
+      await prisma.tripInvite.create({
+        data: {
+          tripId: trip.id,
+          expectedName: memberName,
+          inviteToken: personalToken,
+        },
+      });
+    }
   }
 
   // Create cities if provided
@@ -209,7 +229,14 @@ router.post("/", async (req: AuthRequest, res) => {
       days: { orderBy: { date: "asc" }, include: { city: true } },
     },
   });
-  res.status(201).json(full);
+
+  // Include invite data so the frontend can show invite links immediately after creation
+  const invites = await prisma.tripInvite.findMany({
+    where: { tripId: trip.id },
+    select: { expectedName: true, inviteToken: true },
+  });
+
+  res.status(201).json({ ...full, invites });
 });
 
 // Activate a trip (set it as the current active trip)
@@ -321,7 +348,7 @@ router.post("/:id/invite", async (req: AuthRequest, res) => {
     });
   }
 
-  // Create TripInvite records for each expected name
+  // Create TripInvite records for each expected name — with personal tokens
   const created: string[] = [];
   if (names && Array.isArray(names)) {
     for (const rawName of names) {
@@ -338,8 +365,9 @@ router.post("/:id/invite", async (req: AuthRequest, res) => {
       });
       if (existing) continue;
 
+      const personalToken = crypto.randomBytes(8).toString("hex");
       await prisma.tripInvite.create({
-        data: { tripId: trip.id, expectedName },
+        data: { tripId: trip.id, expectedName, inviteToken: personalToken },
       });
       created.push(expectedName);
     }
@@ -354,7 +382,16 @@ router.post("/:id/invite", async (req: AuthRequest, res) => {
     orderBy: { createdAt: "asc" },
   });
 
-  res.json({ inviteLink, inviteToken, invites, created });
+  // Build personal invite links
+  const personalLinks = invites
+    .filter((i) => i.inviteToken && !i.claimedByTravelerId)
+    .map((i) => ({
+      name: i.expectedName,
+      link: `${protocol}://${host}/join/${i.inviteToken}`,
+      token: i.inviteToken,
+    }));
+
+  res.json({ inviteLink, inviteToken, invites, created, personalLinks });
 });
 
 // ── GET /:id/members ─────────────────────────────────────────
@@ -383,11 +420,127 @@ router.get("/:id/members", async (req: AuthRequest, res) => {
   const invites = trip.tripInvites.map((i) => ({
     id: i.id,
     expectedName: i.expectedName,
+    inviteToken: i.inviteToken,
     claimed: !!i.claimedByTravelerId,
     claimedAt: i.claimedAt,
   }));
 
   res.json({ members, invites, inviteToken: trip.inviteToken });
+});
+
+// ── POST /:id/resend-invite ──────────────────────────────────
+// Regenerate a personal invite token for a specific person (invalidates old one)
+router.post("/:id/resend-invite", async (req: AuthRequest, res) => {
+  const { inviteId } = req.body;
+  if (!inviteId) {
+    res.status(400).json({ error: "Invite ID required" });
+    return;
+  }
+
+  const invite = await prisma.tripInvite.findUnique({ where: { id: inviteId } });
+  if (!invite || invite.tripId !== (req.params.id as string)) {
+    res.status(404).json({ error: "Invite not found" });
+    return;
+  }
+
+  // Generate new token (old one becomes invalid)
+  const newToken = crypto.randomBytes(8).toString("hex");
+  const updated = await prisma.tripInvite.update({
+    where: { id: inviteId },
+    data: { inviteToken: newToken, claimedByTravelerId: null, claimedAt: null },
+  });
+
+  const protocol = req.get("x-forwarded-proto") || req.protocol;
+  const host = req.get("host");
+
+  res.json({
+    invite: updated,
+    personalLink: `${protocol}://${host}/join/${newToken}`,
+  });
+});
+
+// ── POST /:id/add-members ────────────────────────────────────
+// Add new members to a trip (generates personal invite tokens)
+router.post("/:id/add-members", async (req: AuthRequest, res) => {
+  const { names } = req.body;
+  const tripId = req.params.id as string;
+
+  const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!trip) { res.status(404).json({ error: "Trip not found" }); return; }
+
+  const created: Array<{ name: string; link: string; token: string }> = [];
+  const protocol = req.get("x-forwarded-proto") || req.protocol;
+  const host = req.get("host");
+
+  if (names && Array.isArray(names)) {
+    for (const rawName of names) {
+      const memberName = (rawName as string).trim();
+      if (!memberName) continue;
+
+      // Skip if already invited
+      const existing = await prisma.tripInvite.findFirst({
+        where: {
+          tripId,
+          expectedName: { equals: memberName, mode: "insensitive" },
+        },
+      });
+      if (existing) continue;
+
+      const personalToken = crypto.randomBytes(8).toString("hex");
+      await prisma.tripInvite.create({
+        data: { tripId, expectedName: memberName, inviteToken: personalToken },
+      });
+      created.push({
+        name: memberName,
+        link: `${protocol}://${host}/join/${personalToken}`,
+        token: personalToken,
+      });
+    }
+  }
+
+  res.json({ created });
+});
+
+// ── PATCH /:id/member-role ───────────────────────────────────
+// Change a member's role (planner/traveler)
+router.patch("/:id/member-role", async (req: AuthRequest, res) => {
+  const { travelerId, role } = req.body;
+  const tripId = req.params.id as string;
+
+  if (!travelerId || !["planner", "traveler"].includes(role)) {
+    res.status(400).json({ error: "Valid travelerId and role (planner/traveler) required" });
+    return;
+  }
+
+  // Only planners can change roles
+  if (req.user?.travelerId) {
+    const callerRole = await getUserRole(req.user.travelerId, tripId);
+    if (callerRole !== "planner") {
+      res.status(403).json({ error: "Only planners can change roles" });
+      return;
+    }
+  }
+
+  const member = await prisma.tripMember.findUnique({
+    where: { tripId_travelerId: { tripId, travelerId } },
+  });
+  if (!member) {
+    res.status(404).json({ error: "Member not found" });
+    return;
+  }
+
+  const updated = await prisma.tripMember.update({
+    where: { id: member.id },
+    data: { role },
+    include: { traveler: true },
+  });
+
+  res.json({
+    id: updated.id,
+    travelerId: updated.travelerId,
+    displayName: updated.traveler.displayName,
+    role: updated.role,
+  });
 });
 
 export default router;

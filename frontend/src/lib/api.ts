@@ -79,11 +79,16 @@ async function uploadRequest<T>(path: string, formData: FormData): Promise<T> {
   }
   // Do NOT set Content-Type — browser sets it with boundary for multipart
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+  } catch {
+    throw new Error("You're offline — photos need a connection to upload. Try again when you're back online.");
+  }
 
   if (res.status === 401) {
     localStorage.removeItem("wander_token");

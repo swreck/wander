@@ -1,10 +1,20 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import type { Trip, Day, Experience, TravelerDocument } from "../lib/types";
+import type { Trip, Day, Experience, TravelerDocument, Decision } from "../lib/types";
 import FirstTimeGuide from "../components/FirstTimeGuide";
 import { useToast } from "../contexts/ToastContext";
 import { isNextUpEnabled, setNextUpEnabled } from "../components/NextUpOverlay";
+import { getTripPhase, type TripPhase } from "../lib/tripPhase";
+import PlanningInsight from "../components/PlanningInsight";
+import { useAuth } from "../contexts/AuthContext";
+
+interface TravelAdvisorySummary {
+  visaActions: { country: string; action: string; urgent: boolean }[];
+  vaccineActions: { name: string; countries: string[]; status: string; notes: string }[];
+  healthHighlights: string[];
+  connectivityNote: string;
+}
 
 interface TransitDisruption {
   line: string;
@@ -61,6 +71,12 @@ export default function NowPage() {
   const [capturing, setCapturing] = useState(false);
   const [travelDocs, setTravelDocs] = useState<TravelerDocument[]>([]);
   const [transitAlerts, setTransitAlerts] = useState<TransitDisruption[]>([]);
+  const [allDays, setAllDays] = useState<Day[]>([]);
+  const [allExperiences, setAllExperiences] = useState<Experience[]>([]);
+  const [advisorySummary, setAdvisorySummary] = useState<TravelAdvisorySummary | null>(null);
+  const [dayDecisions, setDayDecisions] = useState<Decision[]>([]);
+  const [votingId, setVotingId] = useState<string | null>(null);
+  const { user } = useAuth();
 
   // Load trip and day data — extracted so it can be called on mount and on data-changed
   const loadData = useCallback(async () => {
@@ -68,11 +84,14 @@ export default function NowPage() {
     if (!t) { navigate("/"); return; }
     setTrip(t);
 
-    const [days, profileRes] = await Promise.all([
+    const [days, profileRes, exps] = await Promise.all([
       api.get<Day[]>(`/days/trip/${t.id}`),
       api.get<{ documents: TravelerDocument[] }>(`/traveler-documents/trip/${t.id}`).catch(() => ({ documents: [] })),
+      api.get<Experience[]>(`/experiences/trip/${t.id}`),
     ]);
     setTravelDocs(profileRes?.documents || []);
+    setAllDays(days);
+    setAllExperiences(exps);
     const todayStr = new Date().toISOString().split("T")[0];
     const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
     setToday(todayDay || null);
@@ -80,6 +99,24 @@ export default function NowPage() {
     // Fetch transit disruption alerts for the trip
     api.get<{ allDisruptions: TransitDisruption[] }>(`/transit-status/trip/${t.id}`)
       .then((res) => setTransitAlerts(res?.allDisruptions || []))
+      .catch(() => {});
+
+    // Fetch travel advisories for pre-trip view
+    api.get<{ summary: TravelAdvisorySummary }>(`/travel-advisory/trip/${t.id}`)
+      .then((res) => setAdvisorySummary(res?.summary || null))
+      .catch(() => {});
+
+    // Fetch open decisions for today (day-level choices)
+    api.get<Decision[]>(`/decisions/trip/${t.id}`)
+      .then((decisions) => {
+        const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
+        if (todayDay) {
+          const todayDecisions = decisions.filter(
+            (d) => d.dayId === todayDay.id && d.status === "open"
+          );
+          setDayDecisions(todayDecisions);
+        }
+      })
       .catch(() => {});
 
     // F1: Predictive caching — prefetch next city's data if transition within 2 days
@@ -283,7 +320,7 @@ export default function NowPage() {
       });
       setQuickCaptureName("");
       setShowQuickCapture(false);
-      showToast("Saved", "success");
+      showToast("Added to today", "success");
       // Refresh data to show new experience
       window.dispatchEvent(new CustomEvent("wander:data-changed"));
     } finally {
@@ -291,26 +328,324 @@ export default function NowPage() {
     }
   }
 
+  async function castDayVote(decisionId: string, optionId: string | null) {
+    setVotingId(decisionId);
+    try {
+      await api.post(`/decisions/${decisionId}/vote`, {
+        optionId,
+        userCode: user?.code,
+        displayName: user?.displayName,
+      });
+      showToast(optionId ? "Vote cast" : "Happy with either — noted");
+      // Refresh decisions
+      if (trip) {
+        const decisions = await api.get<Decision[]>(`/decisions/trip/${trip.id}`);
+        const todayDecisions = decisions.filter(
+          (d) => d.dayId === today?.id && d.status === "open"
+        );
+        setDayDecisions(todayDecisions);
+      }
+    } catch {
+      showToast("That didn't go through — try again?", "error");
+    }
+    setVotingId(null);
+  }
+
+  // Phase detection for pre/post trip views — must be before early returns (hooks rule)
+  const tripPhase: TripPhase = trip
+    ? getTripPhase({ datesKnown: trip.datesKnown !== false, startDate: trip.startDate, endDate: trip.endDate })
+    : "dreaming";
+
+  // Planning insights for pre-trip phase
+  const planningInsights = useMemo(() => {
+    if (!trip || (tripPhase !== "planning" && tripPhase !== "soon" && tripPhase !== "dreaming")) return [];
+    const insights: { key: string; message: string; actionLabel?: string; cityId?: string }[] = [];
+
+    // Busy day detection
+    for (const day of allDays) {
+      const dayExps = allExperiences.filter(e => e.dayId === day.id && e.state === "selected");
+      if (dayExps.length >= 5) {
+        const dateLabel = new Date(day.date).toLocaleDateString("en-US", {
+          weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
+        });
+        const city = trip.cities?.find(c => c.id === day.cityId);
+        insights.push({
+          key: `busy-${day.id}`,
+          message: `${dateLabel} in ${city?.name || "?"} has ${dayExps.length} things planned. That's a full day — might be worth spreading some out.`,
+          actionLabel: "Take a look",
+          cityId: day.cityId,
+        });
+      }
+    }
+
+    // City with lots of food
+    const cities = trip.cities?.filter(c => !c.hidden) || [];
+    for (const city of cities) {
+      const foodCount = allExperiences.filter(
+        e => e.cityId === city.id && e.themes?.includes("food") && e.state === "selected"
+      ).length;
+      if (foodCount >= 4) {
+        insights.push({
+          key: `food-heavy-${city.id}`,
+          message: `You've got ${foodCount} food spots scheduled in ${city.name}. That's a lot of eating — some days might have more meals than hours.`,
+          cityId: city.id,
+        });
+      }
+    }
+
+    // Popular unscheduled items (lots of reactions but not scheduled)
+    const popularUnscheduled = allExperiences.filter(
+      e => e.state === "possible" && e.priorityOrder <= 3
+    );
+    if (popularUnscheduled.length >= 3) {
+      insights.push({
+        key: `popular-unscheduled`,
+        message: `You have ${popularUnscheduled.length} high-priority ideas that haven't been scheduled yet. Worth a look before things fill up.`,
+        actionLabel: "See them",
+      });
+    }
+
+    // Empty days (days with no scheduled activities or reservations)
+    const emptyDays = allDays.filter(d => {
+      const dayExps = allExperiences.filter(e => e.dayId === d.id && e.state === "selected");
+      const dayRes = d.reservations?.length || 0;
+      return dayExps.length === 0 && dayRes === 0;
+    });
+    if (emptyDays.length > 0 && emptyDays.length < allDays.length) {
+      insights.push({
+        key: `empty-days`,
+        message: emptyDays.length === 1
+          ? `One day is still wide open — sometimes that's the best kind of day.`
+          : `${emptyDays.length} days are still wide open. That can be great — or worth filling if you've got ideas.`,
+      });
+    }
+
+    return insights.slice(0, 5); // Max 5 insights
+  }, [trip, tripPhase, allDays, allExperiences]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
-        Loading...
+        Checking what's next...
       </div>
     );
   }
 
   if (!trip || !today) {
+    // Phase-aware "no today" view
     return (
       <div className="min-h-screen bg-[#faf8f5] px-4 py-8">
-        <button
-          onClick={() => navigate("/plan")}
-          className="text-sm text-[#8a7a62] hover:text-[#3a3128] mb-4"
-        >
-          &larr; Back to planning
-        </button>
-        <div className="text-center py-16">
-          <h1 className="text-xl font-light text-[#3a3128] mb-2">No schedule for today</h1>
-          <p className="text-sm text-[#8a7a62]">Today doesn't fall within your trip dates.</p>
+        <div className="max-w-lg mx-auto">
+          <button
+            onClick={() => navigate("/")}
+            className="text-sm text-[#8a7a62] hover:text-[#3a3128] mb-6"
+          >
+            &larr; Back
+          </button>
+
+          {/* Before trip: planning insights */}
+          {trip && (tripPhase === "planning" || tripPhase === "soon" || tripPhase === "dreaming") && (
+            <>
+              <h1 className="text-2xl font-light text-[#3a3128] mb-1">
+                {tripPhase === "soon" ? "Almost time" : "Getting ready"}
+              </h1>
+              <p className="text-sm text-[#8a7a62] mb-6">
+                {trip.name}
+                {trip.startDate && (() => {
+                  const today = new Date();
+                  const nowUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+                  const [sy, sm, sd] = trip.startDate!.split("T")[0].split("-").map(Number);
+                  const startUTC = Date.UTC(sy, sm - 1, sd);
+                  const daysUntil = Math.round((startUTC - nowUTC) / 86400000);
+                  if (daysUntil > 0) return ` · ${daysUntil} days away`;
+                  return "";
+                })()}
+              </p>
+
+              {planningInsights.length > 0 ? (
+                <div className="space-y-3 mb-8">
+                  <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
+                    A few things worth knowing
+                  </h2>
+                  {planningInsights.map(insight => (
+                    <PlanningInsight
+                      key={insight.key}
+                      insightKey={`${trip.id}-${insight.key}`}
+                      message={insight.message}
+                      actionLabel={insight.actionLabel}
+                      onAction={insight.cityId
+                        ? () => navigate(`/plan?city=${insight.cityId}`)
+                        : insight.actionLabel
+                          ? () => navigate("/plan")
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-sm text-[#a89880]">Looking good so far</p>
+                  <p className="text-xs text-[#c8bba8] mt-1">Check back closer to your trip for insights</p>
+                </div>
+              )}
+
+              {/* Travel readiness — visa & health advisories */}
+              {advisorySummary && (advisorySummary.visaActions.length > 0 || advisorySummary.vaccineActions.length > 0) && (
+                <div className="space-y-3 mb-8">
+                  <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
+                    Before you go
+                  </h2>
+
+                  {/* Visa requirements */}
+                  {advisorySummary.visaActions.map((visa) => (
+                    <div
+                      key={visa.country}
+                      className={`p-3 rounded-lg border ${
+                        visa.urgent
+                          ? "bg-amber-50 border-amber-200"
+                          : "bg-[#f5f0e8] border-[#e0d8cc]"
+                      }`}
+                    >
+                      <div className={`text-sm font-medium ${visa.urgent ? "text-amber-800" : "text-[#3a3128]"}`}>
+                        {visa.country} visa {visa.urgent ? "— act soon" : "needed"}
+                      </div>
+                      <p className={`text-xs mt-1 ${visa.urgent ? "text-amber-700" : "text-[#6b5d4a]"}`}>
+                        {visa.action}
+                      </p>
+                    </div>
+                  ))}
+
+                  {/* Vaccine recommendations */}
+                  {advisorySummary.vaccineActions.length > 0 && (
+                    <div className="p-3 rounded-lg border border-[#e0d8cc] bg-[#f5f0e8]">
+                      <div className="text-sm font-medium text-[#3a3128] mb-1">
+                        Recommended vaccines
+                      </div>
+                      <p className="text-xs text-[#8a7a62] mb-2">
+                        Talk to your doctor or a travel clinic about these:
+                      </p>
+                      <div className="space-y-1.5">
+                        {advisorySummary.vaccineActions.map((v) => (
+                          <div key={v.name} className="text-xs text-[#6b5d4a]">
+                            <span className="font-medium">{v.name}</span>
+                            <span className="text-[#a89880]"> — {v.notes}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Connectivity warning */}
+                  {advisorySummary.connectivityNote && !advisorySummary.connectivityNote.includes("Good connectivity") && (
+                    <div className="p-3 rounded-lg border border-[#e0d8cc] bg-[#f5f0e8]">
+                      <div className="text-sm font-medium text-[#3a3128]">Connectivity heads-up</div>
+                      <p className="text-xs text-[#6b5d4a] mt-1">{advisorySummary.connectivityNote}</p>
+                      <p className="text-xs text-[#a89880] mt-1">Wander saves your plans offline — you'll have everything you need even without signal.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Preview of what Now becomes during travel */}
+              {allDays.length > 0 && (
+                <div className="mt-6 p-4 bg-[#f0ece5] rounded-lg border border-[#e0d8cc]">
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+                    During your trip
+                  </h3>
+                  <p className="text-sm text-[#6b5d4a]">
+                    This is where you'll see your live timeline, walking distances, and when to leave for your next thing.
+                  </p>
+                  {(() => {
+                    const firstDay = [...allDays].sort((a, b) =>
+                      new Date(a.date).getTime() - new Date(b.date).getTime()
+                    )[0];
+                    const firstDayExps = allExperiences.filter(
+                      e => e.dayId === firstDay.id && e.state === "selected"
+                    );
+                    if (firstDayExps.length === 0) return null;
+                    return (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {firstDayExps.slice(0, 3).map(e => (
+                          <span key={e.id} className="text-xs px-2 py-0.5 rounded-full bg-white text-[#6b5d4a]">
+                            {e.name}
+                          </span>
+                        ))}
+                        {firstDayExps.length > 3 && (
+                          <span className="text-xs text-[#a89880]">+{firstDayExps.length - 3} more on Day 1</span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* After trip: summary */}
+          {trip && tripPhase === "past" && (
+            <>
+              <h1 className="text-2xl font-light text-[#3a3128] mb-1">Welcome home</h1>
+              <p className="text-sm text-[#8a7a62] mb-6">{trip.name}</p>
+              <div className="grid grid-cols-3 gap-4 text-center mb-6">
+                <div className="p-3 bg-white rounded-lg border border-[#f0ece5]">
+                  <div className="text-2xl font-light text-[#3a3128]">
+                    {(trip.cities || []).filter(c => !c.hidden).length}
+                  </div>
+                  <div className="text-xs text-[#a89880]">cities</div>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-[#f0ece5]">
+                  <div className="text-2xl font-light text-[#3a3128]">{allDays.length}</div>
+                  <div className="text-xs text-[#a89880]">days</div>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-[#f0ece5]">
+                  <div className="text-2xl font-light text-[#3a3128]">
+                    {allExperiences.filter(e => e.state === "selected").length}
+                  </div>
+                  <div className="text-xs text-[#a89880]">things done</div>
+                </div>
+              </div>
+
+              {/* Contributor stats */}
+              {(() => {
+                const byCreator: Record<string, number> = {};
+                for (const e of allExperiences) {
+                  if (e.createdBy) byCreator[e.createdBy] = (byCreator[e.createdBy] || 0) + 1;
+                }
+                const contributors = Object.keys(byCreator);
+                if (contributors.length <= 1) return null;
+                return (
+                  <p className="text-sm text-[#a89880] text-center mb-6">
+                    {contributors.length} people contributed ideas to this trip
+                  </p>
+                );
+              })()}
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => navigate("/story")}
+                  className="w-full py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium
+                             hover:bg-[#3a3128] transition-colors"
+                >
+                  See your trip story
+                </button>
+                <button
+                  onClick={() => navigate("/")}
+                  className="w-full py-2.5 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a] font-medium
+                             hover:bg-[#f0ece5] transition-colors"
+                >
+                  Back to trip overview
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* No trip at all */}
+          {!trip && (
+            <div className="text-center py-16">
+              <h1 className="text-xl font-light text-[#3a3128] mb-2">Nothing here yet</h1>
+              <p className="text-sm text-[#8a7a62]">Create a trip to get started.</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -334,7 +669,7 @@ export default function NowPage() {
   const effectiveMode = nextAnchorMode && MODE_LABELS[nextAnchorMode] ? nextAnchorMode : travelMode;
 
   return (
-    <div className="min-h-screen bg-[#faf8f5]">
+    <div className="min-h-screen bg-[#faf8f5] pb-20">
       <FirstTimeGuide
         id="now"
         lines={[
@@ -400,7 +735,7 @@ export default function NowPage() {
                   {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
                   {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
                   {acc.confirmationNumber && (
-                    <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied"); }}
+                    <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Ready to paste"); }}
                       className="hover:text-[#514636] transition-colors">Conf: {acc.confirmationNumber} 📋</button>
                   )}
                 </div>
@@ -414,6 +749,69 @@ export default function NowPage() {
             {reservations.length > 0 && ` · ${reservations.length} reservation${reservations.length > 1 ? "s" : ""}`}
           </p>
         </section>
+
+        {/* Day-level choices — unresolved decisions for today */}
+        {dayDecisions.length > 0 && (
+          <section className="mb-6">
+            {dayDecisions.map((decision) => {
+              const userVote = decision.votes.find((v) => v.userCode === user?.code);
+              return (
+                <div key={decision.id} className="p-4 bg-white rounded-xl border border-amber-200 mb-3">
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-amber-700 mb-1">
+                    Today's choice
+                  </h3>
+                  <p className="text-sm font-medium text-[#3a3128] mb-3">{decision.title}</p>
+
+                  <div className="space-y-2">
+                    {decision.options.map((opt) => {
+                      const voteCount = decision.votes.filter((v) => v.optionId === opt.id).length;
+                      const isMyVote = userVote?.optionId === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => castDayVote(decision.id, opt.id)}
+                          disabled={votingId === decision.id}
+                          className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                            isMyVote
+                              ? "border-amber-400 bg-amber-50"
+                              : "border-[#e0d8cc] hover:border-[#a89880]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-[#3a3128]">{opt.name}</span>
+                            {voteCount > 0 && (
+                              <span className="text-xs text-[#a89880]">
+                                {voteCount} {voteCount === 1 ? "vote" : "votes"}
+                              </span>
+                            )}
+                          </div>
+                          {opt.description && (
+                            <p className="text-xs text-[#8a7a62] mt-0.5">{opt.description}</p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!userVote && (
+                    <button
+                      onClick={() => castDayVote(decision.id, null)}
+                      disabled={votingId === decision.id}
+                      className="mt-2 text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+                    >
+                      Happy with either
+                    </button>
+                  )}
+                  {userVote && (
+                    <p className="mt-2 text-xs text-[#a89880]">
+                      You voted{userVote.optionId ? "" : " — happy with either"}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        )}
 
         {/* Question 2 & 3: What's next? When should I leave? */}
         {nextAnchor && (
@@ -601,7 +999,7 @@ export default function NowPage() {
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(item.value);
-                        showToast("Copied");
+                        showToast("Ready to paste");
                       }}
                       className="text-[#3a3128] font-medium hover:text-[#514636] transition-colors"
                     >
@@ -726,7 +1124,7 @@ export default function NowPage() {
             onClick={() => {
               const newVal = !isNextUpEnabled();
               setNextUpEnabled(newVal);
-              showToast(newVal ? "Next-up reminders on" : "Next-up reminders off");
+              showToast(newVal ? "I'll give you a heads up when something's next" : "Got it — no reminders");
             }}
             className={`relative w-10 h-5 rounded-full transition-colors ${
               isNextUpEnabled() ? "bg-[#514636]" : "bg-[#d9cfc0]"

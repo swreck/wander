@@ -611,6 +611,7 @@ function DecisionGroup({
   const [newOptionName, setNewOptionName] = useState("");
   const [adding, setAdding] = useState(false);
   const [voting, setVoting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const myVote = decision.votes.find((v) => v.userCode === user?.code);
   const isHappyWithAny = myVote && myVote.optionId === null;
@@ -622,7 +623,7 @@ function DecisionGroup({
       await api.post(`/decisions/${decision.id}/vote`, { optionId });
       onDecisionsChanged();
     } catch {
-      showToast("Vote didn't go through — check your connection?", "error");
+      showToast("Vote didn't stick — try again?", "error");
     }
     setVoting(false);
   }
@@ -654,9 +655,9 @@ function DecisionGroup({
   }
 
   async function handleDelete() {
-    if (!window.confirm("Clear this decision? Everyone's votes will go away.")) return;
     try {
       await api.delete(`/decisions/${decision.id}`);
+      setConfirmingDelete(false);
       showToast("Cleared");
       onDecisionsChanged();
     } catch {
@@ -700,13 +701,31 @@ function DecisionGroup({
       )}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-amber-700">{decision.title}</span>
-        <button
-          onClick={handleDelete}
-          className="text-xs text-[#c8bba8] hover:text-red-500 transition-colors"
-          title="Cancel decision"
-        >
-          &times;
-        </button>
+        {confirmingDelete ? (
+          <span className="flex items-center gap-1.5">
+            <span className="text-xs text-[#6b5d4a]">Clear this? Votes go away</span>
+            <button
+              onClick={handleDelete}
+              className="text-xs text-red-500 font-medium hover:text-red-700 transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
+            >
+              Keep
+            </button>
+          </span>
+        ) : (
+          <button
+            onClick={() => setConfirmingDelete(true)}
+            className="text-xs text-[#c8bba8] hover:text-red-500 transition-colors"
+            title="Cancel decision"
+          >
+            &times;
+          </button>
+        )}
       </div>
 
       <div className="space-y-1.5">

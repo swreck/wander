@@ -5,6 +5,7 @@ export interface AuthPayload {
   code: string;
   displayName: string;
   travelerId?: string;
+  role?: string; // "planner" | "traveler" — per-trip, set at login for the active trip
 }
 
 export interface AuthRequest extends Request {

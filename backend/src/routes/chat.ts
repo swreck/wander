@@ -8,6 +8,7 @@ import { extractRecommendations } from "../services/itineraryExtractor.js";
 import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 import { findDuplicate } from "../services/dedup.js";
 import { enrichExperience } from "../services/capture.js";
+import { getCountryAdvisories, getPreTripSummary } from "../services/travelAdvisory.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -152,7 +153,7 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: "search_experiences",
-    description: "Search for experiences by name across the trip",
+    description: "Search for experiences by name, description, or notes across the trip",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -887,6 +888,32 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "create_day_choice",
+    description: "Create a day-level choice when some people might want to do one thing while others do another. Creates a Decision tied to a specific day with experience options.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        cityId: { type: "string" },
+        dayId: { type: "string", description: "The day this choice applies to" },
+        title: { type: "string", description: "Short label, e.g. 'Afternoon choice'" },
+        options: {
+          type: "array",
+          description: "The activity options to choose between",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+            },
+            required: ["name"],
+          },
+        },
+      },
+      required: ["tripId", "cityId", "dayId", "title", "options"],
+    },
+  },
+  {
     name: "get_contributions_by_traveler",
     description: "Show all activities added by a specific traveler, grouped by city. Use when someone asks 'What has [name] added?' or 'Show me [name]'s contributions'.",
     input_schema: {
@@ -896,6 +923,189 @@ const tools: Anthropic.Tool[] = [
         travelerName: { type: "string", description: "The display name or code of the traveler" },
       },
       required: ["tripId", "travelerName"],
+    },
+  },
+  // ── Learnings tools ──────────────────────────────
+  {
+    name: "save_learning",
+    description: "Save a learning or tip for future trips. Use when someone says 'remember for next time', 'note for the future', 'lesson learned', etc. Ask whether it's for all future trips or just this one.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string", description: "Current trip ID (null for general learnings)" },
+        content: { type: "string", description: "The learning content" },
+        scope: { type: "string", enum: ["general", "trip_specific"], description: "general = all future trips, trip_specific = just this trip" },
+        experienceId: { type: "string", description: "Optional: link to a specific experience" },
+      },
+      required: ["content", "scope"],
+    },
+  },
+  {
+    name: "get_learnings",
+    description: "Get saved learnings/tips. Returns both general and trip-specific learnings.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string", description: "Optional: filter to a specific trip's learnings (also includes general)" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "update_learning",
+    description: "Update the content of a saved learning.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        learningId: { type: "string" },
+        content: { type: "string" },
+      },
+      required: ["learningId", "content"],
+    },
+  },
+  {
+    name: "delete_learning",
+    description: "Delete a saved learning.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        learningId: { type: "string" },
+      },
+      required: ["learningId"],
+    },
+  },
+  // ── Approval tools ──────────────────────────────
+  {
+    name: "get_pending_approvals",
+    description: "Get pending approval requests for a trip. Planners see all; travelers see their own.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+      },
+      required: ["tripId"],
+    },
+  },
+  {
+    name: "review_approval",
+    description: "Approve or reject a pending approval request. Planner only.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        approvalId: { type: "string" },
+        status: { type: "string", enum: ["approved", "rejected"] },
+        note: { type: "string", description: "Optional note to the requester" },
+      },
+      required: ["approvalId", "status"],
+    },
+  },
+  // ── Member management tools ──────────────────────
+  {
+    name: "add_trip_members",
+    description: "Add new members to the trip. Generates personal invite links for each person. Planner only.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        names: { type: "array", items: { type: "string" }, description: "Names of people to invite" },
+      },
+      required: ["tripId", "names"],
+    },
+  },
+  {
+    name: "change_member_role",
+    description: "Change a trip member's role between planner and traveler. Planner only.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        travelerName: { type: "string", description: "Display name of the traveler" },
+        role: { type: "string", enum: ["planner", "traveler"] },
+      },
+      required: ["tripId", "travelerName", "role"],
+    },
+  },
+  // ── Dateless trip tool ──────────────────────────────
+  {
+    name: "set_trip_anchor",
+    description: "Set the anchor date for a dateless trip. 'Day 1 is December 25' → all days get real dates. Use when someone says 'Day 1 is [date]' or 'we start on [date]'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        anchorDate: { type: "string", description: "The date for Day 1, ISO format (YYYY-MM-DD)" },
+      },
+      required: ["tripId", "anchorDate"],
+    },
+  },
+  // ── Missing parity tools ──────────────────────────────
+  {
+    name: "activate_trip",
+    description: "Switch to a different trip. Use when someone says 'switch to Vietnam trip', 'work on the other trip', or 'go to [trip name]'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string", description: "ID of the trip to activate" },
+      },
+      required: ["tripId"],
+    },
+  },
+  {
+    name: "delete_decision",
+    description: "Cancel/clear a group decision. Use when someone says 'cancel that vote', 'close this decision', or 'never mind about that choice'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        decisionId: { type: "string" },
+      },
+      required: ["decisionId"],
+    },
+  },
+  {
+    name: "retract_interest",
+    description: "Take back a floated experience interest. Use when someone says 'take that back', 'un-flag that', or 'remove my interest'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        interestId: { type: "string" },
+      },
+      required: ["interestId"],
+    },
+  },
+  {
+    name: "restore_entity",
+    description: "Bring back something that was deleted (experience, reservation, accommodation, day). Use when someone says 'undo that delete', 'bring that back', 'restore [name]'. Requires the changeLogId from get_change_log.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        changeLogId: { type: "string", description: "The change log entry ID for the deletion to undo" },
+      },
+      required: ["changeLogId"],
+    },
+  },
+  {
+    name: "resend_invite",
+    description: "Regenerate a personal invite link for a trip member who lost access. Old link stops working. Planner only.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        memberName: { type: "string", description: "Name of the person who needs a new link" },
+      },
+      required: ["tripId", "memberName"],
+    },
+  },
+  // ── Travel advisory tool ──────────────────────────────
+  {
+    name: "get_travel_advisories",
+    description: "Get visa requirements, CDC vaccine recommendations, health/safety tips, connectivity info, and currency details for trip destination countries. Use when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, currency, or 'what do I need for this trip?'. Also use proactively when discussing a new destination country.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        countries: { type: "array", items: { type: "string" }, description: "Country names to look up. If omitted, derives from trip cities." },
+      },
+      required: ["tripId"],
     },
   },
 ];
@@ -1154,7 +1364,11 @@ async function executeTool(
       const exps = await prisma.experience.findMany({
         where: {
           tripId: input.tripId,
-          name: { contains: input.query, mode: "insensitive" },
+          OR: [
+            { name: { contains: input.query, mode: "insensitive" } },
+            { description: { contains: input.query, mode: "insensitive" } },
+            { userNotes: { contains: input.query, mode: "insensitive" } },
+          ],
         },
         include: { city: true, day: true },
       });
@@ -2222,11 +2436,13 @@ async function executeTool(
         if (!hasPassport) gaps.push("No passport on file.");
         if (passportExpiry) {
           const expDate = new Date(passportExpiry);
-          const tripEnd = new Date(trip.endDate);
-          const sixMonthsAfter = new Date(tripEnd);
-          sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6);
-          if (expDate < sixMonthsAfter) {
-            gaps.push(`Passport expires ${passportExpiry} — some countries require 6 months validity past your trip end date (${trip.endDate.toISOString().split("T")[0]}).`);
+          const tripEnd = trip.endDate ? new Date(trip.endDate) : null;
+          if (tripEnd) {
+            const sixMonthsAfter = new Date(tripEnd);
+            sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6);
+            if (expDate < sixMonthsAfter) {
+              gaps.push(`Passport expires ${passportExpiry} — some countries require 6 months validity past your trip end date (${tripEnd.toISOString().split("T")[0]}).`);
+            }
           }
         }
         if (!hasInsurance) gaps.push("No travel insurance on file.");
@@ -2991,6 +3207,50 @@ async function executeTool(
       };
     }
 
+    case "create_day_choice": {
+      const decision = await prisma.decision.create({
+        data: {
+          tripId: input.tripId,
+          cityId: input.cityId,
+          dayId: input.dayId,
+          title: input.title,
+          createdBy: user.code,
+        },
+      });
+
+      for (const opt of input.options) {
+        const exp = await prisma.experience.create({
+          data: {
+            tripId: input.tripId,
+            cityId: input.cityId,
+            dayId: input.dayId,
+            name: opt.name,
+            description: opt.description || null,
+            createdBy: user.code,
+            state: "voting",
+            decisionId: decision.id,
+            locationStatus: "unlocated",
+          },
+        });
+        enrichExperience(exp.id).catch(() => {});
+      }
+
+      await logChange({
+        user,
+        tripId: input.tripId,
+        actionType: "day_choice_created",
+        entityType: "decision",
+        entityId: decision.id,
+        entityName: decision.title,
+        description: `${user.displayName} created a day choice: "${decision.title}" with ${input.options.length} options`,
+      });
+
+      return {
+        result: { decisionId: decision.id, title: decision.title, optionCount: input.options.length },
+        actionDescription: `Created day choice "${decision.title}" with ${input.options.length} options`,
+      };
+    }
+
     case "get_contributions_by_traveler": {
       const experiences = await prisma.experience.findMany({
         where: { tripId: input.tripId, createdBy: { contains: input.travelerName, mode: "insensitive" } },
@@ -3021,6 +3281,378 @@ async function executeTool(
           total: experiences.length,
           byCity,
           summary,
+        },
+      };
+    }
+
+    case "save_learning": {
+      const learning = await prisma.learning.create({
+        data: {
+          travelerId: input.travelerId,
+          tripId: input.tripId || null,
+          experienceId: input.experienceId || null,
+          content: input.content,
+          scope: input.scope || "general",
+          source: "chat",
+        },
+      });
+      return {
+        result: { id: learning.id, content: learning.content, scope: learning.scope },
+        actionDescription: `Saved learning: "${input.content.slice(0, 60)}${input.content.length > 60 ? "..." : ""}"`,
+      };
+    }
+
+    case "get_learnings": {
+      const where: any = {};
+      if (input.tripId) where.tripId = input.tripId;
+      if (input.scope) where.scope = input.scope;
+      const learnings = await prisma.learning.findMany({
+        where,
+        include: { traveler: { select: { displayName: true } } },
+        orderBy: { createdAt: "desc" },
+        take: input.limit || 50,
+      });
+      return {
+        result: learnings.length > 0
+          ? learnings.map(l => ({
+              id: l.id,
+              content: l.content,
+              scope: l.scope,
+              source: l.source,
+              contributor: l.traveler.displayName,
+              tripId: l.tripId,
+              createdAt: l.createdAt,
+            }))
+          : { message: "No learnings saved yet" },
+      };
+    }
+
+    case "update_learning": {
+      const updated = await prisma.learning.update({
+        where: { id: input.learningId },
+        data: { content: input.content },
+      });
+      return {
+        result: { id: updated.id, content: updated.content },
+        actionDescription: `Updated learning`,
+      };
+    }
+
+    case "delete_learning": {
+      await prisma.learning.delete({ where: { id: input.learningId } });
+      return {
+        result: { message: "Learning removed" },
+        actionDescription: `Deleted a learning`,
+      };
+    }
+
+    case "get_pending_approvals": {
+      const approvals = await prisma.approvalRequest.findMany({
+        where: { tripId: input.tripId, status: "pending" },
+        include: {
+          requester: { select: { displayName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return {
+        result: approvals.length > 0
+          ? approvals.map(a => ({
+              id: a.id,
+              type: a.type,
+              description: a.description,
+              requester: a.requester.displayName,
+              createdAt: a.createdAt,
+            }))
+          : { message: "No pending changes to review" },
+      };
+    }
+
+    case "review_approval": {
+      const approval = await prisma.approvalRequest.update({
+        where: { id: input.approvalId },
+        data: {
+          status: input.decision,
+          reviewedById: input.reviewerId,
+          reviewedAt: new Date(),
+          reviewNote: input.note || null,
+        },
+      });
+      // If approved, we could execute the payload here in the future
+      return {
+        result: { id: approval.id, status: approval.status },
+        actionDescription: `${input.decision === "approved" ? "Approved" : "Declined"} change request`,
+      };
+    }
+
+    case "add_trip_members": {
+      const trip = await prisma.trip.findUnique({ where: { id: input.tripId } });
+      if (!trip) return { result: { error: "Trip not found" } };
+      const results = [];
+      for (const name of input.names) {
+        const trimmed = name.trim();
+        if (!trimmed) continue;
+        // Create or find traveler
+        let traveler = await prisma.traveler.findFirst({
+          where: { displayName: { equals: trimmed, mode: "insensitive" } },
+        });
+        if (!traveler) {
+          traveler = await prisma.traveler.create({
+            data: { displayName: trimmed },
+          });
+        }
+        // Check if already a member
+        const existing = await prisma.tripMember.findFirst({
+          where: { tripId: input.tripId, travelerId: traveler.id },
+        });
+        if (existing) {
+          results.push({ name: trimmed, status: "already a member" });
+          continue;
+        }
+        // Create membership + invite
+        await prisma.tripMember.create({
+          data: { tripId: input.tripId, travelerId: traveler.id, role: "traveler" },
+        });
+        const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        await prisma.tripInvite.create({
+          data: { tripId: input.tripId, expectedName: trimmed, inviteToken: token },
+        });
+        results.push({ name: trimmed, status: "added", inviteToken: token });
+      }
+      return {
+        result: results,
+        actionDescription: `Added ${results.filter(r => r.status === "added").length} member(s) to the trip`,
+      };
+    }
+
+    case "change_member_role": {
+      const member = await prisma.tripMember.findFirst({
+        where: { tripId: input.tripId, traveler: { displayName: { equals: input.travelerName, mode: "insensitive" } } },
+      });
+      if (!member) return { result: { error: `${input.travelerName} is not a member of this trip` } };
+      await prisma.tripMember.update({
+        where: { id: member.id },
+        data: { role: input.role },
+      });
+      return {
+        result: { name: input.travelerName, role: input.role },
+        actionDescription: `Changed ${input.travelerName}'s role to ${input.role}`,
+      };
+    }
+
+    case "set_trip_anchor": {
+      const trip = await prisma.trip.findUnique({
+        where: { id: input.tripId },
+        include: { days: { orderBy: { date: "asc" } } },
+      });
+      if (!trip) return { result: { error: "Trip not found" } };
+      const anchorDate = new Date(input.anchorDate);
+      // Update each day's date based on its dayNumber
+      for (const day of trip.days) {
+        const dayNum = day.dayNumber || 1;
+        const newDate = new Date(anchorDate);
+        newDate.setDate(newDate.getDate() + (dayNum - 1));
+        await prisma.day.update({
+          where: { id: day.id },
+          data: { date: newDate },
+        });
+      }
+      // Update trip dates
+      const lastDay = trip.days[trip.days.length - 1];
+      const lastDayNum = lastDay?.dayNumber || trip.days.length;
+      const endDate = new Date(anchorDate);
+      endDate.setDate(endDate.getDate() + (lastDayNum - 1));
+      await prisma.trip.update({
+        where: { id: input.tripId },
+        data: {
+          startDate: anchorDate,
+          endDate: endDate,
+          anchorDate: anchorDate,
+          datesKnown: true,
+        },
+      });
+      // Update city dates too
+      const cities = await prisma.city.findMany({ where: { tripId: input.tripId }, include: { days: true } });
+      for (const city of cities) {
+        if (city.days.length > 0) {
+          const cityDayDates = city.days.map(d => {
+            const dn = d.dayNumber || 1;
+            const nd = new Date(anchorDate);
+            nd.setDate(nd.getDate() + (dn - 1));
+            return nd;
+          });
+          cityDayDates.sort((a, b) => a.getTime() - b.getTime());
+          await prisma.city.update({
+            where: { id: city.id },
+            data: { arrivalDate: cityDayDates[0], departureDate: cityDayDates[cityDayDates.length - 1] },
+          });
+        }
+      }
+      return {
+        result: {
+          message: `Dates set — Day 1 is ${anchorDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+          tripStart: anchorDate.toISOString(),
+          tripEnd: endDate.toISOString(),
+        },
+        actionDescription: `Set trip anchor: Day 1 = ${anchorDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      };
+    }
+
+    case "activate_trip": {
+      // Deactivate all trips, activate the requested one
+      await prisma.trip.updateMany({ data: { status: "archived" } });
+      const activated = await prisma.trip.update({
+        where: { id: input.tripId },
+        data: { status: "active" },
+        select: { id: true, name: true },
+      });
+      return {
+        result: { tripId: activated.id, name: activated.name, message: `Switched to ${activated.name}` },
+        actionDescription: `Switched to trip: ${activated.name}`,
+      };
+    }
+
+    case "delete_decision": {
+      const decision = await prisma.decision.findUnique({ where: { id: input.decisionId } });
+      if (!decision) return { result: { error: "Decision not found" } };
+      await prisma.decision.delete({ where: { id: input.decisionId } });
+      return {
+        result: { message: `Cleared the "${decision.title}" decision` },
+        actionDescription: `Cleared decision: "${decision.title}"`,
+      };
+    }
+
+    case "retract_interest": {
+      const interest = await prisma.experienceInterest.findUnique({
+        where: { id: input.interestId },
+        include: { experience: { select: { name: true } } },
+      });
+      if (!interest) return { result: { error: "Interest not found" } };
+      await prisma.experienceInterest.delete({ where: { id: input.interestId } });
+      return {
+        result: { message: `Took back the flag on ${interest.experience.name}` },
+        actionDescription: `Retracted interest in ${interest.experience.name}`,
+      };
+    }
+
+    case "restore_entity": {
+      const changeLog = await prisma.changeLog.findUnique({ where: { id: input.changeLogId } });
+      if (!changeLog) return { result: { error: "Change log entry not found" } };
+      if (!changeLog.previousState) return { result: { error: "No previous state to restore from" } };
+      const prev = changeLog.previousState as any;
+      const entityType = changeLog.entityType?.toLowerCase();
+
+      try {
+        switch (entityType) {
+          case "experience":
+            await prisma.experience.create({
+              data: {
+                id: prev.id,
+                tripId: prev.tripId || prev.trip_id,
+                cityId: prev.cityId || prev.city_id,
+                name: prev.name,
+                description: prev.description || null,
+                sourceText: prev.sourceText || prev.source_text || null,
+                locationStatus: prev.locationStatus || prev.location_status || "unlocated",
+                latitude: prev.latitude || null,
+                longitude: prev.longitude || null,
+                state: prev.state || "possible",
+                dayId: prev.dayId || prev.day_id || null,
+                priorityOrder: prev.priorityOrder ?? prev.priority_order ?? 0,
+                themes: prev.themes || [],
+                createdBy: prev.createdBy || prev.created_by || user.displayName,
+              },
+            });
+            break;
+          case "reservation":
+            await prisma.reservation.create({
+              data: {
+                id: prev.id,
+                tripId: prev.tripId || prev.trip_id,
+                dayId: prev.dayId || prev.day_id,
+                name: prev.name,
+                type: prev.type || "other",
+                datetime: new Date(prev.datetime),
+                confirmationNumber: prev.confirmationNumber || prev.confirmation_number || null,
+                notes: prev.notes || null,
+              },
+            });
+            break;
+          case "accommodation":
+            await prisma.accommodation.create({
+              data: {
+                id: prev.id,
+                tripId: prev.tripId || prev.trip_id,
+                cityId: prev.cityId || prev.city_id,
+                name: prev.name,
+                address: prev.address || null,
+                checkInTime: prev.checkInTime || prev.check_in_time || null,
+                checkOutTime: prev.checkOutTime || prev.check_out_time || null,
+                confirmationNumber: prev.confirmationNumber || prev.confirmation_number || null,
+                notes: prev.notes || null,
+              },
+            });
+            break;
+          default:
+            return { result: { error: `Can't restore ${entityType} entities via chat yet — try the History page` } };
+        }
+        return {
+          result: { message: `Brought back ${prev.name || changeLog.entityName}` },
+          actionDescription: `Restored ${changeLog.entityName}`,
+        };
+      } catch (e: any) {
+        if (e.code === "P2002") return { result: { error: "Already restored" } };
+        return { result: { error: `Couldn't restore: ${e.message}` } };
+      }
+    }
+
+    case "resend_invite": {
+      const invite = await prisma.tripInvite.findFirst({
+        where: {
+          tripId: input.tripId,
+          expectedName: { equals: input.memberName, mode: "insensitive" },
+        },
+      });
+      if (!invite) return { result: { error: `No invite found for ${input.memberName}` } };
+      const newToken = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      await prisma.tripInvite.update({
+        where: { id: invite.id },
+        data: { inviteToken: newToken, claimedByTravelerId: null, claimedAt: null },
+      });
+      const link = `${process.env.APP_URL || "https://wander.up.railway.app"}/join/${newToken}`;
+      return {
+        result: { name: input.memberName, link, message: `New invite link for ${input.memberName}. The old one won't work anymore.` },
+        actionDescription: `Regenerated invite link for ${input.memberName}`,
+      };
+    }
+
+    case "get_travel_advisories": {
+      // Derive countries from trip cities if not provided
+      let countries = input.countries as string[] | undefined;
+      if (!countries || countries.length === 0) {
+        const trip = await prisma.trip.findUnique({
+          where: { id: input.tripId },
+          include: { cities: { where: { hidden: false }, select: { country: true } } },
+        });
+        if (trip?.cities) {
+          countries = [...new Set(trip.cities.map((c: any) => c.country).filter(Boolean))];
+        }
+      }
+      if (!countries || countries.length === 0) {
+        return { result: { error: "No destination countries found. Add cities with countries to your trip first." } };
+      }
+
+      const advisories = getCountryAdvisories(countries);
+      const trip = await prisma.trip.findUnique({
+        where: { id: input.tripId },
+        select: { startDate: true },
+      });
+      const summary = getPreTripSummary(countries, trip?.startDate?.toISOString().split("T")[0]);
+
+      return {
+        result: {
+          advisories,
+          summary,
+          note: "This is reference information — travelers should verify with official sources before departure.",
         },
       };
     }
@@ -3109,16 +3741,48 @@ router.post("/", async (req: AuthRequest, res) => {
       }
     }
 
+    // Determine user's role on this trip
+    let userRole = "planner";
+    if (req.user?.travelerId && tripId) {
+      try {
+        const { getUserRole: getRole } = await import("../middleware/role.js");
+        const role = await getRole(req.user.travelerId, tripId);
+        if (role) userRole = role;
+      } catch { /* fallback to planner */ }
+    }
+
+    // Fetch relevant learnings to inject into context (planners only)
+    let learningsContext = "";
+    if (tripId && userRole === "planner") {
+      try {
+        const learnings = await prisma.learning.findMany({
+          where: {
+            OR: [
+              { tripId, scope: "trip_specific" },
+              { scope: "general" },
+            ],
+          },
+          include: { traveler: { select: { displayName: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 15,
+        });
+        if (learnings.length > 0) {
+          learningsContext = `\nTRIP LEARNINGS (wisdom from past travel — weave these in naturally when relevant, don't list them unprompted):\n${learnings.map(l => `- ${l.content} (from ${l.traveler.displayName}${l.scope === "general" ? ", applies to all trips" : ""})`).join("\n")}`;
+        }
+      } catch { /* non-blocking */ }
+    }
+
     // Build system prompt with page context
-    const systemPrompt = `You are a helpful travel planning assistant embedded in the Wander app. You can answer questions about the user's trip and perform actions like adding experiences, promoting/demoting them, adding reservations, and managing cities and days.
+    const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything. You help plan trips, answer questions, and take care of details so travelers can focus on the experience.
 
 CURRENT CONTEXT:
 - Page: ${context?.page || "unknown"}
 - Trip ID: ${tripId || "none"}
+- User: ${req.user?.displayName || "unknown"} (role: ${userRole})
 ${context?.cityId ? `- Viewing city ID: ${context.cityId}` : ""}
 ${context?.cityName ? `- Viewing city: ${context.cityName}` : ""}
 ${context?.dayId ? `- Viewing day ID: ${context.dayId}` : ""}
-${context?.dayDate ? `- Viewing day: ${context.dayDate}` : ""}
+${context?.dayDate ? `- Viewing day: ${context.dayDate}` : ""}${learningsContext}
 
 RULES:
 1. Be concise and helpful. One or two sentences for simple answers.
@@ -3159,7 +3823,23 @@ RULES:
 36. When the user asks about something NOT in the trip data — restaurant recommendations, opening hours, crowd levels, "is X worth visiting", "best Y near Z", current conditions, travel tips — use web_search. Synthesize the results into a concise, helpful answer. Do NOT dump raw search results. Never use web_search for questions answerable from trip data (use other tools instead). You can combine web_search with lookup_place in the same response — search for information, then show a photo card for the top recommendation.
 37. When a user asks to add a destination as a "day trip", "excursion", or "side trip" from an existing city, use add_experience to create it within that city — do NOT use add_city. Day trips are experiences you return from, not separate overnight bases. Only use add_city when the user wants a new base/overnight destination with its own date range.
 38. When someone says "let's decide", "help us choose", "we need to pick between", or "start a vote", use create_decision with options. Use get_open_decisions to see current decisions. Use cast_decision_vote to vote (set optionId to null for "happy with any"). Use resolve_decision when someone says "go with X" or "let's do X". Use add_decision_option to add more choices to an existing decision. This is the primary group decision mechanism — prefer it over the older interest-floating system for formal choices.
-39. Use get_contributions_by_traveler when the user asks what someone has added, contributed, or wants to see a specific traveler's activities.`;
+39. Use get_contributions_by_traveler when the user asks what someone has added, contributed, or wants to see a specific traveler's activities.
+40. When someone says "remember this for next time", "note for future trips", "next time we should...", or anything about learning from experience, use save_learning. Ask whether it's for all future trips (scope: "general") or just this one (scope: "trip_specific"). Pass the current user's travelerId.
+41. Use get_learnings to review past learnings when planning or when the user asks "what did we learn?" or "any notes from last time?". Surface relevant learnings proactively when they might apply — e.g., if planning a large group dinner and there's a learning about group restaurant sizes.
+42. Use update_learning and delete_learning when the user wants to edit or remove a saved learning.
+43. When a planner asks "anything to review?", "pending changes?", or similar, use get_pending_approvals to show queued approval requests.
+44. Use review_approval when a planner says "approve that", "looks good", "reject that change", or similar. Pass the approvalId, the decision ("approved" or "rejected"), and optionally a note.
+45. Use add_trip_members when someone says "add Glo and Brian to the trip" or names people who should join. Creates travelers, memberships, and personal invite links.
+46. Use change_member_role when a planner says "make Glo a planner" or "change Brian's role to traveler". Only planners can do this.
+47. Use set_trip_anchor when someone says "Day 1 is December 25" or "the trip starts on [date]". This converts a dateless trip (Day 1, Day 2...) into real calendar dates. All days, cities, and trip dates update automatically.
+49. Use activate_trip when someone says "switch to the Vietnam trip", "work on [trip name]", or "go to [trip name]". Look up available trips with get_trip_summary first if needed.
+50. Use delete_decision when someone says "cancel that vote", "never mind about that choice", or "close this decision". Look up open decisions first with get_open_decisions.
+51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
+52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
+53. Use resend_invite when a planner says "send [name] a new link", "[name] lost their invite", or "regenerate [name]'s link". This invalidates the old link and creates a new one.
+54. Use create_day_choice when someone says "some of us might want to do X while others do Y", "we could split up", or "there are two options for the afternoon". This creates a Decision tied to a specific day so everyone can vote on what they want to do.
+55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
+48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
 
     // Build conversation with history for context
     let messages: Anthropic.MessageParam[] = [];

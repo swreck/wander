@@ -12,17 +12,44 @@ export interface City {
   _count?: { experiences: number; days: number };
 }
 
+export interface ExperienceReactionGroup {
+  emoji: string;
+  count: number;
+  travelers: string[];
+}
+
+export interface ExperienceNoteEntry {
+  id: string;
+  experienceId: string;
+  travelerId: string;
+  content: string;
+  createdAt: string;
+  traveler: { displayName: string };
+}
+
+export interface PersonalItem {
+  id: string;
+  dayId: string;
+  travelerId: string;
+  content: string;
+  timeWindow: string | null;
+  createdAt: string;
+}
+
 export interface Day {
   id: string;
   tripId: string;
   cityId: string;
   date: string;
+  dayNumber: number | null;
+  dayType: string; // "free" | "guided"
   explorationZone: string | null;
   notes: string | null;
   city: City;
   experiences: Experience[];
   reservations: Reservation[];
   accommodations: Accommodation[];
+  personalItems?: PersonalItem[];
 }
 
 export interface RouteSegment {
@@ -165,8 +192,10 @@ export interface Trip {
   id: string;
   name: string;
   tagline: string | null;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
+  datesKnown: boolean;
+  anchorDate: string | null;
   status: string;
   cities: City[];
   routeSegments: RouteSegment[];
@@ -218,6 +247,7 @@ export interface Decision {
   id: string;
   tripId: string;
   cityId: string;
+  dayId?: string | null;
   title: string;
   status: string;
   createdBy: string;

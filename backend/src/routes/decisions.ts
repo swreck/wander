@@ -37,7 +37,7 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
 // Create a decision
 router.post("/", async (req: AuthRequest, res) => {
   try {
-    const { tripId, cityId, title } = req.body;
+    const { tripId, cityId, dayId, title } = req.body;
     if (!tripId || !cityId || !title?.trim()) {
       res.status(400).json({ error: "tripId, cityId, and title are required" });
       return;
@@ -47,6 +47,7 @@ router.post("/", async (req: AuthRequest, res) => {
       data: {
         tripId,
         cityId,
+        dayId: dayId || null,
         title: title.trim(),
         createdBy: req.user!.code,
       },

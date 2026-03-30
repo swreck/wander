@@ -33,7 +33,7 @@ test("chat clear button requires confirmation (requires backend)", async ({ page
   const chatBtn = page.getByLabel("Open chat assistant");
   await expect(chatBtn).toBeVisible({ timeout: 10000 });
   await chatBtn.click();
-  await expect(page.getByText("Wander Assistant")).toBeVisible();
+  await expect(page.getByText("Scout")).toBeVisible();
 
   // Type something so Clear button appears
   const input = page.locator("textarea");
@@ -78,9 +78,9 @@ test("profile page renders without crash (requires backend)", async ({ page }) =
   // Should NOT crash
   await expect(page.getByText("Something went wrong")).not.toBeVisible();
 
-  // Should show the privacy label updates
+  // Should show the profile page content
   const body = await page.locator("body").innerText();
-  expect(body).toContain("Travel Info");
+  expect(body).toContain("Scout knows about you");
 });
 
 // ── Settings page renders with updated labels ────────────────────

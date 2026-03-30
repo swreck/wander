@@ -25,6 +25,7 @@ export interface ExtractedExperience {
   name: string;
   description?: string;
   timeWindow?: string;
+  choiceGroup?: string;
 }
 
 export interface ExtractedRouteSegment {
@@ -51,6 +52,7 @@ export interface ExtractionResult {
   experiences: ExtractedExperience[];
   routeSegments: ExtractedRouteSegment[];
   notes: string;
+  gapWarnings?: string[];
 }
 
 const EXTRACTION_PROMPT = `You are a travel itinerary parser. Extract structured trip data from the provided document.
@@ -67,7 +69,7 @@ Return a JSON object with this exact structure:
     { "cityName": "City Name", "name": "Hotel Name", "address": "...", "checkInDate": "YYYY-MM-DD", "checkOutDate": "YYYY-MM-DD", "notes": "..." }
   ],
   "experiences": [
-    { "cityName": "City Name", "dayDate": "YYYY-MM-DD", "name": "Activity Name", "description": "brief description", "timeWindow": "morning/afternoon/evening or specific time" }
+    { "cityName": "City Name", "dayDate": "YYYY-MM-DD", "name": "Activity Name", "description": "brief description", "timeWindow": "morning/afternoon/evening or specific time", "choiceGroup": "optional — group label for OR-choices on same day" }
   ],
   "routeSegments": [
     { "originCity": "City A", "destinationCity": "City B", "transportMode": "train/flight/drive/ferry/other", "departureDate": "YYYY-MM-DD", "serviceNumber": "flight number or train service (e.g. NH204, Nozomi 42)", "confirmationNumber": "booking reference if present", "departureTime": "HH:MM (24h)", "arrivalTime": "HH:MM (24h)", "departureStation": "station or airport name", "arrivalStation": "station or airport name", "seatInfo": "seat assignment if mentioned", "notes": "..." }
@@ -85,10 +87,14 @@ If a place is described as a "day trip", "excursion", "side trip", or visited fo
 
 TOUR COMPANY ITINERARIES (Backroads, G Adventures, Intrepid, etc.):
 - When multiple activity levels or route options are listed for the same day (e.g., "Level 1: 15 miles / Level 2: 24 miles / Level 3: 39 miles"), create ONE experience with the moderate option and mention alternatives in the description.
+- When a day offers genuinely different activity choices (not difficulty levels of the same activity), create separate experiences for each choice. Mark them with a choiceGroup field — e.g., "Day 3 afternoon choice". Examples: "relax at hotel OR guided city walk", "cooking class OR bike ride". This is different from distance/difficulty options for the same activity, which should be ONE experience.
 - Activities marked "optional" should still be included as experiences but note "(optional)" in the description.
 - Ignore: pricing, what's included/excluded lists, packing suggestions, booking terms, equipment specs, activity level explanations, and marketing copy. Only extract actual places, activities, and logistics.
 - When the same attraction is part of multiple activity level options, list it only once.
 - Hotel/lodge names with descriptions like "begins 3-night stay" → create ONE accommodation, do not repeat per night.
+- Extract specific named activities even when mentioned mid-paragraph in prose descriptions. A sentence like "we stop for lunch at a local restaurant, which serves renowned Vietnamese fusion" contains a lunch experience. Look for verbs like "stop at", "visit", "explore", "head to", "join us for".
+- Operational warnings (schedule changes, weather advisories, flexibility notes) should be included in the notes field of the relevant day or the overall notes, NOT dropped as general travel advice.
+- When hotel descriptions include phone numbers, websites, or street addresses, include them in the accommodation notes field.
 
 INFORMAL PLANNING NOTES:
 - Notation like "Tokyo (4 nights)" or "Osaka (2n)" means a city with that many overnight stays. Calculate date ranges from the trip start date.
@@ -112,6 +118,7 @@ ROUTE SEGMENTS:
 GENERAL:
 - City names should be clean and standard (e.g., "Kyoto" not "Kyoto, Japan" — country goes in the country field).
 - If a region name is used instead of a city (e.g., "Izu Peninsula"), use the most specific locality available or keep the region name.
+- MISSING-PAGE DETECTION: If you see gaps in the day sequence (e.g., Day 1-4 then Day 7-8 with no Day 5-6), include a warning in the notes field: "Gap detected: Days X-Y are missing. Did you skip a page?" This helps users realize they missed scanning a page.
 - Return ONLY the JSON object, no other text.`;
 
 // Strip common web paste noise before extraction
@@ -182,9 +189,13 @@ export async function extractItinerary(
         });
       }
     }
+    let imagePrompt = "Extract the travel itinerary from these uploaded files.";
+    if (hints?.startDate) {
+      imagePrompt += `\n\nIMPORTANT: The trip starts on ${hints.startDate}. Use this to calculate actual YYYY-MM-DD dates for "Day 1", "Day 2", etc. Day 1 = ${hints.startDate}. Do NOT use relative day numbers — convert them all to calendar dates.`;
+    }
     userContent.push({
       type: "text",
-      text: "Extract the travel itinerary from these uploaded files.",
+      text: imagePrompt,
     });
   }
 
@@ -192,7 +203,7 @@ export async function extractItinerary(
     const cleaned = preprocessContent(content);
     let textPrompt = `Extract the travel itinerary from this text:\n\n${cleaned}`;
     if (hints?.startDate) {
-      textPrompt += `\n\nIMPORTANT: The trip starts on ${hints.startDate}. Use this to calculate actual dates for "Day 1", "Day 2", etc. Day 1 = ${hints.startDate}.`;
+      textPrompt += `\n\nIMPORTANT: The trip starts on ${hints.startDate}. Use this to calculate actual YYYY-MM-DD dates for "Day 1", "Day 2", etc. Day 1 = ${hints.startDate}. Do NOT use relative day numbers — convert them all to calendar dates.`;
     }
     userContent.push({
       type: "text",
@@ -204,7 +215,7 @@ export async function extractItinerary(
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: EXTRACTION_PROMPT,
     messages,
   });
@@ -220,7 +231,18 @@ export async function extractItinerary(
     throw new Error("AI extraction did not return valid JSON");
   }
 
-  return JSON.parse(jsonMatch[0]) as ExtractionResult;
+  const result = JSON.parse(jsonMatch[0]) as ExtractionResult;
+
+  // Extract gap warnings from notes
+  const gapPattern = /Gap detected:[^\n.]+/gi;
+  const gaps = result.notes?.match(gapPattern) || [];
+  if (gaps.length > 0) {
+    result.gapWarnings = gaps;
+    // Remove gap warnings from general notes
+    result.notes = result.notes.replace(gapPattern, "").replace(/\n{2,}/g, "\n").trim();
+  }
+
+  return result;
 }
 
 // ── Recommendation Extraction ────────────────────────────────────
