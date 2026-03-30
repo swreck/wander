@@ -178,7 +178,7 @@ export default function PlanPage() {
         routeSegmentId: routeSegmentId || null,
         timeWindow: timeWindow || null,
       });
-      showToast("Added to itinerary");
+      showToast("On the plan");
       await loadExperiences();
     } catch {
       showToast("Couldn't add — check your connection and try again", "error");
@@ -188,7 +188,7 @@ export default function PlanPage() {
   async function handleDemote(expId: string) {
     try {
       await api.post(`/experiences/${expId}/demote`, {});
-      showToast("Moved to Maybe list");
+      showToast("Back in the idea pile");
       await loadExperiences();
     } catch {
       showToast("Couldn't move — check your connection and try again", "error");
@@ -197,10 +197,37 @@ export default function PlanPage() {
 
   async function handleDeleteExp(expId: string) {
     try {
-      await api.delete(`/experiences/${expId}`);
+      const result = await api.delete<{ changeLogId?: string; name?: string }>(`/experiences/${expId}`);
       setSelectedExpId(null);
-      showToast("Experience deleted");
       await loadExperiences();
+      const changeLogId = result?.changeLogId;
+      const expName = result?.name || "that";
+      if (changeLogId) {
+        showToast(`Removed ${expName}`, "success", {
+          duration: 10000,
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              try {
+                const token = localStorage.getItem("wander:token");
+                await fetch(`/api/restore/${changeLogId}`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                  },
+                });
+                showToast(`Brought back ${expName}`, "success");
+                await loadExperiences();
+              } catch {
+                showToast("Couldn't undo that one", "error");
+              }
+            },
+          },
+        });
+      } else {
+        showToast(`Removed ${expName}`, "success");
+      }
     } catch {
       showToast("Couldn't delete — check your connection and try again", "error");
     }
@@ -433,7 +460,7 @@ export default function PlanPage() {
   if (loading || !trip) {
     return (
       <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
-        Loading...
+        Getting your plan ready...
       </div>
     );
   }
@@ -479,6 +506,7 @@ export default function PlanPage() {
   })();
 
   const isWithinDates = (() => {
+    if (!trip.startDate || !trip.endDate) return false;
     const now = new Date();
     return now >= new Date(trip.startDate) && now <= new Date(trip.endDate);
   })();
@@ -541,7 +569,10 @@ export default function PlanPage() {
             <div className="absolute left-2 right-2 z-10 pointer-events-none flex justify-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
               <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-sm border border-[#e0d8cc] px-3 py-2 pointer-events-auto max-w-sm">
                 <div className="text-xs font-medium text-[#3a3128]">
-                  {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })}
+                  {trip.datesKnown === false
+                    ? `Day ${selectedDay.dayNumber || days.indexOf(selectedDay) + 1}`
+                    : new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })
+                  }
                   {" — "}
                   {selectedDay.city.name}
                   {selectedDay.city.tagline && (
@@ -602,13 +633,15 @@ export default function PlanPage() {
             </div>
           )}
 
-          {/* Bottom dock: action bar + day filmstrip — single fixed container */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 safe-bottom-nav lg:block">
-            {/* Action bar — Home, List, Add, Chat */}
+          {/* Bottom dock: action bar + day filmstrip — single bar (global nav hides on /plan) */}
+          <div className="fixed left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 lg:block bottom-0"
+               style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+            {/* Action bar — Home, List, Add, Chat, Now */}
             <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40">
-              <button onClick={() => navigate("/")} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+              <button onClick={() => navigate("/")} className="flex flex-col items-center px-2 py-0.5 text-[#c8bba8] hover:text-[#6b5d4a] transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
                 <span className="text-[10px] leading-tight">Home</span>
               </button>
@@ -636,6 +669,14 @@ export default function PlanPage() {
                         className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Import</button>
                       <button onClick={() => { cameraRef.current?.click(); setShowAddMenu(false); }}
                         className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Camera</button>
+                      <div className="border-t border-[#e0d8cc] my-0.5" />
+                      <button onClick={() => {
+                        setShowAddMenu(false);
+                        window.dispatchEvent(new CustomEvent("wander-open-chat", {
+                          detail: { prefill: "Start a vote about " },
+                        }));
+                      }}
+                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Start a vote</button>
                     </div>
                   </>
                 )}
@@ -651,9 +692,12 @@ export default function PlanPage() {
                 </svg>
                 <span className="text-[10px] leading-tight">Chat</span>
               </button>
-              <button onClick={() => navigate("/guide#shaping")} className="flex flex-col items-center px-3 py-0.5 text-[#a89880] hover:text-[#6b5d4a] transition-colors" aria-label="Guide">
-                <span className="text-sm leading-none font-light">?</span>
-                <span className="text-[10px] leading-tight">&nbsp;</span>
+              <button onClick={() => navigate("/now")} className="flex flex-col items-center px-2 py-0.5 text-[#c8bba8] hover:text-[#6b5d4a] transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span className="text-[10px] leading-tight">Now</span>
               </button>
             </div>
             {/* Day filmstrip */}
@@ -676,8 +720,13 @@ export default function PlanPage() {
                 const isTravel = prevDay && prevDay.cityId !== day.cityId;
                 const prevColor = isTravel ? getCityPastel(trip.cities, prevDay.cityId) : null;
 
-                const dayOfWeek = new Date(day.date).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
-                const dateLabel = new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+                const isDateless = trip.datesKnown === false;
+                const dayOfWeek = isDateless
+                  ? `Day ${day.dayNumber || dayIdx + 1}`
+                  : new Date(day.date).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+                const dateLabel = isDateless
+                  ? day.city.name
+                  : new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
                 return (
                   <button
@@ -1095,7 +1144,7 @@ function buildStaticMapUrl(
 }
 
 function buildShortLabel(trip: Trip): string {
-  const year = new Date(trip.startDate).getFullYear();
+  const year = trip.startDate ? new Date(trip.startDate).getFullYear() : new Date().getFullYear();
   // Use first word of trip name that isn't a month or year
   const months = new Set(["january","february","march","april","may","june","july","august","september","october","november","december"]);
   const word = trip.name.split(/\s+/).find(

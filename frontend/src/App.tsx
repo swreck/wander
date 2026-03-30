@@ -10,6 +10,8 @@ import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import GuidePage from "./pages/GuidePage";
 import JoinPage from "./pages/JoinPage";
+import CityBoard from "./pages/CityBoard";
+import TripStoryPage from "./pages/TripStoryPage";
 import OfflineIndicator from "./components/OfflineIndicator";
 import PhraseCard from "./components/PhraseCard";
 import ChatBubble from "./components/ChatBubble";
@@ -20,8 +22,15 @@ import { ToastProvider } from "./contexts/ToastContext";
 import { useToast } from "./contexts/ToastContext";
 import { CaptureProvider } from "./contexts/CaptureContext";
 import CaptureToast from "./components/CaptureToast";
+import CaptureFAB from "./components/CaptureFAB";
+import ReflectionCard from "./components/ReflectionCard";
+import SyncIndicator from "./components/SyncIndicator";
+import BottomNav from "./components/BottomNav";
+import NewMemberOnboarding from "./components/NewMemberOnboarding";
+import { shouldShowOnboarding } from "./components/NewMemberOnboarding";
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./lib/api";
+import type { Day, Experience, Trip } from "./lib/types";
 
 function ShortcutHelp() {
   const [show, setShow] = useState(false);
@@ -154,6 +163,97 @@ function ChatOverlay() {
   );
 }
 
+function OnboardingOverlay() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const [show, setShow] = useState(false);
+  const [tripName, setTripName] = useState("");
+
+  useEffect(() => {
+    if (!user?.travelerId) return;
+    if (location.pathname === "/login" || location.pathname.startsWith("/join")) return;
+
+    // Check if onboarding should show (not completed, not snoozed)
+    if (!shouldShowOnboarding()) return;
+
+    // Check if user already has interests set — if so, mark complete silently
+    api.get<{ preferences: Record<string, unknown> | null }>(`/auth/travelers/${user.travelerId}`)
+      .then((t) => {
+        const prefs = t?.preferences as Record<string, unknown> | null;
+        const interests = (prefs?.interests as string[]) || [];
+        if (interests.length > 0) {
+          // Already has interests — no need to show onboarding
+          localStorage.setItem("wander:onboarding-completed", "1");
+          return;
+        }
+        // Get trip name for the greeting
+        return api.get<Trip>("/trips/active").then((trip) => {
+          if (trip?.name) {
+            setTripName(trip.name);
+            setShow(true);
+          }
+        });
+      })
+      .catch(() => {});
+  }, [user?.travelerId, location.pathname]);
+
+  if (!show || !user?.travelerId) return null;
+
+  return (
+    <NewMemberOnboarding
+      tripName={tripName}
+      displayName={user.displayName}
+      travelerId={user.travelerId}
+      onComplete={() => setShow(false)}
+    />
+  );
+}
+
+function ReflectionOverlay() {
+  const { user } = useAuth();
+  const [dayData, setDayData] = useState<{
+    tripId: string; dayId: string; dayDate: string; cityName: string; experiences: Experience[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const hour = new Date().getHours();
+    if (hour < 18) return; // Only after 6pm
+
+    api.get<any>("/trips/active").then(async (trip) => {
+      if (!trip) return;
+      // Check if today is within trip dates
+      const todayStr = new Date().toISOString().split("T")[0];
+      if (trip.startDate && todayStr < trip.startDate.split("T")[0]) return;
+      if (trip.endDate && todayStr > trip.endDate.split("T")[0]) return;
+
+      const days = await api.get<Day[]>(`/days/trip/${trip.id}`);
+      const today = days.find((d: Day) => d.date.split("T")[0] === todayStr);
+      if (!today) return;
+
+      const exps = await api.get<Experience[]>(`/experiences/trip/${trip.id}?cityId=${today.cityId}`);
+      setDayData({
+        tripId: trip.id,
+        dayId: today.id,
+        dayDate: today.date,
+        cityName: today.city?.name || "",
+        experiences: exps,
+      });
+    }).catch(() => {});
+  }, [user]);
+
+  if (!dayData) return null;
+  return (
+    <ReflectionCard
+      tripId={dayData.tripId}
+      dayId={dayData.dayId}
+      dayDate={dayData.dayDate}
+      cityName={dayData.cityName}
+      experiences={dayData.experiences}
+    />
+  );
+}
+
 function SyncNotifier() {
   const { showToast } = useToast();
 
@@ -198,6 +298,8 @@ function AppRoutes() {
       <Route path="/capture-share" element={<ProtectedRoute><CaptureSharePage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/city/:cityId" element={<ProtectedRoute><CityBoard /></ProtectedRoute>} />
+      <Route path="/story" element={<ProtectedRoute><TripStoryPage /></ProtectedRoute>} />
       <Route path="/guide" element={<ProtectedRoute><GuidePage /></ProtectedRoute>} />
     </Routes>
   );
@@ -216,10 +318,15 @@ export default function App() {
               <InterestOverlay />
               <ChatOverlay />
               <CaptureToast />
+              <CaptureFAB />
               <PhraseCard />
               <ShortcutHelp />
               <OfflineIndicator />
               <SyncNotifier />
+              <SyncIndicator />
+              <BottomNav />
+              <OnboardingOverlay />
+              <ReflectionOverlay />
             </CaptureProvider>
           </ToastProvider>
         </AuthProvider>

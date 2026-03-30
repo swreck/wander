@@ -1,5 +1,6 @@
 import prisma from "./db.js";
 import type { AuthPayload } from "../middleware/auth.js";
+import { broadcastChange } from "../routes/sse.js";
 
 interface LogParams {
   user: AuthPayload;
@@ -14,7 +15,7 @@ interface LogParams {
 }
 
 export async function logChange(params: LogParams) {
-  return prisma.changeLog.create({
+  const entry = await prisma.changeLog.create({
     data: {
       tripId: params.tripId,
       userCode: params.user.code,
@@ -28,4 +29,13 @@ export async function logChange(params: LogParams) {
       newState: params.newState as any,
     },
   });
+
+  // Notify other connected clients via SSE
+  broadcastChange(params.tripId, {
+    userCode: params.user.code,
+    displayName: params.user.displayName,
+    description: params.description,
+  });
+
+  return entry;
 }

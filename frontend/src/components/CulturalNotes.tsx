@@ -72,7 +72,7 @@ export default function CulturalNotes({ experienceId, cachedNotes, onNotesLoaded
       )}
 
       {expanded && notes && notes.length === 0 && !loading && (
-        <p className="mt-2 text-sm text-[#c8bba8] italic">No cultural context available for this place.</p>
+        <p className="mt-2 text-sm text-[#c8bba8] italic">We don't have specific tips for this one yet</p>
       )}
     </div>
   );

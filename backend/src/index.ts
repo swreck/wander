@@ -27,6 +27,17 @@ import transitStatusRoutes from "./routes/transitStatus.js";
 import interestRoutes from "./routes/interests.js";
 import phraseRoutes from "./routes/phrases.js";
 import decisionRoutes from "./routes/decisions.js";
+import learningRoutes from "./routes/learnings.js";
+import approvalRoutes from "./routes/approvals.js";
+import restoreRoutes from "./routes/restore.js";
+import personalItemRoutes from "./routes/personalItems.js";
+import reactionRoutes from "./routes/reactions.js";
+import experienceNoteRoutes from "./routes/experienceNotes.js";
+import scoutRoutes from "./routes/scout.js";
+import activityFeedRoutes from "./routes/activityFeed.js";
+import reflectionRoutes from "./routes/reflections.js";
+import sseRoutes from "./routes/sse.js";
+import travelAdvisoryRoutes from "./routes/travelAdvisory.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -59,6 +70,17 @@ app.use("/api/transit-status", transitStatusRoutes);
 app.use("/api/interests", interestRoutes);
 app.use("/api/phrases", phraseRoutes);
 app.use("/api/decisions", decisionRoutes);
+app.use("/api/learnings", learningRoutes);
+app.use("/api/approvals", approvalRoutes);
+app.use("/api/restore", restoreRoutes);
+app.use("/api/personal-items", personalItemRoutes);
+app.use("/api/reactions", reactionRoutes);
+app.use("/api/experience-notes", experienceNoteRoutes);
+app.use("/api/scout", scoutRoutes);
+app.use("/api/activity-feed", activityFeedRoutes);
+app.use("/api/reflections", reflectionRoutes);
+app.use("/api/sse", sseRoutes);
+app.use("/api/travel-advisory", travelAdvisoryRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
 app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

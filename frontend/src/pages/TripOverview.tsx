@@ -12,6 +12,12 @@ import useUniversalCapture from "../hooks/useUniversalCapture";
 import RouteSegmentsPanel from "../components/RouteSegmentsPanel";
 import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
 import ContributorView from "../components/ContributorView";
+import ImportCard from "../components/ImportCard";
+import ApprovalQueue from "../components/ApprovalQueue";
+import LearningsPanel from "../components/LearningsPanel";
+import TripPhaseContent from "../components/TripPhaseContent";
+import { getTripPhase } from "../lib/tripPhase";
+import ActivityFeed from "../components/ActivityFeed";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -35,6 +41,12 @@ export default function TripOverview() {
   const [showTripSwitcher, setShowTripSwitcher] = useState(false);
   const [savingTrip, setSavingTrip] = useState(false);
   const [contributorViewCode, setContributorViewCode] = useState<string | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [showLearnings, setShowLearnings] = useState(false);
+
+  const isPlanner = user?.role === "planner";
+  const initialLoadDone = useRef(false);
 
   useKeyboardShortcuts();
   useUniversalCapture(trip?.id);
@@ -46,31 +58,59 @@ export default function TripOverview() {
         api.get<Trip | null>("/trips/active"),
         api.get<Trip[]>("/trips"),
       ]);
-      setTrip(active);
+
+      // On first load, restore last-viewed trip if it differs from server's active trip
+      let effectiveActive = active;
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true;
+        const storedTripId = localStorage.getItem("wander:last-trip-id");
+        if (storedTripId && active && storedTripId !== active.id) {
+          const storedExists = all.some((t) => t.id === storedTripId);
+          if (storedExists) {
+            try {
+              const switched = await api.post<Trip>(`/trips/${storedTripId}/activate`, {});
+              effectiveActive = switched;
+            } catch {
+              localStorage.setItem("wander:last-trip-id", active.id);
+            }
+          } else {
+            localStorage.removeItem("wander:last-trip-id");
+          }
+        } else if (active) {
+          localStorage.setItem("wander:last-trip-id", active.id);
+        }
+      }
+
+      setTrip(effectiveActive);
       setAllTrips(all);
-      if (!active) { setShowCreate(true); }
+      if (!effectiveActive) { setShowCreate(true); }
       else {
         const [d, e] = await Promise.all([
-          api.get<Day[]>(`/days/trip/${active.id}`),
-          api.get<Experience[]>(`/experiences/trip/${active.id}`),
+          api.get<Day[]>(`/days/trip/${effectiveActive.id}`),
+          api.get<Experience[]>(`/experiences/trip/${effectiveActive.id}`),
         ]);
         setDays(d);
         setExperiences(e);
         try {
-          const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${active.id}?limit=50`);
+          const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${effectiveActive.id}?limit=50`);
           setRecentActivity(logs.slice(0, 5));
 
-          const welcomeKey = `wander:trip-welcomed:${active.id}:${user?.displayName}`;
+          const welcomeKey = `wander:trip-welcomed:${effectiveActive.id}:${user?.displayName}`;
           if (user && !localStorage.getItem(welcomeKey)) {
             const myEntries = logs.filter((l) => l.userDisplayName === user.displayName);
             if (myEntries.length === 0 && logs.length > 0) {
               const otherNames = [...new Set(logs.map((l) => l.userDisplayName))];
               if (otherNames.length > 0) {
-                setCollabWelcome({ names: otherNames, tripName: active.name });
+                setCollabWelcome({ names: otherNames, tripName: effectiveActive.name });
               }
             }
             localStorage.setItem(welcomeKey, "1");
           }
+        } catch { /* ignore */ }
+        // Fetch pending approvals count for planners
+        try {
+          const { count } = await api.get<{ count: number }>(`/approvals/${effectiveActive.id}/pending`);
+          setPendingApprovals(count);
         } catch { /* ignore */ }
       }
     } finally {
@@ -95,7 +135,7 @@ export default function TripOverview() {
         tagline: editTagline || null,
       });
       setEditingTrip(false);
-      showToast("Trip updated");
+      showToast("Got it");
       loadTrips();
     } catch {
       showToast("Couldn't save — check your connection and try again", "error");
@@ -177,7 +217,7 @@ export default function TripOverview() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
-        Loading...
+        Finding your trip...
       </div>
     );
   }
@@ -190,6 +230,7 @@ export default function TripOverview() {
         onSwitchTrip={async (tripId) => {
           try {
             await api.post(`/trips/${tripId}/activate`, {});
+            localStorage.setItem("wander:last-trip-id", tripId);
             setShowCreate(false);
             loadTrips();
           } catch {
@@ -209,6 +250,7 @@ export default function TripOverview() {
         onSwitchTrip={async (tripId) => {
           try {
             await api.post(`/trips/${tripId}/activate`, {});
+            localStorage.setItem("wander:last-trip-id", tripId);
             loadTrips();
           } catch {
             showToast("Couldn't switch — check your connection and try again", "error");
@@ -221,8 +263,10 @@ export default function TripOverview() {
   async function handleSwitchTrip(tripId: string) {
     try {
       await api.post(`/trips/${tripId}/activate`, {});
+      localStorage.setItem("wander:last-trip-id", tripId);
       setShowTripSwitcher(false);
-      showToast("Switched trip");
+      const switched = allTrips.find(t => t.id === tripId);
+      showToast(switched?.name || "Switched");
       loadTrips();
     } catch {
       showToast("Couldn't switch — check your connection and try again", "error");
@@ -230,10 +274,12 @@ export default function TripOverview() {
   }
 
   const archivedTrips = allTrips.filter((t) => t.status === "archived");
-  const isWithinDates = (() => {
-    const now = new Date();
-    return now >= new Date(trip.startDate) && now <= new Date(trip.endDate);
-  })();
+  const tripPhase = getTripPhase({
+    datesKnown: trip.datesKnown !== false,
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+  });
+  const isWithinDates = tripPhase === "active";
 
   const selectedPerDay: Record<string, number> = {};
   const possiblePerCity: Record<string, number> = {};
@@ -250,7 +296,7 @@ export default function TripOverview() {
   const hasMap = API_KEY && cityMarkers.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#faf8f5]">
+    <div className="min-h-screen bg-[#faf8f5] pb-20">
       {/* Collaboration welcome */}
       {collabWelcome && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm"
@@ -290,7 +336,11 @@ export default function TripOverview() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium text-[#3a3128]">{trip.name}</div>
-                  <div className="text-xs text-[#8a7a62]">{formatDate(trip.startDate)} — {formatDate(trip.endDate)}</div>
+                  <div className="text-xs text-[#8a7a62]">
+                    {trip.startDate && trip.endDate
+                      ? `${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`
+                      : "Dates TBD"}
+                  </div>
                 </div>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
               </div>
@@ -305,7 +355,9 @@ export default function TripOverview() {
                       <div>
                         <div className="text-sm text-[#3a3128]">{t.name}</div>
                         <div className="text-xs text-[#a89880]">
-                          {formatDate(t.startDate)} — {formatDate(t.endDate)}
+                          {t.startDate && t.endDate
+                            ? `${formatDate(t.startDate)} — ${formatDate(t.endDate)}`
+                            : "Dates TBD"}
                           {t.cities?.length > 0 && ` · ${t.cities.length} cities`}
                         </div>
                       </div>
@@ -413,39 +465,37 @@ export default function TripOverview() {
                 <p className="text-sm text-[#6b5d4a] italic">{trip.tagline}</p>
               )}
               <p className="text-sm text-[#8a7a62] mt-1">
-                {(() => {
-                  // UTC arithmetic — immune to DST shifts
-                  const today = new Date();
-                  const nowUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-                  const [sy, sm, sd] = trip.startDate.split("-").map(Number);
-                  const [ey, em, ed] = trip.endDate.split("-").map(Number);
-                  const startUTC = Date.UTC(sy, sm - 1, sd);
-                  const endUTC = Date.UTC(ey, em - 1, ed);
-                  const msPerDay = 86400000;
-                  const daysUntil = Math.round((startUTC - nowUTC) / msPerDay);
-                  const totalDays = Math.round((endUTC - startUTC) / msPerDay) + 1;
+                {trip.startDate && trip.endDate ? (
+                  <>
+                    {(() => {
+                      const today = new Date();
+                      const nowUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+                      const [sy, sm, sd] = trip.startDate!.split("T")[0].split("-").map(Number);
+                      const [ey, em, ed] = trip.endDate!.split("T")[0].split("-").map(Number);
+                      const startUTC = Date.UTC(sy, sm - 1, sd);
+                      const endUTC = Date.UTC(ey, em - 1, ed);
+                      const msPerDay = 86400000;
+                      const daysUntil = Math.round((startUTC - nowUTC) / msPerDay);
+                      const totalDays = Math.round((endUTC - startUTC) / msPerDay) + 1;
 
-                  if (daysUntil > 1) {
-                    return `${daysUntil} days away`;
-                  } else if (daysUntil === 1) {
-                    return "Tomorrow!";
-                  } else if (daysUntil === 0) {
-                    return "Today!";
-                  } else {
-                    const dayNum = Math.abs(daysUntil) + 1;
-                    return dayNum <= totalDays
-                      ? `Day ${dayNum} of ${totalDays}`
-                      : "Welcome home";
-                  }
-                })()}
-                {" · "}
-                {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+                      if (daysUntil > 1) return `${daysUntil} days away`;
+                      if (daysUntil === 1) return "Tomorrow!";
+                      if (daysUntil === 0) return "Today!";
+                      const dayNum = Math.abs(daysUntil) + 1;
+                      return dayNum <= totalDays ? `Day ${dayNum} of ${totalDays}` : "Welcome home";
+                    })()}
+                    {" · "}
+                    {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+                  </>
+                ) : (
+                  <span>{days.length} days planned · Dates TBD</span>
+                )}
                 <button
                   onClick={() => {
                     setEditName(trip.name);
                     setEditTagline(trip.tagline || "");
-                    setEditStartDate(trip.startDate.split("T")[0]);
-                    setEditEndDate(trip.endDate.split("T")[0]);
+                    setEditStartDate(trip.startDate ? trip.startDate.split("T")[0] : "");
+                    setEditEndDate(trip.endDate ? trip.endDate.split("T")[0] : "");
                     setEditingTrip(true);
                   }}
                   className="ml-2 text-[#c8bba8] hover:text-[#8a7a62]"
@@ -477,13 +527,16 @@ export default function TripOverview() {
               <p className="text-sm text-[#6b5d4a] mt-0.5 italic">{trip.tagline}</p>
             )}
             <p className="text-sm text-[#8a7a62] mt-1">
-              {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+              {trip.startDate && trip.endDate
+                ? `${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`
+                : `${days.length} days planned · Dates TBD`
+              }
               <button
                 onClick={() => {
                   setEditName(trip.name);
                   setEditTagline(trip.tagline || "");
-                  setEditStartDate(trip.startDate.split("T")[0]);
-                  setEditEndDate(trip.endDate.split("T")[0]);
+                  setEditStartDate(trip.startDate ? trip.startDate.split("T")[0] : "");
+                  setEditEndDate(trip.endDate ? trip.endDate.split("T")[0] : "");
                   setEditingTrip(true);
                 }}
                 className="ml-2 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
@@ -519,6 +572,23 @@ export default function TripOverview() {
               <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.32 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
             </svg>
           </button>
+          {isPlanner && pendingApprovals > 0 && (
+            <button
+              onClick={() => setShowApprovals(true)}
+              className="text-xs bg-[#514636] text-white px-2 py-1 rounded-full hover:bg-[#3a3128] transition-colors"
+            >
+              {pendingApprovals} to review
+            </button>
+          )}
+          {isPlanner && (
+            <button
+              onClick={() => setShowLearnings(true)}
+              className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+              title="Trip learnings"
+            >
+              Learnings
+            </button>
+          )}
           <button onClick={() => navigate("/profile")} className="text-sm text-[#8a7a62] hover:text-[#514636] transition-colors underline decoration-dotted underline-offset-2">{user?.displayName}</button>
           <button onClick={logout} className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors">
             Sign out
@@ -571,7 +641,7 @@ export default function TripOverview() {
               )}
               <li>• Tap any day below to see your map and what's planned</li>
               <li>• Paste or drop anything — an article, a friend's list, a screenshot — and Wander picks it up</li>
-              <li>• The chat can answer questions, rearrange your plans, or look things up</li>
+              <li>• The chat bubble is <strong>Scout</strong>, your travel companion — ask questions, rearrange plans, or look things up</li>
             </ul>
             <button
               onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); loadTrips(); }}
@@ -582,14 +652,54 @@ export default function TripOverview() {
           </div>
         )}
 
-        {/* Week-view calendar grid */}
-        <CalendarGrid
+        {/* Week-view calendar grid (dated trips) or city list (dateless trips) — hidden in past phase */}
+        {tripPhase !== "past" && (trip.datesKnown !== false ? (
+          <CalendarGrid
+            days={days}
+            cities={trip.cities}
+            selectedPerDay={selectedPerDay}
+            backroadsDays={backroadsDays}
+            experiences={experiences}
+            onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
+          />
+        ) : (
+          <DatelessTripView
+            cities={trip.cities}
+            days={days}
+            onCityClick={(cityId) => navigate(`/city/${cityId}`)}
+          />
+        ))}
+
+        {/* City browse links — quick access to CityBoard for dated cities */}
+        {tripPhase !== "past" && trip.datesKnown !== false && (() => {
+          const datedCityIds = [...new Set(days.map(d => d.cityId))];
+          const datedCities = (trip.cities || []).filter(c => datedCityIds.includes(c.id));
+          if (datedCities.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {datedCities.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => navigate(`/city/${c.id}`)}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors"
+                >
+                  {c.name} — browse ideas
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Phase-aware content — adapts to trip lifecycle */}
+        <TripPhaseContent
+          phase={tripPhase}
+          trip={trip}
           days={days}
-          cities={trip.cities}
-          selectedPerDay={selectedPerDay}
-          backroadsDays={backroadsDays}
-          onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
+          experiences={experiences}
         />
+
+        {/* Persistent import entry point — always visible after calendar */}
+        <ImportCard tripId={trip.id} />
 
         {/* Route segments — intercity travel logistics */}
         <RouteSegmentsPanel
@@ -602,7 +712,7 @@ export default function TripOverview() {
         <CandidateDestinations
           cities={trip.cities}
           experiences={experiences}
-          onNavigate={(cityId) => navigate(`/plan?city=${cityId}`)}
+          onNavigate={(cityId) => navigate(`/city/${cityId}`)}
         />
 
         {/* Trip members & invite */}
@@ -657,10 +767,8 @@ export default function TripOverview() {
           />
         )}
 
-        {/* Recent activity — collapsed to button, opens modal */}
-        {recentActivity.length > 0 && (
-          <RecentActivityButton activity={recentActivity} />
-        )}
+        {/* Activity feed — recent actions from the group */}
+        {trip && <ActivityFeed tripId={trip.id} />}
 
         {/* Actions */}
         <div className="flex gap-3">
@@ -682,6 +790,29 @@ export default function TripOverview() {
 
         {/* Past trips removed — accessible via CreateTrip screen if needed */}
       </div>
+
+      {/* Approval Queue Panel */}
+      {trip && isPlanner && (
+        <ApprovalQueue
+          tripId={trip.id}
+          isOpen={showApprovals}
+          onClose={() => setShowApprovals(false)}
+          onReviewed={() => {
+            loadTrips();
+            setPendingApprovals((p) => Math.max(0, p - 1));
+          }}
+        />
+      )}
+
+      {/* Learnings Panel */}
+      {trip && isPlanner && user?.travelerId && (
+        <LearningsPanel
+          tripId={trip.id}
+          travelerId={user.travelerId}
+          isOpen={showLearnings}
+          onClose={() => setShowLearnings(false)}
+        />
+      )}
     </div>
   );
 }
@@ -742,6 +873,71 @@ function RoutePolyline({ cities }: { cities: City[] }) {
   return null;
 }
 
+// ── Dateless trip view (city cards instead of calendar) ──────────
+
+function DatelessTripView({
+  cities,
+  days,
+  onCityClick,
+}: {
+  cities: City[];
+  days: Day[];
+  onCityClick: (cityId: string) => void;
+}) {
+  const visibleCities = cities.filter((c) => !c.hidden);
+  const daysByCity = new Map<string, Day[]>();
+  for (const d of days) {
+    const arr = daysByCity.get(d.cityId) || [];
+    arr.push(d);
+    daysByCity.set(d.cityId, arr);
+  }
+
+  if (visibleCities.length === 0) {
+    return (
+      <div className="mb-6 text-center py-8">
+        <p className="text-sm text-[#8a7a62] mb-2">Your trip is a blank canvas.</p>
+        <p className="text-xs text-[#c8bba8]">Add cities below, or tell Scout what you're thinking.</p>
+      </div>
+    );
+  }
+
+  return (
+    <section className="mb-6 space-y-2">
+      <div className="text-xs text-[#a89880] uppercase font-medium mb-2">Your cities</div>
+      {visibleCities.map((city, i) => {
+        const cityDays = daysByCity.get(city.id) || [];
+        const pastel = getCityPastel(i);
+        return (
+          <button
+            key={city.id}
+            onClick={() => onCityClick(city.id)}
+            className="w-full flex items-center gap-3 p-3 rounded-lg border border-[#f0ece5] bg-white hover:border-[#e0d8cc] transition-colors text-left"
+          >
+            <div
+              className="w-2 h-8 rounded-full shrink-0"
+              style={{ backgroundColor: pastel }}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-[#3a3128] truncate">{city.name}</div>
+              <div className="text-xs text-[#a89880]">
+                {cityDays.length > 0
+                  ? `${cityDays.length} day${cityDays.length !== 1 ? "s" : ""}`
+                  : "No days yet"
+                }
+                {city.country ? ` · ${city.country}` : ""}
+              </div>
+            </div>
+            <span className="text-[#c8bba8] text-sm">→</span>
+          </button>
+        );
+      })}
+      <p className="text-xs text-[#c8bba8] text-center pt-2">
+        When dates are ready, tell Scout: "Day 1 is December 25"
+      </p>
+    </section>
+  );
+}
+
 // ── Calendar grid (week view) ───────────────────────────────────
 
 function CalendarGrid({
@@ -749,12 +945,14 @@ function CalendarGrid({
   cities,
   selectedPerDay,
   backroadsDays,
+  experiences,
   onDayClick,
 }: {
   days: Day[];
   cities: City[];
   selectedPerDay: Record<string, number>;
   backroadsDays: Set<string>;
+  experiences: Experience[];
   onDayClick: (cityId: string) => void;
 }) {
   if (days.length === 0) return null;
@@ -789,6 +987,7 @@ function CalendarGrid({
           cities={cities}
           selectedPerDay={selectedPerDay}
           backroadsDays={backroadsDays}
+          experiences={experiences}
           onDayClick={onDayClick}
         />
       ))}
@@ -796,12 +995,19 @@ function CalendarGrid({
   );
 }
 
+// Theme → emoji mapping for calendar day cells
+const DAY_THEME_EMOJI: Record<string, string> = {
+  food: "🍜", temples: "⛩️", ceramics: "🏺", architecture: "🏛️",
+  nature: "🌿", shopping: "🛍️", art: "🎨", nightlife: "🌙",
+};
+
 function CalendarCluster({
   clusterDays,
   allSortedDays,
   cities,
   selectedPerDay,
   backroadsDays,
+  experiences,
   onDayClick,
 }: {
   clusterDays: Day[];
@@ -809,6 +1015,7 @@ function CalendarCluster({
   cities: City[];
   selectedPerDay: Record<string, number>;
   backroadsDays: Set<string>;
+  experiences: Experience[];
   onDayClick: (cityId: string) => void;
 }) {
   const firstDate = new Date(clusterDays[0].date);
@@ -928,11 +1135,25 @@ function CalendarCluster({
                     style={{ wordBreak: "break-word" }}>
                     {city?.name || ""}
                   </div>
-                  {/* Bottom: plans icon */}
-                  <div className="relative z-10 mb-1 h-4 flex items-center justify-center">
-                    {count > 0 && (
-                      <span style={{ fontSize: 12, color: dotColor }}>🗓️</span>
-                    )}
+                  {/* Bottom: theme emojis or plans indicator */}
+                  <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0">
+                    {(() => {
+                      if (count === 0) return null;
+                      const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
+                      const themeSet = new Set<string>();
+                      for (const e of dayExps) {
+                        for (const t of (e.themes || [])) {
+                          if (DAY_THEME_EMOJI[t]) themeSet.add(t);
+                        }
+                      }
+                      const emojis = [...themeSet].slice(0, 3).map(t => DAY_THEME_EMOJI[t]);
+                      if (emojis.length > 0) {
+                        return emojis.map((em, i) => (
+                          <span key={i} style={{ fontSize: 10 }}>{em}</span>
+                        ));
+                      }
+                      return <span style={{ fontSize: 10 }}>📍</span>;
+                    })()}
                   </div>
                 </button>
               );
@@ -1103,24 +1324,24 @@ function CandidateDestinations({
 
 function TripMembers({ tripId }: { tripId: string }) {
   const [expanded, setExpanded] = useState(false);
-  const [members, setMembers] = useState<{ displayName: string; role: string }[]>([]);
-  const [invites, setInvites] = useState<{ expectedName: string; claimed: boolean }[]>([]);
+  const [members, setMembers] = useState<{ displayName: string; role: string; travelerId: string }[]>([]);
+  const [invites, setInvites] = useState<{ id: string; expectedName: string; claimed: boolean; inviteToken?: string }[]>([]);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [newNames, setNewNames] = useState("");
   const [sending, setSending] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function loadMembers() {
     try {
       const data = await api.get<{
-        members: { displayName: string; role: string }[];
-        invites: { expectedName: string; claimed: boolean }[];
+        members: { displayName: string; role: string; travelerId: string }[];
+        invites: { id: string; expectedName: string; claimed: boolean; inviteToken?: string }[];
         inviteToken: string | null;
       }>(`/trips/${tripId}/members`);
       setMembers(data.members);
       setInvites(data.invites);
       setInviteToken(data.inviteToken);
-    } catch { /* ignore — might not have members yet */ }
+    } catch { /* ignore */ }
   }
 
   useEffect(() => {
@@ -1132,21 +1353,26 @@ function TripMembers({ tripId }: { tripId: string }) {
     if (names.length === 0) return;
     setSending(true);
     try {
-      const data = await api.post<{ inviteLink: string; inviteToken: string }>(`/trips/${tripId}/invite`, { names });
-      setInviteToken(data.inviteToken);
+      await api.post(`/trips/${tripId}/add-members`, { names });
       setNewNames("");
       loadMembers();
     } catch { /* ignore */ }
     setSending(false);
   }
 
-  function copyLink() {
-    if (!inviteToken) return;
-    const link = `${window.location.origin}/join/${inviteToken}`;
+  function copyPersonalLink(token: string, id: string) {
+    const link = `${window.location.origin}/join/${token}`;
     navigator.clipboard.writeText(link).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
     });
+  }
+
+  async function handleResend(inviteId: string) {
+    try {
+      await api.post(`/trips/${tripId}/resend-invite`, { inviteId });
+      loadMembers();
+    } catch { /* ignore */ }
   }
 
   const pendingInvites = invites.filter((i) => !i.claimed);
@@ -1177,47 +1403,55 @@ function TripMembers({ tripId }: { tripId: string }) {
                   className="px-3 py-1 rounded-full bg-[#f0ece5] text-sm text-[#3a3128]"
                 >
                   {m.displayName}
-                  {m.role === "owner" && (
-                    <span className="ml-1 text-xs text-[#a89880]">(organizer)</span>
+                  {(m.role === "planner" || m.role === "owner") && (
+                    <span className="ml-1 text-xs text-[#a89880]">(planner)</span>
                   )}
                 </span>
               ))}
             </div>
           )}
 
-          {/* Pending invites */}
+          {/* Pending invites with personal links */}
           {pendingInvites.length > 0 && (
-            <div className="text-xs text-[#a89880]">
-              Waiting for: {pendingInvites.map((i) => i.expectedName).join(", ")}
-            </div>
-          )}
-
-          {/* Invite link */}
-          {inviteToken && (
-            <div className="flex items-center gap-2">
-              <div className="flex-1 text-xs text-[#8a7a62] bg-[#faf8f5] px-3 py-2 rounded-lg truncate border border-[#f0ece5]">
-                {window.location.origin}/join/{inviteToken}
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-[#a89880] uppercase tracking-wider">
+                Waiting to join
               </div>
-              <button
-                onClick={copyLink}
-                className="px-3 py-2 text-xs rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors whitespace-nowrap"
-              >
-                {copied ? "Copied!" : "Copy Link"}
-              </button>
+              {pendingInvites.map((inv) => (
+                <div key={inv.id} className="flex items-center justify-between py-1.5 px-3 bg-[#faf8f5] rounded-lg border border-[#f0ece5]">
+                  <span className="text-sm text-[#3a3128]">{inv.expectedName}</span>
+                  <div className="flex items-center gap-2">
+                    {inv.inviteToken && (
+                      <button
+                        onClick={() => copyPersonalLink(inv.inviteToken!, inv.id)}
+                        className="text-xs px-2 py-1 rounded bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
+                      >
+                        {copiedId === inv.id ? "Copied!" : "Copy link"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleResend(inv.id)}
+                      className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+                    >
+                      Resend
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Add names */}
+          {/* Add people */}
           <div>
             <label className="text-xs text-[#8a7a62] block mb-1">
-              Invite travelers (comma-separated names):
+              Who else is coming?
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newNames}
                 onChange={(e) => setNewNames(e.target.value)}
-                placeholder="e.g. Kyler, Sarah"
+                placeholder="Names, separated by commas"
                 className="flex-1 px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-sm text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#514636]/30 placeholder-[#c8bba8]"
                 onKeyDown={(e) => e.key === "Enter" && handleInvite()}
               />
@@ -1226,7 +1460,7 @@ function TripMembers({ tripId }: { tripId: string }) {
                 disabled={sending || !newNames.trim()}
                 className="px-4 py-2 rounded-lg bg-[#514636] text-white text-sm hover:bg-[#3a3128] transition-colors disabled:opacity-50"
               >
-                {sending ? "..." : "Invite"}
+                {sending ? "..." : "Add"}
               </button>
             </div>
           </div>

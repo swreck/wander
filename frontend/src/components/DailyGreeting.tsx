@@ -25,8 +25,8 @@ export default function DailyGreeting() {
 
         // Check if we're before the trip — show document nudge or destination teaser
         const now = new Date();
-        const tripStart = new Date(trip.startDate);
-        if (now < tripStart) {
+        const tripStart = trip.startDate ? new Date(trip.startDate) : null;
+        if (tripStart && now < tripStart) {
           // Pre-trip: check document completeness
           const profileRes = await api.get<TravelerProfile | { documents: never[] }>(`/traveler-documents/trip/${trip.id}`).catch(() => ({ documents: [] }));
           const docs = ("documents" in profileRes) ? profileRes.documents : [];

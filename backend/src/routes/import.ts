@@ -180,20 +180,58 @@ router.post("/commit", async (req: AuthRequest, res) => {
     });
 
     // Create cities and collect mapping for later use
-    const cityMap = new Map<string, string>(); // cityName -> cityId
-    for (let i = 0; i < data.cities.length; i++) {
-      const c = data.cities[i];
+    // Deduplicate by name — merge date ranges for duplicate city entries
+    const cityMap = new Map<string, string>(); // cityName (lowercase) -> cityId
+    let seqOrder = 0;
+    for (const c of data.cities) {
+      const key = c.name.toLowerCase();
+      if (cityMap.has(key)) {
+        // Duplicate city — extend the date range on the existing one
+        const existingId = cityMap.get(key)!;
+        if (c.departureDate) {
+          const existing = await prisma.city.findUnique({ where: { id: existingId } });
+          if (existing) {
+            const newDep = new Date(c.departureDate);
+            if (!existing.departureDate || newDep > existing.departureDate) {
+              await prisma.city.update({
+                where: { id: existingId },
+                data: { departureDate: newDep },
+              });
+            }
+          }
+        }
+        // Create additional days for the extended date range
+        if (c.arrivalDate && c.departureDate) {
+          const arrival = new Date(c.arrivalDate);
+          const departure = new Date(c.departureDate);
+          const existingDaysForCity = await prisma.day.findMany({
+            where: { tripId: trip.id, cityId: existingId },
+            select: { date: true },
+          });
+          const existingDates = new Set(existingDaysForCity.map(d => d.date.toISOString().split("T")[0]));
+          for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split("T")[0];
+            if (!existingDates.has(dateStr)) {
+              await prisma.day.create({
+                data: { tripId: trip.id, cityId: existingId, date: new Date(d) },
+              });
+            }
+          }
+        }
+        continue;
+      }
+
       const city = await prisma.city.create({
         data: {
           tripId: trip.id,
           name: c.name,
           country: c.country || null,
-          sequenceOrder: i,
+          sequenceOrder: seqOrder++,
           arrivalDate: c.arrivalDate ? new Date(c.arrivalDate) : null,
           departureDate: c.departureDate ? new Date(c.departureDate) : null,
         },
       });
-      cityMap.set(c.name.toLowerCase(), city.id);
+      cityMap.set(key, city.id);
 
       // Create days for each city
       if (c.arrivalDate && c.departureDate) {
@@ -289,6 +327,9 @@ router.post("/commit", async (req: AuthRequest, res) => {
         orderBy: { date: "asc" },
       });
 
+      // Track choice group experiences to create Decisions after
+      const choiceGroupExps = new Map<string, { expId: string; cityId: string; dayId: string | null }[]>();
+
       for (const exp of data.experiences) {
         const cityId = cityMap.get(exp.cityName.toLowerCase());
         if (!cityId) continue;
@@ -305,18 +346,48 @@ router.post("/commit", async (req: AuthRequest, res) => {
           }
         }
 
-        await prisma.experience.create({
+        const isChoice = !!exp.choiceGroup;
+        const created = await prisma.experience.create({
           data: {
             tripId: trip.id,
             cityId,
             name: exp.name,
             description: exp.description || null,
-            state: dayId ? "selected" : "possible",
+            state: isChoice ? "voting" : (dayId ? "selected" : "possible"),
             dayId,
             timeWindow: exp.timeWindow || null,
             createdBy: req.user!.code,
             sourceText: "Imported from itinerary document",
           },
+        });
+
+        if (exp.choiceGroup) {
+          const group = choiceGroupExps.get(exp.choiceGroup) || [];
+          group.push({ expId: created.id, cityId, dayId });
+          choiceGroupExps.set(exp.choiceGroup, group);
+        }
+      }
+
+      // Create Decisions for choice groups
+      for (const [groupTitle, members] of choiceGroupExps) {
+        if (members.length < 2) continue;
+        const cityId = members[0].cityId;
+        const dayId = members[0].dayId;
+
+        const decision = await prisma.decision.create({
+          data: {
+            tripId: trip.id,
+            cityId,
+            dayId: dayId || undefined,
+            title: groupTitle,
+            createdBy: req.user!.code,
+          },
+        });
+
+        // Link experiences to the decision
+        await prisma.experience.updateMany({
+          where: { id: { in: members.map(m => m.expId) } },
+          data: { decisionId: decision.id },
         });
       }
     }

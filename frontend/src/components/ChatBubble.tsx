@@ -68,6 +68,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const [listening, setListening] = useState(false);
   const [failed, setFailed] = useState(false);
   const [lastFailedText, setLastFailedText] = useState("");
+  const [confirmingClear, setConfirmingClear] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -94,7 +95,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
   // Listen for custom event to open chat (used by Plan page action bar)
   useEffect(() => {
-    const handler = () => setOpen(true);
+    const handler = (e: Event) => {
+      setOpen(true);
+      const detail = (e as CustomEvent).detail;
+      if (detail?.prefill && inputRef.current) {
+        setInput(detail.prefill);
+        setTimeout(() => inputRef.current?.focus(), 150);
+      }
+    };
     window.addEventListener("wander-open-chat", handler);
     return () => window.removeEventListener("wander-open-chat", handler);
   }, []);
@@ -272,7 +280,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           right-4 w-11 h-11
           sm:right-6 sm:w-12 sm:h-12"
         style={{ backgroundColor: "#514636", color: "#faf8f5", bottom: "calc(env(safe-area-inset-bottom, 0px) + 140px)" }}
-        aria-label="Open chat assistant"
+        aria-label="Ask Scout"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -300,21 +308,34 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5ddd0]">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-sm font-medium text-[#3a3128]">Wander Assistant</span>
+            <span className="text-sm font-medium text-[#3a3128]">Scout</span>
           </div>
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
-              <button
-                onClick={() => {
-                  if (window.confirm("Clear the conversation? This can't be undone.")) {
-                    setMessages([]); clearMessages();
-                  }
-                }}
-                className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3] text-xs"
-                title="Clear chat"
-              >
-                Clear
-              </button>
+              confirmingClear ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { setMessages([]); clearMessages(); setConfirmingClear(false); }}
+                    className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => setConfirmingClear(false)}
+                    className="px-2 py-0.5 rounded text-xs font-medium bg-[#f0ebe3] text-[#8a7a62] hover:bg-[#e5ddd0] transition-colors"
+                  >
+                    Keep
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingClear(true)}
+                  className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3] text-xs"
+                  title="Start fresh"
+                >
+                  Clear
+                </button>
+              )
             )}
             <button
               onClick={() => setOpen(false)}
@@ -332,13 +353,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
           {messages.length === 0 && (
             <div className="text-center text-[#8a7a62] text-sm py-8">
-              <p>Ask me anything about your trip,</p>
-              <p>or tell me what to do.</p>
+              <p>I'm Scout, your travel companion.</p>
+              <p className="mt-1">I know your whole trip — ask me anything or tell me what to change.</p>
               <div className="mt-4 space-y-1.5 text-sm text-[#a89a82]">
                 <p>"What's planned for Tuesday?"</p>
                 <p>"Add Fushimi Inari to Kyoto"</p>
                 <p>"Move the temple visit to day 3"</p>
-                <p>"How many experiences in Osaka?"</p>
+                <p>"How far is the hotel from the temple?"</p>
               </div>
             </div>
           )}

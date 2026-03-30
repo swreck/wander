@@ -67,6 +67,19 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
           Review what was extracted. Remove items that don't belong, then confirm to create your trip.
         </p>
 
+        {/* Gap warnings — missing pages */}
+        {edited.gapWarnings && edited.gapWarnings.length > 0 && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg">
+            <p className="text-sm font-medium text-amber-800 mb-1">Looks like some pages might be missing</p>
+            <ul className="text-sm text-amber-700 list-disc pl-4 space-y-0.5">
+              {edited.gapWarnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+            <p className="text-xs text-amber-600 mt-2">
+              Go back and scan the missing pages, then re-import to fill in the gaps.
+            </p>
+          </div>
+        )}
+
         {/* Past-date warning */}
         {(() => {
           const today = new Date().toISOString().split("T")[0];
@@ -238,41 +251,72 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
               <div key={cityName} className="mb-4">
                 <h3 className="text-sm font-medium text-[#6b5d4a] mb-2">{cityName}</h3>
                 <div className="space-y-1.5">
-                  {exps.map((exp) => {
-                    const globalIndex = edited.experiences.indexOf(exp);
-                    return (
-                      <div
-                        key={globalIndex}
-                        className="flex items-start justify-between px-4 py-2.5
-                                   bg-white rounded-lg border border-[#f0ece5]"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-[#3a3128] text-sm font-medium">{exp.name}</span>
-                            {exp.dayDate && (
-                              <span className="text-sm text-[#a89880]">
-                                {formatDate(exp.dayDate)}
-                              </span>
-                            )}
-                            {exp.timeWindow && (
-                              <span className="text-sm text-[#c8bba8]">{exp.timeWindow}</span>
+                  {(() => {
+                    // Group experiences by choiceGroup within this city
+                    const choiceGroups = new Map<string, typeof exps>();
+                    const ungrouped: typeof exps = [];
+                    for (const exp of exps) {
+                      if (exp.choiceGroup) {
+                        const existing = choiceGroups.get(exp.choiceGroup) || [];
+                        existing.push(exp);
+                        choiceGroups.set(exp.choiceGroup, existing);
+                      } else {
+                        ungrouped.push(exp);
+                      }
+                    }
+
+                    const renderExp = (exp: typeof exps[0]) => {
+                      const globalIndex = edited.experiences.indexOf(exp);
+                      return (
+                        <div
+                          key={globalIndex}
+                          className="flex items-start justify-between px-4 py-2.5
+                                     bg-white rounded-lg border border-[#f0ece5]"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-[#3a3128] text-sm font-medium">{exp.name}</span>
+                              {exp.dayDate && (
+                                <span className="text-sm text-[#a89880]">
+                                  {formatDate(exp.dayDate)}
+                                </span>
+                              )}
+                              {exp.timeWindow && (
+                                <span className="text-sm text-[#c8bba8]">{exp.timeWindow}</span>
+                              )}
+                            </div>
+                            {exp.description && (
+                              <div className="text-sm text-[#8a7a62] mt-0.5 line-clamp-2">
+                                {exp.description}
+                              </div>
                             )}
                           </div>
-                          {exp.description && (
-                            <div className="text-sm text-[#8a7a62] mt-0.5 line-clamp-2">
-                              {exp.description}
-                            </div>
-                          )}
+                          <button
+                            onClick={() => removeExperience(globalIndex)}
+                            className="ml-2 text-[#c8bba8] hover:text-red-500 transition-colors text-lg flex-shrink-0"
+                          >
+                            &times;
+                          </button>
                         </div>
-                        <button
-                          onClick={() => removeExperience(globalIndex)}
-                          className="ml-2 text-[#c8bba8] hover:text-red-500 transition-colors text-lg flex-shrink-0"
-                        >
-                          &times;
-                        </button>
-                      </div>
+                      );
+                    };
+
+                    return (
+                      <>
+                        {/* Choice groups */}
+                        {Array.from(choiceGroups.entries()).map(([group, groupExps]) => (
+                          <div key={group} className="rounded-lg border border-blue-200 bg-blue-50/50 p-2 space-y-1.5">
+                            <p className="text-xs font-medium text-blue-700 px-2">
+                              Choose one: {group}
+                            </p>
+                            {groupExps.map(renderExp)}
+                          </div>
+                        ))}
+                        {/* Regular experiences */}
+                        {ungrouped.map(renderExp)}
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
               </div>
             ))}

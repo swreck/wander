@@ -96,7 +96,7 @@ export default function ExperienceDetail({
     return (
       <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white border-l border-[#f0ece5] shadow-xl z-40
                       flex items-center justify-center text-[#8a7a62]">
-        Loading...
+        Pulling up the details...
       </div>
     );
   }
@@ -398,7 +398,10 @@ export default function ExperienceDetail({
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
               <p className="text-sm text-[#3a3128] mb-4">
-                Remove <strong>{exp.name}</strong> from your trip?
+                {exp.createdBy && exp.createdBy !== user?.displayName && exp.createdBy !== user?.code
+                  ? <>{exp.createdBy} added this one. Remove <strong>{exp.name}</strong> from the trip?</>
+                  : <>Remove <strong>{exp.name}</strong> from your trip?</>
+                }
               </p>
               <div className="flex gap-3">
                 <button

@@ -5,13 +5,20 @@ import { useAuth } from "../contexts/AuthContext";
 interface TripInfo {
   tripId: string;
   tripName: string;
+  personalInvite: boolean;
+  expectedName?: string;
+  alreadyClaimed?: boolean;
   expectedNames: string[];
   currentMembers: string[];
+  cityCount?: number;
+  experienceCount?: number;
+  dateRange?: string;
+  firstCityName?: string;
 }
 
 export default function JoinPage() {
   const { token } = useParams<{ token: string }>();
-  const { login, user } = useAuth();
+  const { loginWithToken, user } = useAuth();
   const navigate = useNavigate();
 
   const [tripInfo, setTripInfo] = useState<TripInfo | null>(null);
@@ -19,6 +26,7 @@ export default function JoinPage() {
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
   const [customName, setCustomName] = useState("");
+  const [cityPhoto, setCityPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -30,38 +38,44 @@ export default function JoinPage() {
       .then((data: TripInfo) => {
         setTripInfo(data);
         setLoading(false);
+        // Fetch a city photo if we have a city name
+        if (data.firstCityName) {
+          fetch(`/api/geocoding/city-photo?query=${encodeURIComponent(data.firstCityName)}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.photoUrl) setCityPhoto(d.photoUrl); })
+            .catch(() => {});
+        }
       })
       .catch(() => {
-        setError("This invite link is invalid or has expired.");
+        setError("This invite link isn't working. Ask your trip planner to send a new one.");
         setLoading(false);
       });
   }, [token]);
 
-  async function handleJoin(name: string) {
-    if (!token || !name.trim()) return;
+  async function handleJoin(name?: string) {
+    if (!token) return;
     setJoining(true);
     setError("");
 
     try {
+      const body: any = {};
+      if (name) body.name = name.trim();
+
       const res = await fetch(`/api/auth/join/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Failed to join");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Couldn't join");
       }
 
       const data = await res.json();
 
-      // Store token and log in
-      localStorage.setItem("wander_token", data.token);
-      localStorage.setItem("wander_user", data.displayName);
-
-      // Force auth context to pick up the new user
-      await login(data.displayName);
+      // Use the new loginWithToken to set auth state
+      loginWithToken(data.token, data.displayName);
 
       // Show guide on first join
       if (!localStorage.getItem("wander:seen-guide")) {
@@ -71,7 +85,7 @@ export default function JoinPage() {
         navigate("/");
       }
     } catch (e: any) {
-      setError(e.message || "Couldn't join. Try again.");
+      setError(e.message || "Something went wrong. Try again?");
       setJoining(false);
     }
   }
@@ -87,7 +101,7 @@ export default function JoinPage() {
   if (!tripInfo) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#faf8f5] p-6">
-        <h1 className="text-xl font-medium text-[#3a3128] mb-2">Invalid Link</h1>
+        <h1 className="text-xl font-medium text-[#3a3128] mb-2">Hmm, that didn't work</h1>
         <p className="text-sm text-[#8a7a62] mb-6">{error}</p>
         <button
           onClick={() => navigate("/login")}
@@ -95,6 +109,87 @@ export default function JoinPage() {
         >
           Go to Login
         </button>
+      </div>
+    );
+  }
+
+  // Personal invite — auto-identify, one-tap join
+  if (tripInfo.personalInvite && tripInfo.expectedName) {
+    if (tripInfo.alreadyClaimed) {
+      return (
+        <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#faf8f5] p-6">
+          <div className="max-w-sm w-full text-center">
+            <h1 className="text-2xl font-light text-[#3a3128] mb-1">
+              Welcome back, {tripInfo.expectedName}
+            </h1>
+            <p className="text-sm text-[#8a7a62] mb-6">
+              You're already part of {tripInfo.tripName}.
+            </p>
+            <button
+              onClick={() => handleJoin()}
+              disabled={joining}
+              className="px-6 py-3 rounded-xl bg-[#514636] text-white text-base w-full disabled:opacity-60"
+            >
+              {joining ? "Opening..." : "Let's go"}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#faf8f5] p-6">
+        <div className="max-w-sm w-full text-center">
+          {/* City destination photo */}
+          {cityPhoto && (
+            <div className="mb-4 rounded-xl overflow-hidden h-32">
+              <img src={cityPhoto} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+
+          <p className="text-sm text-[#8a7a62] mb-2">You're invited to</p>
+          <h1 className="text-2xl font-light text-[#3a3128] mb-1">
+            {tripInfo.tripName}
+          </h1>
+          <p className="text-lg text-[#514636] mb-4">
+            Welcome, {tripInfo.expectedName}!
+          </p>
+
+          {/* Trip snapshot */}
+          {(tripInfo.cityCount || tripInfo.experienceCount || tripInfo.dateRange) && (
+            <div className="mb-6 px-4 py-3 bg-white rounded-lg border border-[#f0ece5] text-sm text-[#6b5d4a]">
+              {tripInfo.dateRange && <p>{tripInfo.dateRange}</p>}
+              {tripInfo.cityCount && tripInfo.cityCount > 0 && (
+                <p className="mt-0.5">
+                  {tripInfo.cityCount} {tripInfo.cityCount === 1 ? "city" : "cities"}
+                  {tripInfo.experienceCount && tripInfo.experienceCount > 0
+                    ? ` · ${tripInfo.experienceCount} ideas saved so far`
+                    : ""}
+                </p>
+              )}
+            </div>
+          )}
+
+          {tripInfo.currentMembers.length > 0 && (
+            <p className="text-xs text-[#8a7a62] mb-6">
+              {tripInfo.currentMembers.join(", ")} {tripInfo.currentMembers.length === 1 ? "is" : "are"} already here
+            </p>
+          )}
+
+          <button
+            onClick={() => handleJoin()}
+            disabled={joining}
+            className="px-6 py-3.5 rounded-xl bg-[#514636] text-white text-base font-medium w-full disabled:opacity-60 active:scale-95 transition-transform"
+          >
+            {joining ? "Joining..." : "Let's go"}
+          </button>
+
+          <p className="text-xs text-[#c8bba8] mt-4">
+            Scout is your travel companion — ask questions, add ideas, or just explore
+          </p>
+
+          {error && <p className="text-sm text-red-500 mt-4">{error}</p>}
+        </div>
       </div>
     );
   }
@@ -109,7 +204,7 @@ export default function JoinPage() {
 
           {tripInfo.currentMembers.includes(user.displayName) ? (
             <>
-              <p className="text-sm text-[#8a7a62] mb-4">You're already a member of this trip.</p>
+              <p className="text-sm text-[#8a7a62] mb-4">You're already part of this trip.</p>
               <button
                 onClick={() => navigate("/")}
                 className="px-5 py-2.5 rounded-xl bg-[#514636] text-white text-sm"
@@ -205,17 +300,10 @@ export default function JoinPage() {
 
         {error && <p className="text-sm text-red-500 mt-4">{error}</p>}
 
-        {tripInfo.currentMembers.length > 0 && (
-          <p className="text-xs text-[#8a7a62] mt-6">
-            Already a member?{" "}
-            <button
-              onClick={() => navigate("/login")}
-              className="underline text-[#514636] font-medium"
-            >
-              Log in
-            </button>
-          </p>
-        )}
+        <p className="text-xs text-[#8a7a62] mt-8">
+          Lost access?{" "}
+          Ask your trip planner to send you a new link.
+        </p>
       </div>
     </div>
   );

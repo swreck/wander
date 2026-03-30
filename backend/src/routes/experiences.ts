@@ -217,7 +217,7 @@ router.delete("/:id", async (req: AuthRequest, res) => {
 
   await prisma.experience.delete({ where: { id: req.params.id as string } });
 
-  await logChange({
+  const changeLog = await logChange({
     user: req.user!,
     tripId: existing.tripId,
     actionType: "experience_deleted",
@@ -228,7 +228,7 @@ router.delete("/:id", async (req: AuthRequest, res) => {
     previousState: existing,
   });
 
-  res.json({ deleted: true });
+  res.json({ deleted: true, changeLogId: changeLog.id, name: existing.name });
 });
 
 // Reorder experiences
