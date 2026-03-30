@@ -65,7 +65,7 @@ export default function BottomNav({ pendingChanges }: Props) {
                 ${isActive ? "text-[#514636]" : "text-[#c8bba8] hover:text-[#8a7a62]"}`}
             >
               {tab.icon}
-              <span className="text-[10px] leading-tight font-medium">{tab.label}</span>
+              <span className="text-[11px] leading-tight font-medium">{tab.label}</span>
               {/* Badge dot for pending sync changes on Home */}
               {tab.path === "/" && pendingChanges && pendingChanges > 0 ? (
                 <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" />

@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.js";
@@ -43,8 +45,48 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json({ limit: "50mb" }));
+// ── Security ──────────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: false, // CSP would block Google Maps — rely on other headers
+}));
+app.use(cors({
+  origin: process.env.NODE_ENV === "production"
+    ? ["https://wander.up.railway.app"]
+    : true, // Allow all origins in dev
+  credentials: true,
+}));
+
+// Rate limiting — strict on login, moderate on API, tight on AI chat
+// Disabled during tests (all requests come from 127.0.0.1)
+if (!process.env.VITEST) {
+  const loginLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many login attempts — try again in a minute" },
+  });
+  const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  const chatLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Give Scout a moment to catch up" },
+  });
+
+  app.use("/api/auth/login", loginLimiter);
+  app.use("/api/auth/join", loginLimiter);
+  app.use("/api/chat", chatLimiter);
+  app.use("/api", apiLimiter);
+}
+
+app.use(express.json({ limit: "10mb" })); // Reduced from 50mb
 
 // API routes
 app.use("/api/auth", authRoutes);
@@ -86,7 +128,11 @@ app.use("/api/travel-advisory", travelAdvisoryRoutes);
 app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("[api error]", err?.message || err);
   const status = err?.status || err?.statusCode || 500;
-  res.status(status).json({ error: err?.message || "Internal server error" });
+  // Don't leak internal error details in production
+  const message = process.env.NODE_ENV === "production" && status >= 500
+    ? "Something went wrong on our end"
+    : (err?.message || "Internal server error");
+  res.status(status).json({ error: message });
 });
 
 // Serve frontend static files in production

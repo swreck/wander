@@ -112,7 +112,7 @@ export default function GuidePage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/")}
             className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
           >
             &larr; Back

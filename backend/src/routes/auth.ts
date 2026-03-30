@@ -391,6 +391,11 @@ router.get("/travelers/:id", requireAuth, async (req: AuthRequest, res) => {
 // Update traveler preferences
 router.patch("/travelers/:id", requireAuth, async (req: AuthRequest, res) => {
   const id = req.params.id as string;
+  // Ownership check — users can only edit their own profile
+  if (req.user!.travelerId !== id) {
+    res.status(403).json({ error: "You can only update your own profile" });
+    return;
+  }
   const { preferences } = req.body;
   const traveler = await prisma.traveler.update({
     where: { id },

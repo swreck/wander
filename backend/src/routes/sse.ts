@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { verifyToken, type AuthRequest } from "../middleware/auth.js";
+import prisma from "../services/db.js";
 import type { Response } from "express";
 
 const router = Router();
@@ -14,7 +15,7 @@ interface SSEClient {
 const connections = new Map<string, Set<SSEClient>>();
 
 // SSE endpoint — uses query param token since EventSource doesn't support headers
-router.get("/trip/:tripId", (req: AuthRequest, res) => {
+router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   const token = req.query.token as string;
   if (!token) { res.status(401).json({ error: "Token required" }); return; }
   try {
@@ -25,6 +26,12 @@ router.get("/trip/:tripId", (req: AuthRequest, res) => {
 
   const tripId = req.params.tripId as string;
   const userCode = req.user!.code;
+
+  // Verify trip membership
+  const member = await prisma.tripMember.findFirst({
+    where: { tripId, travelerId: req.user!.travelerId },
+  });
+  if (!member) { res.status(403).json({ error: "Not a trip member" }); return; }
   const clientId = (req.query.clientId as string) || Math.random().toString(36).slice(2);
 
   // Set up SSE headers

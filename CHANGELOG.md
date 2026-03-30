@@ -2,6 +2,29 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-30 — Security Hardening, UX Bug Fixes, Service Worker Re-enabled
+
+### Added
+- **Rate limiting** — Login/join: 10/min per IP. Chat: 20/min (protects Anthropic credits). General API: 200/min. Warm error messages. (index.ts)
+- **Security headers** — Helmet middleware adds X-Content-Type-Options, X-Frame-Options, HSTS, Referrer-Policy, and more. CSP disabled (blocks Google Maps). (index.ts)
+- **CORS whitelist** — Production only accepts requests from wander.up.railway.app. Dev mode allows all origins. (index.ts)
+- **SSE trip membership check** — Verifies the user is a trip member before establishing the real-time event stream. Previously any authenticated user could subscribe to any trip. (sse.ts)
+- **Profile ownership check** — Users can only update their own traveler preferences. Previously any authenticated user could modify any profile. (auth.ts)
+- **32 chaos tests for 2.0 features** — SSE, travel advisories, day-level decisions, vote chaos, cross-feature integration. (2.0-features.test.ts)
+
+### Changed
+- **JWT expiry: 30 days → 7 days** — Reduces window if a token is compromised. (auth.ts)
+- **JWT secret enforced in production** — Refuses to start if JWT_SECRET is not set, instead of falling back to "dev-secret". (auth.ts)
+- **JSON body limit: 50MB → 10MB** — Previous limit enabled memory exhaustion attacks. (index.ts)
+- **Error handler: generic messages in production** — 500 errors return "Something went wrong on our end" instead of leaking internal details. (index.ts)
+- **Onboarding overlay deferred 5 seconds** — New users see the trip for a few seconds before being asked about interests. Also suppressed on GuidePage. (App.tsx)
+- **BottomNav label size: 10px → 11px** — Improved readability for older users. (BottomNav.tsx)
+- **Service worker re-enabled** — SW registration restored in main.tsx, old blanket-unregister script removed from index.html. Offline caching, API caching, and predictive city prefetch now active again. (main.tsx, index.html)
+
+### Fixed
+- **GuidePage back button loop** — After joining via invite link, the back button navigated to the join page instead of home. Now goes to `/`. (GuidePage.tsx)
+- **Delete undo used wrong token key** — PlanPage read `wander:token` but auth stores as `wander_token`. Undo always failed silently with 401. Now checks both keys. (PlanPage.tsx)
+
 ## 2026-03-29 — Overnight: Advisories, Onboarding, Nav Redesign, Extraction Fixes
 
 ### Added

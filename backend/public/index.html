@@ -14,23 +14,10 @@
     <style>
       html, body { margin: 0; padding: 0; background: #3a3128; }
     </style>
-    <script type="module" crossorigin src="/assets/index-tGZH8RBW.js"></script>
+    <script type="module" crossorigin src="/assets/index-COrLhx0w.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-B3gWIpNc.css">
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // One-time cleanup: unregister stale service workers.
-      // Uses sessionStorage flag to prevent reload loops.
-      if ('serviceWorker' in navigator && !sessionStorage.getItem('sw_clean')) {
-        navigator.serviceWorker.getRegistrations().then(function(regs) {
-          if (regs.length === 0) return;
-          Promise.all(regs.map(function(r) { return r.unregister(); })).then(function() {
-            sessionStorage.setItem('sw_clean', '1');
-            location.reload();
-          });
-        });
-      }
-    </script>
   </body>
 </html>
