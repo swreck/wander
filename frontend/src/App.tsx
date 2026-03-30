@@ -172,29 +172,33 @@ function OnboardingOverlay() {
   useEffect(() => {
     if (!user?.travelerId) return;
     if (location.pathname === "/login" || location.pathname.startsWith("/join")) return;
+    if (location.pathname === "/guide") return; // Don't overlay on top of guide
 
     // Check if onboarding should show (not completed, not snoozed)
     if (!shouldShowOnboarding()) return;
 
-    // Check if user already has interests set — if so, mark complete silently
-    api.get<{ preferences: Record<string, unknown> | null }>(`/auth/travelers/${user.travelerId}`)
-      .then((t) => {
-        const prefs = t?.preferences as Record<string, unknown> | null;
-        const interests = (prefs?.interests as string[]) || [];
-        if (interests.length > 0) {
-          // Already has interests — no need to show onboarding
-          localStorage.setItem("wander:onboarding-completed", "1");
-          return;
-        }
-        // Get trip name for the greeting
-        return api.get<Trip>("/trips/active").then((trip) => {
-          if (trip?.name) {
-            setTripName(trip.name);
-            setShow(true);
+    // Delay 5s so new users see the trip before being asked about interests
+    const timer = setTimeout(() => {
+      // Check if user already has interests set — if so, mark complete silently
+      api.get<{ preferences: Record<string, unknown> | null }>(`/auth/travelers/${user.travelerId}`)
+        .then((t) => {
+          const prefs = t?.preferences as Record<string, unknown> | null;
+          const interests = (prefs?.interests as string[]) || [];
+          if (interests.length > 0) {
+            localStorage.setItem("wander:onboarding-completed", "1");
+            return;
           }
-        });
-      })
-      .catch(() => {});
+          return api.get<Trip>("/trips/active").then((trip) => {
+            if (trip?.name) {
+              setTripName(trip.name);
+              setShow(true);
+            }
+          });
+        })
+        .catch(() => {});
+    }, 5000);
+
+    return () => clearTimeout(timer);
   }, [user?.travelerId, location.pathname]);
 
   if (!show || !user?.travelerId) return null;

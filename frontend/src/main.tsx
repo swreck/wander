@@ -10,15 +10,21 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// ── Service Worker DISABLED temporarily ──
-// The SW was causing stale cache loops and reload cycles on devices with
-// old cached versions. SW registration is disabled until all clients have
-// cleared their old SWs (the inline script in index.html unregisters them).
-// Offline support and prefetching are paused until re-enabled.
-//
-// TODO: Re-enable SW registration after all users have loaded this version.
+// ── Service Worker Registration ──
+// skipWaiting + clientsClaim in sw.ts ensures new versions activate immediately.
+// The SW caches app shell, API responses, maps, and images for offline use.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      // Check for updates periodically (every 30 min)
+      setInterval(() => reg.update(), 30 * 60 * 1000);
+    }).catch((err) => {
+      console.warn('[Wander] SW registration failed:', err);
+    });
+  });
+}
 
-// When coming back online, replay any queued mutations and captures (works without SW)
+// When coming back online, replay any queued mutations and captures
 window.addEventListener('online', async () => {
   const [mutations, captures] = await Promise.all([
     replayQueue(),

@@ -209,7 +209,7 @@ export default function PlanPage() {
             label: "Undo",
             onClick: async () => {
               try {
-                const token = localStorage.getItem("wander:token");
+                const token = localStorage.getItem("wander_token") || localStorage.getItem("wander:token");
                 await fetch(`/api/restore/${changeLogId}`, {
                   method: "POST",
                   headers: {
