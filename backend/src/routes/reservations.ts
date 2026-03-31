@@ -23,10 +23,23 @@ router.post("/", async (req: AuthRequest, res) => {
   if (!name?.trim()) { res.status(400).json({ error: "Reservation name is required" }); return; }
   if (!datetime) { res.status(400).json({ error: "datetime is required" }); return; }
 
+  // Validate dayId belongs to this trip
+  const day = await prisma.day.findUnique({ where: { id: dayId } });
+  if (!day || day.tripId !== tripId) {
+    res.status(404).json({ error: "Day not found on this trip" });
+    return;
+  }
+
+  const parsedDate = new Date(datetime);
+  if (isNaN(parsedDate.getTime())) {
+    res.status(400).json({ error: "Invalid datetime format" });
+    return;
+  }
+
   const reservation = await prisma.reservation.create({
     data: {
       tripId, dayId, name, type,
-      datetime: new Date(datetime),
+      datetime: parsedDate,
       durationMinutes: durationMinutes || null,
       latitude: latitude || null,
       longitude: longitude || null,
@@ -56,6 +69,14 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   if (!existing) { res.status(404).json({ error: "Reservation not found" }); return; }
 
   const { name, type, datetime, durationMinutes, latitude, longitude, confirmationNumber, notes, transportModeToHere, dayId } = req.body;
+
+  if (datetime !== undefined) {
+    const d = new Date(datetime);
+    if (isNaN(d.getTime())) {
+      res.status(400).json({ error: "Invalid datetime format" });
+      return;
+    }
+  }
 
   const reservation = await prisma.reservation.update({
     where: { id: req.params.id as string },
