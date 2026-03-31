@@ -43,6 +43,20 @@ router.post("/", async (req: AuthRequest, res) => {
       return;
     }
 
+    // Verify trip exists
+    const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+
+    // Verify city exists and belongs to this trip
+    const city = await prisma.city.findUnique({ where: { id: cityId } });
+    if (!city || city.tripId !== tripId) {
+      res.status(404).json({ error: "City not found on this trip" });
+      return;
+    }
+
     const decision = await prisma.decision.create({
       data: {
         tripId,

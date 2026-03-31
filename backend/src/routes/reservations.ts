@@ -40,9 +40,9 @@ router.post("/", async (req: AuthRequest, res) => {
     data: {
       tripId, dayId, name, type,
       datetime: parsedDate,
-      durationMinutes: durationMinutes || null,
-      latitude: latitude || null,
-      longitude: longitude || null,
+      durationMinutes: durationMinutes ?? null,
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
       confirmationNumber: confirmationNumber || null,
       notes: notes || null,
       transportModeToHere: transportModeToHere || null,
@@ -78,15 +78,24 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     }
   }
 
+  // Validate dayId belongs to the same trip
+  if (dayId !== undefined && dayId !== null) {
+    const dayCheck = await prisma.day.findUnique({ where: { id: dayId } });
+    if (!dayCheck || dayCheck.tripId !== existing.tripId) {
+      res.status(404).json({ error: "Day not found on this trip" });
+      return;
+    }
+  }
+
   const reservation = await prisma.reservation.update({
     where: { id: req.params.id as string },
     data: {
       ...(name !== undefined && { name }),
       ...(type !== undefined && { type }),
       ...(datetime !== undefined && { datetime: new Date(datetime) }),
-      ...(durationMinutes !== undefined && { durationMinutes: durationMinutes || null }),
-      ...(latitude !== undefined && { latitude: latitude || null }),
-      ...(longitude !== undefined && { longitude: longitude || null }),
+      ...(durationMinutes !== undefined && { durationMinutes: durationMinutes ?? null }),
+      ...(latitude !== undefined && { latitude: latitude ?? null }),
+      ...(longitude !== undefined && { longitude: longitude ?? null }),
       ...(confirmationNumber !== undefined && { confirmationNumber: confirmationNumber || null }),
       ...(notes !== undefined && { notes: notes || null }),
       ...(transportModeToHere !== undefined && { transportModeToHere: transportModeToHere || null }),

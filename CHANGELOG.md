@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-31 — Chaos Testing Round 2: 8 More FK/Validation Bugs Fixed
+
+### Fixed
+- **Day creation with missing tripId/cityId/date → 500** — No input validation on POST /api/days. Added required field checks, trip existence check, city-on-trip validation, and date format validation. (days.ts)
+- **Day PATCH with non-existent cityId → 500** — Reassigning a day to a deleted/fake city caused FK violation. Added city existence check. (days.ts)
+- **Day PATCH with invalid date → 500** — `new Date("banana")` passed to Prisma. Added date format validation. (days.ts)
+- **Route segment POST with non-existent tripId → 500** — FK violation. Added trip existence check. (routeSegments.ts)
+- **Route segment PATCH with invalid departureDate → 500** — Same garbage-date pattern. Added date format validation on both POST and PATCH. (routeSegments.ts)
+- **Decision POST with non-existent tripId/cityId → 500** — Checked presence but not existence. Added trip + city-on-trip validation. (decisions.ts)
+- **Approval POST with non-existent tripId → 500** — FK violation. Added tripId required check + trip existence validation. (approvals.ts)
+- **Learning POST with non-existent tripId → 500** — FK violation on optional field. Added trip existence check when tripId provided. (learnings.ts)
+
+### Added
+- **423 chaos tests** (up from 360) — 63 new tests targeting: FK validation gaps, cross-trip references, whitespace content, swapped dates, zero-value numeric fields (lat/lng/duration), Unicode/emoji names, 5000-char descriptions, restore edge cases, double-restore, restore-after-delete-parent, idempotent promote/demote, rapid create-delete-create, import commit validation, cascade deletions, reaction toggle cycles, resolved-decision voting, explicit-null PATCH. (chaos.test.ts)
+
+### Also fixed (design bugs, not 500s)
+- **Learning PATCH accepts whitespace-only content** — Added trim + empty check on PATCH to match POST behavior. (learnings.ts)
+- **Day reassignment to cross-trip city succeeds** — Added same-trip ownership check on cityId. (days.ts)
+- **Accommodation PATCH silently ignores cityId** — Field wasn't destructured. Now accepted and validated for same-trip ownership. (accommodations.ts)
+- **Reservation PATCH dayId allows cross-trip days** — Moving a reservation to a day from a different trip now rejected with "Day not found on this trip." (reservations.ts)
+- **Trip PATCH allows empty name** — Clearing the trip name now rejected with "Trip name can't be empty." (trips.ts)
+- **Trip creation with swapped dates** — startDate after endDate now returns a helpful message: "Looks like the dates are swapped — did you mean Dec 1 to Dec 10?" (trips.ts)
+- **Zero values (lat 0, lng 0, duration 0) silently nullified** — `value || null` treats `0` as falsy. Changed to `value ?? null` across accommodations, reservations, restore, trips, and chat routes. Affects lat/lng/durationMinutes on all CRUD operations. (accommodations.ts, reservations.ts, restore.ts, trips.ts, chat.ts)
+- **Restore experience after parent city deleted → 500** — FK violation on re-create. Added P2003 (foreign key) error handling alongside existing P2002 (unique constraint). Now returns helpful message. (restore.ts)
+
 ## 2026-03-31 — Chaos Testing: 18 FK Validation Bugs Fixed
 
 ### Fixed

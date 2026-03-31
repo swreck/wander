@@ -39,8 +39,8 @@ router.post("/:changeLogId", async (req: AuthRequest, res) => {
             sourceUrl: prev.sourceUrl || prev.source_url || null,
             sourceText: prev.sourceText || prev.source_text || null,
             locationStatus: prev.locationStatus || prev.location_status || "unlocated",
-            latitude: prev.latitude || null,
-            longitude: prev.longitude || null,
+            latitude: prev.latitude ?? null,
+            longitude: prev.longitude ?? null,
             placeIdGoogle: prev.placeIdGoogle || prev.place_id_google || null,
             state: prev.state || "possible",
             dayId: prev.dayId || prev.day_id || null,
@@ -64,8 +64,8 @@ router.post("/:changeLogId", async (req: AuthRequest, res) => {
             type: prev.type || "other",
             datetime: new Date(prev.datetime),
             durationMinutes: prev.durationMinutes || prev.duration_minutes || null,
-            latitude: prev.latitude || null,
-            longitude: prev.longitude || null,
+            latitude: prev.latitude ?? null,
+            longitude: prev.longitude ?? null,
             confirmationNumber: prev.confirmationNumber || prev.confirmation_number || null,
             notes: prev.notes || null,
           },
@@ -81,8 +81,8 @@ router.post("/:changeLogId", async (req: AuthRequest, res) => {
             dayId: prev.dayId || prev.day_id || null,
             name: prev.name,
             address: prev.address || null,
-            latitude: prev.latitude || null,
-            longitude: prev.longitude || null,
+            latitude: prev.latitude ?? null,
+            longitude: prev.longitude ?? null,
             checkInTime: prev.checkInTime || prev.check_in_time || null,
             checkOutTime: prev.checkOutTime || prev.check_out_time || null,
             confirmationNumber: prev.confirmationNumber || prev.confirmation_number || null,
@@ -142,6 +142,11 @@ router.post("/:changeLogId", async (req: AuthRequest, res) => {
     // ID conflict = entity already exists (double-restore)
     if (e.code === "P2002" || e.message?.includes("Unique constraint")) {
       res.status(409).json({ error: "This item has already been restored" });
+      return;
+    }
+    // FK violation = parent entity was deleted (city, trip, day gone)
+    if (e.code === "P2003" || e.message?.includes("Foreign key constraint")) {
+      res.status(400).json({ error: "Can't restore — the city, trip, or day it belonged to has been deleted" });
       return;
     }
     throw e;
