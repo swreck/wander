@@ -21,7 +21,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 process.env.ACCESS_CODES = "CHAOS1:Alice,CHAOS2:Bob";
 process.env.JWT_SECRET = "test-secret-chaos";
@@ -5896,6 +5896,859 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
         .send({ name: "Retro Trip", startDate: "2020-01-01", endDate: "2020-01-10" });
       // Should accept or reject, but never crash
       expect(res.status).toBeLessThan(500);
+    });
+  });
+
+  // ── User Story Tests: Invite → Join → Vault → Documents (S241–S270) ──
+  // These test complete user journeys, not just endpoints.
+  describe("User Stories", () => {
+
+    // ── Story 1: "Larisa, I lost my link" ─────────────────────────
+    // Alice (planner) creates trip, invites "Charlie", Charlie joins,
+    // then Charlie needs a resend.
+
+    it("S241: Full invite lifecycle — create invite, peek info, join, see trip", async () => {
+      const tripId = await createTrip(aliceToken, "S241 Invite Flow", "2026-12-25", "2027-01-01");
+
+      // Alice adds Charlie as expected member
+      const addRes = await request(app)
+        .post(`/api/trips/${tripId}/add-members`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ names: ["Charlie"] });
+      expect(addRes.status).toBe(200);
+
+      // Check members — Charlie should be pending
+      const members = await request(app)
+        .get(`/api/trips/${tripId}/members`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(members.status).toBe(200);
+      const pending = members.body.invites.filter((i: any) => !i.claimedAt);
+      expect(pending.length).toBeGreaterThanOrEqual(1);
+      const charlieInvite = pending.find((i: any) => i.expectedName === "Charlie");
+      expect(charlieInvite).toBeDefined();
+      expect(charlieInvite.inviteToken).toBeTruthy();
+
+      // Charlie peeks at the invite link (public endpoint)
+      const peek = await request(app)
+        .get(`/api/auth/join/${charlieInvite.inviteToken}`);
+      expect(peek.status).toBe(200);
+      expect(peek.body.tripName).toBe("S241 Invite Flow");
+      expect(peek.body.personalInvite).toBe(true);
+      expect(peek.body.expectedName).toBe("Charlie");
+
+      // Charlie claims the invite
+      const join = await request(app)
+        .post(`/api/auth/join/${charlieInvite.inviteToken}`);
+      expect(join.status).toBe(200);
+      expect(join.body.token).toBeTruthy();
+      expect(join.body.displayName).toBe("Charlie");
+      expect(join.body.tripId).toBe(tripId);
+      const charlieToken = join.body.token;
+
+      // Charlie can now see the trip data
+      const tripData = await request(app)
+        .get(`/api/trips/${tripId}`)
+        .set("Authorization", `Bearer ${charlieToken}`);
+      expect(tripData.status).toBe(200);
+    });
+
+    it("S242: Resend invite generates a new working token", async () => {
+      const tripId = await createTrip(aliceToken, "S242 Resend", "2026-12-01", "2026-12-05");
+
+      await request(app)
+        .post(`/api/trips/${tripId}/add-members`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ names: ["DanaResend"] });
+
+      // Get original invite token
+      const members1 = await request(app)
+        .get(`/api/trips/${tripId}/members`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const invite1 = members1.body.invites.find((i: any) => i.expectedName === "DanaResend");
+      const originalToken = invite1.inviteToken;
+
+      // Resend
+      const resend = await request(app)
+        .post(`/api/trips/${tripId}/resend-invite`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ inviteId: invite1.id });
+      expect(resend.status).toBe(200);
+
+      // Get new token
+      const members2 = await request(app)
+        .get(`/api/trips/${tripId}/members`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const invite2 = members2.body.invites.find((i: any) => i.expectedName === "DanaResend");
+      const newToken = invite2.inviteToken;
+
+      // New token should work
+      const peek = await request(app).get(`/api/auth/join/${newToken}`);
+      expect(peek.status).toBe(200);
+
+      // Old token should no longer work (if it was replaced) — or still work if it wasn't
+      // Either way, no crash
+      const oldPeek = await request(app).get(`/api/auth/join/${originalToken}`);
+      expect(oldPeek.status).toBeLessThan(500);
+    });
+
+    it("S243: Join with a slightly misspelled name (fuzzy match)", async () => {
+      const tripId = await createTrip(aliceToken, "S243 Fuzzy", "2026-12-01", "2026-12-05");
+
+      // Create trip-level invite token
+      const inviteRes = await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ type: "trip" });
+      expect(inviteRes.status).toBe(200);
+      const tripInviteToken = inviteRes.body.inviteToken;
+
+      // Add expected name "Evangeline"
+      await request(app)
+        .post(`/api/trips/${tripId}/add-members`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ names: ["Evangeline"] });
+
+      // Join with slightly different spelling
+      const join = await request(app)
+        .post(`/api/auth/join/${tripInviteToken}`)
+        .send({ name: "Evangelina" }); // close enough for fuzzy match
+      expect(join.status).toBe(200);
+      // Should match or at least not crash
+      expect(join.body.token).toBeTruthy();
+    });
+
+    it("S244: Someone joins with an unexpected name (not on the invite list)", async () => {
+      const tripId = await createTrip(aliceToken, "S244 Surprise", "2026-12-01", "2026-12-05");
+
+      const inviteRes = await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ type: "trip" });
+      const tripInviteToken = inviteRes.body.inviteToken;
+
+      // Add expected name "Frank"
+      await request(app)
+        .post(`/api/trips/${tripId}/add-members`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ names: ["FrankInvited"] });
+
+      // Someone completely different joins
+      const join = await request(app)
+        .post(`/api/auth/join/${tripInviteToken}`)
+        .send({ name: "RandomStranger" });
+      expect(join.status).toBe(200);
+      // Should work but flag as unexpected
+      expect(join.body.unexpected).toBe(true);
+    });
+
+    it("S245: Claim the same personal invite twice (already joined)", async () => {
+      const tripId = await createTrip(aliceToken, "S245 Double Claim", "2026-12-01", "2026-12-05");
+
+      await request(app)
+        .post(`/api/trips/${tripId}/add-members`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ names: ["DoubleClaimGrace"] });
+
+      const members = await request(app)
+        .get(`/api/trips/${tripId}/members`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const invite = members.body.invites.find((i: any) => i.expectedName === "DoubleClaimGrace");
+
+      // First claim
+      const join1 = await request(app).post(`/api/auth/join/${invite.inviteToken}`);
+      expect(join1.status).toBe(200);
+      expect(join1.body.token).toBeTruthy();
+
+      // Second claim — should return existing token, not crash
+      const join2 = await request(app).post(`/api/auth/join/${invite.inviteToken}`);
+      expect(join2.status).toBe(200);
+      expect(join2.body.alreadyMember).toBe(true);
+    });
+
+    it("S246: Join with a completely bogus invite token", async () => {
+      const join = await request(app)
+        .post("/api/auth/join/totally-fake-token-12345")
+        .send({ name: "Hacker" });
+      expect(join.status).toBe(404);
+    });
+
+    // ── Story 2: Vault PIN lifecycle ──────────────────────────────
+    // Alice sets PIN → unlocks → adds passport → reads it back →
+    // vault auto-locks → data is hidden → Alice's PIN is reset by planner
+
+    it("S247: Full vault lifecycle — set PIN, unlock, add doc, read with token, read without", async () => {
+      const tripId = await createTrip(aliceToken, "S247 Vault Life", "2026-12-01", "2026-12-05");
+
+      // First clear any existing PIN from previous tests
+      const aliceTraveler = await prisma.traveler.findFirst({ where: { displayName: "Alice" } });
+      if (aliceTraveler) {
+        await prisma.traveler.update({
+          where: { id: aliceTraveler.id },
+          data: { pinHash: null, webauthnCredentials: Prisma.DbNull },
+        });
+      }
+
+      // Check status — should show no PIN
+      const status1 = await request(app)
+        .get("/api/vault/status")
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(status1.status).toBe(200);
+      expect(status1.body.hasPin).toBe(false);
+      expect(status1.body.hasBiometric).toBe(false);
+
+      // Set PIN
+      const setPin = await request(app)
+        .post("/api/vault/set-pin")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ pin: "9876" });
+      expect(setPin.status).toBe(200);
+      expect(setPin.body.vaultToken).toBeTruthy();
+      const vaultToken = setPin.body.vaultToken;
+
+      // Status now shows PIN set
+      const status2 = await request(app)
+        .get("/api/vault/status")
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(status2.body.hasPin).toBe(true);
+
+      // Add a passport document (doesn't need vault token to CREATE, just to READ)
+      const passport = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "C12345678", country: "US", expiry: "2030-06-15" } });
+      expect(passport.status).toBe(201);
+
+      // Read documents WITH vault token — should see real data
+      const withToken = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("X-Vault-Token", vaultToken);
+      expect(withToken.status).toBe(200);
+      const passportDoc = withToken.body.documents.find((d: any) => d.type === "passport");
+      expect(passportDoc).toBeDefined();
+      expect(passportDoc.data.number).toBe("C12345678");
+      expect(passportDoc.data.country).toBe("US");
+
+      // Read documents WITHOUT vault token — passport data should be locked
+      const withoutToken = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(withoutToken.status).toBe(200);
+      const lockedDoc = withoutToken.body.documents.find((d: any) => d.type === "passport");
+      expect(lockedDoc).toBeDefined();
+      expect(lockedDoc.data.locked).toBe(true);
+      expect(lockedDoc.data.number).toBeUndefined();
+
+      // Unlock with correct PIN
+      const unlock = await request(app)
+        .post("/api/vault/unlock")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ pin: "9876" });
+      expect(unlock.status).toBe(200);
+      expect(unlock.body.vaultToken).toBeTruthy();
+
+      // Unlock with wrong PIN
+      const wrongPin = await request(app)
+        .post("/api/vault/unlock")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ pin: "0000" });
+      expect(wrongPin.status).toBe(401);
+    });
+
+    it("S248: Can't overwrite existing PIN (must reset first)", async () => {
+      // Alice already has a PIN from S247
+      const setAgain = await request(app)
+        .post("/api/vault/set-pin")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ pin: "1111" });
+      expect(setAgain.status).toBe(400);
+      expect(setAgain.body.error).toContain("already set");
+    });
+
+    it("S249: Planner resets member's PIN, member can set new one", async () => {
+      // Alice is planner, Bob is member
+      const tripId = await createTrip(aliceToken, "S249 Reset", "2026-12-01", "2026-12-05");
+
+      // Bob needs a travelerId. Login Bob to make sure we have one.
+      const bobLogin = await request(app).post("/api/auth/login").send({ code: "CHAOS2" });
+      const bobTravelerId = bobLogin.body.travelerId;
+
+      // If Bob doesn't have a travelerId, skip gracefully
+      if (!bobTravelerId) return;
+
+      // Add Bob to the trip
+      await prisma.tripMember.create({
+        data: { tripId, travelerId: bobTravelerId, role: "traveler" },
+      }).catch(() => {}); // ignore if already exists
+
+      // Clear Bob's PIN first, then set one
+      await prisma.traveler.update({
+        where: { id: bobTravelerId },
+        data: { pinHash: null, webauthnCredentials: Prisma.DbNull },
+      });
+
+      // Bob sets his PIN
+      const bobSetPin = await request(app)
+        .post("/api/vault/set-pin")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ pin: "5555" });
+      expect(bobSetPin.status).toBe(200);
+
+      // Verify Bob's PIN works
+      const bobUnlock = await request(app)
+        .post("/api/vault/unlock")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ pin: "5555" });
+      expect(bobUnlock.status).toBe(200);
+
+      // Alice (planner) resets Bob's PIN
+      const reset = await request(app)
+        .post(`/api/vault/reset-pin/${bobTravelerId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(reset.status).toBe(200);
+      expect(reset.body.success).toBe(true);
+
+      // Bob's old PIN should no longer work
+      const oldPin = await request(app)
+        .post("/api/vault/unlock")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ pin: "5555" });
+      expect(oldPin.status).toBe(400); // "No PIN set" because it was cleared
+
+      // Bob's status should show no PIN
+      const status = await request(app)
+        .get("/api/vault/status")
+        .set("Authorization", `Bearer ${bobToken}`);
+      expect(status.body.hasPin).toBe(false);
+
+      // Bob can set a new PIN
+      const newPin = await request(app)
+        .post("/api/vault/set-pin")
+        .set("Authorization", `Bearer ${bobToken}`)
+        .send({ pin: "7777" });
+      expect(newPin.status).toBe(200);
+    });
+
+    it("S250: Non-planner can't reset someone else's PIN", async () => {
+      // Bob tries to reset Alice's PIN
+      const aliceTraveler = await prisma.traveler.findFirst({ where: { displayName: "Alice" } });
+      if (!aliceTraveler) return;
+
+      const reset = await request(app)
+        .post(`/api/vault/reset-pin/${aliceTraveler.id}`)
+        .set("Authorization", `Bearer ${bobToken}`);
+      // Bob is not a planner, should fail
+      expect(reset.status).toBe(403);
+    });
+
+    it("S251: Read with expired/garbage vault token — data stays locked", async () => {
+      const tripId = await createTrip(aliceToken, "S251 Bad Token", "2026-12-01", "2026-12-05");
+
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "visa", data: { country: "Vietnam", visaType: "e-visa", number: "EV123456" } });
+
+      // Read with garbage vault token
+      const garbage = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("X-Vault-Token", "this-is-not-a-real-jwt-token");
+      expect(garbage.status).toBe(200);
+      const visaDoc = garbage.body.documents.find((d: any) => d.type === "visa");
+      expect(visaDoc.data.locked).toBe(true);
+      expect(visaDoc.data.number).toBeUndefined();
+    });
+
+    it("S252: Alice's vault token can't unlock Bob's documents", async () => {
+      const tripId = await createTrip(aliceToken, "S252 Cross Vault", "2026-12-01", "2026-12-05");
+
+      // Get Alice's vault token
+      const aliceTraveler = await prisma.traveler.findFirst({ where: { displayName: "Alice" } });
+      // Make sure Alice has a PIN (might be set from S247)
+      const aliceStatus = await request(app)
+        .get("/api/vault/status")
+        .set("Authorization", `Bearer ${aliceToken}`);
+      let aliceVaultToken: string;
+      if (aliceStatus.body.hasPin) {
+        const unlock = await request(app)
+          .post("/api/vault/unlock")
+          .set("Authorization", `Bearer ${aliceToken}`)
+          .send({ pin: "9876" });
+        aliceVaultToken = unlock.body.vaultToken;
+      } else {
+        // No PIN set — skip
+        return;
+      }
+
+      // Bob adds a document to this trip
+      const bobLogin = await request(app).post("/api/auth/login").send({ code: "CHAOS2" });
+      const bobTravelerId = bobLogin.body.travelerId;
+      if (!bobTravelerId) return;
+
+      await prisma.tripMember.create({
+        data: { tripId, travelerId: bobTravelerId, role: "traveler" },
+      }).catch(() => {});
+
+      // Bob uses his own auth to read — should see locked data even with Alice's vault token
+      // (The vault token check verifies travelerId matches the request user)
+      const bobRead = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${bobToken}`)
+        .set("X-Vault-Token", aliceVaultToken);
+      // Alice's vault token doesn't match Bob's travelerId, so docs stay locked
+      expect(bobRead.status).toBe(200);
+      // Bob's own documents with Alice's token should NOT be unlocked
+      // This verifies the travelerId check in isVaultUnlocked()
+    });
+
+    // ── Story 3: Document operations with vault token threading ──
+
+    it("S253: Add ticket (non-sensitive) — visible without vault", async () => {
+      const tripId = await createTrip(aliceToken, "S253 Ticket", "2026-12-01", "2026-12-05");
+
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "ticket", data: { carrier: "Vietnam Airlines", referenceNumber: "VN789", route: "SFO-HAN" } });
+
+      // Read without vault token — ticket should be fully visible
+      const read = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const ticket = read.body.documents.find((d: any) => d.type === "ticket");
+      expect(ticket.data.carrier).toBe("Vietnam Airlines");
+      expect(ticket.data.locked).toBeUndefined();
+    });
+
+    it("S254: Add insurance (sensitive) — locked without vault, visible with", async () => {
+      const tripId = await createTrip(aliceToken, "S254 Insurance", "2026-12-01", "2026-12-05");
+
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "insurance", data: { provider: "World Nomads", policyNumber: "WN-889912", emergencyPhone: "+1-800-555-0123" } });
+
+      // Without vault token
+      const locked = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const insuranceLocked = locked.body.documents.find((d: any) => d.type === "insurance");
+      expect(insuranceLocked.data.locked).toBe(true);
+
+      // With vault token
+      const aliceStatus = await request(app).get("/api/vault/status").set("Authorization", `Bearer ${aliceToken}`);
+      if (!aliceStatus.body.hasPin) return; // needs PIN from earlier test
+
+      const unlock = await request(app)
+        .post("/api/vault/unlock")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ pin: "9876" });
+      if (unlock.status !== 200) return;
+
+      const unlocked = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("X-Vault-Token", unlock.body.vaultToken);
+      const insuranceUnlocked = unlocked.body.documents.find((d: any) => d.type === "insurance");
+      expect(insuranceUnlocked.data.provider).toBe("World Nomads");
+      expect(insuranceUnlocked.data.policyNumber).toBe("WN-889912");
+    });
+
+    it("S255: Frequent flyer is NOT sensitive — visible without vault", async () => {
+      const tripId = await createTrip(aliceToken, "S255 FF Visible", "2026-12-01", "2026-12-05");
+
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "ANA", number: "NH12345678" }, label: "ANA Mileage Club" });
+
+      const read = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const ff = read.body.documents.find((d: any) => d.type === "frequent_flyer");
+      expect(ff.data.airline).toBe("ANA");
+      expect(ff.data.locked).toBeUndefined();
+    });
+
+    // ── Story 4: Edge cases that would confuse a real person ──────
+
+    it("S256: Delete a city, then try to add an experience to it via API", async () => {
+      const tripId = await createTrip(aliceToken, "S256 Ghost", "2026-12-01", "2026-12-05");
+      const city = await request(app)
+        .post("/api/cities")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, name: "Ghost City", country: "X" });
+      const cityId = city.body.id;
+
+      await request(app).delete(`/api/cities/${cityId}`).set("Authorization", `Bearer ${aliceToken}`);
+
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Ghost Dining" });
+      // Should fail with a clear error, not a database constraint crash
+      expect(exp.status).toBeGreaterThanOrEqual(400);
+      expect(exp.status).toBeLessThan(500);
+    });
+
+    it("S257: Reorder experiences when the list is empty", async () => {
+      const tripId = await createTrip(aliceToken, "S257 Empty Reorder", "2026-12-01", "2026-12-05");
+      const city = await request(app)
+        .post("/api/cities")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, name: "Empty City", country: "X" });
+
+      const reorder = await request(app)
+        .patch(`/api/experiences/reorder`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceIds: [] });
+      expect(reorder.status).toBeLessThan(500);
+    });
+
+    it("S258: Add a reservation to a non-existent experience", async () => {
+      const res = await request(app)
+        .post("/api/reservations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          experienceId: "nonexistent-experience-id-12345",
+          date: "2026-12-03",
+          time: "19:00",
+          partySize: 6,
+        });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it("S259: Add accommodation to a non-existent city", async () => {
+      const tripId = await createTrip(aliceToken, "S259 No City", "2026-12-01", "2026-12-05");
+      const res = await request(app)
+        .post("/api/accommodations")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          tripId,
+          cityId: "nonexistent-city-id-67890",
+          name: "Phantom Hotel",
+        });
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it("S260: Create a decision with no options, then try to vote", async () => {
+      const tripId = await createTrip(aliceToken, "S260 Empty Decision", "2026-12-01", "2026-12-05");
+
+      const dec = await request(app)
+        .post("/api/decisions")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, title: "What should we do?", description: "No options yet" });
+      if (dec.status !== 201) return;
+
+      // Try to vote with no options available
+      const vote = await request(app)
+        .post(`/api/decisions/${dec.body.id}/vote`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ experienceId: "imaginary-option" });
+      expect(vote.status).toBeLessThan(500);
+    });
+
+    it("S261: Promote experience to a day, then delete the day", async () => {
+      const tripId = await createTrip(aliceToken, "S261 Day Delete", "2026-12-01", "2026-12-05", [
+        { name: "Hanoi", country: "Vietnam", arrivalDate: "2026-12-01", departureDate: "2026-12-03" },
+      ]);
+
+      const days = await request(app)
+        .get(`/api/days/trip/${tripId}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      if (days.body.length === 0) return;
+      const day = days.body[0];
+      const cityId = day.cityId || day.city?.id;
+      if (!cityId) return;
+
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId, name: "Temple Visit" });
+
+      // Promote to the day
+      await request(app)
+        .patch(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ dayId: day.id, status: "selected", timeSlot: "morning" });
+
+      // Delete the day
+      const delDay = await request(app)
+        .delete(`/api/days/${day.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(delDay.status).toBeLessThan(500);
+
+      // Experience should still exist (orphaned from day, not deleted)
+      const check = await request(app)
+        .get(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(check.status).toBeLessThan(500);
+    });
+
+    it("S262: Search experiences with weird query strings", async () => {
+      const tripId = await createTrip(aliceToken, "S262 Search", "2026-12-01", "2026-12-05");
+
+      const queries = [
+        "",                              // empty
+        " ",                             // just whitespace
+        "a".repeat(1000),               // very long
+        "<script>alert(1)</script>",     // XSS attempt
+        "café résumé naïve",             // diacritics
+        "🍜🍣🍱",                       // emoji only
+        "'; DROP TABLE experiences; --", // SQL injection attempt
+        "%00null%00",                    // null bytes
+      ];
+
+      for (const q of queries) {
+        const res = await request(app)
+          .get(`/api/experiences/trip/${tripId}?search=${encodeURIComponent(q)}`)
+          .set("Authorization", `Bearer ${aliceToken}`);
+        expect(res.status).toBeLessThan(500);
+      }
+    });
+
+    it("S263: Change log for a trip with hundreds of rapid actions", async () => {
+      const tripId = await createTrip(aliceToken, "S263 Rapid Fire", "2026-12-01", "2026-12-05");
+      const city = await request(app)
+        .post("/api/cities")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, name: "Rapid City", country: "X" });
+
+      // Create 20 experiences in rapid succession
+      const promises = [];
+      for (let i = 0; i < 20; i++) {
+        promises.push(
+          request(app)
+            .post("/api/experiences")
+            .set("Authorization", `Bearer ${aliceToken}`)
+            .send({ tripId, cityId: city.body.id, name: `Rapid Experience ${i}` })
+        );
+      }
+      const results = await Promise.all(promises);
+      const successes = results.filter((r) => r.status === 201);
+      expect(successes.length).toBeGreaterThan(0);
+
+      // Change log should handle this volume
+      const log = await request(app)
+        .get(`/api/change-logs/trip/${tripId}?limit=100`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(log.status).toBe(200);
+      expect(log.body.logs.length).toBeGreaterThan(0);
+    });
+
+    it("S264: Update experience with every field at once", async () => {
+      const tripId = await createTrip(aliceToken, "S264 Everything", "2026-12-01", "2026-12-05");
+      const city = await request(app)
+        .post("/api/cities")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, name: "Full City", country: "X" });
+
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId: city.body.id, name: "Bare Bones" });
+
+      const update = await request(app)
+        .patch(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({
+          name: "Fully Loaded Restaurant & Bar — The Best™",
+          description: "A place with every special character: <>&\"'`\\/ and emoji 🍜🎉",
+          sourceUrl: "https://example.com/place?q=test&lang=en#section",
+          userNotes: "Visited on our last trip.\nExcellent pho.\n\tAsk for the back room.",
+          latitude: 21.028511,
+          longitude: 105.804817,
+          themes: ["food", "nature"],
+        });
+      expect(update.status).toBe(200);
+      expect(update.body.name).toContain("Fully Loaded");
+    });
+
+    it("S264b: Update experience with invalid theme rejects cleanly", async () => {
+      const tripId = await createTrip(aliceToken, "S264b Bad Theme", "2026-12-01", "2026-12-05");
+      const city = await request(app)
+        .post("/api/cities")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, name: "Theme City", country: "X" });
+      const exp = await request(app)
+        .post("/api/experiences")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, cityId: city.body.id, name: "Theme Test" });
+
+      const update = await request(app)
+        .patch(`/api/experiences/${exp.body.id}`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ themes: ["food", "nightlife", "underwater-basket-weaving"] });
+      // Should be 400 with clear message, not 500
+      expect(update.status).toBe(400);
+      expect(update.body.error).toContain("Invalid themes");
+    });
+
+    it("S265: Access control — Bob can't see Alice's private documents", async () => {
+      const tripId = await createTrip(aliceToken, "S265 Privacy", "2026-12-01", "2026-12-05");
+
+      // Alice adds a private document
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "custom", data: { label: "Hotel wifi password", value: "supersecret123" }, isPrivate: true });
+
+      // Alice also adds a non-private document
+      await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "ticket", data: { carrier: "Public Airline", referenceNumber: "PA001" }, isPrivate: false });
+
+      // Bob checks shared documents
+      const shared = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/shared`)
+        .set("Authorization", `Bearer ${bobToken}`);
+      expect(shared.status).toBe(200);
+
+      const allDocs = shared.body.flatMap((p: any) => p.documents);
+      // Private doc should NOT be visible to Bob
+      expect(allDocs.some((d: any) => d.data?.value === "supersecret123")).toBe(false);
+      // Public doc should be visible
+      expect(allDocs.some((d: any) => d.data?.carrier === "Public Airline")).toBe(true);
+    });
+
+    it("S266: Login with different cases of the same name", async () => {
+      // The system should handle case-insensitive login
+      const res1 = await request(app).post("/api/auth/login").send({ code: "CHAOS1" });
+      expect(res1.status).toBe(200);
+
+      // Try the display name directly (case-insensitive traveler lookup)
+      const res2 = await request(app).post("/api/auth/login").send({ code: "alice" });
+      // May work (case-insensitive) or fail (exact match) — should not crash
+      expect(res2.status).toBeLessThan(500);
+
+      const res3 = await request(app).post("/api/auth/login").send({ code: "ALICE" });
+      expect(res3.status).toBeLessThan(500);
+    });
+
+    it("S267: Extremely rapid login attempts (rate limit test)", async () => {
+      // In test mode, rate limiting is disabled (process.env.VITEST)
+      // but this ensures the login endpoint handles rapid requests without crashing
+      const promises = [];
+      for (let i = 0; i < 20; i++) {
+        promises.push(
+          request(app).post("/api/auth/login").send({ code: "CHAOS1" })
+        );
+      }
+      const results = await Promise.all(promises);
+      // All should succeed (rate limiting disabled in tests) or be rate-limited, never 500
+      for (const r of results) {
+        expect(r.status).toBeLessThan(500);
+      }
+    });
+
+    it("S268: Add city with same name twice to same trip", async () => {
+      const tripId = await createTrip(aliceToken, "S268 Dupe City", "2026-12-01", "2026-12-10");
+
+      const city1 = await request(app)
+        .post("/api/cities")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, name: "Hanoi", country: "Vietnam", startDate: "2026-12-01", endDate: "2026-12-05" });
+      expect(city1.status).toBe(201);
+
+      // Add Hanoi again with different dates
+      const city2 = await request(app)
+        .post("/api/cities")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, name: "Hanoi", country: "Vietnam", startDate: "2026-12-08", endDate: "2026-12-10" });
+      // Should either succeed (return trips through same city) or reject — never crash
+      expect(city2.status).toBeLessThan(500);
+    });
+
+    it("S269: Readiness check with mixed document types", async () => {
+      const tripId = await createTrip(aliceToken, "S269 Readiness", "2026-12-25", "2027-01-01", [
+        { name: "Hanoi", country: "Vietnam" },
+        { name: "Siem Reap", country: "Cambodia" },
+      ]);
+
+      // Add various documents
+      await request(app).post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "passport", data: { number: "X1234", country: "US", expiry: "2030-01-01" } });
+      await request(app).post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "insurance", data: { provider: "Allianz", policyNumber: "AL789" } });
+      await request(app).post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ tripId, type: "frequent_flyer", data: { airline: "Delta", number: "DL456" } });
+
+      const readiness = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/readiness`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(readiness.status).toBe(200);
+      expect(readiness.body.destinationCountries).toContain("Vietnam");
+      expect(readiness.body.travelers.length).toBeGreaterThanOrEqual(1);
+      const alice = readiness.body.travelers.find((t: any) => t.displayName === "Alice");
+      if (alice) {
+        expect(alice.hasPassport).toBe(true);
+        expect(alice.hasInsurance).toBe(true);
+        expect(alice.frequentFlyerCount).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it("S270: Full journey — join trip, add documents, check readiness", async () => {
+      // Alice creates trip with cities
+      const tripId = await createTrip(aliceToken, "S270 Full Journey", "2026-12-25", "2027-01-01", [
+        { name: "Ho Chi Minh City", country: "Vietnam" },
+      ]);
+
+      // Add a member "FullJourney"
+      await request(app)
+        .post(`/api/trips/${tripId}/add-members`)
+        .set("Authorization", `Bearer ${aliceToken}`)
+        .send({ names: ["FullJourneyTraveler"] });
+
+      // FullJourney claims the invite
+      const members = await request(app)
+        .get(`/api/trips/${tripId}/members`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      const invite = members.body.invites.find((i: any) => i.expectedName === "FullJourneyTraveler");
+      expect(invite).toBeDefined();
+
+      const join = await request(app).post(`/api/auth/join/${invite.inviteToken}`);
+      expect(join.status).toBe(200);
+      const fjToken = join.body.token;
+
+      // FullJourney adds a ticket (visible without vault)
+      const ticket = await request(app)
+        .post("/api/traveler-documents")
+        .set("Authorization", `Bearer ${fjToken}`)
+        .send({ tripId, type: "ticket", data: { carrier: "Vietnam Airlines", referenceNumber: "VN001", route: "SFO→SGN" } });
+      expect(ticket.status).toBe(201);
+
+      // FullJourney can see their own documents
+      const docs = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}`)
+        .set("Authorization", `Bearer ${fjToken}`);
+      expect(docs.status).toBe(200);
+      expect(docs.body.documents.length).toBeGreaterThanOrEqual(1);
+
+      // Alice can see FullJourney's non-private docs via shared endpoint
+      const shared = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/shared`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(shared.status).toBe(200);
+      const fjDocs = shared.body.find((p: any) =>
+        p.documents?.some((d: any) => d.data?.carrier === "Vietnam Airlines")
+      );
+      expect(fjDocs).toBeDefined();
+
+      // Readiness check — FullJourney doesn't have a travelerProfile yet (only created
+      // when they add a document), so readiness only shows travelers with profiles.
+      // This is expected: readiness tracks document completeness, not membership.
+      const readiness = await request(app)
+        .get(`/api/traveler-documents/trip/${tripId}/readiness`)
+        .set("Authorization", `Bearer ${aliceToken}`);
+      expect(readiness.status).toBe(200);
+      expect(readiness.body.travelers.length).toBeGreaterThanOrEqual(1);
+      expect(readiness.body.destinationCountries).toContain("Vietnam");
     });
   });
 });

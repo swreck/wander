@@ -41,6 +41,13 @@ router.post("/", async (req: AuthRequest, res) => {
   if (!cityId) { res.status(400).json({ error: "cityId is required" }); return; }
   if (!name?.trim()) { res.status(400).json({ error: "Experience name is required" }); return; }
 
+  // Verify the city exists and belongs to this trip
+  const city = await prisma.city.findUnique({ where: { id: cityId } });
+  if (!city || city.tripId !== tripId) {
+    res.status(404).json({ error: "City not found on this trip" });
+    return;
+  }
+
   const exp = await prisma.experience.create({
     data: {
       tripId,
@@ -84,6 +91,16 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   if (!existing) { res.status(404).json({ error: "Experience not found" }); return; }
 
   const { name, description, themes, userNotes, latitude, longitude, locationStatus, placeIdGoogle, cloudinaryImageId, priorityOrder, cityId, state, dayId, timeWindow, transportModeToHere } = req.body;
+
+  // Validate theme enum values
+  const VALID_THEMES = ["ceramics", "architecture", "food", "temples", "nature", "other"];
+  if (themes !== undefined && Array.isArray(themes)) {
+    const invalid = themes.filter((t: string) => !VALID_THEMES.includes(t));
+    if (invalid.length > 0) {
+      res.status(400).json({ error: `Invalid themes: ${invalid.join(", ")}. Valid: ${VALID_THEMES.join(", ")}` });
+      return;
+    }
+  }
 
   const exp = await prisma.experience.update({
     where: { id: req.params.id as string },

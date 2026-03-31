@@ -21,6 +21,13 @@ router.post("/", async (req: AuthRequest, res) => {
   if (!cityId) { res.status(400).json({ error: "cityId is required" }); return; }
   if (!name?.trim()) { res.status(400).json({ error: "Accommodation name is required" }); return; }
 
+  // Verify city exists on this trip
+  const cityCheck = await prisma.city.findUnique({ where: { id: cityId } });
+  if (!cityCheck || cityCheck.tripId !== tripId) {
+    res.status(404).json({ error: "City not found on this trip" });
+    return;
+  }
+
   const acc = await prisma.accommodation.create({
     data: {
       tripId, cityId,
