@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import VaultGate from "../components/VaultGate";
 import type { TravelerProfile, TravelerDocument, Trip } from "../lib/types";
 
 // ── Constants ──────────────────────────────────────────────────
@@ -89,6 +90,11 @@ export default function ProfilePage() {
   const [learnings, setLearnings] = useState<Learning[]>([]);
   const [learningsLoading, setLearningsLoading] = useState(false);
 
+  // Vault state
+  const [vaultToken, setVaultToken] = useState<string | null>(null);
+  const [showVaultGate, setShowVaultGate] = useState(false);
+  const vaultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const isPlanner = user?.role === "planner";
 
   // ── Load all data ──────────────────────────────────────────
@@ -125,6 +131,31 @@ export default function ProfilePage() {
     }
     load();
   }, [user?.travelerId]);
+
+  // Auto-lock vault after 5 minutes
+  useEffect(() => {
+    if (vaultToken) {
+      vaultTimerRef.current = setTimeout(() => {
+        setVaultToken(null);
+        showToast("Vault locked again");
+      }, 5 * 60 * 1000);
+    }
+    return () => {
+      if (vaultTimerRef.current) clearTimeout(vaultTimerRef.current);
+    };
+  }, [vaultToken]);
+
+  // Re-fetch documents when vault unlocks
+  useEffect(() => {
+    if (vaultToken && tripId) {
+      api.get<TravelerProfile | { documents: [] }>(
+        `/traveler-documents/trip/${tripId}`,
+        { "X-Vault-Token": vaultToken }
+      ).then((p) => {
+        setProfile(p && "id" in p ? p : null);
+      }).catch(() => {});
+    }
+  }, [vaultToken, tripId]);
 
   // Load learnings for planners
   useEffect(() => {
@@ -172,6 +203,17 @@ export default function ProfilePage() {
 
   // ── Document handlers (preserved from original) ────────────
 
+  const vaultHeaders = vaultToken ? { "X-Vault-Token": vaultToken } : undefined;
+
+  async function reloadDocs() {
+    if (!tripId) return;
+    const p = await api.get<TravelerProfile | { documents: [] }>(
+      `/traveler-documents/trip/${tripId}`,
+      vaultHeaders,
+    );
+    setProfile(p && "id" in p ? p : null);
+  }
+
   async function handleSave() {
     if (!tripId || !addingType) return;
     try {
@@ -180,13 +222,12 @@ export default function ProfilePage() {
         type: addingType,
         data: formData,
         isPrivate: formPrivate,
-      });
+      }, vaultHeaders);
       showToast("Got it");
       setAddingType(null);
       setFormData({});
       setFormPrivate(false);
-      const p = await api.get<TravelerProfile | { documents: [] }>(`/traveler-documents/trip/${tripId}`);
-      setProfile(p && "id" in p ? p : null);
+      await reloadDocs();
     } catch {
       showToast("Couldn't save \u2014 check your connection and try again", "error");
     }
@@ -197,12 +238,11 @@ export default function ProfilePage() {
       await api.patch(`/traveler-documents/${docId}`, {
         data: formData,
         isPrivate: formPrivate,
-      });
+      }, vaultHeaders);
       showToast("Updated");
       setEditingId(null);
       setFormData({});
-      const p = await api.get<TravelerProfile | { documents: [] }>(`/traveler-documents/trip/${tripId}`);
-      setProfile(p && "id" in p ? p : null);
+      await reloadDocs();
     } catch {
       showToast("Couldn't update \u2014 check your connection and try again", "error");
     }
@@ -213,8 +253,7 @@ export default function ProfilePage() {
       await api.delete(`/traveler-documents/${docId}`);
       setConfirmingDeleteId(null);
       showToast("Removed");
-      const p = await api.get<TravelerProfile | { documents: [] }>(`/traveler-documents/trip/${tripId}`);
-      setProfile(p && "id" in p ? p : null);
+      await reloadDocs();
     } catch {
       showToast("Couldn't delete \u2014 check your connection and try again", "error");
     }
@@ -241,6 +280,10 @@ export default function ProfilePage() {
     ...t,
     docs: docs.filter((d) => d.type === t.value),
   }));
+
+  const SENSITIVE_TYPES = ["passport", "visa", "insurance"];
+  const hasSensitiveDocs = docs.some((d) => SENSITIVE_TYPES.includes(d.type));
+  const hasLockedDocs = docs.some((d) => d.data && (d.data as any).locked === true);
 
   // ── Loading state ──────────────────────────────────────────
 
@@ -313,9 +356,55 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        {/* ── Vault Gate Modal ─────────────────────────────────── */}
+        {showVaultGate && (
+          <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center">
+            <div
+              className="bg-[#faf8f5] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-hidden"
+              style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[#e0d8cc]">
+                <h2 className="text-lg font-medium text-[#3a3128]">Unlock your documents</h2>
+                <button onClick={() => setShowVaultGate(false)} className="text-[#8a7a62] text-sm">
+                  Cancel
+                </button>
+              </div>
+              <VaultGate>
+                {(token) => {
+                  // Vault just unlocked — store token and close gate
+                  if (!vaultToken) {
+                    setTimeout(() => {
+                      setVaultToken(token);
+                      setShowVaultGate(false);
+                    }, 0);
+                  }
+                  return (
+                    <div className="p-6 text-center">
+                      <p className="text-sm text-[#6b5d4a]">Unlocked — loading your documents...</p>
+                    </div>
+                  );
+                }}
+              </VaultGate>
+            </div>
+          </div>
+        )}
+
         {/* ── Section 2: Your Documents ───────────────────────── */}
         <section className="rounded-xl border border-[#e5ddd0] bg-white p-5">
-          <h2 className="text-sm font-medium text-[#a89880] mb-1">Your Documents</h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-medium text-[#a89880]">Your Documents</h2>
+            {hasLockedDocs && !vaultToken && (
+              <button
+                onClick={() => setShowVaultGate(true)}
+                className="text-xs px-2.5 py-1 rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
+              >
+                Unlock
+              </button>
+            )}
+            {vaultToken && (
+              <span className="text-xs text-[#8a7a62]">Unlocked</span>
+            )}
+          </div>
           <p className="text-xs text-[#c8bba8] mb-4 leading-relaxed">
             Passport, insurance, frequent flyer &mdash; anything useful during the trip.
             Documents are shared with your travel group by default. Tap the lock to make any item private.
@@ -337,75 +426,90 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Existing documents */}
-                {section.docs.map((doc) => (
-                  <div key={doc.id} className="mb-2 bg-[#faf8f5] rounded-lg border border-[#e5ddd0] p-3">
-                    {editingId === doc.id ? (
-                      <DocumentForm
-                        fields={section.fields as unknown as string[]}
-                        data={formData}
-                        isPrivate={formPrivate}
-                        onChange={setFormData}
-                        onPrivacyChange={setFormPrivate}
-                        onSave={() => handleUpdate(doc.id)}
-                        onCancel={() => { setEditingId(null); setFormData({}); }}
-                        saveLabel="Update"
-                      />
-                    ) : (
-                      <div>
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-0.5">
-                            {Object.entries(doc.data || {}).filter(([, v]) => v).map(([k, v]) => (
-                              <div key={k} className="text-sm">
-                                <span className="text-[#a89880]">{FIELD_LABELS[k] || k}: </span>
-                                <span className="text-[#3a3128]">{v}</span>
-                              </div>
-                            ))}
-                            {doc.label && (
-                              <div className="text-xs text-[#c8bba8]">{doc.label}</div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0 ml-2">
-                            {doc.isPrivate && (
-                              <span className="text-xs text-[#c8bba8]" title="Only you can see this">{"\u{1F512}"}</span>
-                            )}
-                            {confirmingDeleteId === doc.id ? (
-                              <>
-                                <span className="text-xs text-[#6b5d4a]">Remove this from your trip?</span>
-                                <button
-                                  onClick={() => handleDelete(doc.id)}
-                                  className="text-xs text-red-500 font-medium hover:text-red-700 transition-colors"
-                                >
-                                  Remove
-                                </button>
-                                <button
-                                  onClick={() => setConfirmingDeleteId(null)}
-                                  className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
-                                >
-                                  Keep
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => startEdit(doc)}
-                                  className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => setConfirmingDeleteId(doc.id)}
-                                  className="text-xs text-red-400 hover:text-red-600 transition-colors"
-                                >
-                                  Remove
-                                </button>
-                              </>
-                            )}
+                {section.docs.map((doc) => {
+                  const isLocked = doc.data && (doc.data as any).locked === true;
+                  return (
+                    <div key={doc.id} className="mb-2 bg-[#faf8f5] rounded-lg border border-[#e5ddd0] p-3">
+                      {isLocked ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-[#a89880]">
+                            {section.icon} {doc.label || section.label}
+                          </span>
+                          <button
+                            onClick={() => setShowVaultGate(true)}
+                            className="text-xs text-[#514636] hover:text-[#3a3128] transition-colors"
+                          >
+                            Unlock to view
+                          </button>
+                        </div>
+                      ) : editingId === doc.id ? (
+                        <DocumentForm
+                          fields={section.fields as unknown as string[]}
+                          data={formData}
+                          isPrivate={formPrivate}
+                          onChange={setFormData}
+                          onPrivacyChange={setFormPrivate}
+                          onSave={() => handleUpdate(doc.id)}
+                          onCancel={() => { setEditingId(null); setFormData({}); }}
+                          saveLabel="Update"
+                        />
+                      ) : (
+                        <div>
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-0.5">
+                              {Object.entries(doc.data || {}).filter(([, v]) => v).map(([k, v]) => (
+                                <div key={k} className="text-sm">
+                                  <span className="text-[#a89880]">{FIELD_LABELS[k] || k}: </span>
+                                  <span className="text-[#3a3128]">{v}</span>
+                                </div>
+                              ))}
+                              {doc.label && (
+                                <div className="text-xs text-[#c8bba8]">{doc.label}</div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              {doc.isPrivate && (
+                                <span className="text-xs text-[#c8bba8]" title="Only you can see this">{"\u{1F512}"}</span>
+                              )}
+                              {confirmingDeleteId === doc.id ? (
+                                <>
+                                  <span className="text-xs text-[#6b5d4a]">Remove this from your trip?</span>
+                                  <button
+                                    onClick={() => handleDelete(doc.id)}
+                                    className="text-xs text-red-500 font-medium hover:text-red-700 transition-colors"
+                                  >
+                                    Remove
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmingDeleteId(null)}
+                                    className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
+                                  >
+                                    Keep
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => startEdit(doc)}
+                                    className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmingDeleteId(doc.id)}
+                                    className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                                  >
+                                    Remove
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
 
                 {/* Add new form */}
                 {addingType === section.value && (

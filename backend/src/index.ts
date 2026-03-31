@@ -40,6 +40,7 @@ import activityFeedRoutes from "./routes/activityFeed.js";
 import reflectionRoutes from "./routes/reflections.js";
 import sseRoutes from "./routes/sse.js";
 import travelAdvisoryRoutes from "./routes/travelAdvisory.js";
+import vaultRoutes from "./routes/vault.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -123,6 +124,7 @@ app.use("/api/activity-feed", activityFeedRoutes);
 app.use("/api/reflections", reflectionRoutes);
 app.use("/api/sse", sseRoutes);
 app.use("/api/travel-advisory", travelAdvisoryRoutes);
+app.use("/api/vault", vaultRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
 app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

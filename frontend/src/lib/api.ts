@@ -106,11 +106,12 @@ async function uploadRequest<T>(path: string, formData: FormData): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body) }),
-  patch: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
+  get: <T>(path: string, extraHeaders?: Record<string, string>) =>
+    request<T>(path, extraHeaders ? { headers: extraHeaders } : {}),
+  post: <T>(path: string, body: unknown, extraHeaders?: Record<string, string>) =>
+    request<T>(path, { method: "POST", body: JSON.stringify(body), headers: extraHeaders }),
+  patch: <T>(path: string, body: unknown, extraHeaders?: Record<string, string>) =>
+    request<T>(path, { method: "PATCH", body: JSON.stringify(body), headers: extraHeaders }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   upload: <T>(path: string, formData: FormData) => uploadRequest<T>(path, formData),
 };

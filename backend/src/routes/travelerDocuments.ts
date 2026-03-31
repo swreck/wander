@@ -2,15 +2,46 @@ import { Router } from "express";
 import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { verifyVaultToken } from "./vault.js";
 
 const router = Router();
 router.use(requireAuth);
+
+// Sensitive document types that require vault unlock to view details
+const SENSITIVE_TYPES = ["passport", "visa", "insurance"];
+
+// Redact sensitive fields from documents unless vault is unlocked
+function redactDocuments(docs: any[], userCode: string, vaultUnlocked: boolean) {
+  return docs.map((d) => {
+    if (!SENSITIVE_TYPES.includes(d.type)) return d;
+    if (vaultUnlocked && d.profile?.userCode === userCode) return d; // Own docs, vault open
+    if (vaultUnlocked) {
+      // Others' non-private docs: show type and label but redact data
+      return { ...d, data: { redacted: true } };
+    }
+    // Vault locked: show existence but redact data
+    return { ...d, data: { locked: true } };
+  });
+}
+
+// Check if the request has a valid vault token
+function isVaultUnlocked(req: AuthRequest): boolean {
+  const vaultHeader = req.headers["x-vault-token"] as string;
+  if (!vaultHeader) return false;
+  try {
+    const payload = verifyVaultToken(vaultHeader);
+    return payload.travelerId === req.user!.travelerId;
+  } catch {
+    return false;
+  }
+}
 
 // Valid document types and their expected data fields (all optional within data)
 const VALID_TYPES = ["passport", "visa", "frequent_flyer", "insurance", "ticket", "custom"] as const;
 
 // Get current user's profile + documents for a trip
 router.get("/trip/:tripId", async (req: AuthRequest, res) => {
+  const vaultOpen = isVaultUnlocked(req);
   const profile = await prisma.travelerProfile.findUnique({
     where: {
       tripId_userCode: {
@@ -20,7 +51,14 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
     },
     include: { documents: { orderBy: { createdAt: "asc" } } },
   });
-  res.json(profile || { documents: [] });
+  if (!profile) { res.json({ documents: [] }); return; }
+
+  // Redact sensitive document data if vault is locked
+  const docs = profile.documents.map((d) => {
+    if (!SENSITIVE_TYPES.includes(d.type) || vaultOpen) return d;
+    return { ...d, data: { locked: true } };
+  });
+  res.json({ ...profile, documents: docs });
 });
 
 // Get all travelers' shared (non-private) documents for a trip

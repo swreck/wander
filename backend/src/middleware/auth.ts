@@ -32,7 +32,7 @@ export function parseAccessCodes(): Map<string, string> {
 }
 
 export function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "365d" });
 }
 
 export function verifyToken(token: string): AuthPayload {
