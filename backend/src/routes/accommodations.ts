@@ -43,8 +43,8 @@ router.post("/", async (req: AuthRequest, res) => {
       dayId: dayId || null,
       name,
       address: address || null,
-      latitude: latitude || null,
-      longitude: longitude || null,
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
       checkInTime: checkInTime || null,
       checkOutTime: checkOutTime || null,
       confirmationNumber: confirmationNumber || null,
@@ -71,7 +71,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const existing = await prisma.accommodation.findUnique({ where: { id: req.params.id as string } });
   if (!existing) { res.status(404).json({ error: "Accommodation not found" }); return; }
 
-  const { name, address, latitude, longitude, checkInTime, checkOutTime, confirmationNumber, notes, dayId } = req.body;
+  const { name, address, latitude, longitude, checkInTime, checkOutTime, confirmationNumber, notes, dayId, cityId } = req.body;
 
   // Validate dayId if being changed
   if (dayId !== undefined && dayId !== null) {
@@ -82,18 +82,28 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     }
   }
 
+  // Validate cityId if being changed — must belong to same trip
+  if (cityId !== undefined) {
+    const cityCheck = await prisma.city.findUnique({ where: { id: cityId } });
+    if (!cityCheck || cityCheck.tripId !== existing.tripId) {
+      res.status(404).json({ error: "City not found on this trip" });
+      return;
+    }
+  }
+
   const acc = await prisma.accommodation.update({
     where: { id: req.params.id as string },
     data: {
       ...(name !== undefined && { name }),
       ...(address !== undefined && { address: address || null }),
-      ...(latitude !== undefined && { latitude: latitude || null }),
-      ...(longitude !== undefined && { longitude: longitude || null }),
+      ...(latitude !== undefined && { latitude: latitude ?? null }),
+      ...(longitude !== undefined && { longitude: longitude ?? null }),
       ...(checkInTime !== undefined && { checkInTime: checkInTime || null }),
       ...(checkOutTime !== undefined && { checkOutTime: checkOutTime || null }),
       ...(confirmationNumber !== undefined && { confirmationNumber: confirmationNumber || null }),
       ...(notes !== undefined && { notes: notes || null }),
       ...(dayId !== undefined && { dayId: dayId || null }),
+      ...(cityId !== undefined && { cityId }),
     },
     include: { city: true },
   });

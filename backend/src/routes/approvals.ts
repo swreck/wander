@@ -61,6 +61,18 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
+  if (!tripId) {
+    res.status(400).json({ error: "tripId is required" });
+    return;
+  }
+
+  // Verify trip exists
+  const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!trip) {
+    res.status(404).json({ error: "Trip not found" });
+    return;
+  }
+
   const approval = await prisma.approvalRequest.create({
     data: {
       tripId,

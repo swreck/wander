@@ -52,6 +52,15 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
+  // Validate tripId if provided
+  if (tripId) {
+    const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+  }
+
   const learning = await prisma.learning.create({
     data: {
       travelerId: req.user.travelerId,
@@ -73,6 +82,12 @@ router.post("/", async (req: AuthRequest, res) => {
 // Update a learning
 router.patch("/:id", async (req: AuthRequest, res) => {
   const { content } = req.body;
+
+  if (content !== undefined && !content?.trim()) {
+    res.status(400).json({ error: "Content can't be empty" });
+    return;
+  }
+
   const learning = await prisma.learning.findUnique({
     where: { id: req.params.id as string },
   });

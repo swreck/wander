@@ -54,6 +54,15 @@ router.post("/", async (req: AuthRequest, res) => {
 
   if (!name?.trim()) { res.status(400).json({ error: "Trip name is required" }); return; }
 
+  // Validate dates if both provided
+  if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+    res.status(400).json({
+      error: "Looks like the dates are swapped — did you mean " +
+        `${new Date(endDate).toISOString().slice(0, 10)} to ${new Date(startDate).toISOString().slice(0, 10)}?`,
+    });
+    return;
+  }
+
   // Dateless trips: startDate/endDate no longer required
   const datesKnown = dateState !== "not_yet";
 
@@ -106,8 +115,8 @@ router.post("/", async (req: AuthRequest, res) => {
           tripId: trip.id,
           name: c.name,
           country: c.country || null,
-          latitude: c.latitude || null,
-          longitude: c.longitude || null,
+          latitude: c.latitude ?? null,
+          longitude: c.longitude ?? null,
           sequenceOrder: i,
           arrivalDate: c.arrivalDate ? new Date(c.arrivalDate) : null,
           departureDate: c.departureDate ? new Date(c.departureDate) : null,
@@ -269,6 +278,12 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   if (!existing) { res.status(404).json({ error: "Trip not found" }); return; }
 
   const { name, tagline } = req.body;
+
+  if (name !== undefined && !name?.trim()) {
+    res.status(400).json({ error: "Trip name can't be empty" });
+    return;
+  }
+
   const trip = await prisma.trip.update({
     where: { id: req.params.id as string },
     data: {

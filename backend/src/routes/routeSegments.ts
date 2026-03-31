@@ -41,6 +41,19 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
+  // Validate departureDate if provided
+  if (departureDate) {
+    const d = new Date(departureDate);
+    if (isNaN(d.getTime())) {
+      res.status(400).json({ error: "Invalid departure date format" });
+      return;
+    }
+  }
+
+  // Verify trip exists
+  const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!trip) { res.status(404).json({ error: "Trip not found" }); return; }
+
   const maxSeg = await prisma.routeSegment.findFirst({
     where: { tripId },
     orderBy: { sequenceOrder: "desc" },
@@ -91,6 +104,15 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   if (transportMode !== undefined && !VALID_TRANSPORT_MODES.includes(transportMode)) {
     res.status(400).json({ error: `Invalid transport mode: ${transportMode}. Valid: ${VALID_TRANSPORT_MODES.join(", ")}` });
     return;
+  }
+
+  // Validate departureDate if provided
+  if (departureDate !== undefined && departureDate !== null) {
+    const d = new Date(departureDate);
+    if (isNaN(d.getTime())) {
+      res.status(400).json({ error: "Invalid departure date format" });
+      return;
+    }
   }
 
   const segment = await prisma.routeSegment.update({

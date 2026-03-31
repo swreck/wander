@@ -46,6 +46,25 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   if (!existing) { res.status(404).json({ error: "Day not found" }); return; }
 
   const { explorationZone, notes, cityId, date } = req.body;
+
+  // Validate cityId if being changed — must exist and belong to the same trip
+  if (cityId !== undefined) {
+    const cityCheck = await prisma.city.findUnique({ where: { id: cityId } });
+    if (!cityCheck || cityCheck.tripId !== existing.tripId) {
+      res.status(404).json({ error: "City not found on this trip" });
+      return;
+    }
+  }
+
+  // Validate date if being changed
+  if (date !== undefined) {
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      res.status(400).json({ error: "Invalid date format" });
+      return;
+    }
+  }
+
   const day = await prisma.day.update({
     where: { id: req.params.id as string },
     data: {
@@ -88,11 +107,32 @@ router.patch("/:id", async (req: AuthRequest, res) => {
 router.post("/", async (req: AuthRequest, res) => {
   const { tripId, cityId, date, notes } = req.body;
 
+  if (!tripId) { res.status(400).json({ error: "tripId is required" }); return; }
+  if (!cityId) { res.status(400).json({ error: "cityId is required" }); return; }
+  if (!date) { res.status(400).json({ error: "date is required" }); return; }
+
+  const parsedDate = new Date(date);
+  if (isNaN(parsedDate.getTime())) {
+    res.status(400).json({ error: "Invalid date format" });
+    return;
+  }
+
+  // Verify trip exists
+  const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!trip) { res.status(404).json({ error: "Trip not found" }); return; }
+
+  // Verify city exists and belongs to this trip
+  const city = await prisma.city.findUnique({ where: { id: cityId } });
+  if (!city || city.tripId !== tripId) {
+    res.status(404).json({ error: "City not found on this trip" });
+    return;
+  }
+
   const day = await prisma.day.create({
     data: {
       tripId,
       cityId,
-      date: new Date(date),
+      date: parsedDate,
       notes: notes || null,
     },
     include: { city: true },
