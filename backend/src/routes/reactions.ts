@@ -19,6 +19,13 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
+  // Validate experience exists
+  const experience = await prisma.experience.findUnique({ where: { id: experienceId } });
+  if (!experience) {
+    res.status(404).json({ error: "Experience not found" });
+    return;
+  }
+
   // Check if reaction already exists — if so, remove it (toggle)
   const existing = await prisma.experienceReaction.findUnique({
     where: {

@@ -89,6 +89,12 @@ router.post("/:id/options", async (req: AuthRequest, res) => {
 
     let exp;
     if (experienceId) {
+      // Validate the experience exists before linking
+      const existingExp = await prisma.experience.findUnique({ where: { id: experienceId } });
+      if (!existingExp) {
+        res.status(404).json({ error: "Experience not found" });
+        return;
+      }
       // Link existing experience
       exp = await prisma.experience.update({
         where: { id: experienceId },
@@ -158,6 +164,15 @@ router.post("/:id/vote", async (req: AuthRequest, res) => {
     });
     if (!decision) { res.status(404).json({ error: "Decision not found" }); return; }
     if (decision.status !== "open") { res.status(400).json({ error: "Decision is already resolved" }); return; }
+
+    // Validate optionId refers to a real experience if provided
+    if (optionId) {
+      const optionExp = await prisma.experience.findUnique({ where: { id: optionId } });
+      if (!optionExp) {
+        res.status(404).json({ error: "Option not found" });
+        return;
+      }
+    }
 
     const vote = await prisma.decisionVote.upsert({
       where: {

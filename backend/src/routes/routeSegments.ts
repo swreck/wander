@@ -35,6 +35,12 @@ router.post("/", async (req: AuthRequest, res) => {
   if (!originCity?.trim()) { res.status(400).json({ error: "Origin city is required" }); return; }
   if (!destinationCity?.trim()) { res.status(400).json({ error: "Destination city is required" }); return; }
 
+  const VALID_TRANSPORT_MODES = ["flight", "train", "ferry", "drive", "other"];
+  if (transportMode && !VALID_TRANSPORT_MODES.includes(transportMode)) {
+    res.status(400).json({ error: `Invalid transport mode: ${transportMode}. Valid: ${VALID_TRANSPORT_MODES.join(", ")}` });
+    return;
+  }
+
   const maxSeg = await prisma.routeSegment.findFirst({
     where: { tripId },
     orderBy: { sequenceOrder: "desc" },
@@ -80,6 +86,13 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const { transportMode, departureDate, notes,
           confirmationNumber, serviceNumber, departureTime, arrivalTime,
           departureStation, arrivalStation, seatInfo } = req.body;
+
+  const VALID_TRANSPORT_MODES = ["flight", "train", "ferry", "drive", "other"];
+  if (transportMode !== undefined && !VALID_TRANSPORT_MODES.includes(transportMode)) {
+    res.status(400).json({ error: `Invalid transport mode: ${transportMode}. Valid: ${VALID_TRANSPORT_MODES.join(", ")}` });
+    return;
+  }
+
   const segment = await prisma.routeSegment.update({
     where: { id: req.params.id as string },
     data: {

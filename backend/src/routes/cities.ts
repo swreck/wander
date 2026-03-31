@@ -37,6 +37,13 @@ router.post("/", async (req: AuthRequest, res) => {
   if (!tripId) { res.status(400).json({ error: "tripId is required" }); return; }
   if (!name?.trim()) { res.status(400).json({ error: "City name is required" }); return; }
 
+  // Validate trip exists
+  const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!trip) {
+    res.status(404).json({ error: "Trip not found" });
+    return;
+  }
+
   // Default sequence order to end
   let order = sequenceOrder;
   if (order === undefined) {
@@ -292,13 +299,16 @@ router.post("/reorder", async (req: AuthRequest, res) => {
     return;
   }
 
-  await prisma.$transaction(
-    orderedIds.map((id: string, i: number) =>
-      prisma.city.update({ where: { id }, data: { sequenceOrder: i } })
-    )
-  );
-
-  res.json({ reordered: true });
+  try {
+    await prisma.$transaction(
+      orderedIds.map((id: string, i: number) =>
+        prisma.city.update({ where: { id }, data: { sequenceOrder: i } })
+      )
+    );
+    res.json({ reordered: true });
+  } catch {
+    res.status(400).json({ error: "One or more city IDs not found" });
+  }
 });
 
 export default router;

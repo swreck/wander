@@ -28,6 +28,15 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
+  // Validate dayId if provided
+  if (dayId) {
+    const dayCheck = await prisma.day.findUnique({ where: { id: dayId } });
+    if (!dayCheck || dayCheck.tripId !== tripId) {
+      res.status(404).json({ error: "Day not found on this trip" });
+      return;
+    }
+  }
+
   const acc = await prisma.accommodation.create({
     data: {
       tripId, cityId,
@@ -63,6 +72,15 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   if (!existing) { res.status(404).json({ error: "Accommodation not found" }); return; }
 
   const { name, address, latitude, longitude, checkInTime, checkOutTime, confirmationNumber, notes, dayId } = req.body;
+
+  // Validate dayId if being changed
+  if (dayId !== undefined && dayId !== null) {
+    const dayCheck = await prisma.day.findUnique({ where: { id: dayId } });
+    if (!dayCheck) {
+      res.status(404).json({ error: "Day not found" });
+      return;
+    }
+  }
 
   const acc = await prisma.accommodation.update({
     where: { id: req.params.id as string },

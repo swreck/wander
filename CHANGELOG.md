@@ -2,6 +2,30 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-31 — Chaos Testing: 18 FK Validation Bugs Fixed
+
+### Fixed
+- **Reservation with invalid datetime → 500** — `new Date("garbage")` passed to Prisma. Added format validation on POST and PATCH. (reservations.ts)
+- **Reservation with cross-trip dayId → 500** — Day from Trip B used on Trip A's reservation. Added trip ownership check. (reservations.ts)
+- **Reflection with non-existent dayId → 500** — Upsert attempted FK to missing day. Added existence check. (reflections.ts)
+- **Route segment with invalid transport mode → 500** — "teleportation" not in enum. Added VALID_TRANSPORT_MODES validation on POST and PATCH. (routeSegments.ts)
+- **City creation on deleted trip → 500** — FK violation when trip doesn't exist. Added trip existence check. (cities.ts)
+- **Accommodation creation with non-existent dayId → 500** — FK violation. Added day existence check when dayId provided on POST. (accommodations.ts)
+- **Accommodation PATCH with non-existent dayId → 500** — Same pattern on PATCH. Added day existence check. (accommodations.ts)
+- **Experience PATCH with non-existent cityId → 500** — FK violation when moving to deleted city. Added city existence + trip ownership check. (experiences.ts)
+- **Experience PATCH with non-existent dayId → 500** — FK violation. Added day existence check. (experiences.ts)
+- **Experience promote with non-existent dayId/routeSegmentId → 500** — FK violations. Added existence checks for both. (experiences.ts)
+- **City reorder with non-existent ID → 500** — Prisma transaction fails on missing record. Wrapped in try/catch, returns 400. (cities.ts)
+- **Experience reorder with non-existent ID → 500** — Same pattern. Wrapped in try/catch, returns 400. (experiences.ts)
+- **Decision vote with non-existent optionId → 500** — FK violation. Added existence check before upsert. (decisions.ts)
+- **Decision add option with non-existent experienceId → 500** — FK violation. Added existence check before linking. (decisions.ts)
+- **Reaction on deleted experience → 500** — FK violation. Added experience existence check before create. (reactions.ts)
+- **Experience note on deleted experience → 500** — FK violation. Added experience existence check before create. (experienceNotes.ts)
+- **Experience query with invalid state enum → 500** — SQL injection-like value passed as query param. Added VALID_STATES validation on GET. (experiences.ts)
+
+### Added
+- **360 chaos tests** (up from 300) — 60 new tests covering FK validation gaps, stale data operations, concurrent mutations, delete-then-operate patterns, cross-trip references, SQL injection attempts, vault PIN lifecycle, and full trip lifecycle cascade. (chaos.test.ts)
+
 ## 2026-03-30 — Vault System, Planner Tools, Security Hardening
 
 ### Added

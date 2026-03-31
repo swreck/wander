@@ -25,6 +25,13 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
+  // Validate day exists
+  const day = await prisma.day.findUnique({ where: { id: dayId } });
+  if (!day) {
+    res.status(404).json({ error: "Day not found" });
+    return;
+  }
+
   const reflection = await prisma.reflection.upsert({
     where: {
       dayId_travelerId: {

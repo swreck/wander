@@ -11,7 +11,14 @@ router.get("/trip/:tripId", async (req, res) => {
   const { cityId, state, dayId } = req.query as Record<string, string | undefined>;
   const where: any = { tripId: req.params.tripId as string };
   if (cityId) where.cityId = cityId;
-  if (state) where.state = state;
+  if (state) {
+    const VALID_STATES = ["possible", "selected", "voting"];
+    if (!VALID_STATES.includes(state)) {
+      res.status(400).json({ error: `Invalid state: ${state}. Valid: ${VALID_STATES.join(", ")}` });
+      return;
+    }
+    where.state = state;
+  }
   if (dayId) where.dayId = dayId;
 
   const experiences = await prisma.experience.findMany({
@@ -102,6 +109,24 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     }
   }
 
+  // Validate cityId if being changed
+  if (cityId !== undefined) {
+    const cityCheck = await prisma.city.findUnique({ where: { id: cityId } });
+    if (!cityCheck || cityCheck.tripId !== existing.tripId) {
+      res.status(404).json({ error: "City not found on this trip" });
+      return;
+    }
+  }
+
+  // Validate dayId if being changed
+  if (dayId !== undefined && dayId !== null) {
+    const dayCheck = await prisma.day.findUnique({ where: { id: dayId } });
+    if (!dayCheck) {
+      res.status(404).json({ error: "Day not found" });
+      return;
+    }
+  }
+
   const exp = await prisma.experience.update({
     where: { id: req.params.id as string },
     data: {
@@ -152,6 +177,22 @@ router.post("/:id/promote", async (req: AuthRequest, res) => {
   if (!dayId && !routeSegmentId) {
     res.status(400).json({ error: "Either dayId or routeSegmentId is required" });
     return;
+  }
+
+  // Validate references exist
+  if (dayId) {
+    const dayCheck = await prisma.day.findUnique({ where: { id: dayId } });
+    if (!dayCheck) {
+      res.status(404).json({ error: "Day not found" });
+      return;
+    }
+  }
+  if (routeSegmentId) {
+    const segCheck = await prisma.routeSegment.findUnique({ where: { id: routeSegmentId } });
+    if (!segCheck) {
+      res.status(404).json({ error: "Route segment not found" });
+      return;
+    }
   }
 
   const exp = await prisma.experience.update({
@@ -256,13 +297,16 @@ router.post("/reorder", async (req: AuthRequest, res) => {
     return;
   }
 
-  await prisma.$transaction(
-    orderedIds.map((id: string, i: number) =>
-      prisma.experience.update({ where: { id }, data: { priorityOrder: i } })
-    )
-  );
-
-  res.json({ reordered: true });
+  try {
+    await prisma.$transaction(
+      orderedIds.map((id: string, i: number) =>
+        prisma.experience.update({ where: { id }, data: { priorityOrder: i } })
+      )
+    );
+    res.json({ reordered: true });
+  } catch {
+    res.status(400).json({ error: "One or more experience IDs not found" });
+  }
 });
 
 export default router;
