@@ -428,11 +428,13 @@ model Vote {
 // ── Identity & Invitation System ───────────────────────────────
 
 model Traveler {
-  id          String   @id @default(cuid())
-  displayName String   @unique @map("display_name")
-  pinHash     String?  @map("pin_hash")
-  preferences Json?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(cuid())
+  displayName         String   @unique @map("display_name")
+  pinHash             String?  @map("pin_hash")
+  webauthnCredentials Json?    @map("webauthn_credentials")
+  webauthnChallenge   String?  @map("webauthn_challenge")
+  preferences         Json?
+  createdAt           DateTime @default(now()) @map("created_at")
 
   tripMembers         TripMember[]
   tripInvites         TripInvite[]

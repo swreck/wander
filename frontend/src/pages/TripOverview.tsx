@@ -1323,6 +1323,7 @@ function CandidateDestinations({
 // ── Trip Members & Invite ────────────────────────────────────────
 
 function TripMembers({ tripId }: { tripId: string }) {
+  const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [members, setMembers] = useState<{ displayName: string; role: string; travelerId: string }[]>([]);
   const [invites, setInvites] = useState<{ id: string; expectedName: string; claimed: boolean; inviteToken?: string }[]>([]);
@@ -1330,6 +1331,9 @@ function TripMembers({ tripId }: { tripId: string }) {
   const [newNames, setNewNames] = useState("");
   const [sending, setSending] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [resetConfirm, setResetConfirm] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState("");
+  const isPlanner = user?.role === "planner";
 
   async function loadMembers() {
     try {
@@ -1358,6 +1362,18 @@ function TripMembers({ tripId }: { tripId: string }) {
       loadMembers();
     } catch { /* ignore */ }
     setSending(false);
+  }
+
+  async function resetVaultPin(travelerId: string, name: string) {
+    try {
+      await api.post(`/vault/reset-pin/${travelerId}`, {});
+      setResetMessage(`${name}'s vault PIN has been reset`);
+      setResetConfirm(null);
+      setTimeout(() => setResetMessage(""), 3000);
+    } catch {
+      setResetMessage("Couldn't reset PIN");
+      setTimeout(() => setResetMessage(""), 3000);
+    }
   }
 
   function copyPersonalLink(token: string, id: string) {
@@ -1396,19 +1412,52 @@ function TripMembers({ tripId }: { tripId: string }) {
         <div className="p-4 bg-white rounded-lg border border-[#e0d8cc] space-y-3">
           {/* Current members */}
           {members.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-1.5">
               {members.map((m) => (
-                <span
+                <div
                   key={m.displayName}
-                  className="px-3 py-1 rounded-full bg-[#f0ece5] text-sm text-[#3a3128]"
+                  className="flex items-center justify-between py-1.5 px-3 bg-[#f0ece5] rounded-lg"
                 >
-                  {m.displayName}
-                  {(m.role === "planner" || m.role === "owner") && (
-                    <span className="ml-1 text-xs text-[#a89880]">(planner)</span>
+                  <span className="text-sm text-[#3a3128]">
+                    {m.displayName}
+                    {(m.role === "planner" || m.role === "owner") && (
+                      <span className="ml-1 text-xs text-[#a89880]">(planner)</span>
+                    )}
+                  </span>
+                  {isPlanner && m.travelerId !== user?.travelerId && (
+                    <div className="flex items-center gap-1">
+                      {resetConfirm === m.travelerId ? (
+                        <>
+                          <button
+                            onClick={() => resetVaultPin(m.travelerId, m.displayName)}
+                            className="text-xs text-red-600"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setResetConfirm(null)}
+                            className="text-xs text-[#a89880]"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setResetConfirm(m.travelerId)}
+                          className="text-xs text-[#a89880] hover:text-[#8a7a62]"
+                        >
+                          Reset PIN
+                        </button>
+                      )}
+                    </div>
                   )}
-                </span>
+                </div>
               ))}
             </div>
+          )}
+
+          {resetMessage && (
+            <p className="text-xs text-[#8a7a62] text-center">{resetMessage}</p>
           )}
 
           {/* Pending invites with personal links */}

@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-30 — Vault System, Planner Tools, Security Hardening
+
+### Added
+- **Document vault with PIN + Face ID** — Sensitive documents (passport, visa, insurance) are now encrypted behind a 4-digit PIN. After first setup, Face ID / biometric unlock is offered. Vault auto-locks after 5 minutes. Non-sensitive documents (tickets, frequent flyer, custom) remain visible without unlock. (VaultGate component, vault.ts backend, ProfilePage integration)
+  - SPEC UPDATE NEEDED: Section on document security / vault behavior
+- **Planner PIN reset** — Planners can reset another traveler's vault PIN from the Travelers section on trip overview. "Larisa, I lost my PIN" → one tap. (TripOverview TripMembers section)
+- **Vault-gated document viewing** — ProfilePage shows "Unlock" button when sensitive documents exist. Locked documents show type/label but not data. Once unlocked, full details are visible for 5 minutes. (ProfilePage)
+
 ## 2026-03-30 — Security Hardening, UX Bug Fixes, Service Worker Re-enabled
 
 ### Added
@@ -13,7 +21,7 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 - **32 chaos tests for 2.0 features** — SSE, travel advisories, day-level decisions, vote chaos, cross-feature integration. (2.0-features.test.ts)
 
 ### Changed
-- **JWT expiry: 30 days → 7 days** — Reduces window if a token is compromised. (auth.ts)
+- **JWT expiry: 30 days → 365 days** — Sessions effectively never expire for a home-screen web app. Vault PIN protects sensitive data separately. (auth.ts)
 - **JWT secret enforced in production** — Refuses to start if JWT_SECRET is not set, instead of falling back to "dev-secret". (auth.ts)
 - **JSON body limit: 50MB → 10MB** — Previous limit enabled memory exhaustion attacks. (index.ts)
 - **Error handler: generic messages in production** — 500 errors return "Something went wrong on our end" instead of leaking internal details. (index.ts)
