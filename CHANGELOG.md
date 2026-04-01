@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-03-31 — Phantom Button Fix, Timezone Bug, Chaos Testing Round 3
+
+### Fixed
+- **Phantom button on TripOverview**: Removed partial "+" button that was hidden behind the bottom nav bar. Tapping it triggered an infinite "Processing..." spinner because the capture pipeline only works on the Plan screen. The button is disabled until a global capture review panel is built.
+- **Day generation timezone bug**: Creating cities with date ranges near DST transitions could generate wrong number of days (e.g., Nov 1–2 creating only 1 day instead of 2). Fixed by switching all date arithmetic from local timezone (`setDate/getDate`) to UTC (`setUTCDate/getUTCDate`) across trips, cities, import, chat, and approvals routes.
+- **Phrases FK validation**: Creating a phrase with a non-existent tripId now returns 404 instead of a 500 FK violation.
+- **Experience cross-trip dayId**: PATCH and promote endpoints now validate that the target dayId belongs to the same trip as the experience, preventing cross-trip data contamination.
+- **Promote race condition**: If a day is deleted while an experience is being promoted to it, the endpoint now returns 404 instead of 500.
+- **Reservation type validation**: Creating a reservation without the required `type` field now returns 400 instead of a Prisma 500.
+
+### Added
+- 57 new chaos tests (S422–S478) covering date shifting, city overlap days, concurrent operations, personal item/reflection/note ownership, phrase CRUD, cross-trip FK validation, and full trip lifecycle scenarios.
+
+Affects: backend/src/routes/trips.ts, cities.ts, experiences.ts, phrases.ts, reservations.ts, import.ts, chat.ts, approvals.ts, frontend/src/components/CaptureFAB.tsx
+
 ## 2026-03-31 — Chaos Testing Round 2: 8 More FK/Validation Bugs Fixed
 
 ### Fixed
