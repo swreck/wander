@@ -57,6 +57,9 @@ app.use(cors({
   credentials: true,
 }));
 
+// Trust Railway's proxy so rate-limiter reads real client IP from X-Forwarded-For
+app.set("trust proxy", 1);
+
 // Rate limiting — strict on login, moderate on API, tight on AI chat
 // Disabled during tests (all requests come from 127.0.0.1)
 if (!process.env.VITEST) {
