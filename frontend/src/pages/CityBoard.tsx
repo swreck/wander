@@ -102,6 +102,9 @@ function IdeaCard({
         {/* Day picker */}
         {showDayPicker && (
           <div className="mt-2 flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
+            {days.length === 0 && (
+              <span className="text-[11px] text-[#a89880]">No days set for this city yet — add dates first</span>
+            )}
             {days.map(d => {
               const date = new Date(d.date);
               const isAssigned = exp.dayId === d.id;

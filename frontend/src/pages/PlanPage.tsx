@@ -32,6 +32,7 @@ export default function PlanPage() {
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
   const [selectedCandidateCityId, setSelectedCandidateCityId] = useState<string | null>(null);
   const initialCityId = searchParams.get("city");
+  const initialAction = searchParams.get("action");
 
   // UI state
   const [showCapture, setShowCapture] = useState(false);
@@ -114,7 +115,8 @@ export default function PlanPage() {
 
   // ── Data loading ──────────────────────────────────────────────
 
-  const loadTrip = useCallback(async () => {
+  const loadTrip = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const t = await api.get<Trip>("/trips/active");
     if (!t) { navigate("/"); return; }
     setTrip(t);
@@ -122,22 +124,36 @@ export default function PlanPage() {
     const d = await api.get<Day[]>(`/days/trip/${t.id}`);
     setDays(d);
     if (d.length > 0 && !selectedDayId) {
-      // If navigated with ?city=X, jump to that city's first day
       const cityDay = initialCityId ? d.find((day) => day.cityId === initialCityId) : null;
       setSelectedDayId(cityDay?.id || d[0].id);
-      // Clear the param so future loads don't keep jumping
       if (initialCityId) setSearchParams({}, { replace: true });
     }
     setLoading(false);
   }, [navigate, selectedDayId]);
 
-  useEffect(() => { loadTrip(); }, []);
+  useEffect(() => {
+    // If we already have trip data (return visit), refresh silently
+    if (trip) loadTrip(true);
+    else loadTrip();
+  }, []);
 
   useEffect(() => {
-    const handler = () => { loadTrip(); };
+    const handler = () => { loadTrip(true); };
     window.addEventListener("wander:data-changed", handler);
     return () => window.removeEventListener("wander:data-changed", handler);
   }, [loadTrip]);
+
+  // Handle action params from Home (camera, import)
+  useEffect(() => {
+    if (!loading && initialAction) {
+      if (initialAction === "camera") {
+        setTimeout(() => cameraRef.current?.click(), 300);
+      } else if (initialAction === "import") {
+        captureCtx.openReview();
+      }
+      setSearchParams({}, { replace: true });
+    }
+  }, [loading, initialAction]);
 
   const loadExperiences = useCallback(async () => {
     if (!trip) return;
@@ -675,11 +691,12 @@ export default function PlanPage() {
                       <div className="border-t border-[#e0d8cc] my-0.5" />
                       <button onClick={() => {
                         setShowAddMenu(false);
+                        const cityName = selectedDay?.city?.name || "our plans";
                         window.dispatchEvent(new CustomEvent("wander-open-chat", {
-                          detail: { prefill: "Start a vote about " },
+                          detail: { prefill: `Help the group decide: where should we eat in ${cityName}?` },
                         }));
                       }}
-                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Start a vote</button>
+                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Group decision</button>
                     </div>
                   </>
                 )}

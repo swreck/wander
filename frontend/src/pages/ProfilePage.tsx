@@ -138,7 +138,7 @@ export default function ProfilePage() {
       vaultTimerRef.current = setTimeout(() => {
         setVaultToken(null);
         showToast("Vault locked again");
-      }, 5 * 60 * 1000);
+      }, 15 * 60 * 1000);
     }
     return () => {
       if (vaultTimerRef.current) clearTimeout(vaultTimerRef.current);
@@ -427,7 +427,8 @@ export default function ProfilePage() {
 
                 {/* Existing documents */}
                 {section.docs.map((doc) => {
-                  const isLocked = doc.data && (doc.data as any).locked === true;
+                  // If vault is already unlocked, don't show per-document lock
+                  const isLocked = !vaultToken && doc.data && (doc.data as any).locked === true;
                   return (
                     <div key={doc.id} className="mb-2 bg-[#faf8f5] rounded-lg border border-[#e5ddd0] p-3">
                       {isLocked ? (

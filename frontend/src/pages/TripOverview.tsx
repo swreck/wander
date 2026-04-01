@@ -21,15 +21,20 @@ import ActivityFeed from "../components/ActivityFeed";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
+// Module-level cache so return visits don't flash "Finding your trip..."
+let _cachedTrip: Trip | null = null;
+let _cachedDays: Day[] = [];
+let _cachedExperiences: Experience[] = [];
+
 export default function TripOverview() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [trip, setTrip] = useState<Trip | null>(null);
+  const [trip, setTrip] = useState<Trip | null>(_cachedTrip);
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
-  const [days, setDays] = useState<Day[]>([]);
-  const [experiences, setExperiences] = useState<Experience[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState<Day[]>(_cachedDays);
+  const [experiences, setExperiences] = useState<Experience[]>(_cachedExperiences);
+  const [loading, setLoading] = useState(!_cachedTrip);
   const [showCreate, setShowCreate] = useState(false);
   const [editingTrip, setEditingTrip] = useState(false);
   const [editName, setEditName] = useState("");
@@ -82,6 +87,7 @@ export default function TripOverview() {
       }
 
       setTrip(effectiveActive);
+      _cachedTrip = effectiveActive;
       setAllTrips(all);
       if (!effectiveActive) { setShowCreate(true); }
       else {
@@ -89,8 +95,8 @@ export default function TripOverview() {
           api.get<Day[]>(`/days/trip/${effectiveActive.id}`),
           api.get<Experience[]>(`/experiences/trip/${effectiveActive.id}`),
         ]);
-        setDays(d);
-        setExperiences(e);
+        setDays(d); _cachedDays = d;
+        setExperiences(e); _cachedExperiences = e;
         try {
           const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${effectiveActive.id}?limit=50`);
           setRecentActivity(logs.slice(0, 5));
