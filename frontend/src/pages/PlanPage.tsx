@@ -425,12 +425,9 @@ export default function PlanPage() {
   function handleDayClick(dayId: string) {
     setRecenterKey((k) => k + 1);
     setSelectedCandidateCityId(null);
-    if (selectedDayId === dayId) {
-      setShowDayView(true);
-    } else {
-      setSelectedDayId(dayId);
-      setShowDayView(false);
-    }
+    setSelectedDayId(dayId);
+    // Always open day detail on single tap — no hidden double-tap
+    setShowDayView(true);
   }
 
   // Backroads days: continuous date range from first to last itinerary-imported item
@@ -599,7 +596,13 @@ export default function PlanPage() {
                     }
                     return null;
                   })()}
-                  {selected.filter((e) => e.dayId === selectedDay.id).length} planned
+                  {(() => {
+                    const scheduled = selected.filter((e) => e.dayId === selectedDay.id).length;
+                    const ideas = possible.length;
+                    if (scheduled > 0) return `${scheduled} scheduled`;
+                    if (ideas > 0) return `${ideas} ideas`;
+                    return "Open day";
+                  })()}
                   {selectedDay.explorationZone && ` · ${selectedDay.explorationZone}`}
                   {(() => {
                     const dayRes = selectedDay.reservations?.find((r) => r);

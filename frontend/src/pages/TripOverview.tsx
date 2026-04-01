@@ -484,7 +484,7 @@ export default function TripOverview() {
                   {trip.name}
                 </h1>
                 {showSwitcherArrow && (
-                  <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
+                  <span className="ml-2 text-[#8a7a62] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
                 )}
               </button>
               {trip.tagline && (
@@ -546,7 +546,7 @@ export default function TripOverview() {
                 {trip.name}
               </h1>
               {showSwitcherArrow && (
-                <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
+                <span className="ml-2 text-[#8a7a62] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
               )}
             </button>
             {trip.tagline && (
@@ -696,16 +696,26 @@ export default function TripOverview() {
           />
         ))}
 
-        {/* Add something — primary action, right after calendar */}
-        <ImportCard tripId={trip.id} />
+        {/* Primary action — go plan */}
+        <div className="flex gap-3 mb-4">
+          <button
+            onClick={() => navigate("/plan")}
+            className="flex-1 py-3 rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors"
+          >
+            Day by Day
+          </button>
+          {isWithinDates && (
+            <button
+              onClick={() => navigate("/now")}
+              className="px-4 py-3 rounded-lg bg-[#6b5d4a] text-white text-sm font-medium hover:bg-[#514636] transition-colors"
+            >
+              Now
+            </button>
+          )}
+        </div>
 
-        {/* Phase-aware content — adapts to trip lifecycle */}
-        <TripPhaseContent
-          phase={tripPhase}
-          trip={trip}
-          days={days}
-          experiences={experiences}
-        />
+        {/* Add something */}
+        <ImportCard tripId={trip.id} />
 
         {/* City browse links — quick access to each city's idea board */}
         {tripPhase !== "past" && trip.datesKnown !== false && (() => {
@@ -733,6 +743,14 @@ export default function TripOverview() {
           );
         })()}
 
+        {/* Phase-aware content — adapts to trip lifecycle */}
+        <TripPhaseContent
+          phase={tripPhase}
+          trip={trip}
+          days={days}
+          experiences={experiences}
+        />
+
         {/* Route segments — intercity travel logistics */}
         <RouteSegmentsPanel
           tripId={trip.id}
@@ -750,75 +768,8 @@ export default function TripOverview() {
         {/* Trip members & invite */}
         {trip && <TripMembers tripId={trip.id} />}
 
-        {/* Contributor summary — colored chips with counts (excludes bulk imports) */}
-        {(() => {
-          const byCreator: Record<string, number> = {};
-          for (const exp of experiences) {
-            if (exp.createdBy && !(exp.sourceText && /import|merged/i.test(exp.sourceText))) {
-              byCreator[exp.createdBy] = (byCreator[exp.createdBy] || 0) + 1;
-            }
-          }
-          const creators = Object.entries(byCreator).sort((a, b) => b[1] - a[1]);
-          if (creators.length <= 1) return null;
-          return (
-            <div className="mb-6">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">Contributions</h3>
-              <div className="flex flex-wrap gap-2">
-                {creators.map(([code, count]) => {
-                  const cc = getContributorColor(code);
-                  return (
-                    <button
-                      key={code}
-                      onClick={() => setContributorViewCode(code)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors hover:shadow-sm"
-                      style={{ backgroundColor: cc.bg, borderColor: cc.border }}
-                    >
-                      <span
-                        className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                        style={{ backgroundColor: cc.border, color: "#fff" }}
-                      >
-                        {getContributorInitial(code)}
-                      </span>
-                      <span className="text-sm font-medium" style={{ color: cc.text }}>{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ContributorView overlay */}
-        {contributorViewCode && trip && (
-          <ContributorView
-            travelerCode={contributorViewCode}
-            experiences={experiences}
-            trip={trip}
-            onClose={() => setContributorViewCode(null)}
-            onExperienceClick={(id) => { setContributorViewCode(null); navigate(`/plan?highlight=${id}`); }}
-          />
-        )}
-
         {/* Activity feed — recent actions from the group */}
         {trip && <ActivityFeed tripId={trip.id} />}
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={() => navigate("/plan")}
-            className="flex-1 py-3 rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors"
-          >
-            Day by Day
-          </button>
-          {isWithinDates && (
-            <button
-              onClick={() => navigate("/now")}
-              className="px-4 py-3 rounded-lg bg-[#6b5d4a] text-white text-sm font-medium hover:bg-[#514636] transition-colors"
-            >
-              Now
-            </button>
-          )}
-        </div>
 
         {/* Past trips removed — accessible via CreateTrip screen if needed */}
       </div>

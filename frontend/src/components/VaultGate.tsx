@@ -49,7 +49,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
       timerRef.current = setTimeout(() => {
         setVaultToken(null);
         setState("locked");
-      }, 5 * 60 * 1000);
+      }, 15 * 60 * 1000);
     }
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);

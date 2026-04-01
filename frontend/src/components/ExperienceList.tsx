@@ -354,7 +354,9 @@ function GripHandle({ listeners, attributes }: { listeners: Record<string, unkno
 // ── Sortable Item (selected zone) ──────────────────────────────────
 function SortableSelectedItem({
   exp,
+  days,
   onDemote,
+  onMove,
   onExperienceClick,
   onHover,
   locatingId,
@@ -364,7 +366,9 @@ function SortableSelectedItem({
   onInterestChanged,
 }: {
   exp: Experience;
+  days: Day[];
   onDemote: (id: string) => void;
+  onMove: (expId: string, dayId: string) => void;
   onExperienceClick: (id: string) => void;
   onHover?: (id: string | null) => void;
   locatingId: string | null;
@@ -377,6 +381,8 @@ function SortableSelectedItem({
     id: exp.id,
     data: { zone: "selected", experience: exp },
   });
+
+  const [showMovePicker, setShowMovePicker] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -419,6 +425,13 @@ function SortableSelectedItem({
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-2">
               <button
+                onClick={(e) => { e.stopPropagation(); setShowMovePicker(!showMovePicker); }}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-[#e0d8cc] text-[#8a7a62] hover:text-[#514636] hover:border-[#a89880] transition-colors"
+                title="Move to a different day"
+              >
+                Move
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); onExperienceClick(exp.id); }}
                 className="w-5 h-5 rounded-full border border-[#e0d8cc] text-[#a89880] hover:text-[#6b5d4a]
                            flex items-center justify-center text-xs transition-colors"
@@ -429,13 +442,29 @@ function SortableSelectedItem({
               <button
                 onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
                 className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
-                title="Remove from itinerary (keep as idea)"
+                title="Back to ideas"
               >
                 &darr;
               </button>
             </div>
           </div>
         </div>
+        {showMovePicker && (
+          <div className="px-3 py-2 flex flex-wrap gap-1 bg-[#faf8f5] border-t border-[#f0ece5]">
+            {days.filter(d => d.id !== exp.dayId).map(d => {
+              const date = new Date(d.date);
+              return (
+                <button
+                  key={d.id}
+                  onClick={(e) => { e.stopPropagation(); onMove(exp.id, d.id); setShowMovePicker(false); }}
+                  className="px-2 py-1 rounded text-[11px] bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc] transition-colors"
+                >
+                  {date.toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" })}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {locatingId === exp.id && (
           <LocationResolver exp={exp} onResolved={() => { setLocatingId(null); onLocationResolved(); }} />
         )}
@@ -1158,7 +1187,9 @@ export default function ExperienceList({
                 <SortableSelectedItem
                   key={exp.id}
                   exp={exp}
+                  days={days}
                   onDemote={onDemote}
+                  onMove={(expId, dayId) => onPromote(expId, dayId)}
                   onExperienceClick={onExperienceClick}
                   onHover={onExperienceHover}
                   locatingId={locatingId}

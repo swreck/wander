@@ -39,27 +39,38 @@ const QUICK_EMOJIS = ["\u2764\uFE0F", "\uD83D\uDC4D", "\uD83D\uDD25"];
 
 // ─── Sub-components ──────────────────────────────────────────────
 
+interface DayOption { id: string; date: string; cityId: string; }
+
 function IdeaCard({
   exp,
   reactions,
   notes,
+  days,
   onReact,
   onAddNote,
+  onAssignToDay,
+  onRemoveFromDay,
   onTap,
   onAskScout,
 }: {
   exp: Experience;
   reactions: ExperienceReactionGroup[];
   notes: ExperienceNoteEntry[];
+  days: DayOption[];
   onReact: (experienceId: string, emoji: string) => void;
   onAddNote: (experienceId: string, content: string) => void;
+  onAssignToDay: (experienceId: string, dayId: string) => void;
+  onRemoveFromDay: (experienceId: string) => void;
   onTap: (id: string) => void;
   onAskScout: (name: string) => void;
 }) {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
-  const cc = exp.createdBy ? getContributorColor(exp.createdBy) : null;
+  const [showDayPicker, setShowDayPicker] = useState(false);
+  const isImported = exp.sourceText && /import|merged/i.test(exp.sourceText);
+  const cc = (exp.createdBy && !isImported) ? getContributorColor(exp.createdBy) : null;
   const isScheduled = exp.state === "selected" && exp.dayId;
+  const scheduledDay = isScheduled ? days.find(d => d.id === exp.dayId) : null;
 
   return (
     <div
@@ -68,15 +79,55 @@ function IdeaCard({
       onClick={() => onTap(exp.id)}
     >
       <div className="px-3 py-2.5">
-        {/* Name + scheduled indicator */}
+        {/* Name + day assignment */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-[#3a3128] flex-1">{exp.name}</span>
-          {isScheduled && (
-            <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full shrink-0">
-              Scheduled
-            </span>
+          {isScheduled && scheduledDay ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowDayPicker(!showDayPicker); }}
+              className="text-[10px] text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full shrink-0 hover:bg-green-100 transition-colors"
+            >
+              {new Date(scheduledDay.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowDayPicker(!showDayPicker); }}
+              className="text-[10px] text-[#8a7a62] bg-[#f0ece5] px-2 py-0.5 rounded-full shrink-0 hover:bg-[#e0d8cc] transition-colors"
+            >
+              + Day
+            </button>
           )}
         </div>
+
+        {/* Day picker */}
+        {showDayPicker && (
+          <div className="mt-2 flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
+            {days.map(d => {
+              const date = new Date(d.date);
+              const isAssigned = exp.dayId === d.id;
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => { onAssignToDay(exp.id, d.id); setShowDayPicker(false); }}
+                  className={`px-2 py-1 rounded text-[11px] transition-colors
+                    ${isAssigned
+                      ? "bg-green-100 text-green-700 font-medium"
+                      : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc]"}`}
+                >
+                  {date.toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" })}
+                </button>
+              );
+            })}
+            {isScheduled && (
+              <button
+                onClick={() => { onRemoveFromDay(exp.id); setShowDayPicker(false); }}
+                className="px-2 py-1 rounded text-[11px] bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Description */}
         {exp.description && (
@@ -291,6 +342,35 @@ export default function CityBoard() {
     }
   }
 
+  // Get days for this city (for the day picker)
+  const cityDays: DayOption[] = useMemo(() => {
+    if (!trip?.days) return [];
+    return trip.days
+      .filter((d: any) => d.cityId === cityId)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map((d: any) => ({ id: d.id, date: d.date, cityId: d.cityId }));
+  }, [trip, cityId]);
+
+  async function handleAssignToDay(experienceId: string, dayId: string) {
+    try {
+      await api.post(`/experiences/${experienceId}/promote`, { dayId });
+      showToast("On the plan");
+      loadData();
+    } catch {
+      showToast("Couldn't assign that — try again?", "error");
+    }
+  }
+
+  async function handleRemoveFromDay(experienceId: string) {
+    try {
+      await api.post(`/experiences/${experienceId}/demote`, {});
+      showToast("Back in the idea pile");
+      loadData();
+    } catch {
+      showToast("Couldn't remove that — try again?", "error");
+    }
+  }
+
   function handleTapExperience(id: string) {
     navigate(`/plan?exp=${id}`);
   }
@@ -362,7 +442,7 @@ export default function CityBoard() {
         </div>
         {/* Back button */}
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate(-1)}
           className="absolute top-4 left-4 text-white/80 hover:text-white text-sm"
           style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
@@ -416,8 +496,11 @@ export default function CityBoard() {
                     exp={exp}
                     reactions={reactions[exp.id] || []}
                     notes={notes[exp.id] || []}
+                    days={cityDays}
                     onReact={handleReact}
                     onAddNote={handleAddNote}
+                    onAssignToDay={handleAssignToDay}
+                    onRemoveFromDay={handleRemoveFromDay}
                     onTap={handleTapExperience}
                     onAskScout={handleAskScout}
                   />

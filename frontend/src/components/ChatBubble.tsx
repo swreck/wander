@@ -86,10 +86,15 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
   }, [messages]);
 
-  // Focus input when opened
+  // Focus input and scroll to bottom when opened
   useEffect(() => {
-    if (open && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+    if (open) {
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+        inputRef.current?.focus();
+      }, 100);
     }
   }, [open]);
 

@@ -121,7 +121,7 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
     return (
       <div className="mb-4 px-3 py-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
         <div className="text-sm font-medium text-amber-800 mb-2">
-          {prev.city.name} \u2192 {day.city.name}
+          {prev.city.name} → {day.city.name}
         </div>
         <div className="flex gap-1.5 flex-wrap">
           {(["flight", "train", "ferry", "drive", "other"] as const).map((m) => (
@@ -191,7 +191,7 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
     >
       <div className="flex items-center justify-between">
         <div className="text-sm font-medium text-amber-800">
-          {emoji} {prev.city.name} \u2192 {day.city.name}
+          {emoji} {prev.city.name} → {day.city.name}
         </div>
         <span className="text-xs text-amber-500">tap to edit</span>
       </div>
@@ -205,13 +205,13 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
           {(segment.departureTime || segment.arrivalTime) && (
             <div className="text-sm text-amber-600">
               {segment.departureTime && `Depart ${segment.departureTime}`}
-              {segment.departureTime && segment.arrivalTime && " \u2192 "}
+              {segment.departureTime && segment.arrivalTime && " →"}
               {segment.arrivalTime && `Arrive ${segment.arrivalTime}`}
             </div>
           )}
           {(segment.departureStation || segment.arrivalStation) && (
             <div className="text-sm text-amber-600">
-              {segment.departureStation}{segment.departureStation && segment.arrivalStation && " \u2192 "}{segment.arrivalStation}
+              {segment.departureStation}{segment.departureStation && segment.arrivalStation && " →"}{segment.arrivalStation}
             </div>
           )}
           {segment.confirmationNumber && (

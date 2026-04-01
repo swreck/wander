@@ -2250,13 +2250,13 @@ async function executeTool(
         entityType: "traveler_document",
         entityId: doc.id,
         entityName: `${input.type}${input.label ? ` (${input.label})` : ""}`,
-        description: `${user.displayName} added a ${input.type.replace("_", " ")} document for ${targetName}`,
+        description: `${user.displayName} added a ${(input.type || "travel").replace("_", " ")} document for ${targetName}`,
         newState: doc,
       });
 
       return {
         result: { saved: true, documentId: doc.id, type: input.type, data: input.data, forTraveler: targetName },
-        actionDescription: `Saved ${input.type.replace("_", " ")} for ${targetName}`,
+        actionDescription: `Saved ${(input.type || "travel").replace("_", " ")} for ${targetName}`,
       };
     }
 
@@ -2303,7 +2303,7 @@ async function executeTool(
             entityType: "traveler_document",
             entityId: doc.id,
             entityName: `${entry.type}${entry.label ? ` (${entry.label})` : ""}`,
-            description: `${user.displayName} added a ${entry.type.replace("_", " ")} document for ${targetName}`,
+            description: `${user.displayName} added a ${(entry.type || "travel").replace("_", " ")} document for ${targetName}`,
             newState: doc,
           });
 
@@ -2348,14 +2348,14 @@ async function executeTool(
         entityType: "traveler_document",
         entityId: updated.id,
         entityName: `${updated.type}${updated.label ? ` (${updated.label})` : ""}`,
-        description: `${user.displayName} updated a ${updated.type.replace("_", " ")} document`,
+        description: `${user.displayName} updated a ${(updated.type || "travel").replace("_", " ")} document`,
         previousState: existingDoc,
         newState: updated,
       });
 
       return {
         result: { updated: true, documentId: updated.id, type: updated.type, data: updated.data },
-        actionDescription: `Updated ${updated.type.replace("_", " ")} for ${user.displayName}`,
+        actionDescription: `Updated ${(updated.type || "travel").replace("_", " ")} for ${user.displayName}`,
       };
     }
 
