@@ -1297,7 +1297,7 @@ async function executeTool(
       if (input.arrivalDate && input.departureDate) {
         const arrival = new Date(input.arrivalDate);
         const departure = new Date(input.departureDate);
-        for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
           const dateStart = new Date(d);
           dateStart.setUTCHours(0, 0, 0, 0);
           const dateEnd = new Date(d);
@@ -2704,7 +2704,7 @@ async function executeTool(
         if (city.arrivalDate && city.departureDate) {
           const start = new Date(city.arrivalDate);
           const end = new Date(city.departureDate);
-          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
             const dateStr = d.toISOString().split("T")[0];
             const existing = await prisma.day.findFirst({ where: { tripId: trip.id, date: new Date(dateStr) } });
             if (!existing) {
@@ -3450,7 +3450,7 @@ async function executeTool(
       for (const day of trip.days) {
         const dayNum = day.dayNumber || 1;
         const newDate = new Date(anchorDate);
-        newDate.setDate(newDate.getDate() + (dayNum - 1));
+        newDate.setUTCDate(newDate.getUTCDate() + (dayNum - 1));
         await prisma.day.update({
           where: { id: day.id },
           data: { date: newDate },
@@ -3460,7 +3460,7 @@ async function executeTool(
       const lastDay = trip.days[trip.days.length - 1];
       const lastDayNum = lastDay?.dayNumber || trip.days.length;
       const endDate = new Date(anchorDate);
-      endDate.setDate(endDate.getDate() + (lastDayNum - 1));
+      endDate.setUTCDate(endDate.getUTCDate() + (lastDayNum - 1));
       await prisma.trip.update({
         where: { id: input.tripId },
         data: {
@@ -3477,7 +3477,7 @@ async function executeTool(
           const cityDayDates = city.days.map(d => {
             const dn = d.dayNumber || 1;
             const nd = new Date(anchorDate);
-            nd.setDate(nd.getDate() + (dn - 1));
+            nd.setUTCDate(nd.getUTCDate() + (dn - 1));
             return nd;
           });
           cityDayDates.sort((a, b) => a.getTime() - b.getTime());

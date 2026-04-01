@@ -154,7 +154,7 @@ router.patch("/:id/review", async (req: AuthRequest, res) => {
             const days = await prisma.day.findMany({ where: { tripId: payload.tripId } });
             for (const day of days) {
               const newDate = new Date(day.date);
-              newDate.setDate(newDate.getDate() + payload.offsetDays);
+              newDate.setUTCDate(newDate.getUTCDate() + payload.offsetDays);
               await prisma.day.update({ where: { id: day.id }, data: { date: newDate } });
             }
             // Also shift cities
@@ -163,8 +163,8 @@ router.patch("/:id/review", async (req: AuthRequest, res) => {
               if (city.arrivalDate && city.departureDate) {
                 const newArrival = new Date(city.arrivalDate);
                 const newDeparture = new Date(city.departureDate);
-                newArrival.setDate(newArrival.getDate() + payload.offsetDays);
-                newDeparture.setDate(newDeparture.getDate() + payload.offsetDays);
+                newArrival.setUTCDate(newArrival.getUTCDate() + payload.offsetDays);
+                newDeparture.setUTCDate(newDeparture.getUTCDate() + payload.offsetDays);
                 await prisma.city.update({
                   where: { id: city.id },
                   data: { arrivalDate: newArrival, departureDate: newDeparture },
@@ -176,8 +176,8 @@ router.patch("/:id/review", async (req: AuthRequest, res) => {
             if (trip?.startDate && trip?.endDate) {
               const newStart = new Date(trip.startDate);
               const newEnd = new Date(trip.endDate);
-              newStart.setDate(newStart.getDate() + payload.offsetDays);
-              newEnd.setDate(newEnd.getDate() + payload.offsetDays);
+              newStart.setUTCDate(newStart.getUTCDate() + payload.offsetDays);
+              newEnd.setUTCDate(newEnd.getUTCDate() + payload.offsetDays);
               await prisma.trip.update({
                 where: { id: payload.tripId },
                 data: { startDate: newStart, endDate: newEnd },

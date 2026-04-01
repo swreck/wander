@@ -127,7 +127,7 @@ router.post("/", async (req: AuthRequest, res) => {
       if (c.arrivalDate && c.departureDate) {
         const arrival = new Date(c.arrivalDate);
         const departure = new Date(c.departureDate);
-        for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
           await prisma.day.create({
             data: {
               tripId: trip.id,

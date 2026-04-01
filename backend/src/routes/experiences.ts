@@ -118,11 +118,11 @@ router.patch("/:id", async (req: AuthRequest, res) => {
     }
   }
 
-  // Validate dayId if being changed
+  // Validate dayId if being changed — must exist and belong to same trip
   if (dayId !== undefined && dayId !== null) {
     const dayCheck = await prisma.day.findUnique({ where: { id: dayId } });
-    if (!dayCheck) {
-      res.status(404).json({ error: "Day not found" });
+    if (!dayCheck || dayCheck.tripId !== existing.tripId) {
+      res.status(404).json({ error: "Day not found on this trip" });
       return;
     }
   }
@@ -179,11 +179,11 @@ router.post("/:id/promote", async (req: AuthRequest, res) => {
     return;
   }
 
-  // Validate references exist
+  // Validate references exist and belong to same trip
   if (dayId) {
     const dayCheck = await prisma.day.findUnique({ where: { id: dayId } });
-    if (!dayCheck) {
-      res.status(404).json({ error: "Day not found" });
+    if (!dayCheck || dayCheck.tripId !== existing.tripId) {
+      res.status(404).json({ error: "Day not found on this trip" });
       return;
     }
   }
@@ -195,16 +195,26 @@ router.post("/:id/promote", async (req: AuthRequest, res) => {
     }
   }
 
-  const exp = await prisma.experience.update({
-    where: { id: req.params.id as string },
-    data: {
-      state: "selected",
-      dayId: dayId || null,
-      routeSegmentId: routeSegmentId || null,
-      timeWindow: timeWindow || null,
-      transportModeToHere: transportModeToHere || null,
-    },
-  });
+  let exp;
+  try {
+    exp = await prisma.experience.update({
+      where: { id: req.params.id as string },
+      data: {
+        state: "selected",
+        dayId: dayId || null,
+        routeSegmentId: routeSegmentId || null,
+        timeWindow: timeWindow || null,
+        transportModeToHere: transportModeToHere || null,
+      },
+    });
+  } catch (e: any) {
+    // FK violation — day or route segment was deleted between validation and update
+    if (e.code === "P2003") {
+      res.status(404).json({ error: "Day or route segment was removed" });
+      return;
+    }
+    throw e;
+  }
 
   const full = await prisma.experience.findUniqueOrThrow({
     where: { id: exp.id },

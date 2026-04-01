@@ -209,7 +209,7 @@ router.post("/commit", async (req: AuthRequest, res) => {
             select: { date: true },
           });
           const existingDates = new Set(existingDaysForCity.map(d => d.date.toISOString().split("T")[0]));
-          for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+          for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
             const dateStr = d.toISOString().split("T")[0];
             if (!existingDates.has(dateStr)) {
               await prisma.day.create({
@@ -237,7 +237,7 @@ router.post("/commit", async (req: AuthRequest, res) => {
       if (c.arrivalDate && c.departureDate) {
         const arrival = new Date(c.arrivalDate);
         const departure = new Date(c.departureDate);
-        for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
           await prisma.day.create({
             data: {
               tripId: trip.id,
@@ -262,7 +262,7 @@ router.post("/commit", async (req: AuthRequest, res) => {
     // Find the first city to use as default for placeholder days
     const firstCityId = cityMap.values().next().value;
     if (firstCityId) {
-      for (let d = new Date(tripStart); d <= tripEnd; d.setDate(d.getDate() + 1)) {
+      for (let d = new Date(tripStart); d <= tripEnd; d.setUTCDate(d.getUTCDate() + 1)) {
         const dateStr = d.toISOString().split("T")[0];
         if (!existingDates.has(dateStr)) {
           await prisma.day.create({
@@ -490,7 +490,7 @@ router.post("/merge", async (req: AuthRequest, res) => {
         if (c.arrivalDate && c.departureDate) {
           const arrival = new Date(c.arrivalDate);
           const departure = new Date(c.departureDate);
-          for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+          for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
             const dateStart = new Date(d);
             dateStart.setUTCHours(0, 0, 0, 0);
             const dateEnd = new Date(d);
@@ -859,7 +859,7 @@ router.post("/replace-backbone", async (req: AuthRequest, res) => {
       if (c.arrivalDate && c.departureDate) {
         const arrival = new Date(c.arrivalDate);
         const departure = new Date(c.departureDate);
-        for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
           await prisma.day.create({
             data: { tripId, cityId: city.id, date: new Date(d) },
           });
