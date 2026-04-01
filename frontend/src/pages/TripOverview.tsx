@@ -278,8 +278,8 @@ export default function TripOverview() {
   }
 
   const archivedTrips = allTrips.filter((t) => t.status === "archived");
-  // Planners always see trip switcher (new trip access); explorers only when invited to 2+ trips
-  const showSwitcherArrow = isPlanner || allTrips.length > 1;
+  // Always show trip switcher — "Plan a new trip" inside is the planner-gated action
+  const showSwitcherArrow = true;
   const tripPhase = getTripPhase({
     datesKnown: trip.datesKnown !== false,
     startDate: trip.startDate,
