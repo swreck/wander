@@ -32,6 +32,8 @@ import ContributorView from "./ContributorView";
 function CreatorBadge({ exp }: { exp: Experience }) {
   // Show creator's first initial until someone else edits
   if (exp.lastEditedBy && exp.lastEditedBy !== exp.createdBy) return null;
+  // Don't attribute items that were bulk-imported — the importer isn't the "creator" in a meaningful sense
+  if (exp.sourceText && /import|merged/i.test(exp.sourceText)) return null;
 
   const color = getContributorColor(exp.createdBy);
   const initial = getContributorInitial(exp.createdBy);

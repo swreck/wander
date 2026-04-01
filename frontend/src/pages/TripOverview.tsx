@@ -51,8 +51,8 @@ export default function TripOverview() {
   useKeyboardShortcuts();
   useUniversalCapture(trip?.id);
 
-  async function loadTrips() {
-    setLoading(true);
+  async function loadTrips(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const [active, all] = await Promise.all([
         api.get<Trip | null>("/trips/active"),
@@ -118,10 +118,14 @@ export default function TripOverview() {
     }
   }
 
-  useEffect(() => { loadTrips(); }, []);
+  useEffect(() => {
+    // First load shows spinner; subsequent navigations reuse cached data
+    if (trip) loadTrips(true);
+    else loadTrips();
+  }, []);
 
   useEffect(() => {
-    const handler = () => { loadTrips(); };
+    const handler = () => { loadTrips(true); };
     window.addEventListener("wander:data-changed", handler);
     return () => window.removeEventListener("wander:data-changed", handler);
   }, []);
@@ -331,47 +335,67 @@ export default function TripOverview() {
               <h3 className="text-sm font-medium text-[#3a3128]">Your Trips</h3>
               <button onClick={() => setShowTripSwitcher(false)} className="text-[#c8bba8] hover:text-[#8a7a62] text-lg">&times;</button>
             </div>
-            {/* Active trip */}
-            <div className="px-4 py-3 bg-[#faf8f5]">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-[#3a3128]">{trip.name}</div>
-                  <div className="text-xs text-[#8a7a62]">
-                    {trip.startDate && trip.endDate
-                      ? `${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`
-                      : "Dates TBD"}
-                  </div>
-                </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
-              </div>
-            </div>
-            {/* Archived trips */}
-            {archivedTrips.length > 0 && (
-              <div className="px-4 pt-3">
-                <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">Other Trips</div>
-                <div className="space-y-2">
-                  {archivedTrips.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between py-2 border-b border-[#f0ece5] last:border-0">
-                      <div>
-                        <div className="text-sm text-[#3a3128]">{t.name}</div>
-                        <div className="text-xs text-[#a89880]">
-                          {t.startDate && t.endDate
-                            ? `${formatDate(t.startDate)} — ${formatDate(t.endDate)}`
-                            : "Dates TBD"}
-                          {t.cities?.length > 0 && ` · ${t.cities.length} cities`}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleSwitchTrip(t.id)}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
-                      >
-                        Switch
-                      </button>
+            {/* All trips — current trip highlighted, others switchable */}
+            {(() => {
+              const otherTrips = allTrips.filter(t => t.id !== trip.id);
+              const now = new Date();
+              const upcoming = otherTrips.filter(t => t.startDate && new Date(t.startDate) > now);
+              const past = otherTrips.filter(t => t.endDate && new Date(t.endDate) < now);
+              const planning = otherTrips.filter(t => !upcoming.includes(t) && !past.includes(t));
+
+              const TripRow = ({ t, isCurrent }: { t: Trip; isCurrent?: boolean }) => (
+                <div className="flex items-center justify-between py-2.5 border-b border-[#f0ece5] last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-[#3a3128] truncate">{t.name}</div>
+                    <div className="text-xs text-[#a89880]">
+                      {t.startDate && t.endDate
+                        ? `${formatDate(t.startDate)} — ${formatDate(t.endDate)}`
+                        : "Dates TBD"}
+                      {t.cities?.length > 0 && ` · ${t.cities.length} cities`}
                     </div>
-                  ))}
+                  </div>
+                  {isCurrent ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">Now</span>
+                  ) : (
+                    <button
+                      onClick={() => handleSwitchTrip(t.id)}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors shrink-0 ml-2"
+                    >
+                      Open
+                    </button>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+
+              return (
+                <div className="px-4 pt-2">
+                  {/* Current trip */}
+                  <TripRow t={trip} isCurrent />
+
+                  {/* Planning / upcoming */}
+                  {planning.length > 0 && (
+                    <>
+                      <div className="text-xs text-[#a89880] uppercase tracking-wider mt-3 mb-1">Planning</div>
+                      {planning.map(t => <TripRow key={t.id} t={t} />)}
+                    </>
+                  )}
+                  {upcoming.length > 0 && (
+                    <>
+                      <div className="text-xs text-[#a89880] uppercase tracking-wider mt-3 mb-1">Upcoming</div>
+                      {upcoming.map(t => <TripRow key={t.id} t={t} />)}
+                    </>
+                  )}
+
+                  {/* Past trips */}
+                  {past.length > 0 && (
+                    <>
+                      <div className="text-xs text-[#a89880] uppercase tracking-wider mt-3 mb-1">Past trips</div>
+                      {past.map(t => <TripRow key={t.id} t={t} />)}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             {/* New trip */}
             <div className="px-4 pt-3 pb-2">
               <button
@@ -451,13 +475,13 @@ export default function TripOverview() {
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#faf8f5] to-transparent pt-12 pb-4 px-4">
             <div className="max-w-2xl mx-auto">
               <button
-                onClick={() => archivedTrips.length > 0 && setShowTripSwitcher(true)}
+                onClick={() => allTrips.length > 1 && setShowTripSwitcher(true)}
                 className="text-left group"
               >
                 <h1 className="text-2xl font-light text-[#3a3128] inline">
                   {trip.name}
                 </h1>
-                {archivedTrips.length > 0 && (
+                {allTrips.length > 1 && (
                   <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
                 )}
               </button>
@@ -513,13 +537,13 @@ export default function TripOverview() {
         {!hasMap && (
           <div className="mb-8">
             <button
-              onClick={() => archivedTrips.length > 0 && setShowTripSwitcher(true)}
+              onClick={() => allTrips.length > 1 && setShowTripSwitcher(true)}
               className="text-left group"
             >
               <h1 className="text-2xl font-light text-[#3a3128] inline">
                 {trip.name}
               </h1>
-              {archivedTrips.length > 0 && (
+              {allTrips.length > 1 && (
                 <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
               )}
             </button>
@@ -670,25 +694,8 @@ export default function TripOverview() {
           />
         ))}
 
-        {/* City browse links — quick access to CityBoard for dated cities */}
-        {tripPhase !== "past" && trip.datesKnown !== false && (() => {
-          const datedCityIds = [...new Set(days.map(d => d.cityId))];
-          const datedCities = (trip.cities || []).filter(c => datedCityIds.includes(c.id));
-          if (datedCities.length === 0) return null;
-          return (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {datedCities.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => navigate(`/city/${c.id}`)}
-                  className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors"
-                >
-                  {c.name} — browse ideas
-                </button>
-              ))}
-            </div>
-          );
-        })()}
+        {/* Add something — primary action, right after calendar */}
+        <ImportCard tripId={trip.id} />
 
         {/* Phase-aware content — adapts to trip lifecycle */}
         <TripPhaseContent
@@ -698,8 +705,31 @@ export default function TripOverview() {
           experiences={experiences}
         />
 
-        {/* Persistent import entry point — always visible after calendar */}
-        <ImportCard tripId={trip.id} />
+        {/* City browse links — quick access to each city's idea board */}
+        {tripPhase !== "past" && trip.datesKnown !== false && (() => {
+          const datedCityIds = [...new Set(days.map(d => d.cityId))];
+          const datedCities = (trip.cities || []).filter(c => datedCityIds.includes(c.id));
+          if (datedCities.length === 0) return null;
+          return (
+            <div className="mb-4">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">Explore by city</h3>
+              <div className="flex flex-wrap gap-2">
+                {datedCities.map(c => {
+                  const cityExpCount = experiences.filter(e => e.cityId === c.id).length;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => navigate(`/city/${c.id}`)}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors"
+                    >
+                      {c.name}{cityExpCount > 0 ? ` · ${cityExpCount} ideas` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Route segments — intercity travel logistics */}
         <RouteSegmentsPanel
@@ -718,11 +748,11 @@ export default function TripOverview() {
         {/* Trip members & invite */}
         {trip && <TripMembers tripId={trip.id} />}
 
-        {/* Contributor summary — colored chips with counts */}
+        {/* Contributor summary — colored chips with counts (excludes bulk imports) */}
         {(() => {
           const byCreator: Record<string, number> = {};
           for (const exp of experiences) {
-            if (exp.createdBy) {
+            if (exp.createdBy && !(exp.sourceText && /import|merged/i.test(exp.sourceText))) {
               byCreator[exp.createdBy] = (byCreator[exp.createdBy] || 0) + 1;
             }
           }

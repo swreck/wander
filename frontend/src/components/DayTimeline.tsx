@@ -130,7 +130,8 @@ function ExperienceCard({
   onExperienceClick: (id: string) => void;
   onDemote: (id: string) => void;
 }) {
-  const cc = exp.createdBy ? getContributorColor(exp.createdBy) : null;
+  const isImported = exp.sourceText && /import|merged/i.test(exp.sourceText);
+  const cc = (exp.createdBy && !isImported) ? getContributorColor(exp.createdBy) : null;
 
   return (
     <div

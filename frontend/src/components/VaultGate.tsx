@@ -7,7 +7,7 @@ interface VaultGateProps {
   onSetupComplete?: () => void;
 }
 
-type VaultState = "checking" | "needs-pin" | "locked" | "unlocking" | "open" | "error";
+type VaultState = "checking" | "needs-pin" | "locked" | "unlocking" | "open" | "error" | "offer-biometric";
 
 /**
  * VaultGate wraps content that requires vault access (travel documents).
@@ -108,10 +108,13 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
   };
 
   const offerBiometricSetup = async () => {
-    // Small delay so the user sees the vault is open first
-    await new Promise((r) => setTimeout(r, 500));
-    if (!confirm("Use Face ID to unlock your documents next time?")) return;
+    // Show in-app prompt instead of browser confirm() — avoids confusing password manager dialogs
+    await new Promise((r) => setTimeout(r, 300));
+    setState("offer-biometric");
+  };
 
+  const acceptBiometric = async () => {
+    setState("open");
     try {
       const options = await api.post<any>("/vault/webauthn/register-options", {});
       const credential = await startRegistration({ optionsJSON: options });
@@ -120,6 +123,10 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
     } catch {
       // User cancelled or device doesn't support it — no problem
     }
+  };
+
+  const skipBiometric = () => {
+    setState("open");
   };
 
   const handleUnlockWithPin = async () => {
@@ -182,6 +189,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
               inputMode="numeric"
               maxLength={4}
               pattern="[0-9]*"
+              autoComplete="one-time-code"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
               placeholder="4 digits"
@@ -196,6 +204,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
               inputMode="numeric"
               maxLength={4}
               pattern="[0-9]*"
+              autoComplete="one-time-code"
               value={confirmPin}
               onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
               placeholder="4 digits again"
@@ -242,6 +251,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
             inputMode="numeric"
             maxLength={4}
             pattern="[0-9]*"
+            autoComplete="one-time-code"
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
             placeholder="PIN"
@@ -272,6 +282,36 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
           <p className="text-xs text-center text-[#c8bba8]">
             Forgot your PIN? Ask a trip planner to reset it.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (state === "offer-biometric") {
+    return (
+      <div className="max-w-sm mx-auto py-8 px-4">
+        <div className="text-center mb-6">
+          <div className="text-2xl mb-2">👋</div>
+          <h3 className="text-lg font-medium text-[#3a3128] mb-1">
+            Skip the PIN next time?
+          </h3>
+          <p className="text-sm text-[#8a7a62]">
+            Use Face ID to open your documents — faster and just as secure.
+          </p>
+        </div>
+        <div className="space-y-3">
+          <button
+            onClick={acceptBiometric}
+            className="w-full py-2.5 bg-[#514636] text-white rounded-lg text-sm font-medium hover:bg-[#3a3128] transition-colors"
+          >
+            Use Face ID
+          </button>
+          <button
+            onClick={skipBiometric}
+            className="w-full py-2 text-sm text-[#8a7a62] hover:text-[#514636]"
+          >
+            I'll stick with the PIN
+          </button>
         </div>
       </div>
     );

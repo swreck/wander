@@ -404,9 +404,9 @@ function TravelGeometryOverlay({ geo, isDayScoped }: { geo: CircleGeo | null; is
         path,
         strokeOpacity: 0,
         icons: [{
-          icon: { path: "M 0,-1 0,1", strokeOpacity: 0.5, strokeColor: "#8a7a62", strokeWeight: 2, scale: 3 },
+          icon: { path: "M 0,-1 0,1", strokeOpacity: 0.7, strokeColor: "#8a7a62", strokeWeight: 3, scale: 4 },
           offset: "0",
-          repeat: "16px",
+          repeat: "14px",
         }],
         map,
         clickable: false,
@@ -417,7 +417,7 @@ function TravelGeometryOverlay({ geo, isDayScoped }: { geo: CircleGeo | null; is
         radius: radiusM,
         strokeOpacity: 0,
         fillColor: "#c8bba8",
-        fillOpacity: 0.10,
+        fillOpacity: 0.15,
         map,
         clickable: false,
       });
