@@ -475,13 +475,13 @@ export default function TripOverview() {
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#faf8f5] to-transparent pt-12 pb-4 px-4">
             <div className="max-w-2xl mx-auto">
               <button
-                onClick={() => allTrips.length > 1 && setShowTripSwitcher(true)}
+                onClick={() => setShowTripSwitcher(true)}
                 className="text-left group"
               >
                 <h1 className="text-2xl font-light text-[#3a3128] inline">
                   {trip.name}
                 </h1>
-                {allTrips.length > 1 && (
+                {(
                   <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
                 )}
               </button>
@@ -537,13 +537,13 @@ export default function TripOverview() {
         {!hasMap && (
           <div className="mb-8">
             <button
-              onClick={() => allTrips.length > 1 && setShowTripSwitcher(true)}
+              onClick={() => setShowTripSwitcher(true)}
               className="text-left group"
             >
               <h1 className="text-2xl font-light text-[#3a3128] inline">
                 {trip.name}
               </h1>
-              {allTrips.length > 1 && (
+              {(
                 <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
               )}
             </button>
