@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-01 — Trip Switching, Home Cleanup, Contributor Fix, Vault Polish
+
+### Changed
+- **Trip switcher shows all trips.** Tapping the trip name now shows past trips, planning trips, and upcoming trips — not just the active one. Any planner/admin can jump to any trip. Explorers see trips they're part of.
+- **Home screen reordered.** "Have something to add?" (Camera/Paste/Scout) is now the first section below the calendar. "Browse ideas" renamed to "Explore by city" with idea counts per city.
+- **Contributor badges removed from imported items.** Bulk-imported experiences no longer show the importer's initial — attribution only appears on items someone personally added. The Contributions summary on Home also excludes imports.
+- **Map walkable radius more visible.** Dashed circle is thicker (3px), higher contrast, and tighter spacing.
+- **Vault PIN setup friendlier.** PIN inputs use `autocomplete="one-time-code"` to suppress browser password manager interference (the "railway" save dialog). Face ID offer uses an in-app prompt instead of browser `confirm()`.
+- **Home loads faster.** Re-navigating to Home no longer flashes "Finding your trip..." — data refreshes silently in the background when already loaded.
+
+Affects: frontend/src/pages/TripOverview.tsx, frontend/src/components/MapCanvas.tsx, frontend/src/components/VaultGate.tsx, frontend/src/components/ExperienceList.tsx, frontend/src/components/DayTimeline.tsx
+
 ## 2026-03-31 — Phantom Button Fix, Timezone Bug, Chaos Testing Round 3
 
 ### Fixed
