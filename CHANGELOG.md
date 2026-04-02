@@ -17,7 +17,15 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 - **Touch-friendly add buttons** — "+" buttons increased to 44px height for reliable thumb targeting on mobile.
 - **Search always visible on desktop** — search bar shows regardless of pool size on large screens.
 - **Map stays visible on desktop** — board shares the screen with a compressed map (35% map, 65% board). On mobile the board is still a full overlay. Lets you check geography while planning.
-- **Add idea from the board** — "+ Add" button in board header opens the capture panel for the current city without leaving the board.
+- **Add idea from the board** — "+ Add" dropdown in board header with full capture menu (Manual, Import, Camera, Group decision) for the current city without leaving the board.
+- **Drag and drop** — drag ideas from the pool onto day cards to assign them. Drag between days to move. Drag to "drop here to unplan" zone to remove. Works with mouse (Mac) and touch (iPad/iPhone). Visual feedback: ghost item follows cursor, drop targets highlight.
+- **"Set for now"** — planner-driven signal on any day or city. Tap to mark it with a ✨ sparkle and warm amber tint. Not "done" or "complete" — just "I'm happy with this for now." Persists across sessions (localStorage). Sparkles show on day cards, day pills, and city tabs.
+- **Narrower idea cards** — pool cards capped at max-w-2xl. Descriptions wrap to 3 lines instead of truncating at 1, so you can read them without opening the detail panel.
+- **Cities in chronological order** — city tabs now ordered by arrival date instead of arbitrary database order.
+- **Larger expand arrows** — "Already planned" and mobile day card collapse arrows enlarged from dots to visible triangles.
+- **"Move" more prominent on desktop** — text is larger, uses visible ink color, appears on hover.
+- **Fixed search placeholder** — was showing literal `\u2026`, now shows proper ellipsis.
+- **Fixed empty state copy** — no longer says "close the board" when you can add from the board.
 
 Affects: frontend/src/components/PlanningBoard.tsx (new), frontend/src/pages/PlanPage.tsx. SPEC UPDATE NEEDED — planning board is a new primary view not yet in spec.
 

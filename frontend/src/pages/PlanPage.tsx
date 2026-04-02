@@ -916,10 +916,21 @@ export default function PlanPage() {
             onDemote={handleDemote}
             onExperienceClick={(id) => setSelectedExpId(id)}
             onClose={() => setShowBoard(false)}
-            onAdd={(cityId) => {
+            onAdd={(cityId, action) => {
               const cityDay = days.find(d => d.cityId === cityId);
               if (cityDay) setSelectedDayId(cityDay.id);
-              setShowCapture(true);
+              switch (action) {
+                case "manual": setShowCapture(true); break;
+                case "import": captureCtx.openReview(); break;
+                case "camera": cameraRef.current?.click(); break;
+                case "decision": {
+                  const cn = trip?.cities.find(c => c.id === cityId)?.name || "our plans";
+                  window.dispatchEvent(new CustomEvent("wander-open-chat", {
+                    detail: { prefill: `Help the group decide: where should we eat in ${cn}?` },
+                  }));
+                  break;
+                }
+              }
             }}
           />
         )}
