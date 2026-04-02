@@ -65,7 +65,7 @@ export default function PlanningBoard({
   const [movingExpId, setMovingExpId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [dragExpId, setDragExpId] = useState<string | null>(null);
-  const activeDayRef = useRef<HTMLButtonElement>(null);
+  const activeDayRef = useRef<HTMLDivElement>(null);
 
   // "Set for now" — planner's personal signal stored in localStorage
   const setForNowKey = `wander:set-for-now:${trip.id}`;
@@ -407,10 +407,12 @@ export default function PlanningBoard({
               const f = fullness(exps.length);
               return (
                 <DroppableDay key={day.id} dayId={day.id} isOver={dragExpId != null}>
-                  <button
+                  <div
                     ref={isActive ? activeDayRef : undefined}
                     onClick={() => setActiveDayId(day.id)}
-                    className={`w-full text-left px-3 py-3 border-b border-[#f0ece5] transition-all ${
+                    role="button"
+                    tabIndex={0}
+                    className={`w-full text-left px-3 py-3 border-b border-[#f0ece5] transition-all cursor-pointer ${
                       isActive ? "bg-[#faf8f5]"
                         : setForNow.days.has(day.id) ? "bg-amber-50/40"
                         : "hover:bg-[#faf8f5]/50"
@@ -469,7 +471,7 @@ export default function PlanningBoard({
                         {setForNow.days.has(day.id) ? "\u2728 Set for now" : "Mark as set for now"}
                       </button>
                     )}
-                  </button>
+                  </div>
                 </DroppableDay>
               );
             })}
@@ -654,7 +656,7 @@ function DraggablePoolItem({ expId, children }: { expId: string; children: React
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`touch-none ${isDragging ? "opacity-30" : ""}`}
+      className={isDragging ? "opacity-30" : ""}
     >
       {children}
     </div>
@@ -670,7 +672,7 @@ function DraggableDayItem({ expId, children }: { expId: string; children: React.
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`touch-none ${isDragging ? "opacity-30" : ""}`}
+      className={isDragging ? "opacity-30" : ""}
     >
       {children}
     </div>
