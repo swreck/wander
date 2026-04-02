@@ -2,6 +2,25 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-01 — Planning Board
+
+### Added
+- **Planning Board.** New full-screen planning view accessible via "Board" button in the action bar. Split-panel layout: days on the left (desktop) or as pills (mobile), unassigned ideas on the right with theme filters, search, and sort. One tap assigns an idea to the active day. Progress bar shows how many ideas are planned. "Already planned" section (collapsible, grouped by day) lets you unplan items. Optimistic UI — ideas vanish from the pool instantly on tap.
+  - City tabs at top with progress counts (e.g., "Kyoto 12/47")
+  - Day cards show fullness: "Wide open" → "3 things" → "Full day" → "Packed"
+  - Theme emoji filter chips with counts
+  - A-Z / Rating sort toggle
+  - Warm empty states ("Kyoto is all set — nice work")
+- **Build button replaces List** in the bottom action bar, now visible on all screen sizes (was mobile-only). Label "Build" chosen over "Board" for clarity (matches WineTracker convention).
+- **Move between days** — planned items show a "move" link that opens an inline day picker. One tap to reassign to a different day without unplanning first.
+- **Inactive days show items** on desktop — all days show their assigned items (compact), so you can scan "did I already put this somewhere?" without clicking each day.
+- **Touch-friendly add buttons** — "+" buttons increased to 44px height for reliable thumb targeting on mobile.
+- **Search always visible on desktop** — search bar shows regardless of pool size on large screens.
+- **Map stays visible on desktop** — board shares the screen with a compressed map (35% map, 65% board). On mobile the board is still a full overlay. Lets you check geography while planning.
+- **Add idea from the board** — "+ Add" button in board header opens the capture panel for the current city without leaving the board.
+
+Affects: frontend/src/components/PlanningBoard.tsx (new), frontend/src/pages/PlanPage.tsx. SPEC UPDATE NEEDED — planning board is a new primary view not yet in spec.
+
 ## 2026-04-01 — Trip Switching, Home Cleanup, Contributor Fix, Vault Polish
 
 ### Changed

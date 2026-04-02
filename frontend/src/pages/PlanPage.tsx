@@ -8,6 +8,7 @@ import ExperienceDetail from "../components/ExperienceDetail";
 import CapturePanel from "../components/CapturePanel";
 import UniversalCapturePanel from "../components/UniversalCapturePanel";
 import DayView from "../components/DayView";
+import PlanningBoard from "../components/PlanningBoard";
 import CitySplash from "../components/CitySplash";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -46,6 +47,7 @@ export default function PlanPage() {
   const [highlightedExpId, setHighlightedExpId] = useState<string | null>(null);
   const [splashCity, setSplashCity] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showBoard, setShowBoard] = useState(false);
   const [recenterKey, setRecenterKey] = useState(0);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
 
@@ -86,11 +88,12 @@ export default function PlanPage() {
     toggleMobileView: () => setMobileView((v) => v === "map" ? "list" : "map"),
     closePanel: () => {
       if (selectedExpId) { setSelectedExpId(null); return; }
+      if (showBoard) { setShowBoard(false); return; }
       if (showDayView) { setShowDayView(false); return; }
       if (showCapture) { setShowCapture(false); return; }
       if (captureCtx.reviewOpen) { captureCtx.reset(); return; }
     },
-  }), [selectedExpId, showDayView, showCapture, captureCtx]);
+  }), [selectedExpId, showBoard, showDayView, showCapture, captureCtx]);
   useKeyboardShortcuts(shortcutActions);
 
   // Expose current day/city to chat assistant via global
@@ -553,8 +556,12 @@ export default function PlanPage() {
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Map — always visible on desktop, toggleable on mobile */}
-        <div className={`flex-1 relative ${mobileView !== "map" ? "hidden lg:block" : ""}`}>
+        {/* Map — always visible on desktop, toggleable on mobile, compressed when board is open */}
+        <div className={`relative ${
+          showBoard
+            ? "hidden lg:block lg:w-[35%] lg:shrink-0"
+            : `flex-1 ${mobileView !== "map" ? "hidden lg:block" : ""}`
+        }`}>
           <MapCanvas
             center={mapCenter}
             experiences={cityExperiences}
@@ -652,8 +659,8 @@ export default function PlanPage() {
             </div>
           )}
 
-          {/* Bottom dock: action bar + day filmstrip — single bar (global nav hides on /plan) */}
-          <div className="fixed left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 lg:block bottom-0"
+          {/* Bottom dock: action bar + day filmstrip — hidden when board is open */}
+          <div className={`fixed left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 bottom-0 ${showBoard ? "hidden" : ""}`}
                style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
             {/* Action bar — Home, List, Add, Chat, Now */}
             <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40">
@@ -664,12 +671,12 @@ export default function PlanPage() {
                 </svg>
                 <span className="text-[10px] leading-tight">Home</span>
               </button>
-              <button onClick={() => setMobileView("list")} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors lg:hidden">
+              <button onClick={() => { setShowBoard(true); setMobileView("map"); }} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
-                  <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="12" y1="3" x2="12" y2="21" />
                 </svg>
-                <span className="text-[10px] leading-tight">List</span>
+                <span className="text-[10px] leading-tight">Build</span>
               </button>
               <div className="relative">
                 <button onClick={() => setShowAddMenu(!showAddMenu)} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors">
@@ -898,8 +905,27 @@ export default function PlanPage() {
           </div>
         </div>
 
-        {/* Desktop side panel */}
-        <div className="w-96 border-l border-[#f0ece5] bg-white overflow-y-auto hidden lg:block">
+        {/* Planning board — inline on desktop (map+board side-by-side), overlay on mobile */}
+        {showBoard && (
+          <PlanningBoard
+            trip={trip}
+            days={days}
+            experiences={experiences}
+            activeCityId={activeCityId}
+            onPromote={handlePromote}
+            onDemote={handleDemote}
+            onExperienceClick={(id) => setSelectedExpId(id)}
+            onClose={() => setShowBoard(false)}
+            onAdd={(cityId) => {
+              const cityDay = days.find(d => d.cityId === cityId);
+              if (cityDay) setSelectedDayId(cityDay.id);
+              setShowCapture(true);
+            }}
+          />
+        )}
+
+        {/* Desktop side panel — hidden when board is open */}
+        <div className={`w-96 border-l border-[#f0ece5] bg-white overflow-y-auto hidden ${showBoard ? "" : "lg:block"}`}>
           {showDayView && selectedDay ? (
             <DayView
               day={selectedDay}
@@ -933,7 +959,7 @@ export default function PlanPage() {
         </div>
 
         {/* Mobile list view — full screen when active */}
-        {mobileView === "list" && (
+        {mobileView === "list" && !showBoard && (
           <div className="fixed inset-0 z-40 bg-[#faf8f5] lg:hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0"
                  style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
