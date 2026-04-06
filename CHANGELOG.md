@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-06 — UX Testing Sweep: Overscroll Fix + Terminology + Tone
+
+### Fixed
+- **CRITICAL: Dark brown overscroll on every page.** `index.html` set html/body background to `#3a3128`. Changed to `#faf8f5` (sand). Scrolling past content on Home, Now, Profile, and mobile no longer shows a dark void.
+- **"scheduled" → "planned" terminology.** Day header, CityBoard, NowPage nudges, and TripPhaseContent all said "scheduled" while sidebar said "PLANNED". Unified to "planned" everywhere.
+- **"city board" → "Tap Build to browse ideas."** Empty day guidance referenced "city board" which isn't a visible UI term. Now points to the Build button.
+- **"No reservation" was red.** Styled like an error — changed to neutral tan for informational tone.
+- **"Log out" → "Sign out"** on Settings page for consistency with home page.
+- **AI Observations used analytics language.** Prompt rewritten: "accumulated", "indicating", "categorized" → travel companion tone.
+- **Import history showed "Chat paste's recommendations."** Internal label changed to "Scout".
+
 ## 2026-04-06 — Interactive Testing: Critical Fixes + Multi-Language Phrases
 
 ### Fixed
