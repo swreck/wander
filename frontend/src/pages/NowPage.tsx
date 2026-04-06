@@ -387,7 +387,7 @@ export default function NowPage() {
       if (foodCount >= 4) {
         insights.push({
           key: `food-heavy-${city.id}`,
-          message: `You've got ${foodCount} food spots scheduled in ${city.name}. That's a lot of eating — some days might have more meals than hours.`,
+          message: `You've got ${foodCount} food spots planned in ${city.name}. That's a lot of eating — some days might have more meals than hours.`,
           cityId: city.id,
         });
       }
@@ -400,7 +400,7 @@ export default function NowPage() {
     if (popularUnscheduled.length >= 3) {
       insights.push({
         key: `popular-unscheduled`,
-        message: `You have ${popularUnscheduled.length} high-priority ideas that haven't been scheduled yet. Worth a look before things fill up.`,
+        message: `You have ${popularUnscheduled.length} high-priority ideas that haven't been planned yet. Worth a look before things fill up.`,
         actionLabel: "See them",
       });
     }

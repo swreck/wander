@@ -75,7 +75,7 @@ export default function TripPhaseContent({ phase, trip, days, experiences }: Tri
       if (foodCount > 10) {
         result.push({
           key: `${trip.id}-food-heavy`,
-          message: `You've got ${foodCount} food spots scheduled — that's a lot of eating! Some days might have more meals than hours.`,
+          message: `You've got ${foodCount} food spots planned — that's a lot of eating! Some days might have more meals than hours.`,
         });
       }
 

@@ -458,7 +458,7 @@ export default function CityBoard() {
         <span>{experiences.length} ideas</span>
         {totalReactions > 0 && <span>{totalReactions} reactions</span>}
         {experiences.filter(e => e.state === "selected").length > 0 && (
-          <span>{experiences.filter(e => e.state === "selected").length} scheduled</span>
+          <span>{experiences.filter(e => e.state === "selected").length} planned</span>
         )}
       </div>
 
