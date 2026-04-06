@@ -1,5 +1,37 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { api } from "../lib/api";
+
+/** Lightweight inline markdown: **bold**, *italic*, and `- ` list items */
+function renderMarkdown(text: string): ReactNode {
+  const lines = text.split("\n");
+  return lines.map((line, li) => {
+    // List items
+    const isList = /^[-•]\s/.test(line.trim());
+    const content = isList ? line.trim().replace(/^[-•]\s/, "") : line;
+
+    // Parse inline **bold** and *italic*
+    const parts: ReactNode[] = [];
+    let remaining = content;
+    let key = 0;
+    while (remaining.length > 0) {
+      // Bold: **text**
+      const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+      if (boldMatch && boldMatch.index !== undefined) {
+        if (boldMatch.index > 0) parts.push(remaining.slice(0, boldMatch.index));
+        parts.push(<strong key={key++}>{boldMatch[1]}</strong>);
+        remaining = remaining.slice(boldMatch.index + boldMatch[0].length);
+        continue;
+      }
+      parts.push(remaining);
+      break;
+    }
+
+    if (isList) {
+      return <div key={li} className="flex gap-1.5 mt-0.5"><span className="shrink-0">–</span><span>{parts}</span></div>;
+    }
+    return <span key={li}>{parts}{li < lines.length - 1 ? "\n" : ""}</span>;
+  });
+}
 
 interface PlaceCard {
   name: string;
@@ -377,7 +409,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                     : "bg-[#f0ebe3] text-[#3a3128]"
                 }`}
               >
-                <p className="whitespace-pre-wrap">{msg.text}</p>
+                <p className="whitespace-pre-wrap">{renderMarkdown(msg.text)}</p>
                 {msg.places && msg.places.length > 0 && (
                   <div className="mt-2 space-y-2">
                     {msg.places.map((place, pi) => (
