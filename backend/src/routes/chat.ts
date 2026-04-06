@@ -3728,7 +3728,7 @@ router.post("/", async (req: AuthRequest, res) => {
       try {
         const { result, actionDescription } = await executeTool(
           "import_recommendations",
-          { tripId, text: recText, senderLabel: "Chat paste" },
+          { tripId, text: recText, senderLabel: "Scout" },
           user,
         );
         const r = result as any;

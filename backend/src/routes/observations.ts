@@ -104,15 +104,16 @@ ${experiences.map((e, i) => {
 }).join("\n")}
 ${spatialSummary}${ratingsSummary}
 Generate 2-5 short observations about this set. Each observation should be ONE sentence.
+Write like a knowledgeable travel companion — warm, plain language, no jargon. Avoid words like "accumulated", "indicating", "categorized", "divergent", "sentiment", "volume", "engagement".
 
 RULES — follow these exactly:
 1. NEVER use action-encouraging language ("you should", "consider", "don't miss", "make sure", "try to", "worth visiting", etc.)
-2. Only state facts and spatial/temporal relationships
+2. State facts plainly — like a friend pointing something out, not a data analyst
 3. NEVER repeat raw ratings numbers — those are already displayed as badges in the UI
-4. Focus on PATTERNS in the ratings (e.g., "All three cafes in this cluster have consistently high review volume" or "The two temples show divergent review sentiment across platforms")
-5. For spatial observations, state walking times (assume 80m/minute walking speed) and clustering facts
-6. For density observations, state the total span in km
-7. If an experience is far from the others, note its round-trip detour time from the cluster center
+4. Focus on PATTERNS in the set (e.g., "This day is all food — your museums and temples are still in the ideas list" or "These three spots are all within a short walk of each other")
+5. For spatial observations, mention walking times in plain language (assume 80m/minute walking speed)
+6. For density observations, note how spread out things are
+7. If an experience is far from the others, mention the detour plainly
 8. If there are no coordinates, skip spatial observations entirely
 9. If there are no ratings, skip ratings observations entirely
 10. Do NOT generate filler observations. If fewer than 2 meaningful observations exist, return fewer.

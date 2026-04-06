@@ -622,7 +622,7 @@ export default function PlanPage() {
                   {(() => {
                     const scheduled = selected.filter((e) => e.dayId === selectedDay.id).length;
                     const ideas = possible.length;
-                    if (scheduled > 0) return `${scheduled} scheduled`;
+                    if (scheduled > 0) return `${scheduled} planned`;
                     if (ideas > 0) return `${ideas} ${ideas === 1 ? 'idea' : 'ideas'}`;
                     return "Open day";
                   })()}

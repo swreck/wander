@@ -121,7 +121,7 @@ export default function SettingsPage() {
             onClick={() => { logout(); navigate("/login"); }}
             className="w-full py-3 rounded-xl bg-red-50 text-red-600 border border-red-200 text-sm font-medium hover:bg-red-100 transition-colors"
           >
-            Log out
+            Sign out
           </button>
         </section>
       </div>
