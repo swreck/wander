@@ -25,6 +25,7 @@ router.get("/", async (_req, res) => {
 router.get("/active", async (_req, res) => {
   const trip = await prisma.trip.findFirst({
     where: { status: "active" },
+    orderBy: { updatedAt: "desc" },
     include: {
       cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },

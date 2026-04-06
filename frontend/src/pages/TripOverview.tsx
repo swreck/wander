@@ -243,6 +243,7 @@ export default function TripOverview() {
             localStorage.setItem("wander:last-trip-id", tripId);
             setShowCreate(false);
             loadTrips();
+            window.dispatchEvent(new CustomEvent("wander:data-changed"));
           } catch {
             showToast("Couldn't switch — check your connection and try again", "error");
           }
@@ -262,6 +263,7 @@ export default function TripOverview() {
             await api.post(`/trips/${tripId}/activate`, {});
             localStorage.setItem("wander:last-trip-id", tripId);
             loadTrips();
+            window.dispatchEvent(new CustomEvent("wander:data-changed"));
           } catch {
             showToast("Couldn't switch — check your connection and try again", "error");
           }
@@ -278,6 +280,8 @@ export default function TripOverview() {
       const switched = allTrips.find(t => t.id === tripId);
       showToast(switched?.name || "Switched");
       loadTrips();
+      // Notify ChatOverlay to update its trip context
+      window.dispatchEvent(new CustomEvent("wander:data-changed"));
     } catch {
       showToast("Couldn't switch — check your connection and try again", "error");
     }

@@ -2680,6 +2680,11 @@ async function executeTool(
     // ── Create trip ─────────────
     case "create_trip": {
       const cities = input.cities || [];
+      // Archive all other active trips so the new one becomes THE active trip
+      await prisma.trip.updateMany({
+        where: { status: "active" },
+        data: { status: "archived" },
+      });
       const trip = await prisma.trip.create({
         data: {
           name: input.name,
@@ -3676,7 +3681,8 @@ router.post("/", async (req: AuthRequest, res) => {
     // Ensure we have a tripId — fall back to the active trip
     let tripId = context?.tripId;
     if (!tripId) {
-      const activeTrip = await prisma.trip.findFirst({ where: { status: "active" }, select: { id: true } });
+      // Fall back to most recently updated active trip (not just first in DB)
+      const activeTrip = await prisma.trip.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" }, select: { id: true } });
       if (activeTrip) tripId = activeTrip.id;
     }
 

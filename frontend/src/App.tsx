@@ -121,10 +121,31 @@ function ChatOverlay() {
 
   useEffect(() => {
     if (!user) return;
-    api.get<any>("/trips/active").then((t) => {
-      if (t?.id) setTripId(t.id);
-    }).catch(() => {});
+    // Prefer the locally-selected trip (survives trip switches without pathname changes)
+    const lastTripId = localStorage.getItem("wander:last-trip-id");
+    if (lastTripId) {
+      setTripId(lastTripId);
+    } else {
+      api.get<any>("/trips/active").then((t) => {
+        if (t?.id) setTripId(t.id);
+      }).catch(() => {});
+    }
   }, [user, location.pathname]);
+
+  // Listen for trip switches (TripOverview dispatches data-changed when switching)
+  useEffect(() => {
+    function handleTripSwitch() {
+      const lastTripId = localStorage.getItem("wander:last-trip-id");
+      if (lastTripId) setTripId(lastTripId);
+    }
+    window.addEventListener("wander:data-changed", handleTripSwitch);
+    // Also listen for storage changes (e.g., from another tab)
+    window.addEventListener("storage", handleTripSwitch);
+    return () => {
+      window.removeEventListener("wander:data-changed", handleTripSwitch);
+      window.removeEventListener("storage", handleTripSwitch);
+    };
+  }, []);
 
   const handleDataChanged = useCallback(() => {
     setRefreshKey((k) => k + 1);
