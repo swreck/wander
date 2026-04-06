@@ -222,7 +222,7 @@ router.post("/:id/promote", async (req: AuthRequest, res) => {
   });
 
   const target = full.day
-    ? `Day ${full.day.date.toISOString().slice(0, 10)}`
+    ? full.day.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
     : `route ${full.routeSegment?.originCity} to ${full.routeSegment?.destinationCity}`;
 
   await logChange({
@@ -232,7 +232,7 @@ router.post("/:id/promote", async (req: AuthRequest, res) => {
     entityType: "experience",
     entityId: exp.id,
     entityName: full.name,
-    description: `${req.user!.displayName} promoted "${full.name}" to ${target}`,
+    description: `${req.user!.displayName} added "${full.name}" to ${target}`,
     previousState: existing,
     newState: full,
   });
