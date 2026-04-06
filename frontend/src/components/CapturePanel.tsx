@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../lib/api";
+import { useToast } from "../contexts/ToastContext";
 import type { Trip } from "../lib/types";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured }: Props) {
+  const { showToast } = useToast();
   const [cityId, setCityId] = useState(defaultCityId);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -55,6 +57,8 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
         await api.post(`/decisions/${dec.id}/options`, { experienceId: expId });
       }
 
+      const label = destination === "plan" ? "On the plan" : destination === "decide" ? "Up for a vote" : "Saved as an idea";
+      showToast(label);
       onCaptured();
     } catch (err: any) {
       setError(err.message || "That didn't save — try again?");
@@ -93,7 +97,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Experience name"
+            placeholder="What's it called?"
             autoFocus
             className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
                        text-[#3a3128] placeholder-[#c8bba8] text-sm
