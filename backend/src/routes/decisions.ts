@@ -20,6 +20,10 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
             id: true, name: true, description: true, themes: true,
             latitude: true, longitude: true, placeIdGoogle: true,
             cloudinaryImageId: true, ratings: true,
+            notes: {
+              select: { id: true, content: true, createdAt: true, traveler: { select: { displayName: true } } },
+              orderBy: { createdAt: "asc" as const },
+            },
           },
         },
         votes: {

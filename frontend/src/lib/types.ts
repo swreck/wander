@@ -156,6 +156,7 @@ export interface Experience {
   routeSegment?: RouteSegment;
   ratings: ExperienceRating[];
   culturalNotes?: CulturalNote[] | null;
+  notes?: ExperienceNoteEntry[];
 }
 
 export interface Accommodation {

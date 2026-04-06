@@ -6,7 +6,7 @@ import CreateTrip from "../components/CreateTrip";
 import { useToast } from "../contexts/ToastContext";
 import { APIProvider, Map as GoogleMap, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
 import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
-import type { Trip, City, Day, Experience, ChangeLogEntry } from "../lib/types";
+import type { Trip, City, Day, Experience, ChangeLogEntry, Decision } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import useUniversalCapture from "../hooks/useUniversalCapture";
 import RouteSegmentsPanel from "../components/RouteSegmentsPanel";
@@ -49,6 +49,7 @@ export default function TripOverview() {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [showApprovals, setShowApprovals] = useState(false);
   const [showLearnings, setShowLearnings] = useState(false);
+  const [openDecisions, setOpenDecisions] = useState<Decision[]>([]);
 
   const isPlanner = user?.role === "planner";
   const initialLoadDone = useRef(false);
@@ -117,6 +118,11 @@ export default function TripOverview() {
         try {
           const { count } = await api.get<{ count: number }>(`/approvals/${effectiveActive.id}/pending`);
           setPendingApprovals(count);
+        } catch { /* ignore */ }
+        // Fetch open decisions for nudge
+        try {
+          const decs = await api.get<Decision[]>(`/decisions/trip/${effectiveActive.id}`);
+          setOpenDecisions(decs.filter((d) => d.status === "open"));
         } catch { /* ignore */ }
       }
     } finally {
@@ -724,6 +730,35 @@ export default function TripOverview() {
             onCityClick={(cityId) => navigate(`/city/${cityId}`)}
           />
         ))}
+
+        {/* Open decisions nudge */}
+        {openDecisions.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {openDecisions.map((dec) => {
+              const myVote = dec.votes.find((v) => v.userCode === user?.code);
+              const totalVotes = dec.votes.length;
+              const totalThoughts = dec.options.reduce((s, o) => s + (o.notes?.length || 0), 0);
+              return (
+                <button
+                  key={dec.id}
+                  onClick={() => navigate("/plan")}
+                  className="w-full text-left p-3 rounded-xl border border-amber-200 bg-amber-50/50 hover:bg-amber-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-amber-600 text-sm">●</span>
+                    <span className="text-sm font-medium text-[#3a3128]">{dec.title}</span>
+                  </div>
+                  <div className="text-xs text-[#8a7a62] ml-5">
+                    {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
+                    {totalVotes > 0 && ` · ${totalVotes} leaning`}
+                    {totalThoughts > 0 && ` · ${totalThoughts} thought${totalThoughts !== 1 ? "s" : ""}`}
+                    {myVote ? " · you've weighed in" : " — weigh in?"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Primary action — go plan */}
         <div className="flex gap-3 mb-4">
