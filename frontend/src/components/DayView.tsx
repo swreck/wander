@@ -65,14 +65,17 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
   const dayIdx = sortedDays.findIndex((d) => d.id === day.id);
   const prev = dayIdx > 0 ? sortedDays[dayIdx - 1] : null;
 
-  if (!prev || prev.cityId === day.cityId) return null;
-
-  const segment = trip.routeSegments?.find(
-    (rs) => rs.originCity === prev.city.name && rs.destinationCity === day.city.name
-  );
+  // Compute segment before hooks so hooks always run in same order
+  const isTransition = prev != null && prev.cityId !== day.cityId;
+  const segment = isTransition
+    ? trip.routeSegments?.find(
+        (rs) => rs.originCity === prev.city.name && rs.destinationCity === day.city.name
+      )
+    : undefined;
 
   const emoji = segment ? (MODE_EMOJI[segment.transportMode.toLowerCase()] || "\uD83D\uDE90") : "\uD83D\uDE90";
 
+  // ALL hooks must be above the early return — React requires stable hook count
   const [mode, setMode] = useState(segment?.transportMode || "train");
   const [depDate, setDepDate] = useState(segment?.departureDate?.split("T")[0] || "");
   const [depTime, setDepTime] = useState(segment?.departureTime || "");
@@ -83,6 +86,8 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
   const [confNum, setConfNum] = useState(segment?.confirmationNumber || "");
   const [seat, setSeat] = useState(segment?.seatInfo || "");
   const [notes, setNotes] = useState(segment?.notes || "");
+
+  if (!isTransition) return null;
 
   async function saveSegment() {
     try {

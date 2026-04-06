@@ -141,10 +141,10 @@ export default function PlanPage() {
   }, []);
 
   useEffect(() => {
-    const handler = () => { loadTrip(true); };
+    const handler = () => { loadTrip(true); loadExperiences(); loadDecisions(); loadInterests(); };
     window.addEventListener("wander:data-changed", handler);
     return () => window.removeEventListener("wander:data-changed", handler);
-  }, [loadTrip]);
+  }, [loadTrip, loadExperiences, loadDecisions, loadInterests]);
 
   // Handle action params from Home (camera, import)
   useEffect(() => {
