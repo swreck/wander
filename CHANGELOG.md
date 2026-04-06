@@ -2,6 +2,26 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-06 — Interactive Testing: Critical Fixes + Multi-Language Phrases
+
+### Fixed
+- **CRITICAL: Scout chat added cities to wrong trip.** When multiple trips existed, `create_trip` didn't archive other active trips, and `findFirst` returned the first-created (Japan) instead of the user's current trip. Cities intended for Vietnam ended up in Japan. Fixed: create_trip now archives others, ChatOverlay reads from localStorage, backend fallback uses orderBy updatedAt.
+- **Cities added via chat had no map coordinates.** `add_city` and `create_trip` chat tools now call `geocodeCity()` so markers appear in the correct geography.
+- **No "days away" countdown on trips without a map.** Vietnam trip showed dates but no countdown. Fixed: both map and no-map code paths now show the countdown.
+- **Unknown routes showed blank page.** `/doesnotexist` now redirects to home.
+- **"1 ideas" grammar.** Singular/plural check added to plan page day header.
+- **History log tone.** "promoted" changed to "added", raw date `2026-12-10` changed to human-friendly `Thu, Dec 10`.
+- **Markdown bold not rendering in Scout chat.** `**text**` was showing as raw asterisks. Added lightweight inline markdown renderer.
+- **"Experience name" placeholder inconsistent.** Changed to "What's it called?" to match reservation form tone.
+- **No confirmation when saving an experience.** Added toast: "On the plan" / "Saved as an idea" / "Up for a vote".
+
+### Added
+- **Multi-language phrase card.** Phrase card now detects trip countries and shows relevant phrases. Supports Japan (Japanese), Vietnam (Vietnamese), Cambodia (Khmer), Portugal (Portuguese). Multi-country trips get language tabs to switch between. Replaces hardcoded Japanese-only card.
+
+### SPEC UPDATE NEEDED
+- Phrase card section: now multi-language, not Japan-only. Detection logic and supported languages should be documented.
+- Chat markdown rendering: Scout responses now render bold text.
+
 ## 2026-04-01 — Planning Board
 
 ### Added
