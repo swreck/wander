@@ -326,6 +326,7 @@ function AppRoutes() {
       <Route path="/city/:cityId" element={<ProtectedRoute><CityBoard /></ProtectedRoute>} />
       <Route path="/story" element={<ProtectedRoute><TripStoryPage /></ProtectedRoute>} />
       <Route path="/guide" element={<ProtectedRoute><GuidePage /></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

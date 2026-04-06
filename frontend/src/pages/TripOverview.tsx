@@ -564,7 +564,26 @@ export default function TripOverview() {
             )}
             <p className="text-sm text-[#8a7a62] mt-1">
               {trip.startDate && trip.endDate
-                ? `${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`
+                ? (() => {
+                    const today = new Date();
+                    const nowUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+                    const [sy, sm, sd] = trip.startDate!.split("T")[0].split("-").map(Number);
+                    const [ey, em, ed] = trip.endDate!.split("T")[0].split("-").map(Number);
+                    const startUTC = Date.UTC(sy, sm - 1, sd);
+                    const endUTC = Date.UTC(ey, em - 1, ed);
+                    const msPerDay = 86400000;
+                    const daysUntil = Math.round((startUTC - nowUTC) / msPerDay);
+                    const totalDays = Math.round((endUTC - startUTC) / msPerDay) + 1;
+                    let prefix = "";
+                    if (daysUntil > 1) prefix = `${daysUntil} days away · `;
+                    else if (daysUntil === 1) prefix = "Tomorrow! · ";
+                    else if (daysUntil === 0) prefix = "Today! · ";
+                    else {
+                      const dayNum = Math.abs(daysUntil) + 1;
+                      prefix = dayNum <= totalDays ? `Day ${dayNum} of ${totalDays} · ` : "Welcome home · ";
+                    }
+                    return `${prefix}${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`;
+                  })()
                 : `${days.length} days planned · Dates TBD`
               }
               <button

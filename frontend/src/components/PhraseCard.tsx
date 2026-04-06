@@ -60,15 +60,44 @@ export default function PhraseCard() {
   const [localOrder, setLocalOrderState] = useState<string[]>(getLocalOrder);
   const [hiddenIds, setHiddenIdsState] = useState<Set<string>>(getHiddenIds);
   const [tripId, setTripId] = useState<string | null>(null);
+  const [isJapanTrip, setIsJapanTrip] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Get active trip (only when logged in)
+  // Get active trip and check if it's Japan-related
   useEffect(() => {
     if (!user) return;
-    api.get<any>("/trips/active").then((t) => {
-      if (t?.id) setTripId(t.id);
-    }).catch(() => {});
+    const lastTripId = localStorage.getItem("wander:last-trip-id");
+    if (lastTripId) {
+      setTripId(lastTripId);
+      api.get<any>(`/trips/${lastTripId}`).then((t) => {
+        const name = (t?.name || "").toLowerCase();
+        const cityNames = (t?.cities || []).map((c: any) => (c.country || c.name || "").toLowerCase());
+        setIsJapanTrip(name.includes("japan") || cityNames.some((n: string) => n.includes("japan")));
+      }).catch(() => {});
+    } else {
+      api.get<any>("/trips/active").then((t) => {
+        if (t?.id) {
+          setTripId(t.id);
+          const name = (t?.name || "").toLowerCase();
+          setIsJapanTrip(name.includes("japan"));
+        }
+      }).catch(() => {});
+    }
+    // Listen for trip switches
+    const handleSwitch = () => {
+      const id = localStorage.getItem("wander:last-trip-id");
+      if (id && id !== tripId) {
+        setTripId(id);
+        api.get<any>(`/trips/${id}`).then((t) => {
+          const name = (t?.name || "").toLowerCase();
+          const cityNames = (t?.cities || []).map((c: any) => (c.country || c.name || "").toLowerCase());
+          setIsJapanTrip(name.includes("japan") || cityNames.some((n: string) => n.includes("japan")));
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener("wander:data-changed", handleSwitch);
+    return () => window.removeEventListener("wander:data-changed", handleSwitch);
   }, [user]);
 
   // Fetch shared phrases when panel opens
@@ -143,6 +172,8 @@ export default function PhraseCard() {
   }, [visiblePhrases]);
 
   if (!user || location.pathname === "/login") return null;
+  // Only show Japanese phrases for Japan trips
+  if (!isJapanTrip) return null;
 
   if (!open) {
     return (
