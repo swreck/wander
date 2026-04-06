@@ -623,7 +623,14 @@ export default function PlanPage() {
                     const scheduled = selected.filter((e) => e.dayId === selectedDay.id).length;
                     const ideas = possible.length;
                     if (scheduled > 0) return `${scheduled} planned`;
-                    if (ideas > 0) return `${ideas} ${ideas === 1 ? 'idea' : 'ideas'}`;
+                    if (ideas > 0) return (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShowBoard(true); }}
+                        className="underline underline-offset-2 decoration-[#c8bba8] hover:decoration-[#6b5d4a] transition-colors"
+                      >
+                        {ideas} {ideas === 1 ? 'idea' : 'ideas'}
+                      </button>
+                    );
                     return "Open day";
                   })()}
                   {selectedDay.explorationZone && ` · ${selectedDay.explorationZone}`}
@@ -727,9 +734,10 @@ export default function PlanPage() {
                 <span className="text-[10px] leading-tight">Now</span>
               </button>
             </div>
-            {/* Day filmstrip */}
+            {/* Day filmstrip — extra top padding separates from action bar for mobile tap accuracy */}
+            <div className="border-t border-[#e5ddd0]/60" />
             <div
-              className="flex gap-1.5 px-2 py-2 overflow-x-auto"
+              className="flex gap-2.5 px-2 pt-2 pb-2.5 overflow-x-auto"
               style={{ touchAction: "pan-x", overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" }}
             >
               {days.map((day, dayIdx) => {
