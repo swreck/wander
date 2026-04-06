@@ -1318,6 +1318,9 @@ async function executeTool(
 
       await syncTripDates(input.tripId);
 
+      // Geocode the city so it appears on the map
+      geocodeCity(city.id).catch(() => {});
+
       await logChange({
         user,
         tripId: input.tripId,
@@ -2720,6 +2723,12 @@ async function executeTool(
       }
 
       await syncTripDates(trip.id);
+
+      // Geocode all cities so they appear on the map
+      for (const city of trip.cities) {
+        geocodeCity(city.id).catch(() => {});
+      }
+
       await logChange({
         user,
         tripId: trip.id,
