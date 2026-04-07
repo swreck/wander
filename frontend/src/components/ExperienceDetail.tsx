@@ -6,6 +6,7 @@ import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
 import { getNudgeForExperience } from "../lib/travelerProfiles";
 import CulturalNotes from "./CulturalNotes";
+import ExperienceNotes from "./ExperienceNotes";
 
 interface Props {
   experienceId: string;
@@ -297,6 +298,15 @@ export default function ExperienceDetail({
           exp.description && (
             <p className="text-sm text-[#6b5d4a] leading-relaxed">{exp.description}</p>
           )
+        )}
+
+        {/* Group & private notes */}
+        {!editing && (
+          <ExperienceNotes
+            experienceId={exp.id}
+            notes={exp.notes || []}
+            onNotesChanged={onDataChanged}
+          />
         )}
 
         {/* Ratings */}

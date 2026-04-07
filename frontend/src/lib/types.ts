@@ -23,6 +23,7 @@ export interface ExperienceNoteEntry {
   experienceId: string;
   travelerId: string;
   content: string;
+  visibility: "group" | "private";
   createdAt: string;
   traveler: { displayName: string };
 }

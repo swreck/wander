@@ -524,6 +524,7 @@ model ExperienceNote {
   experienceId String   @map("experience_id")
   travelerId   String   @map("traveler_id")
   content      String
+  visibility   String   @default("group") // "group" | "private"
   createdAt    DateTime @default(now()) @map("created_at")
 
   experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
