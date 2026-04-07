@@ -492,15 +492,9 @@ export default function PlanPage() {
   const selected = cityExperiences.filter((e) => e.state === "selected");
   const possible = cityExperiences.filter((e) => e.state === "possible");
   const cityDecisions = decisions.filter((d) => d.cityId === activeCityId);
-  const openDecisionOptionIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const d of decisions) {
-      if (d.cityId === activeCityId && d.status === "open") {
-        for (const o of d.options) ids.add(o.id);
-      }
-    }
-    return ids;
-  }, [decisions, activeCityId]);
+  const openDecisionOptionIds = new Set(
+    cityDecisions.filter((d) => d.status === "open").flatMap((d) => d.options.map((o) => o.id))
+  );
 
   // Friction dots for filmstrip
   const dayFrictionMap = new Map<string, boolean>();
