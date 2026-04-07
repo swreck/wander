@@ -38,6 +38,38 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   }
 });
 
+// List resolved decisions for a trip (last 10)
+router.get("/trip/:tripId/resolved", async (req: AuthRequest, res) => {
+  try {
+    const tripId = req.params.tripId as string;
+    const decisions = await prisma.decision.findMany({
+      where: { tripId, status: "resolved" },
+      include: {
+        city: { select: { id: true, name: true } },
+        options: {
+          select: {
+            id: true, name: true, description: true, themes: true,
+            latitude: true, longitude: true, placeIdGoogle: true,
+            cloudinaryImageId: true, ratings: true,
+            notes: {
+              select: { id: true, content: true, createdAt: true, traveler: { select: { displayName: true } } },
+              orderBy: { createdAt: "asc" as const },
+            },
+          },
+        },
+        votes: {
+          select: { id: true, optionId: true, userCode: true, displayName: true },
+        },
+      },
+      orderBy: { resolvedAt: "desc" },
+      take: 10,
+    });
+    res.json(decisions);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Create a decision
 router.post("/", async (req: AuthRequest, res) => {
   try {

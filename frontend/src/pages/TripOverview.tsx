@@ -713,25 +713,7 @@ export default function TripOverview() {
           </div>
         )}
 
-        {/* Week-view calendar grid (dated trips) or city list (dateless trips) — hidden in past phase */}
-        {tripPhase !== "past" && (trip.datesKnown !== false ? (
-          <CalendarGrid
-            days={days}
-            cities={trip.cities}
-            selectedPerDay={selectedPerDay}
-            backroadsDays={backroadsDays}
-            experiences={experiences}
-            onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
-          />
-        ) : (
-          <DatelessTripView
-            cities={trip.cities}
-            days={days}
-            onCityClick={(cityId) => navigate(`/city/${cityId}`)}
-          />
-        ))}
-
-        {/* Open decisions nudge */}
+        {/* Open decisions nudge — above calendar so Andy sees it immediately */}
         {openDecisions.length > 0 && (
           <div className="mb-4 space-y-2">
             {openDecisions.map((dec) => {
@@ -759,6 +741,24 @@ export default function TripOverview() {
             })}
           </div>
         )}
+
+        {/* Week-view calendar grid (dated trips) or city list (dateless trips) — hidden in past phase */}
+        {tripPhase !== "past" && (trip.datesKnown !== false ? (
+          <CalendarGrid
+            days={days}
+            cities={trip.cities}
+            selectedPerDay={selectedPerDay}
+            backroadsDays={backroadsDays}
+            experiences={experiences}
+            onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
+          />
+        ) : (
+          <DatelessTripView
+            cities={trip.cities}
+            days={days}
+            onCityClick={(cityId) => navigate(`/city/${cityId}`)}
+          />
+        ))}
 
         {/* Primary action — go plan */}
         <div className="flex gap-3 mb-4">

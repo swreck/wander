@@ -625,6 +625,78 @@ function DragOverlayItem({ exp }: { exp: Experience }) {
   );
 }
 
+// ── Resolved Decisions (collapsed "Decided" cards) ───────────────
+function ResolvedDecisions({ tripId, cityId }: { tripId: string; cityId: string }) {
+  const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tripId) return;
+    api.get<Decision[]>(`/decisions/trip/${tripId}/resolved`)
+      .then((decs) => setDecisions(decs.filter((d) => d.cityId === cityId)))
+      .catch(() => {});
+  }, [tripId, cityId]);
+
+  if (decisions.length === 0) return null;
+
+  return (
+    <div className="space-y-1.5 mb-3">
+      {decisions.map((dec) => {
+        const winner = dec.options.find((o) => o.state === "selected");
+        const isExpanded = expandedId === dec.id;
+        const allThoughts = dec.options
+          .flatMap((opt) => (opt.notes || []).map((note) => ({ ...note, optionName: opt.name })))
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+        return (
+          <div key={dec.id} className="rounded-xl border border-green-200/80 bg-green-50/30 p-3">
+            <div className="flex items-center gap-2">
+              <span className="text-green-600 text-sm">✓</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-[#3a3128]">
+                  {winner ? `Going with ${winner.name}` : dec.title}
+                </span>
+                {dec.resolvedAt && (
+                  <div className="text-[11px] text-[#a89880] mt-0.5">
+                    Decided {new Date(dec.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : dec.id)}
+                className="text-[11px] text-[#a89880] hover:text-[#6b5d4a] transition-colors shrink-0"
+              >
+                {isExpanded ? "Hide" : "See the conversation"}
+              </button>
+            </div>
+            {isExpanded && (
+              <div className="mt-2.5 pt-2 border-t border-green-200/40 space-y-2">
+                {allThoughts.length > 0 ? allThoughts.map((note) => (
+                  <div key={note.id} className="flex gap-2 items-start">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#f0ebe3] text-[#6b5d4a] text-[10px] font-medium shrink-0 mt-0.5">
+                      {note.traveler.displayName[0]}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-medium text-[#6b5d4a]">{note.traveler.displayName}</span>
+                      <span className="text-[11px] text-[#a89880]"> on {note.optionName}</span>
+                      <p className="text-xs text-[#3a3128] leading-relaxed mt-0.5">{note.content}</p>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-[11px] text-[#a89880]">No conversation recorded</div>
+                )}
+                <div className="text-[11px] text-[#a89880] mt-1">
+                  Options considered: {dec.options.map((o) => o.name).join(", ")}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Decision Group (conversational decision UI) ──────────────────
 function DecisionGroup({
   decision,
@@ -1395,6 +1467,9 @@ export default function ExperienceList({
             </div>
           </>
         )}
+
+        {/* Resolved decisions — the story of past group choices */}
+        <ResolvedDecisions tripId={trip.id} cityId={selected[0]?.cityId || possible[0]?.cityId || ""} />
 
         {/* Divider */}
         <div className="border-t border-dashed border-[#e0d8cc] my-3" />
