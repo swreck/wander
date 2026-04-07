@@ -56,7 +56,7 @@ export default function SettingsPage() {
         <h1 className="text-lg font-medium text-[#3a3128]">Settings</h1>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-6 pb-28 space-y-6">
+      <div className="max-w-lg mx-auto px-4 py-6 pb-40 space-y-6">
         {/* City Photo Duration */}
         <section>
           <h2 className="text-sm font-medium text-[#3a3128] mb-1">City intro photo</h2>
