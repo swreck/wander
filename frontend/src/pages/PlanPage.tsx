@@ -40,7 +40,7 @@ export default function PlanPage() {
   const [selectedExpId, setSelectedExpId] = useState<string | null>(null);
   const [showDayView, setShowDayView] = useState(false);
   // showImport replaced by captureCtx.reviewOpen
-  const [mobileView, setMobileView] = useState<"map" | "list">("map");
+  const [mobileView, setMobileView] = useState<"map" | "list">(initialCityId ? "list" : "map");
   const [candidatesExpanded, setCandidatesExpanded] = useState(() => {
     try { return localStorage.getItem("wander:candidates-expanded") === "true"; } catch { return false; }
   });
