@@ -716,14 +716,13 @@ function DayItemRow({ exp, themeEmoji, onExperienceClick, onRemove, onStartMove,
         <button
           onClick={e => { e.stopPropagation(); onStartMove(movingExpId === exp.id ? null : exp.id); }}
           className={`text-[#8a7a62] hover:text-[#3a3128] text-[11px] font-medium transition-all px-1
-                      ${desktop ? "lg:text-xs opacity-0 group-hover:opacity-100" : "text-[11px]"}`}
+                      ${desktop ? "lg:text-xs" : "text-[11px]"}`}
         >
           move
         </button>
         <button
           onClick={e => { e.stopPropagation(); onRemove(exp.id); }}
-          className={`text-[#c8bba8] hover:text-red-400 text-xs transition-all px-1 -mr-1
-                      ${desktop ? "opacity-0 group-hover:opacity-100" : ""}`}
+          className="text-[#c8bba8] hover:text-red-400 text-xs transition-all px-1 -mr-1"
         >
           &times;
         </button>
