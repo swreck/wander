@@ -741,7 +741,7 @@ export default function TripOverview() {
               return (
                 <button
                   key={dec.id}
-                  onClick={() => navigate("/plan")}
+                  onClick={() => navigate(`/plan?city=${dec.cityId}`)}
                   className="w-full text-left p-3 rounded-xl border border-amber-200 bg-amber-50/50 hover:bg-amber-50 transition-colors"
                 >
                   <div className="flex items-center gap-2 mb-0.5">

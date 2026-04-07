@@ -643,9 +643,10 @@ function DecisionGroup({
   const [adding, setAdding] = useState(false);
   const [voting, setVoting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [expandedOption, setExpandedOption] = useState<string | null>(null);
-  const [thoughtText, setThoughtText] = useState("");
+  const [thoughtOption, setThoughtOption] = useState<string | null>(null);
+  const [thoughtTexts, setThoughtTexts] = useState<Record<string, string>>({});
   const [submittingThought, setSubmittingThought] = useState(false);
+  const [confirmResolve, setConfirmResolve] = useState<string | null>(null);
 
   const myVote = decision.votes.find((v) => v.userCode === user?.code);
   const isHappyWithAny = myVote && myVote.optionId === null;
@@ -655,6 +656,7 @@ function DecisionGroup({
     setVoting(true);
     try {
       await api.post(`/decisions/${decision.id}/vote`, { optionId });
+      if (optionId === null) showToast("Got it — you're flexible");
       onDecisionsChanged();
     } catch {
       showToast("That didn't stick — try again?", "error");
@@ -662,11 +664,24 @@ function DecisionGroup({
     setVoting(false);
   }
 
-  async function handleResolve(winnerIds: string[]) {
+  async function handleResolve(winnerId: string) {
     setResolving(true);
     try {
-      await api.post(`/decisions/${decision.id}/resolve`, { winnerIds });
-      showToast("Settled!");
+      const winner = decision.options.find((o) => o.id === winnerId);
+      await api.post(`/decisions/${decision.id}/resolve`, { winnerIds: [winnerId] });
+      showToast(`Going with ${winner?.name || "that one"}`, "success", {
+        duration: 12000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            try {
+              // Re-open by creating a fresh decision with same options
+              showToast("Can't undo yet — ask Scout to help", "error");
+            } catch { /* fallback */ }
+          },
+        },
+      });
+      setConfirmResolve(null);
       onDecisionsChanged();
     } catch {
       showToast("That didn't go through — try again?", "error");
@@ -681,6 +696,7 @@ function DecisionGroup({
       await api.post(`/decisions/${decision.id}/options`, { name: newOptionName.trim() });
       setNewOptionName("");
       setShowAddOption(false);
+      showToast("Added");
       onDecisionsChanged();
     } catch {
       showToast("Couldn't add that — try again?", "error");
@@ -689,14 +705,17 @@ function DecisionGroup({
   }
 
   async function handleAddThought(experienceId: string) {
-    if (!thoughtText.trim() || submittingThought) return;
+    const text = thoughtTexts[experienceId]?.trim();
+    if (!text || submittingThought) return;
     setSubmittingThought(true);
     try {
-      await api.post("/experience-notes", { experienceId, content: thoughtText.trim() });
-      setThoughtText("");
+      await api.post("/experience-notes", { experienceId, content: text });
+      setThoughtTexts((prev) => ({ ...prev, [experienceId]: "" }));
+      setThoughtOption(null);
+      showToast("Shared");
       onDecisionsChanged();
     } catch {
-      showToast("Couldn't add that — try again?", "error");
+      showToast("Couldn't share that — try again?", "error");
     }
     setSubmittingThought(false);
   }
@@ -705,19 +724,21 @@ function DecisionGroup({
     try {
       await api.delete(`/decisions/${decision.id}`);
       setConfirmingDelete(false);
-      showToast("Cleared");
+      showToast("Decision removed — options are back in your ideas");
       onDecisionsChanged();
     } catch {
       showToast("That didn't go through — check your connection?", "error");
     }
   }
 
-  // Count votes per option
+  // ── Derived state ──
+
+  // Vote counts per option
   const voteCounts = new Map<string, { voters: string[] }>();
-  let happyWithAnyCount = 0;
+  let happyWithAnyVoters: string[] = [];
   for (const v of decision.votes) {
     if (v.optionId === null) {
-      happyWithAnyCount++;
+      happyWithAnyVoters.push(v.displayName);
     } else {
       const existing = voteCounts.get(v.optionId) || { voters: [] };
       existing.voters.push(v.displayName);
@@ -725,177 +746,172 @@ function DecisionGroup({
     }
   }
 
-  // Find the leading option(s)
+  // Find the single leading option (not ties)
   let maxVotes = 0;
   for (const [, { voters }] of voteCounts) {
     if (voters.length > maxVotes) maxVotes = voters.length;
   }
-  const leaders = maxVotes > 0
-    ? decision.options.filter((o) => (voteCounts.get(o.id)?.voters.length || 0) === maxVotes).map((o) => o.id)
+  const leadingOptions = maxVotes > 0
+    ? decision.options.filter((o) => (voteCounts.get(o.id)?.voters.length || 0) === maxVotes)
     : [];
+  const hasCleanLeader = leadingOptions.length === 1 && maxVotes > 0;
+  const leader = hasCleanLeader ? leadingOptions[0] : null;
 
-  // Staleness nudge
+  // Who's participated (voted or shared a thought)
+  const participantNames = new Set<string>();
+  for (const v of decision.votes) participantNames.add(v.displayName);
+  for (const opt of decision.options) {
+    for (const n of opt.notes || []) participantNames.add(n.traveler.displayName);
+  }
+
+  // Collect all thoughts across options, chronological
+  const allThoughts = decision.options
+    .flatMap((opt) => (opt.notes || []).map((note) => ({ ...note, optionName: opt.name, optionId: opt.id })))
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  // Staleness
   const ageMs = Date.now() - new Date(decision.createdAt).getTime();
   const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
   const isStale = ageDays >= 3;
 
-  // Google rating helper
+  // Helpers
   function googleRating(opt: typeof decision.options[0]) {
     const r = opt.ratings?.find((r: any) => r.platform === "google");
     return r ? `★ ${r.ratingValue}` : null;
   }
 
-  // Photo URL helper
-  function photoUrl(opt: typeof decision.options[0]) {
-    if (!opt.cloudinaryImageId) return null;
-    return `https://res.cloudinary.com/dkqmgwila/image/upload/c_fill,w_120,h_80,q_auto,f_auto/${opt.cloudinaryImageId}`;
-  }
-
-  const totalThoughts = decision.options.reduce((sum, o) => sum + (o.notes?.length || 0), 0);
-  const totalVotes = decision.votes.length;
+  const totalVotes = decision.votes.filter((v) => v.optionId !== null).length;
 
   return (
     <div className={`rounded-xl border-2 p-3 ${isStale ? "border-amber-400 bg-amber-50/80" : "border-amber-200/80 bg-[#fdfbf7]"}`}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-1">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between mb-2">
         <div>
           <div className="text-sm font-medium text-[#3a3128]">{decision.title}</div>
           <div className="text-[11px] text-[#a89880] mt-0.5">
-            {decision.createdBy} started this
-            {totalVotes > 0 && ` · ${totalVotes} leaning`}
-            {totalThoughts > 0 && ` · ${totalThoughts} thought${totalThoughts > 1 ? "s" : ""}`}
+            {participantNames.size > 0
+              ? `${[...participantNames].join(", ")} ${participantNames.size === 1 ? "has" : "have"} weighed in`
+              : "No one has weighed in yet"
+            }
             {isStale && <span className="text-amber-600 font-medium"> · open {ageDays} days</span>}
           </div>
         </div>
         {confirmingDelete ? (
           <span className="flex items-center gap-1.5 shrink-0">
-            <button onClick={handleDelete} className="text-xs text-red-500 font-medium hover:text-red-700">Clear</button>
+            <button onClick={handleDelete} className="text-xs text-red-500 font-medium hover:text-red-700">Remove</button>
             <button onClick={() => setConfirmingDelete(false)} className="text-xs text-[#a89880] hover:text-[#514636]">Keep</button>
           </span>
         ) : (
-          <button onClick={() => setConfirmingDelete(true)} className="text-[#c8bba8] hover:text-red-500 text-sm leading-none" title="Remove decision">&times;</button>
+          <button onClick={() => setConfirmingDelete(true)} className="text-[#c8bba8] hover:text-red-500 text-sm leading-none p-1" title="Remove decision">&times;</button>
         )}
       </div>
 
-      {/* Options */}
-      <div className="space-y-2 mt-2.5">
+      {/* ── Conversation: what people are saying ── */}
+      {allThoughts.length > 0 && (
+        <div className="mb-3 space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-[#a89880] font-medium">What people are saying</div>
+          {allThoughts.map((note) => (
+            <div key={note.id} className="flex gap-2 items-start">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#f0ebe3] text-[#6b5d4a] text-[10px] font-medium shrink-0 mt-0.5">
+                {note.traveler.displayName[0]}
+              </span>
+              <div className="min-w-0">
+                <span className="text-[11px] font-medium text-[#6b5d4a]">{note.traveler.displayName}</span>
+                <span className="text-[11px] text-[#a89880]"> on {note.optionName}</span>
+                <p className="text-xs text-[#3a3128] leading-relaxed mt-0.5">{note.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Options: compact comparison ── */}
+      <div className="space-y-1.5">
         {decision.options.map((opt) => {
           const votes = voteCounts.get(opt.id);
           const isMyPick = myVote?.optionId === opt.id;
-          const isLeader = leaders.includes(opt.id);
-          const isExpanded = expandedOption === opt.id;
-          const photo = photoUrl(opt);
+          const isLeading = leader?.id === opt.id;
           const rating = googleRating(opt);
-          const thoughts = opt.notes || [];
+          const isThoughtOpen = thoughtOption === opt.id;
+          const currentText = thoughtTexts[opt.id] || "";
 
           return (
-            <div key={opt.id} className={`rounded-lg border transition-all ${
-              isMyPick ? "border-amber-400 bg-amber-50/80 shadow-sm" : "border-[#e5ddd0] bg-white"
-            }`}>
-              {/* Option main row */}
+            <div key={opt.id}>
               <div
-                className={`flex items-center gap-2.5 px-3 py-2 ${voting ? "opacity-50" : "cursor-pointer"}`}
-                onClick={() => !voting && setExpandedOption(isExpanded ? null : opt.id)}
+                className={`rounded-lg border px-3 py-2 transition-all cursor-pointer ${
+                  isMyPick
+                    ? "border-amber-400 bg-amber-50/60"
+                    : isLeading
+                      ? "border-amber-300/60 bg-amber-50/30"
+                      : "border-[#e5ddd0] bg-white"
+                }`}
+                onClick={() => setThoughtOption(isThoughtOpen ? null : opt.id)}
               >
-                {/* Photo thumbnail */}
-                {photo && (
-                  <img src={photo} alt="" className="w-10 h-10 rounded object-cover shrink-0" />
-                )}
-
-                {/* Name + description + rating */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium text-[#3a3128] truncate">{opt.name}</span>
-                    {isLeader && maxVotes > 0 && <span className="text-amber-500 text-xs">●</span>}
-                  </div>
-                  {(opt.description || rating) && (
-                    <div className="text-[11px] text-[#8a7a62] mt-0.5 truncate">
-                      {rating && <span className="text-amber-700 font-medium mr-1.5">{rating}</span>}
-                      {opt.description && <span>{opt.description}</span>}
+                <div className="flex items-center gap-2">
+                  {/* Name + rating */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-[#3a3128] truncate">{opt.name}</span>
+                      {isLeading && <span className="text-[10px] text-amber-600 font-medium shrink-0">leading</span>}
                     </div>
-                  )}
-                  {thoughts.length > 0 && !isExpanded && (
-                    <div className="text-[11px] text-[#a89880] mt-0.5 truncate">
-                      💬 {thoughts.length} thought{thoughts.length > 1 ? "s" : ""} — tap to see
-                    </div>
-                  )}
-                </div>
-
-                {/* Vote badges + lean button */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {votes && votes.voters.length > 0 && (
-                    <div className="flex -space-x-1">
-                      {votes.voters.map((name, i) => (
-                        <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-medium border border-white" title={name}>
-                          {name[0]}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleVote(opt.id); }}
-                    disabled={voting}
-                    className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                      isMyPick
-                        ? "bg-amber-500 text-white font-medium"
-                        : "bg-[#f0ebe3] text-[#6b5d4a] hover:bg-amber-100 hover:text-amber-700"
-                    }`}
-                  >
-                    {isMyPick ? "Leaning here" : "Lean"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Expanded: thoughts + add thought + details */}
-              {isExpanded && (
-                <div className="px-3 pb-2.5 border-t border-[#f0ebe3]">
-                  {/* Existing thoughts */}
-                  {thoughts.length > 0 && (
-                    <div className="mt-2 space-y-1.5">
-                      {thoughts.map((note) => (
-                        <div key={note.id} className="flex gap-2 items-start">
-                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#f0ebe3] text-[#6b5d4a] text-[10px] font-medium shrink-0 mt-0.5">
-                            {note.traveler.displayName[0]}
-                          </span>
-                          <div className="min-w-0">
-                            <span className="text-[11px] font-medium text-[#6b5d4a]">{note.traveler.displayName}</span>
-                            <p className="text-xs text-[#3a3128] leading-relaxed">{note.content}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add a thought */}
-                  <div className="mt-2 flex gap-1.5">
-                    <input
-                      type="text"
-                      value={expandedOption === opt.id ? thoughtText : ""}
-                      onChange={(e) => setThoughtText(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddThought(opt.id)}
-                      placeholder="What do you think?"
-                      className="flex-1 text-xs px-2.5 py-1.5 border border-[#e5ddd0] rounded-lg bg-[#faf8f5]
-                                 focus:outline-none focus:border-amber-400 placeholder:text-[#c8bba8]"
-                    />
-                    {thoughtText.trim() && (
-                      <button
-                        onClick={() => handleAddThought(opt.id)}
-                        disabled={submittingThought}
-                        className="px-2.5 py-1 text-xs bg-[#514636] text-white rounded-lg hover:bg-[#3a3128]
-                                   disabled:opacity-40 transition-colors"
-                      >
-                        Share
-                      </button>
+                    {(opt.description || rating) && (
+                      <div className="text-[11px] text-[#8a7a62] mt-0.5 truncate">
+                        {rating && <span className="text-amber-700 font-medium mr-1.5">{rating}</span>}
+                        {opt.description}
+                      </div>
                     )}
                   </div>
 
-                  {/* Details link */}
-                  <button
-                    onClick={() => onExperienceClick(opt.id)}
-                    className="mt-2 text-[11px] text-[#a89880] hover:text-[#6b5d4a] transition-colors"
-                  >
-                    See full details →
-                  </button>
+                  {/* Who likes this + preference signal */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {votes && votes.voters.length > 0 && (
+                      <div className="flex -space-x-1">
+                        {votes.voters.map((name, i) => (
+                          <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-medium border border-white" title={name}>
+                            {name[0]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleVote(opt.id); }}
+                      disabled={voting}
+                      className={`transition-colors ${voting && !isMyPick ? "" : ""} ${
+                        isMyPick
+                          ? "text-amber-500"
+                          : "text-[#c8bba8] hover:text-amber-500"
+                      }`}
+                      title={isMyPick ? "You like this one" : "I like this one"}
+                    >
+                      {isMyPick ? "♥" : "♡"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Inline thought input — opens when you tap an option */}
+              {isThoughtOpen && (
+                <div className="mt-1 ml-2 mr-2 flex gap-1.5">
+                  <input
+                    type="text"
+                    value={currentText}
+                    onChange={(e) => setThoughtTexts((prev) => ({ ...prev, [opt.id]: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddThought(opt.id)}
+                    placeholder={`What do you know about ${opt.name.split(" ").slice(0, 2).join(" ")}?`}
+                    autoFocus
+                    className="flex-1 text-xs px-2.5 py-1.5 border border-[#e5ddd0] rounded-lg bg-[#faf8f5]
+                               focus:outline-none focus:border-amber-400 placeholder:text-[#c8bba8]"
+                  />
+                  {currentText.trim() && (
+                    <button
+                      onClick={() => handleAddThought(opt.id)}
+                      disabled={submittingThought}
+                      className="px-2.5 py-1 text-xs bg-[#514636] text-white rounded-lg hover:bg-[#3a3128]
+                                 disabled:opacity-40 transition-colors shrink-0"
+                    >
+                      Share
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -903,18 +919,22 @@ function DecisionGroup({
         })}
       </div>
 
-      {/* Bottom actions */}
-      <div className="mt-2.5 flex items-center justify-between">
+      {/* ── Bottom actions ── */}
+      <div className="mt-3 flex items-center justify-between">
         <button
           onClick={() => handleVote(null)}
           disabled={voting}
-          className={`text-xs transition-colors ${voting ? "opacity-50" : ""} ${
-            isHappyWithAny ? "text-amber-700 font-medium" : "text-[#a89880] hover:text-amber-600"
+          className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+            isHappyWithAny
+              ? "bg-amber-100 text-amber-700 font-medium"
+              : "bg-[#f0ebe3] text-[#6b5d4a] hover:bg-amber-50 hover:text-amber-600"
           }`}
         >
-          {isHappyWithAny ? "You're flexible ✓" : "I'm flexible"}
-          {happyWithAnyCount > 0 && !isHappyWithAny && (
-            <span className="ml-1 text-amber-600">({happyWithAnyCount})</span>
+          {isHappyWithAny ? "You're flexible ✓" : "I'm good with whatever"}
+          {happyWithAnyVoters.length > 0 && !isHappyWithAny && (
+            <span className="ml-1 text-amber-600" title={happyWithAnyVoters.join(", ")}>
+              ({happyWithAnyVoters.map((n) => n.split(" ")[0]).join(", ")})
+            </span>
           )}
         </button>
 
@@ -949,19 +969,45 @@ function DecisionGroup({
         </div>
       )}
 
-      {/* Resolve — appears when people have leaned */}
-      {decision.votes.length > 0 && (
-        <div className="mt-2.5 pt-2 border-t border-amber-200/60">
+      {/* ── Suggest / Confirm — only when there's a clear direction ── */}
+      {hasCleanLeader && leader && totalVotes >= 2 && !confirmResolve && (
+        <div className="mt-3 pt-2.5 border-t border-amber-200/40">
+          <div className="text-[11px] text-[#8a7a62] mb-1.5">
+            {totalVotes} of the group {totalVotes === 1 ? "likes" : "like"} {leader.name}
+            {happyWithAnyVoters.length > 0 && `, ${happyWithAnyVoters.length} flexible`}
+          </div>
           <button
-            onClick={() => handleResolve(leaders)}
-            disabled={resolving || leaders.length === 0}
-            className="w-full py-2 text-xs font-medium rounded-lg bg-amber-600 text-white
-                       hover:bg-amber-700 disabled:opacity-40 transition-colors"
+            onClick={() => setConfirmResolve(leader.id)}
+            className="w-full py-2 text-xs font-medium rounded-lg bg-[#f0ebe3] text-[#514636]
+                       hover:bg-amber-100 hover:text-amber-700 transition-colors"
           >
-            {resolving ? "..." : leaders.length > 0
-              ? `Settle on ${decision.options.filter((o) => leaders.includes(o.id)).map((o) => o.name).join(", ")}`
-              : "Waiting for leans"}
+            Suggest going with {leader.name}?
           </button>
+        </div>
+      )}
+
+      {/* Confirmation step */}
+      {confirmResolve && (
+        <div className="mt-3 pt-2.5 border-t border-amber-200/40">
+          <div className="text-xs text-[#3a3128] mb-2">
+            Go with <strong>{decision.options.find((o) => o.id === confirmResolve)?.name}</strong>? This moves it to your plan.
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleResolve(confirmResolve)}
+              disabled={resolving}
+              className="flex-1 py-2 text-xs font-medium rounded-lg bg-amber-600 text-white
+                         hover:bg-amber-700 disabled:opacity-40 transition-colors"
+            >
+              {resolving ? "..." : "Yes, go with it"}
+            </button>
+            <button
+              onClick={() => setConfirmResolve(null)}
+              className="px-4 py-2 text-xs rounded-lg bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors"
+            >
+              Not yet
+            </button>
+          </div>
         </div>
       )}
     </div>
