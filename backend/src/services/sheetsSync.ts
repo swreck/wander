@@ -576,9 +576,21 @@ export async function appendToSheet(
   values: string[][],
 ) {
   const sheets = getSheetsClient();
-  await sheets.spreadsheets.values.append({
+
+  // Find the last row with data, then write to the next row starting at column A
+  // This avoids Google Sheets' default append behavior which shifts columns right
+  const existing = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range,
+  });
+  const lastRow = (existing.data.values?.length || 0) + 1;
+
+  // Extract sheet name from range (e.g., "'Activities Template'" → "Activities Template")
+  const sheetName = range.replace(/'/g, "");
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `'${sheetName}'!A${lastRow}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values },
   });
