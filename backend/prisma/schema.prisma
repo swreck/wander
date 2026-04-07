@@ -208,6 +208,7 @@ model Experience {
   culturalNotes Json?    @map("cultural_notes")
   popularTimes  Json?    @map("popular_times")
   conditionalAssignment Json? @map("conditional_assignment") // { fallbackDate, waitFor, ifInterested, ifNot }
+  sheetRowRef           String? @map("sheet_row_ref") // e.g. "Activities Template:14" — null = Wander-only
 
   decisionId   String?           @map("decision_id")
 
@@ -253,6 +254,8 @@ model Accommodation {
   checkOutTime       String?  @map("check_out_time")
   confirmationNumber String?  @map("confirmation_number")
   notes              String?
+
+  sheetRowRef        String?  @map("sheet_row_ref")
 
   trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city City  @relation(fields: [cityId], references: [id], onDelete: Cascade)
@@ -375,6 +378,8 @@ model Decision {
   createdBy String    @map("created_by")
   createdAt DateTime  @default(now()) @map("created_at")
   resolvedAt DateTime? @map("resolved_at")
+
+  sheetRowRef String? @map("sheet_row_ref")
 
   trip    Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city    City              @relation(fields: [cityId], references: [id], onDelete: Cascade)

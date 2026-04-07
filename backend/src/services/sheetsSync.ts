@@ -60,6 +60,7 @@ export interface ParsedHotel {
   url: string | null;
   aiNotes: string | null;
   votes: { julie: string | null; larisa: string | null; ken: string | null; andy: string | null };
+  sheetRowRef: string;
 }
 
 export interface ParsedActivity {
@@ -71,6 +72,7 @@ export interface ParsedActivity {
   url: string | null;
   interests: { julie: boolean; andy: boolean; larisa: boolean; ken: boolean };
   dateAssignments: { date: string; assigned: boolean }[];
+  sheetRowRef: string; // e.g. "Activities Template:14"
 }
 
 export interface SpreadsheetData {
@@ -157,8 +159,8 @@ export async function readSpreadsheet(spreadsheetId: string): Promise<Spreadshee
   const activitiesTab = sheetNames.find(n => n.toLowerCase().includes("activities"));
 
   const cities = itineraryTab ? parseItinerary(rawTabData[itineraryTab]) : [];
-  const tokyoHotels = tokyoHotelTab ? parseHotelTemplate(rawTabData[tokyoHotelTab]) : [];
-  const kyotoHotels = kyotoHotelTab ? parseHotelTemplate(rawTabData[kyotoHotelTab]) : [];
+  const tokyoHotels = tokyoHotelTab ? parseHotelTemplate(rawTabData[tokyoHotelTab], tokyoHotelTab) : [];
+  const kyotoHotels = kyotoHotelTab ? parseHotelTemplate(rawTabData[kyotoHotelTab], kyotoHotelTab) : [];
   const activities = activitiesTab ? parseActivities(rawTabData[activitiesTab]) : [];
 
   return { cities, tokyoHotels, kyotoHotels, activities, rawTabData };
@@ -367,7 +369,7 @@ function finalizeCityDates(city: ParsedCity) {
 
 // ── Hotel Template Parser ────────────────────────────────────
 
-function parseHotelTemplate(rows: string[][]): ParsedHotel[] {
+function parseHotelTemplate(rows: string[][], tabName: string): ParsedHotel[] {
   const hotels: ParsedHotel[] = [];
 
   // Find the header row (contains "Hotels" in column Q / index 16)
@@ -402,6 +404,7 @@ function parseHotelTemplate(rows: string[][]): ParsedHotel[] {
         ken: (row[13] || "").trim() || null,
         andy: (row[14] || "").trim() || null,
       },
+      sheetRowRef: `${tabName}:${i}`,
     });
   }
 
@@ -483,6 +486,7 @@ function parseActivities(rows: string[][]): ParsedActivity[] {
         ken: kenInterest === "x" || kenInterest === "yes",
       },
       dateAssignments,
+      sheetRowRef: `Activities Template:${i}`,
     });
   }
 

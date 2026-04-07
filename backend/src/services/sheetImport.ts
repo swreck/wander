@@ -377,10 +377,11 @@ async function importActivities(
         name: act.name,
         description: description || null,
         sourceUrl: act.url || null,
-        createdBy: "Larisa", // Larisa created the spreadsheet
+        createdBy: "Larisa",
         state: "possible",
         themes: [theme] as any,
         explorationZoneAssociation: act.neighborhood || null,
+        sheetRowRef: act.sheetRowRef,
       },
     });
     experienceCount++;
@@ -473,6 +474,7 @@ async function importHotelDecision(
         state: "voting",
         decisionId: decision.id,
         themes: [],
+        sheetRowRef: hotel.sheetRowRef,
       },
     });
 

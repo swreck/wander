@@ -157,6 +157,13 @@ export interface Experience {
   ratings: ExperienceRating[];
   culturalNotes?: CulturalNote[] | null;
   notes?: ExperienceNoteEntry[];
+  sheetRowRef?: string | null;
+  conditionalAssignment?: {
+    fallbackDate: string;
+    waitFor: string;
+    ifInterested: string;
+    ifNot: string;
+  } | null;
 }
 
 export interface Accommodation {
