@@ -681,6 +681,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
         mapTypeControl={false}
         streetViewControl={false}
         fullscreenControl={false}
+        clickableIcons={false}
         style={{ width: "100%", height: "100%" }}
       >
         <MapPanner center={center} circleGeo={circleGeo} recenterKey={recenterKey} />

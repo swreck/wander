@@ -3876,7 +3876,7 @@ RULES:
 
     for (let turn = 0; turn < 8; turn++) {
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+        model: "claude-opus-4-6",
         max_tokens: 1024,
         system: systemPrompt,
         tools,

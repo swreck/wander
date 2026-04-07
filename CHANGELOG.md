@@ -2,6 +2,29 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-07 — Group Decision Redesign: Conversation-First
+
+### Changed
+- **Decision cards rebuilt conversation-first.** Thoughts/conversation shown chronologically at the top of the card, above option comparison. Options are compact cards with heart (♡/♥) preference signals instead of dominant "Lean" buttons. The conversation is the centerpiece, not voting.
+- **Resolve flow is now a two-step proposal.** "Suggest going with X?" → "Yes, go with it" / "Not yet" confirmation dialog. Only appears when there's a clear single leader with 2+ preferences. Ties no longer offer a resolve button (prevents selecting all tied options). Toast names the winner: "Going with Silverland May."
+- **Resolved decisions persist as collapsed cards.** Green "Going with Silverland May ✓" card with "See the conversation" to expand full discussion history. Decisions and their conversation no longer vanish after resolution.
+- **Map dims non-decision markers during active decisions.** Decision option pins stay at full opacity with labels; other markers dimmed to 35% with labels hidden. Reduces label collision mess during comparisons. Google POI icons no longer clickable.
+- **Scout upgraded from Sonnet to Opus.** 4 users, cost immaterial, significant quality improvement for facilitation.
+- **"I'm good with whatever" promoted to pill button.** Easier to find and tap, especially for group members who don't have a strong preference. Flexible voters shown by name (not anonymous count).
+- **Per-option thought input.** Each option has its own draft text state (no more leaking between options). Placeholder is contextual: "What do you know about [hotel name]?"
+
+### Fixed
+- **Plan page crash (TDZ violation).** useEffect referenced useCallback functions before their declarations. Production bundle crashed with "Cannot access 'ge' before initialization."
+- **Thoughts appear immediately after sharing.** Fixed stale data bug where thoughts required a full page reload to appear.
+- **Home decision nudge navigates to correct city.** Was navigating to /plan without city param — user landed on wrong city and couldn't find the decision.
+- **Session expired no longer destroys all state.** 401 response now dispatches an event caught by React (soft redirect + toast) instead of hard window.location redirect that killed in-progress work.
+- **NowPage infinite loading on network error.** Added try/catch wrapper around loadData — shows friendly error state with retry button instead of spinning forever.
+- **Travel time polling reduced from 15s to 60s.** Matches documented interval, reduces battery drain and API cost on mobile.
+- **Toasts on every decision action.** Lean, thought share, flexible, add option, delete — all now give feedback. Previously only errors had toasts.
+- **"Cleared" → "Decision removed — options are back in your ideas."** Delete toast now explains what happened.
+
+SPEC UPDATE NEEDED: Decision UX sections (group decisions, voting, resolution flow) now differ significantly from SPEC.md.
+
 ## 2026-04-06 — UX Testing Sweep: Overscroll Fix + Terminology + Tone
 
 ### Fixed

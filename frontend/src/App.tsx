@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import TripOverview from "./pages/TripOverview";
@@ -279,6 +279,22 @@ function ReflectionOverlay() {
   );
 }
 
+function SessionExpiredHandler() {
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const handler = () => {
+      showToast("Your session expired — signing you back in", "info");
+      navigate("/login", { replace: true });
+    };
+    window.addEventListener("wander:session-expired", handler);
+    return () => window.removeEventListener("wander:session-expired", handler);
+  }, [navigate, showToast]);
+
+  return null;
+}
+
 function SyncNotifier() {
   const { showToast } = useToast();
 
@@ -348,6 +364,7 @@ export default function App() {
               <PhraseCard />
               <ShortcutHelp />
               <OfflineIndicator />
+              <SessionExpiredHandler />
               <SyncNotifier />
               <SyncIndicator />
               <BottomNav />
