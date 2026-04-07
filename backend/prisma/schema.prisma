@@ -104,6 +104,7 @@ model Trip {
   tripPhrases       TripPhrase[]
   learnings         Learning[]
   approvalRequests  ApprovalRequest[]
+  sheetSyncConfig   SheetSyncConfig?
 
   @@map("trips")
 }
@@ -143,6 +144,7 @@ model City {
   arrivalDate   DateTime? @map("arrival_date")
   departureDate DateTime? @map("departure_date")
   hidden        Boolean  @default(false)
+  costEstimate  Json?    @map("cost_estimate") // { hotelDailyRate, hotelTotal, mealsDaily, budgetJA, budgetKL }
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   days           Day[]
@@ -162,6 +164,7 @@ model Day {
   dayType         String  @default("free") @map("day_type") // "free" | "guided"
   explorationZone String? @map("exploration_zone")
   notes           String?
+  costEstimate    Json?   @map("cost_estimate") // { hotelJA, hotelKL, mealsJA, mealsKL, other }
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city           City            @relation(fields: [cityId], references: [id], onDelete: Cascade)
@@ -204,6 +207,7 @@ model Experience {
 
   culturalNotes Json?    @map("cultural_notes")
   popularTimes  Json?    @map("popular_times")
+  conditionalAssignment Json? @map("conditional_assignment") // { fallbackDate, waitFor, ifInterested, ifNot }
 
   decisionId   String?           @map("decision_id")
 
@@ -624,4 +628,35 @@ model ChatMessage {
 
   @@index([tripId, travelerId, createdAt])
   @@map("chat_messages")
+}
+
+// ── Spreadsheet Sync ─────────────────────────────────────────
+model SheetSyncConfig {
+  id             String   @id @default(cuid())
+  tripId         String   @unique @map("trip_id")
+  spreadsheetId  String   @map("spreadsheet_id")
+  syncIntervalMs Int      @default(0) @map("sync_interval_ms") // 0 = manual only
+  lastSyncAt     DateTime? @map("last_sync_at")
+  lastSyncStatus String?  @map("last_sync_status") // "success" | "error" | "conflict"
+  tabMappings    Json     @default("{}") @map("tab_mappings") // stores which tabs map to what
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("sheet_sync_configs")
+}
+
+model SheetSyncLog {
+  id          String   @id @default(cuid())
+  tripId      String   @map("trip_id")
+  direction   String   // "pull" | "push"
+  status      String   // "success" | "error" | "conflict"
+  summary     String   // human-readable summary
+  conflicts   Json?    // array of {field, wanderValue, sheetValue, resolution}
+  details     Json?    // detailed sync results
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tripId, createdAt])
+  @@map("sheet_sync_logs")
 }

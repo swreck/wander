@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { isNextUpEnabled, setNextUpEnabled } from "../components/NextUpOverlay";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { api } from "../lib/api";
 
 const DURATION_OPTIONS = [
   { value: 1000, label: "1 second" },
@@ -20,7 +21,7 @@ function getSplashDuration(): number {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user: authUser } = useAuth();
   const { showToast } = useToast();
   const [splashDuration, setSplashDuration] = useState(getSplashDuration);
   const [nextUp, setNextUp] = useState(isNextUpEnabled);
@@ -115,6 +116,9 @@ export default function SettingsPage() {
           </button>
         </section>
 
+        {/* Spreadsheet Sync (planner-only) */}
+        {authUser?.role === "planner" && <SheetSyncSection />}
+
         {/* Logout */}
         <section>
           <button
@@ -126,5 +130,148 @@ export default function SettingsPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+// ── Spreadsheet Sync Section (planner-only) ──────────────────
+
+const SYNC_INTERVALS = [
+  { value: 0, label: "Manual only" },
+  { value: 900000, label: "15 minutes" },
+  { value: 1800000, label: "30 minutes" },
+  { value: 3600000, label: "1 hour" },
+];
+
+interface SyncStatus {
+  configured: boolean;
+  spreadsheetId?: string;
+  syncIntervalMs?: number;
+  lastSyncAt?: string;
+  lastSyncStatus?: string;
+}
+
+function SheetSyncSection() {
+  const { showToast } = useToast();
+  const [status, setStatus] = useState<SyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [tripId, setTripId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const lastTrip = localStorage.getItem("wander:last-trip-id");
+    if (lastTrip) {
+      setTripId(lastTrip);
+      api.get<SyncStatus>(`/sheets-sync/status/${lastTrip}`).then(setStatus).catch(() => {});
+    }
+  }, []);
+
+  async function handlePull() {
+    if (!tripId) return;
+    setSyncing(true);
+    try {
+      const result = await api.post<any>("/sheets-sync/pull", { tripId });
+      showToast(result.summary || "Sync complete", result.conflicts?.length ? "info" : "success");
+      const fresh = await api.get<SyncStatus>(`/sheets-sync/status/${tripId}`);
+      setStatus(fresh);
+    } catch (err: any) {
+      showToast(err.message || "Sync failed", "error");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handlePush() {
+    if (!tripId) return;
+    setSyncing(true);
+    try {
+      const result = await api.post<any>("/sheets-sync/push", { tripId });
+      showToast(result.summary || "Push complete", "success");
+      const fresh = await api.get<SyncStatus>(`/sheets-sync/status/${tripId}`);
+      setStatus(fresh);
+    } catch (err: any) {
+      showToast(err.message || "Push failed", "error");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleIntervalChange(ms: number) {
+    if (!tripId) return;
+    try {
+      await api.patch("/sheets-sync/config", { tripId, syncIntervalMs: ms });
+      setStatus(prev => prev ? { ...prev, syncIntervalMs: ms } : prev);
+      const label = SYNC_INTERVALS.find(i => i.value === ms)?.label || `${ms}ms`;
+      showToast(`Sync interval: ${label}`, "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to update", "error");
+    }
+  }
+
+  if (!status?.configured) return null;
+
+  const lastSync = status.lastSyncAt
+    ? new Date(status.lastSyncAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "Never";
+
+  return (
+    <section className="border-t border-[#e0d8cc] pt-6">
+      <h2 className="text-sm font-medium text-[#3a3128] mb-1">Spreadsheet sync</h2>
+      <p className="text-xs text-[#8a7a62] mb-3">
+        Keep Wander in sync with the shared planning spreadsheet.
+      </p>
+
+      {/* Last sync info */}
+      <div className="bg-white rounded-lg border border-[#e0d8cc] p-3 mb-3">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[#8a7a62]">Last sync</span>
+          <span className="text-[#3a3128] font-medium">{lastSync}</span>
+        </div>
+        {status.lastSyncStatus && (
+          <div className="flex items-center justify-between text-xs mt-1">
+            <span className="text-[#8a7a62]">Status</span>
+            <span className={`font-medium ${status.lastSyncStatus === "success" ? "text-green-600" : status.lastSyncStatus === "conflict" ? "text-amber-600" : "text-red-600"}`}>
+              {status.lastSyncStatus === "success" ? "All good" : status.lastSyncStatus === "conflict" ? "Synced with conflicts" : "Error"}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Sync buttons */}
+      <div className="flex gap-2 mb-3">
+        <button
+          onClick={handlePull}
+          disabled={syncing}
+          className="flex-1 py-2 rounded-lg bg-[#514636] text-white text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {syncing ? "Syncing..." : "Pull from spreadsheet"}
+        </button>
+        <button
+          onClick={handlePush}
+          disabled={syncing}
+          className="flex-1 py-2 rounded-lg border border-[#514636] text-[#514636] text-sm font-medium disabled:opacity-50 hover:bg-[#f0ece5] transition-colors"
+        >
+          Push to spreadsheet
+        </button>
+      </div>
+
+      {/* Sync interval */}
+      <div>
+        <p className="text-xs text-[#8a7a62] mb-2">Auto-sync interval</p>
+        <div className="flex gap-2 flex-wrap">
+          {SYNC_INTERVALS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => handleIntervalChange(opt.value)}
+              className={`py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
+                status.syncIntervalMs === opt.value
+                  ? "bg-[#514636] text-white"
+                  : "bg-white border border-[#e0d8cc] text-[#6b5d4a] hover:bg-[#f0ece5]"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }

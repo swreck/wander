@@ -2,6 +2,42 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-07 — Spreadsheet Sync: Bidirectional Google Sheets Integration
+
+### Added
+- **Google Sheets sync service** — Wander reads and writes Larisa's planning spreadsheet via service account (`wander-sheets@actionmgr.iam.gserviceaccount.com`). Structure-aware parsing handles inserted rows, city sections, hotel templates, and activity lists.
+- **Clean trip import from spreadsheet** — Creates a new Wander trip populated entirely from spreadsheet data (Option A). 8 cities, 23 days, 15 activities, 11 hotel options in 2 decisions, 3 accommodations, 14 interest marks imported from Larisa's Japan 2026 spreadsheet.
+- **Budget data per city** — `costEstimate` JSON field on City model captures cumulative budget (J/A and K/L), hotel costs, and meal estimates from the spreadsheet. Not an accounting tool — conversational cost awareness ("the next few days will be great, but expensive").
+- **Conditional day assignments** — `conditionalAssignment` JSON field on Experience handles "I'll go on this day IF someone else isn't interested, otherwise we'll go together later." Used for Mashiko (conditional on Julie's interest). Supports 3-5 similar patterns expected during planning.
+- **Sync API routes** — `/api/sheets-sync/pull` (spreadsheet → Wander), `/api/sheets-sync/push` (Wander → spreadsheet), `/api/sheets-sync/status`, `/api/sheets-sync/config`. Pull/push are planner-only.
+- **Hotel decision import** — Tokyo (8 hotels) and Kyoto (3 hotels) hotel comparison tabs imported as Wander Decisions with voting columns mapped to DecisionVotes.
+- **Sync settings panel** — Planner-only section in Settings page with pull/push buttons, last sync status, and auto-sync interval selector (manual / 15min / 30min / 1hr).
+- **Prisma models** — `SheetSyncConfig` (per-trip sync settings, spreadsheet ID, interval), `SheetSyncLog` (sync event history and conflict tracking).
+- **Fuzzy name matching** — Jaro-Winkler algorithm for deduplication between spreadsheet and Wander data (threshold 0.85).
+
+### Changed
+- Spreadsheet ID is configurable per trip — Ken can swap to Larisa's active version anytime.
+- Spreadsheet wins on all data conflicts (last-write-wins with spreadsheet as tiebreaker). Conflicts are logged for Ken to review.
+
+**SPEC UPDATE NEEDED**: Spreadsheet sync, budget awareness, and conditional assignments are new capabilities not in SPEC.md.
+
+## 2026-04-07 — Build-a-Day UX Fixes + Decision Support Polish
+
+### Changed
+- **Planning Board button labels clarified.** "+ 10 Thu" (cryptic) → "+ Dec 10" (unambiguous date). Users no longer confuse "10 Thu" with 10am Thursday.
+- **Selected day highlighted on desktop.** Active day row has visible tinted background and dark left border (was invisible — same color as page background).
+- **Decision options filtered from build-a-day pool.** Hotels being decided by the group no longer show up in the ideas list with assign buttons. Prevents accidentally scheduling an undecided hotel.
+- **Map header syncs with board day selection.** Changing the active day in the Planning Board now updates the map header and filmstrip. Was stuck showing the first day regardless.
+- **"Mark as set for now" → "Good enough for now."** Clearer intent — the planner signals they're satisfied, not that something is locked.
+- **Close button says "← Done" on desktop** (was "← Map" which reads like navigation, not exit).
+- **Decision nudge above calendar on Home.** Andy sees the hotel question immediately without scrolling, not buried below the calendar grid.
+- **Mobile nudge navigates to list view.** Tapping a decision nudge on mobile now opens list view (where the decision card is) instead of the map.
+
+### Fixed
+- **Resolved decisions visible as collapsed cards.** Green "Going with X ✓" cards with "See the conversation" expand link. Uses separate /resolved endpoint to avoid React #310 hook count issue.
+
+SPEC UPDATE NEEDED: Planning Board UX (button labels, day selection, decision filtering) differs from SPEC.md descriptions.
+
 ## 2026-04-07 — Group Decision Redesign: Conversation-First
 
 ### Changed
