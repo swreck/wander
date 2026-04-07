@@ -558,6 +558,49 @@ export function findBestMatch(name: string, candidates: string[], threshold = 0.
   return bestMatch;
 }
 
+// ── Cell Formatting (Wander origin tint) ─────────────────────
+
+const WANDER_TINT = { red: 1.0, green: 0.976, blue: 0.902, alpha: 1.0 }; // #FFF9E6
+
+export async function tintCells(
+  spreadsheetId: string,
+  sheetName: string,
+  startRow: number, // 0-indexed
+  startCol: number, // 0-indexed
+  endRow: number,
+  endCol: number,
+) {
+  const sheets = getSheetsClient();
+
+  // Get the sheet ID from the sheet name
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const sheet = meta.data.sheets?.find(s => s.properties?.title === sheetName);
+  if (!sheet?.properties?.sheetId && sheet?.properties?.sheetId !== 0) return;
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [{
+        repeatCell: {
+          range: {
+            sheetId: sheet.properties.sheetId,
+            startRowIndex: startRow,
+            endRowIndex: endRow,
+            startColumnIndex: startCol,
+            endColumnIndex: endCol,
+          },
+          cell: {
+            userEnteredFormat: {
+              backgroundColor: WANDER_TINT,
+            },
+          },
+          fields: "userEnteredFormat.backgroundColor",
+        },
+      }],
+    },
+  });
+}
+
 // ── Write to Spreadsheet ─────────────────────────────────────
 
 export async function writeToSheet(

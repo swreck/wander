@@ -19,6 +19,7 @@ import {
   findBestMatch,
   writeToSheet,
   appendToSheet,
+  tintCells,
 } from "../services/sheetsSync.js";
 
 const router = Router();
@@ -320,6 +321,11 @@ router.post("/push", async (req: AuthRequest, res) => {
         where: { id: exp.id },
         data: { sheetRowRef: `${activitiesTabName}:${lastRow}` },
       });
+
+      // Tint the row with Wander origin color
+      try {
+        await tintCells(config.spreadsheetId, activitiesTabName, lastRow - 1, 0, lastRow, 9);
+      } catch { /* tinting is best-effort */ }
     }
 
     // Push hotel votes back to spreadsheet
@@ -375,9 +381,15 @@ router.post("/push", async (req: AuthRequest, res) => {
           if (!existingRank) {
             // Write "1" as rank (Wander votes don't have rank differentiation)
             const colLetter = String.fromCharCode(65 + colIdx); // L, M, N, O
-            const range = `'${tabName}'!${colLetter}${rowIdx + 1}`;
+            const sheetRow = rowIdx + 1; // 1-indexed
+            const range = `'${tabName}'!${colLetter}${sheetRow}`;
             await writeToSheet(config.spreadsheetId, range, [["1"]]);
             votesUpdated++;
+
+            // Tint the vote cell
+            try {
+              await tintCells(config.spreadsheetId, tabName, rowIdx, colIdx, rowIdx + 1, colIdx + 1);
+            } catch { /* tinting is best-effort */ }
           }
         }
       }
