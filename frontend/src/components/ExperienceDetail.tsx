@@ -127,7 +127,7 @@ export default function ExperienceDetail({
         {/* Sync edit notice */}
         {editing && exp.sheetRowRef && (
           <div className="bg-[#f8f5f0] border border-[#e0d8cc] rounded-lg px-3 py-2 text-xs text-[#6b5d4a]">
-            ↔ This syncs with the shared spreadsheet. Your changes will push on the next sync.
+            ↔ This syncs with Larisa's Japan Guide. Your changes will update there too.
           </div>
         )}
 
@@ -226,7 +226,7 @@ export default function ExperienceDetail({
           <h2 className="text-lg font-medium text-[#3a3128]">
             {exp.name}
             {exp.sheetRowRef && (
-              <span className="ml-1 text-[#b8a990] text-sm font-normal" title="Synced with shared spreadsheet">↔</span>
+              <span className="ml-1 text-[#b8a990] text-sm font-normal" title="Synced with Larisa's Japan Guide">↔</span>
             )}
           </h2>
         )}

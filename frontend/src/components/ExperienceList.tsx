@@ -37,13 +37,13 @@ function SyncBadge({ exp }: { exp: Experience }) {
       <button
         className="text-[#b8a990] hover:text-[#8a7a62] text-xs leading-none transition-colors"
         onClick={(e) => { e.stopPropagation(); setShowTip(!showTip); }}
-        title="Synced with shared spreadsheet"
+        title="Synced with Larisa's Japan Guide"
       >↔</button>
       {showTip && (
         <span
           className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#3a3128] text-white text-[10px] whitespace-nowrap z-50 shadow-lg"
           onClick={(e) => { e.stopPropagation(); setShowTip(false); }}
-        >Synced with shared spreadsheet</span>
+        >Synced with Larisa's Japan Guide</span>
       )}
     </span>
   );

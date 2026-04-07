@@ -178,7 +178,7 @@ function SheetSyncSection() {
     if (!tripId) return;
     setSyncing(true);
     try {
-      // Pull first (spreadsheet wins), then push Wander-only data back
+      // Pull first (Larisa's Guide wins on conflict), then push Wander data back
       const pullResult = await api.post<any>("/sheets-sync/pull", { tripId });
       const pushResult = await api.post<any>("/sheets-sync/push", { tripId });
       const conflicts = pullResult.conflicts?.length || 0;
@@ -249,9 +249,9 @@ function SheetSyncSection() {
 
   return (
     <section className="border-t border-[#e0d8cc] pt-6">
-      <h2 className="text-sm font-medium text-[#3a3128] mb-1">Spreadsheet sync</h2>
+      <h2 className="text-sm font-medium text-[#3a3128] mb-1">Larisa's Japan Guide</h2>
       <p className="text-xs text-[#8a7a62] mb-3">
-        Keep Wander in sync with the shared planning spreadsheet.
+        Keep Wander in sync with Larisa's Japan Guide.
       </p>
 
       {/* Last sync info */}
