@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-06 — Multi-Leg Travel: Chained Journey UI + Expanded Transport Modes
+
+### Added
+- **"Add another leg" button** — After saving a travel segment, a new button appears pre-filled with the previous leg's destination as the origin. Enables chaining like "taxi to station -> shinkansen -> subway to hotel" without re-entering the starting point each time.
+- **Connected journey summary** — When segments form a chain (each origin matches the previous destination), a summary line appears above the cards showing the full route (e.g., "Journey: Tokyo -> Kyoto -> Osaka (3 legs)").
+- **Visual connectors between legs** — Vertical line and arrow between chained segments so the journey reads as one connected path, not separate cards.
+- **Five new transport modes** — subway, bus, taxi, shuttle, and walk are now valid for route segments (Prisma `TransportMode` enum, backend validation, chat tools, and frontend selector all updated). Previously only flight, train, ferry, drive, and other were available.
+- **"+ New" button** — Secondary button alongside "Add another leg" for starting a segment from a different origin when needed.
+
+### Changed
+- Segment count label changed from "segments" to "legs" — more natural travel language.
+- First-segment button text changed from "Add your first travel segment" to "Add your first travel leg."
+
+**SPEC UPDATE NEEDED**: TransportMode enum expansion (subway/bus/taxi/shuttle/walk) and chained-leg UX are new capabilities not in SPEC.md.
+
 ## 2026-04-07 — Spreadsheet Sync: Bidirectional Google Sheets Integration
 
 ### Added

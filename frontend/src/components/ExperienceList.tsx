@@ -556,7 +556,9 @@ function SortablePossibleItem({
         <div className="flex items-center gap-2">
           <GripHandle listeners={listeners as Record<string, unknown>} attributes={attributes} />
           <div className="flex-1 min-w-0 flex items-center justify-between">
-            <span className="text-sm text-[#6b5d4a] truncate flex items-center gap-1">
+            <span className="text-sm text-[#6b5d4a] truncate flex items-center gap-1 cursor-pointer hover:text-[#3a3128] transition-colors"
+              onClick={(e) => { e.stopPropagation(); onExperienceClick(exp.id); }}
+            >
               {exp.locationStatus !== "confirmed" && (
                 <button
                   title="Tap to set map location"

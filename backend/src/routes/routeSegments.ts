@@ -35,7 +35,7 @@ router.post("/", async (req: AuthRequest, res) => {
   if (!originCity?.trim()) { res.status(400).json({ error: "Origin city is required" }); return; }
   if (!destinationCity?.trim()) { res.status(400).json({ error: "Destination city is required" }); return; }
 
-  const VALID_TRANSPORT_MODES = ["flight", "train", "ferry", "drive", "other"];
+  const VALID_TRANSPORT_MODES = ["flight", "train", "ferry", "drive", "subway", "bus", "taxi", "shuttle", "walk", "other"];
   if (transportMode && !VALID_TRANSPORT_MODES.includes(transportMode)) {
     res.status(400).json({ error: `Invalid transport mode: ${transportMode}. Valid: ${VALID_TRANSPORT_MODES.join(", ")}` });
     return;
@@ -100,7 +100,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
           confirmationNumber, serviceNumber, departureTime, arrivalTime,
           departureStation, arrivalStation, seatInfo } = req.body;
 
-  const VALID_TRANSPORT_MODES = ["flight", "train", "ferry", "drive", "other"];
+  const VALID_TRANSPORT_MODES = ["flight", "train", "ferry", "drive", "subway", "bus", "taxi", "shuttle", "walk", "other"];
   if (transportMode !== undefined && !VALID_TRANSPORT_MODES.includes(transportMode)) {
     res.status(400).json({ error: `Invalid transport mode: ${transportMode}. Valid: ${VALID_TRANSPORT_MODES.join(", ")}` });
     return;

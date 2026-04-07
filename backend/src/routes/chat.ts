@@ -338,7 +338,7 @@ const tools: Anthropic.Tool[] = [
         tripId: { type: "string" },
         originCity: { type: "string", description: "Name of the departure city" },
         destinationCity: { type: "string", description: "Name of the arrival city" },
-        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "other"], description: "Mode of transport" },
+        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "subway", "bus", "taxi", "shuttle", "walk", "other"], description: "Mode of transport" },
         departureDate: { type: "string", description: "YYYY-MM-DD departure date" },
         serviceNumber: { type: "string", description: "Flight number or train service (e.g. NH204, Nozomi 42)" },
         confirmationNumber: { type: "string", description: "Booking reference / confirmation number" },
@@ -359,7 +359,7 @@ const tools: Anthropic.Tool[] = [
       type: "object" as const,
       properties: {
         segmentId: { type: "string", description: "The route segment ID to update" },
-        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "other"] },
+        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "subway", "bus", "taxi", "shuttle", "walk", "other"] },
         departureDate: { type: "string", description: "YYYY-MM-DD departure date" },
         serviceNumber: { type: "string", description: "Flight number or train service" },
         confirmationNumber: { type: "string", description: "Booking reference" },

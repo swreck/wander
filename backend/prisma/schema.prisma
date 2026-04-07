@@ -17,6 +17,11 @@ enum TransportMode {
   train
   ferry
   drive
+  subway
+  bus
+  taxi
+  shuttle
+  walk
   other
 }
 
