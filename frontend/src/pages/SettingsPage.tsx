@@ -117,7 +117,8 @@ export default function SettingsPage() {
         </section>
 
         {/* Spreadsheet Sync (planner-only) */}
-        {authUser?.role === "planner" && <SheetSyncSection />}
+        {/* Sync section checks its own visibility via API */}
+        <SheetSyncSection />
 
         {/* Logout */}
         <section>
