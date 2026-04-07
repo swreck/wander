@@ -3856,9 +3856,22 @@ RULES:
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
 
-    // Build conversation with history for context
+    // Build conversation with persistent history from DB
     let messages: Anthropic.MessageParam[] = [];
-    if (Array.isArray(history) && history.length > 0) {
+    if (tripId && req.user?.travelerId) {
+      try {
+        const dbMessages = await prisma.chatMessage.findMany({
+          where: { tripId, travelerId: req.user.travelerId },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        });
+        for (const msg of dbMessages.reverse()) {
+          messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
+        }
+      } catch { /* fall back to client history if DB fails */ }
+    }
+    // Fallback: use client-passed history if no DB messages
+    if (messages.length === 0 && Array.isArray(history) && history.length > 0) {
       for (const h of history.slice(-10)) {
         if (h.role === "user" || h.role === "assistant") {
           messages.push({ role: h.role, content: h.text });
@@ -3923,6 +3936,16 @@ RULES:
       // Add assistant response and tool results for next turn
       messages.push({ role: "assistant", content: response.content });
       messages.push({ role: "user", content: toolResults });
+    }
+
+    // Persist conversation to DB
+    if (tripId && req.user?.travelerId && finalReply) {
+      prisma.chatMessage.createMany({
+        data: [
+          { tripId, travelerId: req.user.travelerId, role: "user", content: message },
+          { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply },
+        ],
+      }).catch(() => { /* non-critical — don't fail the response */ });
     }
 
     res.json({

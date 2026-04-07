@@ -97,6 +97,7 @@ model Trip {
   travelerProfiles  TravelerProfile[]
   decisions         Decision[]
   votingSessions    VotingSession[]
+  chatMessages      ChatMessage[]
   experienceInterests ExperienceInterest[]
   tripMembers       TripMember[]
   tripInvites       TripInvite[]
@@ -442,6 +443,7 @@ model Traveler {
   personalItems       PersonalItem[]
   experienceReactions ExperienceReaction[]
   experienceNotes     ExperienceNote[]
+  chatMessages        ChatMessage[]
   reflections         Reflection[]
   approvalRequests    ApprovalRequest[]   @relation("ApprovalRequester")
   reviewedApprovals   ApprovalRequest[]   @relation("ApprovalReviewer")
@@ -605,4 +607,21 @@ model LoginEvent {
   traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
 
   @@map("login_events")
+}
+
+// ── Scout Chat History ────────────────────────────────
+model ChatMessage {
+  id         String   @id @default(cuid())
+  tripId     String   @map("trip_id")
+  travelerId String   @map("traveler_id")
+  role       String   // "user" | "assistant"
+  content    String   @db.Text
+  toolUse    Json?    @map("tool_use")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, travelerId, createdAt])
+  @@map("chat_messages")
 }
