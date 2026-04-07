@@ -742,6 +742,16 @@ export default function TripOverview() {
           </div>
         )}
 
+        {/* Scout briefing — what's happening in the group */}
+        <GroupPulse
+          trip={trip}
+          experiences={experiences}
+          days={days}
+          openDecisions={openDecisions}
+          userCode={user?.code || ""}
+          onNavigate={(path) => navigate(path)}
+        />
+
         {/* Week-view calendar grid (dated trips) or city list (dateless trips) — hidden in past phase */}
         {tripPhase !== "past" && (trip.datesKnown !== false ? (
           <CalendarGrid
@@ -982,6 +992,103 @@ function DatelessTripView({
         When dates are ready, tell Scout: "Day 1 is December 25"
       </p>
     </section>
+  );
+}
+
+// ── Group Pulse — "What's happening" Scout briefing ──────────────
+
+function GroupPulse({
+  trip, experiences, days, openDecisions, userCode, onNavigate,
+}: {
+  trip: Trip;
+  experiences: Experience[];
+  days: Day[];
+  openDecisions: Decision[];
+  userCode: string;
+  onNavigate: (path: string) => void;
+}) {
+  // Build the briefing items
+  const items: { text: string; detail: string; action: string; path: string }[] = [];
+
+  // 1. Decisions where user hasn't voted
+  const unvotedDecisions = openDecisions.filter(
+    (d) => !d.votes.some((v) => v.userCode === userCode)
+  );
+  // Don't duplicate decisions already shown as cards above — only add non-decision items here
+
+  // 2. Cities with activities user hasn't reacted to
+  const cityIdToName = new Map<string, string>();
+  for (const c of trip.cities) cityIdToName.set(c.id, c.name);
+
+  const nonDecisionExps = experiences.filter((e) => e.state !== "voting");
+  const byCity = new Map<string, { total: number; withMyInterest: number; contributors: Set<string> }>();
+
+  for (const exp of nonDecisionExps) {
+    if (!byCity.has(exp.cityId)) {
+      byCity.set(exp.cityId, { total: 0, withMyInterest: 0, contributors: new Set() });
+    }
+    const bucket = byCity.get(exp.cityId)!;
+    bucket.total++;
+    bucket.contributors.add(exp.createdBy);
+    // Check if user has expressed interest (we don't have interests loaded here,
+    // but we can check sheetRowRef — if it has one, it came from spreadsheet/someone else)
+  }
+
+  for (const [cityId, data] of byCity) {
+    const cityName = cityIdToName.get(cityId) || "Unknown";
+    const others = [...data.contributors].filter((c) => c !== userCode);
+    if (data.total > 0 && others.length > 0) {
+      const who = others.length === 1 ? others[0] : `${others.length} people`;
+      items.push({
+        text: `${cityName}`,
+        detail: `${who} shared ${data.total} idea${data.total !== 1 ? "s" : ""} to explore`,
+        action: "Take a look",
+        path: `/plan?city=${cityId}`,
+      });
+    }
+  }
+
+  // 3. Days that are wide open (no selected experiences) in cities that have ideas
+  const emptyDayCount = days.filter((d) => {
+    const cityData = byCity.get(d.cityId);
+    const hasIdeas = cityData && cityData.total > 0;
+    const hasSelected = nonDecisionExps.some((e) => e.dayId === d.id && e.state === "selected");
+    return hasIdeas && !hasSelected;
+  }).length;
+
+  if (emptyDayCount > 3) {
+    items.push({
+      text: `${emptyDayCount} days wide open`,
+      detail: "Good time to start shaping the itinerary",
+      action: "Build a day",
+      path: "/plan",
+    });
+  }
+
+  // Don't show if nothing to say
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      <p className="text-xs text-[#8a7a62] mb-2">The group's been busy</p>
+      <div className="space-y-1.5">
+        {items.map((item, i) => (
+          <button
+            key={i}
+            onClick={() => onNavigate(item.path)}
+            className="w-full text-left px-3 py-2.5 rounded-lg bg-[#faf8f5] border border-[#ebe5db] hover:bg-[#f5f0e8] transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-[#3a3128]">{item.text}</span>
+                <span className="text-xs text-[#8a7a62] ml-1.5">{item.detail}</span>
+              </div>
+              <span className="text-xs text-[#a89880] shrink-0 ml-2">{item.action} →</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
