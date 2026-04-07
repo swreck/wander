@@ -47,12 +47,15 @@ interface Props {
   onExperienceClick: (id: string) => void;
   onClose: () => void;
   onAdd?: (cityId: string, action: "manual" | "import" | "camera" | "decision") => void;
+  onActiveDayChange?: (dayId: string) => void;
+  decisionOptionIds?: Set<string>;
 }
 
 // ── Component ───────────────────────────────────────────────────
 
 export default function PlanningBoard({
   trip, days, experiences, activeCityId, onPromote, onDemote, onExperienceClick, onClose, onAdd,
+  onActiveDayChange, decisionOptionIds,
 }: Props) {
   const [selectedCityId, setSelectedCityId] = useState(activeCityId);
   const [activeDayId, setActiveDayId] = useState<string | null>(null);
@@ -136,8 +139,11 @@ export default function PlanningBoard({
   );
 
   const unassigned = useMemo(
-    () => cityExps.filter(e => e.state === "possible" && !e.dayId && !pending.has(e.id)),
-    [cityExps, pending],
+    () => cityExps.filter(e =>
+      e.state === "possible" && !e.dayId && !pending.has(e.id) &&
+      (!decisionOptionIds || !decisionOptionIds.has(e.id))
+    ),
+    [cityExps, pending, decisionOptionIds],
   );
 
   const assigned = useMemo(
@@ -198,6 +204,7 @@ export default function PlanningBoard({
 
   useEffect(() => {
     activeDayRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (effectiveDayId) onActiveDayChange?.(effectiveDayId);
   }, [effectiveDayId]);
 
   // ── Drag handlers ─────────────────────────────────────────
@@ -290,7 +297,9 @@ export default function PlanningBoard({
     return { text: `${count} ${s} \u2014 packed`, cls: "text-amber-700" };
   }
 
-  const addLabel = activeDay ? `+ ${fmtDay(activeDay, true)}` : "+";
+  const addLabel = activeDay
+    ? `+ ${new Date(activeDay.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`
+    : "+";
   const cityName = cities.find(c => c.id === selectedCityId)?.name || "";
 
   // ── Render ────────────────────────────────────────────────
@@ -308,9 +317,10 @@ export default function PlanningBoard({
         <div className="shrink-0 px-4 py-3 bg-white border-b border-[#e0d8cc] flex items-center gap-3">
           <button
             onClick={onClose}
-            className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors shrink-0"
+            className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors shrink-0 font-medium"
           >
-            &larr; Map
+            <span className="lg:hidden">&larr; Map</span>
+            <span className="hidden lg:inline">&larr; Done</span>
           </button>
           <div className="flex-1 text-center min-w-0">
             <div className="text-sm font-medium text-[#3a3128] truncate">{trip.name}</div>
@@ -413,7 +423,7 @@ export default function PlanningBoard({
                     role="button"
                     tabIndex={0}
                     className={`w-full text-left px-3 py-3 border-b border-[#f0ece5] transition-all cursor-pointer ${
-                      isActive ? "bg-[#faf8f5]"
+                      isActive ? "bg-[#f0ece5]/70"
                         : setForNow.days.has(day.id) ? "bg-amber-50/40"
                         : "hover:bg-[#faf8f5]/50"
                     }`}
@@ -468,7 +478,7 @@ export default function PlanningBoard({
                             : "text-[#c8bba8] hover:text-[#8a7a62]"
                         }`}
                       >
-                        {setForNow.days.has(day.id) ? "\u2728 Set for now" : "Mark as set for now"}
+                        {setForNow.days.has(day.id) ? "\u2728 Happy with this" : "Good enough for now"}
                       </button>
                     )}
                   </div>
@@ -563,7 +573,7 @@ export default function PlanningBoard({
                             : "text-[#c8bba8]"
                         }`}
                       >
-                        {setForNow.days.has(activeDay.id) ? "\u2728 Set for now" : "Mark as set for now"}
+                        {setForNow.days.has(activeDay.id) ? "\u2728 Happy with this" : "Good enough for now"}
                       </button>
                     )}
                   </div>

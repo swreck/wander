@@ -929,6 +929,8 @@ export default function PlanPage() {
             onDemote={handleDemote}
             onExperienceClick={(id) => setSelectedExpId(id)}
             onClose={() => setShowBoard(false)}
+            onActiveDayChange={(dayId) => setSelectedDayId(dayId)}
+            decisionOptionIds={openDecisionOptionIds}
             onAdd={(cityId, action) => {
               const cityDay = days.find(d => d.cityId === cityId);
               if (cityDay) setSelectedDayId(cityDay.id);
