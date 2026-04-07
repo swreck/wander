@@ -140,12 +140,6 @@ export default function PlanPage() {
     else loadTrip();
   }, []);
 
-  useEffect(() => {
-    const handler = () => { loadTrip(true); loadExperiences(); loadDecisions(); loadInterests(); };
-    window.addEventListener("wander:data-changed", handler);
-    return () => window.removeEventListener("wander:data-changed", handler);
-  }, [loadTrip, loadExperiences, loadDecisions, loadInterests]);
-
   // Handle action params from Home (camera, import)
   useEffect(() => {
     if (!loading && initialAction) {
@@ -187,6 +181,13 @@ export default function PlanPage() {
   }, [trip]);
 
   useEffect(() => { loadInterests(); }, [loadInterests]);
+
+  // Refresh all data when chat or other panels make changes
+  useEffect(() => {
+    const handler = () => { loadTrip(true); loadExperiences(); loadDecisions(); loadInterests(); };
+    window.addEventListener("wander:data-changed", handler);
+    return () => window.removeEventListener("wander:data-changed", handler);
+  }, [loadTrip, loadExperiences, loadDecisions, loadInterests]);
 
   // ── Actions ───────────────────────────────────────────────────
 
