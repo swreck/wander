@@ -712,6 +712,7 @@ function DayItemRow({ exp, themeEmoji, onExperienceClick, onRemove, onStartMove,
           onClick={e => { e.stopPropagation(); onExperienceClick(exp.id); }}
         >
           {exp.name}
+          {exp.sheetRowRef && <span className="ml-0.5 text-[#b8a990]" title="Synced with shared spreadsheet">↔</span>}
         </span>
         <button
           onClick={e => { e.stopPropagation(); onStartMove(movingExpId === exp.id ? null : exp.id); }}
@@ -943,7 +944,7 @@ function PoolSection({
                   className="flex-1 min-w-0 cursor-pointer"
                   onClick={() => onExperienceClick(exp.id)}
                 >
-                  <div className="text-sm text-[#3a3128] font-medium">{exp.name}</div>
+                  <div className="text-sm text-[#3a3128] font-medium">{exp.name}{exp.sheetRowRef && <span className="ml-0.5 text-[#b8a990] text-xs font-normal" title="Synced with shared spreadsheet">↔</span>}</div>
                   {rating != null && (
                     <span className="text-[11px] text-[#a89880] whitespace-nowrap">{"\u2605"} {rating.toFixed(1)}</span>
                   )}

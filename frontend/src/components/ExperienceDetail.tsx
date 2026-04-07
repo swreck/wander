@@ -124,6 +124,13 @@ export default function ExperienceDetail({
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Sync edit notice */}
+        {editing && exp.sheetRowRef && (
+          <div className="bg-[#f8f5f0] border border-[#e0d8cc] rounded-lg px-3 py-2 text-xs text-[#6b5d4a]">
+            ↔ This syncs with the shared spreadsheet. Your changes will push on the next sync.
+          </div>
+        )}
+
         {/* Hero image or map snippet */}
         {exp.cloudinaryImageId ? (
           <img
@@ -216,7 +223,12 @@ export default function ExperienceDetail({
                        focus:outline-none focus:ring-2 focus:ring-[#a89880]"
           />
         ) : (
-          <h2 className="text-lg font-medium text-[#3a3128]">{exp.name}</h2>
+          <h2 className="text-lg font-medium text-[#3a3128]">
+            {exp.name}
+            {exp.sheetRowRef && (
+              <span className="ml-1 text-[#b8a990] text-sm font-normal" title="Synced with shared spreadsheet">↔</span>
+            )}
+          </h2>
         )}
 
         <div className="flex items-center gap-2 text-sm text-[#8a7a62] flex-wrap">

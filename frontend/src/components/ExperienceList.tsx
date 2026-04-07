@@ -29,6 +29,26 @@ import { useAuth } from "../contexts/AuthContext";
 import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
 import ContributorView from "./ContributorView";
 
+function SyncBadge({ exp }: { exp: Experience }) {
+  const [showTip, setShowTip] = useState(false);
+  if (!exp.sheetRowRef) return null;
+  return (
+    <span className="relative ml-0.5 shrink-0">
+      <button
+        className="text-[#b8a990] hover:text-[#8a7a62] text-xs leading-none transition-colors"
+        onClick={(e) => { e.stopPropagation(); setShowTip(!showTip); }}
+        title="Synced with shared spreadsheet"
+      >↔</button>
+      {showTip && (
+        <span
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#3a3128] text-white text-[10px] whitespace-nowrap z-50 shadow-lg"
+          onClick={(e) => { e.stopPropagation(); setShowTip(false); }}
+        >Synced with shared spreadsheet</span>
+      )}
+    </span>
+  );
+}
+
 function CreatorBadge({ exp }: { exp: Experience }) {
   // Show creator's first initial until someone else edits
   if (exp.lastEditedBy && exp.lastEditedBy !== exp.createdBy) return null;
@@ -417,6 +437,7 @@ function SortableSelectedItem({
                 </button>
               )}
               <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
+              <SyncBadge exp={exp} />
               <CreatorBadge exp={exp} />
               <GroupInterestBadge exp={exp} interest={interest} onInterestChanged={onInterestChanged} />
               {exp.timeWindow && (
@@ -547,6 +568,7 @@ function SortablePossibleItem({
                 </button>
               )}
               {exp.name}
+              <SyncBadge exp={exp} />
               <CreatorBadge exp={exp} />
               <GroupInterestBadge exp={exp} interest={interest} onInterestChanged={onInterestChanged} />
             </span>
@@ -620,6 +642,7 @@ function DragOverlayItem({ exp }: { exp: Experience }) {
           <circle cx="9" cy="15" r="1.5" />
         </svg>
         <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
+        <SyncBadge exp={exp} />
       </div>
     </div>
   );

@@ -276,24 +276,50 @@ router.post("/push", async (req: AuthRequest, res) => {
     const tabMappings = config.tabMappings as any;
     const activitiesTabName = tabMappings?.activitiesTab || "Activities Template";
 
+    // Build a map of city → last activity row in the spreadsheet for correct section placement
+    const rawActivities = sheetData.rawTabData[activitiesTabName] || [];
+    const citySectionLastRow = new Map<string, number>();
+    let currentSection = "Tokyo";
+    for (let i = 0; i < rawActivities.length; i++) {
+      const sectionHeader = (rawActivities[i]?.[4] || "").trim();
+      if (sectionHeader && sectionHeader.includes(" - ")) {
+        currentSection = sectionHeader.split(" - ")[0].trim();
+      }
+      const name = (rawActivities[i]?.[5] || "").trim();
+      if (name) {
+        citySectionLastRow.set(currentSection, i);
+      }
+    }
+
     for (const exp of wanderExps) {
       const match = findBestMatch(exp.name, sheetActivityNames);
       if (match) continue; // Already in spreadsheet
 
-      // Determine which city section this belongs to
+      const julie = (exp as any).interests?.some((i: any) => i.userCode === "Julie") ? "X" : "";
+      const andy = (exp as any).interests?.some((i: any) => i.userCode === "Andy") ? "X" : "";
+      const larisa = (exp as any).interests?.some((i: any) => i.userCode === "Larisa") ? "X" : "";
+      const ken = (exp as any).interests?.some((i: any) => i.userCode === "Ken") ? "X" : "";
+
+      const row = [julie, andy, larisa, ken, "", exp.name, exp.explorationZoneAssociation || "", exp.userNotes || exp.description || "", exp.sourceUrl || ""];
+
+      // Find the right section based on city name
       const cityName = exp.city?.name || "Tokyo";
+      const sectionCity = cityName.includes("Kyoto") ? "Kyoto"
+        : cityName.includes("Osaka") ? "Osaka"
+        : "Tokyo"; // Default to Tokyo for other cities
 
-      // Build interest columns
-      const julie = exp.interests?.some((i: any) => i.userCode === "Julie") ? "X" : "";
-      const andy = exp.interests?.some((i: any) => i.userCode === "Andy") ? "X" : "";
-      const larisa = exp.interests?.some((i: any) => i.userCode === "Larisa") ? "X" : "";
-      const ken = exp.interests?.some((i: any) => i.userCode === "Ken") ? "X" : "";
-
-      // Append to activities tab
-      const row = [julie, andy, larisa, ken, "", exp.name, exp.explorationZoneAssociation || "", exp.userNotes || "", exp.sourceUrl || ""];
-
+      // Append after the last activity in that city's section
+      // For now, append at end — section-aware insertion requires sheet row manipulation
+      // which is complex. The parser will re-detect sections on next pull.
       await appendToSheet(config.spreadsheetId, `'${activitiesTabName}'`, [row]);
       pushedCount++;
+
+      // Update the sheetRowRef on the experience
+      const lastRow = rawActivities.length + pushedCount;
+      await prisma.experience.update({
+        where: { id: exp.id },
+        data: { sheetRowRef: `${activitiesTabName}:${lastRow}` },
+      });
     }
 
     // Push hotel votes back to spreadsheet
