@@ -164,6 +164,30 @@ function SheetSyncSection() {
     }
   }, []);
 
+  async function handleSyncNow() {
+    if (!tripId) return;
+    setSyncing(true);
+    try {
+      // Pull first (spreadsheet wins), then push Wander-only data back
+      const pullResult = await api.post<any>("/sheets-sync/pull", { tripId });
+      const pushResult = await api.post<any>("/sheets-sync/push", { tripId });
+      const conflicts = pullResult.conflicts?.length || 0;
+      const added = (pullResult.added || 0) + (pushResult.pushed || 0);
+      const updated = pullResult.updated || 0;
+      const summary = added || updated || conflicts
+        ? `Synced: ${added} new, ${updated} updated${conflicts ? `, ${conflicts} conflicts` : ""}`
+        : "All caught up";
+      showToast(summary, conflicts ? "info" : "success");
+      const fresh = await api.get<SyncStatus>(`/sheets-sync/status/${tripId}`);
+      setStatus(fresh);
+      window.dispatchEvent(new CustomEvent("wander:data-changed"));
+    } catch (err: any) {
+      showToast(err.message || "Sync failed", "error");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function handlePull() {
     if (!tripId) return;
     setSyncing(true);
@@ -172,6 +196,7 @@ function SheetSyncSection() {
       showToast(result.summary || "Sync complete", result.conflicts?.length ? "info" : "success");
       const fresh = await api.get<SyncStatus>(`/sheets-sync/status/${tripId}`);
       setStatus(fresh);
+      window.dispatchEvent(new CustomEvent("wander:data-changed"));
     } catch (err: any) {
       showToast(err.message || "Sync failed", "error");
     } finally {
@@ -235,21 +260,30 @@ function SheetSyncSection() {
         )}
       </div>
 
-      {/* Sync buttons */}
+      {/* Sync now — primary action */}
+      <button
+        onClick={handleSyncNow}
+        disabled={syncing}
+        className="w-full py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium disabled:opacity-50 transition-colors mb-2"
+      >
+        {syncing ? "Syncing..." : "Sync now"}
+      </button>
+
+      {/* Pull/Push — for testing and emergencies */}
       <div className="flex gap-2 mb-3">
         <button
           onClick={handlePull}
           disabled={syncing}
-          className="flex-1 py-2 rounded-lg bg-[#514636] text-white text-sm font-medium disabled:opacity-50 transition-colors"
+          className="flex-1 py-1.5 rounded-lg border border-[#e0d8cc] text-[#6b5d4a] text-xs disabled:opacity-50 hover:bg-[#f0ece5] transition-colors"
         >
-          {syncing ? "Syncing..." : "Pull from spreadsheet"}
+          Pull only
         </button>
         <button
           onClick={handlePush}
           disabled={syncing}
-          className="flex-1 py-2 rounded-lg border border-[#514636] text-[#514636] text-sm font-medium disabled:opacity-50 hover:bg-[#f0ece5] transition-colors"
+          className="flex-1 py-1.5 rounded-lg border border-[#e0d8cc] text-[#6b5d4a] text-xs disabled:opacity-50 hover:bg-[#f0ece5] transition-colors"
         >
-          Push to spreadsheet
+          Push only
         </button>
       </div>
 
