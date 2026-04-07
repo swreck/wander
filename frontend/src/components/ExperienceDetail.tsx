@@ -305,7 +305,7 @@ export default function ExperienceDetail({
           <ExperienceNotes
             experienceId={exp.id}
             notes={exp.notes || []}
-            onNotesChanged={onDataChanged}
+            onNotesChanged={onRefresh}
           />
         )}
 
