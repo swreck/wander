@@ -48,14 +48,14 @@ interface Props {
   onClose: () => void;
   onAdd?: (cityId: string, action: "manual" | "import" | "camera" | "decision") => void;
   onActiveDayChange?: (dayId: string) => void;
-  decisionOptionIds?: Set<string>;
+  decisionOptionNames?: Set<string>;
 }
 
 // ── Component ───────────────────────────────────────────────────
 
 export default function PlanningBoard({
   trip, days, experiences, activeCityId, onPromote, onDemote, onExperienceClick, onClose, onAdd,
-  onActiveDayChange, decisionOptionIds,
+  onActiveDayChange, decisionOptionNames,
 }: Props) {
   const [selectedCityId, setSelectedCityId] = useState(activeCityId);
   const [activeDayId, setActiveDayId] = useState<string | null>(null);
@@ -141,9 +141,9 @@ export default function PlanningBoard({
   const unassigned = useMemo(
     () => cityExps.filter(e =>
       e.state === "possible" && !e.dayId && !pending.has(e.id) &&
-      (!decisionOptionIds || !decisionOptionIds.has(e.id))
+      (!decisionOptionNames || !decisionOptionNames.has(e.name.toLowerCase()))
     ),
-    [cityExps, pending, decisionOptionIds],
+    [cityExps, pending, decisionOptionNames],
   );
 
   const assigned = useMemo(

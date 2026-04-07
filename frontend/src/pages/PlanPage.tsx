@@ -930,7 +930,9 @@ export default function PlanPage() {
             onExperienceClick={(id) => setSelectedExpId(id)}
             onClose={() => setShowBoard(false)}
             onActiveDayChange={(dayId) => setSelectedDayId(dayId)}
-            decisionOptionIds={openDecisionOptionIds}
+            decisionOptionNames={new Set(
+              cityDecisions.filter(d => d.status === "open").flatMap(d => d.options.map(o => o.name.toLowerCase()))
+            )}
             onAdd={(cityId, action) => {
               const cityDay = days.find(d => d.cityId === cityId);
               if (cityDay) setSelectedDayId(cityDay.id);
