@@ -462,25 +462,25 @@ export default function TripOverview() {
                     >
                       <div className="flex flex-col items-center">
                         <div
-                          className="flex items-center justify-center shadow-lg"
+                          className="flex items-center justify-center shadow"
                           style={{
-                            minWidth: 40,
-                            height: 40,
-                            padding: isMultiVisit ? "0 10px" : undefined,
-                            borderRadius: isMultiVisit ? 20 : "50%",
+                            minWidth: 20,
+                            height: 20,
+                            padding: isMultiVisit ? "0 5px" : undefined,
+                            borderRadius: isMultiVisit ? 10 : "50%",
                             backgroundColor: pastel,
-                            borderWidth: 3,
+                            borderWidth: 2,
                             borderColor: "white",
                             borderStyle: "solid",
-                            boxShadow: `0 3px 10px rgba(0,0,0,0.3), 0 0 0 2px ${pastel}`,
+                            boxShadow: `0 1px 4px rgba(0,0,0,0.25), 0 0 0 1px ${pastel}`,
                           }}
                         >
-                          <span className="text-sm font-bold text-[#3a3128]">
+                          <span className="text-[9px] font-bold text-[#3a3128]">
                             {label}
                           </span>
                         </div>
-                        <div className="mt-1 px-2 py-0.5 rounded bg-white/90 shadow-sm">
-                          <span className="text-xs font-semibold text-[#3a3128]">{city.name}</span>
+                        <div className="mt-0.5 px-1 py-0 rounded bg-white/90 shadow-sm">
+                          <span className="text-[9px] font-medium text-[#3a3128]">{city.name}</span>
                         </div>
                       </div>
                     </AdvancedMarker>
