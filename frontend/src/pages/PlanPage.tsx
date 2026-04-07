@@ -494,13 +494,13 @@ export default function PlanPage() {
   const cityDecisions = decisions.filter((d) => d.cityId === activeCityId);
   const openDecisionOptionIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const d of cityDecisions) {
-      if (d.status === "open") {
+    for (const d of decisions) {
+      if (d.cityId === activeCityId && d.status === "open") {
         for (const o of d.options) ids.add(o.id);
       }
     }
     return ids;
-  }, [cityDecisions]);
+  }, [decisions, activeCityId]);
 
   // Friction dots for filmstrip
   const dayFrictionMap = new Map<string, boolean>();
