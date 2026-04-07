@@ -253,6 +253,7 @@ export interface Decision {
   status: string;
   createdBy: string;
   createdAt: string;
+  resolvedAt?: string | null;
   city: { id: string; name: string };
   options: Experience[];
   votes: DecisionVote[];

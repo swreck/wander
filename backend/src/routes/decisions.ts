@@ -12,7 +12,7 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   try {
     const tripId = req.params.tripId as string;
     const decisions = await prisma.decision.findMany({
-      where: { tripId, status: "open" },
+      where: { tripId, status: { in: ["open", "resolved"] } },
       include: {
         city: { select: { id: true, name: true } },
         options: {
@@ -227,17 +227,17 @@ router.post("/:id/resolve", async (req: AuthRequest, res) => {
 
     const winnerSet = new Set(winnerIds || []);
 
-    // Update each option
+    // Update each option — keep decisionId link for history
     for (const opt of decision.options) {
       if (winnerSet.has(opt.id)) {
         await prisma.experience.update({
           where: { id: opt.id },
-          data: { state: "selected", decisionId: null },
+          data: { state: "selected" },
         });
       } else {
         await prisma.experience.update({
           where: { id: opt.id },
-          data: { state: "possible", decisionId: null },
+          data: { state: "possible" },
         });
       }
     }

@@ -28,6 +28,7 @@ interface Props {
   themeFilter?: string | null;
   onThemeFilterChange?: (theme: string | null) => void;
   dayId?: string | null;
+  emphasizeIds?: Set<string>;
 }
 
 // ── Theme marker config ─────────────────────────────────────────
@@ -109,11 +110,11 @@ function typesToThemes(types?: string[]): string[] {
   return mapped.length > 0 ? mapped : ["other"];
 }
 
-export function ThemedMarkerIcon({ themes, tier, label, highlighted }: { themes: string[]; tier: "selected" | "possible" | "nearby"; label?: string; highlighted?: boolean }) {
+export function ThemedMarkerIcon({ themes, tier, label, highlighted, dimmed }: { themes: string[]; tier: "selected" | "possible" | "nearby"; label?: string; highlighted?: boolean; dimmed?: boolean }) {
   const config = getThemeStyle(themes);
   const size = tier === "selected" ? 44 : tier === "possible" ? 36 : 28;
   const emojiSize = tier === "selected" ? 22 : tier === "possible" ? 18 : 14;
-  const opacity = tier === "nearby" ? 0.75 : 1;
+  const opacity = dimmed ? 0.35 : tier === "nearby" ? 0.75 : 1;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", opacity, cursor: "pointer" }}>
@@ -139,8 +140,8 @@ export function ThemedMarkerIcon({ themes, tier, label, highlighted }: { themes:
           {config.emoji}
         </span>
       </div>
-      {/* Label */}
-      {label && (
+      {/* Label — hidden when dimmed to reduce clutter */}
+      {label && !dimmed && (
         <div style={{
           marginTop: 4,
           padding: "2px 8px",
@@ -577,7 +578,7 @@ function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeThem
   );
 }
 
-export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = false, highlightedExpId, recenterKey, themeFilter, onThemeFilterChange, dayId }: Props) {
+export default function MapCanvas({ center, experiences, accommodations, onExperienceClick, onNearbyClick, showNearby = false, showUserLocation = false, highlightedExpId, recenterKey, themeFilter, onThemeFilterChange, dayId, emphasizeIds }: Props) {
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [quickAction, setQuickAction] = useState<{ exp: Experience } | null>(null);
@@ -703,7 +704,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             title={exp.name}
             zIndex={highlightedExpId === exp.id ? 900 : 100}
           >
-            <ThemedMarkerIcon themes={exp.themes} tier="selected" label={exp.name} highlighted={highlightedExpId === exp.id} />
+            <ThemedMarkerIcon themes={exp.themes} tier="selected" label={exp.name} highlighted={highlightedExpId === exp.id} dimmed={emphasizeIds && emphasizeIds.size > 0 && !emphasizeIds.has(exp.id)} />
           </AdvancedMarker>
         ))}
 
@@ -716,7 +717,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             title={exp.name}
             zIndex={highlightedExpId === exp.id ? 900 : 50}
           >
-            <ThemedMarkerIcon themes={exp.themes} tier="possible" label={exp.name} highlighted={highlightedExpId === exp.id} />
+            <ThemedMarkerIcon themes={exp.themes} tier="possible" label={exp.name} highlighted={highlightedExpId === exp.id} dimmed={emphasizeIds && emphasizeIds.size > 0 && !emphasizeIds.has(exp.id)} />
           </AdvancedMarker>
         ))}
 
@@ -728,7 +729,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
             onClick={() => onNearbyClick?.(place)}
             title={`${place.name} ★${place.rating}`}
           >
-            <ThemedMarkerIcon themes={typesToThemes(place.types)} tier="nearby" label={`${place.name} ★${place.rating}`} />
+            <ThemedMarkerIcon themes={typesToThemes(place.types)} tier="nearby" label={`${place.name} ★${place.rating}`} dimmed={emphasizeIds && emphasizeIds.size > 0} />
           </AdvancedMarker>
         ))}
 

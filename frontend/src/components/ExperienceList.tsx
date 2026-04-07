@@ -647,6 +647,7 @@ function DecisionGroup({
   const [thoughtTexts, setThoughtTexts] = useState<Record<string, string>>({});
   const [submittingThought, setSubmittingThought] = useState(false);
   const [confirmResolve, setConfirmResolve] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const myVote = decision.votes.find((v) => v.userCode === user?.code);
   const isHappyWithAny = myVote && myVote.optionId === null;
@@ -781,6 +782,56 @@ function DecisionGroup({
   }
 
   const totalVotes = decision.votes.filter((v) => v.optionId !== null).length;
+
+  // ── Resolved decision: collapsed "Decided" card ──
+  if (decision.status === "resolved") {
+    const winner = decision.options.find((o) => o.state === "selected");
+    return (
+      <div className="rounded-xl border border-green-200/80 bg-green-50/30 p-3">
+        <div className="flex items-center gap-2">
+          <span className="text-green-600 text-sm">✓</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-medium text-[#3a3128]">
+              {winner ? `Going with ${winner.name}` : decision.title}
+            </span>
+            {decision.resolvedAt && (
+              <div className="text-[11px] text-[#a89880] mt-0.5">
+                Decided {new Date(decision.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="text-[11px] text-[#a89880] hover:text-[#6b5d4a] transition-colors shrink-0"
+          >
+            {showHistory ? "Hide" : "See the conversation"}
+          </button>
+        </div>
+        {showHistory && (
+          <div className="mt-2.5 pt-2 border-t border-green-200/40 space-y-2">
+            {allThoughts.length > 0 && allThoughts.map((note) => (
+              <div key={note.id} className="flex gap-2 items-start">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#f0ebe3] text-[#6b5d4a] text-[10px] font-medium shrink-0 mt-0.5">
+                  {note.traveler.displayName[0]}
+                </span>
+                <div className="min-w-0">
+                  <span className="text-[11px] font-medium text-[#6b5d4a]">{note.traveler.displayName}</span>
+                  <span className="text-[11px] text-[#a89880]"> on {note.optionName}</span>
+                  <p className="text-xs text-[#3a3128] leading-relaxed mt-0.5">{note.content}</p>
+                </div>
+              </div>
+            ))}
+            {allThoughts.length === 0 && (
+              <div className="text-[11px] text-[#a89880]">No conversation recorded</div>
+            )}
+            <div className="text-[11px] text-[#a89880] mt-1">
+              Options considered: {decision.options.map((o) => o.name).join(", ")}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`rounded-xl border-2 p-3 ${isStale ? "border-amber-400 bg-amber-50/80" : "border-amber-200/80 bg-[#fdfbf7]"}`}>

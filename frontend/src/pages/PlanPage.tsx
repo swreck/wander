@@ -492,6 +492,15 @@ export default function PlanPage() {
   const selected = cityExperiences.filter((e) => e.state === "selected");
   const possible = cityExperiences.filter((e) => e.state === "possible");
   const cityDecisions = decisions.filter((d) => d.cityId === activeCityId);
+  const openDecisionOptionIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const d of cityDecisions) {
+      if (d.status === "open") {
+        for (const o of d.options) ids.add(o.id);
+      }
+    }
+    return ids;
+  }, [cityDecisions]);
 
   // Friction dots for filmstrip
   const dayFrictionMap = new Map<string, boolean>();
@@ -575,6 +584,7 @@ export default function PlanPage() {
             themeFilter={themeFilter}
             onThemeFilterChange={setThemeFilter}
             dayId={selectedDay?.id || null}
+            emphasizeIds={openDecisionOptionIds}
           />
 
           {/* City splash photo — shows once per city per session */}

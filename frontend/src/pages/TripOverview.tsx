@@ -750,9 +750,9 @@ export default function TripOverview() {
                   </div>
                   <div className="text-xs text-[#8a7a62] ml-5">
                     {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
-                    {totalVotes > 0 && ` · ${totalVotes} leaning`}
-                    {totalThoughts > 0 && ` · ${totalThoughts} thought${totalThoughts !== 1 ? "s" : ""}`}
-                    {myVote ? " · you've weighed in" : " — weigh in?"}
+                    {totalVotes > 0 && ` · ${totalVotes} weighing in`}
+                    {totalThoughts > 0 && ` · ${totalThoughts} thought${totalThoughts !== 1 ? "s" : ""} shared`}
+                    {myVote ? "" : " — your turn?"}
                   </div>
                 </button>
               );
