@@ -89,11 +89,15 @@ const CREDENTIALS_PATH = process.env.GOOGLE_SHEETS_CREDENTIALS_PATH
 function getAuth() {
   let credentials: any;
 
-  // In production (Railway), credentials are stored as a JSON string in env var
-  if (process.env.GOOGLE_SHEETS_CREDENTIALS_JSON) {
+  if (process.env.GOOGLE_SHEETS_CREDENTIALS_B64) {
+    // Production (Railway): base64-encoded JSON to avoid shell escaping issues
+    const decoded = Buffer.from(process.env.GOOGLE_SHEETS_CREDENTIALS_B64, "base64").toString("utf-8");
+    credentials = JSON.parse(decoded);
+  } else if (process.env.GOOGLE_SHEETS_CREDENTIALS_JSON) {
+    // Alternative: raw JSON string
     credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS_JSON);
   } else {
-    // In dev, read from file
+    // Dev: read from file
     credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, "utf-8"));
   }
 
