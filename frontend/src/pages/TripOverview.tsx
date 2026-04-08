@@ -1658,25 +1658,33 @@ function CalendarCluster({
                   </div>
                   {/* Bottom: theme emojis or details */}
                   {showDetails ? (
-                    <div className="relative z-10 mb-0.5 px-0.5 w-full">
+                    <div className="relative z-10 mb-0.5 px-0.5 w-full space-y-0.5">
+                      {/* Icons row */}
                       {isTravel && (
-                        <div className="text-[8px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight truncate">
-                          🚃 from {cities.find(c => c.id === prevDay?.cityId)?.name || "?"}
+                        <div className="flex items-center justify-center bg-white/80 rounded px-0.5">
+                          <span style={{ fontSize: 9 }} title={`Arriving from ${cities.find(c => c.id === prevDay?.cityId)?.name || ""}`}>🚃</span>
                         </div>
                       )}
+                      {/* Hotel name */}
                       {(() => {
                         const accom = (accommodations || []).find((a: any) => a.cityId === day.cityId);
                         return accom ? (
-                          <div className="text-[8px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight truncate">
-                            🏨 {accom.name?.substring(0, 15) || "Booked"}
+                          <div className="text-[7px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight truncate">
+                            {accom.name?.substring(0, 14) || "🏨"}
                           </div>
                         ) : null;
                       })()}
-                      {count > 0 && (
-                        <div className="text-[8px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight">
-                          {count} planned
-                        </div>
-                      )}
+                      {/* First activity name — what's actually happening */}
+                      {(() => {
+                        const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
+                        if (dayExps.length === 0) return null;
+                        return (
+                          <div className="text-[7px] text-[#3a3128] bg-white/80 rounded px-0.5 text-center leading-tight truncate font-medium">
+                            {dayExps[0].name?.substring(0, 16)}
+                            {dayExps.length > 1 && ` +${dayExps.length - 1}`}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0">
