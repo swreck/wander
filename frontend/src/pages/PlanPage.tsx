@@ -1018,9 +1018,7 @@ export default function PlanPage() {
                   {/* Section 1: The Plan — what's happening */}
                   {selected.length > 0 && (
                     <div className="mb-6">
-                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">
-                        {selected.length === 1 ? "1 thing planned" : `${selected.length} things planned`}
-                      </div>
+                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">The plan</div>
                       <div className="space-y-2">
                         {selected.map((exp) => (
                           <button
@@ -1045,24 +1043,24 @@ export default function PlanPage() {
                     </div>
                   )}
 
-                  {/* Section 2: Decisions — compact, expandable */}
+                  {/* Section 2: Decisions — compact doorway to voting */}
                   {cityDecisions.length > 0 && (
                     <div className="mb-6">
                       {cityDecisions.map((dec) => {
                         const voterCount = new Set(dec.votes.map((v: any) => v.userCode)).size;
+                        const voterNames = [...new Set(dec.votes.map((v: any) => v.displayName))];
                         return (
                           <button
                             key={dec.id}
-                            onClick={() => navigate(`/plan?city=${activeCityId}`)}
-                            className="w-full text-left p-3 rounded-xl border border-amber-200 bg-amber-50/50 mb-2"
+                            onClick={() => setMobileView("map")}
+                            className="w-full text-left p-3 rounded-xl border border-amber-200/60 bg-amber-50/30 mb-2"
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="text-amber-600 text-sm">●</span>
-                              <span className="text-sm font-medium text-[#3a3128]">{dec.title}</span>
-                            </div>
-                            <div className="text-xs text-[#8a7a62] ml-5 mt-0.5">
+                            <div className="text-sm font-medium text-[#3a3128]">{dec.title}</div>
+                            <div className="text-xs text-[#8a7a62] mt-0.5">
                               {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
-                              {voterCount > 0 && ` · ${voterCount} weighing in`}
+                              {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
+                              {" · "}
+                              <span className="text-amber-700">See options →</span>
                             </div>
                           </button>
                         );
@@ -1073,9 +1071,7 @@ export default function PlanPage() {
                   {/* Section 3: Ideas — tucked below, clearly secondary */}
                   {possible.length > 0 && (
                     <div>
-                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">
-                        {possible.length} {possible.length === 1 ? "idea" : "ideas"} to explore
-                      </div>
+                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">Ideas</div>
                       <div className="space-y-1">
                         {possible.map((exp) => (
                           <button
