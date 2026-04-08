@@ -994,30 +994,25 @@ export default function PlanPage() {
           )}
         </div>
 
-        {/* Mobile list view — full screen when active */}
+        {/* Mobile list view — structured day view */}
         {mobileView === "list" && !showBoard && (
           <div className="fixed inset-0 z-40 bg-[#faf8f5] lg:hidden flex flex-col">
+            {/* Header — just city name and back */}
             <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0"
                  style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
               <button
                 onClick={() => setMobileView("map")}
-                className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
+                className="text-sm text-[#8a7a62] hover:text-[#3a3128] min-h-[44px] flex items-center"
               >
                 &larr; Map
               </button>
-              <span className="text-xs font-medium text-[#a89880]">
-                {trip?.cities.find(c => c.id === activeCityId)?.name ? `${trip.cities.find(c => c.id === activeCityId)!.name} · ` : ""}{selected.length} Planned · {possible.length} Possible
+              <span className="text-sm font-medium text-[#3a3128]">
+                {trip?.cities.find(c => c.id === activeCityId)?.name || ""}
               </span>
-              {selectedDay && (
-                <button
-                  onClick={() => setShowDayView(true)}
-                  className="text-xs text-[#514636] font-medium"
-                >
-                  Day details
-                </button>
-              )}
+              <div className="w-12" /> {/* spacer for centering */}
             </div>
-            <div className="flex-1 overflow-y-auto">
+
+            <div className="flex-1 overflow-y-auto px-4 py-4">
               {showDayView && selectedDay ? (
                 <DayView
                   day={selectedDay}
@@ -1030,38 +1025,96 @@ export default function PlanPage() {
                   onRefresh={() => { loadExperiences(); loadTrip(); }}
                 />
               ) : (
-                <ExperienceList
-                  selected={selected}
-                  possible={possible}
-                  days={days}
-                  trip={trip}
-                  onPromote={handlePromote}
-                  onDemote={handleDemote}
-                  onExperienceClick={(id) => { setSelectedExpId(id); setMobileView("map"); }}
-                  onLocationResolved={() => { loadExperiences(); setRecenterKey((k) => k + 1); }}
-                  interests={interests}
-                  onInterestChanged={loadInterests}
-                  decisions={cityDecisions}
-                  onDecisionsChanged={() => { loadDecisions(); loadExperiences(); }}
-                  cityName={trip?.cities.find((c) => c.id === activeCityId)?.name}
-                />
+                <>
+                  {/* Section 1: The Plan — what's happening */}
+                  {selected.length > 0 && (
+                    <div className="mb-6">
+                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">
+                        {selected.length === 1 ? "1 thing planned" : `${selected.length} things planned`}
+                      </div>
+                      <div className="space-y-2">
+                        {selected.map((exp) => (
+                          <button
+                            key={exp.id}
+                            onClick={() => { setSelectedExpId(exp.id); setMobileView("map"); }}
+                            className="w-full text-left p-3 bg-white rounded-xl border border-[#e8e0d4] hover:border-[#c8bba8] transition-colors"
+                          >
+                            <div className="text-sm font-medium text-[#3a3128]">{exp.name}</div>
+                            {exp.neighborhood && (
+                              <div className="text-xs text-[#a89880] mt-0.5">{exp.neighborhood}</div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selected.length === 0 && (
+                    <div className="mb-6 py-6 text-center">
+                      <p className="text-sm text-[#8a7a62]">Nothing planned yet</p>
+                      <p className="text-xs text-[#c8bba8] mt-1">Browse the ideas below or tap + to add something</p>
+                    </div>
+                  )}
+
+                  {/* Section 2: Decisions — compact, expandable */}
+                  {cityDecisions.length > 0 && (
+                    <div className="mb-6">
+                      {cityDecisions.map((dec) => {
+                        const voterCount = new Set(dec.votes.map((v: any) => v.userCode)).size;
+                        return (
+                          <button
+                            key={dec.id}
+                            onClick={() => navigate(`/plan?city=${activeCityId}`)}
+                            className="w-full text-left p-3 rounded-xl border border-amber-200 bg-amber-50/50 mb-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-amber-600 text-sm">●</span>
+                              <span className="text-sm font-medium text-[#3a3128]">{dec.title}</span>
+                            </div>
+                            <div className="text-xs text-[#8a7a62] ml-5 mt-0.5">
+                              {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
+                              {voterCount > 0 && ` · ${voterCount} weighing in`}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Section 3: Ideas — tucked below, clearly secondary */}
+                  {possible.length > 0 && (
+                    <div>
+                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">
+                        {possible.length} {possible.length === 1 ? "idea" : "ideas"} to explore
+                      </div>
+                      <div className="space-y-1">
+                        {possible.map((exp) => (
+                          <button
+                            key={exp.id}
+                            onClick={() => { setSelectedExpId(exp.id); setMobileView("map"); }}
+                            className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-white transition-colors"
+                          >
+                            <span className="text-sm text-[#6b5d4a]">{exp.name}</span>
+                            {exp.neighborhood && (
+                              <span className="text-xs text-[#c8bba8] ml-2">{exp.neighborhood}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
-            <div className="shrink-0 flex gap-2 px-4 py-3 bg-white border-t border-[#f0ece5]">
+
+            {/* Bottom: just + add */}
+            <div className="shrink-0 px-4 py-3 bg-white border-t border-[#f0ece5]">
               <button
                 onClick={() => { setShowCapture(true); setMobileView("map"); }}
-                className="flex-1 py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium"
+                className="w-full py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium"
               >
-                + Manual
+                + Add something
               </button>
-              {!showDayView && selectedDay && (
-                <button
-                  onClick={() => setShowDayView(true)}
-                  className="px-4 py-2.5 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a]"
-                >
-                  Day details
-                </button>
-              )}
             </div>
           </div>
         )}
