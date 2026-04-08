@@ -1489,7 +1489,7 @@ function CalendarGrid({
 // Theme → emoji mapping for calendar day cells
 const DAY_THEME_EMOJI: Record<string, string> = {
   food: "🍜", temples: "⛩️", ceramics: "🏺", architecture: "🏛️",
-  nature: "🌿", shopping: "🛍️", art: "🎨", nightlife: "🌙",
+  nature: "🌿", transport: "🚃", shopping: "🛍️", art: "🎨", nightlife: "🌙",
 };
 
 function CalendarCluster({
@@ -1669,7 +1669,7 @@ function CalendarCluster({
                       <span style={{ fontSize: 16 }}>{departIcon}</span><span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span>
                     </div>
                   ) : (
-                    <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0">
+                    <div className="relative z-10 mb-1 flex items-center justify-center gap-0.5">
                       {(() => {
                         if (count === 0) return null;
                         const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
@@ -1679,13 +1679,17 @@ function CalendarCluster({
                             if (DAY_THEME_EMOJI[t]) themeSet.add(t);
                           }
                         }
-                        const emojis = [...themeSet].slice(0, 3).map(t => DAY_THEME_EMOJI[t]);
+                        const emojis = [...themeSet].slice(0, 2).map(t => DAY_THEME_EMOJI[t]);
                         if (emojis.length > 0) {
-                          return emojis.map((em, i) => (
-                            <span key={i} style={{ fontSize: 10 }}>{em}</span>
-                          ));
+                          return (
+                            <div className="bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm flex items-center gap-0.5">
+                              {emojis.map((em, i) => (
+                                <span key={i} style={{ fontSize: 14 }}>{em}</span>
+                              ))}
+                            </div>
+                          );
                         }
-                        return <span style={{ fontSize: 10 }}>📍</span>;
+                        return null;
                       })()}
                     </div>
                   )}
