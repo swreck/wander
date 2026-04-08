@@ -33,7 +33,10 @@ router.get("/trip/:tripId", async (req, res) => {
 router.get("/:id", async (req, res) => {
   const exp = await prisma.experience.findUnique({
     where: { id: req.params.id as string },
-    include: { ratings: true, city: true, day: true, routeSegment: true },
+    include: {
+      ratings: true, city: true, day: true, routeSegment: true,
+      notes: { orderBy: { createdAt: "desc" as const }, include: { traveler: { select: { displayName: true } } } },
+    },
   });
   if (!exp) { res.status(404).json({ error: "Experience not found" }); return; }
   res.json(exp);
