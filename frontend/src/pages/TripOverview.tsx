@@ -1647,11 +1647,11 @@ function CalendarCluster({
                   )}
                   {/* Top: arriving transport icon */}
                   {isTravel ? (
-                    <div className="relative z-10 mt-0.5 flex items-center gap-0 bg-white/80 rounded px-0.5">
-                      <span style={{ fontSize: 8 }}>→</span><span style={{ fontSize: 10 }}>{arrivalIcon}</span>
+                    <div className="relative z-10 mt-1 flex items-center gap-0.5 bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm">
+                      <span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span><span style={{ fontSize: 16 }}>{arrivalIcon}</span>
                     </div>
                   ) : (
-                    <div className="h-4" />
+                    <div className="h-5" />
                   )}
                   {/* Middle: date + city */}
                   <div className="relative z-10 flex flex-col items-center">
@@ -1665,8 +1665,8 @@ function CalendarCluster({
                   </div>
                   {/* Bottom: departing transport icon OR theme emojis */}
                   {isLeaving ? (
-                    <div className="relative z-10 mb-0.5 flex items-center gap-0 bg-white/80 rounded px-0.5">
-                      <span style={{ fontSize: 10 }}>{departIcon}</span><span style={{ fontSize: 8 }}>→</span>
+                    <div className="relative z-10 mb-1 flex items-center gap-0.5 bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm">
+                      <span style={{ fontSize: 16 }}>{departIcon}</span><span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span>
                     </div>
                   ) : (
                     <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0">
