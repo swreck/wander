@@ -87,9 +87,10 @@ model Trip {
   endDate   DateTime?  @map("end_date")
   datesKnown Boolean   @default(true) @map("dates_known")
   anchorDate DateTime? @map("anchor_date")
-  status    TripStatus @default(active)
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
+  status       TripStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  lastOpenedAt DateTime?  @map("last_opened_at")
   inviteToken String?  @unique @map("invite_token")
 
   cities            City[]

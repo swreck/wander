@@ -206,11 +206,14 @@ export interface Trip {
   datesKnown: boolean;
   anchorDate: string | null;
   status: string;
+  createdAt?: string;
+  lastOpenedAt?: string | null;
   cities: City[];
   routeSegments: RouteSegment[];
   days: Day[];
   experiences?: Experience[];
   accommodations?: Accommodation[];
+  sheetSyncConfig?: { lastSyncAt: string | null };
 }
 
 export interface TravelerProfile {

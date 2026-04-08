@@ -354,76 +354,21 @@ export default function TripOverview() {
               <h3 className="text-sm font-medium text-[#3a3128]">Your Trips</h3>
               <button onClick={() => setShowTripSwitcher(false)} className="text-[#c8bba8] hover:text-[#8a7a62] text-lg">&times;</button>
             </div>
-            {/* All trips — current trip highlighted, others switchable */}
-            {(() => {
-              const otherTrips = allTrips.filter(t => t.id !== trip.id);
-              const now = new Date();
-              const upcoming = otherTrips.filter(t => t.startDate && new Date(t.startDate) > now);
-              const past = otherTrips.filter(t => t.endDate && new Date(t.endDate) < now);
-              const planning = otherTrips.filter(t => !upcoming.includes(t) && !past.includes(t));
-
-              const TripRow = ({ t, isCurrent }: { t: Trip; isCurrent?: boolean }) => (
-                <div className="flex items-center justify-between py-2.5 border-b border-[#f0ece5] last:border-0">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[#3a3128] truncate">{t.name}</div>
-                    <div className="text-xs text-[#a89880]">
-                      {t.startDate && t.endDate
-                        ? `${formatDate(t.startDate)} — ${formatDate(t.endDate)}`
-                        : "Dates TBD"}
-                      {t.cities?.length > 0 && ` · ${t.cities.length} cities`}
-                    </div>
-                  </div>
-                  {isCurrent ? (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 shrink-0">Now</span>
-                  ) : (
-                    <button
-                      onClick={() => handleSwitchTrip(t.id)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors shrink-0 ml-2"
-                    >
-                      Open
-                    </button>
-                  )}
-                </div>
-              );
-
-              return (
-                <div className="px-4 pt-2">
-                  {/* Current trip */}
-                  <TripRow t={trip} isCurrent />
-
-                  {/* Planning / upcoming */}
-                  {planning.length > 0 && (
-                    <>
-                      <div className="text-xs text-[#a89880] uppercase tracking-wider mt-3 mb-1">Planning</div>
-                      {planning.map(t => <TripRow key={t.id} t={t} />)}
-                    </>
-                  )}
-                  {upcoming.length > 0 && (
-                    <>
-                      <div className="text-xs text-[#a89880] uppercase tracking-wider mt-3 mb-1">Upcoming</div>
-                      {upcoming.map(t => <TripRow key={t.id} t={t} />)}
-                    </>
-                  )}
-
-                  {/* Past trips */}
-                  {past.length > 0 && (
-                    <>
-                      <div className="text-xs text-[#a89880] uppercase tracking-wider mt-3 mb-1">Past trips</div>
-                      {past.map(t => <TripRow key={t.id} t={t} />)}
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-            {/* New trip */}
-            <div className="px-4 pt-3 pb-2">
-              <button
-                onClick={() => { setShowTripSwitcher(false); setShowCreate(true); }}
-                className="w-full py-2.5 rounded-lg border border-dashed border-[#c8bba8] text-sm text-[#8a7a62] hover:bg-[#faf8f5] transition-colors"
-              >
-                + Plan a new trip
-              </button>
-            </div>
+            {/* All trips — sorted by last opened */}
+            <TripSwitcherList
+              trips={allTrips}
+              currentTripId={trip.id}
+              onSwitch={handleSwitchTrip}
+              onDelete={async (id) => {
+                if (!confirm("Remove this trip? This can't be undone.")) return;
+                try {
+                  await api.delete(`/trips/${id}`);
+                  showToast("Trip removed", "success");
+                  loadTrips();
+                } catch { showToast("Couldn't remove trip", "error"); }
+              }}
+              onNewTrip={() => { setShowTripSwitcher(false); setShowCreate(true); }}
+            />
           </div>
         </div>
       )}
@@ -1145,6 +1090,98 @@ function GroupPulse({
         ))}
       </div>
     </div>
+  );
+}
+
+// ── Trip Switcher List ──────────────────────────────────────────
+
+function timeAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return "never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function TripSwitcherList({
+  trips, currentTripId, onSwitch, onDelete, onNewTrip,
+}: {
+  trips: Trip[];
+  currentTripId: string;
+  onSwitch: (id: string) => void;
+  onDelete: (id: string) => void;
+  onNewTrip: () => void;
+}) {
+  // Sort by lastOpenedAt descending, nulls last
+  const sorted = [...trips].sort((a, b) => {
+    const aTime = (a as any).lastOpenedAt ? new Date((a as any).lastOpenedAt).getTime() : 0;
+    const bTime = (b as any).lastOpenedAt ? new Date((b as any).lastOpenedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  return (
+    <>
+      <div className="px-4 pt-2 max-h-[50vh] overflow-y-auto">
+        {sorted.map((t) => {
+          const isCurrent = t.id === currentTripId;
+          const syncAt = (t as any).sheetSyncConfig?.lastSyncAt;
+          const openedAt = (t as any).lastOpenedAt;
+          const createdAt = t.createdAt || (t as any).created_at;
+
+          return (
+            <div
+              key={t.id}
+              className={`py-3 border-b border-[#f0ece5] last:border-0 ${!isCurrent ? "cursor-pointer hover:bg-[#faf8f5]" : ""}`}
+              onClick={() => !isCurrent && onSwitch(t.id)}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  {/* Name — largest, darkest */}
+                  <div className="text-[15px] font-semibold text-[#3a3128] truncate">
+                    {t.name}
+                    {isCurrent && <span className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Now</span>}
+                  </div>
+                  {/* Metadata line — smaller, muted */}
+                  <div className="text-[11px] text-[#a89880] mt-0.5 flex items-center gap-1 flex-wrap">
+                    <span>Started {createdAt ? new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</span>
+                    <span>·</span>
+                    {syncAt ? (
+                      <span className="text-[#6b5d4a] font-medium">Synced {timeAgo(syncAt)}</span>
+                    ) : (
+                      <span>No sync</span>
+                    )}
+                    <span>·</span>
+                    <span>Opened {timeAgo(openedAt)}</span>
+                  </div>
+                </div>
+                {/* Delete button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
+                  className="text-[#d0c9be] hover:text-red-400 text-sm ml-2 mt-1 transition-colors"
+                  title="Remove trip"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* New trip */}
+      <div className="px-4 pt-3 pb-2">
+        <button
+          onClick={onNewTrip}
+          className="w-full py-2.5 rounded-lg border border-dashed border-[#c8bba8] text-sm text-[#8a7a62] hover:bg-[#faf8f5] transition-colors"
+        >
+          + Plan a new trip
+        </button>
+      </div>
+    </>
   );
 }
 
