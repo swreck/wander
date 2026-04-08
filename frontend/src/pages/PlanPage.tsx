@@ -492,7 +492,7 @@ export default function PlanPage() {
       : experiences;
 
   const selected = cityExperiences.filter((e) => e.state === "selected");
-  const possible = cityExperiences.filter((e) => e.state === "possible");
+  const possible = cityExperiences.filter((e) => e.state === "possible" && !e.decisionId);
   const cityDecisions = decisions.filter((d) => d.cityId === activeCityId);
   const openDecisionOptionIds = new Set(
     cityDecisions.filter((d) => d.status === "open").flatMap((d) => d.options.map((o) => o.id))
@@ -990,14 +990,21 @@ export default function PlanPage() {
             <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0"
                  style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
               <button
-                onClick={() => setMobileView("map")}
+                onClick={() => navigate("/")}
                 className="text-sm text-[#8a7a62] hover:text-[#3a3128] min-h-[44px] flex items-center"
               >
-                &larr; Map
+                &larr; Home
               </button>
-              <span className="text-sm font-medium text-[#3a3128]">
-                {trip?.cities.find(c => c.id === activeCityId)?.name || ""}
-              </span>
+              <div className="text-center">
+                <div className="text-sm font-medium text-[#3a3128]">
+                  {trip?.cities.find(c => c.id === activeCityId)?.name || ""}
+                </div>
+                {selectedDay && (
+                  <div className="text-[10px] text-[#a89880]">
+                    {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                  </div>
+                )}
+              </div>
               <div className="w-12" /> {/* spacer for centering */}
             </div>
 
@@ -1036,12 +1043,34 @@ export default function PlanPage() {
                     </div>
                   )}
 
-                  {selected.length === 0 && (
-                    <div className="mb-6 py-6 text-center">
-                      <p className="text-sm text-[#8a7a62]">Nothing planned yet</p>
-                      <p className="text-xs text-[#c8bba8] mt-1">Browse the ideas below or tap + to add something</p>
-                    </div>
-                  )}
+                  {selected.length === 0 && (() => {
+                    // Show day notes/descriptions from the itinerary if available
+                    const cityDays = days.filter(d => d.cityId === activeCityId).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    const daysWithNotes = cityDays.filter(d => d.notes && d.notes.trim());
+                    if (daysWithNotes.length > 0) {
+                      return (
+                        <div className="mb-6">
+                          <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">The itinerary</div>
+                          <div className="space-y-2">
+                            {daysWithNotes.map(d => (
+                              <div key={d.id} className="p-3 bg-white rounded-xl border border-[#e8e0d4]">
+                                <div className="text-xs font-medium text-[#8a7a62]">
+                                  {new Date(d.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                </div>
+                                <div className="text-sm text-[#3a3128] mt-1">{d.notes}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="mb-6 py-6 text-center">
+                        <p className="text-sm text-[#8a7a62]">Wide open</p>
+                        <p className="text-xs text-[#c8bba8] mt-1">Browse ideas below or tap + to add something</p>
+                      </div>
+                    );
+                  })()}
 
                   {/* Section 2: Decisions — compact doorway to voting */}
                   {cityDecisions.length > 0 && (
