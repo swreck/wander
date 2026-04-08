@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 interface Props {
   pendingChanges?: number;
+  actionsNeedAttention?: boolean;
 }
 
 const tabs = [
@@ -50,6 +51,7 @@ const tabs = [
 export default function BottomNav({ pendingChanges }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
+  const actionsNeedAttention = (window as any).__actionsNeedAttention || false;
 
   // Hide on login, join pages, and PlanPage (PlanPage has its own action bar)
   if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
@@ -76,7 +78,7 @@ export default function BottomNav({ pendingChanges }: Props) {
                   navigate(tab.path);
                 }
               }}
-              className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg transition-colors relative
+              className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-lg transition-colors relative ${tab.path === "__actions__" && actionsNeedAttention ? "text-amber-600" : ""}
                 ${isActive ? "text-[#514636]" : "text-[#c8bba8] hover:text-[#8a7a62]"}`}
             >
               {tab.icon}
@@ -84,6 +86,10 @@ export default function BottomNav({ pendingChanges }: Props) {
               {/* Badge dot for pending sync changes on Home */}
               {tab.path === "/" && pendingChanges && pendingChanges > 0 ? (
                 <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" />
+              ) : null}
+              {/* Glow dot for Actions needing attention */}
+              {tab.path === "__actions__" && actionsNeedAttention ? (
+                <span className="absolute top-0 right-1 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
               ) : null}
             </button>
           );
