@@ -210,6 +210,54 @@ router.post("/pull", async (req: AuthRequest, res) => {
       }
     }
 
+    // Sync planning actions from Guide → Wander
+    for (const act of data.actions) {
+      const existing = await prisma.planningAction.findFirst({
+        where: { tripId, sheetRowRef: act.sheetRowRef },
+      });
+
+      if (existing) {
+        // Update if changed
+        const needsUpdate = existing.action !== act.action
+          || existing.owner !== act.owner
+          || existing.dueDate !== act.dueDate
+          || existing.notes !== act.notes;
+
+        if (needsUpdate) {
+          await prisma.planningAction.update({
+            where: { id: existing.id },
+            data: {
+              action: act.action,
+              owner: act.owner,
+              dueDate: act.dueDate,
+              notes: act.notes,
+            },
+          });
+          updatedCount++;
+        }
+      } else {
+        // Check by action name (fuzzy) in case sheetRowRef changed
+        const byName = await prisma.planningAction.findFirst({
+          where: { tripId, action: { contains: act.action.substring(0, 10) } },
+        });
+
+        if (!byName) {
+          await prisma.planningAction.create({
+            data: {
+              tripId,
+              action: act.action,
+              owner: act.owner,
+              dueDate: act.dueDate,
+              notes: act.notes,
+              sheetRowRef: act.sheetRowRef,
+              status: act.notes?.toLowerCase().includes("done") ? "done" : "open",
+            },
+          });
+          addedCount++;
+        }
+      }
+    }
+
     // Sync date-column assignments from Guide → Wander
     // When Larisa puts a ✓ in a date column, assign that activity to that day
     let dateAssignmentCount = 0;
@@ -491,6 +539,20 @@ router.get("/conflicts/:tripId", async (req: AuthRequest, res) => {
     `, tripId) as any[];
 
     res.json(logs);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /actions — Planning actions from Guide ───────────────
+router.get("/actions/:tripId", async (req: AuthRequest, res) => {
+  try {
+    const tripId = req.params.tripId as string;
+    const actions = await prisma.planningAction.findMany({
+      where: { tripId },
+      orderBy: { createdAt: "asc" },
+    });
+    res.json(actions);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

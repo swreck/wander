@@ -75,11 +75,20 @@ export interface ParsedActivity {
   sheetRowRef: string; // e.g. "Activities Template:14"
 }
 
+export interface ParsedAction {
+  action: string;
+  owner: string; // "Both" | "LF" | "KR" | name
+  dueDate: string | null;
+  notes: string | null;
+  sheetRowRef: string;
+}
+
 export interface SpreadsheetData {
   cities: ParsedCity[];
   tokyoHotels: ParsedHotel[];
   kyotoHotels: ParsedHotel[];
   activities: ParsedActivity[];
+  actions: ParsedAction[];
   rawTabData: Record<string, string[][]>;
 }
 
@@ -158,12 +167,15 @@ export async function readSpreadsheet(spreadsheetId: string): Promise<Spreadshee
   const kyotoHotelTab = sheetNames.find(n => n.toLowerCase().includes("kyoto") && n.toLowerCase().includes("hotel"));
   const activitiesTab = sheetNames.find(n => n.toLowerCase().includes("activities"));
 
+  const actionsTab = sheetNames.find(n => n.toLowerCase() === "actions");
+
   const cities = itineraryTab ? parseItinerary(rawTabData[itineraryTab]) : [];
   const tokyoHotels = tokyoHotelTab ? parseHotelTemplate(rawTabData[tokyoHotelTab], tokyoHotelTab) : [];
   const kyotoHotels = kyotoHotelTab ? parseHotelTemplate(rawTabData[kyotoHotelTab], kyotoHotelTab) : [];
   const activities = activitiesTab ? parseActivities(rawTabData[activitiesTab]) : [];
+  const actions = actionsTab ? parseActions(rawTabData[actionsTab]) : [];
 
-  return { cities, tokyoHotels, kyotoHotels, activities, rawTabData };
+  return { cities, tokyoHotels, kyotoHotels, activities, actions, rawTabData };
 }
 
 // ── Itinerary Parser ─────────────────────────────────────────
@@ -491,6 +503,30 @@ function parseActivities(rows: string[][]): ParsedActivity[] {
   }
 
   return activities;
+}
+
+// ── Actions Parser ───────────────────────────────────────────
+
+function parseActions(rows: string[][]): ParsedAction[] {
+  const actions: ParsedAction[] = [];
+  if (rows.length < 2) return actions;
+
+  // Row 0 is the header: Action, Owner, Due Dates, Notes
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    const action = (row[0] || "").trim();
+    if (!action) continue;
+
+    actions.push({
+      action,
+      owner: (row[1] || "").trim() || "Everyone",
+      dueDate: (row[2] || "").trim() || null,
+      notes: (row[3] || "").trim() || null,
+      sheetRowRef: `Actions:${i}`,
+    });
+  }
+
+  return actions;
 }
 
 // ── Fuzzy Name Matching (Jaro-Winkler) ───────────────────────
