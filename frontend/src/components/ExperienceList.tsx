@@ -867,15 +867,15 @@ function DecisionGroup({
 
   // ── Derived state ──
 
-  // Vote counts per option
-  const voteCounts = new Map<string, { voters: string[] }>();
+  // Vote counts per option — track name + rank for planner visibility
+  const voteCounts = new Map<string, { voters: { name: string; rank: number }[] }>();
   let happyWithAnyVoters: string[] = [];
   for (const v of decision.votes) {
     if (v.optionId === null) {
       happyWithAnyVoters.push(v.displayName);
     } else {
       const existing = voteCounts.get(v.optionId) || { voters: [] };
-      existing.voters.push(v.displayName);
+      existing.voters.push({ name: v.displayName, rank: v.rank || 0 });
       voteCounts.set(v.optionId, existing);
     }
   }
@@ -1057,9 +1057,14 @@ function DecisionGroup({
                   <div className="flex items-center gap-1.5 shrink-0">
                     {votes && votes.voters.length > 0 && (
                       <div className="flex -space-x-1">
-                        {votes.voters.map((name, i) => (
-                          <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-medium border border-white" title={name}>
-                            {name[0]}
+                        {votes.voters.map((voter, i) => (
+                          <span key={i} className="relative inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-medium border border-white" title={`${voter.name}${voter.rank ? ` — #${voter.rank}` : ""}`}>
+                            {voter.name[0]}
+                            {user?.role === "planner" && voter.rank > 0 && (
+                              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#514636] text-white text-[7px] font-bold flex items-center justify-center leading-none">
+                                {voter.rank}
+                              </span>
+                            )}
                           </span>
                         ))}
                       </div>
