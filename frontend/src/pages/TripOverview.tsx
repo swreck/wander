@@ -1598,45 +1598,11 @@ function CalendarCluster({
                 return map[m] || m;
               });
 
-              // Gather detail facts for this day
-              const detailFacts: { icon?: string; text?: string }[] = [];
-              if (showDetails) {
-                if (isTravel) detailFacts.push({ icon: "🚃" });
-                const accom = (accommodations || []).find((a: any) => a.cityId === day.cityId);
-                if (accom?.name) detailFacts.push({ text: accom.name.substring(0, 16) });
-                if (day.notes && !day.notes.includes("TBD")) detailFacts.push({ text: day.notes.substring(0, 18) });
-              }
-
-              // Check if NEXT day is a different city (leaving this city)
-              const nextDay = globalIdx < allSortedDays.length - 1 ? allSortedDays[globalIdx + 1] : null;
-              const isLeaving = nextDay && nextDay.cityId !== day.cityId;
-
-              // Find route segment for transport mode — match by city NAME not ID
-              const cityName = city?.name?.toLowerCase() || "";
-              const prevCityName = isTravel ? (cities.find(c => c.id === prevDay?.cityId)?.name?.toLowerCase() || "") : "";
-              const nextCityName = isLeaving ? (cities.find(c => c.id === nextDay?.cityId)?.name?.toLowerCase() || "") : "";
-              const arrivalSegment = isTravel ? (routeSegments || []).find((s: any) =>
-                (s.destinationCity?.toLowerCase()?.includes(cityName) || cityName.includes(s.destinationCity?.toLowerCase() || "---")) &&
-                (s.originCity?.toLowerCase()?.includes(prevCityName) || prevCityName.includes(s.originCity?.toLowerCase() || "---"))
-              ) : null;
-              const departSegment = isLeaving ? (routeSegments || []).find((s: any) =>
-                (s.originCity?.toLowerCase()?.includes(cityName) || cityName.includes(s.originCity?.toLowerCase() || "---")) &&
-                (s.destinationCity?.toLowerCase()?.includes(nextCityName) || nextCityName.includes(s.destinationCity?.toLowerCase() || "---"))
-              ) : null;
-
-              // Pick transport icons — only show specific mode when we have route data
-              const TRANSPORT_EMOJI: Record<string, string> = {
-                flight: "✈️", train: "🚃", ferry: "⛴️", drive: "🚗", bus: "🚌",
-                subway: "🚇", taxi: "🚕", shuttle: "🚐", walk: "🚶",
-              };
-              const arrivalIcon = arrivalSegment ? (TRANSPORT_EMOJI[arrivalSegment.transportMode] || "🚃") : null;
-              const departIcon = departSegment ? (TRANSPORT_EMOJI[departSegment.transportMode] || "🚃") : null;
-
               return (
                 <button
                   key={day.id}
                   onClick={() => onDayClick(day.cityId)}
-                  className="aspect-[3/4] rounded-lg flex flex-col items-center justify-between relative overflow-hidden hover:shadow-md transition-shadow"
+                  className="aspect-[3/4] rounded-lg flex flex-col items-center justify-center relative overflow-hidden hover:shadow-md transition-shadow"
                   style={{ backgroundColor: cityColor, borderLeft: `4px solid ${dotColor}` }}
                 >
                   {mapUrl && (
@@ -1649,19 +1615,6 @@ function CalendarCluster({
                     <span className="absolute top-0.5 right-0.5 z-20 font-bold text-white rounded-sm leading-none"
                       style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }}>B</span>
                   )}
-                  {/* Top: arriving — icon if route data exists, plain arrow if just city change */}
-                  {isTravel ? (
-                    <div className="relative z-10 mt-1 flex items-center gap-0.5 bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm">
-                      {arrivalIcon ? (
-                        <><span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span><span style={{ fontSize: 16 }}>{arrivalIcon}</span></>
-                      ) : (
-                        <span className="text-[#6b5d4a] font-medium" style={{ fontSize: 13 }}>→ in</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="h-5" />
-                  )}
-                  {/* Middle: date + city */}
                   <div className="relative z-10 flex flex-col items-center">
                     <div className="text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
                       {dayNum}
@@ -1671,69 +1624,6 @@ function CalendarCluster({
                       {city?.name || ""}
                     </div>
                   </div>
-                  {/* Bottom: departing transport → activity transport → theme emojis */}
-                  {isLeaving ? (
-                    <div className="relative z-10 mb-1 flex items-center gap-0.5 bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm">
-                      {departIcon ? (
-                        <><span style={{ fontSize: 16 }}>{departIcon}</span><span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span></>
-                      ) : (
-                        <span className="text-[#6b5d4a] font-medium" style={{ fontSize: 13 }}>out →</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="relative z-10 mb-1 flex items-center justify-center gap-0.5">
-                      {(() => {
-                        if (count === 0) return null;
-                        const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
-                        // Check for activity-based transport (day trips, kayak, etc.) — no arrows
-                        const ACTIVITY_ICONS: [RegExp, string][] = [
-                          [/kayak/i, "🛶"], [/canoe/i, "🛶"], [/raft/i, "🛶"],
-                          [/cycl|bike|bicycl/i, "🚲"],
-                          [/boat|ferry|sail|cruise/i, "⛵"],
-                          [/hike|trek|trail/i, "🥾"],
-                          [/day\s*trip|excursion/i, "🚃"],
-                        ];
-                        let activityIcon: string | null = null;
-                        for (const e of dayExps) {
-                          const text = `${e.name} ${e.description || ""}`;
-                          // Check transportModeToHere field
-                          if ((e as any).transportModeToHere === "train") { activityIcon = "🚃"; break; }
-                          if ((e as any).transportModeToHere === "bus") { activityIcon = "🚌"; break; }
-                          if ((e as any).transportModeToHere === "shuttle") { activityIcon = "🚐"; break; }
-                          // Check activity name/description keywords
-                          for (const [regex, icon] of ACTIVITY_ICONS) {
-                            if (regex.test(text)) { activityIcon = icon; break; }
-                          }
-                          if (activityIcon) break;
-                        }
-                        if (activityIcon) {
-                          return (
-                            <div className="bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm flex items-center">
-                              <span style={{ fontSize: 16 }}>{activityIcon}</span>
-                            </div>
-                          );
-                        }
-                        // Fall back to theme emojis
-                        const themeSet = new Set<string>();
-                        for (const e of dayExps) {
-                          for (const t of (e.themes || [])) {
-                            if (DAY_THEME_EMOJI[t]) themeSet.add(t);
-                          }
-                        }
-                        const emojis = [...themeSet].slice(0, 2).map(t => DAY_THEME_EMOJI[t]);
-                        if (emojis.length > 0) {
-                          return (
-                            <div className="bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm flex items-center gap-0.5">
-                              {emojis.map((em, i) => (
-                                <span key={i} style={{ fontSize: 14 }}>{em}</span>
-                              ))}
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-                  )}
                 </button>
               );
             })}
