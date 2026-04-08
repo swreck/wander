@@ -18,6 +18,7 @@ import LearningsPanel from "../components/LearningsPanel";
 import TripPhaseContent from "../components/TripPhaseContent";
 import { getTripPhase } from "../lib/tripPhase";
 import ActivityFeed from "../components/ActivityFeed";
+import SyncAlert from "../components/SyncAlert";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -712,6 +713,9 @@ export default function TripOverview() {
             </button>
           </div>
         )}
+
+        {/* Sync alert — planner-only, shows conflicts/errors with PWA badge */}
+        <SyncAlert />
 
         {/* Open decisions nudge — above calendar so Andy sees it immediately */}
         {openDecisions.length > 0 && (
