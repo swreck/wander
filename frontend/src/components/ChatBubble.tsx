@@ -316,7 +316,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         className="fixed z-50 flex items-center justify-center rounded-full shadow-lg transition-all hover:scale-105 active:scale-95
           right-4 w-11 h-11
           sm:right-6 sm:w-12 sm:h-12"
-        style={{ backgroundColor: "#514636", color: "#faf8f5", bottom: "calc(env(safe-area-inset-bottom, 0px) + 140px)" }}
+        style={{ backgroundColor: "#514636", color: "#faf8f5", bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}
         aria-label="Ask Scout"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
