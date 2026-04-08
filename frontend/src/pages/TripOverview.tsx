@@ -1036,13 +1036,24 @@ function GroupPulse({
 
   for (const [cityId, data] of byCity) {
     const cityName = cityIdToName.get(cityId) || "Unknown";
+    if (data.total === 0) continue;
+
     const others = [...data.contributors].filter((c) => c !== userCode);
-    if (data.total > 0 && others.length > 0) {
+    if (others.length > 0) {
+      // Other people contributed — highlight their work
       const who = others.length === 1 ? others[0] : `${others.length} people`;
       items.push({
         text: `${cityName}`,
         detail: `${who} shared ${data.total} idea${data.total !== 1 ? "s" : ""} to explore`,
         action: "Take a look",
+        path: `/plan?city=${cityId}`,
+      });
+    } else if (data.total > 0) {
+      // User is the primary contributor — affirm their work
+      items.push({
+        text: `${cityName}`,
+        detail: `${data.total} idea${data.total !== 1 ? "s" : ""} ready for the group`,
+        action: "See your list",
         path: `/plan?city=${cityId}`,
       });
     }
@@ -1070,7 +1081,9 @@ function GroupPulse({
 
   return (
     <div className="mb-4">
-      <p className="text-xs text-[#8a7a62] mb-2">The group's been busy</p>
+      <p className="text-xs text-[#8a7a62] mb-2">
+        {items.some(i => i.action === "See your list") ? "Your Japan Guide is here" : "The group's been busy"}
+      </p>
       <div className="space-y-1.5">
         {items.map((item, i) => (
           <button
