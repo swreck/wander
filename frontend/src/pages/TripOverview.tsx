@@ -746,16 +746,6 @@ export default function TripOverview() {
           </div>
         )}
 
-        {/* Scout briefing — what's happening in the group */}
-        <GroupPulse
-          trip={trip}
-          experiences={experiences}
-          days={days}
-          openDecisions={openDecisions}
-          userCode={user?.code || ""}
-          onNavigate={(path) => navigate(path)}
-        />
-
         {/* Calendar / At-a-Glance toggle */}
         {tripPhase !== "past" && (trip.datesKnown !== false ? (
           <HomeViewToggle
@@ -798,6 +788,16 @@ export default function TripOverview() {
 
         {/* Add something */}
         <ImportCard tripId={trip.id} />
+
+        {/* Scout briefing — what's happening in the group */}
+        <GroupPulse
+          trip={trip}
+          experiences={experiences}
+          days={days}
+          openDecisions={openDecisions}
+          userCode={user?.code || ""}
+          onNavigate={(path) => navigate(path)}
+        />
 
         {/* City browse links — quick access to each city's idea board */}
         {tripPhase !== "past" && trip.datesKnown !== false && (() => {
