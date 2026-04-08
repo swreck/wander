@@ -67,6 +67,12 @@ export default function TripOverview() {
     return () => window.removeEventListener("wander-open-actions", handler);
   }, []);
 
+  // Signal to BottomNav whether actions need attention
+  useEffect(() => {
+    const needsInput = openDecisions.filter(dec => !dec.votes.some(v => v.userCode === user?.code)).length > 0;
+    (window as any).__actionsNeedAttention = needsInput;
+  }, [openDecisions, user?.code]);
+
   async function loadTrips(silent = false) {
     if (!silent) setLoading(true);
     try {
@@ -663,10 +669,12 @@ export default function TripOverview() {
         <SyncAlert />
 
         {/* Actions panel (full screen overlay) */}
-        {showActions && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} />}
+        {showActions && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} decisions={openDecisions} userCode={user?.code || ""} onNavigate={(path) => { setShowActions(false); navigate(path); }} />}
 
-        {/* Open decisions nudge — FIRST thing after identity bar so Andy sees it immediately */}
-        {openDecisions.length > 0 && (
+        {/* Decisions moved to Actions panel — overview stays clean */}
+
+        {/* [REMOVED: decision nudge cards — they now live in the Actions panel] */}
+        {false && openDecisions.length > 0 && (
           <div className="mb-4 space-y-2">
             {openDecisions.map((dec) => {
               const myVote = dec.votes.find((v) => v.userCode === user?.code);

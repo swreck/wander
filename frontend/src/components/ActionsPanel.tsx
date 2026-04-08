@@ -18,12 +18,24 @@ interface PlanningAction {
   sheetRowRef: string | null;
 }
 
+interface Decision {
+  id: string;
+  title: string;
+  cityId: string;
+  status: string;
+  options: { id: string; name: string }[];
+  votes: { userCode: string; displayName: string; optionId: string | null; rank: number }[];
+}
+
 interface Props {
   tripId: string;
   onClose: () => void;
+  decisions?: Decision[];
+  userCode?: string;
+  onNavigate?: (path: string) => void;
 }
 
-export default function ActionsPanel({ tripId, onClose }: Props) {
+export default function ActionsPanel({ tripId, onClose, decisions, userCode, onNavigate }: Props) {
   const { showToast } = useToast();
   const [actions, setActions] = useState<PlanningAction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +109,29 @@ export default function ActionsPanel({ tripId, onClose }: Props) {
 
   const open = actions.filter(a => a.status === "open");
   const done = actions.filter(a => a.status === "done");
+  const [showDone, setShowDone] = useState(false);
+
+  // Decisions that need THIS user's input
+  const needsMyInput = (decisions || []).filter(dec => {
+    const myVotes = dec.votes.filter(v => v.userCode === userCode);
+    return myVotes.length === 0; // user hasn't voted at all
+  });
+
+  // Map action names to Wander destinations
+  function getActionDestination(action: PlanningAction): string | null {
+    const name = action.action.toLowerCase();
+    if (name.includes("hotel")) {
+      const hotelDec = (decisions || []).find(d => d.title.toLowerCase().includes("hotel"));
+      if (hotelDec) return `/plan?city=${hotelDec.cityId}`;
+    }
+    if (name.includes("restaurant") || name.includes("food")) {
+      return "/plan";
+    }
+    if (name.includes("activit")) {
+      return "/plan";
+    }
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-[#faf8f5] overflow-y-auto"
@@ -105,29 +140,133 @@ export default function ActionsPanel({ tripId, onClose }: Props) {
       <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-4 py-3 flex items-center justify-between"
            style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="text-[#8a7a62] hover:text-[#3a3128]">
+          <button onClick={onClose} className="text-[#8a7a62] hover:text-[#3a3128] min-h-[44px] min-w-[44px] flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
           <div>
             <h1 className="text-lg font-medium text-[#3a3128]">What's happening</h1>
-            <span className="text-[10px] text-[#a89880]">↔ Larisa's Japan Guide</span>
+            <span className="text-[10px] text-[#a89880]">Synced with Larisa's Japan Guide</span>
           </div>
         </div>
         <button
           onClick={() => setAdding(!adding)}
-          className="text-sm text-[#514636] font-medium hover:text-[#3a3128]"
+          className="text-sm text-[#514636] font-medium hover:text-[#3a3128] min-h-[44px] flex items-center"
         >
           {adding ? "Cancel" : "+ Add"}
         </button>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-3">
+      <div className="max-w-lg mx-auto px-4 py-4">
+
+        {/* ── Section 1: Needs your input ── */}
+        {needsMyInput.length > 0 && (
+          <div className="mb-6">
+            <div className="text-xs text-amber-700 uppercase tracking-wider font-medium mb-2">
+              {needsMyInput.length === 1 ? "Needs your input" : `${needsMyInput.length} things need your input`}
+            </div>
+            <div className="space-y-2">
+              {needsMyInput.map(dec => {
+                const voterCount = new Set(dec.votes.map(v => v.userCode)).size;
+                const voterNames = [...new Set(dec.votes.map(v => v.displayName))];
+                return (
+                  <button
+                    key={dec.id}
+                    onClick={() => onNavigate?.(`/plan?city=${dec.cityId}`)}
+                    className="w-full text-left p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-50 transition-colors"
+                  >
+                    <div className="text-sm font-medium text-[#3a3128]">{dec.title}</div>
+                    <div className="text-xs text-[#8a7a62] mt-1">
+                      {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
+                      {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
+                    </div>
+                    <div className="text-xs text-amber-700 mt-1">Tap to see options and vote →</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Section 2: Coming up (Guide Actions) ── */}
+        {open.length > 0 && (
+          <div className="mb-6">
+            <div className="text-xs text-[#a89880] uppercase tracking-wider font-medium mb-2">Coming up</div>
+            <div className="space-y-2">
+              {open.map((a) => {
+                const dest = getActionDestination(a);
+                return (
+                  <div key={a.id} className="bg-white rounded-xl border border-[#e8e0d4] p-3.5">
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => handleToggleDone(a)}
+                        className="mt-0.5 w-6 h-6 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors shrink-0"
+                        title="Mark done"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium text-[#3a3128]">{a.action}</div>
+                          {dest && (
+                            <button
+                              onClick={() => onNavigate?.(dest)}
+                              className="text-xs text-[#a89880] hover:text-[#514636] shrink-0 ml-2"
+                            >
+                              Go →
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-xs text-[#8a7a62] mt-1 flex items-center gap-2 flex-wrap">
+                          <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a] font-medium">
+                            {a.owner === "Both" ? "Group" : a.owner}
+                          </span>
+                          {a.dueDate && <span>by {a.dueDate}</span>}
+                          {a.sheetRowRef && <span className="text-[10px] text-[#b8a990]">from Guide</span>}
+                        </div>
+
+                        {/* Notes */}
+                        {editingId === a.id ? (
+                          <div className="mt-2.5">
+                            <textarea
+                              value={editNotes}
+                              onChange={(e) => setEditNotes(e.target.value)}
+                              rows={2}
+                              className="w-full text-sm px-3 py-2 rounded-lg border border-[#e0d8cc] focus:outline-none focus:ring-1 focus:ring-[#a89880] resize-none"
+                              autoFocus
+                              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveNotes(a.id); } if (e.key === "Escape") setEditingId(null); }}
+                            />
+                            <div className="flex justify-end gap-2 mt-1.5">
+                              <button onClick={() => setEditingId(null)} className="text-xs text-[#a89880]">Cancel</button>
+                              <button onClick={() => handleSaveNotes(a.id)} className="text-xs text-white bg-[#514636] px-3 py-1 rounded-lg font-medium">Save</button>
+                            </div>
+                          </div>
+                        ) : a.notes ? (
+                          <p
+                            className="text-sm text-[#6b5d4a] mt-2 leading-relaxed cursor-text bg-[#faf8f5] rounded-lg px-3 py-2"
+                            onClick={() => { setEditingId(a.id); setEditNotes(a.notes || ""); }}
+                          >
+                            {a.notes}
+                          </p>
+                        ) : (
+                          <button
+                            className="text-xs text-[#c8bba8] hover:text-[#8a7a62] mt-2 transition-colors"
+                            onClick={() => { setEditingId(a.id); setEditNotes(""); }}
+                          >
+                            Add a note
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Add form */}
         {adding && (
-          <div className="bg-white rounded-xl border border-[#e8e0d4] p-4 space-y-3">
+          <div className="mb-6 bg-white rounded-xl border border-[#e8e0d4] p-4 space-y-3">
             <input
               value={newAction}
               onChange={(e) => setNewAction(e.target.value)}
@@ -163,95 +302,46 @@ export default function ActionsPanel({ tripId, onClose }: Props) {
             <button
               onClick={handleAdd}
               disabled={!newAction.trim()}
-              className="w-full py-2 rounded-lg bg-[#514636] text-white text-sm font-medium disabled:opacity-40"
+              className="w-full py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium disabled:opacity-40"
             >
-              Add action
+              Add
             </button>
           </div>
         )}
 
-        {actions.length === 0 && !adding && (
-          <p className="text-sm text-[#a89880] text-center py-8">No actions yet — tap + Add to start</p>
+        {actions.length === 0 && !adding && needsMyInput.length === 0 && (
+          <p className="text-sm text-[#a89880] text-center py-8">Nothing happening yet</p>
         )}
 
-        {/* Open actions */}
-        {open.map((a) => (
-          <div key={a.id} className="bg-white rounded-xl border border-[#e8e0d4] p-4">
-            <div className="flex items-start gap-3">
-              {/* Done toggle — 44px tap target */}
-              <button
-                onClick={() => handleToggleDone(a)}
-                className="mt-0.5 w-6 h-6 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors shrink-0"
-                title="Mark done"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-[#3a3128]">{a.action}</div>
-                <div className="text-xs text-[#8a7a62] mt-1.5 flex items-center gap-2 flex-wrap">
-                  <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a] font-medium">
-                    {a.owner === "Both" ? "Group" : a.owner}
-                  </span>
-                  {a.dueDate && <span>by {a.dueDate}</span>}
-                  {a.sheetRowRef && <span className="text-[10px] text-[#b8a990]">from Guide</span>}
-                </div>
-
-                {/* Notes — multi-line, editable */}
-                {editingId === a.id ? (
-                  <div className="mt-2.5">
-                    <textarea
-                      value={editNotes}
-                      onChange={(e) => setEditNotes(e.target.value)}
-                      rows={2}
-                      className="w-full text-sm px-3 py-2 rounded-lg border border-[#e0d8cc] focus:outline-none focus:ring-1 focus:ring-[#a89880] resize-none"
-                      autoFocus
-                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveNotes(a.id); } if (e.key === "Escape") setEditingId(null); }}
-                    />
-                    <div className="flex justify-end gap-2 mt-1.5">
-                      <button onClick={() => setEditingId(null)} className="text-xs text-[#a89880]">Cancel</button>
-                      <button onClick={() => handleSaveNotes(a.id)} className="text-xs text-white bg-[#514636] px-3 py-1 rounded-lg font-medium">Save</button>
-                    </div>
-                  </div>
-                ) : a.notes ? (
-                  <p
-                    className="text-sm text-[#6b5d4a] mt-2.5 leading-relaxed cursor-text bg-[#faf8f5] rounded-lg px-3 py-2"
-                    onClick={() => { setEditingId(a.id); setEditNotes(a.notes || ""); }}
-                  >
-                    {a.notes}
-                  </p>
-                ) : (
-                  <button
-                    className="text-xs text-[#c8bba8] hover:text-[#8a7a62] mt-2 transition-colors"
-                    onClick={() => { setEditingId(a.id); setEditNotes(""); }}
-                  >
-                    Add a note
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {/* Done actions */}
+        {/* ── Section 3: Done — collapsed by default ── */}
         {done.length > 0 && (
-          <>
-            <div className="text-xs text-[#a89880] uppercase tracking-wider mt-4">Done</div>
-            {done.map((a) => (
-              <div key={a.id} className="bg-white/50 rounded-xl border border-[#f0ece5] p-3">
-                <div className="flex items-start gap-3">
-                  <button
-                    onClick={() => handleToggleDone(a)}
-                    className="mt-0.5 w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] shrink-0 flex items-center justify-center"
-                    title="Reopen"
-                  >
-                    <span className="text-white text-[10px]">✓</span>
-                  </button>
-                  <div>
-                    <div className="text-sm text-[#8a7a62] line-through">{a.action}</div>
-                    {a.notes && <p className="text-[11px] text-[#a89880] mt-1">{a.notes}</p>}
+          <div>
+            <button
+              onClick={() => setShowDone(!showDone)}
+              className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+            >
+              {showDone ? "Hide" : `${done.length} done`}
+            </button>
+            {showDone && (
+              <div className="mt-2 space-y-1.5">
+                {done.map((a) => (
+                  <div key={a.id} className="bg-white/50 rounded-lg border border-[#f0ece5] px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleToggleDone(a)}
+                        className="w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] shrink-0 flex items-center justify-center"
+                        title="Reopen"
+                      >
+                        <span className="text-white text-[10px]">✓</span>
+                      </button>
+                      <span className="text-sm text-[#a89880] line-through">{a.action}</span>
+                    </div>
+                    {a.notes && <p className="text-[11px] text-[#c8bba8] ml-7 mt-0.5">{a.notes}</p>}
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </>
+            )}
+          </div>
         )}
       </div>
     </div>
