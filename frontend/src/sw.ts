@@ -16,6 +16,13 @@ clientsClaim();
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
+// ── Force update on message from client ──
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 // ── Cache names ──
 const API_CACHE = 'wander-api-v1';
 const STATIC_CACHE = 'wander-static-v1';
