@@ -1117,6 +1117,17 @@ function TripSwitcherList({
   onDelete: (id: string) => void;
   onNewTrip: () => void;
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  async function saveName(tripId: string) {
+    if (!editName.trim()) { setEditingId(null); return; }
+    try {
+      await api.patch(`/trips/${tripId}`, { name: editName.trim() });
+      setEditingId(null);
+    } catch { /* ignore */ }
+  }
+
   // Sort by lastOpenedAt descending, nulls last
   const sorted = [...trips].sort((a, b) => {
     const aTime = (a as any).lastOpenedAt ? new Date((a as any).lastOpenedAt).getTime() : 0;
@@ -1141,11 +1152,27 @@ function TripSwitcherList({
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  {/* Name — largest, darkest */}
-                  <div className="text-[15px] font-semibold text-[#3a3128] truncate">
-                    {t.name}
-                    {isCurrent && <span className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Now</span>}
-                  </div>
+                  {/* Name — largest, darkest, double-click to edit */}
+                  {editingId === t.id ? (
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onBlur={() => saveName(t.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveName(t.id); if (e.key === "Escape") setEditingId(null); }}
+                      className="text-[15px] font-semibold text-[#3a3128] w-full border-b border-[#a89880] outline-none bg-transparent"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <div
+                      className="text-[15px] font-semibold text-[#3a3128] truncate cursor-text"
+                      onDoubleClick={(e) => { e.stopPropagation(); setEditingId(t.id); setEditName(t.name); }}
+                      title="Double-click to rename"
+                    >
+                      {t.name}
+                      {isCurrent && <span className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Now</span>}
+                    </div>
+                  )}
                   {/* Metadata line — smaller, muted */}
                   <div className="text-[11px] text-[#a89880] mt-0.5 flex items-center gap-1 flex-wrap">
                     <span>Started {createdAt ? new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</span>
