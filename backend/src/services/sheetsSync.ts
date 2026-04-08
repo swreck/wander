@@ -47,6 +47,12 @@ export interface ParsedDay {
   description: string | null;
   notes: string | null;
   isGuided: boolean;
+  // Travel columns from spreadsheet (From/To/Depart/Arrive/FlightTime)
+  travelFrom: string | null;
+  travelTo: string | null;
+  travelDepart: string | null;
+  travelArrive: string | null;
+  travelFlightTime: string | null;
 }
 
 export interface ParsedHotel {
@@ -342,12 +348,24 @@ function parseItinerary(rows: string[][]): ParsedCity[] {
       currentCity.mealsBudgetKL = mealsBudgetKL;
     }
 
+    // Extract travel columns (From, To, Depart, Arrive, Flight Time)
+    const travelFrom = (row[6] || "").trim() || null;
+    const travelTo = (row[7] || "").trim() || null;
+    const travelDepart = (row[8] || "").trim() || null;
+    const travelArrive = (row[9] || "").trim() || null;
+    const travelFlightTime = (row[10] || "").trim() || null;
+
     // Add day
     currentCity.days.push({
       date: parsedDate,
       description,
       notes,
       isGuided: currentCity.isBackroads,
+      travelFrom,
+      travelTo,
+      travelDepart,
+      travelArrive,
+      travelFlightTime,
     });
   }
 
