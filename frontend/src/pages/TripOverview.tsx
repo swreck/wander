@@ -606,6 +606,16 @@ export default function TripOverview() {
           <button onClick={logout} className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors px-1 py-2.5 min-h-[44px] flex items-center">
             Sign out
           </button>
+          <button
+            onClick={() => setShowActions(true)}
+            className="text-[#a89880] hover:text-[#6b5d4a] transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Actions"
+            title="What's happening"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+            </svg>
+          </button>
         </div>
 
         {/* Edit trip form */}
@@ -676,15 +686,6 @@ export default function TripOverview() {
             })}
           </div>
         )}
-
-        {/* Actions button */}
-        <button
-          onClick={() => setShowActions(true)}
-          className="mb-3 w-full text-left px-3 py-2 rounded-lg bg-[#faf8f5] border border-[#ebe5db] hover:bg-[#f5f0e8] transition-colors flex items-center justify-between"
-        >
-          <span className="text-sm text-[#6b5d4a]">What's happening ↔</span>
-          <span className="text-xs text-[#a89880]">See all →</span>
-        </button>
 
         {/* Post-import orientation — below decisions so first-time collaborators see voting first */}
         {!localStorage.getItem("wander:overview-oriented") && experiences.length > 0 && (

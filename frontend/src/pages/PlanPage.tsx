@@ -9,6 +9,7 @@ import CapturePanel from "../components/CapturePanel";
 import UniversalCapturePanel from "../components/UniversalCapturePanel";
 import DayView from "../components/DayView";
 import PlanningBoard from "../components/PlanningBoard";
+import ActionsPanel from "../components/ActionsPanel";
 import CitySplash from "../components/CitySplash";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -48,6 +49,7 @@ export default function PlanPage() {
   const [splashCity, setSplashCity] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showBoard, setShowBoard] = useState(false);
+  const [showActions, setShowActions] = useState(false);
   const [recenterKey, setRecenterKey] = useState(0);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
 
@@ -738,6 +740,12 @@ export default function PlanPage() {
                 </svg>
                 <span className="text-[10px] leading-tight">Now</span>
               </button>
+              <button onClick={() => setShowActions(true)} className="flex flex-col items-center px-2 py-0.5 text-[#c8bba8] hover:text-[#6b5d4a] transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                </svg>
+                <span className="text-[10px] leading-tight">Actions</span>
+              </button>
             </div>
             {/* Day filmstrip — extra top padding separates from action bar for mobile tap accuracy */}
             <div className="border-t border-[#e5ddd0]/60" />
@@ -1107,6 +1115,9 @@ export default function PlanPage() {
           onInterestChanged={loadInterests}
         />
       )}
+
+      {/* Actions panel */}
+      {showActions && trip && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} />}
 
       {/* Capture panel */}
       {showCapture && (
