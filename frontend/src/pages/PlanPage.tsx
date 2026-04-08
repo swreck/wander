@@ -722,17 +722,6 @@ export default function PlanPage() {
                   </>
                 )}
               </div>
-              <button
-                onClick={() => {
-                  window.dispatchEvent(new Event("wander-open-chat"));
-                }}
-                className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                </svg>
-                <span className="text-[10px] leading-tight">Chat</span>
-              </button>
               <button onClick={() => navigate("/now")} className="flex flex-col items-center px-2 py-0.5 text-[#c8bba8] hover:text-[#6b5d4a] transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />

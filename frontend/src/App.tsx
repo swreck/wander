@@ -167,8 +167,8 @@ function ChatOverlay() {
   // Pick up day/city context from PlanPage if available
   const wanderCtx = (window as any).__wanderContext || {};
 
-  // Hide the floating bubble on /plan (mobile) — Chat is in the bottom action bar there
-  const hideBubble = location.pathname === "/plan";
+  // Scout floats on every page
+  const hideBubble = false;
 
   return (
     <ChatBubble
