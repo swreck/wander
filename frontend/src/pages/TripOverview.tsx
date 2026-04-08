@@ -19,6 +19,7 @@ import TripPhaseContent from "../components/TripPhaseContent";
 import { getTripPhase } from "../lib/tripPhase";
 import ActivityFeed from "../components/ActivityFeed";
 import SyncAlert from "../components/SyncAlert";
+import ActionsPanel from "../components/ActionsPanel";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -50,6 +51,7 @@ export default function TripOverview() {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [showApprovals, setShowApprovals] = useState(false);
   const [showLearnings, setShowLearnings] = useState(false);
+  const [showActions, setShowActions] = useState(false);
   const [openDecisions, setOpenDecisions] = useState<Decision[]>([]);
 
   const isPlanner = user?.role === "planner";
@@ -666,6 +668,9 @@ export default function TripOverview() {
         {/* Sync alert — planner-only, shows conflicts/errors with PWA badge */}
         <SyncAlert />
 
+        {/* Actions panel (full screen overlay) */}
+        {showActions && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} />}
+
         {/* Open decisions nudge — above calendar so Andy sees it immediately */}
         {openDecisions.length > 0 && (
           <div className="mb-4 space-y-2">
@@ -694,6 +699,15 @@ export default function TripOverview() {
             })}
           </div>
         )}
+
+        {/* Actions button */}
+        <button
+          onClick={() => setShowActions(true)}
+          className="mb-3 w-full text-left px-3 py-2 rounded-lg bg-[#faf8f5] border border-[#ebe5db] hover:bg-[#f5f0e8] transition-colors flex items-center justify-between"
+        >
+          <span className="text-sm text-[#6b5d4a]">What's happening ↔</span>
+          <span className="text-xs text-[#a89880]">See all →</span>
+        </button>
 
         {/* Scout briefing — compact, right after decisions */}
         <GroupPulse
