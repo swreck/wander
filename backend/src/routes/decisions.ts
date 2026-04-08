@@ -27,7 +27,7 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
           },
         },
         votes: {
-          select: { id: true, optionId: true, userCode: true, displayName: true },
+          select: { id: true, optionId: true, userCode: true, displayName: true, rank: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -58,7 +58,7 @@ router.get("/trip/:tripId/resolved", async (req: AuthRequest, res) => {
           },
         },
         votes: {
-          select: { id: true, optionId: true, userCode: true, displayName: true },
+          select: { id: true, optionId: true, userCode: true, displayName: true, rank: true },
         },
       },
       orderBy: { resolvedAt: "desc" },
@@ -192,7 +192,7 @@ router.post("/:id/options", async (req: AuthRequest, res) => {
           },
         },
         votes: {
-          select: { id: true, optionId: true, userCode: true, displayName: true },
+          select: { id: true, optionId: true, userCode: true, displayName: true, rank: true },
         },
       },
     });

@@ -418,6 +418,29 @@ router.post("/push", async (req: AuthRequest, res) => {
       } catch { /* tinting is best-effort */ }
     }
 
+    // Push new actions to Guide's Actions tab
+    const wanderActions = await prisma.planningAction.findMany({
+      where: { tripId, sheetRowRef: null },
+    });
+    for (const act of wanderActions) {
+      const row = [act.action, act.owner || "Both", act.dueDate || "", act.notes || ""];
+      await appendToSheet(config.spreadsheetId, "'Actions'", [row]);
+
+      // Get the new row number and update sheetRowRef
+      const actionsData = sheetData.rawTabData["Actions"] || [];
+      const newRow = actionsData.length + 1; // approximate
+      await prisma.planningAction.update({
+        where: { id: act.id },
+        data: { sheetRowRef: `Actions:${newRow}` },
+      });
+      pushedCount++;
+
+      // Tint the row
+      try {
+        await tintCells(config.spreadsheetId, "Actions", newRow - 1, 0, newRow, 4);
+      } catch { /* best-effort */ }
+    }
+
     // Push hotel votes back to spreadsheet
     const decisions = await prisma.decision.findMany({
       where: { tripId, status: "open" },
@@ -553,6 +576,54 @@ router.get("/actions/:tripId", async (req: AuthRequest, res) => {
       orderBy: { createdAt: "asc" },
     });
     res.json(actions);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /actions — Create a new planning action ─────────────
+router.post("/actions", async (req: AuthRequest, res) => {
+  try {
+    const { tripId, action, owner, dueDate, notes } = req.body;
+    if (!tripId || !action?.trim()) {
+      res.status(400).json({ error: "tripId and action are required" });
+      return;
+    }
+
+    const created = await prisma.planningAction.create({
+      data: {
+        tripId,
+        action: action.trim(),
+        owner: owner?.trim() || "Both",
+        dueDate: dueDate?.trim() || null,
+        notes: notes?.trim() || null,
+        status: "open",
+      },
+    });
+
+    res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH /actions/:id — Update an action ────────────────────
+router.patch("/actions/:id", async (req: AuthRequest, res) => {
+  try {
+    const { action, owner, dueDate, notes, status } = req.body;
+
+    const updated = await prisma.planningAction.update({
+      where: { id: req.params.id as string },
+      data: {
+        ...(action !== undefined && { action: action.trim() }),
+        ...(owner !== undefined && { owner: owner.trim() }),
+        ...(dueDate !== undefined && { dueDate: dueDate?.trim() || null }),
+        ...(notes !== undefined && { notes: notes?.trim() || null }),
+        ...(status !== undefined && { status }),
+      },
+    });
+
+    res.json(updated);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -964,19 +964,50 @@ function DecisionGroup({
         <div className="mb-3 bg-[#faf8f5] rounded-xl border border-[#e8e0d4] p-2.5">
           <div className="text-[10px] uppercase tracking-wider text-[#a89880] font-medium mb-1.5">Your picks</div>
           <div className="space-y-1">
-            {myVotes.filter(v => v.optionId).map((v) => {
+            {myVotes.filter(v => v.optionId).map((v, idx, arr) => {
               const opt = decision.options.find(o => o.id === v.optionId);
               if (!opt) return null;
+
+              async function moveUp() {
+                if (idx === 0) return;
+                const reordered = [...arr];
+                [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
+                const rankings = reordered.map((rv, ri) => ({ optionId: rv.optionId, rank: ri + 1 }));
+                try {
+                  await api.post(`/decisions/${decision.id}/vote`, { rankings });
+                  onDecisionsChanged();
+                } catch { /* ignore */ }
+              }
+
+              async function moveDown() {
+                if (idx === arr.length - 1) return;
+                const reordered = [...arr];
+                [reordered[idx], reordered[idx + 1]] = [reordered[idx + 1], reordered[idx]];
+                const rankings = reordered.map((rv, ri) => ({ optionId: rv.optionId, rank: ri + 1 }));
+                try {
+                  await api.post(`/decisions/${decision.id}/vote`, { rankings });
+                  onDecisionsChanged();
+                } catch { /* ignore */ }
+              }
+
               return (
                 <div key={v.id || v.optionId} className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-[#514636] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                    {v.rank || 1}
+                    {v.rank || idx + 1}
                   </span>
                   <span className="text-xs text-[#3a3128] flex-1 truncate">{opt.name}</span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleTogglePick(opt.id); }}
-                    className="text-[#c8bba8] hover:text-red-400 text-xs shrink-0"
-                  >✕</button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {idx > 0 && (
+                      <button onClick={(e) => { e.stopPropagation(); moveUp(); }} className="text-[#a89880] hover:text-[#514636] text-xs px-1" title="Move up">↑</button>
+                    )}
+                    {idx < arr.length - 1 && (
+                      <button onClick={(e) => { e.stopPropagation(); moveDown(); }} className="text-[#a89880] hover:text-[#514636] text-xs px-1" title="Move down">↓</button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleTogglePick(opt.id); }}
+                      className="text-[#c8bba8] hover:text-red-400 text-xs px-1"
+                    >✕</button>
+                  </div>
                 </div>
               );
             })}
