@@ -368,6 +368,10 @@ export default function TripOverview() {
                 } catch { showToast("Couldn't remove trip", "error"); }
               }}
               onNewTrip={() => { setShowTripSwitcher(false); setShowCreate(true); }}
+              onRename={(id, newName) => {
+                setAllTrips(prev => prev.map(t => t.id === id ? { ...t, name: newName } : t));
+                if (trip && trip.id === id) setTrip({ ...trip, name: newName });
+              }}
             />
           </div>
         </div>
@@ -1109,23 +1113,30 @@ function timeAgo(dateStr: string | null | undefined): string {
 }
 
 function TripSwitcherList({
-  trips, currentTripId, onSwitch, onDelete, onNewTrip,
+  trips, currentTripId, onSwitch, onDelete, onNewTrip, onRename,
 }: {
   trips: Trip[];
   currentTripId: string;
   onSwitch: (id: string) => void;
   onDelete: (id: string) => void;
   onNewTrip: () => void;
+  onRename: (id: string, newName: string) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const savingRef = useRef(false);
 
   async function saveName(tripId: string) {
-    if (!editName.trim()) { setEditingId(null); return; }
+    if (savingRef.current) return;
+    const trimmed = editName.trim();
+    if (!trimmed) { setEditingId(null); return; }
+    savingRef.current = true;
     try {
-      await api.patch(`/trips/${tripId}`, { name: editName.trim() });
-      setEditingId(null);
+      await api.patch(`/trips/${tripId}`, { name: trimmed });
+      onRename(tripId, trimmed);
     } catch { /* ignore */ }
+    setEditingId(null);
+    savingRef.current = false;
   }
 
   // Sort by lastOpenedAt descending, nulls last
