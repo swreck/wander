@@ -210,6 +210,38 @@ router.post("/pull", async (req: AuthRequest, res) => {
       }
     }
 
+    // Sync date-column assignments from Guide → Wander
+    // When Larisa puts a ✓ in a date column, assign that activity to that day
+    let dateAssignmentCount = 0;
+    for (const act of data.activities) {
+      for (const da of act.dateAssignments) {
+        if (!da.assigned) continue;
+
+        // Find the experience in Wander
+        const match = findBestMatch(act.name, existingNames);
+        if (!match) continue;
+        const exp = existingExps.find(e => e.name === match);
+        if (!exp || exp.state === "selected") continue; // Already assigned, skip
+
+        // Find the day for this date
+        const dateStart = new Date(da.date + "T00:00:00Z");
+        const dateEnd = new Date(da.date + "T23:59:59Z");
+        const day = await prisma.day.findFirst({
+          where: { tripId, date: { gte: dateStart, lte: dateEnd } },
+        });
+        if (!day) continue;
+
+        await prisma.experience.update({
+          where: { id: exp.id },
+          data: { state: "selected", dayId: day.id },
+        });
+        dateAssignmentCount++;
+      }
+    }
+    if (dateAssignmentCount > 0) {
+      addedCount += dateAssignmentCount;
+    }
+
     // Update sync config
     await prisma.sheetSyncConfig.update({
       where: { tripId },

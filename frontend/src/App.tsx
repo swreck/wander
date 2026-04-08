@@ -27,6 +27,7 @@ import ReflectionCard from "./components/ReflectionCard";
 import SyncIndicator from "./components/SyncIndicator";
 import BottomNav from "./components/BottomNav";
 import AutoSync from "./components/AutoSync";
+import UpdatePrompt from "./components/UpdatePrompt";
 import NewMemberOnboarding from "./components/NewMemberOnboarding";
 import { shouldShowOnboarding } from "./components/NewMemberOnboarding";
 import React, { useState, useEffect, useCallback } from "react";
@@ -369,6 +370,7 @@ export default function App() {
               <SyncNotifier />
               <SyncIndicator />
               <AutoSync />
+              <UpdatePrompt />
               <BottomNav />
               <OnboardingOverlay />
               <ReflectionOverlay />
