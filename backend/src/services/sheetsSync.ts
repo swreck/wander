@@ -558,6 +558,35 @@ export function findBestMatch(name: string, candidates: string[], threshold = 0.
   return bestMatch;
 }
 
+// ── Version Snapshot (safety net before sync) ────────────────
+
+export async function createVersionSnapshot(spreadsheetId: string, label: string): Promise<string | null> {
+  try {
+    const drive = getDriveClient();
+    // List existing revisions to get the latest
+    const revisions = await drive.revisions.list({ fileId: spreadsheetId, fields: "revisions(id)" });
+    const latestRevId = revisions.data.revisions?.slice(-1)[0]?.id;
+    if (!latestRevId) return null;
+
+    // Pin this revision so it's not auto-pruned, and label it
+    await drive.revisions.update({
+      fileId: spreadsheetId,
+      revisionId: latestRevId,
+      requestBody: {
+        keepForever: true,
+        // Note: Google Drive API doesn't support custom labels on revisions via API,
+        // but keepForever prevents auto-deletion. The timestamp in the sync log serves as the label.
+      },
+    });
+
+    console.log(`[sheets-sync] Pinned revision ${latestRevId}: ${label}`);
+    return latestRevId;
+  } catch (err: any) {
+    console.warn(`[sheets-sync] Could not pin revision: ${err.message}`);
+    return null;
+  }
+}
+
 // ── Cell Formatting (Wander origin tint) ─────────────────────
 
 const WANDER_TINT = { red: 1.0, green: 0.976, blue: 0.902, alpha: 1.0 }; // #FFF9E6

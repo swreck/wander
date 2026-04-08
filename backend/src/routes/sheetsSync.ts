@@ -20,6 +20,7 @@ import {
   writeToSheet,
   appendToSheet,
   tintCells,
+  createVersionSnapshot,
 } from "../services/sheetsSync.js";
 
 const router = Router();
@@ -67,6 +68,12 @@ router.post("/pull", async (req: AuthRequest, res) => {
       res.status(404).json({ error: "No sync config for this trip" });
       return;
     }
+
+    // Safety net: pin the current revision before modifying anything
+    const snapshotId = await createVersionSnapshot(
+      config.spreadsheetId,
+      `Pre-pull ${new Date().toISOString()}`,
+    );
 
     const data = await readSpreadsheet(config.spreadsheetId);
     const conflicts: any[] = [];
@@ -260,6 +267,9 @@ router.post("/push", async (req: AuthRequest, res) => {
       res.status(404).json({ error: "No sync config for this trip" });
       return;
     }
+
+    // Safety net: pin revision before writing
+    await createVersionSnapshot(config.spreadsheetId, `Pre-push ${new Date().toISOString()}`);
 
     // Read current spreadsheet state
     const sheetData = await readSpreadsheet(config.spreadsheetId);
