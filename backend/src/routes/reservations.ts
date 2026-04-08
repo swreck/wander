@@ -22,6 +22,7 @@ router.post("/", async (req: AuthRequest, res) => {
   if (!dayId) { res.status(400).json({ error: "dayId is required" }); return; }
   if (!name?.trim()) { res.status(400).json({ error: "Reservation name is required" }); return; }
   if (!datetime) { res.status(400).json({ error: "datetime is required" }); return; }
+  if (!type) { res.status(400).json({ error: "type is required" }); return; }
 
   // Validate dayId belongs to this trip
   const day = await prisma.day.findUnique({ where: { id: dayId } });

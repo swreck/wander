@@ -4,10 +4,19 @@ import { useToast } from "../contexts/ToastContext";
 import type { RouteSegment } from "../lib/types";
 
 const MODE_EMOJI: Record<string, string> = {
-  flight: "\u2708\uFE0F", train: "\uD83D\uDE83", ferry: "\u26F4\uFE0F", drive: "\uD83D\uDE97", other: "\uD83D\uDE90",
+  flight: "\u2708\uFE0F",
+  train: "\uD83D\uDE83",
+  ferry: "\u26F4\uFE0F",
+  drive: "\uD83D\uDE97",
+  subway: "\uD83D\uDE87",
+  bus: "\uD83D\uDE8C",
+  taxi: "\uD83D\uDE95",
+  shuttle: "\uD83D\uDE90",
+  walk: "\uD83D\uDEB6",
+  other: "\uD83D\uDCCD",
 };
 
-const MODES = ["flight", "train", "ferry", "drive", "other"] as const;
+const MODES = ["flight", "train", "ferry", "drive", "subway", "bus", "taxi", "shuttle", "walk", "other"] as const;
 
 interface Props {
   tripId: string;
@@ -18,16 +27,18 @@ interface Props {
 function SegmentForm({
   initial,
   tripId,
+  prefillOrigin,
   onSave,
   onCancel,
 }: {
   initial?: RouteSegment;
   tripId: string;
-  onSave: () => void;
+  prefillOrigin?: string;
+  onSave: (saved: RouteSegment) => void;
   onCancel: () => void;
 }) {
   const { showToast } = useToast();
-  const [originCity, setOriginCity] = useState(initial?.originCity || "");
+  const [originCity, setOriginCity] = useState(initial?.originCity || prefillOrigin || "");
   const [destinationCity, setDestinationCity] = useState(initial?.destinationCity || "");
   const [mode, setMode] = useState(initial?.transportMode || "train");
   const [depDate, setDepDate] = useState(initial?.departureDate?.split("T")[0] || "");
@@ -61,20 +72,23 @@ function SegmentForm({
         notes: notes || null,
       };
 
+      let result: RouteSegment;
       if (initial) {
-        await api.patch(`/route-segments/${initial.id}`, data);
+        const resp = await api.patch(`/route-segments/${initial.id}`, data);
+        result = resp.data;
       } else {
-        await api.post("/route-segments", {
+        const resp = await api.post("/route-segments", {
           ...data,
           tripId,
           originCity: originCity.trim(),
           destinationCity: destinationCity.trim(),
         });
+        result = resp.data;
       }
       showToast("Got it");
-      onSave();
+      onSave(result);
     } catch {
-      showToast("That didn't save — try again?", "error");
+      showToast("That didn't save \u2014 try again?", "error");
     } finally {
       setSaving(false);
     }
@@ -86,11 +100,12 @@ function SegmentForm({
       {!initial && (
         <div className="flex gap-2">
           <input type="text" value={originCity} onChange={(e) => setOriginCity(e.target.value)}
-            placeholder="From city"
-            className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
+            placeholder="From"
+            className={`flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400 ${prefillOrigin ? "bg-amber-100/60" : ""}`} />
           <span className="text-amber-400 self-center">&rarr;</span>
           <input type="text" value={destinationCity} onChange={(e) => setDestinationCity(e.target.value)}
-            placeholder="To city"
+            placeholder="To"
+            autoFocus={!!prefillOrigin}
             className="flex-1 px-2 py-1.5 rounded border border-amber-200 text-sm text-[#3a3128] placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-amber-400" />
         </div>
       )}
@@ -176,16 +191,18 @@ function SegmentCard({
   segment,
   onRefresh,
   tripId,
+  showConnector,
 }: {
   segment: RouteSegment;
   onRefresh: () => void;
   tripId: string;
+  showConnector: boolean;
 }) {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const emoji = MODE_EMOJI[segment.transportMode.toLowerCase()] || "\uD83D\uDE90";
+  const emoji = MODE_EMOJI[segment.transportMode.toLowerCase()] || "\uD83D\uDCCD";
 
   async function handleDelete() {
     try {
@@ -193,7 +210,7 @@ function SegmentCard({
       showToast("Removed");
       onRefresh();
     } catch {
-      showToast("Couldn't remove that — try again?", "error");
+      showToast("Couldn't remove that \u2014 try again?", "error");
     }
   }
 
@@ -209,66 +226,108 @@ function SegmentCard({
   }
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
-      <div
-        className="px-3 py-2.5 cursor-pointer hover:bg-amber-100 transition-colors"
-        onClick={() => setEditing(true)}
-      >
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-medium text-amber-800">
-            {emoji} {segment.originCity} &rarr; {segment.destinationCity}
+    <div className="relative">
+      {/* Connector line from previous segment */}
+      {showConnector && (
+        <div className="flex flex-col items-center -mt-1 mb-1">
+          <div className="w-px h-4 bg-amber-300" />
+          <div className="text-amber-400 text-xs leading-none">\u25BC</div>
+        </div>
+      )}
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
+        <div
+          className="px-3 py-2.5 cursor-pointer hover:bg-amber-100 transition-colors"
+          onClick={() => setEditing(true)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium text-amber-800">
+              {emoji} {segment.originCity} &rarr; {segment.destinationCity}
+            </div>
+            <span className="text-xs text-amber-500">tap to edit</span>
           </div>
-          <span className="text-xs text-amber-500">tap to edit</span>
+
+          <div className="mt-1 space-y-0.5">
+            <div className="text-sm text-amber-700">
+              {segment.transportMode.charAt(0).toUpperCase() + segment.transportMode.slice(1)}
+              {segment.serviceNumber && ` \u00B7 ${segment.serviceNumber}`}
+              {segment.departureDate && ` \u00B7 ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`}
+            </div>
+            {(segment.departureTime || segment.arrivalTime) && (
+              <div className="text-sm text-amber-600">
+                {segment.departureTime && `Depart ${segment.departureTime}`}
+                {segment.departureTime && segment.arrivalTime && " \u2192 "}
+                {segment.arrivalTime && `Arrive ${segment.arrivalTime}`}
+              </div>
+            )}
+            {(segment.departureStation || segment.arrivalStation) && (
+              <div className="text-sm text-amber-600">
+                {segment.departureStation}{segment.departureStation && segment.arrivalStation && " \u2192 "}{segment.arrivalStation}
+              </div>
+            )}
+            {segment.confirmationNumber && (
+              <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied"); }}
+                className="text-xs text-amber-500 hover:text-amber-700 transition-colors">Conf: {segment.confirmationNumber} \uD83D\uDCCB</button>
+            )}
+            {segment.seatInfo && (
+              <div className="text-xs text-amber-500">Seat: {segment.seatInfo}</div>
+            )}
+            {segment.notes && (
+              <div className="text-sm text-amber-600 italic">{segment.notes}</div>
+            )}
+          </div>
         </div>
 
-        <div className="mt-1 space-y-0.5">
-          <div className="text-sm text-amber-700">
-            {segment.transportMode.charAt(0).toUpperCase() + segment.transportMode.slice(1)}
-            {segment.serviceNumber && ` \u00B7 ${segment.serviceNumber}`}
-            {segment.departureDate && ` \u00B7 ${new Date(segment.departureDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`}
-          </div>
-          {(segment.departureTime || segment.arrivalTime) && (
-            <div className="text-sm text-amber-600">
-              {segment.departureTime && `Depart ${segment.departureTime}`}
-              {segment.departureTime && segment.arrivalTime && " \u2192 "}
-              {segment.arrivalTime && `Arrive ${segment.arrivalTime}`}
+        {/* Delete button */}
+        <div className="px-3 py-1.5 border-t border-amber-100 flex justify-end">
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-amber-600">Remove this?</span>
+              <button onClick={handleDelete}
+                className="text-xs text-red-600 font-medium hover:text-red-800">Yes</button>
+              <button onClick={() => setConfirmDelete(false)}
+                className="text-xs text-amber-500 hover:text-amber-700">No</button>
             </div>
-          )}
-          {(segment.departureStation || segment.arrivalStation) && (
-            <div className="text-sm text-amber-600">
-              {segment.departureStation}{segment.departureStation && segment.arrivalStation && " \u2192 "}{segment.arrivalStation}
-            </div>
-          )}
-          {segment.confirmationNumber && (
-            <button onClick={() => { navigator.clipboard.writeText(segment.confirmationNumber!); showToast("Copied"); }}
-              className="text-xs text-amber-500 hover:text-amber-700 transition-colors">Conf: {segment.confirmationNumber} 📋</button>
-          )}
-          {segment.seatInfo && (
-            <div className="text-xs text-amber-500">Seat: {segment.seatInfo}</div>
-          )}
-          {segment.notes && (
-            <div className="text-sm text-amber-600 italic">{segment.notes}</div>
+          ) : (
+            <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+              className="text-xs text-amber-400 hover:text-red-500 transition-colors">
+              Delete
+            </button>
           )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Delete button */}
-      <div className="px-3 py-1.5 border-t border-amber-100 flex justify-end">
-        {confirmDelete ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-amber-600">Remove this?</span>
-            <button onClick={handleDelete}
-              className="text-xs text-red-600 font-medium hover:text-red-800">Yes</button>
-            <button onClick={() => setConfirmDelete(false)}
-              className="text-xs text-amber-500 hover:text-amber-700">No</button>
-          </div>
-        ) : (
-          <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-            className="text-xs text-amber-400 hover:text-red-500 transition-colors">
-            Delete
-          </button>
-        )}
-      </div>
+/** Summarize a connected journey like "Tokyo → Kyoto → Osaka" */
+function JourneySummary({ segments }: { segments: RouteSegment[] }) {
+  if (segments.length < 2) return null;
+
+  // Build chain of unique cities in order
+  const cities: string[] = [segments[0].originCity];
+  for (const seg of segments) {
+    if (cities[cities.length - 1] !== seg.destinationCity) {
+      cities.push(seg.destinationCity);
+    }
+  }
+
+  // Only show summary if it's actually a chain (not disconnected segments)
+  const isChain = segments.every((seg, i) =>
+    i === 0 || seg.originCity.toLowerCase() === segments[i - 1].destinationCity.toLowerCase()
+  );
+  if (!isChain) return null;
+
+  return (
+    <div className="text-xs text-amber-600 bg-amber-50/50 px-3 py-1.5 rounded-md mb-2 flex items-center gap-1.5 flex-wrap">
+      <span className="text-amber-400 font-medium">Journey:</span>
+      {cities.map((city, i) => (
+        <span key={i} className="flex items-center gap-1.5">
+          {i > 0 && <span className="text-amber-300">&rarr;</span>}
+          <span className="font-medium text-amber-700">{city}</span>
+        </span>
+      ))}
+      <span className="text-amber-400 ml-1">({segments.length} leg{segments.length !== 1 ? "s" : ""})</span>
     </div>
   );
 }
@@ -278,6 +337,27 @@ export default function RouteSegmentsPanel({ tripId, segments, onRefresh }: Prop
     try { return localStorage.getItem("wander:route-segments-expanded") === "true"; } catch { return false; }
   });
   const [adding, setAdding] = useState(false);
+  const [prefillOrigin, setPrefillOrigin] = useState("");
+
+  const lastSegment = segments.length > 0 ? segments[segments.length - 1] : null;
+
+  function handleSegmentSaved(_saved: RouteSegment) {
+    setAdding(false);
+    setPrefillOrigin("");
+    onRefresh();
+  }
+
+  function handleAddAnotherLeg() {
+    if (lastSegment) {
+      setPrefillOrigin(lastSegment.destinationCity);
+    }
+    setAdding(true);
+  }
+
+  function handleAddFirst() {
+    setPrefillOrigin("");
+    setAdding(true);
+  }
 
   return (
     <section className="mb-6">
@@ -292,32 +372,71 @@ export default function RouteSegmentsPanel({ tripId, segments, onRefresh }: Prop
         <h2 className="text-sm font-medium text-[#3a3128]">
           Travel
           {segments.length > 0 && (
-            <span className="ml-2 text-[#a89880] font-normal">{segments.length} segment{segments.length !== 1 ? "s" : ""}</span>
+            <span className="ml-2 text-[#a89880] font-normal">{segments.length} leg{segments.length !== 1 ? "s" : ""}</span>
           )}
         </h2>
         <span className="text-sm text-[#a89880]">{expanded ? "\u25B4" : "\u25BE"}</span>
       </button>
 
       {expanded && (
-        <div className="space-y-2">
-          {segments.map((seg) => (
-            <SegmentCard key={seg.id} segment={seg} tripId={tripId} onRefresh={onRefresh} />
+        <div className="space-y-0">
+          <JourneySummary segments={segments} />
+
+          {segments.map((seg, i) => (
+            <SegmentCard
+              key={seg.id}
+              segment={seg}
+              tripId={tripId}
+              onRefresh={onRefresh}
+              showConnector={i > 0}
+            />
           ))}
 
           {adding ? (
-            <SegmentForm
-              tripId={tripId}
-              onSave={() => { setAdding(false); onRefresh(); }}
-              onCancel={() => setAdding(false)}
-            />
+            <div className={segments.length > 0 ? "mt-2" : ""}>
+              {segments.length > 0 && prefillOrigin && (
+                <div className="flex flex-col items-center mb-1">
+                  <div className="w-px h-4 bg-amber-300" />
+                  <div className="text-amber-400 text-xs leading-none">{"\u25BC"}</div>
+                </div>
+              )}
+              <SegmentForm
+                tripId={tripId}
+                prefillOrigin={prefillOrigin}
+                onSave={handleSegmentSaved}
+                onCancel={() => { setAdding(false); setPrefillOrigin(""); }}
+              />
+            </div>
           ) : (
-            <button
-              onClick={() => setAdding(true)}
-              className="w-full py-2 rounded-lg border border-dashed border-amber-300 text-sm text-amber-600
-                         hover:bg-amber-50 hover:border-amber-400 transition-colors"
-            >
-              {segments.length === 0 ? "+ Add your first travel segment" : "+ Add segment"}
-            </button>
+            <div className={`flex gap-2 ${segments.length > 0 ? "mt-2" : ""}`}>
+              {segments.length === 0 ? (
+                <button
+                  onClick={handleAddFirst}
+                  className="w-full py-2 rounded-lg border border-dashed border-amber-300 text-sm text-amber-600
+                             hover:bg-amber-50 hover:border-amber-400 transition-colors"
+                >
+                  + Add your first travel leg
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleAddAnotherLeg}
+                    className="flex-1 py-2 rounded-lg border border-dashed border-amber-300 text-sm text-amber-600
+                               hover:bg-amber-50 hover:border-amber-400 transition-colors"
+                  >
+                    + Add another leg from {lastSegment?.destinationCity}
+                  </button>
+                  <button
+                    onClick={handleAddFirst}
+                    className="py-2 px-3 rounded-lg border border-dashed border-amber-200 text-sm text-amber-400
+                               hover:bg-amber-50 hover:border-amber-300 hover:text-amber-600 transition-colors"
+                    title="Add a leg with a different starting point"
+                  >
+                    + New
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
       )}

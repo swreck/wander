@@ -29,9 +29,31 @@ import { useAuth } from "../contexts/AuthContext";
 import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
 import ContributorView from "./ContributorView";
 
+function SyncBadge({ exp }: { exp: Experience }) {
+  const [showTip, setShowTip] = useState(false);
+  if (!exp.sheetRowRef) return null;
+  return (
+    <span className="relative ml-0.5 shrink-0">
+      <button
+        className="text-[#b8a990] hover:text-[#8a7a62] text-xs leading-none transition-colors"
+        onClick={(e) => { e.stopPropagation(); setShowTip(!showTip); }}
+        title="Synced with Larisa's Japan Guide"
+      >↔</button>
+      {showTip && (
+        <span
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#3a3128] text-white text-[10px] whitespace-nowrap z-50 shadow-lg"
+          onClick={(e) => { e.stopPropagation(); setShowTip(false); }}
+        >Synced with Larisa's Japan Guide</span>
+      )}
+    </span>
+  );
+}
+
 function CreatorBadge({ exp }: { exp: Experience }) {
   // Show creator's first initial until someone else edits
   if (exp.lastEditedBy && exp.lastEditedBy !== exp.createdBy) return null;
+  // Don't attribute items that were bulk-imported — the importer isn't the "creator" in a meaningful sense
+  if (exp.sourceText && /import|merged/i.test(exp.sourceText)) return null;
 
   const color = getContributorColor(exp.createdBy);
   const initial = getContributorInitial(exp.createdBy);
@@ -352,7 +374,9 @@ function GripHandle({ listeners, attributes }: { listeners: Record<string, unkno
 // ── Sortable Item (selected zone) ──────────────────────────────────
 function SortableSelectedItem({
   exp,
+  days,
   onDemote,
+  onMove,
   onExperienceClick,
   onHover,
   locatingId,
@@ -362,7 +386,9 @@ function SortableSelectedItem({
   onInterestChanged,
 }: {
   exp: Experience;
+  days: Day[];
   onDemote: (id: string) => void;
+  onMove: (expId: string, dayId: string) => void;
   onExperienceClick: (id: string) => void;
   onHover?: (id: string | null) => void;
   locatingId: string | null;
@@ -375,6 +401,8 @@ function SortableSelectedItem({
     id: exp.id,
     data: { zone: "selected", experience: exp },
   });
+
+  const [showMovePicker, setShowMovePicker] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -409,6 +437,7 @@ function SortableSelectedItem({
                 </button>
               )}
               <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
+              <SyncBadge exp={exp} />
               <CreatorBadge exp={exp} />
               <GroupInterestBadge exp={exp} interest={interest} onInterestChanged={onInterestChanged} />
               {exp.timeWindow && (
@@ -416,6 +445,13 @@ function SortableSelectedItem({
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowMovePicker(!showMovePicker); }}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-[#e0d8cc] text-[#8a7a62] hover:text-[#514636] hover:border-[#a89880] transition-colors"
+                title="Move to a different day"
+              >
+                Move
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onExperienceClick(exp.id); }}
                 className="w-5 h-5 rounded-full border border-[#e0d8cc] text-[#a89880] hover:text-[#6b5d4a]
@@ -427,13 +463,29 @@ function SortableSelectedItem({
               <button
                 onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
                 className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
-                title="Remove from itinerary (keep as idea)"
+                title="Back to ideas"
               >
                 &darr;
               </button>
             </div>
           </div>
         </div>
+        {showMovePicker && (
+          <div className="px-3 py-2 flex flex-wrap gap-1 bg-[#faf8f5] border-t border-[#f0ece5]">
+            {days.filter(d => d.id !== exp.dayId).map(d => {
+              const date = new Date(d.date);
+              return (
+                <button
+                  key={d.id}
+                  onClick={(e) => { e.stopPropagation(); onMove(exp.id, d.id); setShowMovePicker(false); }}
+                  className="px-2 py-1 rounded text-[11px] bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e0d8cc] transition-colors"
+                >
+                  {date.toLocaleDateString("en-US", { weekday: "short", day: "numeric", timeZone: "UTC" })}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {locatingId === exp.id && (
           <LocationResolver exp={exp} onResolved={() => { setLocatingId(null); onLocationResolved(); }} />
         )}
@@ -504,7 +556,9 @@ function SortablePossibleItem({
         <div className="flex items-center gap-2">
           <GripHandle listeners={listeners as Record<string, unknown>} attributes={attributes} />
           <div className="flex-1 min-w-0 flex items-center justify-between">
-            <span className="text-sm text-[#6b5d4a] truncate flex items-center gap-1">
+            <span className="text-sm text-[#6b5d4a] truncate flex items-center gap-1 cursor-pointer hover:text-[#3a3128] transition-colors"
+              onClick={(e) => { e.stopPropagation(); onExperienceClick(exp.id); }}
+            >
               {exp.locationStatus !== "confirmed" && (
                 <button
                   title="Tap to set map location"
@@ -516,6 +570,7 @@ function SortablePossibleItem({
                 </button>
               )}
               {exp.name}
+              <SyncBadge exp={exp} />
               <CreatorBadge exp={exp} />
               <GroupInterestBadge exp={exp} interest={interest} onInterestChanged={onInterestChanged} />
             </span>
@@ -589,12 +644,85 @@ function DragOverlayItem({ exp }: { exp: Experience }) {
           <circle cx="9" cy="15" r="1.5" />
         </svg>
         <span className="text-sm font-medium text-[#3a3128]">{exp.name}</span>
+        <SyncBadge exp={exp} />
       </div>
     </div>
   );
 }
 
-// ── Decision Group ────────────────────────────────────────────────
+// ── Resolved Decisions (collapsed "Decided" cards) ───────────────
+function ResolvedDecisions({ tripId, cityId }: { tripId: string; cityId: string }) {
+  const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tripId) return;
+    api.get<Decision[]>(`/decisions/trip/${tripId}/resolved`)
+      .then((decs) => setDecisions(decs.filter((d) => d.cityId === cityId)))
+      .catch(() => {});
+  }, [tripId, cityId]);
+
+  if (decisions.length === 0) return null;
+
+  return (
+    <div className="space-y-1.5 mb-3">
+      {decisions.map((dec) => {
+        const winner = dec.options.find((o) => o.state === "selected");
+        const isExpanded = expandedId === dec.id;
+        const allThoughts = dec.options
+          .flatMap((opt) => (opt.notes || []).map((note) => ({ ...note, optionName: opt.name })))
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+        return (
+          <div key={dec.id} className="rounded-xl border border-green-200/80 bg-green-50/30 p-3">
+            <div className="flex items-center gap-2">
+              <span className="text-green-600 text-sm">✓</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-[#3a3128]">
+                  {winner ? `Going with ${winner.name}` : dec.title}
+                </span>
+                {dec.resolvedAt && (
+                  <div className="text-[11px] text-[#a89880] mt-0.5">
+                    Decided {new Date(dec.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : dec.id)}
+                className="text-[11px] text-[#a89880] hover:text-[#6b5d4a] transition-colors shrink-0"
+              >
+                {isExpanded ? "Hide" : "See the conversation"}
+              </button>
+            </div>
+            {isExpanded && (
+              <div className="mt-2.5 pt-2 border-t border-green-200/40 space-y-2">
+                {allThoughts.length > 0 ? allThoughts.map((note) => (
+                  <div key={note.id} className="flex gap-2 items-start">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#f0ebe3] text-[#6b5d4a] text-[10px] font-medium shrink-0 mt-0.5">
+                      {note.traveler.displayName[0]}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-medium text-[#6b5d4a]">{note.traveler.displayName}</span>
+                      <span className="text-[11px] text-[#a89880]"> on {note.optionName}</span>
+                      <p className="text-xs text-[#3a3128] leading-relaxed mt-0.5">{note.content}</p>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-[11px] text-[#a89880]">No conversation recorded</div>
+                )}
+                <div className="text-[11px] text-[#a89880] mt-1">
+                  Options considered: {dec.options.map((o) => o.name).join(", ")}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Decision Group (conversational decision UI) ──────────────────
 function DecisionGroup({
   decision,
   onDecisionsChanged,
@@ -612,27 +740,82 @@ function DecisionGroup({
   const [adding, setAdding] = useState(false);
   const [voting, setVoting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [thoughtOption, setThoughtOption] = useState<string | null>(null);
+  const [thoughtTexts, setThoughtTexts] = useState<Record<string, string>>({});
+  const [submittingThought, setSubmittingThought] = useState(false);
+  const [confirmResolve, setConfirmResolve] = useState<string | null>(null);
 
-  const myVote = decision.votes.find((v) => v.userCode === user?.code);
-  const isHappyWithAny = myVote && myVote.optionId === null;
+  const myVotes = decision.votes.filter((v) => v.userCode === user?.code).sort((a, b) => (a.rank || 1) - (b.rank || 1));
+  const myPickIds = myVotes.map(v => v.optionId).filter(Boolean);
+  const isHappyWithAny = myVotes.length === 1 && myVotes[0].optionId === null;
 
-  async function handleVote(optionId: string | null) {
+  function getMyRank(optionId: string): number | null {
+    const vote = myVotes.find(v => v.optionId === optionId);
+    return vote ? (vote.rank || 1) : null;
+  }
+
+  async function handleTogglePick(optionId: string) {
     if (voting) return;
     setVoting(true);
     try {
-      await api.post(`/decisions/${decision.id}/vote`, { optionId });
+      const currentRank = getMyRank(optionId);
+      let newRankings;
+      if (currentRank) {
+        // Remove this pick, shift others up
+        newRankings = myVotes
+          .filter(v => v.optionId !== optionId)
+          .map((v, i) => ({ optionId: v.optionId, rank: i + 1 }));
+      } else if (myPickIds.length >= 3) {
+        // Already have 3 picks, ignore
+        showToast("You've picked your top 3 — tap one to remove it first");
+        setVoting(false);
+        return;
+      } else {
+        // Add this pick at the next rank
+        newRankings = [
+          ...myVotes.filter(v => v.optionId).map(v => ({ optionId: v.optionId, rank: v.rank || 1 })),
+          { optionId, rank: myPickIds.length + 1 },
+        ];
+      }
+      await api.post(`/decisions/${decision.id}/vote`, { rankings: newRankings });
       onDecisionsChanged();
     } catch {
-      showToast("Vote didn't stick — try again?", "error");
+      showToast("That didn't stick — try again?", "error");
     }
     setVoting(false);
   }
 
-  async function handleResolve(winnerIds: string[]) {
+  async function handleHappyWithAny() {
+    if (voting) return;
+    setVoting(true);
+    try {
+      await api.post(`/decisions/${decision.id}/vote`, {});
+      showToast("Got it — you're flexible");
+      onDecisionsChanged();
+    } catch {
+      showToast("That didn't stick — try again?", "error");
+    }
+    setVoting(false);
+  }
+
+  async function handleResolve(winnerId: string) {
     setResolving(true);
     try {
-      await api.post(`/decisions/${decision.id}/resolve`, { winnerIds });
-      showToast("Settled!");
+      const winner = decision.options.find((o) => o.id === winnerId);
+      await api.post(`/decisions/${decision.id}/resolve`, { winnerIds: [winnerId] });
+      showToast(`Going with ${winner?.name || "that one"}`, "success", {
+        duration: 12000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            try {
+              // Re-open by creating a fresh decision with same options
+              showToast("Can't undo yet — ask Scout to help", "error");
+            } catch { /* fallback */ }
+          },
+        },
+      });
+      setConfirmResolve(null);
       onDecisionsChanged();
     } catch {
       showToast("That didn't go through — try again?", "error");
@@ -647,6 +830,7 @@ function DecisionGroup({
       await api.post(`/decisions/${decision.id}/options`, { name: newOptionName.trim() });
       setNewOptionName("");
       setShowAddOption(false);
+      showToast("Added");
       onDecisionsChanged();
     } catch {
       showToast("Couldn't add that — try again?", "error");
@@ -654,23 +838,41 @@ function DecisionGroup({
     setAdding(false);
   }
 
+  async function handleAddThought(experienceId: string) {
+    const text = thoughtTexts[experienceId]?.trim();
+    if (!text || submittingThought) return;
+    setSubmittingThought(true);
+    try {
+      await api.post("/experience-notes", { experienceId, content: text });
+      setThoughtTexts((prev) => ({ ...prev, [experienceId]: "" }));
+      setThoughtOption(null);
+      showToast("Shared");
+      onDecisionsChanged();
+    } catch {
+      showToast("Couldn't share that — try again?", "error");
+    }
+    setSubmittingThought(false);
+  }
+
   async function handleDelete() {
     try {
       await api.delete(`/decisions/${decision.id}`);
       setConfirmingDelete(false);
-      showToast("Cleared");
+      showToast("Decision removed — options are back in your ideas");
       onDecisionsChanged();
     } catch {
       showToast("That didn't go through — check your connection?", "error");
     }
   }
 
-  // Count votes per option
+  // ── Derived state ──
+
+  // Vote counts per option
   const voteCounts = new Map<string, { voters: string[] }>();
-  let happyWithAnyCount = 0;
+  let happyWithAnyVoters: string[] = [];
   for (const v of decision.votes) {
     if (v.optionId === null) {
-      happyWithAnyCount++;
+      happyWithAnyVoters.push(v.displayName);
     } else {
       const existing = voteCounts.get(v.optionId) || { voters: [] };
       existing.voters.push(v.displayName);
@@ -678,153 +880,279 @@ function DecisionGroup({
     }
   }
 
-  // Find the leading option(s)
+  // Find the single leading option (not ties)
   let maxVotes = 0;
   for (const [, { voters }] of voteCounts) {
     if (voters.length > maxVotes) maxVotes = voters.length;
   }
-  const leaders = maxVotes > 0
-    ? decision.options.filter((o) => (voteCounts.get(o.id)?.voters.length || 0) === maxVotes).map((o) => o.id)
+  const leadingOptions = maxVotes > 0
+    ? decision.options.filter((o) => (voteCounts.get(o.id)?.voters.length || 0) === maxVotes)
     : [];
+  const hasCleanLeader = leadingOptions.length === 1 && maxVotes > 0;
+  const leader = hasCleanLeader ? leadingOptions[0] : null;
 
-  // 3-day nudge
+  // Who's participated (voted or shared a thought)
+  const participantNames = new Set<string>();
+  for (const v of decision.votes) participantNames.add(v.displayName);
+  for (const opt of decision.options) {
+    for (const n of opt.notes || []) participantNames.add(n.traveler.displayName);
+  }
+
+  // Collect all thoughts across options, chronological
+  const allThoughts = decision.options
+    .flatMap((opt) => (opt.notes || []).map((note) => ({ ...note, optionName: opt.name, optionId: opt.id })))
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  // Staleness
   const ageMs = Date.now() - new Date(decision.createdAt).getTime();
   const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
   const isStale = ageDays >= 3;
 
+  // Helpers
+  function googleRating(opt: typeof decision.options[0]) {
+    const r = opt.ratings?.find((r: any) => r.platform === "google");
+    return r ? `★ ${r.ratingValue}` : null;
+  }
+
+  const totalVotes = decision.votes.filter((v) => v.optionId !== null).length;
+
   return (
-    <div className={`rounded-lg border-2 p-2.5 ${isStale ? "border-amber-400 bg-amber-100/60" : "border-amber-200 bg-amber-50/50"}`}>
-      {isStale && (
-        <div className="text-xs text-amber-700 mb-1.5 font-medium">
-          Open {ageDays} days — time to decide?
+    <div className={`rounded-xl border-2 p-3 ${isStale ? "border-amber-400 bg-amber-50/80" : "border-amber-200/80 bg-[#fdfbf7]"}`}>
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <div className="text-sm font-medium text-[#3a3128]">{decision.title}</div>
+          <div className="text-[11px] text-[#a89880] mt-0.5">
+            {participantNames.size > 0
+              ? `${[...participantNames].join(", ")} ${participantNames.size === 1 ? "has" : "have"} weighed in`
+              : "No one has weighed in yet"
+            }
+            {isStale && <span className="text-amber-600 font-medium"> · open {ageDays} days</span>}
+          </div>
         </div>
-      )}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-amber-700">{decision.title}</span>
         {confirmingDelete ? (
-          <span className="flex items-center gap-1.5">
-            <span className="text-xs text-[#6b5d4a]">Clear this? Votes go away</span>
-            <button
-              onClick={handleDelete}
-              className="text-xs text-red-500 font-medium hover:text-red-700 transition-colors"
-            >
-              Clear
-            </button>
-            <button
-              onClick={() => setConfirmingDelete(false)}
-              className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
-            >
-              Keep
-            </button>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <button onClick={handleDelete} className="text-xs text-red-500 font-medium hover:text-red-700">Remove</button>
+            <button onClick={() => setConfirmingDelete(false)} className="text-xs text-[#a89880] hover:text-[#514636]">Keep</button>
           </span>
         ) : (
-          <button
-            onClick={() => setConfirmingDelete(true)}
-            className="text-xs text-[#c8bba8] hover:text-red-500 transition-colors"
-            title="Cancel decision"
-          >
-            &times;
-          </button>
+          <button onClick={() => setConfirmingDelete(true)} className="text-[#c8bba8] hover:text-red-500 text-sm leading-none p-1" title="Remove decision">&times;</button>
         )}
       </div>
 
+      {/* ── Conversation: what people are saying ── */}
+      {allThoughts.length > 0 && (
+        <div className="mb-3 space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-[#a89880] font-medium">What people are saying</div>
+          {allThoughts.map((note) => (
+            <div key={note.id} className="flex gap-2 items-start">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#f0ebe3] text-[#6b5d4a] text-[10px] font-medium shrink-0 mt-0.5">
+                {note.traveler.displayName[0]}
+              </span>
+              <div className="min-w-0">
+                <span className="text-[11px] font-medium text-[#6b5d4a]">{note.traveler.displayName}</span>
+                <span className="text-[11px] text-[#a89880]"> on {note.optionName}</span>
+                <p className="text-xs text-[#3a3128] leading-relaxed mt-0.5">{note.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── My top 3 picks box ── */}
+      {myPickIds.length > 0 && (
+        <div className="mb-3 bg-[#faf8f5] rounded-xl border border-[#e8e0d4] p-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-[#a89880] font-medium mb-1.5">Your picks</div>
+          <div className="space-y-1">
+            {myVotes.filter(v => v.optionId).map((v, idx, arr) => {
+              const opt = decision.options.find(o => o.id === v.optionId);
+              if (!opt) return null;
+
+              async function moveUp() {
+                if (idx === 0) return;
+                const reordered = [...arr];
+                [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
+                const rankings = reordered.map((rv, ri) => ({ optionId: rv.optionId, rank: ri + 1 }));
+                try {
+                  await api.post(`/decisions/${decision.id}/vote`, { rankings });
+                  onDecisionsChanged();
+                } catch { /* ignore */ }
+              }
+
+              async function moveDown() {
+                if (idx === arr.length - 1) return;
+                const reordered = [...arr];
+                [reordered[idx], reordered[idx + 1]] = [reordered[idx + 1], reordered[idx]];
+                const rankings = reordered.map((rv, ri) => ({ optionId: rv.optionId, rank: ri + 1 }));
+                try {
+                  await api.post(`/decisions/${decision.id}/vote`, { rankings });
+                  onDecisionsChanged();
+                } catch { /* ignore */ }
+              }
+
+              return (
+                <div key={v.id || v.optionId} className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#514636] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {v.rank || idx + 1}
+                  </span>
+                  <span className="text-xs text-[#3a3128] flex-1 truncate">{opt.name}</span>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {idx > 0 && (
+                      <button onClick={(e) => { e.stopPropagation(); moveUp(); }} className="text-[#a89880] hover:text-[#514636] text-xs px-1" title="Move up">↑</button>
+                    )}
+                    {idx < arr.length - 1 && (
+                      <button onClick={(e) => { e.stopPropagation(); moveDown(); }} className="text-[#a89880] hover:text-[#514636] text-xs px-1" title="Move down">↓</button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleTogglePick(opt.id); }}
+                      className="text-[#c8bba8] hover:text-red-400 text-xs px-1"
+                    >✕</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Options: compact comparison ── */}
       <div className="space-y-1.5">
         {decision.options.map((opt) => {
           const votes = voteCounts.get(opt.id);
-          const isMyPick = myVote?.optionId === opt.id;
-          const isLeader = leaders.includes(opt.id);
+          const myRank = getMyRank(opt.id);
+          const isMyPick = !!myRank;
+          const isLeading = leader?.id === opt.id;
+          const rating = googleRating(opt);
+          const isThoughtOpen = thoughtOption === opt.id;
+          const currentText = thoughtTexts[opt.id] || "";
+
           return (
-            <div
-              key={opt.id}
-              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${
-                voting ? "opacity-50 cursor-wait" : "cursor-pointer"
-              } ${
-                isMyPick
-                  ? "border-amber-400 bg-amber-100"
-                  : "border-[#e0d8cc] bg-white hover:border-amber-300"
-              }`}
-              onClick={() => !voting && handleVote(opt.id)}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm text-[#3a3128] truncate">{opt.name}</span>
-                  {isLeader && maxVotes > 0 && (
-                    <span className="text-xs text-amber-600">*</span>
-                  )}
+            <div key={opt.id}>
+              <div
+                className={`rounded-lg border px-3 py-2 transition-all cursor-pointer ${
+                  isMyPick
+                    ? "border-amber-400 bg-amber-50/60"
+                    : isLeading
+                      ? "border-amber-300/60 bg-amber-50/30"
+                      : "border-[#e5ddd0] bg-white"
+                }`}
+                onClick={() => setThoughtOption(isThoughtOpen ? null : opt.id)}
+              >
+                <div className="flex items-center gap-2">
+                  {/* Name + rating */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-[#3a3128] truncate">{opt.name}</span>
+                      {isLeading && <span className="text-[10px] text-amber-600 font-medium shrink-0">leading</span>}
+                    </div>
+                    {(opt.description || rating) && (
+                      <div className="text-[11px] text-[#8a7a62] mt-0.5 truncate">
+                        {rating && <span className="text-amber-700 font-medium mr-1.5">{rating}</span>}
+                        {opt.description}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Who likes this + preference signal */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {votes && votes.voters.length > 0 && (
+                      <div className="flex -space-x-1">
+                        {votes.voters.map((name, i) => (
+                          <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-medium border border-white" title={name}>
+                            {name[0]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleTogglePick(opt.id); }}
+                      disabled={voting}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors text-sm ${
+                        myRank
+                          ? "bg-[#514636] text-white font-bold"
+                          : "text-[#c8bba8] hover:text-[#514636] hover:bg-[#f0ece5]"
+                      }`}
+                      title={myRank ? `Your #${myRank} pick` : "Add to your top 3"}
+                    >
+                      {myRank ? myRank : "👍"}
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {votes && votes.voters.length > 0 && (
-                  <div className="flex -space-x-1">
-                    {votes.voters.map((name, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-medium border border-white"
-                        title={name}
-                      >
-                        {name[0]}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <button
-                  onClick={(e) => { e.stopPropagation(); onExperienceClick(opt.id); }}
-                  className="w-5 h-5 rounded-full border border-[#e0d8cc] text-[#a89880] hover:text-[#6b5d4a]
-                             flex items-center justify-center text-xs transition-colors"
-                  title="Details"
-                >
-                  i
-                </button>
-              </div>
+
+              {/* Inline thought input — opens when you tap an option */}
+              {isThoughtOpen && (
+                <div className="mt-1 ml-2 mr-2 flex gap-1.5">
+                  <input
+                    type="text"
+                    value={currentText}
+                    onChange={(e) => setThoughtTexts((prev) => ({ ...prev, [opt.id]: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddThought(opt.id)}
+                    placeholder={`What do you know about ${opt.name.split(" ").slice(0, 2).join(" ")}?`}
+                    autoFocus
+                    className="flex-1 text-xs px-2.5 py-1.5 border border-[#e5ddd0] rounded-lg bg-[#faf8f5]
+                               focus:outline-none focus:border-amber-400 placeholder:text-[#c8bba8]"
+                  />
+                  {currentText.trim() && (
+                    <button
+                      onClick={() => handleAddThought(opt.id)}
+                      disabled={submittingThought}
+                      className="px-2.5 py-1 text-xs bg-[#514636] text-white rounded-lg hover:bg-[#3a3128]
+                                 disabled:opacity-40 transition-colors shrink-0"
+                    >
+                      Share
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Happy with any */}
-      <div className="mt-2 flex items-center justify-between">
+      {/* ── Bottom actions ── */}
+      <div className="mt-3 flex items-center justify-between">
         <button
-          onClick={() => handleVote(null)}
+          onClick={() => handleHappyWithAny()}
           disabled={voting}
-          className={`text-xs transition-colors ${
-            voting ? "opacity-50 cursor-wait" : ""
-          } ${
+          className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
             isHappyWithAny
-              ? "text-amber-700 font-medium"
-              : "text-[#a89880] hover:text-amber-600"
+              ? "bg-amber-100 text-amber-700 font-medium"
+              : "bg-[#f0ebe3] text-[#6b5d4a] hover:bg-amber-50 hover:text-amber-600"
           }`}
         >
-          {isHappyWithAny ? "You're happy with any" : "Happy with any"}
-          {happyWithAnyCount > 0 && !isHappyWithAny && (
-            <span className="ml-1 text-amber-600">({happyWithAnyCount})</span>
+          {isHappyWithAny ? "You're flexible ✓" : "I'm good with whatever"}
+          {happyWithAnyVoters.length > 0 && !isHappyWithAny && (
+            <span className="ml-1 text-amber-600" title={happyWithAnyVoters.join(", ")}>
+              ({happyWithAnyVoters.map((n) => n.split(" ")[0]).join(", ")})
+            </span>
           )}
         </button>
 
-        {/* Add option */}
         <button
           onClick={() => setShowAddOption(!showAddOption)}
           className="text-xs text-[#a89880] hover:text-amber-600 transition-colors"
         >
-          + option
+          + suggest another
         </button>
       </div>
 
       {showAddOption && (
-        <div className="mt-1.5 flex gap-1">
+        <div className="mt-1.5 flex gap-1.5">
           <input
             type="text"
             value={newOptionName}
             onChange={(e) => setNewOptionName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAddOption()}
-            placeholder="New option..."
+            placeholder="Another option..."
             autoFocus
-            className="flex-1 text-xs px-2 py-1.5 border border-[#e0d8cc] rounded bg-white
-                       focus:outline-none focus:border-amber-400"
+            className="flex-1 text-xs px-2.5 py-1.5 border border-[#e5ddd0] rounded-lg bg-white
+                       focus:outline-none focus:border-amber-400 placeholder:text-[#c8bba8]"
           />
           <button
             onClick={handleAddOption}
             disabled={adding || !newOptionName.trim()}
-            className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700
+            className="px-2.5 py-1 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-700
                        disabled:opacity-40 transition-colors"
           >
             Add
@@ -832,19 +1160,45 @@ function DecisionGroup({
         </div>
       )}
 
-      {/* Resolve — show when there are votes */}
-      {decision.votes.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-amber-200">
+      {/* ── Suggest / Confirm — only when there's a clear direction ── */}
+      {hasCleanLeader && leader && totalVotes >= 2 && !confirmResolve && (
+        <div className="mt-3 pt-2.5 border-t border-amber-200/40">
+          <div className="text-[11px] text-[#8a7a62] mb-1.5">
+            {totalVotes} of the group {totalVotes === 1 ? "likes" : "like"} {leader.name}
+            {happyWithAnyVoters.length > 0 && `, ${happyWithAnyVoters.length} flexible`}
+          </div>
           <button
-            onClick={() => handleResolve(leaders)}
-            disabled={resolving || leaders.length === 0}
-            className="w-full py-1.5 text-xs font-medium rounded bg-amber-600 text-white
-                       hover:bg-amber-700 disabled:opacity-40 transition-colors"
+            onClick={() => setConfirmResolve(leader.id)}
+            className="w-full py-2 text-xs font-medium rounded-lg bg-[#f0ebe3] text-[#514636]
+                       hover:bg-amber-100 hover:text-amber-700 transition-colors"
           >
-            {resolving ? "..." : leaders.length > 0
-              ? `Resolve → ${decision.options.filter((o) => leaders.includes(o.id)).map((o) => o.name).join(", ")}`
-              : "Vote to resolve"}
+            Suggest going with {leader.name}?
           </button>
+        </div>
+      )}
+
+      {/* Confirmation step */}
+      {confirmResolve && (
+        <div className="mt-3 pt-2.5 border-t border-amber-200/40">
+          <div className="text-xs text-[#3a3128] mb-2">
+            Go with <strong>{decision.options.find((o) => o.id === confirmResolve)?.name}</strong>? This moves it to your plan.
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleResolve(confirmResolve)}
+              disabled={resolving}
+              className="flex-1 py-2 text-xs font-medium rounded-lg bg-amber-600 text-white
+                         hover:bg-amber-700 disabled:opacity-40 transition-colors"
+            >
+              {resolving ? "..." : "Yes, go with it"}
+            </button>
+            <button
+              onClick={() => setConfirmResolve(null)}
+              className="px-4 py-2 text-xs rounded-lg bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors"
+            >
+              Not yet
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -1156,7 +1510,9 @@ export default function ExperienceList({
                 <SortableSelectedItem
                   key={exp.id}
                   exp={exp}
+                  days={days}
                   onDemote={onDemote}
+                  onMove={(expId, dayId) => onPromote(expId, dayId)}
                   onExperienceClick={onExperienceClick}
                   onHover={onExperienceHover}
                   locatingId={locatingId}
@@ -1230,6 +1586,9 @@ export default function ExperienceList({
             </div>
           </>
         )}
+
+        {/* Resolved decisions — the story of past group choices */}
+        <ResolvedDecisions tripId={trip.id} cityId={selected[0]?.cityId || possible[0]?.cityId || ""} />
 
         {/* Divider */}
         <div className="border-t border-dashed border-[#e0d8cc] my-3" />

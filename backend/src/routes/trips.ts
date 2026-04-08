@@ -12,10 +12,11 @@ router.use(requireAuth);
 // List all trips
 router.get("/", async (_req, res) => {
   const trips = await prisma.trip.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { lastOpenedAt: { sort: "desc", nulls: "last" } },
     include: {
       cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       _count: { select: { experiences: true, days: true } },
+      sheetSyncConfig: { select: { lastSyncAt: true } },
     },
   });
   res.json(trips);
@@ -25,12 +26,18 @@ router.get("/", async (_req, res) => {
 router.get("/active", async (_req, res) => {
   const trip = await prisma.trip.findFirst({
     where: { status: "active" },
+    orderBy: { updatedAt: "desc" },
     include: {
       cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },
       days: { orderBy: { date: "asc" }, include: { city: true } },
+      sheetSyncConfig: { select: { lastSyncAt: true } },
     },
   });
+  // Stamp lastOpenedAt
+  if (trip) {
+    prisma.trip.update({ where: { id: trip.id }, data: { lastOpenedAt: new Date() } }).catch(() => {});
+  }
   res.json(trip);
 });
 
@@ -127,7 +134,7 @@ router.post("/", async (req: AuthRequest, res) => {
       if (c.arrivalDate && c.departureDate) {
         const arrival = new Date(c.arrivalDate);
         const departure = new Date(c.departureDate);
-        for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
           await prisma.day.create({
             data: {
               tripId: trip.id,
@@ -261,7 +268,7 @@ router.post("/:id/activate", async (req: AuthRequest, res) => {
 
   const updated = await prisma.trip.update({
     where: { id: req.params.id as string },
-    data: { status: "active" },
+    data: { status: "active", lastOpenedAt: new Date() },
     include: {
       cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },

@@ -60,6 +60,7 @@ export default function NowPage() {
   const [trip, setTrip] = useState<Trip | null>(null);
   const [today, setToday] = useState<Day | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const [travelMode, setTravelMode] = useState<TravelMode>("walk");
@@ -80,62 +81,67 @@ export default function NowPage() {
 
   // Load trip and day data — extracted so it can be called on mount and on data-changed
   const loadData = useCallback(async () => {
-    const t = await api.get<Trip>("/trips/active");
-    if (!t) { navigate("/"); return; }
-    setTrip(t);
+    try {
+      setLoadError(false);
+      const t = await api.get<Trip>("/trips/active");
+      if (!t) { navigate("/"); return; }
+      setTrip(t);
 
-    const [days, profileRes, exps] = await Promise.all([
-      api.get<Day[]>(`/days/trip/${t.id}`),
-      api.get<{ documents: TravelerDocument[] }>(`/traveler-documents/trip/${t.id}`).catch(() => ({ documents: [] })),
-      api.get<Experience[]>(`/experiences/trip/${t.id}`),
-    ]);
-    setTravelDocs(profileRes?.documents || []);
-    setAllDays(days);
-    setAllExperiences(exps);
-    const todayStr = new Date().toISOString().split("T")[0];
-    const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
-    setToday(todayDay || null);
+      const [days, profileRes, exps] = await Promise.all([
+        api.get<Day[]>(`/days/trip/${t.id}`),
+        api.get<{ documents: TravelerDocument[] }>(`/traveler-documents/trip/${t.id}`).catch(() => ({ documents: [] })),
+        api.get<Experience[]>(`/experiences/trip/${t.id}`),
+      ]);
+      setTravelDocs(profileRes?.documents || []);
+      setAllDays(days);
+      setAllExperiences(exps);
+      const todayStr = new Date().toISOString().split("T")[0];
+      const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
+      setToday(todayDay || null);
 
-    // Fetch transit disruption alerts for the trip
-    api.get<{ allDisruptions: TransitDisruption[] }>(`/transit-status/trip/${t.id}`)
-      .then((res) => setTransitAlerts(res?.allDisruptions || []))
-      .catch(() => {});
+      // Fetch transit disruption alerts for the trip
+      api.get<{ allDisruptions: TransitDisruption[] }>(`/transit-status/trip/${t.id}`)
+        .then((res) => setTransitAlerts(res?.allDisruptions || []))
+        .catch(() => {});
 
-    // Fetch travel advisories for pre-trip view
-    api.get<{ summary: TravelAdvisorySummary }>(`/travel-advisory/trip/${t.id}`)
-      .then((res) => setAdvisorySummary(res?.summary || null))
-      .catch(() => {});
+      // Fetch travel advisories for pre-trip view
+      api.get<{ summary: TravelAdvisorySummary }>(`/travel-advisory/trip/${t.id}`)
+        .then((res) => setAdvisorySummary(res?.summary || null))
+        .catch(() => {});
 
-    // Fetch open decisions for today (day-level choices)
-    api.get<Decision[]>(`/decisions/trip/${t.id}`)
-      .then((decisions) => {
-        const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
-        if (todayDay) {
-          const todayDecisions = decisions.filter(
-            (d) => d.dayId === todayDay.id && d.status === "open"
-          );
-          setDayDecisions(todayDecisions);
-        }
-      })
-      .catch(() => {});
+      // Fetch open decisions for today (day-level choices)
+      api.get<Decision[]>(`/decisions/trip/${t.id}`)
+        .then((decisions) => {
+          const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
+          if (todayDay) {
+            const todayDecisions = decisions.filter(
+              (d) => d.dayId === todayDay.id && d.status === "open"
+            );
+            setDayDecisions(todayDecisions);
+          }
+        })
+        .catch(() => {});
 
-    // F1: Predictive caching — prefetch next city's data if transition within 2 days
-    const todayMs = new Date(todayStr).getTime();
-    const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
-    const upcomingDays = days.filter((d) => {
-      const dayMs = new Date(d.date.split("T")[0]).getTime();
-      return dayMs > todayMs && dayMs <= todayMs + twoDaysMs;
-    });
-    const nextCityIds = new Set(upcomingDays.map((d) => d.cityId));
-    if (nextCityIds.size > 0 && navigator.serviceWorker?.controller) {
-      const urls = [
-        `/api/days/trip/${t.id}`,
-        ...Array.from(nextCityIds).map((cid) => `/api/experiences/city/${cid}`),
-      ];
-      navigator.serviceWorker.controller.postMessage({ type: "PREFETCH_CITY", urls });
+      // F1: Predictive caching — prefetch next city's data if transition within 2 days
+      const todayMs = new Date(todayStr).getTime();
+      const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+      const upcomingDays = days.filter((d) => {
+        const dayMs = new Date(d.date.split("T")[0]).getTime();
+        return dayMs > todayMs && dayMs <= todayMs + twoDaysMs;
+      });
+      const nextCityIds = new Set(upcomingDays.map((d) => d.cityId));
+      if (nextCityIds.size > 0 && navigator.serviceWorker?.controller) {
+        const urls = [
+          `/api/days/trip/${t.id}`,
+          ...Array.from(nextCityIds).map((cid) => `/api/experiences/city/${cid}`),
+        ];
+        navigator.serviceWorker.controller.postMessage({ type: "PREFETCH_CITY", urls });
+      }
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [navigate]);
 
   useEffect(() => {
@@ -295,7 +301,7 @@ export default function NowPage() {
       setNow(new Date());
       const freshAnchors = buildAnchors();
       fetchTravelTimes(freshAnchors);
-    }, 15000);
+    }, 60000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -387,7 +393,7 @@ export default function NowPage() {
       if (foodCount >= 4) {
         insights.push({
           key: `food-heavy-${city.id}`,
-          message: `You've got ${foodCount} food spots scheduled in ${city.name}. That's a lot of eating — some days might have more meals than hours.`,
+          message: `You've got ${foodCount} food spots planned in ${city.name}. That's a lot of eating — some days might have more meals than hours.`,
           cityId: city.id,
         });
       }
@@ -400,7 +406,7 @@ export default function NowPage() {
     if (popularUnscheduled.length >= 3) {
       insights.push({
         key: `popular-unscheduled`,
-        message: `You have ${popularUnscheduled.length} high-priority ideas that haven't been scheduled yet. Worth a look before things fill up.`,
+        message: `You have ${popularUnscheduled.length} high-priority ideas that haven't been planned yet. Worth a look before things fill up.`,
         actionLabel: "See them",
       });
     }
@@ -427,6 +433,20 @@ export default function NowPage() {
     return (
       <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
         Checking what's next...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#faf8f5] px-4 gap-4">
+        <p className="text-[#8a7a62] text-lg">Couldn't load your trip right now</p>
+        <button
+          onClick={() => { setLoading(true); loadData(); }}
+          className="px-5 py-2 rounded-full bg-[#514636] text-white text-sm"
+        >
+          Try again
+        </button>
       </div>
     );
   }

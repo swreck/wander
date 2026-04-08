@@ -1,0 +1,248 @@
+/**
+ * ActionsPanel — Planning actions synced with Larisa's Japan Guide Actions tab
+ *
+ * Full CRUD: view, add, edit, mark done. Bidirectional sync.
+ */
+
+import { useState, useEffect } from "react";
+import { api } from "../lib/api";
+import { useToast } from "../contexts/ToastContext";
+
+interface PlanningAction {
+  id: string;
+  action: string;
+  owner: string;
+  dueDate: string | null;
+  notes: string | null;
+  status: string;
+  sheetRowRef: string | null;
+}
+
+interface Props {
+  tripId: string;
+  onClose: () => void;
+}
+
+export default function ActionsPanel({ tripId, onClose }: Props) {
+  const { showToast } = useToast();
+  const [actions, setActions] = useState<PlanningAction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Add form
+  const [newAction, setNewAction] = useState("");
+  const [newOwner, setNewOwner] = useState("Both");
+  const [newDue, setNewDue] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+
+  // Edit form
+  const [editNotes, setEditNotes] = useState("");
+
+  function loadActions() {
+    api.get<PlanningAction[]>(`/sheets-sync/actions/${tripId}`)
+      .then(setActions)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadActions(); }, [tripId]);
+
+  async function handleAdd() {
+    if (!newAction.trim()) return;
+    try {
+      await api.post("/sheets-sync/actions", {
+        tripId,
+        action: newAction.trim(),
+        owner: newOwner,
+        dueDate: newDue || null,
+        notes: newNotes || null,
+      });
+      setNewAction(""); setNewOwner("Both"); setNewDue(""); setNewNotes("");
+      setAdding(false);
+      showToast("Added — will sync to Larisa's Guide", "success");
+      loadActions();
+    } catch {
+      showToast("Couldn't add that", "error");
+    }
+  }
+
+  async function handleToggleDone(action: PlanningAction) {
+    const newStatus = action.status === "done" ? "open" : "done";
+    try {
+      await api.patch(`/sheets-sync/actions/${action.id}`, { status: newStatus });
+      loadActions();
+    } catch {
+      showToast("Couldn't update", "error");
+    }
+  }
+
+  async function handleSaveNotes(actionId: string) {
+    try {
+      await api.patch(`/sheets-sync/actions/${actionId}`, { notes: editNotes });
+      setEditingId(null);
+      loadActions();
+    } catch {
+      showToast("Couldn't save", "error");
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#faf8f5] flex items-center justify-center">
+        <p className="text-sm text-[#8a7a62]">Loading...</p>
+      </div>
+    );
+  }
+
+  const open = actions.filter(a => a.status === "open");
+  const done = actions.filter(a => a.status === "done");
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#faf8f5] overflow-y-auto"
+         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-4 py-3 flex items-center justify-between"
+           style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
+        <div className="flex items-center gap-3">
+          <button onClick={onClose} className="text-[#8a7a62] hover:text-[#3a3128]">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-lg font-medium text-[#3a3128]">What's happening</h1>
+            <span className="text-[10px] text-[#a89880]">↔ Larisa's Japan Guide</span>
+          </div>
+        </div>
+        <button
+          onClick={() => setAdding(!adding)}
+          className="text-sm text-[#514636] font-medium hover:text-[#3a3128]"
+        >
+          {adding ? "Cancel" : "+ Add"}
+        </button>
+      </div>
+
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-3">
+
+        {/* Add form */}
+        {adding && (
+          <div className="bg-white rounded-xl border border-[#e8e0d4] p-4 space-y-3">
+            <input
+              value={newAction}
+              onChange={(e) => setNewAction(e.target.value)}
+              placeholder="What needs to happen?"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-[#e0d8cc] focus:outline-none focus:ring-1 focus:ring-[#a89880]"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <select
+                value={newOwner}
+                onChange={(e) => setNewOwner(e.target.value)}
+                className="text-xs px-2 py-1.5 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128]"
+              >
+                <option value="Both">Group</option>
+                <option value="Ken">Ken</option>
+                <option value="Larisa">Larisa</option>
+                <option value="Julie">Julie</option>
+                <option value="Andy">Andy</option>
+              </select>
+              <input
+                value={newDue}
+                onChange={(e) => setNewDue(e.target.value)}
+                placeholder="Due (e.g. 4/15)"
+                className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-[#e0d8cc] focus:outline-none"
+              />
+            </div>
+            <input
+              value={newNotes}
+              onChange={(e) => setNewNotes(e.target.value)}
+              placeholder="Notes (optional)"
+              className="w-full text-xs px-3 py-1.5 rounded-lg border border-[#e0d8cc] focus:outline-none"
+            />
+            <button
+              onClick={handleAdd}
+              disabled={!newAction.trim()}
+              className="w-full py-2 rounded-lg bg-[#514636] text-white text-sm font-medium disabled:opacity-40"
+            >
+              Add action
+            </button>
+          </div>
+        )}
+
+        {actions.length === 0 && !adding && (
+          <p className="text-sm text-[#a89880] text-center py-8">No actions yet — tap + Add to start</p>
+        )}
+
+        {/* Open actions */}
+        {open.map((a) => (
+          <div key={a.id} className="bg-white rounded-xl border border-[#e8e0d4] p-4">
+            <div className="flex items-start gap-3">
+              {/* Done toggle */}
+              <button
+                onClick={() => handleToggleDone(a)}
+                className="mt-0.5 w-5 h-5 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors shrink-0"
+                title="Mark done"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-[#3a3128]">{a.action}</div>
+                <div className="text-xs text-[#8a7a62] mt-1 flex items-center gap-2 flex-wrap">
+                  <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a]">
+                    {a.owner === "Both" ? "Group" : a.owner}
+                  </span>
+                  {a.dueDate && <span>by {a.dueDate}</span>}
+                  {a.sheetRowRef && <span className="text-[#b8a990]">↔</span>}
+                </div>
+
+                {/* Notes — editable */}
+                {editingId === a.id ? (
+                  <div className="mt-2 flex gap-1">
+                    <input
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      className="flex-1 text-xs px-2 py-1 rounded border border-[#e0d8cc] focus:outline-none"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveNotes(a.id); if (e.key === "Escape") setEditingId(null); }}
+                    />
+                    <button onClick={() => handleSaveNotes(a.id)} className="text-xs text-[#514636] font-medium">Save</button>
+                  </div>
+                ) : (
+                  <p
+                    className="text-xs text-[#8a7a62] mt-2 italic cursor-text"
+                    onClick={() => { setEditingId(a.id); setEditNotes(a.notes || ""); }}
+                  >
+                    {a.notes || "Add a note..."}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Done actions */}
+        {done.length > 0 && (
+          <>
+            <div className="text-xs text-[#a89880] uppercase tracking-wider mt-4">Done</div>
+            {done.map((a) => (
+              <div key={a.id} className="bg-white/50 rounded-xl border border-[#f0ece5] p-3">
+                <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => handleToggleDone(a)}
+                    className="mt-0.5 w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] shrink-0 flex items-center justify-center"
+                    title="Reopen"
+                  >
+                    <span className="text-white text-[10px]">✓</span>
+                  </button>
+                  <div>
+                    <div className="text-sm text-[#8a7a62] line-through">{a.action}</div>
+                    {a.notes && <p className="text-[11px] text-[#a89880] mt-1">{a.notes}</p>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

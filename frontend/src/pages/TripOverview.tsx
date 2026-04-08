@@ -6,7 +6,7 @@ import CreateTrip from "../components/CreateTrip";
 import { useToast } from "../contexts/ToastContext";
 import { APIProvider, Map as GoogleMap, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
 import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
-import type { Trip, City, Day, Experience, ChangeLogEntry } from "../lib/types";
+import type { Trip, City, Day, Experience, ChangeLogEntry, Decision } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import useUniversalCapture from "../hooks/useUniversalCapture";
 import RouteSegmentsPanel from "../components/RouteSegmentsPanel";
@@ -18,18 +18,25 @@ import LearningsPanel from "../components/LearningsPanel";
 import TripPhaseContent from "../components/TripPhaseContent";
 import { getTripPhase } from "../lib/tripPhase";
 import ActivityFeed from "../components/ActivityFeed";
+import SyncAlert from "../components/SyncAlert";
+import ActionsPanel from "../components/ActionsPanel";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+
+// Module-level cache so return visits don't flash "Finding your trip..."
+let _cachedTrip: Trip | null = null;
+let _cachedDays: Day[] = [];
+let _cachedExperiences: Experience[] = [];
 
 export default function TripOverview() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [trip, setTrip] = useState<Trip | null>(null);
+  const [trip, setTrip] = useState<Trip | null>(_cachedTrip);
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
-  const [days, setDays] = useState<Day[]>([]);
-  const [experiences, setExperiences] = useState<Experience[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState<Day[]>(_cachedDays);
+  const [experiences, setExperiences] = useState<Experience[]>(_cachedExperiences);
+  const [loading, setLoading] = useState(!_cachedTrip);
   const [showCreate, setShowCreate] = useState(false);
   const [editingTrip, setEditingTrip] = useState(false);
   const [editName, setEditName] = useState("");
@@ -44,6 +51,8 @@ export default function TripOverview() {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [showApprovals, setShowApprovals] = useState(false);
   const [showLearnings, setShowLearnings] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+  const [openDecisions, setOpenDecisions] = useState<Decision[]>([]);
 
   const isPlanner = user?.role === "planner";
   const initialLoadDone = useRef(false);
@@ -51,8 +60,8 @@ export default function TripOverview() {
   useKeyboardShortcuts();
   useUniversalCapture(trip?.id);
 
-  async function loadTrips() {
-    setLoading(true);
+  async function loadTrips(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const [active, all] = await Promise.all([
         api.get<Trip | null>("/trips/active"),
@@ -82,6 +91,7 @@ export default function TripOverview() {
       }
 
       setTrip(effectiveActive);
+      _cachedTrip = effectiveActive;
       setAllTrips(all);
       if (!effectiveActive) { setShowCreate(true); }
       else {
@@ -89,8 +99,8 @@ export default function TripOverview() {
           api.get<Day[]>(`/days/trip/${effectiveActive.id}`),
           api.get<Experience[]>(`/experiences/trip/${effectiveActive.id}`),
         ]);
-        setDays(d);
-        setExperiences(e);
+        setDays(d); _cachedDays = d;
+        setExperiences(e); _cachedExperiences = e;
         try {
           const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${effectiveActive.id}?limit=50`);
           setRecentActivity(logs.slice(0, 5));
@@ -112,16 +122,25 @@ export default function TripOverview() {
           const { count } = await api.get<{ count: number }>(`/approvals/${effectiveActive.id}/pending`);
           setPendingApprovals(count);
         } catch { /* ignore */ }
+        // Fetch open decisions for nudge
+        try {
+          const decs = await api.get<Decision[]>(`/decisions/trip/${effectiveActive.id}`);
+          setOpenDecisions(decs.filter((d) => d.status === "open"));
+        } catch { /* ignore */ }
       }
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { loadTrips(); }, []);
+  useEffect(() => {
+    // First load shows spinner; subsequent navigations reuse cached data
+    if (trip) loadTrips(true);
+    else loadTrips();
+  }, []);
 
   useEffect(() => {
-    const handler = () => { loadTrips(); };
+    const handler = () => { loadTrips(true); };
     window.addEventListener("wander:data-changed", handler);
     return () => window.removeEventListener("wander:data-changed", handler);
   }, []);
@@ -233,6 +252,7 @@ export default function TripOverview() {
             localStorage.setItem("wander:last-trip-id", tripId);
             setShowCreate(false);
             loadTrips();
+            window.dispatchEvent(new CustomEvent("wander:data-changed"));
           } catch {
             showToast("Couldn't switch — check your connection and try again", "error");
           }
@@ -252,6 +272,7 @@ export default function TripOverview() {
             await api.post(`/trips/${tripId}/activate`, {});
             localStorage.setItem("wander:last-trip-id", tripId);
             loadTrips();
+            window.dispatchEvent(new CustomEvent("wander:data-changed"));
           } catch {
             showToast("Couldn't switch — check your connection and try again", "error");
           }
@@ -268,12 +289,16 @@ export default function TripOverview() {
       const switched = allTrips.find(t => t.id === tripId);
       showToast(switched?.name || "Switched");
       loadTrips();
+      // Notify ChatOverlay to update its trip context
+      window.dispatchEvent(new CustomEvent("wander:data-changed"));
     } catch {
       showToast("Couldn't switch — check your connection and try again", "error");
     }
   }
 
   const archivedTrips = allTrips.filter((t) => t.status === "archived");
+  // Always show trip switcher — "Plan a new trip" inside is the planner-gated action
+  const showSwitcherArrow = true;
   const tripPhase = getTripPhase({
     datesKnown: trip.datesKnown !== false,
     startDate: trip.startDate,
@@ -331,56 +356,25 @@ export default function TripOverview() {
               <h3 className="text-sm font-medium text-[#3a3128]">Your Trips</h3>
               <button onClick={() => setShowTripSwitcher(false)} className="text-[#c8bba8] hover:text-[#8a7a62] text-lg">&times;</button>
             </div>
-            {/* Active trip */}
-            <div className="px-4 py-3 bg-[#faf8f5]">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-[#3a3128]">{trip.name}</div>
-                  <div className="text-xs text-[#8a7a62]">
-                    {trip.startDate && trip.endDate
-                      ? `${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`
-                      : "Dates TBD"}
-                  </div>
-                </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
-              </div>
-            </div>
-            {/* Archived trips */}
-            {archivedTrips.length > 0 && (
-              <div className="px-4 pt-3">
-                <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">Other Trips</div>
-                <div className="space-y-2">
-                  {archivedTrips.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between py-2 border-b border-[#f0ece5] last:border-0">
-                      <div>
-                        <div className="text-sm text-[#3a3128]">{t.name}</div>
-                        <div className="text-xs text-[#a89880]">
-                          {t.startDate && t.endDate
-                            ? `${formatDate(t.startDate)} — ${formatDate(t.endDate)}`
-                            : "Dates TBD"}
-                          {t.cities?.length > 0 && ` · ${t.cities.length} cities`}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleSwitchTrip(t.id)}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
-                      >
-                        Switch
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {/* New trip */}
-            <div className="px-4 pt-3 pb-2">
-              <button
-                onClick={() => { setShowTripSwitcher(false); setShowCreate(true); }}
-                className="w-full py-2.5 rounded-lg border border-dashed border-[#c8bba8] text-sm text-[#8a7a62] hover:bg-[#faf8f5] transition-colors"
-              >
-                + Plan a new trip
-              </button>
-            </div>
+            {/* All trips — sorted by last opened */}
+            <TripSwitcherList
+              trips={allTrips}
+              currentTripId={trip.id}
+              onSwitch={handleSwitchTrip}
+              onDelete={async (id) => {
+                if (!confirm("Remove this trip? This can't be undone.")) return;
+                try {
+                  await api.delete(`/trips/${id}`);
+                  showToast("Trip removed", "success");
+                  loadTrips();
+                } catch { showToast("Couldn't remove trip", "error"); }
+              }}
+              onNewTrip={() => { setShowTripSwitcher(false); setShowCreate(true); }}
+              onRename={(id, newName) => {
+                setAllTrips(prev => prev.map(t => t.id === id ? { ...t, name: newName } : t));
+                if (trip && trip.id === id) setTrip({ ...trip, name: newName });
+              }}
+            />
           </div>
         </div>
       )}
@@ -420,25 +414,25 @@ export default function TripOverview() {
                     >
                       <div className="flex flex-col items-center">
                         <div
-                          className="flex items-center justify-center shadow-lg"
+                          className="flex items-center justify-center shadow"
                           style={{
-                            minWidth: 40,
-                            height: 40,
-                            padding: isMultiVisit ? "0 10px" : undefined,
-                            borderRadius: isMultiVisit ? 20 : "50%",
+                            minWidth: 20,
+                            height: 20,
+                            padding: isMultiVisit ? "0 5px" : undefined,
+                            borderRadius: isMultiVisit ? 10 : "50%",
                             backgroundColor: pastel,
-                            borderWidth: 3,
+                            borderWidth: 2,
                             borderColor: "white",
                             borderStyle: "solid",
-                            boxShadow: `0 3px 10px rgba(0,0,0,0.3), 0 0 0 2px ${pastel}`,
+                            boxShadow: `0 1px 4px rgba(0,0,0,0.25), 0 0 0 1px ${pastel}`,
                           }}
                         >
-                          <span className="text-sm font-bold text-[#3a3128]">
+                          <span className="text-[9px] font-bold text-[#3a3128]">
                             {label}
                           </span>
                         </div>
-                        <div className="mt-1 px-2 py-0.5 rounded bg-white/90 shadow-sm">
-                          <span className="text-xs font-semibold text-[#3a3128]">{city.name}</span>
+                        <div className="mt-0.5 px-1 py-0 rounded bg-white/90 shadow-sm">
+                          <span className="text-[9px] font-medium text-[#3a3128]">{city.name}</span>
                         </div>
                       </div>
                     </AdvancedMarker>
@@ -451,14 +445,14 @@ export default function TripOverview() {
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#faf8f5] to-transparent pt-12 pb-4 px-4">
             <div className="max-w-2xl mx-auto">
               <button
-                onClick={() => archivedTrips.length > 0 && setShowTripSwitcher(true)}
+                onClick={() => showSwitcherArrow && setShowTripSwitcher(true)}
                 className="text-left group"
               >
                 <h1 className="text-2xl font-light text-[#3a3128] inline">
                   {trip.name}
                 </h1>
-                {archivedTrips.length > 0 && (
-                  <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
+                {showSwitcherArrow && (
+                  <span className="ml-2 text-[#8a7a62] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
                 )}
               </button>
               {trip.tagline && (
@@ -513,14 +507,14 @@ export default function TripOverview() {
         {!hasMap && (
           <div className="mb-8">
             <button
-              onClick={() => archivedTrips.length > 0 && setShowTripSwitcher(true)}
+              onClick={() => showSwitcherArrow && setShowTripSwitcher(true)}
               className="text-left group"
             >
               <h1 className="text-2xl font-light text-[#3a3128] inline">
                 {trip.name}
               </h1>
-              {archivedTrips.length > 0 && (
-                <span className="ml-1.5 text-[#c8bba8] group-hover:text-[#8a7a62] transition-colors text-sm">&#9662;</span>
+              {showSwitcherArrow && (
+                <span className="ml-2 text-[#8a7a62] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
               )}
             </button>
             {trip.tagline && (
@@ -528,7 +522,26 @@ export default function TripOverview() {
             )}
             <p className="text-sm text-[#8a7a62] mt-1">
               {trip.startDate && trip.endDate
-                ? `${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`
+                ? (() => {
+                    const today = new Date();
+                    const nowUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+                    const [sy, sm, sd] = trip.startDate!.split("T")[0].split("-").map(Number);
+                    const [ey, em, ed] = trip.endDate!.split("T")[0].split("-").map(Number);
+                    const startUTC = Date.UTC(sy, sm - 1, sd);
+                    const endUTC = Date.UTC(ey, em - 1, ed);
+                    const msPerDay = 86400000;
+                    const daysUntil = Math.round((startUTC - nowUTC) / msPerDay);
+                    const totalDays = Math.round((endUTC - startUTC) / msPerDay) + 1;
+                    let prefix = "";
+                    if (daysUntil > 1) prefix = `${daysUntil} days away · `;
+                    else if (daysUntil === 1) prefix = "Tomorrow! · ";
+                    else if (daysUntil === 0) prefix = "Today! · ";
+                    else {
+                      const dayNum = Math.abs(daysUntil) + 1;
+                      prefix = dayNum <= totalDays ? `Day ${dayNum} of ${totalDays} · ` : "Welcome home · ";
+                    }
+                    return `${prefix}${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`;
+                  })()
                 : `${days.length} days planned · Dates TBD`
               }
               <button
@@ -629,38 +642,83 @@ export default function TripOverview() {
           </div>
         )}
 
-        {/* Post-import orientation — short and scannable */}
+        {/* Sync alert — planner-only, shows conflicts/errors with PWA badge */}
+        <SyncAlert />
+
+        {/* Actions panel (full screen overlay) */}
+        {showActions && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} />}
+
+        {/* Open decisions nudge — FIRST thing after identity bar so Andy sees it immediately */}
+        {openDecisions.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {openDecisions.map((dec) => {
+              const myVote = dec.votes.find((v) => v.userCode === user?.code);
+              const totalVotes = new Set(dec.votes.map((v) => v.userCode)).size;
+              const totalThoughts = dec.options.reduce((s, o) => s + (o.notes?.length || 0), 0);
+              return (
+                <button
+                  key={dec.id}
+                  onClick={() => navigate(`/plan?city=${dec.cityId}`)}
+                  className="w-full text-left p-3 rounded-xl border border-amber-200 bg-amber-50/50 hover:bg-amber-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-amber-600 text-sm">●</span>
+                    <span className="text-sm font-medium text-[#3a3128]">{dec.title}</span>
+                  </div>
+                  <div className="text-xs text-[#8a7a62] ml-5">
+                    {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
+                    {totalVotes > 0 && ` · ${totalVotes} weighing in`}
+                    {totalThoughts > 0 && ` · ${totalThoughts} thought${totalThoughts !== 1 ? "s" : ""} shared`}
+                    {myVote ? "" : " — your turn?"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Actions button */}
+        <button
+          onClick={() => setShowActions(true)}
+          className="mb-3 w-full text-left px-3 py-2 rounded-lg bg-[#faf8f5] border border-[#ebe5db] hover:bg-[#f5f0e8] transition-colors flex items-center justify-between"
+        >
+          <span className="text-sm text-[#6b5d4a]">What's happening ↔</span>
+          <span className="text-xs text-[#a89880]">See all →</span>
+        </button>
+
+        {/* Post-import orientation — below decisions so first-time collaborators see voting first */}
         {!localStorage.getItem("wander:overview-oriented") && experiences.length > 0 && (
-          <div className="mb-6 p-4 bg-white rounded-lg border border-[#e0d8cc]">
-            <p className="text-sm font-medium text-[#3a3128] mb-2">
-              Quick start
-            </p>
-            <ul className="text-sm text-[#6b5d4a] space-y-1 list-none">
+          <div className="mb-4 p-3 bg-white rounded-lg border border-[#e0d8cc] text-sm">
+            <p className="font-medium text-[#3a3128] mb-1.5">Quick start</p>
+            <ul className="text-[#6b5d4a] space-y-0.5 list-none">
               {!window.matchMedia("(display-mode: standalone)").matches && (
                 <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen</li>
               )}
               <li>• Tap any day below to see your map and what's planned</li>
-              <li>• Paste or drop anything — an article, a friend's list, a screenshot — and Wander picks it up</li>
-              <li>• The chat bubble is <strong>Scout</strong>, your travel companion — ask questions, rearrange plans, or look things up</li>
+              <li>• The chat bubble is <strong>Scout</strong> — ask questions or rearrange plans</li>
             </ul>
             <button
               onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); loadTrips(); }}
-              className="text-sm text-[#c8bba8] hover:text-[#6b5d4a] mt-2 transition-colors"
+              className="text-xs text-[#c8bba8] hover:text-[#6b5d4a] mt-1.5 transition-colors"
             >
               got it
             </button>
           </div>
         )}
 
-        {/* Week-view calendar grid (dated trips) or city list (dateless trips) — hidden in past phase */}
+        {/* Calendar / At-a-Glance toggle */}
         {tripPhase !== "past" && (trip.datesKnown !== false ? (
-          <CalendarGrid
+          <HomeViewToggle
             days={days}
             cities={trip.cities}
             selectedPerDay={selectedPerDay}
             backroadsDays={backroadsDays}
             experiences={experiences}
+            routeSegments={trip.routeSegments || []}
+            accommodations={trip.accommodations || []}
+            decisions={openDecisions}
             onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
+            onCityClick={(cityId) => navigate(`/plan?city=${cityId}`)}
           />
         ) : (
           <DatelessTripView
@@ -670,22 +728,59 @@ export default function TripOverview() {
           />
         ))}
 
-        {/* City browse links — quick access to CityBoard for dated cities */}
+        {/* Scout briefing — below the calendar per Ken's 2-line rule */}
+        <GroupPulse
+          trip={trip}
+          experiences={experiences}
+          days={days}
+          openDecisions={openDecisions}
+          userCode={user?.code || ""}
+          onNavigate={(path) => navigate(path)}
+        />
+
+        {/* Primary action — go plan */}
+        <div className="flex gap-3 mb-4">
+          <button
+            onClick={() => navigate("/plan")}
+            className="flex-1 py-3 rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors"
+          >
+            Day by Day
+          </button>
+          {isWithinDates && (
+            <button
+              onClick={() => navigate("/now")}
+              className="px-4 py-3 rounded-lg bg-[#6b5d4a] text-white text-sm font-medium hover:bg-[#514636] transition-colors"
+            >
+              Now
+            </button>
+          )}
+        </div>
+
+        {/* Add something */}
+        <ImportCard tripId={trip.id} />
+
+        {/* City browse links — quick access to each city's idea board */}
         {tripPhase !== "past" && trip.datesKnown !== false && (() => {
           const datedCityIds = [...new Set(days.map(d => d.cityId))];
           const datedCities = (trip.cities || []).filter(c => datedCityIds.includes(c.id));
           if (datedCities.length === 0) return null;
           return (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {datedCities.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => navigate(`/city/${c.id}`)}
-                  className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors"
-                >
-                  {c.name} — browse ideas
-                </button>
-              ))}
+            <div className="mb-4">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">Explore by city</h3>
+              <div className="flex flex-wrap gap-2">
+                {datedCities.map(c => {
+                  const cityExpCount = experiences.filter(e => e.cityId === c.id).length;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => navigate(`/city/${c.id}`)}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors"
+                    >
+                      {c.name}{cityExpCount > 0 ? ` · ${cityExpCount} ideas` : ""}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           );
         })()}
@@ -697,9 +792,6 @@ export default function TripOverview() {
           days={days}
           experiences={experiences}
         />
-
-        {/* Persistent import entry point — always visible after calendar */}
-        <ImportCard tripId={trip.id} />
 
         {/* Route segments — intercity travel logistics */}
         <RouteSegmentsPanel
@@ -718,75 +810,8 @@ export default function TripOverview() {
         {/* Trip members & invite */}
         {trip && <TripMembers tripId={trip.id} />}
 
-        {/* Contributor summary — colored chips with counts */}
-        {(() => {
-          const byCreator: Record<string, number> = {};
-          for (const exp of experiences) {
-            if (exp.createdBy) {
-              byCreator[exp.createdBy] = (byCreator[exp.createdBy] || 0) + 1;
-            }
-          }
-          const creators = Object.entries(byCreator).sort((a, b) => b[1] - a[1]);
-          if (creators.length <= 1) return null;
-          return (
-            <div className="mb-6">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">Contributions</h3>
-              <div className="flex flex-wrap gap-2">
-                {creators.map(([code, count]) => {
-                  const cc = getContributorColor(code);
-                  return (
-                    <button
-                      key={code}
-                      onClick={() => setContributorViewCode(code)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors hover:shadow-sm"
-                      style={{ backgroundColor: cc.bg, borderColor: cc.border }}
-                    >
-                      <span
-                        className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                        style={{ backgroundColor: cc.border, color: "#fff" }}
-                      >
-                        {getContributorInitial(code)}
-                      </span>
-                      <span className="text-sm font-medium" style={{ color: cc.text }}>{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ContributorView overlay */}
-        {contributorViewCode && trip && (
-          <ContributorView
-            travelerCode={contributorViewCode}
-            experiences={experiences}
-            trip={trip}
-            onClose={() => setContributorViewCode(null)}
-            onExperienceClick={(id) => { setContributorViewCode(null); navigate(`/plan?highlight=${id}`); }}
-          />
-        )}
-
         {/* Activity feed — recent actions from the group */}
         {trip && <ActivityFeed tripId={trip.id} />}
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={() => navigate("/plan")}
-            className="flex-1 py-3 rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors"
-          >
-            Day by Day
-          </button>
-          {isWithinDates && (
-            <button
-              onClick={() => navigate("/now")}
-              className="px-4 py-3 rounded-lg bg-[#6b5d4a] text-white text-sm font-medium hover:bg-[#514636] transition-colors"
-            >
-              Now
-            </button>
-          )}
-        </div>
 
         {/* Past trips removed — accessible via CreateTrip screen if needed */}
       </div>
@@ -906,7 +931,7 @@ function DatelessTripView({
       <div className="text-xs text-[#a89880] uppercase font-medium mb-2">Your cities</div>
       {visibleCities.map((city, i) => {
         const cityDays = daysByCity.get(city.id) || [];
-        const pastel = getCityPastel(i);
+        const pastel = getCityPastel(visibleCities, city.id);
         return (
           <button
             key={city.id}
@@ -934,6 +959,465 @@ function DatelessTripView({
       <p className="text-xs text-[#c8bba8] text-center pt-2">
         When dates are ready, tell Scout: "Day 1 is December 25"
       </p>
+    </section>
+  );
+}
+
+// ── Group Pulse — "What's happening" Scout briefing ──────────────
+
+function GroupPulse({
+  trip, experiences, days, openDecisions, userCode, onNavigate,
+}: {
+  trip: Trip;
+  experiences: Experience[];
+  days: Day[];
+  openDecisions: Decision[];
+  userCode: string;
+  onNavigate: (path: string) => void;
+}) {
+  const [actions, setActions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (trip?.id) {
+      api.get<any[]>(`/sheets-sync/actions/${trip.id}`).then(setActions).catch(() => {});
+    }
+  }, [trip?.id]);
+
+  // Build the briefing items
+  const items: { text: string; detail: string; action: string; path: string }[] = [];
+
+  // Planning actions — summarize as one line
+  const openActions = actions.filter((a: any) => a.status === "open" && a.dueDate);
+  if (openActions.length > 0) {
+    const nearest = openActions[0];
+    const summary = openActions.length === 1
+      ? `${nearest.action} · by ${nearest.dueDate}`
+      : `${openActions.length} things coming up — ${nearest.action} by ${nearest.dueDate}`;
+    items.push({
+      text: summary,
+      detail: "",
+      action: "",
+      path: "/settings",
+    });
+  }
+
+  // 1. Decisions where user hasn't voted
+  const unvotedDecisions = openDecisions.filter(
+    (d) => !d.votes.some((v) => v.userCode === userCode)
+  );
+  // Don't duplicate decisions already shown as cards above — only add non-decision items here
+
+  // 2. Cities with activities user hasn't reacted to
+  const cityIdToName = new Map<string, string>();
+  for (const c of trip.cities) cityIdToName.set(c.id, c.name);
+
+  const nonDecisionExps = experiences.filter((e) => e.state !== "voting");
+  const byCity = new Map<string, { total: number; withMyInterest: number; contributors: Set<string> }>();
+
+  for (const exp of nonDecisionExps) {
+    if (!byCity.has(exp.cityId)) {
+      byCity.set(exp.cityId, { total: 0, withMyInterest: 0, contributors: new Set() });
+    }
+    const bucket = byCity.get(exp.cityId)!;
+    bucket.total++;
+    bucket.contributors.add(exp.createdBy);
+    // Check if user has expressed interest (we don't have interests loaded here,
+    // but we can check sheetRowRef — if it has one, it came from spreadsheet/someone else)
+  }
+
+  // Aggregate city data into a single summary instead of one row per city
+  let totalIdeas = 0;
+  let citiesWithIdeas = 0;
+  let othersContributed = false;
+  let primaryContributor = "";
+  const topCities: { name: string; count: number; cityId: string }[] = [];
+
+  for (const [cityId, data] of byCity) {
+    if (data.total === 0) continue;
+    totalIdeas += data.total;
+    citiesWithIdeas++;
+    const cityName = cityIdToName.get(cityId) || "Unknown";
+    topCities.push({ name: cityName, count: data.total, cityId });
+    const others = [...data.contributors].filter((c) => c !== userCode);
+    if (others.length > 0) {
+      othersContributed = true;
+      primaryContributor = others[0];
+    }
+  }
+
+  // Sort by count, show top 3 as individual items, rest as summary
+  topCities.sort((a, b) => b.count - a.count);
+
+  if (totalIdeas > 0) {
+    const topCity = topCities[0];
+    const who = othersContributed ? `${primaryContributor} shared` : "";
+    const summary = citiesWithIdeas === 1
+      ? `${totalIdeas} idea${totalIdeas !== 1 ? "s" : ""} for ${topCity.name}`
+      : `${totalIdeas} ideas across ${citiesWithIdeas} cities`;
+    items.push({
+      text: who ? `${who} ${summary}` : summary,
+      detail: topCity ? `${topCity.name} has the most` : "",
+      action: "Take a look",
+      path: `/plan?city=${topCity.cityId}`,
+    });
+  }
+
+  // 3. Days that are wide open (no selected experiences) in cities that have ideas
+  const emptyDayCount = days.filter((d) => {
+    const cityData = byCity.get(d.cityId);
+    const hasIdeas = cityData && cityData.total > 0;
+    const hasSelected = nonDecisionExps.some((e) => e.dayId === d.id && e.state === "selected");
+    return hasIdeas && !hasSelected;
+  }).length;
+
+  if (emptyDayCount > 3) {
+    items.push({
+      text: `${emptyDayCount} days wide open`,
+      detail: "Good time to start shaping the itinerary",
+      action: "Build a day",
+      path: "/plan",
+    });
+  }
+
+  // Don't show if nothing to say
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      <p className="text-xs text-[#8a7a62] mb-2">
+        {items.some(i => i.action === "See your list") ? "Your Japan Guide is here" : "The group's been busy"}
+      </p>
+      <div className="space-y-1.5">
+        {items.map((item, i) => (
+          <button
+            key={i}
+            onClick={() => onNavigate(item.path)}
+            className="w-full text-left px-3 py-2.5 rounded-lg bg-[#faf8f5] border border-[#ebe5db] hover:bg-[#f5f0e8] transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-[#3a3128]">{item.text}</span>
+                <span className="text-xs text-[#8a7a62] ml-1.5">{item.detail}</span>
+              </div>
+              <span className="text-xs text-[#a89880] shrink-0 ml-2">{item.action} →</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Trip Switcher List ──────────────────────────────────────────
+
+function timeAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return "never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function TripSwitcherList({
+  trips, currentTripId, onSwitch, onDelete, onNewTrip, onRename,
+}: {
+  trips: Trip[];
+  currentTripId: string;
+  onSwitch: (id: string) => void;
+  onDelete: (id: string) => void;
+  onNewTrip: () => void;
+  onRename: (id: string, newName: string) => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const savingRef = useRef(false);
+
+  async function saveName(tripId: string) {
+    if (savingRef.current) return;
+    const trimmed = editName.trim();
+    if (!trimmed) { setEditingId(null); return; }
+    savingRef.current = true;
+    try {
+      await api.patch(`/trips/${tripId}`, { name: trimmed });
+      onRename(tripId, trimmed);
+    } catch { /* ignore */ }
+    setEditingId(null);
+    savingRef.current = false;
+  }
+
+  // Sort by lastOpenedAt descending, nulls last
+  const sorted = [...trips].sort((a, b) => {
+    const aTime = (a as any).lastOpenedAt ? new Date((a as any).lastOpenedAt).getTime() : 0;
+    const bTime = (b as any).lastOpenedAt ? new Date((b as any).lastOpenedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  return (
+    <>
+      <div className="px-4 pt-2 max-h-[50vh] overflow-y-auto">
+        {sorted.map((t) => {
+          const isCurrent = t.id === currentTripId;
+          const syncAt = (t as any).sheetSyncConfig?.lastSyncAt;
+          const openedAt = (t as any).lastOpenedAt;
+          const createdAt = t.createdAt || (t as any).created_at;
+
+          return (
+            <div
+              key={t.id}
+              className={`py-3 border-b border-[#f0ece5] last:border-0 ${!isCurrent ? "cursor-pointer hover:bg-[#faf8f5]" : ""}`}
+              onClick={() => !isCurrent && onSwitch(t.id)}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  {/* Name — largest, darkest, double-click to edit */}
+                  {editingId === t.id ? (
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onBlur={() => saveName(t.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveName(t.id); if (e.key === "Escape") setEditingId(null); }}
+                      className="text-[15px] font-semibold text-[#3a3128] w-full border-b border-[#a89880] outline-none bg-transparent"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <div
+                      className="text-[15px] font-semibold text-[#3a3128] truncate cursor-text"
+                      onDoubleClick={(e) => { e.stopPropagation(); setEditingId(t.id); setEditName(t.name); }}
+                      title="Double-click to rename"
+                    >
+                      {t.name}
+                      {isCurrent && <span className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Now</span>}
+                    </div>
+                  )}
+                  {/* Metadata line — smaller, muted */}
+                  <div className="text-[11px] text-[#a89880] mt-0.5 flex items-center gap-1 flex-wrap">
+                    <span>Started {createdAt ? new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</span>
+                    <span>·</span>
+                    {syncAt ? (
+                      <span className="text-[#6b5d4a] font-medium">Synced {timeAgo(syncAt)}</span>
+                    ) : (
+                      <span>No sync</span>
+                    )}
+                    <span>·</span>
+                    <span>Opened {timeAgo(openedAt)}</span>
+                  </div>
+                </div>
+                {/* Delete button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
+                  className="text-[#d0c9be] hover:text-red-400 text-sm ml-2 mt-1 transition-colors"
+                  title="Remove trip"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* New trip */}
+      <div className="px-4 pt-3 pb-2">
+        <button
+          onClick={onNewTrip}
+          className="w-full py-2.5 rounded-lg border border-dashed border-[#c8bba8] text-sm text-[#8a7a62] hover:bg-[#faf8f5] transition-colors"
+        >
+          + Plan a new trip
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ── Home View Toggle (Calendar ↔ At a Glance) ──────────────────
+
+function HomeViewToggle({
+  days, cities, selectedPerDay, backroadsDays, experiences,
+  routeSegments, accommodations, decisions,
+  onDayClick, onCityClick,
+}: {
+  days: Day[];
+  cities: City[];
+  selectedPerDay: Record<string, number>;
+  backroadsDays: Set<string>;
+  experiences: Experience[];
+  routeSegments: any[];
+  accommodations: any[];
+  decisions: Decision[];
+  onDayClick: (cityId: string) => void;
+  onCityClick: (cityId: string) => void;
+}) {
+  const [view, setView] = useState<"trip" | "details">(
+    () => (localStorage.getItem("wander:home-view") as any) || "trip"
+  );
+
+  function toggleView(v: "trip" | "details") {
+    setView(v);
+    localStorage.setItem("wander:home-view", v);
+  }
+
+  return (
+    <>
+      {/* Toggle pills */}
+      <div className="flex justify-center gap-1 mb-3">
+        <button
+          onClick={() => toggleView("trip")}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            view === "trip"
+              ? "bg-[#514636] text-white"
+              : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
+          }`}
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => toggleView("details")}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            view === "details"
+              ? "bg-[#514636] text-white"
+              : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
+          }`}
+        >
+          Details
+        </button>
+      </div>
+
+      {view === "trip" ? (
+        <CalendarGrid
+          days={days}
+          cities={cities}
+          selectedPerDay={selectedPerDay}
+          backroadsDays={backroadsDays}
+          experiences={experiences}
+          onDayClick={onDayClick}
+        />
+      ) : (
+        <AtAGlanceView
+          days={days}
+          cities={cities}
+          routeSegments={routeSegments}
+          accommodations={accommodations}
+          decisions={decisions}
+          backroadsDays={backroadsDays}
+          onCityClick={onCityClick}
+        />
+      )}
+    </>
+  );
+}
+
+// ── At a Glance — operational summary per city ──────────────────
+
+function AtAGlanceView({
+  days, cities, routeSegments, accommodations, decisions, backroadsDays, onCityClick,
+}: {
+  days: Day[];
+  cities: City[];
+  routeSegments: any[];
+  accommodations: any[];
+  decisions: Decision[];
+  backroadsDays: Set<string>;
+  onCityClick: (cityId: string) => void;
+}) {
+  // Guard against undefined arrays
+  if (!cities?.length || !days?.length) return null;
+
+  // Group days by city, in sequence order
+  const sortedCities = [...cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+
+  return (
+    <section className="mb-6 space-y-2">
+      {sortedCities.map((city) => {
+        const cityDays = (days || [])
+          .filter(d => d.cityId === city.id)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        if (cityDays.length === 0) return null;
+
+        const arrival = new Date(cityDays[0].date);
+        const departure = cityDays.length > 1 ? new Date(cityDays[cityDays.length - 1].date) : arrival;
+        const nights = cityDays.length;
+        const isBackroads = cityDays.some(d => backroadsDays.has(d.id));
+
+        // Find transport to this city
+        const segment = (routeSegments || []).find((s: any) =>
+          s.destinationCity?.toLowerCase().includes(city.name.toLowerCase().substring(0, 4))
+        );
+
+        // Find accommodation
+        const acc = (accommodations || []).find((a: any) => a.cityId === city.id);
+
+        // Find hotel decision
+        const hotelDecision = decisions.find(d =>
+          d.cityId === city.id && d.title.toLowerCase().includes("hotel")
+        );
+
+        // Day highlights (non-empty notes)
+        const highlights = cityDays
+          .filter(d => d.notes && !d.notes.includes("TBD"))
+          .map(d => d.notes!)
+          .slice(0, 2);
+
+        const pastel = getCityPastel(sortedCities, city.id);
+
+        const arrivalStr = arrival.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const departureStr = departure.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const dateRange = nights === 1 ? arrivalStr : `${arrivalStr}–${departureStr}`;
+
+        return (
+          <button
+            key={city.id}
+            onClick={() => onCityClick(city.id)}
+            className="w-full text-left rounded-xl border border-[#e8e0d4] hover:border-[#d0c9be] transition-colors overflow-hidden"
+          >
+            {/* City header bar — same color as calendar */}
+            <div
+              className="px-3 py-2 flex items-center justify-between"
+              style={{ backgroundColor: pastel }}
+            >
+              <div>
+                <span className="text-sm font-medium text-[#3a3128]">{city.name}</span>
+                {isBackroads && <span className="ml-1.5 text-[10px] text-[#8a7a62]">🚐 Backroads</span>}
+              </div>
+              <span className="text-xs text-[#6b5d4a]">{dateRange} · {nights} night{nights !== 1 ? "s" : ""}</span>
+            </div>
+
+            {/* Details */}
+            <div className="px-3 py-2 space-y-1 bg-white">
+              {segment && (
+                <div className="text-xs text-[#8a7a62]">
+                  {segment.transportMode === "train" ? "🚃" : segment.transportMode === "flight" ? "✈️" : "🚐"}{" "}
+                  From {segment.originCity}
+                  {segment.departureTime ? ` · ${segment.departureTime}` : ""}
+                </div>
+              )}
+
+              {acc ? (
+                <div className="text-xs text-[#3a3128]">
+                  🏨 {acc.name}
+                </div>
+              ) : hotelDecision ? (
+                <div className="text-xs text-[#a89880]">
+                  🏨 Deciding — {hotelDecision.options?.length} option{hotelDecision.options?.length !== 1 ? "s" : ""}
+                </div>
+              ) : null}
+
+              {highlights.map((h, i) => (
+                <div key={i} className="text-[11px] text-[#8a7a62] italic">{h}</div>
+              ))}
+
+              {!segment && !acc && !hotelDecision && highlights.length === 0 && (
+                <div className="text-[11px] text-[#c8bba8]">Wide open</div>
+              )}
+            </div>
+          </button>
+        );
+      })}
     </section>
   );
 }

@@ -2,6 +2,189 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-07 — UX Polish: Detail Panel, Notes, Geocoding, GroupPulse
+
+### Added
+- **Experience notes** — Group and private notes on each activity/hotel. "For group" (default) vs "Just for me" toggle. Others' notes in italic, own notes editable, newest first. Notes included in experience detail API.
+- **GroupPulse** — "The group's been busy" narrative on Home page. Shows per-city activity counts, contributors, and open days. Not a checklist — an invitation to join conversations.
+- **↔ sync indicator** — Subtle bidirectional arrow on every item synced with Larisa's Japan Guide. Tappable tooltip.
+- **Edit warning** — "↔ This syncs with Larisa's Japan Guide. Your changes will update there too." shown when editing synced items.
+- **Wander-origin tint** — Light yellow (#FFF9E6) background on spreadsheet cells that Wander wrote. Full row for new items, single cell for votes/interests.
+
+### Fixed
+- **Detail panel hidden behind mobile list** — z-index conflict (both z-40) at viewports below 1024px. Detail panel bumped to z-50.
+- **Notes not displaying** — Experience detail API wasn't including the notes relation. Added include with traveler info and descending order.
+- **ExperienceDetail crash** — `onDataChanged` was undefined; corrected to `onRefresh`.
+- **Settings Sign Out occluded** — bottom padding increased to pb-40 for bottom nav clearance.
+- **Sync section missing** — added API fallback when no localStorage trip ID.
+
+### Changed
+- **"Spreadsheet" → "Larisa's Japan Guide"** — all user-facing strings updated. Warm, specific, not technical.
+- **Map dots 50% smaller** — Home page overview map: markers reduced from 40px to 20px, labels from 12px to 9px.
+- **All 8 cities geocoded** — map centers correctly per city (was defaulting to Tokyo for all).
+- **All 29 experiences geocoded** — "items need a location" warning eliminated.
+
+**SPEC UPDATE NEEDED**: GroupPulse, experience notes, sync indicators, Wander-origin tinting are new UX patterns not in SPEC.md.
+
+## 2026-04-06 — Multi-Leg Travel: Chained Journey UI + Expanded Transport Modes
+
+### Added
+- **"Add another leg" button** — After saving a travel segment, a new button appears pre-filled with the previous leg's destination as the origin. Enables chaining like "taxi to station -> shinkansen -> subway to hotel" without re-entering the starting point each time.
+- **Connected journey summary** — When segments form a chain (each origin matches the previous destination), a summary line appears above the cards showing the full route (e.g., "Journey: Tokyo -> Kyoto -> Osaka (3 legs)").
+- **Visual connectors between legs** — Vertical line and arrow between chained segments so the journey reads as one connected path, not separate cards.
+- **Five new transport modes** — subway, bus, taxi, shuttle, and walk are now valid for route segments (Prisma `TransportMode` enum, backend validation, chat tools, and frontend selector all updated). Previously only flight, train, ferry, drive, and other were available.
+- **"+ New" button** — Secondary button alongside "Add another leg" for starting a segment from a different origin when needed.
+
+### Changed
+- Segment count label changed from "segments" to "legs" — more natural travel language.
+- First-segment button text changed from "Add your first travel segment" to "Add your first travel leg."
+
+**SPEC UPDATE NEEDED**: TransportMode enum expansion (subway/bus/taxi/shuttle/walk) and chained-leg UX are new capabilities not in SPEC.md.
+
+## 2026-04-07 — Spreadsheet Sync: Bidirectional Google Sheets Integration
+
+### Added
+- **Google Sheets sync service** — Wander reads and writes Larisa's planning spreadsheet via service account (`wander-sheets@actionmgr.iam.gserviceaccount.com`). Structure-aware parsing handles inserted rows, city sections, hotel templates, and activity lists.
+- **Clean trip import from spreadsheet** — Creates a new Wander trip populated entirely from spreadsheet data (Option A). 8 cities, 23 days, 15 activities, 11 hotel options in 2 decisions, 3 accommodations, 14 interest marks imported from Larisa's Japan 2026 spreadsheet.
+- **Budget data per city** — `costEstimate` JSON field on City model captures cumulative budget (J/A and K/L), hotel costs, and meal estimates from the spreadsheet. Not an accounting tool — conversational cost awareness ("the next few days will be great, but expensive").
+- **Conditional day assignments** — `conditionalAssignment` JSON field on Experience handles "I'll go on this day IF someone else isn't interested, otherwise we'll go together later." Used for Mashiko (conditional on Julie's interest). Supports 3-5 similar patterns expected during planning.
+- **Sync API routes** — `/api/sheets-sync/pull` (spreadsheet → Wander), `/api/sheets-sync/push` (Wander → spreadsheet), `/api/sheets-sync/status`, `/api/sheets-sync/config`. Pull/push are planner-only.
+- **Hotel decision import** — Tokyo (8 hotels) and Kyoto (3 hotels) hotel comparison tabs imported as Wander Decisions with voting columns mapped to DecisionVotes.
+- **Sync settings panel** — Planner-only section in Settings page with pull/push buttons, last sync status, and auto-sync interval selector (manual / 15min / 30min / 1hr).
+- **Prisma models** — `SheetSyncConfig` (per-trip sync settings, spreadsheet ID, interval), `SheetSyncLog` (sync event history and conflict tracking).
+- **Fuzzy name matching** — Jaro-Winkler algorithm for deduplication between spreadsheet and Wander data (threshold 0.85).
+
+### Changed
+- Spreadsheet ID is configurable per trip — Ken can swap to Larisa's active version anytime.
+- Spreadsheet wins on all data conflicts (last-write-wins with spreadsheet as tiebreaker). Conflicts are logged for Ken to review.
+
+**SPEC UPDATE NEEDED**: Spreadsheet sync, budget awareness, and conditional assignments are new capabilities not in SPEC.md.
+
+## 2026-04-07 — Build-a-Day UX Fixes + Decision Support Polish
+
+### Changed
+- **Planning Board button labels clarified.** "+ 10 Thu" (cryptic) → "+ Dec 10" (unambiguous date). Users no longer confuse "10 Thu" with 10am Thursday.
+- **Selected day highlighted on desktop.** Active day row has visible tinted background and dark left border (was invisible — same color as page background).
+- **Decision options filtered from build-a-day pool.** Hotels being decided by the group no longer show up in the ideas list with assign buttons. Prevents accidentally scheduling an undecided hotel.
+- **Map header syncs with board day selection.** Changing the active day in the Planning Board now updates the map header and filmstrip. Was stuck showing the first day regardless.
+- **"Mark as set for now" → "Good enough for now."** Clearer intent — the planner signals they're satisfied, not that something is locked.
+- **Close button says "← Done" on desktop** (was "← Map" which reads like navigation, not exit).
+- **Decision nudge above calendar on Home.** Andy sees the hotel question immediately without scrolling, not buried below the calendar grid.
+- **Mobile nudge navigates to list view.** Tapping a decision nudge on mobile now opens list view (where the decision card is) instead of the map.
+
+### Fixed
+- **Resolved decisions visible as collapsed cards.** Green "Going with X ✓" cards with "See the conversation" expand link. Uses separate /resolved endpoint to avoid React #310 hook count issue.
+
+SPEC UPDATE NEEDED: Planning Board UX (button labels, day selection, decision filtering) differs from SPEC.md descriptions.
+
+## 2026-04-07 — Group Decision Redesign: Conversation-First
+
+### Changed
+- **Decision cards rebuilt conversation-first.** Thoughts/conversation shown chronologically at the top of the card, above option comparison. Options are compact cards with heart (♡/♥) preference signals instead of dominant "Lean" buttons. The conversation is the centerpiece, not voting.
+- **Resolve flow is now a two-step proposal.** "Suggest going with X?" → "Yes, go with it" / "Not yet" confirmation dialog. Only appears when there's a clear single leader with 2+ preferences. Ties no longer offer a resolve button (prevents selecting all tied options). Toast names the winner: "Going with Silverland May."
+- **Resolved decisions persist as collapsed cards.** Green "Going with Silverland May ✓" card with "See the conversation" to expand full discussion history. Decisions and their conversation no longer vanish after resolution.
+- **Map dims non-decision markers during active decisions.** Decision option pins stay at full opacity with labels; other markers dimmed to 35% with labels hidden. Reduces label collision mess during comparisons. Google POI icons no longer clickable.
+- **Scout upgraded from Sonnet to Opus.** 4 users, cost immaterial, significant quality improvement for facilitation.
+- **"I'm good with whatever" promoted to pill button.** Easier to find and tap, especially for group members who don't have a strong preference. Flexible voters shown by name (not anonymous count).
+- **Per-option thought input.** Each option has its own draft text state (no more leaking between options). Placeholder is contextual: "What do you know about [hotel name]?"
+
+### Fixed
+- **Plan page crash (TDZ violation).** useEffect referenced useCallback functions before their declarations. Production bundle crashed with "Cannot access 'ge' before initialization."
+- **Thoughts appear immediately after sharing.** Fixed stale data bug where thoughts required a full page reload to appear.
+- **Home decision nudge navigates to correct city.** Was navigating to /plan without city param — user landed on wrong city and couldn't find the decision.
+- **Session expired no longer destroys all state.** 401 response now dispatches an event caught by React (soft redirect + toast) instead of hard window.location redirect that killed in-progress work.
+- **NowPage infinite loading on network error.** Added try/catch wrapper around loadData — shows friendly error state with retry button instead of spinning forever.
+- **Travel time polling reduced from 15s to 60s.** Matches documented interval, reduces battery drain and API cost on mobile.
+- **Toasts on every decision action.** Lean, thought share, flexible, add option, delete — all now give feedback. Previously only errors had toasts.
+- **"Cleared" → "Decision removed — options are back in your ideas."** Delete toast now explains what happened.
+
+SPEC UPDATE NEEDED: Decision UX sections (group decisions, voting, resolution flow) now differ significantly from SPEC.md.
+
+## 2026-04-06 — UX Testing Sweep: Overscroll Fix + Terminology + Tone
+
+### Fixed
+- **CRITICAL: Dark brown overscroll on every page.** `index.html` set html/body background to `#3a3128`. Changed to `#faf8f5` (sand). Scrolling past content on Home, Now, Profile, and mobile no longer shows a dark void.
+- **"scheduled" → "planned" terminology.** Day header, CityBoard, NowPage nudges, and TripPhaseContent all said "scheduled" while sidebar said "PLANNED". Unified to "planned" everywhere.
+- **"city board" → "Tap Build to browse ideas."** Empty day guidance referenced "city board" which isn't a visible UI term. Now points to the Build button.
+- **"No reservation" was red.** Styled like an error — changed to neutral tan for informational tone.
+- **"Log out" → "Sign out"** on Settings page for consistency with home page.
+- **AI Observations used analytics language.** Prompt rewritten: "accumulated", "indicating", "categorized" → travel companion tone.
+- **Import history showed "Chat paste's recommendations."** Internal label changed to "Scout".
+
+## 2026-04-06 — Interactive Testing: Critical Fixes + Multi-Language Phrases
+
+### Fixed
+- **CRITICAL: Scout chat added cities to wrong trip.** When multiple trips existed, `create_trip` didn't archive other active trips, and `findFirst` returned the first-created (Japan) instead of the user's current trip. Cities intended for Vietnam ended up in Japan. Fixed: create_trip now archives others, ChatOverlay reads from localStorage, backend fallback uses orderBy updatedAt.
+- **Cities added via chat had no map coordinates.** `add_city` and `create_trip` chat tools now call `geocodeCity()` so markers appear in the correct geography.
+- **No "days away" countdown on trips without a map.** Vietnam trip showed dates but no countdown. Fixed: both map and no-map code paths now show the countdown.
+- **Unknown routes showed blank page.** `/doesnotexist` now redirects to home.
+- **"1 ideas" grammar.** Singular/plural check added to plan page day header.
+- **History log tone.** "promoted" changed to "added", raw date `2026-12-10` changed to human-friendly `Thu, Dec 10`.
+- **Markdown bold not rendering in Scout chat.** `**text**` was showing as raw asterisks. Added lightweight inline markdown renderer.
+- **"Experience name" placeholder inconsistent.** Changed to "What's it called?" to match reservation form tone.
+- **No confirmation when saving an experience.** Added toast: "On the plan" / "Saved as an idea" / "Up for a vote".
+
+### Added
+- **Multi-language phrase card.** Phrase card now detects trip countries and shows relevant phrases. Supports Japan (Japanese), Vietnam (Vietnamese), Cambodia (Khmer), Portugal (Portuguese). Multi-country trips get language tabs to switch between. Replaces hardcoded Japanese-only card.
+
+### SPEC UPDATE NEEDED
+- Phrase card section: now multi-language, not Japan-only. Detection logic and supported languages should be documented.
+- Chat markdown rendering: Scout responses now render bold text.
+
+## 2026-04-01 — Planning Board
+
+### Added
+- **Planning Board.** New full-screen planning view accessible via "Board" button in the action bar. Split-panel layout: days on the left (desktop) or as pills (mobile), unassigned ideas on the right with theme filters, search, and sort. One tap assigns an idea to the active day. Progress bar shows how many ideas are planned. "Already planned" section (collapsible, grouped by day) lets you unplan items. Optimistic UI — ideas vanish from the pool instantly on tap.
+  - City tabs at top with progress counts (e.g., "Kyoto 12/47")
+  - Day cards show fullness: "Wide open" → "3 things" → "Full day" → "Packed"
+  - Theme emoji filter chips with counts
+  - A-Z / Rating sort toggle
+  - Warm empty states ("Kyoto is all set — nice work")
+- **Build button replaces List** in the bottom action bar, now visible on all screen sizes (was mobile-only). Label "Build" chosen over "Board" for clarity (matches WineTracker convention).
+- **Move between days** — planned items show a "move" link that opens an inline day picker. One tap to reassign to a different day without unplanning first.
+- **Inactive days show items** on desktop — all days show their assigned items (compact), so you can scan "did I already put this somewhere?" without clicking each day.
+- **Touch-friendly add buttons** — "+" buttons increased to 44px height for reliable thumb targeting on mobile.
+- **Search always visible on desktop** — search bar shows regardless of pool size on large screens.
+- **Map stays visible on desktop** — board shares the screen with a compressed map (35% map, 65% board). On mobile the board is still a full overlay. Lets you check geography while planning.
+- **Add idea from the board** — "+ Add" dropdown in board header with full capture menu (Manual, Import, Camera, Group decision) for the current city without leaving the board.
+- **Drag and drop** — drag ideas from the pool onto day cards to assign them. Drag between days to move. Drag to "drop here to unplan" zone to remove. Works with mouse (Mac) and touch (iPad/iPhone). Visual feedback: ghost item follows cursor, drop targets highlight.
+- **"Set for now"** — planner-driven signal on any day or city. Tap to mark it with a ✨ sparkle and warm amber tint. Not "done" or "complete" — just "I'm happy with this for now." Persists across sessions (localStorage). Sparkles show on day cards, day pills, and city tabs.
+- **Narrower idea cards** — pool cards capped at max-w-2xl. Descriptions wrap to 3 lines instead of truncating at 1, so you can read them without opening the detail panel.
+- **Cities in chronological order** — city tabs now ordered by arrival date instead of arbitrary database order.
+- **Larger expand arrows** — "Already planned" and mobile day card collapse arrows enlarged from dots to visible triangles.
+- **"Move" more prominent on desktop** — text is larger, uses visible ink color, appears on hover.
+- **Fixed search placeholder** — was showing literal `\u2026`, now shows proper ellipsis.
+- **Fixed empty state copy** — no longer says "close the board" when you can add from the board.
+
+Affects: frontend/src/components/PlanningBoard.tsx (new), frontend/src/pages/PlanPage.tsx. SPEC UPDATE NEEDED — planning board is a new primary view not yet in spec.
+
+## 2026-04-01 — Trip Switching, Home Cleanup, Contributor Fix, Vault Polish
+
+### Changed
+- **Trip switcher shows all trips.** Tapping the trip name now shows past trips, planning trips, and upcoming trips — not just the active one. Any planner/admin can jump to any trip. Explorers see trips they're part of.
+- **Home screen reordered.** "Have something to add?" (Camera/Paste/Scout) is now the first section below the calendar. "Browse ideas" renamed to "Explore by city" with idea counts per city.
+- **Contributor badges removed from imported items.** Bulk-imported experiences no longer show the importer's initial — attribution only appears on items someone personally added. The Contributions summary on Home also excludes imports.
+- **Map walkable radius more visible.** Dashed circle is thicker (3px), higher contrast, and tighter spacing.
+- **Vault PIN setup friendlier.** PIN inputs use `autocomplete="one-time-code"` to suppress browser password manager interference (the "railway" save dialog). Face ID offer uses an in-app prompt instead of browser `confirm()`.
+- **Home loads faster.** Re-navigating to Home no longer flashes "Finding your trip..." — data refreshes silently in the background when already loaded.
+
+Affects: frontend/src/pages/TripOverview.tsx, frontend/src/components/MapCanvas.tsx, frontend/src/components/VaultGate.tsx, frontend/src/components/ExperienceList.tsx, frontend/src/components/DayTimeline.tsx
+
+## 2026-03-31 — Phantom Button Fix, Timezone Bug, Chaos Testing Round 3
+
+### Fixed
+- **Phantom button on TripOverview**: Removed partial "+" button that was hidden behind the bottom nav bar. Tapping it triggered an infinite "Processing..." spinner because the capture pipeline only works on the Plan screen. The button is disabled until a global capture review panel is built.
+- **Day generation timezone bug**: Creating cities with date ranges near DST transitions could generate wrong number of days (e.g., Nov 1–2 creating only 1 day instead of 2). Fixed by switching all date arithmetic from local timezone (`setDate/getDate`) to UTC (`setUTCDate/getUTCDate`) across trips, cities, import, chat, and approvals routes.
+- **Phrases FK validation**: Creating a phrase with a non-existent tripId now returns 404 instead of a 500 FK violation.
+- **Experience cross-trip dayId**: PATCH and promote endpoints now validate that the target dayId belongs to the same trip as the experience, preventing cross-trip data contamination.
+- **Promote race condition**: If a day is deleted while an experience is being promoted to it, the endpoint now returns 404 instead of 500.
+- **Reservation type validation**: Creating a reservation without the required `type` field now returns 400 instead of a Prisma 500.
+
+### Added
+- 57 new chaos tests (S422–S478) covering date shifting, city overlap days, concurrent operations, personal item/reflection/note ownership, phrase CRUD, cross-trip FK validation, and full trip lifecycle scenarios.
+
+Affects: backend/src/routes/trips.ts, cities.ts, experiences.ts, phrases.ts, reservations.ts, import.ts, chat.ts, approvals.ts, frontend/src/components/CaptureFAB.tsx
+
 ## 2026-03-31 — Chaos Testing Round 2: 8 More FK/Validation Bugs Fixed
 
 ### Fixed

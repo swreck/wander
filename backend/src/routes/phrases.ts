@@ -22,6 +22,12 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
+  const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!trip) {
+    res.status(404).json({ error: "Trip not found" });
+    return;
+  }
+
   const phrase = await prisma.tripPhrase.create({
     data: {
       tripId,

@@ -23,6 +23,7 @@ export interface ExperienceNoteEntry {
   experienceId: string;
   travelerId: string;
   content: string;
+  visibility: "group" | "private";
   createdAt: string;
   traveler: { displayName: string };
 }
@@ -156,6 +157,14 @@ export interface Experience {
   routeSegment?: RouteSegment;
   ratings: ExperienceRating[];
   culturalNotes?: CulturalNote[] | null;
+  notes?: ExperienceNoteEntry[];
+  sheetRowRef?: string | null;
+  conditionalAssignment?: {
+    fallbackDate: string;
+    waitFor: string;
+    ifInterested: string;
+    ifNot: string;
+  } | null;
 }
 
 export interface Accommodation {
@@ -197,11 +206,14 @@ export interface Trip {
   datesKnown: boolean;
   anchorDate: string | null;
   status: string;
+  createdAt?: string;
+  lastOpenedAt?: string | null;
   cities: City[];
   routeSegments: RouteSegment[];
   days: Day[];
   experiences?: Experience[];
   accommodations?: Accommodation[];
+  sheetSyncConfig?: { lastSyncAt: string | null };
 }
 
 export interface TravelerProfile {
@@ -241,6 +253,7 @@ export interface DecisionVote {
   optionId: string | null;
   userCode: string;
   displayName: string;
+  rank: number;
 }
 
 export interface Decision {
@@ -252,6 +265,7 @@ export interface Decision {
   status: string;
   createdBy: string;
   createdAt: string;
+  resolvedAt?: string | null;
   city: { id: string; name: string };
   options: Experience[];
   votes: DecisionVote[];

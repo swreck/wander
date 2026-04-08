@@ -130,7 +130,8 @@ function ExperienceCard({
   onExperienceClick: (id: string) => void;
   onDemote: (id: string) => void;
 }) {
-  const cc = exp.createdBy ? getContributorColor(exp.createdBy) : null;
+  const isImported = exp.sourceText && /import|merged/i.test(exp.sourceText);
+  const cc = (exp.createdBy && !isImported) ? getContributorColor(exp.createdBy) : null;
 
   return (
     <div
@@ -167,7 +168,7 @@ function ExperienceCard({
       <div className="flex items-center gap-2 mt-1">
         <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
         {reservationWarning && (
-          <span className="text-[10px] text-rose-400 ml-1">No reservation</span>
+          <span className="text-[10px] text-[#b8a990] ml-1">No reservation</span>
         )}
         {cc && (
           <span className="flex items-center gap-1 ml-auto">
@@ -426,7 +427,7 @@ export default function DayTimeline({
       {entries.length === 0 && !isGuided && (
         <div className="text-center py-8">
           <p className="text-sm text-[#a89880]">Nothing planned yet</p>
-          <p className="text-xs text-[#c8bba8] mt-1">Add activities from the city board, or ask Scout</p>
+          <p className="text-xs text-[#c8bba8] mt-1">Tap Build to browse ideas, or ask Scout</p>
         </div>
       )}
 

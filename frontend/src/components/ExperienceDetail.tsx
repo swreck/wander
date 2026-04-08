@@ -6,6 +6,7 @@ import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
 import { getNudgeForExperience } from "../lib/travelerProfiles";
 import CulturalNotes from "./CulturalNotes";
+import ExperienceNotes from "./ExperienceNotes";
 
 interface Props {
   experienceId: string;
@@ -102,7 +103,7 @@ export default function ExperienceDetail({
   }
 
   return (
-    <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white md:border-l border-[#f0ece5] shadow-xl z-40
+    <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white md:border-l border-[#f0ece5] shadow-xl z-50
                     overflow-y-auto">
       {/* Header */}
       <div className="sticky top-0 bg-white border-b border-[#f0ece5] px-4 py-3 flex items-center justify-between z-10"
@@ -124,6 +125,13 @@ export default function ExperienceDetail({
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Sync edit notice */}
+        {editing && exp.sheetRowRef && (
+          <div className="bg-[#f8f5f0] border border-[#e0d8cc] rounded-lg px-3 py-2 text-xs text-[#6b5d4a]">
+            ↔ This syncs with Larisa's Japan Guide. Your changes will update there too.
+          </div>
+        )}
+
         {/* Hero image or map snippet */}
         {exp.cloudinaryImageId ? (
           <img
@@ -216,7 +224,12 @@ export default function ExperienceDetail({
                        focus:outline-none focus:ring-2 focus:ring-[#a89880]"
           />
         ) : (
-          <h2 className="text-lg font-medium text-[#3a3128]">{exp.name}</h2>
+          <h2 className="text-lg font-medium text-[#3a3128]">
+            {exp.name}
+            {exp.sheetRowRef && (
+              <span className="ml-1 text-[#b8a990] text-sm font-normal" title="Synced with Larisa's Japan Guide">↔</span>
+            )}
+          </h2>
         )}
 
         <div className="flex items-center gap-2 text-sm text-[#8a7a62] flex-wrap">
@@ -285,6 +298,15 @@ export default function ExperienceDetail({
           exp.description && (
             <p className="text-sm text-[#6b5d4a] leading-relaxed">{exp.description}</p>
           )
+        )}
+
+        {/* Group & private notes */}
+        {!editing && (
+          <ExperienceNotes
+            experienceId={exp.id}
+            notes={exp.notes || []}
+            onNotesChanged={onRefresh}
+          />
         )}
 
         {/* Ratings */}

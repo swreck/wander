@@ -17,6 +17,11 @@ enum TransportMode {
   train
   ferry
   drive
+  subway
+  bus
+  taxi
+  shuttle
+  walk
   other
 }
 
@@ -82,9 +87,10 @@ model Trip {
   endDate   DateTime?  @map("end_date")
   datesKnown Boolean   @default(true) @map("dates_known")
   anchorDate DateTime? @map("anchor_date")
-  status    TripStatus @default(active)
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
+  status       TripStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  lastOpenedAt DateTime?  @map("last_opened_at")
   inviteToken String?  @unique @map("invite_token")
 
   cities            City[]
@@ -97,12 +103,15 @@ model Trip {
   travelerProfiles  TravelerProfile[]
   decisions         Decision[]
   votingSessions    VotingSession[]
+  chatMessages      ChatMessage[]
   experienceInterests ExperienceInterest[]
   tripMembers       TripMember[]
   tripInvites       TripInvite[]
   tripPhrases       TripPhrase[]
   learnings         Learning[]
   approvalRequests  ApprovalRequest[]
+  sheetSyncConfig   SheetSyncConfig?
+  planningActions   PlanningAction[]
 
   @@map("trips")
 }
@@ -142,6 +151,7 @@ model City {
   arrivalDate   DateTime? @map("arrival_date")
   departureDate DateTime? @map("departure_date")
   hidden        Boolean  @default(false)
+  costEstimate  Json?    @map("cost_estimate") // { hotelDailyRate, hotelTotal, mealsDaily, budgetJA, budgetKL }
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   days           Day[]
@@ -161,6 +171,7 @@ model Day {
   dayType         String  @default("free") @map("day_type") // "free" | "guided"
   explorationZone String? @map("exploration_zone")
   notes           String?
+  costEstimate    Json?   @map("cost_estimate") // { hotelJA, hotelKL, mealsJA, mealsKL, other }
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city           City            @relation(fields: [cityId], references: [id], onDelete: Cascade)
@@ -203,6 +214,8 @@ model Experience {
 
   culturalNotes Json?    @map("cultural_notes")
   popularTimes  Json?    @map("popular_times")
+  conditionalAssignment Json? @map("conditional_assignment") // { fallbackDate, waitFor, ifInterested, ifNot }
+  sheetRowRef           String? @map("sheet_row_ref") // e.g. "Activities Template:14" — null = Wander-only
 
   decisionId   String?           @map("decision_id")
 
@@ -248,6 +261,8 @@ model Accommodation {
   checkOutTime       String?  @map("check_out_time")
   confirmationNumber String?  @map("confirmation_number")
   notes              String?
+
+  sheetRowRef        String?  @map("sheet_row_ref")
 
   trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city City  @relation(fields: [cityId], references: [id], onDelete: Cascade)
@@ -371,6 +386,8 @@ model Decision {
   createdAt DateTime  @default(now()) @map("created_at")
   resolvedAt DateTime? @map("resolved_at")
 
+  sheetRowRef String? @map("sheet_row_ref")
+
   trip    Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city    City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
   day     Day?              @relation(fields: [dayId], references: [id], onDelete: SetNull)
@@ -386,12 +403,13 @@ model DecisionVote {
   optionId    String?  @map("option_id") // null = "happy with any"
   userCode    String   @map("user_code")
   displayName String   @map("display_name")
+  rank        Int      @default(1) // 1 = first choice, 2 = second, 3 = third
   createdAt   DateTime @default(now()) @map("created_at")
 
   decision Decision    @relation(fields: [decisionId], references: [id], onDelete: Cascade)
   option   Experience? @relation(fields: [optionId], references: [id], onDelete: SetNull)
 
-  @@unique([decisionId, userCode])
+  @@unique([decisionId, userCode, rank])
   @@map("decision_votes")
 }
 
@@ -442,6 +460,7 @@ model Traveler {
   personalItems       PersonalItem[]
   experienceReactions ExperienceReaction[]
   experienceNotes     ExperienceNote[]
+  chatMessages        ChatMessage[]
   reflections         Reflection[]
   approvalRequests    ApprovalRequest[]   @relation("ApprovalRequester")
   reviewedApprovals   ApprovalRequest[]   @relation("ApprovalReviewer")
@@ -513,6 +532,7 @@ model ExperienceNote {
   experienceId String   @map("experience_id")
   travelerId   String   @map("traveler_id")
   content      String
+  visibility   String   @default("group") // "group" | "private"
   createdAt    DateTime @default(now()) @map("created_at")
 
   experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
@@ -605,4 +625,69 @@ model LoginEvent {
   traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
 
   @@map("login_events")
+}
+
+// ── Scout Chat History ────────────────────────────────
+model ChatMessage {
+  id         String   @id @default(cuid())
+  tripId     String   @map("trip_id")
+  travelerId String   @map("traveler_id")
+  role       String   // "user" | "assistant"
+  content    String   @db.Text
+  toolUse    Json?    @map("tool_use")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, travelerId, createdAt])
+  @@map("chat_messages")
+}
+
+// ── Planning Actions (from Larisa's Japan Guide Actions tab) ─
+model PlanningAction {
+  id          String   @id @default(cuid())
+  tripId      String   @map("trip_id")
+  action      String
+  owner       String   // "Both" | "LF" | "KR" | name
+  dueDate     String?  @map("due_date") // "4/15" etc — kept as-is from Guide
+  notes       String?
+  status      String   @default("open") // "open" | "done"
+  sheetRowRef String?  @map("sheet_row_ref")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("planning_actions")
+}
+
+// ── Spreadsheet Sync ─────────────────────────────────────────
+model SheetSyncConfig {
+  id             String   @id @default(cuid())
+  tripId         String   @unique @map("trip_id")
+  spreadsheetId  String   @map("spreadsheet_id")
+  syncIntervalMs Int      @default(0) @map("sync_interval_ms") // 0 = manual only
+  lastSyncAt     DateTime? @map("last_sync_at")
+  lastSyncStatus String?  @map("last_sync_status") // "success" | "error" | "conflict"
+  tabMappings    Json     @default("{}") @map("tab_mappings") // stores which tabs map to what
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("sheet_sync_configs")
+}
+
+model SheetSyncLog {
+  id          String   @id @default(cuid())
+  tripId      String   @map("trip_id")
+  direction   String   // "pull" | "push"
+  status      String   // "success" | "error" | "conflict"
+  summary     String   // human-readable summary
+  conflicts   Json?    // array of {field, wanderValue, sheetValue, resolution}
+  details     Json?    // detailed sync results
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tripId, createdAt])
+  @@map("sheet_sync_logs")
 }

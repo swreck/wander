@@ -338,7 +338,7 @@ const tools: Anthropic.Tool[] = [
         tripId: { type: "string" },
         originCity: { type: "string", description: "Name of the departure city" },
         destinationCity: { type: "string", description: "Name of the arrival city" },
-        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "other"], description: "Mode of transport" },
+        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "subway", "bus", "taxi", "shuttle", "walk", "other"], description: "Mode of transport" },
         departureDate: { type: "string", description: "YYYY-MM-DD departure date" },
         serviceNumber: { type: "string", description: "Flight number or train service (e.g. NH204, Nozomi 42)" },
         confirmationNumber: { type: "string", description: "Booking reference / confirmation number" },
@@ -359,7 +359,7 @@ const tools: Anthropic.Tool[] = [
       type: "object" as const,
       properties: {
         segmentId: { type: "string", description: "The route segment ID to update" },
-        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "other"] },
+        transportMode: { type: "string", enum: ["flight", "train", "ferry", "drive", "subway", "bus", "taxi", "shuttle", "walk", "other"] },
         departureDate: { type: "string", description: "YYYY-MM-DD departure date" },
         serviceNumber: { type: "string", description: "Flight number or train service" },
         confirmationNumber: { type: "string", description: "Booking reference" },
@@ -1297,7 +1297,7 @@ async function executeTool(
       if (input.arrivalDate && input.departureDate) {
         const arrival = new Date(input.arrivalDate);
         const departure = new Date(input.departureDate);
-        for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
           const dateStart = new Date(d);
           dateStart.setUTCHours(0, 0, 0, 0);
           const dateEnd = new Date(d);
@@ -1317,6 +1317,9 @@ async function executeTool(
       }
 
       await syncTripDates(input.tripId);
+
+      // Geocode the city so it appears on the map
+      geocodeCity(city.id).catch(() => {});
 
       await logChange({
         user,
@@ -2250,13 +2253,13 @@ async function executeTool(
         entityType: "traveler_document",
         entityId: doc.id,
         entityName: `${input.type}${input.label ? ` (${input.label})` : ""}`,
-        description: `${user.displayName} added a ${input.type.replace("_", " ")} document for ${targetName}`,
+        description: `${user.displayName} added a ${(input.type || "travel").replace("_", " ")} document for ${targetName}`,
         newState: doc,
       });
 
       return {
         result: { saved: true, documentId: doc.id, type: input.type, data: input.data, forTraveler: targetName },
-        actionDescription: `Saved ${input.type.replace("_", " ")} for ${targetName}`,
+        actionDescription: `Saved ${(input.type || "travel").replace("_", " ")} for ${targetName}`,
       };
     }
 
@@ -2303,7 +2306,7 @@ async function executeTool(
             entityType: "traveler_document",
             entityId: doc.id,
             entityName: `${entry.type}${entry.label ? ` (${entry.label})` : ""}`,
-            description: `${user.displayName} added a ${entry.type.replace("_", " ")} document for ${targetName}`,
+            description: `${user.displayName} added a ${(entry.type || "travel").replace("_", " ")} document for ${targetName}`,
             newState: doc,
           });
 
@@ -2348,14 +2351,14 @@ async function executeTool(
         entityType: "traveler_document",
         entityId: updated.id,
         entityName: `${updated.type}${updated.label ? ` (${updated.label})` : ""}`,
-        description: `${user.displayName} updated a ${updated.type.replace("_", " ")} document`,
+        description: `${user.displayName} updated a ${(updated.type || "travel").replace("_", " ")} document`,
         previousState: existingDoc,
         newState: updated,
       });
 
       return {
         result: { updated: true, documentId: updated.id, type: updated.type, data: updated.data },
-        actionDescription: `Updated ${updated.type.replace("_", " ")} for ${user.displayName}`,
+        actionDescription: `Updated ${(updated.type || "travel").replace("_", " ")} for ${user.displayName}`,
       };
     }
 
@@ -2680,6 +2683,11 @@ async function executeTool(
     // ── Create trip ─────────────
     case "create_trip": {
       const cities = input.cities || [];
+      // Archive all other active trips so the new one becomes THE active trip
+      await prisma.trip.updateMany({
+        where: { status: "active" },
+        data: { status: "archived" },
+      });
       const trip = await prisma.trip.create({
         data: {
           name: input.name,
@@ -2704,7 +2712,7 @@ async function executeTool(
         if (city.arrivalDate && city.departureDate) {
           const start = new Date(city.arrivalDate);
           const end = new Date(city.departureDate);
-          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
             const dateStr = d.toISOString().split("T")[0];
             const existing = await prisma.day.findFirst({ where: { tripId: trip.id, date: new Date(dateStr) } });
             if (!existing) {
@@ -2715,6 +2723,12 @@ async function executeTool(
       }
 
       await syncTripDates(trip.id);
+
+      // Geocode all cities so they appear on the map
+      for (const city of trip.cities) {
+        geocodeCity(city.id).catch(() => {});
+      }
+
       await logChange({
         user,
         tripId: trip.id,
@@ -3127,18 +3141,17 @@ async function executeTool(
       if (!dec) return { result: { error: "Decision not found" } };
       if (dec.status !== "open") return { result: { error: "Decision is already resolved" } };
 
-      await prisma.decisionVote.upsert({
-        where: {
-          decisionId_userCode: { decisionId: input.decisionId, userCode: user.code },
-        },
-        create: {
+      // Clear existing votes and set as rank 1
+      await prisma.decisionVote.deleteMany({
+        where: { decisionId: input.decisionId, userCode: user.code },
+      });
+      await prisma.decisionVote.create({
+        data: {
           decisionId: input.decisionId,
           optionId: input.optionId || null,
           userCode: user.code,
           displayName: user.displayName,
-        },
-        update: {
-          optionId: input.optionId || null,
+          rank: 1,
         },
       });
 
@@ -3450,7 +3463,7 @@ async function executeTool(
       for (const day of trip.days) {
         const dayNum = day.dayNumber || 1;
         const newDate = new Date(anchorDate);
-        newDate.setDate(newDate.getDate() + (dayNum - 1));
+        newDate.setUTCDate(newDate.getUTCDate() + (dayNum - 1));
         await prisma.day.update({
           where: { id: day.id },
           data: { date: newDate },
@@ -3460,7 +3473,7 @@ async function executeTool(
       const lastDay = trip.days[trip.days.length - 1];
       const lastDayNum = lastDay?.dayNumber || trip.days.length;
       const endDate = new Date(anchorDate);
-      endDate.setDate(endDate.getDate() + (lastDayNum - 1));
+      endDate.setUTCDate(endDate.getUTCDate() + (lastDayNum - 1));
       await prisma.trip.update({
         where: { id: input.tripId },
         data: {
@@ -3477,7 +3490,7 @@ async function executeTool(
           const cityDayDates = city.days.map(d => {
             const dn = d.dayNumber || 1;
             const nd = new Date(anchorDate);
-            nd.setDate(nd.getDate() + (dn - 1));
+            nd.setUTCDate(nd.getUTCDate() + (dn - 1));
             return nd;
           });
           cityDayDates.sort((a, b) => a.getTime() - b.getTime());
@@ -3676,7 +3689,8 @@ router.post("/", async (req: AuthRequest, res) => {
     // Ensure we have a tripId — fall back to the active trip
     let tripId = context?.tripId;
     if (!tripId) {
-      const activeTrip = await prisma.trip.findFirst({ where: { status: "active" }, select: { id: true } });
+      // Fall back to most recently updated active trip (not just first in DB)
+      const activeTrip = await prisma.trip.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" }, select: { id: true } });
       if (activeTrip) tripId = activeTrip.id;
     }
 
@@ -3713,7 +3727,7 @@ router.post("/", async (req: AuthRequest, res) => {
       try {
         const { result, actionDescription } = await executeTool(
           "import_recommendations",
-          { tripId, text: recText, senderLabel: "Chat paste" },
+          { tripId, text: recText, senderLabel: "Scout" },
           user,
         );
         const r = result as any;
@@ -3841,9 +3855,22 @@ RULES:
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
 
-    // Build conversation with history for context
+    // Build conversation with persistent history from DB
     let messages: Anthropic.MessageParam[] = [];
-    if (Array.isArray(history) && history.length > 0) {
+    if (tripId && req.user?.travelerId) {
+      try {
+        const dbMessages = await prisma.chatMessage.findMany({
+          where: { tripId, travelerId: req.user.travelerId },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        });
+        for (const msg of dbMessages.reverse()) {
+          messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
+        }
+      } catch { /* fall back to client history if DB fails */ }
+    }
+    // Fallback: use client-passed history if no DB messages
+    if (messages.length === 0 && Array.isArray(history) && history.length > 0) {
       for (const h of history.slice(-10)) {
         if (h.role === "user" || h.role === "assistant") {
           messages.push({ role: h.role, content: h.text });
@@ -3861,7 +3888,7 @@ RULES:
 
     for (let turn = 0; turn < 8; turn++) {
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+        model: "claude-opus-4-6",
         max_tokens: 1024,
         system: systemPrompt,
         tools,
@@ -3908,6 +3935,16 @@ RULES:
       // Add assistant response and tool results for next turn
       messages.push({ role: "assistant", content: response.content });
       messages.push({ role: "user", content: toolResults });
+    }
+
+    // Persist conversation to DB
+    if (tripId && req.user?.travelerId && finalReply) {
+      prisma.chatMessage.createMany({
+        data: [
+          { tripId, travelerId: req.user.travelerId, role: "user", content: message },
+          { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply },
+        ],
+      }).catch(() => { /* non-critical — don't fail the response */ });
     }
 
     res.json({

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../lib/api";
+import { useToast } from "../contexts/ToastContext";
 import type { Trip } from "../lib/types";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured }: Props) {
+  const { showToast } = useToast();
   const [cityId, setCityId] = useState(defaultCityId);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -55,6 +57,8 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
         await api.post(`/decisions/${dec.id}/options`, { experienceId: expId });
       }
 
+      const label = destination === "plan" ? "On the plan" : destination === "decide" ? "Up for a vote" : "Saved as an idea";
+      showToast(label);
       onCaptured();
     } catch (err: any) {
       setError(err.message || "That didn't save — try again?");
@@ -93,7 +97,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Experience name"
+            placeholder="What's it called?"
             autoFocus
             className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white
                        text-[#3a3128] placeholder-[#c8bba8] text-sm
@@ -149,7 +153,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                 className="flex-1 py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium
                            hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
               >
-                {submitting ? "..." : "Plan it"}
+                {submitting ? "..." : "Add to itinerary"}
               </button>
               <button
                 onClick={() => handleSave("maybe")}
@@ -157,7 +161,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                 className="flex-1 py-2.5 rounded-lg border border-[#e0d8cc] text-[#6b5d4a] text-sm font-medium
                            hover:bg-[#f0ece5] disabled:opacity-40 transition-colors"
               >
-                {submitting ? "..." : "Maybe"}
+                {submitting ? "..." : "Just an idea"}
               </button>
               <button
                 onClick={() => handleSave("decide")}
@@ -165,7 +169,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                 className="flex-1 py-2.5 rounded-lg border border-amber-300 text-amber-700 text-sm font-medium
                            bg-amber-50 hover:bg-amber-100 disabled:opacity-40 transition-colors"
               >
-                {submitting ? "..." : "Decide"}
+                {submitting ? "..." : "Ask the group"}
               </button>
             </>
           ) : (

@@ -65,14 +65,17 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
   const dayIdx = sortedDays.findIndex((d) => d.id === day.id);
   const prev = dayIdx > 0 ? sortedDays[dayIdx - 1] : null;
 
-  if (!prev || prev.cityId === day.cityId) return null;
-
-  const segment = trip.routeSegments?.find(
-    (rs) => rs.originCity === prev.city.name && rs.destinationCity === day.city.name
-  );
+  // Compute segment before hooks so hooks always run in same order
+  const isTransition = prev != null && prev.cityId !== day.cityId;
+  const segment = isTransition
+    ? trip.routeSegments?.find(
+        (rs) => rs.originCity === prev.city.name && rs.destinationCity === day.city.name
+      )
+    : undefined;
 
   const emoji = segment ? (MODE_EMOJI[segment.transportMode.toLowerCase()] || "\uD83D\uDE90") : "\uD83D\uDE90";
 
+  // ALL hooks must be above the early return — React requires stable hook count
   const [mode, setMode] = useState(segment?.transportMode || "train");
   const [depDate, setDepDate] = useState(segment?.departureDate?.split("T")[0] || "");
   const [depTime, setDepTime] = useState(segment?.departureTime || "");
@@ -83,6 +86,8 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
   const [confNum, setConfNum] = useState(segment?.confirmationNumber || "");
   const [seat, setSeat] = useState(segment?.seatInfo || "");
   const [notes, setNotes] = useState(segment?.notes || "");
+
+  if (!isTransition) return null;
 
   async function saveSegment() {
     try {
@@ -121,7 +126,7 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
     return (
       <div className="mb-4 px-3 py-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
         <div className="text-sm font-medium text-amber-800 mb-2">
-          {prev.city.name} \u2192 {day.city.name}
+          {prev.city.name} → {day.city.name}
         </div>
         <div className="flex gap-1.5 flex-wrap">
           {(["flight", "train", "ferry", "drive", "other"] as const).map((m) => (
@@ -191,7 +196,7 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
     >
       <div className="flex items-center justify-between">
         <div className="text-sm font-medium text-amber-800">
-          {emoji} {prev.city.name} \u2192 {day.city.name}
+          {emoji} {prev.city.name} → {day.city.name}
         </div>
         <span className="text-xs text-amber-500">tap to edit</span>
       </div>
@@ -205,13 +210,13 @@ function TransportCard({ day, trip, onRefresh }: { day: Day; trip: Trip; onRefre
           {(segment.departureTime || segment.arrivalTime) && (
             <div className="text-sm text-amber-600">
               {segment.departureTime && `Depart ${segment.departureTime}`}
-              {segment.departureTime && segment.arrivalTime && " \u2192 "}
+              {segment.departureTime && segment.arrivalTime && " →"}
               {segment.arrivalTime && `Arrive ${segment.arrivalTime}`}
             </div>
           )}
           {(segment.departureStation || segment.arrivalStation) && (
             <div className="text-sm text-amber-600">
-              {segment.departureStation}{segment.departureStation && segment.arrivalStation && " \u2192 "}{segment.arrivalStation}
+              {segment.departureStation}{segment.departureStation && segment.arrivalStation && " →"}{segment.arrivalStation}
             </div>
           )}
           {segment.confirmationNumber && (

@@ -40,7 +40,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if (res.status === 401) {
       localStorage.removeItem("wander_token");
       localStorage.removeItem("wander_user");
-      window.location.href = "/login";
+      window.dispatchEvent(new CustomEvent("wander:session-expired"));
       throw new Error("Unauthorized");
     }
 

@@ -41,6 +41,7 @@ import reflectionRoutes from "./routes/reflections.js";
 import sseRoutes from "./routes/sse.js";
 import travelAdvisoryRoutes from "./routes/travelAdvisory.js";
 import vaultRoutes from "./routes/vault.js";
+import sheetsSyncRoutes from "./routes/sheetsSync.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -56,6 +57,9 @@ app.use(cors({
     : true, // Allow all origins in dev
   credentials: true,
 }));
+
+// Trust Railway's proxy so rate-limiter reads real client IP from X-Forwarded-For
+app.set("trust proxy", 1);
 
 // Rate limiting — strict on login, moderate on API, tight on AI chat
 // Disabled during tests (all requests come from 127.0.0.1)
@@ -125,6 +129,7 @@ app.use("/api/reflections", reflectionRoutes);
 app.use("/api/sse", sseRoutes);
 app.use("/api/travel-advisory", travelAdvisoryRoutes);
 app.use("/api/vault", vaultRoutes);
+app.use("/api/sheets-sync", sheetsSyncRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
 app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

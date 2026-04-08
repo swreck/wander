@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import TripOverview from "./pages/TripOverview";
@@ -26,6 +26,8 @@ import CaptureFAB from "./components/CaptureFAB";
 import ReflectionCard from "./components/ReflectionCard";
 import SyncIndicator from "./components/SyncIndicator";
 import BottomNav from "./components/BottomNav";
+import AutoSync from "./components/AutoSync";
+import UpdatePrompt from "./components/UpdatePrompt";
 import NewMemberOnboarding from "./components/NewMemberOnboarding";
 import { shouldShowOnboarding } from "./components/NewMemberOnboarding";
 import React, { useState, useEffect, useCallback } from "react";
@@ -121,10 +123,31 @@ function ChatOverlay() {
 
   useEffect(() => {
     if (!user) return;
-    api.get<any>("/trips/active").then((t) => {
-      if (t?.id) setTripId(t.id);
-    }).catch(() => {});
+    // Prefer the locally-selected trip (survives trip switches without pathname changes)
+    const lastTripId = localStorage.getItem("wander:last-trip-id");
+    if (lastTripId) {
+      setTripId(lastTripId);
+    } else {
+      api.get<any>("/trips/active").then((t) => {
+        if (t?.id) setTripId(t.id);
+      }).catch(() => {});
+    }
   }, [user, location.pathname]);
+
+  // Listen for trip switches (TripOverview dispatches data-changed when switching)
+  useEffect(() => {
+    function handleTripSwitch() {
+      const lastTripId = localStorage.getItem("wander:last-trip-id");
+      if (lastTripId) setTripId(lastTripId);
+    }
+    window.addEventListener("wander:data-changed", handleTripSwitch);
+    // Also listen for storage changes (e.g., from another tab)
+    window.addEventListener("storage", handleTripSwitch);
+    return () => {
+      window.removeEventListener("wander:data-changed", handleTripSwitch);
+      window.removeEventListener("storage", handleTripSwitch);
+    };
+  }, []);
 
   const handleDataChanged = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -258,6 +281,22 @@ function ReflectionOverlay() {
   );
 }
 
+function SessionExpiredHandler() {
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const handler = () => {
+      showToast("Your session expired — signing you back in", "info");
+      navigate("/login", { replace: true });
+    };
+    window.addEventListener("wander:session-expired", handler);
+    return () => window.removeEventListener("wander:session-expired", handler);
+  }, [navigate, showToast]);
+
+  return null;
+}
+
 function SyncNotifier() {
   const { showToast } = useToast();
 
@@ -305,6 +344,7 @@ function AppRoutes() {
       <Route path="/city/:cityId" element={<ProtectedRoute><CityBoard /></ProtectedRoute>} />
       <Route path="/story" element={<ProtectedRoute><TripStoryPage /></ProtectedRoute>} />
       <Route path="/guide" element={<ProtectedRoute><GuidePage /></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
@@ -326,8 +366,11 @@ export default function App() {
               <PhraseCard />
               <ShortcutHelp />
               <OfflineIndicator />
+              <SessionExpiredHandler />
               <SyncNotifier />
               <SyncIndicator />
+              <AutoSync />
+              <UpdatePrompt />
               <BottomNav />
               <OnboardingOverlay />
               <ReflectionOverlay />

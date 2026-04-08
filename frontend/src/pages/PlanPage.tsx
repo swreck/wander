@@ -8,6 +8,7 @@ import ExperienceDetail from "../components/ExperienceDetail";
 import CapturePanel from "../components/CapturePanel";
 import UniversalCapturePanel from "../components/UniversalCapturePanel";
 import DayView from "../components/DayView";
+import PlanningBoard from "../components/PlanningBoard";
 import CitySplash from "../components/CitySplash";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -32,19 +33,21 @@ export default function PlanPage() {
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
   const [selectedCandidateCityId, setSelectedCandidateCityId] = useState<string | null>(null);
   const initialCityId = searchParams.get("city");
+  const initialAction = searchParams.get("action");
 
   // UI state
   const [showCapture, setShowCapture] = useState(false);
   const [selectedExpId, setSelectedExpId] = useState<string | null>(null);
   const [showDayView, setShowDayView] = useState(false);
   // showImport replaced by captureCtx.reviewOpen
-  const [mobileView, setMobileView] = useState<"map" | "list">("map");
+  const [mobileView, setMobileView] = useState<"map" | "list">(initialCityId ? "list" : "map");
   const [candidatesExpanded, setCandidatesExpanded] = useState(() => {
     try { return localStorage.getItem("wander:candidates-expanded") === "true"; } catch { return false; }
   });
   const [highlightedExpId, setHighlightedExpId] = useState<string | null>(null);
   const [splashCity, setSplashCity] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showBoard, setShowBoard] = useState(false);
   const [recenterKey, setRecenterKey] = useState(0);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
 
@@ -85,11 +88,12 @@ export default function PlanPage() {
     toggleMobileView: () => setMobileView((v) => v === "map" ? "list" : "map"),
     closePanel: () => {
       if (selectedExpId) { setSelectedExpId(null); return; }
+      if (showBoard) { setShowBoard(false); return; }
       if (showDayView) { setShowDayView(false); return; }
       if (showCapture) { setShowCapture(false); return; }
       if (captureCtx.reviewOpen) { captureCtx.reset(); return; }
     },
-  }), [selectedExpId, showDayView, showCapture, captureCtx]);
+  }), [selectedExpId, showBoard, showDayView, showCapture, captureCtx]);
   useKeyboardShortcuts(shortcutActions);
 
   // Expose current day/city to chat assistant via global
@@ -114,7 +118,8 @@ export default function PlanPage() {
 
   // ── Data loading ──────────────────────────────────────────────
 
-  const loadTrip = useCallback(async () => {
+  const loadTrip = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const t = await api.get<Trip>("/trips/active");
     if (!t) { navigate("/"); return; }
     setTrip(t);
@@ -122,22 +127,30 @@ export default function PlanPage() {
     const d = await api.get<Day[]>(`/days/trip/${t.id}`);
     setDays(d);
     if (d.length > 0 && !selectedDayId) {
-      // If navigated with ?city=X, jump to that city's first day
       const cityDay = initialCityId ? d.find((day) => day.cityId === initialCityId) : null;
       setSelectedDayId(cityDay?.id || d[0].id);
-      // Clear the param so future loads don't keep jumping
       if (initialCityId) setSearchParams({}, { replace: true });
     }
     setLoading(false);
   }, [navigate, selectedDayId]);
 
-  useEffect(() => { loadTrip(); }, []);
-
   useEffect(() => {
-    const handler = () => { loadTrip(); };
-    window.addEventListener("wander:data-changed", handler);
-    return () => window.removeEventListener("wander:data-changed", handler);
-  }, [loadTrip]);
+    // If we already have trip data (return visit), refresh silently
+    if (trip) loadTrip(true);
+    else loadTrip();
+  }, []);
+
+  // Handle action params from Home (camera, import)
+  useEffect(() => {
+    if (!loading && initialAction) {
+      if (initialAction === "camera") {
+        setTimeout(() => cameraRef.current?.click(), 300);
+      } else if (initialAction === "import") {
+        captureCtx.openReview();
+      }
+      setSearchParams({}, { replace: true });
+    }
+  }, [loading, initialAction]);
 
   const loadExperiences = useCallback(async () => {
     if (!trip) return;
@@ -168,6 +181,13 @@ export default function PlanPage() {
   }, [trip]);
 
   useEffect(() => { loadInterests(); }, [loadInterests]);
+
+  // Refresh all data when chat or other panels make changes
+  useEffect(() => {
+    const handler = () => { loadTrip(true); loadExperiences(); loadDecisions(); loadInterests(); };
+    window.addEventListener("wander:data-changed", handler);
+    return () => window.removeEventListener("wander:data-changed", handler);
+  }, [loadTrip, loadExperiences, loadDecisions, loadInterests]);
 
   // ── Actions ───────────────────────────────────────────────────
 
@@ -425,12 +445,9 @@ export default function PlanPage() {
   function handleDayClick(dayId: string) {
     setRecenterKey((k) => k + 1);
     setSelectedCandidateCityId(null);
-    if (selectedDayId === dayId) {
-      setShowDayView(true);
-    } else {
-      setSelectedDayId(dayId);
-      setShowDayView(false);
-    }
+    setSelectedDayId(dayId);
+    // Always open day detail on single tap — no hidden double-tap
+    setShowDayView(true);
   }
 
   // Backroads days: continuous date range from first to last itinerary-imported item
@@ -475,6 +492,9 @@ export default function PlanPage() {
   const selected = cityExperiences.filter((e) => e.state === "selected");
   const possible = cityExperiences.filter((e) => e.state === "possible");
   const cityDecisions = decisions.filter((d) => d.cityId === activeCityId);
+  const openDecisionOptionIds = new Set(
+    cityDecisions.filter((d) => d.status === "open").flatMap((d) => d.options.map((o) => o.id))
+  );
 
   // Friction dots for filmstrip
   const dayFrictionMap = new Map<string, boolean>();
@@ -540,8 +560,12 @@ export default function PlanPage() {
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Map — always visible on desktop, toggleable on mobile */}
-        <div className={`flex-1 relative ${mobileView !== "map" ? "hidden lg:block" : ""}`}>
+        {/* Map — always visible on desktop, toggleable on mobile, compressed when board is open */}
+        <div className={`relative ${
+          showBoard
+            ? "hidden lg:block lg:w-[35%] lg:shrink-0"
+            : `flex-1 ${mobileView !== "map" ? "hidden lg:block" : ""}`
+        }`}>
           <MapCanvas
             center={mapCenter}
             experiences={cityExperiences}
@@ -554,6 +578,7 @@ export default function PlanPage() {
             themeFilter={themeFilter}
             onThemeFilterChange={setThemeFilter}
             dayId={selectedDay?.id || null}
+            emphasizeIds={openDecisionOptionIds}
           />
 
           {/* City splash photo — shows once per city per session */}
@@ -599,7 +624,20 @@ export default function PlanPage() {
                     }
                     return null;
                   })()}
-                  {selected.filter((e) => e.dayId === selectedDay.id).length} planned
+                  {(() => {
+                    const scheduled = selected.filter((e) => e.dayId === selectedDay.id).length;
+                    const ideas = possible.length;
+                    if (scheduled > 0) return `${scheduled} planned`;
+                    if (ideas > 0) return (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShowBoard(true); }}
+                        className="underline underline-offset-2 decoration-[#c8bba8] hover:decoration-[#6b5d4a] transition-colors"
+                      >
+                        {ideas} {ideas === 1 ? 'idea' : 'ideas'}
+                      </button>
+                    );
+                    return "Open day";
+                  })()}
                   {selectedDay.explorationZone && ` · ${selectedDay.explorationZone}`}
                   {(() => {
                     const dayRes = selectedDay.reservations?.find((r) => r);
@@ -633,8 +671,8 @@ export default function PlanPage() {
             </div>
           )}
 
-          {/* Bottom dock: action bar + day filmstrip — single bar (global nav hides on /plan) */}
-          <div className="fixed left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 lg:block bottom-0"
+          {/* Bottom dock: action bar + day filmstrip — hidden when board is open */}
+          <div className={`fixed left-0 right-0 bg-white/55 backdrop-blur-sm border-t border-[#e0d8cc]/40 z-30 bottom-0 ${showBoard ? "hidden" : ""}`}
                style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
             {/* Action bar — Home, List, Add, Chat, Now */}
             <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40">
@@ -645,12 +683,12 @@ export default function PlanPage() {
                 </svg>
                 <span className="text-[10px] leading-tight">Home</span>
               </button>
-              <button onClick={() => setMobileView("list")} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors lg:hidden">
+              <button onClick={() => { setShowBoard(true); setMobileView("map"); }} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
-                  <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="12" y1="3" x2="12" y2="21" />
                 </svg>
-                <span className="text-[10px] leading-tight">List</span>
+                <span className="text-[10px] leading-tight">Build</span>
               </button>
               <div className="relative">
                 <button onClick={() => setShowAddMenu(!showAddMenu)} className="flex flex-col items-center px-3 py-0.5 text-[#6b5d4a] hover:text-[#3a3128] transition-colors">
@@ -672,11 +710,12 @@ export default function PlanPage() {
                       <div className="border-t border-[#e0d8cc] my-0.5" />
                       <button onClick={() => {
                         setShowAddMenu(false);
+                        const cityName = selectedDay?.city?.name || "our plans";
                         window.dispatchEvent(new CustomEvent("wander-open-chat", {
-                          detail: { prefill: "Start a vote about " },
+                          detail: { prefill: `Help the group decide: where should we eat in ${cityName}?` },
                         }));
                       }}
-                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Start a vote</button>
+                        className="block w-full px-4 py-2 text-sm text-[#3a3128] hover:bg-[#f0ece5] text-left">Group decision</button>
                     </div>
                   </>
                 )}
@@ -700,9 +739,10 @@ export default function PlanPage() {
                 <span className="text-[10px] leading-tight">Now</span>
               </button>
             </div>
-            {/* Day filmstrip */}
+            {/* Day filmstrip — extra top padding separates from action bar for mobile tap accuracy */}
+            <div className="border-t border-[#e5ddd0]/60" />
             <div
-              className="flex gap-1.5 px-2 py-2 overflow-x-auto"
+              className="flex gap-2.5 px-2 pt-2 pb-2.5 overflow-x-auto"
               style={{ touchAction: "pan-x", overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" }}
             >
               {days.map((day, dayIdx) => {
@@ -878,8 +918,42 @@ export default function PlanPage() {
           </div>
         </div>
 
-        {/* Desktop side panel */}
-        <div className="w-96 border-l border-[#f0ece5] bg-white overflow-y-auto hidden lg:block">
+        {/* Planning board — inline on desktop (map+board side-by-side), overlay on mobile */}
+        {showBoard && (
+          <PlanningBoard
+            trip={trip}
+            days={days}
+            experiences={experiences}
+            activeCityId={activeCityId}
+            onPromote={handlePromote}
+            onDemote={handleDemote}
+            onExperienceClick={(id) => setSelectedExpId(id)}
+            onClose={() => setShowBoard(false)}
+            onActiveDayChange={(dayId) => setSelectedDayId(dayId)}
+            decisionOptionNames={new Set(
+              cityDecisions.filter(d => d.status === "open").flatMap(d => d.options.map(o => o.name.toLowerCase()))
+            )}
+            onAdd={(cityId, action) => {
+              const cityDay = days.find(d => d.cityId === cityId);
+              if (cityDay) setSelectedDayId(cityDay.id);
+              switch (action) {
+                case "manual": setShowCapture(true); break;
+                case "import": captureCtx.openReview(); break;
+                case "camera": cameraRef.current?.click(); break;
+                case "decision": {
+                  const cn = trip?.cities.find(c => c.id === cityId)?.name || "our plans";
+                  window.dispatchEvent(new CustomEvent("wander-open-chat", {
+                    detail: { prefill: `Help the group decide: where should we eat in ${cn}?` },
+                  }));
+                  break;
+                }
+              }
+            }}
+          />
+        )}
+
+        {/* Desktop side panel — hidden when board is open */}
+        <div className={`w-96 border-l border-[#f0ece5] bg-white overflow-y-auto hidden ${showBoard ? "" : "lg:block"}`}>
           {showDayView && selectedDay ? (
             <DayView
               day={selectedDay}
@@ -913,7 +987,7 @@ export default function PlanPage() {
         </div>
 
         {/* Mobile list view — full screen when active */}
-        {mobileView === "list" && (
+        {mobileView === "list" && !showBoard && (
           <div className="fixed inset-0 z-40 bg-[#faf8f5] lg:hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0ece5] shrink-0"
                  style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
@@ -924,7 +998,7 @@ export default function PlanPage() {
                 &larr; Map
               </button>
               <span className="text-xs font-medium text-[#a89880]">
-                {selected.length} Planned · {possible.length} Possible
+                {trip?.cities.find(c => c.id === activeCityId)?.name ? `${trip.cities.find(c => c.id === activeCityId)!.name} · ` : ""}{selected.length} Planned · {possible.length} Possible
               </span>
               {selectedDay && (
                 <button

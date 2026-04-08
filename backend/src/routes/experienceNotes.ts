@@ -7,7 +7,7 @@ router.use(requireAuth);
 
 // Add a note to an experience
 router.post("/", async (req: AuthRequest, res) => {
-  const { experienceId, content } = req.body;
+  const { experienceId, content, visibility } = req.body;
 
   if (!experienceId || !content?.trim()) {
     res.status(400).json({ error: "experienceId and content required" });
@@ -19,7 +19,6 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
-  // Validate experience exists
   const experience = await prisma.experience.findUnique({ where: { id: experienceId } });
   if (!experience) {
     res.status(404).json({ error: "Experience not found" });
@@ -31,6 +30,7 @@ router.post("/", async (req: AuthRequest, res) => {
       experienceId,
       travelerId: req.user.travelerId,
       content: content.trim(),
+      visibility: visibility === "private" ? "private" : "group",
     },
     include: { traveler: { select: { displayName: true } } },
   });
@@ -38,13 +38,40 @@ router.post("/", async (req: AuthRequest, res) => {
   res.status(201).json(note);
 });
 
+// Update a note (only the author can)
+router.patch("/:id", async (req: AuthRequest, res) => {
+  const note = await prisma.experienceNote.findUnique({
+    where: { id: req.params.id as string },
+  });
+
+  if (!note) { res.status(404).json({ error: "Not found" }); return; }
+  if (note.travelerId !== req.user?.travelerId) { res.status(403).json({ error: "Not yours" }); return; }
+
+  const { content, visibility } = req.body;
+  const updated = await prisma.experienceNote.update({
+    where: { id: req.params.id as string },
+    data: {
+      ...(content !== undefined && { content: content.trim() }),
+      ...(visibility !== undefined && { visibility }),
+    },
+    include: { traveler: { select: { displayName: true } } },
+  });
+
+  res.json(updated);
+});
+
 // Get notes for experiences in a city
-router.get("/city/:cityId", async (req, res) => {
+// Private notes are only visible to their author
+router.get("/city/:cityId", async (req: AuthRequest, res) => {
   const notes = await prisma.experienceNote.findMany({
     where: {
       experience: { cityId: req.params.cityId as string },
+      OR: [
+        { visibility: "group" },
+        { travelerId: req.user?.travelerId || "" },
+      ],
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" }, // newest first
     include: { traveler: { select: { displayName: true } } },
   });
 

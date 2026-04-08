@@ -69,7 +69,7 @@ router.post("/", async (req: AuthRequest, res) => {
   if (arrivalDate && departureDate) {
     const arrival = new Date(arrivalDate);
     const departure = new Date(departureDate);
-    for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
       const dateStart = new Date(d);
       dateStart.setUTCHours(0, 0, 0, 0);
       const dateEnd = new Date(d);
@@ -181,7 +181,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
       }
 
       // Ensure days exist for every date in the new range
-      for (let d = new Date(arrival); d <= departure; d.setDate(d.getDate() + 1)) {
+      for (let d = new Date(arrival); d <= departure; d.setUTCDate(d.getUTCDate() + 1)) {
         const dateStart = new Date(d);
         dateStart.setUTCHours(0, 0, 0, 0);
         const dateEnd = new Date(d);
