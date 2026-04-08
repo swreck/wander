@@ -1663,7 +1663,7 @@ function CalendarCluster({
                       {city?.name || ""}
                     </div>
                   </div>
-                  {/* Bottom: departing transport icon OR theme emojis */}
+                  {/* Bottom: departing transport → activity transport → theme emojis */}
                   {isLeaving ? (
                     <div className="relative z-10 mb-1 flex items-center gap-0.5 bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm">
                       <span style={{ fontSize: 16 }}>{departIcon}</span><span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span>
@@ -1673,6 +1673,35 @@ function CalendarCluster({
                       {(() => {
                         if (count === 0) return null;
                         const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
+                        // Check for activity-based transport (day trips, kayak, etc.) — no arrows
+                        const ACTIVITY_ICONS: [RegExp, string][] = [
+                          [/kayak/i, "🛶"], [/canoe/i, "🛶"], [/raft/i, "🛶"],
+                          [/cycl|bike|bicycl/i, "🚲"],
+                          [/boat|ferry|sail|cruise/i, "⛵"],
+                          [/hike|trek|trail/i, "🥾"],
+                          [/day\s*trip|excursion/i, "🚃"],
+                        ];
+                        let activityIcon: string | null = null;
+                        for (const e of dayExps) {
+                          const text = `${e.name} ${e.description || ""}`;
+                          // Check transportModeToHere field
+                          if ((e as any).transportModeToHere === "train") { activityIcon = "🚃"; break; }
+                          if ((e as any).transportModeToHere === "bus") { activityIcon = "🚌"; break; }
+                          if ((e as any).transportModeToHere === "shuttle") { activityIcon = "🚐"; break; }
+                          // Check activity name/description keywords
+                          for (const [regex, icon] of ACTIVITY_ICONS) {
+                            if (regex.test(text)) { activityIcon = icon; break; }
+                          }
+                          if (activityIcon) break;
+                        }
+                        if (activityIcon) {
+                          return (
+                            <div className="bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm flex items-center">
+                              <span style={{ fontSize: 16 }}>{activityIcon}</span>
+                            </div>
+                          );
+                        }
+                        // Fall back to theme emojis
                         const themeSet = new Set<string>();
                         for (const e of dayExps) {
                           for (const t of (e.themes || [])) {
