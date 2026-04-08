@@ -560,27 +560,27 @@ export default function TripOverview() {
           </div>
         )}
 
-        {/* Identity bar */}
-        <div className="flex items-center justify-end gap-3 mb-6">
+        {/* Identity bar — min 44px tap targets for mobile */}
+        <div className="flex items-center justify-end gap-1 mb-4">
           <button
             onClick={() => navigate("/guide#getting-around")}
-            className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+            className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"
             aria-label="Guide"
           >
             ?
           </button>
           <button
             onClick={() => navigate("/history")}
-            className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+            className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"
           >
             History
           </button>
           <button
             onClick={() => navigate("/settings")}
-            className="text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+            className="text-[#a89880] hover:text-[#6b5d4a] transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Settings"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.32 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
             </svg>
@@ -588,7 +588,7 @@ export default function TripOverview() {
           {isPlanner && pendingApprovals > 0 && (
             <button
               onClick={() => setShowApprovals(true)}
-              className="text-xs bg-[#514636] text-white px-2 py-1 rounded-full hover:bg-[#3a3128] transition-colors"
+              className="text-xs bg-[#514636] text-white px-2.5 py-2 rounded-full hover:bg-[#3a3128] transition-colors min-h-[44px] flex items-center"
             >
               {pendingApprovals} to review
             </button>
@@ -596,14 +596,14 @@ export default function TripOverview() {
           {isPlanner && (
             <button
               onClick={() => setShowLearnings(true)}
-              className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+              className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"
               title="Trip learnings"
             >
               Learnings
             </button>
           )}
-          <button onClick={() => navigate("/profile")} className="text-sm text-[#8a7a62] hover:text-[#514636] transition-colors underline decoration-dotted underline-offset-2">{user?.displayName}</button>
-          <button onClick={logout} className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors">
+          <button onClick={() => navigate("/profile")} className="text-sm text-[#8a7a62] hover:text-[#514636] transition-colors underline decoration-dotted underline-offset-2 px-1 py-2.5 min-h-[44px] flex items-center">{user?.displayName}</button>
+          <button onClick={logout} className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors px-1 py-2.5 min-h-[44px] flex items-center">
             Sign out
           </button>
         </div>
@@ -1267,7 +1267,7 @@ function HomeViewToggle({
       <div className="flex justify-center gap-1 mb-3">
         <button
           onClick={() => toggleView("trip")}
-          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+          className={`px-4 py-2 rounded-full text-xs font-medium transition-colors min-h-[44px] flex items-center ${
             view === "trip"
               ? "bg-[#514636] text-white"
               : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
@@ -1277,7 +1277,7 @@ function HomeViewToggle({
         </button>
         <button
           onClick={() => toggleView("details")}
-          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+          className={`px-4 py-2 rounded-full text-xs font-medium transition-colors min-h-[44px] flex items-center ${
             view === "details"
               ? "bg-[#514636] text-white"
               : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
