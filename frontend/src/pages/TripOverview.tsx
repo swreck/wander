@@ -1624,9 +1624,13 @@ function CalendarCluster({
                 (s.destinationCity?.toLowerCase()?.includes(nextCityName) || nextCityName.includes(s.destinationCity?.toLowerCase() || "---"))
               ) : null;
 
-              // Pick transport icons
-              const arrivalIcon = arrivalSegment?.transportMode === "flight" ? "✈️" : "🚃";
-              const departIcon = departSegment?.transportMode === "flight" ? "✈️" : "🚃";
+              // Pick transport icons — only show specific mode when we have route data
+              const TRANSPORT_EMOJI: Record<string, string> = {
+                flight: "✈️", train: "🚃", ferry: "⛴️", drive: "🚗", bus: "🚌",
+                subway: "🚇", taxi: "🚕", shuttle: "🚐", walk: "🚶",
+              };
+              const arrivalIcon = arrivalSegment ? (TRANSPORT_EMOJI[arrivalSegment.transportMode] || "🚃") : null;
+              const departIcon = departSegment ? (TRANSPORT_EMOJI[departSegment.transportMode] || "🚃") : null;
 
               return (
                 <button
@@ -1645,10 +1649,14 @@ function CalendarCluster({
                     <span className="absolute top-0.5 right-0.5 z-20 font-bold text-white rounded-sm leading-none"
                       style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }}>B</span>
                   )}
-                  {/* Top: arriving transport icon */}
+                  {/* Top: arriving — icon if route data exists, plain arrow if just city change */}
                   {isTravel ? (
                     <div className="relative z-10 mt-1 flex items-center gap-0.5 bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm">
-                      <span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span><span style={{ fontSize: 16 }}>{arrivalIcon}</span>
+                      {arrivalIcon ? (
+                        <><span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span><span style={{ fontSize: 16 }}>{arrivalIcon}</span></>
+                      ) : (
+                        <span className="text-[#6b5d4a] font-medium" style={{ fontSize: 13 }}>→ in</span>
+                      )}
                     </div>
                   ) : (
                     <div className="h-5" />
@@ -1666,7 +1674,11 @@ function CalendarCluster({
                   {/* Bottom: departing transport → activity transport → theme emojis */}
                   {isLeaving ? (
                     <div className="relative z-10 mb-1 flex items-center gap-0.5 bg-white/90 rounded-md px-1.5 py-0.5 shadow-sm">
-                      <span style={{ fontSize: 16 }}>{departIcon}</span><span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span>
+                      {departIcon ? (
+                        <><span style={{ fontSize: 16 }}>{departIcon}</span><span className="text-[#6b5d4a]" style={{ fontSize: 11 }}>→</span></>
+                      ) : (
+                        <span className="text-[#6b5d4a] font-medium" style={{ fontSize: 13 }}>out →</span>
+                      )}
                     </div>
                   ) : (
                     <div className="relative z-10 mb-1 flex items-center justify-center gap-0.5">

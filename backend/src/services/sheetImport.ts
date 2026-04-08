@@ -10,10 +10,12 @@ import {
   readSpreadsheet,
   copySpreadsheet,
   type ParsedCity,
+  type ParsedDay,
   type ParsedHotel,
   type ParsedActivity,
   type SpreadsheetData,
 } from "./sheetsSync.js";
+import type { TransportMode } from "@prisma/client";
 
 const USER_CODE_MAP: Record<string, string> = {
   julie: "Julie",
@@ -186,7 +188,7 @@ async function importCities(
   tripId: string,
   parsedCities: ParsedCity[],
   creatorCode: string,
-): Promise<{ cityCount: number; dayCount: number; cityIdMap: Map<string, string> }> {
+): Promise<{ cityCount: number; dayCount: number; cityIdMap: Map<string, string>; segmentCount: number }> {
   const cityIdMap = new Map<string, string>();
   let dayCount = 0;
   let sequenceOrder = 0;
@@ -338,7 +340,67 @@ async function importCities(
     }
   }
 
-  return { cityCount: cityIdMap.size, dayCount, cityIdMap };
+  // ── Create route segments from travel data in parsed days ──
+  let segmentCount = 0;
+  const allDaysWithTravel: { city: ParsedCity; day: ParsedDay }[] = [];
+  for (const pc of parsedCities) {
+    for (const pd of pc.days) {
+      if (pd.travelFrom || pd.travelTo) {
+        allDaysWithTravel.push({ city: pc, day: pd });
+      }
+    }
+  }
+
+  for (const { city, day } of allDaysWithTravel) {
+    const originName = day.travelFrom || city.name;
+    const destName = day.travelTo || city.name;
+    // Skip if origin and destination are the same (no real travel)
+    if (originName.toLowerCase() === destName.toLowerCase()) continue;
+
+    // Determine transport mode from spreadsheet columns
+    const mode = guessTransportMode(day.travelFlightTime, day.travelFrom, day.travelTo, day.description);
+
+    // Check if segment already exists
+    const existing = await prisma.routeSegment.findFirst({
+      where: {
+        tripId,
+        originCity: originName,
+        destinationCity: destName,
+      },
+    });
+
+    if (!existing) {
+      await prisma.routeSegment.create({
+        data: {
+          tripId,
+          originCity: originName,
+          destinationCity: destName,
+          sequenceOrder: segmentCount,
+          transportMode: mode,
+          departureDate: day.date ? new Date(day.date + "T00:00:00Z") : null,
+          departureTime: day.travelDepart || null,
+          arrivalTime: day.travelArrive || null,
+          notes: day.travelFlightTime ? `Flight time: ${day.travelFlightTime}` : null,
+        },
+      });
+      segmentCount++;
+    }
+  }
+
+  return { cityCount: cityIdMap.size, dayCount, cityIdMap, segmentCount };
+}
+
+/** Guess transport mode from spreadsheet columns */
+function guessTransportMode(flightTime: string | null, from: string | null, to: string | null, description: string | null): TransportMode {
+  const text = `${flightTime || ""} ${from || ""} ${to || ""} ${description || ""}`.toLowerCase();
+  if (flightTime && flightTime.trim()) return "flight"; // Has a flight time → it's a flight
+  if (text.includes("fly") || text.includes("flight") || text.includes("airport")) return "flight";
+  if (text.includes("ferry") || text.includes("boat")) return "ferry";
+  if (text.includes("drive") || text.includes("car") || text.includes("rental")) return "drive";
+  if (text.includes("bus")) return "bus";
+  if (text.includes("walk")) return "walk";
+  // Default to train for Japan travel
+  return "train";
 }
 
 // ── Activities Import ────────────────────────────────────────

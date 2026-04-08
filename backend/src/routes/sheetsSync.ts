@@ -22,6 +22,7 @@ import {
   tintCells,
   createVersionSnapshot,
 } from "../services/sheetsSync.js";
+import type { TransportMode } from "@prisma/client";
 
 const router = Router();
 router.use(requireAuth);
@@ -288,6 +289,51 @@ router.post("/pull", async (req: AuthRequest, res) => {
     }
     if (dateAssignmentCount > 0) {
       addedCount += dateAssignmentCount;
+    }
+
+    // Sync route segments from itinerary travel columns (From/To/Depart/Arrive)
+    let segmentCount = 0;
+    for (const pc of data.cities) {
+      for (const pd of pc.days) {
+        if (!pd.travelFrom && !pd.travelTo) continue;
+        const originName = pd.travelFrom || pc.name;
+        const destName = pd.travelTo || pc.name;
+        if (originName.toLowerCase() === destName.toLowerCase()) continue;
+
+        const mode = guessTransportMode(pd.travelFlightTime, pd.travelFrom, pd.travelTo, pd.description);
+
+        const existing = await prisma.routeSegment.findFirst({
+          where: { tripId, originCity: originName, destinationCity: destName },
+        });
+
+        if (!existing) {
+          await prisma.routeSegment.create({
+            data: {
+              tripId,
+              originCity: originName,
+              destinationCity: destName,
+              sequenceOrder: segmentCount,
+              transportMode: mode,
+              departureDate: pd.date ? new Date(pd.date + "T00:00:00Z") : null,
+              departureTime: pd.travelDepart || null,
+              arrivalTime: pd.travelArrive || null,
+              notes: pd.travelFlightTime ? `Flight time: ${pd.travelFlightTime}` : null,
+            },
+          });
+          segmentCount++;
+          addedCount++;
+        } else if (existing.departureTime !== (pd.travelDepart || null) || existing.arrivalTime !== (pd.travelArrive || null)) {
+          await prisma.routeSegment.update({
+            where: { id: existing.id },
+            data: {
+              departureTime: pd.travelDepart || null,
+              arrivalTime: pd.travelArrive || null,
+              transportMode: mode,
+            },
+          });
+          updatedCount++;
+        }
+      }
     }
 
     // Update sync config
@@ -728,6 +774,18 @@ function buildHotelDescription(hotel: any): string {
   if (hotel.otherCriteria) parts.push(hotel.otherCriteria);
   if (hotel.aiNotes) parts.push(hotel.aiNotes);
   return parts.join("\n") || "";
+}
+
+/** Guess transport mode from spreadsheet travel columns */
+function guessTransportMode(flightTime: string | null, from: string | null, to: string | null, description: string | null): TransportMode {
+  const text = `${flightTime || ""} ${from || ""} ${to || ""} ${description || ""}`.toLowerCase();
+  if (flightTime && flightTime.trim()) return "flight";
+  if (text.includes("fly") || text.includes("flight") || text.includes("airport")) return "flight";
+  if (text.includes("ferry") || text.includes("boat")) return "ferry";
+  if (text.includes("drive") || text.includes("car") || text.includes("rental")) return "drive";
+  if (text.includes("bus")) return "bus";
+  if (text.includes("walk")) return "walk";
+  return "train"; // Default for Japan travel
 }
 
 export default router;
