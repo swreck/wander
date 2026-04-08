@@ -103,7 +103,7 @@ export default function ExperienceDetail({
   }
 
   return (
-    <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white md:border-l border-[#f0ece5] shadow-xl z-40
+    <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white md:border-l border-[#f0ece5] shadow-xl z-50
                     overflow-y-auto">
       {/* Header */}
       <div className="sticky top-0 bg-white border-b border-[#f0ece5] px-4 py-3 flex items-center justify-between z-10"
