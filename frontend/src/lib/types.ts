@@ -253,6 +253,7 @@ export interface DecisionVote {
   optionId: string | null;
   userCode: string;
   displayName: string;
+  rank: number;
 }
 
 export interface Decision {

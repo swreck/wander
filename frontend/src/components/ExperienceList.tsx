@@ -745,15 +745,52 @@ function DecisionGroup({
   const [submittingThought, setSubmittingThought] = useState(false);
   const [confirmResolve, setConfirmResolve] = useState<string | null>(null);
 
-  const myVote = decision.votes.find((v) => v.userCode === user?.code);
-  const isHappyWithAny = myVote && myVote.optionId === null;
+  const myVotes = decision.votes.filter((v) => v.userCode === user?.code).sort((a, b) => (a.rank || 1) - (b.rank || 1));
+  const myPickIds = myVotes.map(v => v.optionId).filter(Boolean);
+  const isHappyWithAny = myVotes.length === 1 && myVotes[0].optionId === null;
 
-  async function handleVote(optionId: string | null) {
+  function getMyRank(optionId: string): number | null {
+    const vote = myVotes.find(v => v.optionId === optionId);
+    return vote ? (vote.rank || 1) : null;
+  }
+
+  async function handleTogglePick(optionId: string) {
     if (voting) return;
     setVoting(true);
     try {
-      await api.post(`/decisions/${decision.id}/vote`, { optionId });
-      if (optionId === null) showToast("Got it — you're flexible");
+      const currentRank = getMyRank(optionId);
+      let newRankings;
+      if (currentRank) {
+        // Remove this pick, shift others up
+        newRankings = myVotes
+          .filter(v => v.optionId !== optionId)
+          .map((v, i) => ({ optionId: v.optionId, rank: i + 1 }));
+      } else if (myPickIds.length >= 3) {
+        // Already have 3 picks, ignore
+        showToast("You've picked your top 3 — tap one to remove it first");
+        setVoting(false);
+        return;
+      } else {
+        // Add this pick at the next rank
+        newRankings = [
+          ...myVotes.filter(v => v.optionId).map(v => ({ optionId: v.optionId, rank: v.rank || 1 })),
+          { optionId, rank: myPickIds.length + 1 },
+        ];
+      }
+      await api.post(`/decisions/${decision.id}/vote`, { rankings: newRankings });
+      onDecisionsChanged();
+    } catch {
+      showToast("That didn't stick — try again?", "error");
+    }
+    setVoting(false);
+  }
+
+  async function handleHappyWithAny() {
+    if (voting) return;
+    setVoting(true);
+    try {
+      await api.post(`/decisions/${decision.id}/vote`, {});
+      showToast("Got it — you're flexible");
       onDecisionsChanged();
     } catch {
       showToast("That didn't stick — try again?", "error");
@@ -922,11 +959,37 @@ function DecisionGroup({
         </div>
       )}
 
+      {/* ── My top 3 picks box ── */}
+      {myPickIds.length > 0 && (
+        <div className="mb-3 bg-[#faf8f5] rounded-xl border border-[#e8e0d4] p-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-[#a89880] font-medium mb-1.5">Your picks</div>
+          <div className="space-y-1">
+            {myVotes.filter(v => v.optionId).map((v) => {
+              const opt = decision.options.find(o => o.id === v.optionId);
+              if (!opt) return null;
+              return (
+                <div key={v.id || v.optionId} className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#514636] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {v.rank || 1}
+                  </span>
+                  <span className="text-xs text-[#3a3128] flex-1 truncate">{opt.name}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleTogglePick(opt.id); }}
+                    className="text-[#c8bba8] hover:text-red-400 text-xs shrink-0"
+                  >✕</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Options: compact comparison ── */}
       <div className="space-y-1.5">
         {decision.options.map((opt) => {
           const votes = voteCounts.get(opt.id);
-          const isMyPick = myVote?.optionId === opt.id;
+          const myRank = getMyRank(opt.id);
+          const isMyPick = !!myRank;
           const isLeading = leader?.id === opt.id;
           const rating = googleRating(opt);
           const isThoughtOpen = thoughtOption === opt.id;
@@ -971,16 +1034,16 @@ function DecisionGroup({
                       </div>
                     )}
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleVote(opt.id); }}
+                      onClick={(e) => { e.stopPropagation(); handleTogglePick(opt.id); }}
                       disabled={voting}
-                      className={`transition-colors ${voting && !isMyPick ? "" : ""} ${
-                        isMyPick
-                          ? "text-amber-500"
-                          : "text-[#c8bba8] hover:text-amber-500"
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors text-sm ${
+                        myRank
+                          ? "bg-[#514636] text-white font-bold"
+                          : "text-[#c8bba8] hover:text-[#514636] hover:bg-[#f0ece5]"
                       }`}
-                      title={isMyPick ? "You like this one" : "I like this one"}
+                      title={myRank ? `Your #${myRank} pick` : "Add to your top 3"}
                     >
-                      {isMyPick ? "♥" : "♡"}
+                      {myRank ? myRank : "👍"}
                     </button>
                   </div>
                 </div>
@@ -1019,7 +1082,7 @@ function DecisionGroup({
       {/* ── Bottom actions ── */}
       <div className="mt-3 flex items-center justify-between">
         <button
-          onClick={() => handleVote(null)}
+          onClick={() => handleHappyWithAny()}
           disabled={voting}
           className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
             isHappyWithAny
