@@ -756,15 +756,19 @@ export default function TripOverview() {
           onNavigate={(path) => navigate(path)}
         />
 
-        {/* Week-view calendar grid (dated trips) or city list (dateless trips) — hidden in past phase */}
+        {/* Calendar / At-a-Glance toggle */}
         {tripPhase !== "past" && (trip.datesKnown !== false ? (
-          <CalendarGrid
+          <HomeViewToggle
             days={days}
             cities={trip.cities}
             selectedPerDay={selectedPerDay}
             backroadsDays={backroadsDays}
             experiences={experiences}
+            routeSegments={trip.routeSegments || []}
+            accommodations={trip.accommodations || []}
+            decisions={openDecisions}
             onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
+            onCityClick={(cityId) => navigate(`/plan?city=${cityId}`)}
           />
         ) : (
           <DatelessTripView
@@ -1022,17 +1026,19 @@ function GroupPulse({
   // Build the briefing items
   const items: { text: string; detail: string; action: string; path: string }[] = [];
 
-  // Planning actions with upcoming due dates (from Larisa's Japan Guide Actions tab)
-  const openActions = actions.filter(a => a.status === "open" && a.dueDate);
+  // Planning actions — summarize as one line
+  const openActions = actions.filter((a: any) => a.status === "open" && a.dueDate);
   if (openActions.length > 0) {
-    for (const act of openActions.slice(0, 3)) {
-      items.push({
-        text: act.action,
-        detail: `${act.owner === "Both" ? "Group" : act.owner} · ${act.dueDate ? `by ${act.dueDate}` : "no deadline"}${act.notes ? ` — ${act.notes}` : ""}`,
-        action: "See details",
-        path: "/settings", // Navigate to settings where sync info lives
-      });
-    }
+    const nearest = openActions[0];
+    const summary = openActions.length === 1
+      ? `${nearest.action} · by ${nearest.dueDate}`
+      : `${openActions.length} things coming up — ${nearest.action} by ${nearest.dueDate}`;
+    items.push({
+      text: summary,
+      detail: "",
+      action: "",
+      path: "/settings",
+    });
   }
 
   // 1. Decisions where user hasn't voted
@@ -1059,29 +1065,41 @@ function GroupPulse({
     // but we can check sheetRowRef — if it has one, it came from spreadsheet/someone else)
   }
 
-  for (const [cityId, data] of byCity) {
-    const cityName = cityIdToName.get(cityId) || "Unknown";
-    if (data.total === 0) continue;
+  // Aggregate city data into a single summary instead of one row per city
+  let totalIdeas = 0;
+  let citiesWithIdeas = 0;
+  let othersContributed = false;
+  let primaryContributor = "";
+  const topCities: { name: string; count: number; cityId: string }[] = [];
 
+  for (const [cityId, data] of byCity) {
+    if (data.total === 0) continue;
+    totalIdeas += data.total;
+    citiesWithIdeas++;
+    const cityName = cityIdToName.get(cityId) || "Unknown";
+    topCities.push({ name: cityName, count: data.total, cityId });
     const others = [...data.contributors].filter((c) => c !== userCode);
     if (others.length > 0) {
-      // Other people contributed — highlight their work
-      const who = others.length === 1 ? others[0] : `${others.length} people`;
-      items.push({
-        text: `${cityName}`,
-        detail: `${who} shared ${data.total} idea${data.total !== 1 ? "s" : ""} to explore`,
-        action: "Take a look",
-        path: `/plan?city=${cityId}`,
-      });
-    } else if (data.total > 0) {
-      // User is the primary contributor — affirm their work
-      items.push({
-        text: `${cityName}`,
-        detail: `${data.total} idea${data.total !== 1 ? "s" : ""} ready for the group`,
-        action: "See your list",
-        path: `/plan?city=${cityId}`,
-      });
+      othersContributed = true;
+      primaryContributor = others[0];
     }
+  }
+
+  // Sort by count, show top 3 as individual items, rest as summary
+  topCities.sort((a, b) => b.count - a.count);
+
+  if (totalIdeas > 0) {
+    const topCity = topCities[0];
+    const who = othersContributed ? `${primaryContributor} shared` : "";
+    const summary = citiesWithIdeas === 1
+      ? `${totalIdeas} idea${totalIdeas !== 1 ? "s" : ""} for ${topCity.name}`
+      : `${totalIdeas} ideas across ${citiesWithIdeas} cities`;
+    items.push({
+      text: who ? `${who} ${summary}` : summary,
+      detail: topCity ? `${topCity.name} has the most` : "",
+      action: "Take a look",
+      path: `/plan?city=${topCity.cityId}`,
+    });
   }
 
   // 3. Days that are wide open (no selected experiences) in cities that have ideas
@@ -1127,6 +1145,191 @@ function GroupPulse({
         ))}
       </div>
     </div>
+  );
+}
+
+// ── Home View Toggle (Calendar ↔ At a Glance) ──────────────────
+
+function HomeViewToggle({
+  days, cities, selectedPerDay, backroadsDays, experiences,
+  routeSegments, accommodations, decisions,
+  onDayClick, onCityClick,
+}: {
+  days: Day[];
+  cities: City[];
+  selectedPerDay: Record<string, number>;
+  backroadsDays: Set<string>;
+  experiences: Experience[];
+  routeSegments: any[];
+  accommodations: any[];
+  decisions: Decision[];
+  onDayClick: (cityId: string) => void;
+  onCityClick: (cityId: string) => void;
+}) {
+  const [view, setView] = useState<"trip" | "details">(
+    () => (localStorage.getItem("wander:home-view") as any) || "trip"
+  );
+
+  function toggleView(v: "trip" | "details") {
+    setView(v);
+    localStorage.setItem("wander:home-view", v);
+  }
+
+  return (
+    <>
+      {/* Toggle pills */}
+      <div className="flex justify-center gap-1 mb-3">
+        <button
+          onClick={() => toggleView("trip")}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            view === "trip"
+              ? "bg-[#514636] text-white"
+              : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
+          }`}
+        >
+          Trip
+        </button>
+        <button
+          onClick={() => toggleView("details")}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            view === "details"
+              ? "bg-[#514636] text-white"
+              : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
+          }`}
+        >
+          Details
+        </button>
+      </div>
+
+      {view === "trip" ? (
+        <CalendarGrid
+          days={days}
+          cities={cities}
+          selectedPerDay={selectedPerDay}
+          backroadsDays={backroadsDays}
+          experiences={experiences}
+          onDayClick={onDayClick}
+        />
+      ) : (
+        <AtAGlanceView
+          days={days}
+          cities={cities}
+          routeSegments={routeSegments}
+          accommodations={accommodations}
+          decisions={decisions}
+          backroadsDays={backroadsDays}
+          onCityClick={onCityClick}
+        />
+      )}
+    </>
+  );
+}
+
+// ── At a Glance — operational summary per city ──────────────────
+
+function AtAGlanceView({
+  days, cities, routeSegments, accommodations, decisions, backroadsDays, onCityClick,
+}: {
+  days: Day[];
+  cities: City[];
+  routeSegments: any[];
+  accommodations: any[];
+  decisions: Decision[];
+  backroadsDays: Set<string>;
+  onCityClick: (cityId: string) => void;
+}) {
+  // Group days by city, in sequence order
+  const sortedCities = [...cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+
+  return (
+    <section className="mb-6 space-y-2">
+      {sortedCities.map((city) => {
+        const cityDays = days
+          .filter(d => d.cityId === city.id)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        if (cityDays.length === 0) return null;
+
+        const arrival = new Date(cityDays[0].date);
+        const departure = cityDays.length > 1 ? new Date(cityDays[cityDays.length - 1].date) : arrival;
+        const nights = cityDays.length;
+        const isBackroads = cityDays.some(d => backroadsDays.has(d.id));
+
+        // Find transport to this city
+        const segment = routeSegments.find((s: any) =>
+          s.destinationCity?.toLowerCase().includes(city.name.toLowerCase().substring(0, 4))
+        );
+
+        // Find accommodation
+        const acc = accommodations.find((a: any) => a.cityId === city.id);
+
+        // Find hotel decision
+        const hotelDecision = decisions.find(d =>
+          d.cityId === city.id && d.title.toLowerCase().includes("hotel")
+        );
+
+        // Day highlights (non-empty notes)
+        const highlights = cityDays
+          .filter(d => d.notes && !d.notes.includes("TBD"))
+          .map(d => d.notes!)
+          .slice(0, 2);
+
+        const pastel = getCityPastel(city.id, sortedCities.indexOf(city));
+
+        const arrivalStr = arrival.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const departureStr = departure.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const dateRange = nights === 1 ? arrivalStr : `${arrivalStr}–${departureStr}`;
+
+        return (
+          <button
+            key={city.id}
+            onClick={() => onCityClick(city.id)}
+            className="w-full text-left rounded-xl border border-[#e8e0d4] hover:border-[#d0c9be] transition-colors overflow-hidden"
+          >
+            {/* City header bar — same color as calendar */}
+            <div
+              className="px-3 py-2 flex items-center justify-between"
+              style={{ backgroundColor: pastel }}
+            >
+              <div>
+                <span className="text-sm font-medium text-[#3a3128]">{city.name}</span>
+                {isBackroads && <span className="ml-1.5 text-[10px] text-[#8a7a62]">🚐 Backroads</span>}
+              </div>
+              <span className="text-xs text-[#6b5d4a]">{dateRange} · {nights} night{nights !== 1 ? "s" : ""}</span>
+            </div>
+
+            {/* Details */}
+            <div className="px-3 py-2 space-y-1 bg-white">
+              {segment && (
+                <div className="text-xs text-[#8a7a62]">
+                  {segment.transportMode === "train" ? "🚃" : segment.transportMode === "flight" ? "✈️" : "🚐"}{" "}
+                  From {segment.originCity}
+                  {segment.departureTime ? ` · ${segment.departureTime}` : ""}
+                </div>
+              )}
+
+              {acc ? (
+                <div className="text-xs text-[#3a3128]">
+                  🏨 {acc.name}
+                </div>
+              ) : hotelDecision ? (
+                <div className="text-xs text-[#a89880]">
+                  🏨 Deciding — {hotelDecision.options?.length} option{hotelDecision.options?.length !== 1 ? "s" : ""}
+                </div>
+              ) : null}
+
+              {highlights.map((h, i) => (
+                <div key={i} className="text-[11px] text-[#8a7a62] italic">{h}</div>
+              ))}
+
+              {!segment && !acc && !hotelDecision && highlights.length === 0 && (
+                <div className="text-[11px] text-[#c8bba8]">Wide open</div>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </section>
   );
 }
 
