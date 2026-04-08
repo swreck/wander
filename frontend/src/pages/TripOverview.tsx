@@ -1622,66 +1622,42 @@ function CalendarCluster({
                 return map[m] || m;
               });
 
+              // Gather detail facts for this day
+              const detailFacts: { icon?: string; text?: string }[] = [];
+              if (showDetails) {
+                if (isTravel) detailFacts.push({ icon: "🚃" });
+                const accom = (accommodations || []).find((a: any) => a.cityId === day.cityId);
+                if (accom?.name) detailFacts.push({ text: accom.name.substring(0, 16) });
+                if (day.notes && !day.notes.includes("TBD")) detailFacts.push({ text: day.notes.substring(0, 18) });
+              }
+
               return (
                 <button
                   key={day.id}
                   onClick={() => onDayClick(day.cityId)}
-                  className={`${showDetails ? "aspect-[3/5]" : "aspect-[3/4]"} rounded-lg flex flex-col items-center justify-between relative overflow-hidden
-                             hover:shadow-md transition-shadow`}
-                  style={{ backgroundColor: cityColor, borderLeft: `4px solid ${dotColor}` }}
+                  className="rounded-lg flex flex-col overflow-hidden hover:shadow-md transition-shadow"
+                  style={{ borderLeft: `4px solid ${dotColor}` }}
                 >
-                  {/* Map background with city color tint */}
-                  {mapUrl && (
-                    <>
-                      <img
-                        src={mapUrl}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
-                    </>
-                  )}
-                  {/* Backroads badge — absolute top-right so long city names can't push it offscreen */}
-                  {isBackroads && (
-                    <span className="absolute top-0.5 right-0.5 z-20 font-bold text-white rounded-sm leading-none"
-                      style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }}>B</span>
-                  )}
-                  {/* Top: date */}
-                  <div className="relative z-10 mt-1 text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
-                    {dayNum}
-                  </div>
-                  {/* Middle: city name */}
-                  <div className="relative z-10 text-xs text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center"
-                    style={{ wordBreak: "break-word" }}>
-                    {city?.name || ""}
-                  </div>
-                  {/* Bottom: theme emojis or details */}
-                  {showDetails ? (
-                    <div className="relative z-10 mb-0.5 px-0.5 w-full space-y-0.5">
-                      {/* Detail 1: Arrival transport icon */}
-                      {isTravel && (
-                        <div className="flex items-center justify-center bg-white/80 rounded px-0.5">
-                          <span style={{ fontSize: 9 }} title={`Arriving from ${cities.find(c => c.id === prevDay?.cityId)?.name || ""}`}>🚃</span>
-                        </div>
-                      )}
-                      {/* Detail 2: Hotel name */}
-                      {(() => {
-                        const accom = (accommodations || []).find((a: any) => a.cityId === day.cityId);
-                        return accom ? (
-                          <div className="text-[7px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight truncate">
-                            {accom.name?.substring(0, 14) || "🏨"}
-                          </div>
-                        ) : null;
-                      })()}
-                      {/* Detail 3: Day note if exists */}
-                      {day.notes && !day.notes.includes("TBD") && (
-                        <div className="text-[7px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight truncate italic">
-                          {day.notes.substring(0, 16)}
-                        </div>
-                      )}
+                  {/* Map area — same aspect in both modes */}
+                  <div className="aspect-[3/4] relative flex flex-col items-center justify-between shrink-0"
+                    style={{ backgroundColor: cityColor }}>
+                    {mapUrl && (
+                      <>
+                        <img src={mapUrl} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                        <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
+                      </>
+                    )}
+                    {isBackroads && (
+                      <span className="absolute top-0.5 right-0.5 z-20 font-bold text-white rounded-sm leading-none"
+                        style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }}>B</span>
+                    )}
+                    <div className="relative z-10 mt-1 text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
+                      {dayNum}
                     </div>
-                  ) : (
+                    <div className="relative z-10 text-xs text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center"
+                      style={{ wordBreak: "break-word" }}>
+                      {city?.name || ""}
+                    </div>
                     <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0">
                       {(() => {
                         if (count === 0) return null;
@@ -1700,6 +1676,29 @@ function CalendarCluster({
                         }
                         return <span style={{ fontSize: 10 }}>📍</span>;
                       })()}
+                    </div>
+                  </div>
+                  {/* Detail area — below the map, clean solid background, readable text */}
+                  {showDetails && (
+                    <div className="px-1.5 py-1.5 space-y-0.5" style={{ backgroundColor: cityColor }}>
+                      {isTravel && (
+                        <div className="flex items-center gap-1 text-[11px] text-[#3a3128]">
+                          <span>🚃</span>
+                        </div>
+                      )}
+                      {(() => {
+                        const accom = (accommodations || []).find((a: any) => a.cityId === day.cityId);
+                        return accom?.name ? (
+                          <div className="text-[11px] text-[#3a3128] leading-snug truncate">
+                            🏨 {accom.name.substring(0, 18)}
+                          </div>
+                        ) : null;
+                      })()}
+                      {day.notes && !day.notes.includes("TBD") && (
+                        <div className="text-[10px] text-[#6b5d4a] leading-snug truncate italic">
+                          {day.notes.substring(0, 22)}
+                        </div>
+                      )}
                     </div>
                   )}
                 </button>
