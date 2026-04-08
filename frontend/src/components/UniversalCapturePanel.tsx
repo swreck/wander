@@ -305,7 +305,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
                     className="flex-1 py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium
                                hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
                   >
-                    {committing ? "..." : "Plan it"}
+                    {committing ? "..." : "Add to itinerary"}
                   </button>
                   <button
                     onClick={() => {
@@ -316,7 +316,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
                     className="flex-1 py-2.5 rounded-lg border border-[#e0d8cc] text-[#6b5d4a] text-sm font-medium
                                hover:bg-[#f0ece5] disabled:opacity-40 transition-colors"
                   >
-                    {committing ? "..." : "Maybe"}
+                    {committing ? "..." : "Just an idea"}
                   </button>
                 </>
               ) : (

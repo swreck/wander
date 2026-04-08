@@ -43,7 +43,7 @@ export default function PlanningProgress({ days, experiences, cities }: Planning
             ? "Every day has something planned"
             : plannedDays === 0
               ? `${totalDays} days — all wide open so far`
-              : `${plannedDays} of ${totalDays} days have something planned · ${totalDays - plannedDays} left to fill (or leave open)`}
+              : `${plannedDays} of ${totalDays} day${plannedDays === 1 ? " has" : "s have"} something planned · ${totalDays - plannedDays} left to fill (or leave open)`}
         </span>
       </div>
 
@@ -62,7 +62,7 @@ export default function PlanningProgress({ days, experiences, cities }: Planning
         <p className="text-xs text-[#a89880] mt-2">
           {citiesNeedingAttention.length === 1
             ? `${citiesNeedingAttention[0].name} doesn't have any ideas saved yet`
-            : `${citiesNeedingAttention.map(c => c.name).join(" and ")} could use some ideas`}
+            : `${citiesNeedingAttention.map((c, i, arr) => i === arr.length - 1 ? `and ${c.name}` : c.name).join(", ")} could use some ideas`}
         </p>
       )}
     </div>

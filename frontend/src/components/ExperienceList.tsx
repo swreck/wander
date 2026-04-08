@@ -1067,7 +1067,7 @@ function DecisionGroup({
                     <button
                       onClick={(e) => { e.stopPropagation(); handleTogglePick(opt.id); }}
                       disabled={voting}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors text-sm ${
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors text-sm ${
                         myRank
                           ? "bg-[#514636] text-white font-bold"
                           : "text-[#c8bba8] hover:text-[#514636] hover:bg-[#f0ece5]"

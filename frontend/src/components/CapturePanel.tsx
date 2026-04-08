@@ -153,7 +153,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                 className="flex-1 py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium
                            hover:bg-[#3a3128] disabled:opacity-40 transition-colors"
               >
-                {submitting ? "..." : "Plan it"}
+                {submitting ? "..." : "Add to itinerary"}
               </button>
               <button
                 onClick={() => handleSave("maybe")}
@@ -161,7 +161,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                 className="flex-1 py-2.5 rounded-lg border border-[#e0d8cc] text-[#6b5d4a] text-sm font-medium
                            hover:bg-[#f0ece5] disabled:opacity-40 transition-colors"
               >
-                {submitting ? "..." : "Maybe"}
+                {submitting ? "..." : "Just an idea"}
               </button>
               <button
                 onClick={() => handleSave("decide")}
@@ -169,7 +169,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                 className="flex-1 py-2.5 rounded-lg border border-amber-300 text-amber-700 text-sm font-medium
                            bg-amber-50 hover:bg-amber-100 disabled:opacity-40 transition-colors"
               >
-                {submitting ? "..." : "Decide"}
+                {submitting ? "..." : "Ask the group"}
               </button>
             </>
           ) : (

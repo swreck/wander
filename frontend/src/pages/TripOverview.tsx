@@ -642,41 +642,18 @@ export default function TripOverview() {
           </div>
         )}
 
-        {/* Post-import orientation — short and scannable */}
-        {!localStorage.getItem("wander:overview-oriented") && experiences.length > 0 && (
-          <div className="mb-6 p-4 bg-white rounded-lg border border-[#e0d8cc]">
-            <p className="text-sm font-medium text-[#3a3128] mb-2">
-              Quick start
-            </p>
-            <ul className="text-sm text-[#6b5d4a] space-y-1 list-none">
-              {!window.matchMedia("(display-mode: standalone)").matches && (
-                <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen</li>
-              )}
-              <li>• Tap any day below to see your map and what's planned</li>
-              <li>• Paste or drop anything — an article, a friend's list, a screenshot — and Wander picks it up</li>
-              <li>• The chat bubble is <strong>Scout</strong>, your travel companion — ask questions, rearrange plans, or look things up</li>
-            </ul>
-            <button
-              onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); loadTrips(); }}
-              className="text-sm text-[#c8bba8] hover:text-[#6b5d4a] mt-2 transition-colors"
-            >
-              got it
-            </button>
-          </div>
-        )}
-
         {/* Sync alert — planner-only, shows conflicts/errors with PWA badge */}
         <SyncAlert />
 
         {/* Actions panel (full screen overlay) */}
         {showActions && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} />}
 
-        {/* Open decisions nudge — above calendar so Andy sees it immediately */}
+        {/* Open decisions nudge — FIRST thing after identity bar so Andy sees it immediately */}
         {openDecisions.length > 0 && (
           <div className="mb-4 space-y-2">
             {openDecisions.map((dec) => {
               const myVote = dec.votes.find((v) => v.userCode === user?.code);
-              const totalVotes = dec.votes.length;
+              const totalVotes = new Set(dec.votes.map((v) => v.userCode)).size;
               const totalThoughts = dec.options.reduce((s, o) => s + (o.notes?.length || 0), 0);
               return (
                 <button
@@ -709,15 +686,25 @@ export default function TripOverview() {
           <span className="text-xs text-[#a89880]">See all →</span>
         </button>
 
-        {/* Scout briefing — compact, right after decisions */}
-        <GroupPulse
-          trip={trip}
-          experiences={experiences}
-          days={days}
-          openDecisions={openDecisions}
-          userCode={user?.code || ""}
-          onNavigate={(path) => navigate(path)}
-        />
+        {/* Post-import orientation — below decisions so first-time collaborators see voting first */}
+        {!localStorage.getItem("wander:overview-oriented") && experiences.length > 0 && (
+          <div className="mb-4 p-3 bg-white rounded-lg border border-[#e0d8cc] text-sm">
+            <p className="font-medium text-[#3a3128] mb-1.5">Quick start</p>
+            <ul className="text-[#6b5d4a] space-y-0.5 list-none">
+              {!window.matchMedia("(display-mode: standalone)").matches && (
+                <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen</li>
+              )}
+              <li>• Tap any day below to see your map and what's planned</li>
+              <li>• The chat bubble is <strong>Scout</strong> — ask questions or rearrange plans</li>
+            </ul>
+            <button
+              onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); loadTrips(); }}
+              className="text-xs text-[#c8bba8] hover:text-[#6b5d4a] mt-1.5 transition-colors"
+            >
+              got it
+            </button>
+          </div>
+        )}
 
         {/* Calendar / At-a-Glance toggle */}
         {tripPhase !== "past" && (trip.datesKnown !== false ? (
@@ -740,6 +727,16 @@ export default function TripOverview() {
             onCityClick={(cityId) => navigate(`/city/${cityId}`)}
           />
         ))}
+
+        {/* Scout briefing — below the calendar per Ken's 2-line rule */}
+        <GroupPulse
+          trip={trip}
+          experiences={experiences}
+          days={days}
+          openDecisions={openDecisions}
+          userCode={user?.code || ""}
+          onNavigate={(path) => navigate(path)}
+        />
 
         {/* Primary action — go plan */}
         <div className="flex gap-3 mb-4">
@@ -934,7 +931,7 @@ function DatelessTripView({
       <div className="text-xs text-[#a89880] uppercase font-medium mb-2">Your cities</div>
       {visibleCities.map((city, i) => {
         const cityDays = daysByCity.get(city.id) || [];
-        const pastel = getCityPastel(i);
+        const pastel = getCityPastel(visibleCities, city.id);
         return (
           <button
             key={city.id}
@@ -1366,7 +1363,7 @@ function AtAGlanceView({
           .map(d => d.notes!)
           .slice(0, 2);
 
-        const pastel = getCityPastel(city.id, sortedCities.indexOf(city));
+        const pastel = getCityPastel(sortedCities, city.id);
 
         const arrivalStr = arrival.toLocaleDateString("en-US", { month: "short", day: "numeric" });
         const departureStr = departure.toLocaleDateString("en-US", { month: "short", day: "numeric" });

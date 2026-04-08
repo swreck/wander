@@ -49,7 +49,7 @@ Wander works offline too; changes sync when you're back on wifi or cellular.`,
 
 In the activity list, you may see a **Decide Together** section — that's the group choosing between options. Tap the one you'd pick, or tap "Happy with any" if you're flexible. When everyone's weighed in, someone taps **Resolve** to lock it in.
 
-Found a place you want to add? Tell Scout — _"add Café Kitsune to Thursday"_ — or tap **+** then **Manual**. You'll get three choices: **Plan it** (onto the schedule), **Maybe** (save for later), or **Decide** (start a group decision with this as the first option).`,
+Found a place you want to add? Tell Scout — _"add Café Kitsune to Thursday"_ — or tap **+** then **Manual**. You'll get three choices: **Add to itinerary** (onto the schedule), **Just an idea** (save for later), or **Ask the group** (start a group decision with this as the first option).`,
   },
   {
     id: "browsing",

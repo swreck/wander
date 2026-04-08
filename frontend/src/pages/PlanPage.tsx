@@ -998,7 +998,7 @@ export default function PlanPage() {
                 &larr; Map
               </button>
               <span className="text-xs font-medium text-[#a89880]">
-                {selected.length} Planned · {possible.length} Possible
+                {trip?.cities.find(c => c.id === activeCityId)?.name ? `${trip.cities.find(c => c.id === activeCityId)!.name} · ` : ""}{selected.length} Planned · {possible.length} Possible
               </span>
               {selectedDay && (
                 <button
