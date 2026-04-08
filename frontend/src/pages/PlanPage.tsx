@@ -1065,10 +1065,7 @@ export default function PlanPage() {
                       );
                     }
                     return (
-                      <div className="mb-6 py-6 text-center">
-                        <p className="text-sm text-[#8a7a62]">Wide open</p>
-                        <p className="text-xs text-[#c8bba8] mt-1">Browse ideas below or tap + to add something</p>
-                      </div>
+                      <div className="mb-4" />
                     );
                   })()}
 
@@ -1097,24 +1094,28 @@ export default function PlanPage() {
                     </div>
                   )}
 
-                  {/* Section 3: Ideas — tucked below, clearly secondary */}
-                  {possible.length > 0 && (
+                  {/* Section 3: Ideas */}
+                  {possible.length > 0 ? (
                     <div>
-                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">Ideas</div>
-                      <div className="space-y-1">
+                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-3">Ideas for this city</div>
+                      <div className="space-y-2">
                         {possible.map((exp) => (
                           <button
                             key={exp.id}
                             onClick={() => { setSelectedExpId(exp.id); setMobileView("map"); }}
-                            className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-white transition-colors"
+                            className="w-full text-left p-3 bg-white rounded-xl border border-[#f0ece5] hover:border-[#d8cfc0] transition-colors"
                           >
-                            <span className="text-sm text-[#6b5d4a]">{exp.name}</span>
+                            <div className="text-sm text-[#3a3128]">{exp.name}</div>
                             {exp.neighborhood && (
-                              <span className="text-xs text-[#c8bba8] ml-2">{exp.neighborhood}</span>
+                              <div className="text-xs text-[#a89880] mt-0.5">{exp.neighborhood}</div>
                             )}
                           </button>
                         ))}
                       </div>
+                    </div>
+                  ) : selected.length === 0 && (
+                    <div className="py-12 text-center">
+                      <p className="text-sm text-[#a89880]">Nothing here yet</p>
                     </div>
                   )}
                 </>
