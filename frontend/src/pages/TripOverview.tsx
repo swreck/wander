@@ -60,6 +60,13 @@ export default function TripOverview() {
   useKeyboardShortcuts();
   useUniversalCapture(trip?.id);
 
+  // Listen for bottom nav actions trigger
+  useEffect(() => {
+    const handler = () => setShowActions(true);
+    window.addEventListener("wander-open-actions", handler);
+    return () => window.removeEventListener("wander-open-actions", handler);
+  }, []);
+
   async function loadTrips(silent = false) {
     if (!silent) setLoading(true);
     try {
@@ -1288,16 +1295,20 @@ function HomeViewToggle({
         </button>
       </div>
 
-      {view === "trip" ? (
-        <CalendarGrid
-          days={days}
-          cities={cities}
-          selectedPerDay={selectedPerDay}
-          backroadsDays={backroadsDays}
-          experiences={experiences}
-          onDayClick={onDayClick}
-        />
-      ) : (
+      {/* Same calendar grid in both modes — details mode expands each cell */}
+      <CalendarGrid
+        days={days}
+        cities={cities}
+        selectedPerDay={selectedPerDay}
+        backroadsDays={backroadsDays}
+        experiences={experiences}
+        onDayClick={onDayClick}
+        showDetails={view === "details"}
+        routeSegments={routeSegments}
+        accommodations={accommodations}
+        decisions={decisions}
+      />
+      {false && (
         <AtAGlanceView
           days={days}
           cities={cities}
@@ -1432,6 +1443,10 @@ function CalendarGrid({
   backroadsDays,
   experiences,
   onDayClick,
+  showDetails,
+  routeSegments,
+  accommodations,
+  decisions,
 }: {
   days: Day[];
   cities: City[];
@@ -1439,6 +1454,10 @@ function CalendarGrid({
   backroadsDays: Set<string>;
   experiences: Experience[];
   onDayClick: (cityId: string) => void;
+  showDetails?: boolean;
+  routeSegments?: any[];
+  accommodations?: any[];
+  decisions?: Decision[];
 }) {
   if (days.length === 0) return null;
 
@@ -1474,6 +1493,9 @@ function CalendarGrid({
           backroadsDays={backroadsDays}
           experiences={experiences}
           onDayClick={onDayClick}
+          showDetails={showDetails}
+          routeSegments={routeSegments}
+          accommodations={accommodations}
         />
       ))}
     </section>
@@ -1494,6 +1516,9 @@ function CalendarCluster({
   backroadsDays,
   experiences,
   onDayClick,
+  showDetails,
+  routeSegments,
+  accommodations,
 }: {
   clusterDays: Day[];
   allSortedDays: Day[];
@@ -1502,6 +1527,9 @@ function CalendarCluster({
   backroadsDays: Set<string>;
   experiences: Experience[];
   onDayClick: (cityId: string) => void;
+  showDetails?: boolean;
+  routeSegments?: any[];
+  accommodations?: any[];
 }) {
   const firstDate = new Date(clusterDays[0].date);
   const lastDate = new Date(clusterDays[clusterDays.length - 1].date);
@@ -1590,8 +1618,8 @@ function CalendarCluster({
                 <button
                   key={day.id}
                   onClick={() => onDayClick(day.cityId)}
-                  className="aspect-[3/4] rounded-lg flex flex-col items-center justify-between relative overflow-hidden
-                             hover:shadow-md transition-shadow"
+                  className={`${showDetails ? "aspect-[3/5]" : "aspect-[3/4]"} rounded-lg flex flex-col items-center justify-between relative overflow-hidden
+                             hover:shadow-md transition-shadow`}
                   style={{ backgroundColor: cityColor, borderLeft: `4px solid ${dotColor}` }}
                 >
                   {/* Map background with city color tint */}
@@ -1620,26 +1648,49 @@ function CalendarCluster({
                     style={{ wordBreak: "break-word" }}>
                     {city?.name || ""}
                   </div>
-                  {/* Bottom: theme emojis or plans indicator */}
-                  <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0">
-                    {(() => {
-                      if (count === 0) return null;
-                      const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
-                      const themeSet = new Set<string>();
-                      for (const e of dayExps) {
-                        for (const t of (e.themes || [])) {
-                          if (DAY_THEME_EMOJI[t]) themeSet.add(t);
+                  {/* Bottom: theme emojis or details */}
+                  {showDetails ? (
+                    <div className="relative z-10 mb-0.5 px-0.5 w-full">
+                      {isTravel && (
+                        <div className="text-[8px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight truncate">
+                          🚃 from {cities.find(c => c.id === prevDay?.cityId)?.name || "?"}
+                        </div>
+                      )}
+                      {(() => {
+                        const accom = (accommodations || []).find((a: any) => a.cityId === day.cityId);
+                        return accom ? (
+                          <div className="text-[8px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight truncate">
+                            🏨 {accom.name?.substring(0, 15) || "Booked"}
+                          </div>
+                        ) : null;
+                      })()}
+                      {count > 0 && (
+                        <div className="text-[8px] text-[#6b5d4a] bg-white/80 rounded px-0.5 text-center leading-tight">
+                          {count} planned
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0">
+                      {(() => {
+                        if (count === 0) return null;
+                        const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
+                        const themeSet = new Set<string>();
+                        for (const e of dayExps) {
+                          for (const t of (e.themes || [])) {
+                            if (DAY_THEME_EMOJI[t]) themeSet.add(t);
+                          }
                         }
-                      }
-                      const emojis = [...themeSet].slice(0, 3).map(t => DAY_THEME_EMOJI[t]);
-                      if (emojis.length > 0) {
-                        return emojis.map((em, i) => (
-                          <span key={i} style={{ fontSize: 10 }}>{em}</span>
-                        ));
-                      }
-                      return <span style={{ fontSize: 10 }}>📍</span>;
-                    })()}
-                  </div>
+                        const emojis = [...themeSet].slice(0, 3).map(t => DAY_THEME_EMOJI[t]);
+                        if (emojis.length > 0) {
+                          return emojis.map((em, i) => (
+                            <span key={i} style={{ fontSize: 10 }}>{em}</span>
+                          ));
+                        }
+                        return <span style={{ fontSize: 10 }}>📍</span>;
+                      })()}
+                    </div>
+                  )}
                 </button>
               );
             })}
