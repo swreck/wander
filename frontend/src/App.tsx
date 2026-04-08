@@ -359,7 +359,7 @@ export default function App() {
               <AppRoutes />
               <DailyGreeting />
               <NextUpOverlay />
-              <InterestOverlay />
+              {/* InterestOverlay removed — it interrupts the clean overview */}
               <ChatOverlay />
               <CaptureToast />
               <CaptureFAB />
