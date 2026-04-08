@@ -468,12 +468,12 @@ router.post("/push", async (req: AuthRequest, res) => {
             : vote.userCode === "Ken" ? sheetHotel.votes.ken
             : sheetHotel.votes.andy;
 
-          if (!existingRank) {
-            // Write "1" as rank (Wander votes don't have rank differentiation)
+          if (!existingRank || existingRank !== String(vote.rank)) {
+            // Write the rank number (1, 2, or 3)
             const colLetter = String.fromCharCode(65 + colIdx); // L, M, N, O
             const sheetRow = rowIdx + 1; // 1-indexed
             const range = `'${tabName}'!${colLetter}${sheetRow}`;
-            await writeToSheet(config.spreadsheetId, range, [["1"]]);
+            await writeToSheet(config.spreadsheetId, range, [[String(vote.rank)]]);
             votesUpdated++;
 
             // Tint the vote cell

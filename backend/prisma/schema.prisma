@@ -403,12 +403,13 @@ model DecisionVote {
   optionId    String?  @map("option_id") // null = "happy with any"
   userCode    String   @map("user_code")
   displayName String   @map("display_name")
+  rank        Int      @default(1) // 1 = first choice, 2 = second, 3 = third
   createdAt   DateTime @default(now()) @map("created_at")
 
   decision Decision    @relation(fields: [decisionId], references: [id], onDelete: Cascade)
   option   Experience? @relation(fields: [optionId], references: [id], onDelete: SetNull)
 
-  @@unique([decisionId, userCode])
+  @@unique([decisionId, userCode, rank])
   @@map("decision_votes")
 }
 

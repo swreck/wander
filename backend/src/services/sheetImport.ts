@@ -491,15 +491,17 @@ async function importHotelDecision(
       // Any ranking (1, 2, or 3) means they voted for this option
       // In Wander's decision model, a vote = preference for this option
       if (["1", "2", "3"].includes(ve.rank.trim())) {
+        const rankNum = parseInt(ve.rank!.trim()) || 1;
         await prisma.decisionVote.upsert({
           where: {
-            decisionId_userCode: { decisionId: decision.id, userCode: ve.code },
+            decisionId_userCode_rank: { decisionId: decision.id, userCode: ve.code, rank: rankNum },
           },
           create: {
             decisionId: decision.id,
             optionId: exp.id,
             userCode: ve.code,
             displayName: ve.code,
+            rank: rankNum,
           },
           update: {
             optionId: exp.id,

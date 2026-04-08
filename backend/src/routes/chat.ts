@@ -3141,18 +3141,17 @@ async function executeTool(
       if (!dec) return { result: { error: "Decision not found" } };
       if (dec.status !== "open") return { result: { error: "Decision is already resolved" } };
 
-      await prisma.decisionVote.upsert({
-        where: {
-          decisionId_userCode: { decisionId: input.decisionId, userCode: user.code },
-        },
-        create: {
+      // Clear existing votes and set as rank 1
+      await prisma.decisionVote.deleteMany({
+        where: { decisionId: input.decisionId, userCode: user.code },
+      });
+      await prisma.decisionVote.create({
+        data: {
           decisionId: input.decisionId,
           optionId: input.optionId || null,
           userCode: user.code,
           displayName: user.displayName,
-        },
-        update: {
-          optionId: input.optionId || null,
+          rank: 1,
         },
       });
 

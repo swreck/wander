@@ -202,11 +202,13 @@ router.post("/:id/options", async (req: AuthRequest, res) => {
   }
 });
 
-// Cast a vote (or "happy with any" if optionId is null)
+// Set ranked votes (top 3) — replaces all votes for this user on this decision
 router.post("/:id/vote", async (req: AuthRequest, res) => {
   try {
     const decisionId = req.params.id as string;
-    const { optionId } = req.body; // null = "happy with any"
+    const { optionId, rankings } = req.body;
+    // rankings: [{ optionId, rank }] — full replacement of user's picks
+    // optionId: legacy single-vote (converted to rank 1)
 
     const decision = await prisma.decision.findUnique({
       where: { id: decisionId },
@@ -215,31 +217,44 @@ router.post("/:id/vote", async (req: AuthRequest, res) => {
     if (!decision) { res.status(404).json({ error: "Decision not found" }); return; }
     if (decision.status !== "open") { res.status(400).json({ error: "Decision is already resolved" }); return; }
 
-    // Validate optionId refers to a real experience if provided
-    if (optionId) {
-      const optionExp = await prisma.experience.findUnique({ where: { id: optionId } });
-      if (!optionExp) {
-        res.status(404).json({ error: "Option not found" });
-        return;
-      }
-    }
-
-    const vote = await prisma.decisionVote.upsert({
-      where: {
-        decisionId_userCode: { decisionId, userCode: req.user!.code },
-      },
-      create: {
-        decisionId,
-        optionId: optionId || null,
-        userCode: req.user!.code,
-        displayName: req.user!.displayName,
-      },
-      update: {
-        optionId: optionId || null,
-      },
+    // Delete existing votes for this user on this decision
+    await prisma.decisionVote.deleteMany({
+      where: { decisionId, userCode: req.user!.code },
     });
 
-    res.json(vote);
+    if (rankings && Array.isArray(rankings)) {
+      // New ranked voting: [{optionId, rank}, ...]
+      const votes = [];
+      for (const r of rankings) {
+        if (!r.optionId || !r.rank || r.rank < 1 || r.rank > 3) continue;
+        const vote = await prisma.decisionVote.create({
+          data: {
+            decisionId,
+            optionId: r.optionId,
+            userCode: req.user!.code,
+            displayName: req.user!.displayName,
+            rank: r.rank,
+          },
+        });
+        votes.push(vote);
+      }
+      res.json(votes);
+    } else if (optionId) {
+      // Legacy single vote (rank 1)
+      const vote = await prisma.decisionVote.create({
+        data: {
+          decisionId,
+          optionId: optionId || null,
+          userCode: req.user!.code,
+          displayName: req.user!.displayName,
+          rank: 1,
+        },
+      });
+      res.json(vote);
+    } else {
+      // "Happy with any" — no votes, just cleared
+      res.json([]);
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
