@@ -2,6 +2,30 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-04-07 — UX Polish: Detail Panel, Notes, Geocoding, GroupPulse
+
+### Added
+- **Experience notes** — Group and private notes on each activity/hotel. "For group" (default) vs "Just for me" toggle. Others' notes in italic, own notes editable, newest first. Notes included in experience detail API.
+- **GroupPulse** — "The group's been busy" narrative on Home page. Shows per-city activity counts, contributors, and open days. Not a checklist — an invitation to join conversations.
+- **↔ sync indicator** — Subtle bidirectional arrow on every item synced with Larisa's Japan Guide. Tappable tooltip.
+- **Edit warning** — "↔ This syncs with Larisa's Japan Guide. Your changes will update there too." shown when editing synced items.
+- **Wander-origin tint** — Light yellow (#FFF9E6) background on spreadsheet cells that Wander wrote. Full row for new items, single cell for votes/interests.
+
+### Fixed
+- **Detail panel hidden behind mobile list** — z-index conflict (both z-40) at viewports below 1024px. Detail panel bumped to z-50.
+- **Notes not displaying** — Experience detail API wasn't including the notes relation. Added include with traveler info and descending order.
+- **ExperienceDetail crash** — `onDataChanged` was undefined; corrected to `onRefresh`.
+- **Settings Sign Out occluded** — bottom padding increased to pb-40 for bottom nav clearance.
+- **Sync section missing** — added API fallback when no localStorage trip ID.
+
+### Changed
+- **"Spreadsheet" → "Larisa's Japan Guide"** — all user-facing strings updated. Warm, specific, not technical.
+- **Map dots 50% smaller** — Home page overview map: markers reduced from 40px to 20px, labels from 12px to 9px.
+- **All 8 cities geocoded** — map centers correctly per city (was defaulting to Tokyo for all).
+- **All 29 experiences geocoded** — "items need a location" warning eliminated.
+
+**SPEC UPDATE NEEDED**: GroupPulse, experience notes, sync indicators, Wander-origin tinting are new UX patterns not in SPEC.md.
+
 ## 2026-04-06 — Multi-Leg Travel: Chained Journey UI + Expanded Transport Modes
 
 ### Added
