@@ -1313,13 +1313,16 @@ function AtAGlanceView({
   backroadsDays: Set<string>;
   onCityClick: (cityId: string) => void;
 }) {
+  // Guard against undefined arrays
+  if (!cities?.length || !days?.length) return null;
+
   // Group days by city, in sequence order
   const sortedCities = [...cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
 
   return (
     <section className="mb-6 space-y-2">
       {sortedCities.map((city) => {
-        const cityDays = days
+        const cityDays = (days || [])
           .filter(d => d.cityId === city.id)
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -1331,12 +1334,12 @@ function AtAGlanceView({
         const isBackroads = cityDays.some(d => backroadsDays.has(d.id));
 
         // Find transport to this city
-        const segment = routeSegments.find((s: any) =>
+        const segment = (routeSegments || []).find((s: any) =>
           s.destinationCity?.toLowerCase().includes(city.name.toLowerCase().substring(0, 4))
         );
 
         // Find accommodation
-        const acc = accommodations.find((a: any) => a.cityId === city.id);
+        const acc = (accommodations || []).find((a: any) => a.cityId === city.id);
 
         // Find hotel decision
         const hotelDecision = decisions.find(d =>
