@@ -1279,31 +1279,7 @@ function HomeViewToggle({
 
   return (
     <>
-      {/* Toggle pills */}
-      <div className="flex justify-center gap-1 mb-3">
-        <button
-          onClick={() => toggleView("trip")}
-          className={`px-4 py-2 rounded-full text-xs font-medium transition-colors min-h-[44px] flex items-center ${
-            view === "trip"
-              ? "bg-[#514636] text-white"
-              : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
-          }`}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => toggleView("details")}
-          className={`px-4 py-2 rounded-full text-xs font-medium transition-colors min-h-[44px] flex items-center ${
-            view === "details"
-              ? "bg-[#514636] text-white"
-              : "bg-[#f0ece5] text-[#8a7a62] hover:bg-[#e0d8cc]"
-          }`}
-        >
-          Details
-        </button>
-      </div>
-
-      {/* Same calendar grid in both modes — details mode expands each cell */}
+      {/* Calendar grid — transport icons always shown, no toggle needed */}
       <CalendarGrid
         days={days}
         cities={cities}
@@ -1631,33 +1607,59 @@ function CalendarCluster({
                 if (day.notes && !day.notes.includes("TBD")) detailFacts.push({ text: day.notes.substring(0, 18) });
               }
 
+              // Check if NEXT day is a different city (leaving this city)
+              const nextDay = globalIdx < allSortedDays.length - 1 ? allSortedDays[globalIdx + 1] : null;
+              const isLeaving = nextDay && nextDay.cityId !== day.cityId;
+
+              // Find route segment for transport mode
+              const arrivalSegment = isTravel ? (routeSegments || []).find((s: any) => s.destinationCityId === day.cityId) : null;
+              const departSegment = isLeaving ? (routeSegments || []).find((s: any) => s.originCityId === day.cityId) : null;
+
+              // Pick transport icons
+              const arrivalIcon = arrivalSegment?.mode === "flight" ? "✈️" : "🚃";
+              const departIcon = departSegment?.mode === "flight" ? "✈️" : "🚃";
+
               return (
                 <button
                   key={day.id}
                   onClick={() => onDayClick(day.cityId)}
-                  className="rounded-lg flex flex-col overflow-hidden hover:shadow-md transition-shadow"
-                  style={{ borderLeft: `4px solid ${dotColor}` }}
+                  className="aspect-[3/4] rounded-lg flex flex-col items-center justify-between relative overflow-hidden hover:shadow-md transition-shadow"
+                  style={{ backgroundColor: cityColor, borderLeft: `4px solid ${dotColor}` }}
                 >
-                  {/* Map area — same aspect in both modes */}
-                  <div className="aspect-[3/4] relative flex flex-col items-center justify-between shrink-0"
-                    style={{ backgroundColor: cityColor }}>
-                    {mapUrl && (
-                      <>
-                        <img src={mapUrl} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                        <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
-                      </>
-                    )}
-                    {isBackroads && (
-                      <span className="absolute top-0.5 right-0.5 z-20 font-bold text-white rounded-sm leading-none"
-                        style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }}>B</span>
-                    )}
-                    <div className="relative z-10 mt-1 text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
+                  {mapUrl && (
+                    <>
+                      <img src={mapUrl} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                      <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
+                    </>
+                  )}
+                  {isBackroads && (
+                    <span className="absolute top-0.5 right-0.5 z-20 font-bold text-white rounded-sm leading-none"
+                      style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }}>B</span>
+                  )}
+                  {/* Top: arriving transport icon */}
+                  {isTravel ? (
+                    <div className="relative z-10 mt-0.5 flex items-center gap-0 bg-white/80 rounded px-0.5">
+                      <span style={{ fontSize: 8 }}>→</span><span style={{ fontSize: 10 }}>{arrivalIcon}</span>
+                    </div>
+                  ) : (
+                    <div className="h-4" />
+                  )}
+                  {/* Middle: date + city */}
+                  <div className="relative z-10 flex flex-col items-center">
+                    <div className="text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
                       {dayNum}
                     </div>
-                    <div className="relative z-10 text-xs text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center"
+                    <div className="text-xs text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center mt-0.5"
                       style={{ wordBreak: "break-word" }}>
                       {city?.name || ""}
                     </div>
+                  </div>
+                  {/* Bottom: departing transport icon OR theme emojis */}
+                  {isLeaving ? (
+                    <div className="relative z-10 mb-0.5 flex items-center gap-0 bg-white/80 rounded px-0.5">
+                      <span style={{ fontSize: 10 }}>{departIcon}</span><span style={{ fontSize: 8 }}>→</span>
+                    </div>
+                  ) : (
                     <div className="relative z-10 mb-1 h-4 flex items-center justify-center gap-0">
                       {(() => {
                         if (count === 0) return null;
@@ -1676,29 +1678,6 @@ function CalendarCluster({
                         }
                         return <span style={{ fontSize: 10 }}>📍</span>;
                       })()}
-                    </div>
-                  </div>
-                  {/* Detail area — below the map, clean solid background, readable text */}
-                  {showDetails && (
-                    <div className="px-1.5 py-1.5 space-y-0.5" style={{ backgroundColor: cityColor }}>
-                      {isTravel && (
-                        <div className="flex items-center gap-1 text-[11px] text-[#3a3128]">
-                          <span>🚃</span>
-                        </div>
-                      )}
-                      {(() => {
-                        const accom = (accommodations || []).find((a: any) => a.cityId === day.cityId);
-                        return accom?.name ? (
-                          <div className="text-[11px] text-[#3a3128] leading-snug truncate">
-                            🏨 {accom.name.substring(0, 18)}
-                          </div>
-                        ) : null;
-                      })()}
-                      {day.notes && !day.notes.includes("TBD") && (
-                        <div className="text-[10px] text-[#6b5d4a] leading-snug truncate italic">
-                          {day.notes.substring(0, 22)}
-                        </div>
-                      )}
                     </div>
                   )}
                 </button>
