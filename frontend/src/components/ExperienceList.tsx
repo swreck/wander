@@ -33,7 +33,7 @@ function SyncBadge({ exp }: { exp: Experience }) {
   const [showTip, setShowTip] = useState(false);
   if (!exp.sheetRowRef) return null;
   return (
-    <span className="relative ml-0.5 shrink-0">
+    <span className="relative ml-0.5 shrink-0 hidden lg:inline">
       <button
         className="text-[#b8a990] hover:text-[#8a7a62] text-xs leading-none transition-colors"
         onClick={(e) => { e.stopPropagation(); setShowTip(!showTip); }}
@@ -60,7 +60,7 @@ function CreatorBadge({ exp }: { exp: Experience }) {
 
   return (
     <span
-      className="ml-1 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0"
+      className="ml-1 w-4 h-4 rounded-full text-[9px] font-bold hidden lg:flex items-center justify-center shrink-0"
       style={{ backgroundColor: color.bg, color: color.text, border: `1px solid ${color.border}` }}
       title={`Added by ${exp.createdBy}`}
     >
@@ -355,7 +355,7 @@ interface Props {
 function GripHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
   return (
     <button
-      className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+      className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 text-[#c8bba8] hover:text-[#8a7a62] transition-colors hidden lg:block"
       {...listeners}
       {...attributes}
     >
@@ -1398,13 +1398,14 @@ export default function ExperienceList({
       onDragEnd={handleDragEnd}
     >
       <div className="p-3">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2">
+        {/* Header — desktop only, hidden on mobile for cleaner view */}
+        <div className="hidden lg:flex items-center justify-between mb-2">
           <span className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
             {selected.length} Planned{decisions && decisions.length > 0 ? ` · ${decisions.length} Deciding` : ""} · {possible.length} Maybe
           </span>
         </div>
-        {/* Contributor filter */}
+        {/* Contributor filter — desktop only */}
+        <div className="hidden lg:block">
         {(() => {
           const allExps = [...selected, ...possible];
           const contributors = [...new Set(allExps.map(e => e.createdBy).filter(Boolean))];
@@ -1452,6 +1453,9 @@ export default function ExperienceList({
             </div>
           );
         })()}
+        </div>
+        {/* Location warning — desktop only */}
+        <div className="hidden lg:block">
         {(() => {
           const unlocated = [...selected, ...possible].filter((e) => e.locationStatus !== "confirmed").length;
           if (unlocated === 0) return null;
@@ -1462,6 +1466,7 @@ export default function ExperienceList({
             </div>
           );
         })()}
+        </div>
 
         {/* Cross-zone promote panel — calendar strip (city days only) */}
         {crossZonePromoteId && (() => {

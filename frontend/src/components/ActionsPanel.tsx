@@ -178,41 +178,52 @@ export default function ActionsPanel({ tripId, onClose }: Props) {
         {open.map((a) => (
           <div key={a.id} className="bg-white rounded-xl border border-[#e8e0d4] p-4">
             <div className="flex items-start gap-3">
-              {/* Done toggle */}
+              {/* Done toggle — 44px tap target */}
               <button
                 onClick={() => handleToggleDone(a)}
-                className="mt-0.5 w-5 h-5 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors shrink-0"
+                className="mt-0.5 w-6 h-6 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors shrink-0"
                 title="Mark done"
               />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-[#3a3128]">{a.action}</div>
-                <div className="text-xs text-[#8a7a62] mt-1 flex items-center gap-2 flex-wrap">
-                  <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a]">
+                <div className="text-xs text-[#8a7a62] mt-1.5 flex items-center gap-2 flex-wrap">
+                  <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a] font-medium">
                     {a.owner === "Both" ? "Group" : a.owner}
                   </span>
                   {a.dueDate && <span>by {a.dueDate}</span>}
-                  {a.sheetRowRef && <span className="text-[#b8a990]">↔</span>}
+                  {a.sheetRowRef && <span className="text-[10px] text-[#b8a990]">from Guide</span>}
                 </div>
 
-                {/* Notes — editable */}
+                {/* Notes — multi-line, editable */}
                 {editingId === a.id ? (
-                  <div className="mt-2 flex gap-1">
-                    <input
+                  <div className="mt-2.5">
+                    <textarea
                       value={editNotes}
                       onChange={(e) => setEditNotes(e.target.value)}
-                      className="flex-1 text-xs px-2 py-1 rounded border border-[#e0d8cc] focus:outline-none"
+                      rows={2}
+                      className="w-full text-sm px-3 py-2 rounded-lg border border-[#e0d8cc] focus:outline-none focus:ring-1 focus:ring-[#a89880] resize-none"
                       autoFocus
-                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveNotes(a.id); if (e.key === "Escape") setEditingId(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveNotes(a.id); } if (e.key === "Escape") setEditingId(null); }}
                     />
-                    <button onClick={() => handleSaveNotes(a.id)} className="text-xs text-[#514636] font-medium">Save</button>
+                    <div className="flex justify-end gap-2 mt-1.5">
+                      <button onClick={() => setEditingId(null)} className="text-xs text-[#a89880]">Cancel</button>
+                      <button onClick={() => handleSaveNotes(a.id)} className="text-xs text-white bg-[#514636] px-3 py-1 rounded-lg font-medium">Save</button>
+                    </div>
                   </div>
-                ) : (
+                ) : a.notes ? (
                   <p
-                    className="text-xs text-[#8a7a62] mt-2 italic cursor-text"
+                    className="text-sm text-[#6b5d4a] mt-2.5 leading-relaxed cursor-text bg-[#faf8f5] rounded-lg px-3 py-2"
                     onClick={() => { setEditingId(a.id); setEditNotes(a.notes || ""); }}
                   >
-                    {a.notes || "Add a note..."}
+                    {a.notes}
                   </p>
+                ) : (
+                  <button
+                    className="text-xs text-[#c8bba8] hover:text-[#8a7a62] mt-2 transition-colors"
+                    onClick={() => { setEditingId(a.id); setEditNotes(""); }}
+                  >
+                    Add a note
+                  </button>
                 )}
               </div>
             </div>
