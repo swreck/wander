@@ -1011,8 +1011,29 @@ function GroupPulse({
   userCode: string;
   onNavigate: (path: string) => void;
 }) {
+  const [actions, setActions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (trip?.id) {
+      api.get<any[]>(`/sheets-sync/actions/${trip.id}`).then(setActions).catch(() => {});
+    }
+  }, [trip?.id]);
+
   // Build the briefing items
   const items: { text: string; detail: string; action: string; path: string }[] = [];
+
+  // Planning actions with upcoming due dates (from Larisa's Japan Guide Actions tab)
+  const openActions = actions.filter(a => a.status === "open" && a.dueDate);
+  if (openActions.length > 0) {
+    for (const act of openActions.slice(0, 3)) {
+      items.push({
+        text: act.action,
+        detail: `${act.owner === "Both" ? "Group" : act.owner} · ${act.dueDate ? `by ${act.dueDate}` : "no deadline"}${act.notes ? ` — ${act.notes}` : ""}`,
+        action: "See details",
+        path: "/settings", // Navigate to settings where sync info lives
+      });
+    }
+  }
 
   // 1. Decisions where user hasn't voted
   const unvotedDecisions = openDecisions.filter(
