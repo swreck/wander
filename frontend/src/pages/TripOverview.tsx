@@ -1611,13 +1611,22 @@ function CalendarCluster({
               const nextDay = globalIdx < allSortedDays.length - 1 ? allSortedDays[globalIdx + 1] : null;
               const isLeaving = nextDay && nextDay.cityId !== day.cityId;
 
-              // Find route segment for transport mode
-              const arrivalSegment = isTravel ? (routeSegments || []).find((s: any) => s.destinationCityId === day.cityId) : null;
-              const departSegment = isLeaving ? (routeSegments || []).find((s: any) => s.originCityId === day.cityId) : null;
+              // Find route segment for transport mode — match by city NAME not ID
+              const cityName = city?.name?.toLowerCase() || "";
+              const prevCityName = isTravel ? (cities.find(c => c.id === prevDay?.cityId)?.name?.toLowerCase() || "") : "";
+              const nextCityName = isLeaving ? (cities.find(c => c.id === nextDay?.cityId)?.name?.toLowerCase() || "") : "";
+              const arrivalSegment = isTravel ? (routeSegments || []).find((s: any) =>
+                (s.destinationCity?.toLowerCase()?.includes(cityName) || cityName.includes(s.destinationCity?.toLowerCase() || "---")) &&
+                (s.originCity?.toLowerCase()?.includes(prevCityName) || prevCityName.includes(s.originCity?.toLowerCase() || "---"))
+              ) : null;
+              const departSegment = isLeaving ? (routeSegments || []).find((s: any) =>
+                (s.originCity?.toLowerCase()?.includes(cityName) || cityName.includes(s.originCity?.toLowerCase() || "---")) &&
+                (s.destinationCity?.toLowerCase()?.includes(nextCityName) || nextCityName.includes(s.destinationCity?.toLowerCase() || "---"))
+              ) : null;
 
               // Pick transport icons
-              const arrivalIcon = arrivalSegment?.mode === "flight" ? "✈️" : "🚃";
-              const departIcon = departSegment?.mode === "flight" ? "✈️" : "🚃";
+              const arrivalIcon = arrivalSegment?.transportMode === "flight" ? "✈️" : "🚃";
+              const departIcon = departSegment?.transportMode === "flight" ? "✈️" : "🚃";
 
               return (
                 <button
