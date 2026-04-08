@@ -30,13 +30,15 @@ const DAY_CACHE = 'wander-days-v1';
 const MAP_CACHE = 'wander-maps-v1';
 const IMAGE_CACHE = 'wander-images-v1';
 
-// ── Static assets: StaleWhileRevalidate (serve cached, fetch update in background) ──
+// ── Static assets: StaleWhileRevalidate — but NOT the precached app bundle ──
+// The main JS/CSS bundles are handled by precacheAndRoute above (which uses
+// cache-first with hash-based versioning). This route is for other static
+// assets like fonts, images, and third-party scripts.
 registerRoute(
-  ({ request }) =>
-    request.destination === 'style' ||
-    request.destination === 'script' ||
-    request.destination === 'font' ||
-    request.destination === 'image',
+  ({ request, url }) =>
+    (request.destination === 'font' || request.destination === 'image') ||
+    ((request.destination === 'style' || request.destination === 'script') &&
+     !url.pathname.startsWith('/assets/')),
   new StaleWhileRevalidate({
     cacheName: STATIC_CACHE,
     plugins: [
