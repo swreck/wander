@@ -51,6 +51,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   // Edit form
   const [editNotes, setEditNotes] = useState("");
 
+  // Done section toggle — must be above early return to avoid hooks ordering violation
+  const [showDone, setShowDone] = useState(false);
+
   function loadActions() {
     api.get<PlanningAction[]>(`/sheets-sync/actions/${tripId}`)
       .then(setActions)
@@ -109,7 +112,6 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
 
   const open = actions.filter(a => a.status === "open");
   const done = actions.filter(a => a.status === "done");
-  const [showDone, setShowDone] = useState(false);
 
   // Decisions that need THIS user's input
   const needsMyInput = (decisions || []).filter(dec => {
