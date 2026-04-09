@@ -1039,12 +1039,18 @@ export default function PlanPage() {
                         if (!byDay.has(key)) byDay.set(key, []);
                         byDay.get(key)!.push(e);
                       });
+                      const usedKeys = new Set<string>();
                       cityDaysAll.forEach(d => {
                         const exps = byDay.get(d.id);
-                        if (exps) groups.push({ day: d, exps });
+                        if (exps) { groups.push({ day: d, exps }); usedKeys.add(d.id); }
                       });
-                      const unassigned = byDay.get('_none');
-                      if (unassigned) groups.push({ day: null, exps: unassigned });
+                      // Catch experiences assigned to days outside this city (data mismatch)
+                      const remaining: typeof selected = [];
+                      byDay.forEach((exps, key) => {
+                        if (key !== '_none' && !usedKeys.has(key)) remaining.push(...exps);
+                      });
+                      const unassigned = [...(byDay.get('_none') || []), ...remaining];
+                      if (unassigned.length > 0) groups.push({ day: null, exps: unassigned });
                     } else {
                       groups.push({ day: null, exps: selected });
                     }
