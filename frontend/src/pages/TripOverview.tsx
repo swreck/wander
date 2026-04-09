@@ -53,12 +53,23 @@ export default function TripOverview() {
   const [showLearnings, setShowLearnings] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [openDecisions, setOpenDecisions] = useState<Decision[]>([]);
+  const [showInfoPanel, setShowInfoPanel] = useState(() => !localStorage.getItem("wander:overview-oriented"));
 
   const isPlanner = user?.role === "planner";
   const initialLoadDone = useRef(false);
 
   useKeyboardShortcuts();
   useUniversalCapture(trip?.id);
+
+  // Track visits and auto-prompt to hide info panel at ~4 and ~10 visits
+  useEffect(() => {
+    const count = parseInt(localStorage.getItem("wander:visit-count") || "0") + 1;
+    localStorage.setItem("wander:visit-count", String(count));
+    const dismissed = !!localStorage.getItem("wander:overview-oriented");
+    if (!dismissed && (count === 4 || count === 10)) {
+      // Auto-prompt will be handled in the render
+    }
+  }, []);
 
   // Listen for bottom nav actions trigger
   useEffect(() => {
@@ -571,6 +582,16 @@ export default function TripOverview() {
           >
             ?
           </button>
+          {localStorage.getItem("wander:overview-oriented") && !showInfoPanel && (
+            <button
+              onClick={() => setShowInfoPanel(true)}
+              className="text-sm text-[#c8bba8] hover:text-[#6b5d4a] transition-colors px-1.5 py-2.5 min-h-[44px] flex items-center"
+              aria-label="Show tips"
+              title="Quick start tips"
+            >
+              ℹ️
+            </button>
+          )}
           <button
             onClick={() => navigate("/history")}
             className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"
@@ -691,25 +712,53 @@ export default function TripOverview() {
           </div>
         )}
 
-        {/* Post-import orientation — below decisions so first-time collaborators see voting first */}
-        {!localStorage.getItem("wander:overview-oriented") && experiences.length > 0 && (
-          <div className="mb-4 p-3 bg-white rounded-lg border border-[#e0d8cc] text-sm">
-            <p className="font-medium text-[#3a3128] mb-1.5">Quick start</p>
-            <ul className="text-[#6b5d4a] space-y-0.5 list-none">
-              {!window.matchMedia("(display-mode: standalone)").matches && (
-                <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen</li>
+        {/* Info panel — dismissible, reopenable via ℹ️ */}
+        {showInfoPanel && experiences.length > 0 && (() => {
+          const visitCount = parseInt(localStorage.getItem("wander:visit-count") || "0");
+          const dismissed = !!localStorage.getItem("wander:overview-oriented");
+          const isAutoPrompt = dismissed && (visitCount === 4 || visitCount === 10);
+          if (dismissed && !isAutoPrompt) return null;
+          return (
+            <div className="mb-4 p-3 bg-white rounded-lg border border-[#e0d8cc] text-sm">
+              {isAutoPrompt ? (
+                <>
+                  <p className="text-[#6b5d4a] mb-2">Want me to hide the info panel?</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); setShowInfoPanel(false); }}
+                      className="text-xs text-[#514636] font-medium"
+                    >Hide</button>
+                    <button
+                      onClick={() => setShowInfoPanel(false)}
+                      className="text-xs text-[#c8bba8]"
+                    >Keep it for now</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-[#3a3128] mb-1.5">Quick start</p>
+                  <ul className="text-[#6b5d4a] space-y-0.5 list-none">
+                    {!window.matchMedia("(display-mode: standalone)").matches && (
+                      <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen</li>
+                    )}
+                    <li>• Tap any day below to see your map and what's planned</li>
+                    <li>• The chat bubble is <strong>Scout</strong> — ask questions or rearrange plans</li>
+                  </ul>
+                  <button
+                    onClick={() => {
+                      localStorage.setItem("wander:overview-oriented", "1");
+                      setShowInfoPanel(false);
+                      showToast("Hidden — tap ℹ️ in the toolbar to see this again");
+                    }}
+                    className="text-xs text-[#c8bba8] hover:text-[#6b5d4a] mt-1.5 transition-colors"
+                  >
+                    Hide this message
+                  </button>
+                </>
               )}
-              <li>• Tap any day below to see your map and what's planned</li>
-              <li>• The chat bubble is <strong>Scout</strong> — ask questions or rearrange plans</li>
-            </ul>
-            <button
-              onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); loadTrips(); }}
-              className="text-xs text-[#c8bba8] hover:text-[#6b5d4a] mt-1.5 transition-colors"
-            >
-              got it
-            </button>
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* Calendar / At-a-Glance toggle */}
         {tripPhase !== "past" && (trip.datesKnown !== false ? (
