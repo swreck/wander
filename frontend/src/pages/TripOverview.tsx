@@ -54,6 +54,7 @@ export default function TripOverview() {
   const [showActions, setShowActions] = useState(false);
   const [openDecisions, setOpenDecisions] = useState<Decision[]>([]);
   const [showInfoPanel, setShowInfoPanel] = useState(() => !localStorage.getItem("wander:overview-oriented"));
+  const [peekDay, setPeekDay] = useState<{ dayId: string; cityId: string } | null>(null);
 
   const isPlanner = user?.role === "planner";
   const initialLoadDone = useRef(false);
@@ -771,7 +772,10 @@ export default function TripOverview() {
             routeSegments={trip.routeSegments || []}
             accommodations={trip.accommodations || []}
             decisions={openDecisions}
-            onDayClick={(cityId) => navigate(`/plan?city=${cityId}`)}
+            onDayClick={(cityId, dayId) => {
+              if (dayId) setPeekDay({ dayId, cityId });
+              else navigate(`/plan?city=${cityId}`);
+            }}
             onCityClick={(cityId) => navigate(`/plan?city=${cityId}`)}
           />
         ) : (
@@ -781,6 +785,45 @@ export default function TripOverview() {
             onCityClick={(cityId) => navigate(`/city/${cityId}`)}
           />
         ))}
+
+        {/* Day peek card — tap a calendar day to preview before navigating */}
+        {peekDay && (() => {
+          const day = days.find(d => d.id === peekDay.dayId);
+          const city = trip.cities.find(c => c.id === peekDay.cityId);
+          if (!day || !city) return null;
+          const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
+          const dayDate = new Date(day.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
+          return (
+            <div className="fixed inset-0 z-40 flex items-end justify-center pb-24 sm:items-center sm:pb-0"
+              onClick={() => setPeekDay(null)}>
+              <div className="mx-4 max-w-sm w-full bg-white rounded-2xl shadow-xl p-4 animate-greetingFadeIn"
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-sm font-medium text-[#3a3128]">{city.name}</div>
+                    <div className="text-xs text-[#a89880]">{dayDate}</div>
+                  </div>
+                  <button onClick={() => { setPeekDay(null); navigate(`/plan?city=${peekDay.cityId}`); }}
+                    className="text-xs text-[#514636] font-medium px-3 py-1.5 rounded-lg bg-[#f0ece5] hover:bg-[#e0d8cc]">
+                    Open →
+                  </button>
+                </div>
+                {dayExps.length > 0 ? (
+                  <div className="space-y-1 mt-2">
+                    {dayExps.slice(0, 4).map(e => (
+                      <div key={e.id} className="text-xs text-[#6b5d4a] py-1 border-b border-[#f5f3f0] last:border-0">
+                        {e.name}
+                      </div>
+                    ))}
+                    {dayExps.length > 4 && <div className="text-[10px] text-[#c8bba8]">+ {dayExps.length - 4} more</div>}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#c8bba8] mt-2">Nothing planned yet</p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Scout briefing — below the calendar per Ken's 2-line rule */}
         <GroupPulse
@@ -1303,7 +1346,7 @@ function HomeViewToggle({
   routeSegments: any[];
   accommodations: any[];
   decisions: Decision[];
-  onDayClick: (cityId: string) => void;
+  onDayClick: (cityId: string, dayId?: string) => void;
   onCityClick: (cityId: string) => void;
 }) {
   const [view, setView] = useState<"trip" | "details">(
@@ -1475,7 +1518,7 @@ function CalendarGrid({
   selectedPerDay: Record<string, number>;
   backroadsDays: Set<string>;
   experiences: Experience[];
-  onDayClick: (cityId: string) => void;
+  onDayClick: (cityId: string, dayId?: string) => void;
   showDetails?: boolean;
   routeSegments?: any[];
   accommodations?: any[];
@@ -1548,7 +1591,7 @@ function CalendarCluster({
   selectedPerDay: Record<string, number>;
   backroadsDays: Set<string>;
   experiences: Experience[];
-  onDayClick: (cityId: string) => void;
+  onDayClick: (cityId: string, dayId?: string) => void;
   showDetails?: boolean;
   routeSegments?: any[];
   accommodations?: any[];
@@ -1639,7 +1682,7 @@ function CalendarCluster({
               return (
                 <button
                   key={day.id}
-                  onClick={() => onDayClick(day.cityId)}
+                  onClick={() => onDayClick(day.cityId, day.id)}
                   className="aspect-[3/4] rounded-lg flex flex-col items-center justify-center relative overflow-hidden hover:shadow-md transition-shadow"
                   style={{ backgroundColor: cityColor, borderLeft: `4px solid ${dotColor}` }}
                 >
