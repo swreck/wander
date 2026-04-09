@@ -42,6 +42,8 @@ export default function PlanPage() {
   const [showDayView, setShowDayView] = useState(false);
   // showImport replaced by captureCtx.reviewOpen
   const [mobileView, setMobileView] = useState<"map" | "list">(initialCityId ? "list" : "map");
+  const [expandedDecisionId, setExpandedDecisionId] = useState<string | null>(null);
+  const [expandedIdeaId, setExpandedIdeaId] = useState<string | null>(null);
   const [candidatesExpanded, setCandidatesExpanded] = useState(() => {
     try { return localStorage.getItem("wander:candidates-expanded") === "true"; } catch { return false; }
   });
@@ -1069,26 +1071,54 @@ export default function PlanPage() {
                     );
                   })()}
 
-                  {/* Section 2: Decisions — compact doorway to voting */}
+                  {/* Section 2: Decisions — expand inline to show options */}
                   {cityDecisions.length > 0 && (
                     <div className="mb-6">
                       {cityDecisions.map((dec) => {
                         const voterCount = new Set(dec.votes.map((v: any) => v.userCode)).size;
                         const voterNames = [...new Set(dec.votes.map((v: any) => v.displayName))];
+                        const isExpanded = expandedDecisionId === dec.id;
+                        // Vote counts per option
+                        const voteCounts = new Map<string, number>();
+                        dec.votes.forEach((v: any) => {
+                          voteCounts.set(v.optionId, (voteCounts.get(v.optionId) || 0) + 1);
+                        });
                         return (
-                          <button
-                            key={dec.id}
-                            onClick={() => setMobileView("map")}
-                            className="w-full text-left p-3 rounded-xl border border-amber-200/60 bg-amber-50/30 mb-2"
-                          >
-                            <div className="text-sm font-medium text-[#3a3128]">{dec.title}</div>
-                            <div className="text-xs text-[#8a7a62] mt-0.5">
-                              {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
-                              {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
-                              {" · "}
-                              <span className="text-amber-700">See options →</span>
-                            </div>
-                          </button>
+                          <div key={dec.id} className="mb-2">
+                            <button
+                              onClick={() => setExpandedDecisionId(isExpanded ? null : dec.id)}
+                              className="w-full text-left p-3 rounded-xl border border-amber-200/60 bg-amber-50/30"
+                            >
+                              <div className="text-sm font-medium text-[#3a3128]">{dec.title}</div>
+                              <div className="text-xs text-[#8a7a62] mt-0.5">
+                                {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
+                                {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
+                                {" · "}
+                                <span className="text-amber-700">{isExpanded ? "Hide" : "See options →"}</span>
+                              </div>
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-1 ml-3 space-y-1">
+                                {dec.options.map((opt: any) => {
+                                  const votes = voteCounts.get(opt.id) || 0;
+                                  return (
+                                    <div key={opt.id} className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-[#e8e0d4]">
+                                      <span className="text-sm text-[#3a3128]">{opt.name}</span>
+                                      {votes > 0 && (
+                                        <span className="text-xs text-[#a89880] ml-2">{votes} vote{votes !== 1 ? "s" : ""}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                                <button
+                                  onClick={() => setMobileView("map")}
+                                  className="text-xs text-amber-700 mt-1 py-1"
+                                >
+                                  Vote on the map →
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -1100,16 +1130,32 @@ export default function PlanPage() {
                       <div className="text-xs text-[#a89880] uppercase tracking-wider mb-3">Ideas for this city</div>
                       <div className="space-y-2">
                         {possible.map((exp) => (
-                          <button
-                            key={exp.id}
-                            onClick={() => { setSelectedExpId(exp.id); setMobileView("map"); }}
-                            className="w-full text-left p-3 bg-white rounded-xl border border-[#f0ece5] hover:border-[#d8cfc0] transition-colors"
-                          >
-                            <div className="text-sm text-[#3a3128]">{exp.name}</div>
-                            {exp.neighborhood && (
-                              <div className="text-xs text-[#a89880] mt-0.5">{exp.neighborhood}</div>
+                          <div key={exp.id}>
+                            <button
+                              onClick={() => setExpandedIdeaId(expandedIdeaId === exp.id ? null : exp.id)}
+                              className="w-full text-left p-3 bg-white rounded-xl border border-[#f0ece5] hover:border-[#d8cfc0] transition-colors"
+                            >
+                              <div className="text-sm text-[#3a3128]">{exp.name}</div>
+                              {exp.neighborhood && (
+                                <div className="text-xs text-[#a89880] mt-0.5">{exp.neighborhood}</div>
+                              )}
+                            </button>
+                            {expandedIdeaId === exp.id && (
+                              <div className="ml-3 mt-1 p-2.5 bg-[#faf8f5] rounded-lg border border-[#f0ece5] text-xs text-[#6b5d4a] space-y-1.5">
+                                {exp.description && <p>{exp.description}</p>}
+                                {exp.explorationZone && <p className="text-[#a89880]">{exp.explorationZone}</p>}
+                                {!exp.description && !exp.explorationZone && (
+                                  <p className="text-[#c8bba8] italic">No details yet — ask Scout for more info</p>
+                                )}
+                                <button
+                                  onClick={() => { setSelectedExpId(exp.id); setMobileView("map"); }}
+                                  className="text-amber-700 mt-1"
+                                >
+                                  See on map →
+                                </button>
+                              </div>
                             )}
-                          </button>
+                          </div>
                         ))}
                       </div>
                     </div>
