@@ -1045,6 +1045,27 @@ export default function PlanPage() {
                     </div>
                   )}
 
+                  {/* Accommodation — where you're staying */}
+                  {(() => {
+                    const cityDaysForAccom = days.filter(d => d.cityId === activeCityId);
+                    const accoms = cityDaysForAccom.flatMap(d => d.accommodations || []);
+                    const uniqueAccoms = [...new Map(accoms.map(a => [a.id, a])).values()];
+                    if (uniqueAccoms.length === 0) return null;
+                    return (
+                      <div className="mb-4">
+                        {uniqueAccoms.map(a => (
+                          <div key={a.id} className="flex items-center gap-2 p-2.5 bg-[#faf8f5] rounded-lg border border-[#f0ece5]">
+                            <span className="text-base">🏨</span>
+                            <div>
+                              <div className="text-sm text-[#3a3128]">{a.name}</div>
+                              {a.address && <div className="text-xs text-[#a89880]">{a.address}</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
                   {selected.length === 0 && (() => {
                     // Show day notes/descriptions from the itinerary if available
                     const cityDays = days.filter(d => d.cityId === activeCityId).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
