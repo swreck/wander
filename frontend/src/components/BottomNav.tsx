@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 interface Props {
@@ -51,7 +52,17 @@ const tabs = [
 export default function BottomNav({ pendingChanges }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
-  const actionsNeedAttention = (window as any).__actionsNeedAttention || false;
+  const [actionsNeedAttention, setActionsNeedAttention] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setActionsNeedAttention((e as CustomEvent).detail?.needsAttention || false);
+    };
+    window.addEventListener("wander:actions-attention", handler);
+    // Check initial value from window (set before this component mounts)
+    if ((window as any).__actionsNeedAttention) setActionsNeedAttention(true);
+    return () => window.removeEventListener("wander:actions-attention", handler);
+  }, []);
 
   // Hide on login, join pages, and PlanPage (PlanPage has its own action bar)
   if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
