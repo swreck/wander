@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
-import type { Trip, Day, Experience, ExperienceInterest, Decision } from "../lib/types";
+import type { Trip, Day, Experience, ExperienceInterest, Decision, Accommodation } from "../lib/types";
 import MapCanvas, { getCityPastel } from "../components/MapCanvas";
 import ExperienceList from "../components/ExperienceList";
 import ExperienceDetail from "../components/ExperienceDetail";
@@ -28,6 +28,7 @@ export default function PlanPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [interests, setInterests] = useState<Map<string, ExperienceInterest>>(new Map());
   const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Navigation — days-based, plus dateless candidate cities
@@ -186,12 +187,22 @@ export default function PlanPage() {
 
   useEffect(() => { loadInterests(); }, [loadInterests]);
 
+  const loadAccommodations = useCallback(async () => {
+    if (!trip) return;
+    try {
+      const accoms = await api.get<Accommodation[]>(`/accommodations/trip/${trip.id}`);
+      setAccommodations(accoms);
+    } catch { /* accommodations are optional */ }
+  }, [trip]);
+
+  useEffect(() => { loadAccommodations(); }, [loadAccommodations]);
+
   // Refresh all data when chat or other panels make changes
   useEffect(() => {
-    const handler = () => { loadTrip(true); loadExperiences(); loadDecisions(); loadInterests(); };
+    const handler = () => { loadTrip(true); loadExperiences(); loadDecisions(); loadInterests(); loadAccommodations(); };
     window.addEventListener("wander:data-changed", handler);
     return () => window.removeEventListener("wander:data-changed", handler);
-  }, [loadTrip, loadExperiences, loadDecisions, loadInterests]);
+  }, [loadTrip, loadExperiences, loadDecisions, loadInterests, loadAccommodations]);
 
   // ── Actions ───────────────────────────────────────────────────
 
@@ -1087,9 +1098,7 @@ export default function PlanPage() {
 
                   {/* Accommodation — where you're staying */}
                   {(() => {
-                    const cityDaysForAccom = days.filter(d => d.cityId === activeCityId);
-                    const accoms = cityDaysForAccom.flatMap(d => d.accommodations || []);
-                    const uniqueAccoms = [...new Map(accoms.map(a => [a.id, a])).values()];
+                    const uniqueAccoms = accommodations.filter(a => a.cityId === activeCityId);
                     if (uniqueAccoms.length === 0) return null;
                     return (
                       <div className="mb-4">
