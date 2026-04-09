@@ -220,9 +220,14 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                         </div>
                         <div className="text-xs text-[#8a7a62] mt-1 flex items-center gap-2 flex-wrap">
                           <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a] font-medium">
-                            {a.owner === "Both" ? "Group" : a.owner}
+                            {a.owner === "Both" ? "Group" : a.owner === "LF" ? "Larisa" : a.owner === "KR" ? "Ken" : a.owner}
                           </span>
-                          {a.dueDate && a.dueDate !== "TBD" && <span>by {a.dueDate}</span>}
+                          {a.dueDate && a.dueDate !== "TBD" && (() => {
+                            // Check if overdue
+                            const match = a.dueDate.match(/^(\d{1,2})\/(\d{1,2})$/);
+                            const isOverdue = match ? new Date(2026, parseInt(match[1]) - 1, parseInt(match[2])) < new Date(new Date().toDateString()) : false;
+                            return <span className={isOverdue ? "text-amber-700 font-medium" : ""}>{isOverdue ? "was due " : "by "}{a.dueDate}</span>;
+                          })()}
                           {a.sheetRowRef && <span className="text-[10px] text-[#b8a990]">from Guide</span>}
                         </div>
 
