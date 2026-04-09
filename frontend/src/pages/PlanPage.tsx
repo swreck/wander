@@ -505,7 +505,8 @@ export default function PlanPage() {
       : experiences;
 
   const selected = cityExperiences.filter((e) => e.state === "selected");
-  const possible = cityExperiences.filter((e) => e.state === "possible" && !e.decisionId);
+  const cityAccomNames = new Set(accommodations.filter(a => a.cityId === activeCityId).map(a => a.name.toLowerCase()));
+  const possible = cityExperiences.filter((e) => e.state === "possible" && !e.decisionId && !cityAccomNames.has(e.name.toLowerCase()));
   const cityDecisions = decisions.filter((d) => d.cityId === activeCityId);
   const openDecisionOptionIds = new Set(
     cityDecisions.filter((d) => d.status === "open").flatMap((d) => d.options.map((o) => o.id))
