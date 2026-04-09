@@ -1024,26 +1024,60 @@ export default function PlanPage() {
                 />
               ) : (
                 <>
-                  {/* Section 1: The Plan — what's happening */}
-                  {selected.length > 0 && (
-                    <div className="mb-6">
-                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">The plan</div>
-                      <div className="space-y-2">
-                        {selected.map((exp) => (
-                          <button
-                            key={exp.id}
-                            onClick={() => { setSelectedExpId(exp.id); setMobileView("map"); }}
-                            className="w-full text-left p-3 bg-white rounded-xl border border-[#e8e0d4] hover:border-[#c8bba8] transition-colors"
-                          >
-                            <div className="text-sm font-medium text-[#3a3128]">{exp.name}</div>
-                            {exp.neighborhood && (
-                              <div className="text-xs text-[#a89880] mt-0.5">{exp.neighborhood}</div>
+                  {/* Section 1: The Plan — grouped by day when spanning multiple days */}
+                  {selected.length > 0 && (() => {
+                    const cityDaysAll = days.filter(d => d.cityId === activeCityId).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    const dayIds = new Set(selected.map(e => e.dayId).filter(Boolean));
+                    const showDayHeaders = dayIds.size > 1;
+
+                    // Group by day, preserving day order
+                    const groups: { day: typeof days[0] | null; exps: typeof selected }[] = [];
+                    if (showDayHeaders) {
+                      const byDay = new Map<string, typeof selected>();
+                      selected.forEach(e => {
+                        const key = e.dayId || '_none';
+                        if (!byDay.has(key)) byDay.set(key, []);
+                        byDay.get(key)!.push(e);
+                      });
+                      cityDaysAll.forEach(d => {
+                        const exps = byDay.get(d.id);
+                        if (exps) groups.push({ day: d, exps });
+                      });
+                      const unassigned = byDay.get('_none');
+                      if (unassigned) groups.push({ day: null, exps: unassigned });
+                    } else {
+                      groups.push({ day: null, exps: selected });
+                    }
+
+                    return (
+                      <div className="mb-6">
+                        <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">The plan</div>
+                        {groups.map((group, gi) => (
+                          <div key={gi} className={gi > 0 ? "mt-4" : ""}>
+                            {group.day && (
+                              <div className="text-xs font-medium text-[#8a7a62] mb-1.5 ml-1">
+                                {new Date(group.day.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+                              </div>
                             )}
-                          </button>
+                            <div className="space-y-2">
+                              {group.exps.map((exp) => (
+                                <button
+                                  key={exp.id}
+                                  onClick={() => { setSelectedExpId(exp.id); setMobileView("map"); }}
+                                  className="w-full text-left p-3 bg-white rounded-xl border border-[#e8e0d4] hover:border-[#c8bba8] transition-colors"
+                                >
+                                  <div className="text-sm font-medium text-[#3a3128]">{exp.name}</div>
+                                  {exp.neighborhood && (
+                                    <div className="text-xs text-[#a89880] mt-0.5">{exp.neighborhood}</div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Accommodation — where you're staying */}
                   {(() => {
