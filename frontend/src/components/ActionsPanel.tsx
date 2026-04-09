@@ -166,7 +166,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
         {needsMyInput.length > 0 && (
           <div className="mb-6">
             <div className="text-xs text-amber-700 uppercase tracking-wider font-medium mb-2">
-              {needsMyInput.length === 1 ? "Needs your input" : `${needsMyInput.length} things need your input`}
+              {needsMyInput.length === 1 ? "Your thoughts?" : `${needsMyInput.length} things could use your input`}
             </div>
             <div className="space-y-2">
               {needsMyInput.map(dec => {
@@ -183,7 +183,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
                       {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
                     </div>
-                    <div className="text-xs text-amber-700 mt-1">Tap to see options and vote →</div>
+                    <div className="text-xs text-amber-700 mt-1">Tap to weigh in →</div>
                   </button>
                 );
               })}
@@ -226,7 +226,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                             // Check if overdue
                             const match = a.dueDate.match(/^(\d{1,2})\/(\d{1,2})$/);
                             const isOverdue = match ? new Date(2026, parseInt(match[1]) - 1, parseInt(match[2])) < new Date(new Date().toDateString()) : false;
-                            return <span className={isOverdue ? "text-amber-700 font-medium" : ""}>{isOverdue ? "was due " : "by "}{a.dueDate}</span>;
+                            return <span className={isOverdue ? "text-amber-600" : ""}>{isOverdue ? "was aiming for " : "around "}{a.dueDate}</span>;
                           })()}
                           {a.sheetRowRef && <span className="text-[10px] text-[#b8a990]">from Guide</span>}
                         </div>

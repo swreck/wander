@@ -1022,7 +1022,7 @@ export default function PlanPage() {
               <div className="w-12" /> {/* spacer for centering */}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:pb-24">
               {showDayView && selectedDay ? (
                 <DayView
                   day={selectedDay}
