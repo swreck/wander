@@ -109,7 +109,7 @@ export default function HistoryPage() {
             onClick={() => navigate("/")}
             className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
           >
-            &larr; Back
+            &larr; Home
           </button>
           <div className="flex items-center gap-3">
             <span className="text-sm text-[#c8bba8]">{total} changes</span>

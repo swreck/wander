@@ -118,7 +118,7 @@ export default function TripStoryPage() {
           className="absolute top-4 left-4 text-white/60 hover:text-white text-sm"
           style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
-          &larr; Back
+          &larr; Home
         </button>
         <h1 className="text-2xl font-light">{trip.name}</h1>
         {trip.startDate && trip.endDate && (
