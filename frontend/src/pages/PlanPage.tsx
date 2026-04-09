@@ -1073,8 +1073,15 @@ export default function PlanPage() {
                         {groups.map((group, gi) => (
                           <div key={gi} className={gi > 0 ? "mt-4" : ""}>
                             {group.day && (
-                              <div className="text-xs font-medium text-[#8a7a62] mb-1.5 ml-1">
-                                {new Date(group.day.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+                              <div className="mb-1.5 ml-1">
+                                <div className="text-xs font-medium text-[#8a7a62]">
+                                  {new Date(group.day.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+                                </div>
+                                {group.exps.length > 1 && (
+                                  <div className="text-[10px] text-[#c8bba8] mt-0.5">
+                                    {group.exps.slice(0, 3).map(e => e.name.split(/[—(·:]/)[0].trim()).join(", ")}{group.exps.length > 3 ? ` + ${group.exps.length - 3} more` : ""}
+                                  </div>
+                                )}
                               </div>
                             )}
                             <div className="space-y-2">
@@ -1182,10 +1189,10 @@ export default function PlanPage() {
                                   );
                                 })}
                                 <button
-                                  onClick={() => setMobileView("map")}
+                                  onClick={() => { setMobileView("map"); setShowDayView(true); }}
                                   className="text-xs text-amber-700 mt-1 py-1"
                                 >
-                                  Vote on the map →
+                                  See full details →
                                 </button>
                               </div>
                             )}
@@ -1230,9 +1237,10 @@ export default function PlanPage() {
                         ))}
                       </div>
                     </div>
-                  ) : selected.length === 0 && (
+                  ) : selected.length === 0 && possible.length === 0 && (
                     <div className="py-12 text-center">
-                      <p className="text-sm text-[#a89880]">Nothing here yet</p>
+                      <p className="text-sm text-[#6b5d4a]">Wide open — what sounds good here?</p>
+                      <p className="text-xs text-[#c8bba8] mt-1">Ask Scout for ideas, or add your own</p>
                     </div>
                   )}
                 </>
