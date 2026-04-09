@@ -123,7 +123,7 @@ export default function TripOverview() {
           if (user && !localStorage.getItem(welcomeKey)) {
             const myEntries = logs.filter((l) => l.userDisplayName === user.displayName);
             if (myEntries.length === 0 && logs.length > 0) {
-              const otherNames = [...new Set(logs.map((l) => l.userDisplayName))];
+              const otherNames = [...new Set(logs.map((l) => l.userDisplayName))].filter(n => n !== "System" && n !== "system");
               if (otherNames.length > 0) {
                 setCollabWelcome({ names: otherNames, tripName: effectiveActive.name });
               }
