@@ -185,28 +185,16 @@ export default function TripOverview() {
     return Math.round((new Date(departure).getTime() - new Date(arrival).getTime()) / 86400000);
   }
 
-  // Backroads days: continuous range from earliest to latest itinerary-imported day
+  // Backroads days: days with dayType "guided" (set during import)
   // NOTE: useMemo must be called before any early returns to maintain hook order
   const backroadsDays = useMemo(() => {
     if (!trip) return new Set<string>();
     const set = new Set<string>();
-    const brDates: string[] = [];
-    for (const exp of experiences) {
-      if (exp.sourceText === "Imported from itinerary document" && exp.dayId) {
-        const day = trip.days.find((d) => d.id === exp.dayId);
-        if (day?.date) brDates.push(day.date);
-      }
-    }
-    if (brDates.length === 0) return set;
-    brDates.sort();
-    const startDate = new Date(brDates[0]);
-    const endDate = new Date(brDates[brDates.length - 1]);
     for (const day of trip.days) {
-      const d = new Date(day.date);
-      if (d >= startDate && d <= endDate) set.add(day.id);
+      if (day.dayType === "guided") set.add(day.id);
     }
     return set;
-  }, [experiences, trip]);
+  }, [trip]);
 
   // Derive visit order from the actual day sequence (not city arrivalDates).
   // Walk through days sorted by date. Each time the city changes, that's a new visit.
