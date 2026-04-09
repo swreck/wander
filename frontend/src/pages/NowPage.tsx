@@ -460,7 +460,7 @@ export default function NowPage() {
             onClick={() => navigate("/")}
             className="text-sm text-[#8a7a62] hover:text-[#3a3128] mb-6"
           >
-            &larr; Back
+            &larr; Home
           </button>
 
           {/* Before trip: planning insights */}

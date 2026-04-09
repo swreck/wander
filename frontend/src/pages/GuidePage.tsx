@@ -115,7 +115,7 @@ export default function GuidePage() {
             onClick={() => navigate("/")}
             className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
           >
-            &larr; Back
+            &larr; Home
           </button>
         </div>
 
