@@ -71,6 +71,7 @@ export default function TripOverview() {
   useEffect(() => {
     const needsInput = openDecisions.filter(dec => !dec.votes.some(v => v.userCode === user?.code)).length > 0;
     (window as any).__actionsNeedAttention = needsInput;
+    window.dispatchEvent(new CustomEvent("wander:actions-attention", { detail: { needsAttention: needsInput } }));
   }, [openDecisions, user?.code]);
 
   async function loadTrips(silent = false) {
