@@ -2,20 +2,22 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
-## 2026-04-09 — Chrome Testing: 4 Bug Fixes
+## 2026-04-09 — Chrome Testing: 10 Bug Fixes
 
 ### Fixed
-- **ActionsPanel crash (React #310)** — `useState` hook declared after early return caused "Rendered fewer hooks than expected" crash when opening Actions tab. Moved hook above loading guard.
-- **Backroads B badges on wrong days** — Oct 15-17 (Tokyo) incorrectly showed Backroads badges. Changed detection from fragile date-range of itinerary-imported experiences to `dayType === "guided"` which is explicitly set during import.
-- **Wrong dates on all city pages** — List view formatted dates without `timeZone: "UTC"`, causing midnight UTC dates to display as the previous day in local timezone. Added UTC timezone to all PlanPage list view date formatters.
-- **"by TBD" programmer shorthand in Actions** — Actions panel showed "by TBD" for items without due dates. Now hides the date field when value is "TBD".
+- **ActionsPanel crash (React #310)** — `useState` after early return. Moved hook above loading guard.
+- **Backroads B badges on wrong days** — Changed to `dayType === "guided"` detection.
+- **Wrong dates on all city pages** — Added `timeZone: "UTC"` to list view date formatters.
+- **"by TBD" in Actions** — Hidden when due date is "TBD".
+- **Decision cards expand inline** — "See options →" now shows all options with vote counts in list view instead of silently switching to map. "Hide"/"See options" toggle.
+- **Idea cards expand inline** — Tapping an idea shows description and exploration zone. Fallback: "No details yet — ask Scout for more info".
+- **Day grouping in list view** — Multi-day cities (Nikko, Shirakabeso, Kyoto) now show day headers above each group of activities. Catches misplaced activities too.
+- **Accommodation display** — Hotels load from `/api/accommodations` (not day relations which were null). Shows hotel card with name and address on city pages.
 
-### Known Issues (from Chrome testing, not yet fixed)
-- Decision card "See options →" not clickable in mobile list view
-- Kyoto hotel decision card missing from Kyoto city page
-- No accommodation info shown on city pages (hotels exist in DB)
-- Nikko shows all 14 activities in flat list without day grouping
-- Massive blank space on home page between collapsed map and calendar
+### Known Issues (from Chrome testing)
+- Blank space on home page between collapsed map and calendar
+- Scout/Add button input overlap on some pages
+- 6 Backroads experiences assigned to wrong days (data issue, not code)
 
 ## 2026-04-07 — UX Polish: Detail Panel, Notes, Geocoding, GroupPulse
 
