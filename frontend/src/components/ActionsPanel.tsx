@@ -222,7 +222,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                           <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a] font-medium">
                             {a.owner === "Both" ? "Group" : a.owner}
                           </span>
-                          {a.dueDate && <span>by {a.dueDate}</span>}
+                          {a.dueDate && a.dueDate !== "TBD" && <span>by {a.dueDate}</span>}
                           {a.sheetRowRef && <span className="text-[10px] text-[#b8a990]">from Guide</span>}
                         </div>
 

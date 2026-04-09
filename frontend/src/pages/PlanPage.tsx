@@ -1001,7 +1001,7 @@ export default function PlanPage() {
                 </div>
                 {selectedDay && (
                   <div className="text-[10px] text-[#a89880]">
-                    {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                    {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })}
                   </div>
                 )}
               </div>
@@ -1055,7 +1055,7 @@ export default function PlanPage() {
                             {daysWithNotes.map(d => (
                               <div key={d.id} className="p-3 bg-white rounded-xl border border-[#e8e0d4]">
                                 <div className="text-xs font-medium text-[#8a7a62]">
-                                  {new Date(d.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                  {new Date(d.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
                                 </div>
                                 <div className="text-sm text-[#3a3128] mt-1">{d.notes}</div>
                               </div>
