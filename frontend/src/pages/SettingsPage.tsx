@@ -120,6 +120,9 @@ export default function SettingsPage() {
         {/* Sync section checks its own visibility via API */}
         <SheetSyncSection />
 
+        {/* Dedup review (planner-only) */}
+        <DedupSection />
+
         {/* Logout */}
         <section>
           <button
@@ -315,6 +318,82 @@ function SheetSyncSection() {
             </button>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+interface DedupSuggestion {
+  id: string;
+  entityType: string;
+  keepName: string;
+  removeName: string;
+  description: string;
+  autoExecuted: boolean;
+  status: string;
+}
+
+function DedupSection() {
+  const { showToast } = useToast();
+  const { user } = useAuth();
+  const [suggestions, setSuggestions] = useState<DedupSuggestion[]>([]);
+  const [tripId, setTripId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.role !== "planner") return;
+    const lastTrip = localStorage.getItem("wander:last-trip-id");
+    const id = lastTrip || null;
+    if (id) {
+      setTripId(id);
+      api.get<DedupSuggestion[]>(`/dedup/trip/${id}`).then(setSuggestions).catch(() => {});
+    } else {
+      api.get<any>("/trips/active").then(t => {
+        if (t?.id) {
+          setTripId(t.id);
+          api.get<DedupSuggestion[]>(`/dedup/trip/${t.id}`).then(setSuggestions).catch(() => {});
+        }
+      });
+    }
+  }, [user?.role]);
+
+  if (user?.role !== "planner" || suggestions.length === 0) return null;
+
+  async function handleAction(id: string, action: "approve" | "reject") {
+    try {
+      const result = await api.post<{ note?: string }>(`/dedup/${id}/${action}`, {});
+      setSuggestions(s => s.filter(x => x.id !== id));
+      showToast(result.note || (action === "approve" ? "Got it" : "Restored"), "success");
+    } catch {
+      showToast("That didn't work — try again?", "error");
+    }
+  }
+
+  return (
+    <section className="border-t border-[#e0d8cc] pt-6">
+      <h2 className="text-sm font-medium text-[#3a3128] mb-1">Things I tidied up</h2>
+      <p className="text-xs text-[#8a7a62] mb-3">
+        Duplicates I noticed and merged. Reject any that were a mistake.
+      </p>
+      <div className="space-y-2">
+        {suggestions.map(s => (
+          <div key={s.id} className="bg-white rounded-lg border border-[#e0d8cc] p-3">
+            <p className="text-xs text-[#3a3128] leading-relaxed">{s.description}</p>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => handleAction(s.id, "approve")}
+                className="text-xs px-3 py-1.5 rounded-lg bg-[#f0ece5] text-[#514636] font-medium hover:bg-[#e0d8cc]"
+              >
+                Looks right
+              </button>
+              <button
+                onClick={() => handleAction(s.id, "reject")}
+                className="text-xs px-3 py-1.5 rounded-lg text-[#a89880] hover:text-[#6b5d4a]"
+              >
+                Undo
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );
