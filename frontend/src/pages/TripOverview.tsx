@@ -723,7 +723,7 @@ export default function TripOverview() {
             <div className="mb-4 p-3 bg-white rounded-lg border border-[#e0d8cc] text-sm">
               {isAutoPrompt ? (
                 <>
-                  <p className="text-[#6b5d4a] mb-2">Want me to hide the info panel?</p>
+                  <p className="text-[#6b5d4a] mb-2">Done with the quick start tips?</p>
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
@@ -756,7 +756,7 @@ export default function TripOverview() {
                     onClick={() => {
                       localStorage.setItem("wander:overview-oriented", "1");
                       setShowInfoPanel(false);
-                      showToast("Hidden — tap ℹ️ in the toolbar to see this again");
+                      showToast("Tucked away — tap ℹ️ at the top to see this again");
                     }}
                     className="text-xs text-[#c8bba8] hover:text-[#6b5d4a] mt-1.5 transition-colors"
                   >
