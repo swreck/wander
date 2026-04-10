@@ -254,9 +254,9 @@ export default function DayView({
 
   useEffect(() => {
     api.get<Decision[]>(`/decisions/trip/${trip.id}`)
-      .then((decs) => setDayDecisions(decs.filter((d) => d.dayId === day.id && d.status === "open")))
+      .then((decs) => setDayDecisions(decs.filter((d) => d.status === "open" && (d.dayId === day.id || (d.cityId === day.cityId && !d.dayId)))))
       .catch(() => {});
-  }, [trip.id, day.id]);
+  }, [trip.id, day.id, day.cityId]);
 
   async function castVote(decisionId: string, optionId: string | null) {
     setVoting(true);
@@ -264,7 +264,7 @@ export default function DayView({
       await api.post(`/decisions/${decisionId}/vote`, { optionId });
       showToast("Vote cast");
       const decs = await api.get<Decision[]>(`/decisions/trip/${trip.id}`);
-      setDayDecisions(decs.filter((d) => d.dayId === day.id && d.status === "open"));
+      setDayDecisions(decs.filter((d) => d.status === "open" && (d.dayId === day.id || (d.cityId === day.cityId && !d.dayId))));
     } catch {
       showToast("Vote didn't stick — try again?", "error");
     } finally {
