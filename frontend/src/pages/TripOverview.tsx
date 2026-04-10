@@ -66,9 +66,12 @@ export default function TripOverview() {
   useEffect(() => {
     const count = parseInt(localStorage.getItem("wander:visit-count") || "0") + 1;
     localStorage.setItem("wander:visit-count", String(count));
+    // If user has NOT yet dismissed and they're at visit 4 or 10, show the auto-prompt
+    // by forcing showInfoPanel true (it will render the auto-prompt branch)
     const dismissed = !!localStorage.getItem("wander:overview-oriented");
     if (!dismissed && (count === 4 || count === 10)) {
-      // Auto-prompt will be handled in the render
+      localStorage.setItem("wander:auto-prompt-pending", "1");
+      setShowInfoPanel(true);
     }
   }, []);
 
@@ -715,10 +718,7 @@ export default function TripOverview() {
 
         {/* Info panel — dismissible, reopenable via ℹ️ */}
         {showInfoPanel && experiences.length > 0 && (() => {
-          const visitCount = parseInt(localStorage.getItem("wander:visit-count") || "0");
-          const dismissed = !!localStorage.getItem("wander:overview-oriented");
-          const isAutoPrompt = dismissed && (visitCount === 4 || visitCount === 10);
-          if (dismissed && !isAutoPrompt) return null;
+          const isAutoPrompt = !!localStorage.getItem("wander:auto-prompt-pending");
           return (
             <div className="mb-4 p-3 bg-white rounded-lg border border-[#e0d8cc] text-sm">
               {isAutoPrompt ? (
@@ -726,11 +726,18 @@ export default function TripOverview() {
                   <p className="text-[#6b5d4a] mb-2">Want me to hide the info panel?</p>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => { localStorage.setItem("wander:overview-oriented", "1"); setShowInfoPanel(false); }}
+                      onClick={() => {
+                        localStorage.setItem("wander:overview-oriented", "1");
+                        localStorage.removeItem("wander:auto-prompt-pending");
+                        setShowInfoPanel(false);
+                      }}
                       className="text-xs text-[#514636] font-medium"
                     >Hide</button>
                     <button
-                      onClick={() => setShowInfoPanel(false)}
+                      onClick={() => {
+                        localStorage.removeItem("wander:auto-prompt-pending");
+                        setShowInfoPanel(false);
+                      }}
                       className="text-xs text-[#c8bba8]"
                     >Keep it for now</button>
                   </div>
