@@ -40,6 +40,7 @@ import activityFeedRoutes from "./routes/activityFeed.js";
 import reflectionRoutes from "./routes/reflections.js";
 import sseRoutes from "./routes/sse.js";
 import travelAdvisoryRoutes from "./routes/travelAdvisory.js";
+import dedupRoutes from "./routes/dedup.js";
 import vaultRoutes from "./routes/vault.js";
 import sheetsSyncRoutes from "./routes/sheetsSync.js";
 
@@ -128,6 +129,7 @@ app.use("/api/activity-feed", activityFeedRoutes);
 app.use("/api/reflections", reflectionRoutes);
 app.use("/api/sse", sseRoutes);
 app.use("/api/travel-advisory", travelAdvisoryRoutes);
+app.use("/api/dedup", dedupRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/sheets-sync", sheetsSyncRoutes);
 

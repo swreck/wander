@@ -110,6 +110,7 @@ model Trip {
   tripPhrases       TripPhrase[]
   learnings         Learning[]
   approvalRequests  ApprovalRequest[]
+  dedupSuggestions  DedupSuggestion[]
   sheetSyncConfig   SheetSyncConfig?
   planningActions   PlanningAction[]
 
@@ -690,4 +691,27 @@ model SheetSyncLog {
 
   @@index([tripId, createdAt])
   @@map("sheet_sync_logs")
+}
+
+// ── Dedup Review System ────────────────────────────────────────
+
+model DedupSuggestion {
+  id            String   @id @default(cuid())
+  tripId        String   @map("trip_id")
+  entityType    String   @map("entity_type")    // "accommodation", "experience", etc.
+  keepId        String   @map("keep_id")        // entity to keep
+  removeId      String   @map("remove_id")      // entity to remove/merge
+  keepName      String   @map("keep_name")
+  removeName    String   @map("remove_name")
+  confidence    String   @default("high")       // "high" = auto-executed, "low" = needs planner
+  autoExecuted  Boolean  @default(false) @map("auto_executed")
+  status        String   @default("pending")    // "pending", "approved", "rejected", "undone"
+  resolvedBy    String?  @map("resolved_by")    // userCode of planner who acted
+  resolvedAt    DateTime? @map("resolved_at")
+  description   String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("dedup_suggestions")
 }
