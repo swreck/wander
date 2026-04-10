@@ -822,10 +822,10 @@ export default function TripOverview() {
                         {e.name}
                       </div>
                     ))}
-                    {dayExps.length > 4 && <div className="text-[10px] text-[#c8bba8]">+ {dayExps.length - 4} more</div>}
+                    {dayExps.length > 4 && <div className="text-[10px] text-[#a89880] mt-1">+ {dayExps.length - 4} more</div>}
                   </div>
                 ) : (
-                  <p className="text-xs text-[#c8bba8] mt-2">Nothing planned yet</p>
+                  <p className="text-xs text-[#a89880] mt-2">Wide open</p>
                 )}
               </div>
             </div>
