@@ -1079,7 +1079,7 @@ export default function PlanPage() {
                                 </div>
                                 {group.exps.length > 1 && (
                                   <div className="text-[10px] text-[#c8bba8] mt-0.5">
-                                    {group.exps.slice(0, 3).map(e => e.name.split(/[—(·:]/)[0].trim()).join(", ")}{group.exps.length > 3 ? ` + ${group.exps.length - 3} more` : ""}
+                                    {group.exps.length} things planned
                                   </div>
                                 )}
                               </div>
