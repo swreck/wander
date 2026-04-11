@@ -1309,8 +1309,8 @@ export default function PlanPage() {
         />
       )}
 
-      {/* Actions panel */}
-      {showActions && trip && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} />}
+      {/* Actions panel — subtitle reflects this trip's sync source */}
+      {showActions && trip && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} syncSourceName={trip.tagline?.match(/^Synced with (.+?)(?:\s*·.*)?$/)?.[1]} />}
 
       {/* Capture panel */}
       {showCapture && (

@@ -15,6 +15,9 @@ interface PlanningAction {
   dueDate: string | null;
   notes: string | null;
   status: string;
+  andyStatus?: string | null;
+  larisaStatus?: string | null;
+  statusNotes?: string | null;
   sheetRowRef: string | null;
 }
 
@@ -33,9 +36,10 @@ interface Props {
   decisions?: Decision[];
   userCode?: string;
   onNavigate?: (path: string) => void;
+  syncSourceName?: string; // display name of the source spreadsheet (e.g. "Claude's Japan Oct 2026.4.8")
 }
 
-export default function ActionsPanel({ tripId, onClose, decisions, userCode, onNavigate }: Props) {
+export default function ActionsPanel({ tripId, onClose, decisions, userCode, onNavigate, syncSourceName }: Props) {
   const { showToast } = useToast();
   const [actions, setActions] = useState<PlanningAction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,7 +153,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           </button>
           <div>
             <h1 className="text-lg font-medium text-[#3a3128]">What's happening</h1>
-            <span className="text-[10px] text-[#a89880]">Synced with Larisa's Japan Guide</span>
+            <span className="text-[10px] text-[#a89880]">Synced with {syncSourceName || "Larisa's Japan Guide"}</span>
           </div>
         </div>
         <button

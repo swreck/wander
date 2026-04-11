@@ -18,6 +18,7 @@ import LearningsPanel from "../components/LearningsPanel";
 import TripPhaseContent from "../components/TripPhaseContent";
 import { getTripPhase } from "../lib/tripPhase";
 import ActivityFeed from "../components/ActivityFeed";
+import SheetNotesCard from "../components/SheetNotesCard";
 import SyncAlert from "../components/SyncAlert";
 import ActionsPanel from "../components/ActionsPanel";
 
@@ -682,8 +683,8 @@ export default function TripOverview() {
         {/* Sync alert — planner-only, shows conflicts/errors with PWA badge */}
         <SyncAlert />
 
-        {/* Actions panel (full screen overlay) */}
-        {showActions && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} decisions={openDecisions} userCode={user?.code || ""} onNavigate={(path) => { setShowActions(false); navigate(path); }} />}
+        {/* Actions panel (full screen overlay) — subtitle reads sync source from tagline */}
+        {showActions && <ActionsPanel tripId={trip.id} onClose={() => setShowActions(false)} decisions={openDecisions} userCode={user?.code || ""} onNavigate={(path) => { setShowActions(false); navigate(path); }} syncSourceName={trip.tagline?.match(/^Synced with (.+?)(?:\s*·.*)?$/)?.[1]} />}
 
         {/* Decisions moved to Actions panel — overview stays clean */}
 
@@ -910,6 +911,10 @@ export default function TripOverview() {
           experiences={experiences}
           onNavigate={(cityId) => navigate(`/city/${cityId}`)}
         />
+
+        {/* Notes from the Guide — text captured from narrative tabs (Flight info,
+             Hotel Info, meeting summaries). Self-renders nothing when no notes exist. */}
+        {trip && <SheetNotesCard tripId={trip.id} />}
 
         {/* Trip members & invite */}
         {trip && <TripMembers tripId={trip.id} />}

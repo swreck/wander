@@ -86,7 +86,21 @@ export interface ParsedAction {
   owner: string; // "Both" | "LF" | "KR" | name
   dueDate: string | null;
   notes: string | null;
+  andyStatus: string | null;    // raw text from "Andy Status" column
+  larisaStatus: string | null;  // raw text from "Larisa Status" column
+  statusNotes: string | null;   // raw text from "Status Notes" column
   sheetRowRef: string;
+}
+
+// A tab-level note captures non-empty text rows from tabs the structured parsers don't
+// understand (Flight info, Tokyo Hotel Info, meeting summaries, etc). The goal is to
+// preserve EVERY piece of text Larisa put in the sheet — even when the rich content
+// (images, merged cells) can't be read via the API. Each note row is a simple text
+// string with its source tab name; the UI presents them as "Notes from the Guide".
+export interface ParsedSheetNote {
+  tabName: string;
+  rowIndex: number;
+  text: string;
 }
 
 export interface SpreadsheetData {
@@ -95,6 +109,7 @@ export interface SpreadsheetData {
   kyotoHotels: ParsedHotel[];
   activities: ParsedActivity[];
   actions: ParsedAction[];
+  sheetNotes: ParsedSheetNote[];
   rawTabData: Record<string, string[][]>;
 }
 
@@ -167,13 +182,28 @@ export async function readSpreadsheet(spreadsheetId: string): Promise<Spreadshee
     rawTabData[name] = (res.data.values || []) as string[][];
   }
 
-  // Find the itinerary tab (contains "Itinerary" in name)
-  const itineraryTab = sheetNames.find(n => n.toLowerCase().includes("itinerary"));
-  const tokyoHotelTab = sheetNames.find(n => n.toLowerCase().includes("tokyo") && n.toLowerCase().includes("hotel"));
-  const kyotoHotelTab = sheetNames.find(n => n.toLowerCase().includes("kyoto") && n.toLowerCase().includes("hotel"));
-  const activitiesTab = sheetNames.find(n => n.toLowerCase().includes("activities"));
+  // Tab detection — prefer "Template" tabs when multiple matches exist (Larisa may add
+  // adjacent tabs like "Tokyo Hotel Info" for analysis; the Template is the live decision surface).
+  const findTemplateTab = (city: string) => {
+    const matches = sheetNames.filter(n => {
+      const lower = n.toLowerCase();
+      return lower.includes(city) && lower.includes("hotel");
+    });
+    // Prefer tabs with "template" in the name if present
+    const withTemplate = matches.find(n => n.toLowerCase().includes("template"));
+    return withTemplate || matches[0];
+  };
 
+  const itineraryTab = sheetNames.find(n => n.toLowerCase().includes("itinerary"));
+  const tokyoHotelTab = findTemplateTab("tokyo");
+  const kyotoHotelTab = findTemplateTab("kyoto");
+  const activitiesTab = sheetNames.find(n => n.toLowerCase().includes("activities"));
   const actionsTab = sheetNames.find(n => n.toLowerCase() === "actions");
+  const flightInfoTab = sheetNames.find(n => n.toLowerCase().includes("flight"));
+  const tokyoHotelInfoTab = sheetNames.find(n => {
+    const lower = n.toLowerCase();
+    return lower.includes("tokyo") && lower.includes("hotel") && lower.includes("info");
+  });
 
   const cities = itineraryTab ? parseItinerary(rawTabData[itineraryTab]) : [];
   const tokyoHotels = tokyoHotelTab ? parseHotelTemplate(rawTabData[tokyoHotelTab], tokyoHotelTab) : [];
@@ -181,7 +211,23 @@ export async function readSpreadsheet(spreadsheetId: string): Promise<Spreadshee
   const activities = activitiesTab ? parseActivities(rawTabData[activitiesTab]) : [];
   const actions = actionsTab ? parseActions(rawTabData[actionsTab]) : [];
 
-  return { cities, tokyoHotels, kyotoHotels, activities, actions, rawTabData };
+  // Capture text rows from "narrative" tabs (Flight info, Tokyo Hotel Info, meeting summaries).
+  // These tabs are mostly visual in the sheet (images, merged cells) so the API-readable
+  // content is sparse — but Ken's rule is: anything Larisa puts in the sheet must show up
+  // in Wander. Every non-empty row becomes a note; later the UI displays them as
+  // "Notes from the Guide" with a link to the source tab.
+  const narrativeTabs = [flightInfoTab, tokyoHotelInfoTab].filter(Boolean) as string[];
+  // Also capture any other tab whose name suggests a meeting/summary/note
+  for (const name of sheetNames) {
+    if (narrativeTabs.includes(name)) continue;
+    const lower = name.toLowerCase();
+    if (lower.includes("summary") || lower.includes("notes") || lower.includes("mtg")) {
+      narrativeTabs.push(name);
+    }
+  }
+  const sheetNotes = parseSheetNotes(narrativeTabs, rawTabData);
+
+  return { cities, tokyoHotels, kyotoHotels, activities, actions, sheetNotes, rawTabData };
 }
 
 // ── Itinerary Parser ─────────────────────────────────────────
@@ -525,11 +571,43 @@ function parseActivities(rows: string[][]): ParsedActivity[] {
 
 // ── Actions Parser ───────────────────────────────────────────
 
+// ── Sheet Notes Parser ───────────────────────────────────────
+//
+// For "narrative" tabs that don't follow a structured schema (Flight info, Tokyo Hotel Info,
+// meeting summaries), we preserve every non-empty cell as a note. Rows where every column is
+// empty are skipped. Multi-column rows are joined with " · " to keep context together.
+//
+// The goal is NOT to parse structure — it's to ensure nothing Larisa wrote gets silently
+// dropped. A planner reading Wander sees the text; for the visual parts they click through
+// to the source sheet.
+
+function parseSheetNotes(tabNames: string[], rawTabData: Record<string, string[][]>): ParsedSheetNote[] {
+  const notes: ParsedSheetNote[] = [];
+  for (const tabName of tabNames) {
+    const rows = rawTabData[tabName];
+    if (!rows) continue;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || [];
+      const cells = row.map(c => String(c || "").trim()).filter(Boolean);
+      if (cells.length === 0) continue;
+      notes.push({
+        tabName,
+        rowIndex: i,
+        text: cells.join(" · "),
+      });
+    }
+  }
+  return notes;
+}
+
 function parseActions(rows: string[][]): ParsedAction[] {
   const actions: ParsedAction[] = [];
   if (rows.length < 2) return actions;
 
-  // Row 0 is the header: Action, Owner, Due Dates, Notes
+  // Row 0 is the header. Current observed format (Apr 2026):
+  // Actions | Owner | Due Dates | Notes | Andy Status | Larisa Status | Status Notes
+  // Older format had only the first four columns. Parser reads all seven defensively —
+  // missing columns return null rather than break.
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] || [];
     const action = (row[0] || "").trim();
@@ -540,6 +618,9 @@ function parseActions(rows: string[][]): ParsedAction[] {
       owner: (row[1] || "").trim() || "Everyone",
       dueDate: (row[2] || "").trim() || null,
       notes: (row[3] || "").trim() || null,
+      andyStatus: (row[4] || "").trim() || null,
+      larisaStatus: (row[5] || "").trim() || null,
+      statusNotes: (row[6] || "").trim() || null,
       sheetRowRef: `Actions:${i}`,
     });
   }
@@ -613,32 +694,34 @@ export function findBestMatch(name: string, candidates: string[], threshold = 0.
 }
 
 // ── Version Snapshot (safety net before sync) ────────────────
+//
+// Ken's rule (memory: feedback_sheet_sync_versioning.md): no write to a live sheet without
+// first creating a pinned revision we can roll back to. This function MUST succeed before
+// any push proceeds. If the pin fails, we throw and the caller aborts the push — silently
+// continuing would violate the commitment to Larisa that Wander never destroys her data.
 
-export async function createVersionSnapshot(spreadsheetId: string, label: string): Promise<string | null> {
-  try {
-    const drive = getDriveClient();
-    // List existing revisions to get the latest
-    const revisions = await drive.revisions.list({ fileId: spreadsheetId, fields: "revisions(id)" });
-    const latestRevId = revisions.data.revisions?.slice(-1)[0]?.id;
-    if (!latestRevId) return null;
-
-    // Pin this revision so it's not auto-pruned, and label it
-    await drive.revisions.update({
-      fileId: spreadsheetId,
-      revisionId: latestRevId,
-      requestBody: {
-        keepForever: true,
-        // Note: Google Drive API doesn't support custom labels on revisions via API,
-        // but keepForever prevents auto-deletion. The timestamp in the sync log serves as the label.
-      },
-    });
-
-    console.log(`[sheets-sync] Pinned revision ${latestRevId}: ${label}`);
-    return latestRevId;
-  } catch (err: any) {
-    console.warn(`[sheets-sync] Could not pin revision: ${err.message}`);
-    return null;
+export async function createVersionSnapshot(spreadsheetId: string, label: string): Promise<string> {
+  const drive = getDriveClient();
+  // List existing revisions to get the latest. Google returns in creation order (oldest first),
+  // so the last item is the newest revision — this is what we want to pin (the pre-push state).
+  const revisions = await drive.revisions.list({ fileId: spreadsheetId, fields: "revisions(id)" });
+  const latestRevId = revisions.data.revisions?.slice(-1)[0]?.id;
+  if (!latestRevId) {
+    throw new Error(`createVersionSnapshot: no revisions found for sheet ${spreadsheetId}. Refusing to push without a pin point.`);
   }
+
+  // Pin so Google Drive does not auto-prune this revision. The label is stored in SheetSyncLog
+  // (not on the revision itself — Drive API doesn't support custom revision labels).
+  await drive.revisions.update({
+    fileId: spreadsheetId,
+    revisionId: latestRevId,
+    requestBody: {
+      keepForever: true,
+    },
+  });
+
+  console.log(`[sheets-sync] Pinned revision ${latestRevId}: ${label}`);
+  return latestRevId;
 }
 
 // ── Cell Formatting (Wander origin tint) ─────────────────────

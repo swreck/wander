@@ -151,6 +151,66 @@ export async function importFromSpreadsheet(
     }
   }
 
+  // Import "narrative tab" text rows (Flight info, Tokyo Hotel Info, meeting summaries).
+  // Per Ken's rule: every text row Larisa put in the sheet must survive into Wander, even
+  // from tabs without structured schema. Images/merged cells are not API-readable; these
+  // notes capture the text that IS, and the UI links planners back to the source tab for
+  // visual details.
+  console.log("[sheet-import] Importing sheet notes from narrative tabs...");
+  let sheetNoteCount = 0;
+  for (const note of data.sheetNotes) {
+    await prisma.sheetNote.upsert({
+      where: {
+        tripId_tabName_rowIndex: {
+          tripId: trip.id,
+          tabName: note.tabName,
+          rowIndex: note.rowIndex,
+        },
+      },
+      create: {
+        tripId: trip.id,
+        tabName: note.tabName,
+        rowIndex: note.rowIndex,
+        text: note.text,
+      },
+      update: {
+        text: note.text,
+      },
+    });
+    sheetNoteCount++;
+  }
+
+  // Import planning actions from the Actions tab (first-class per Wander mission).
+  // This must happen on import, not only on subsequent pull, so fresh trips land complete.
+  console.log("[sheet-import] Importing planning actions...");
+  let actionCount = 0;
+  const deriveStatus = (a: typeof data.actions[0]): string => {
+    const andyDone = a.andyStatus?.toLowerCase().trim() === "done";
+    const larisaDone = a.larisaStatus?.toLowerCase().trim() === "done";
+    const owner = a.owner.toLowerCase();
+    if (owner === "lf" || owner === "larisa") return larisaDone ? "done" : "open";
+    if (owner === "ja" || owner === "andy") return andyDone ? "done" : "open";
+    if (andyDone && larisaDone) return "done";
+    return a.notes?.toLowerCase().includes("done") ? "done" : "open";
+  };
+  for (const act of data.actions) {
+    await prisma.planningAction.create({
+      data: {
+        tripId: trip.id,
+        action: act.action,
+        owner: act.owner,
+        dueDate: act.dueDate,
+        notes: act.notes,
+        andyStatus: act.andyStatus,
+        larisaStatus: act.larisaStatus,
+        statusNotes: act.statusNotes,
+        sheetRowRef: act.sheetRowRef,
+        status: deriveStatus(act),
+      },
+    });
+    actionCount++;
+  }
+
   // Sync trip dates from days
   const { syncTripDates } = await import("./syncTripDates.js");
   await syncTripDates(trip.id);
@@ -160,6 +220,8 @@ export async function importFromSpreadsheet(
     `${cityCount} cities, ${dayCount} days`,
     `${experienceCount} activities, ${interestCount} interest marks`,
     `${decisionCount} hotel decisions, ${accommodationCount} confirmed accommodations`,
+    `${actionCount} planning actions`,
+    `${sheetNoteCount} sheet notes from narrative tabs`,
     `Working copy: ${workingCopyId}`,
     `Backup copy: ${backupCopyId}`,
   ].join("\n");
