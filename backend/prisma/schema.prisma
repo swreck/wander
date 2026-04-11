@@ -113,6 +113,7 @@ model Trip {
   dedupSuggestions  DedupSuggestion[]
   sheetSyncConfig   SheetSyncConfig?
   planningActions   PlanningAction[]
+  sheetNotes        SheetNote[]
 
   @@map("trips")
 }
@@ -645,17 +646,44 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
+// ── Sheet Notes (text from narrative tabs — Flight info, Hotel Info, meeting summaries) ─
+//
+// Captures every non-empty text row from tabs the structured parsers don't understand.
+// The goal: Wander never silently drops anything Larisa put in the sheet, even if the rich
+// content (images, merged cells) can't come through the Google Sheets API. Planners see
+// the text in Wander and can click through to the source tab for the visual details.
+model SheetNote {
+  id         String   @id @default(cuid())
+  tripId     String   @map("trip_id")
+  tabName    String   @map("tab_name")    // source tab (e.g., "Flight info", "Tokyo Hotel Info")
+  rowIndex   Int      @map("row_index")   // 0-based row within that tab, used for reconciliation
+  text       String                       // the joined text content of that row
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt          @map("updated_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, tabName, rowIndex])
+  @@index([tripId, tabName])
+  @@map("sheet_notes")
+}
+
 // ── Planning Actions (from Larisa's Japan Guide Actions tab) ─
 model PlanningAction {
-  id          String   @id @default(cuid())
-  tripId      String   @map("trip_id")
-  action      String
-  owner       String   // "Both" | "LF" | "KR" | name
-  dueDate     String?  @map("due_date") // "4/15" etc — kept as-is from Guide
-  notes       String?
-  status      String   @default("open") // "open" | "done"
-  sheetRowRef String?  @map("sheet_row_ref")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id           String   @id @default(cuid())
+  tripId       String   @map("trip_id")
+  action       String
+  owner        String   // "Both" | "LF" | "KR" | name
+  dueDate      String?  @map("due_date") // "4/15" etc — kept as-is from Guide
+  notes        String?
+  status       String   @default("open") // "open" | "done"
+  // Per-person statuses from Guide (Andy Status, Larisa Status, Status Notes columns).
+  // Stored as raw text — Larisa's status vocabulary evolves ("DONE", "In Progress", "N/A", etc).
+  andyStatus   String?  @map("andy_status")
+  larisaStatus String?  @map("larisa_status")
+  statusNotes  String?  @map("status_notes")
+  sheetRowRef  String?  @map("sheet_row_ref")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 

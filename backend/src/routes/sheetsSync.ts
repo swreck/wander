@@ -212,17 +212,34 @@ router.post("/pull", async (req: AuthRequest, res) => {
     }
 
     // Sync planning actions from Guide → Wander
+    // Status derivation: group actions ("Both") are done only when BOTH per-person
+    // statuses say "DONE". Single-owner actions use that owner's status.
+    const deriveStatus = (a: typeof data.actions[0]): string => {
+      const andyDone = a.andyStatus?.toLowerCase().trim() === "done";
+      const larisaDone = a.larisaStatus?.toLowerCase().trim() === "done";
+      const owner = a.owner.toLowerCase();
+      if (owner === "lf" || owner === "larisa") return larisaDone ? "done" : "open";
+      if (owner === "ja" || owner === "andy") return andyDone ? "done" : "open";
+      if (andyDone && larisaDone) return "done";
+      return a.notes?.toLowerCase().includes("done") ? "done" : "open";
+    };
+
     for (const act of data.actions) {
       const existing = await prisma.planningAction.findFirst({
         where: { tripId, sheetRowRef: act.sheetRowRef },
       });
 
+      const derivedStatus = deriveStatus(act);
+
       if (existing) {
-        // Update if changed
         const needsUpdate = existing.action !== act.action
           || existing.owner !== act.owner
           || existing.dueDate !== act.dueDate
-          || existing.notes !== act.notes;
+          || existing.notes !== act.notes
+          || existing.andyStatus !== act.andyStatus
+          || existing.larisaStatus !== act.larisaStatus
+          || existing.statusNotes !== act.statusNotes
+          || existing.status !== derivedStatus;
 
         if (needsUpdate) {
           await prisma.planningAction.update({
@@ -232,6 +249,10 @@ router.post("/pull", async (req: AuthRequest, res) => {
               owner: act.owner,
               dueDate: act.dueDate,
               notes: act.notes,
+              andyStatus: act.andyStatus,
+              larisaStatus: act.larisaStatus,
+              statusNotes: act.statusNotes,
+              status: derivedStatus,
             },
           });
           updatedCount++;
@@ -250,13 +271,43 @@ router.post("/pull", async (req: AuthRequest, res) => {
               owner: act.owner,
               dueDate: act.dueDate,
               notes: act.notes,
+              andyStatus: act.andyStatus,
+              larisaStatus: act.larisaStatus,
+              statusNotes: act.statusNotes,
               sheetRowRef: act.sheetRowRef,
-              status: act.notes?.toLowerCase().includes("done") ? "done" : "open",
+              status: derivedStatus,
             },
           });
           addedCount++;
         }
       }
+    }
+
+    // Sync sheet notes from narrative tabs. Upsert by (tripId, tabName, rowIndex) so
+    // repeated pulls stay idempotent. Deleted rows from the sheet are NOT removed from
+    // Wander on pull — Larisa's intent when she deletes a row is ambiguous (could be a
+    // cut-and-paste in progress) so we preserve Wander's copy until a planner decides.
+    let noteCount = 0;
+    for (const note of data.sheetNotes) {
+      await prisma.sheetNote.upsert({
+        where: {
+          tripId_tabName_rowIndex: {
+            tripId,
+            tabName: note.tabName,
+            rowIndex: note.rowIndex,
+          },
+        },
+        create: {
+          tripId,
+          tabName: note.tabName,
+          rowIndex: note.rowIndex,
+          text: note.text,
+        },
+        update: {
+          text: note.text,
+        },
+      });
+      noteCount++;
     }
 
     // Sync date-column assignments from Guide → Wander
@@ -394,8 +445,26 @@ router.post("/push", async (req: AuthRequest, res) => {
       return;
     }
 
-    // Safety net: pin revision before writing
-    await createVersionSnapshot(config.spreadsheetId, `Pre-push ${new Date().toISOString()}`);
+    // Safety net: pin the current revision BEFORE any write. Ken's rule (memory:
+    // feedback_sheet_sync_versioning.md): no write without a rollback point. If this throws,
+    // the push aborts — we never modify the sheet without a pinned pre-state.
+    const pinLabel = `Pre-push ${new Date().toISOString()}`;
+    let pinnedRevisionId: string;
+    try {
+      pinnedRevisionId = await createVersionSnapshot(config.spreadsheetId, pinLabel);
+    } catch (pinErr: any) {
+      console.error("[sheets-sync] Version pin failed, aborting push:", pinErr.message);
+      await prisma.sheetSyncLog.create({
+        data: {
+          tripId,
+          direction: "push",
+          status: "error",
+          summary: `Push aborted — could not pin revision: ${pinErr.message}`,
+        },
+      });
+      res.status(500).json({ error: `Cannot push: version pin failed (${pinErr.message})` });
+      return;
+    }
 
     // Read current spreadsheet state
     const sheetData = await readSpreadsheet(config.spreadsheetId);
@@ -464,26 +533,106 @@ router.post("/push", async (req: AuthRequest, res) => {
       } catch { /* tinting is best-effort */ }
     }
 
-    // Push new actions to Guide's Actions tab
-    const wanderActions = await prisma.planningAction.findMany({
+    // ─────────────────────────────────────────────────────────
+    // Actions two-way sync
+    //
+    // Current Actions tab schema (7 columns, Apr 2026):
+    //   [0] Actions  [1] Owner  [2] Due Dates  [3] Notes
+    //   [4] Andy Status  [5] Larisa Status  [6] Status Notes
+    //
+    // Two paths:
+    //   A) Wander-created actions (sheetRowRef is null) → append a new row to the sheet.
+    //   B) Existing actions (sheetRowRef is set) → if Wander's version differs from
+    //      what's currently in the sheet, overwrite that row in place.
+    //
+    // "Differs" means a human edited the action inside Wander (notes/status/dueDate/etc)
+    // after the last pull. We trust Wander as the newer source here because push runs
+    // after pull in the Sync Now flow. For pure pull-only workflows, planners should
+    // not edit in Wander — but that isn't enforced here.
+    // ─────────────────────────────────────────────────────────
+
+    const actionsTabName = "Actions";
+    let actionsAdded = 0;
+    let actionsUpdated = 0;
+
+    // Path A: append new Wander-created actions
+    const newWanderActions = await prisma.planningAction.findMany({
       where: { tripId, sheetRowRef: null },
     });
-    for (const act of wanderActions) {
-      const row = [act.action, act.owner || "Both", act.dueDate || "", act.notes || ""];
-      await appendToSheet(config.spreadsheetId, "'Actions'", [row]);
+    for (const act of newWanderActions) {
+      const row = [
+        act.action,
+        act.owner || "Both",
+        act.dueDate || "",
+        act.notes || "",
+        act.andyStatus || "",
+        act.larisaStatus || "",
+        act.statusNotes || "",
+      ];
+      await appendToSheet(config.spreadsheetId, `'${actionsTabName}'`, [row]);
 
-      // Get the new row number and update sheetRowRef
-      const actionsData = sheetData.rawTabData["Actions"] || [];
-      const newRow = actionsData.length + 1; // approximate
+      // Row number is approximate because other pushes may run in parallel; a subsequent
+      // pull will reconcile the actual row number via fuzzy name matching.
+      const actionsData = sheetData.rawTabData[actionsTabName] || [];
+      const newRow = actionsData.length + actionsAdded + 1;
       await prisma.planningAction.update({
         where: { id: act.id },
-        data: { sheetRowRef: `Actions:${newRow}` },
+        data: { sheetRowRef: `${actionsTabName}:${newRow}` },
       });
+      actionsAdded++;
       pushedCount++;
 
-      // Tint the row
       try {
-        await tintCells(config.spreadsheetId, "Actions", newRow - 1, 0, newRow, 4);
+        await tintCells(config.spreadsheetId, actionsTabName, newRow - 1, 0, newRow, 7);
+      } catch { /* best-effort */ }
+    }
+
+    // Path B: update existing actions where Wander and sheet diverge
+    const existingWanderActions = await prisma.planningAction.findMany({
+      where: { tripId, sheetRowRef: { not: null } },
+    });
+    for (const act of existingWanderActions) {
+      // sheetRowRef looks like "Actions:3" — split to get the row index
+      const parts = (act.sheetRowRef || "").split(":");
+      if (parts.length !== 2 || parts[0] !== actionsTabName) continue;
+      const rowIdx = parseInt(parts[1], 10); // this is the parser's 0-based row index
+      if (isNaN(rowIdx)) continue;
+
+      // Find the matching parsed action from the fresh sheet read
+      const sheetAct = sheetData.actions.find(a => a.sheetRowRef === act.sheetRowRef);
+      if (!sheetAct) continue; // row moved or deleted — let next pull reconcile
+
+      // Compare every syncable field. If any differ, overwrite the whole row so the
+      // sheet matches Wander's current state exactly.
+      const diverged =
+        sheetAct.action !== act.action ||
+        sheetAct.owner !== act.owner ||
+        (sheetAct.dueDate || "") !== (act.dueDate || "") ||
+        (sheetAct.notes || "") !== (act.notes || "") ||
+        (sheetAct.andyStatus || "") !== (act.andyStatus || "") ||
+        (sheetAct.larisaStatus || "") !== (act.larisaStatus || "") ||
+        (sheetAct.statusNotes || "") !== (act.statusNotes || "");
+
+      if (!diverged) continue;
+
+      // Overwrite row: Actions tab is 1-indexed in A1 notation, and the parser's rowIdx
+      // is also the 0-based row so the sheet row number = rowIdx + 1.
+      const sheetRowNumber = rowIdx + 1;
+      const range = `'${actionsTabName}'!A${sheetRowNumber}:G${sheetRowNumber}`;
+      await writeToSheet(config.spreadsheetId, range, [[
+        act.action,
+        act.owner || "Both",
+        act.dueDate || "",
+        act.notes || "",
+        act.andyStatus || "",
+        act.larisaStatus || "",
+        act.statusNotes || "",
+      ]]);
+      actionsUpdated++;
+      pushedCount++;
+
+      try {
+        await tintCells(config.spreadsheetId, actionsTabName, rowIdx, 0, rowIdx + 1, 7);
       } catch { /* best-effort */ }
     }
 
@@ -560,13 +709,47 @@ router.post("/push", async (req: AuthRequest, res) => {
       data: { lastSyncAt: new Date(), lastSyncStatus: "success" },
     });
 
+    // Log the push with the pinned revision ID so we can recover the pre-push state if needed.
+    // The revision ID is what Ken would use in Drive's version history to roll back.
+    const summary = `Push complete: ${pushedCount} changes (${actionsAdded} new actions, ${actionsUpdated} updated actions, ${votesUpdated} votes)`;
+    await prisma.sheetSyncLog.create({
+      data: {
+        tripId,
+        direction: "push",
+        status: "success",
+        summary,
+        details: {
+          pinnedRevisionId,
+          pinLabel,
+          actionsAdded,
+          actionsUpdated,
+          votesUpdated,
+          activitiesPushed: pushedCount - actionsAdded - actionsUpdated,
+        },
+      },
+    });
+
     res.json({
       pushed: pushedCount,
       votesUpdated,
-      summary: `Push complete: ${pushedCount} activities, ${votesUpdated} votes written to spreadsheet`,
+      actionsAdded,
+      actionsUpdated,
+      pinnedRevisionId,
+      summary,
     });
   } catch (err: any) {
     console.error("[sheets-sync] Push failed:", err.message);
+    // Log the failure too so we have a complete history of sync attempts.
+    try {
+      await prisma.sheetSyncLog.create({
+        data: {
+          tripId: (req.body as any)?.tripId || "unknown",
+          direction: "push",
+          status: "error",
+          summary: `Push failed: ${err.message}`,
+        },
+      });
+    } catch { /* best-effort log */ }
     res.status(500).json({ error: err.message });
   }
 });
@@ -622,6 +805,28 @@ router.get("/actions/:tripId", async (req: AuthRequest, res) => {
       orderBy: { createdAt: "asc" },
     });
     res.json(actions);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /notes — Sheet notes from narrative tabs ─────────────
+// Returns all text rows captured from Flight info, Tokyo Hotel Info, meeting summaries, etc.
+// Grouped by tab so the UI can render a "Notes from the Guide" section per source tab.
+router.get("/notes/:tripId", async (req: AuthRequest, res) => {
+  try {
+    const tripId = req.params.tripId as string;
+    const notes = await prisma.sheetNote.findMany({
+      where: { tripId },
+      orderBy: [{ tabName: "asc" }, { rowIndex: "asc" }],
+    });
+    // Group by tab for easier frontend rendering
+    const byTab: Record<string, { rowIndex: number; text: string }[]> = {};
+    for (const n of notes) {
+      if (!byTab[n.tabName]) byTab[n.tabName] = [];
+      byTab[n.tabName].push({ rowIndex: n.rowIndex, text: n.text });
+    }
+    res.json({ notes, byTab });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
