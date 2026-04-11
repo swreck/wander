@@ -35,11 +35,20 @@
   .two-col { columns: 2; column-gap: 28px; margin-top: 22px; }
   .section { break-inside: avoid; margin-bottom: 16px; }
   .divider { border: none; border-top: 1px solid #e5ddd0; margin: 20px 0; }
+  .back-home {
+    display: inline-block;
+    font-size: 10pt;
+    color: #8a7a62;
+    text-decoration: none;
+    margin-bottom: 14px;
+  }
+  .back-home:hover { color: #3a3128; }
 
   @media print {
     body { background: white; }
     .page { padding: 0; }
     .quickstart { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .back-home { display: none; }
   }
   @media screen and (max-width: 600px) {
     .two-col { columns: 1; }
@@ -49,6 +58,7 @@
 </head>
 <body>
 <div class="page">
+  <a href="/" class="back-home">&larr; Home</a>
   <h1>Wander</h1>
   <p class="subtitle">Our trip, in one place</p>
 

@@ -1095,8 +1095,8 @@ function GroupPulse({
   if (openActions.length > 0) {
     const nearest = openActions[0];
     const summary = openActions.length === 1
-      ? `${nearest.action} · by ${nearest.dueDate}`
-      : `${openActions.length} things coming up — ${nearest.action} by ${nearest.dueDate}`;
+      ? `${nearest.action} · around ${nearest.dueDate}`
+      : `${openActions.length} things coming up — ${nearest.action} around ${nearest.dueDate}`;
     items.push({
       text: summary,
       detail: "",
