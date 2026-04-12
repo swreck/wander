@@ -235,6 +235,47 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                           {a.sheetRowRef && <span className="text-[10px] text-[#b8a990]">from Guide</span>}
                         </div>
 
+                        {/* Per-person status pills from Larisa's Actions tab.
+                            Only renders when at least one is set. Uses a compact green
+                            check for DONE, amber dot for In Progress, grey for N/A, and
+                            the raw text for anything else (Larisa's vocabulary evolves). */}
+                        {(a.andyStatus || a.larisaStatus) && (
+                          <div className="text-[11px] mt-1 flex items-center gap-2 flex-wrap">
+                            {a.larisaStatus && (() => {
+                              const s = a.larisaStatus.toLowerCase();
+                              const isDone = s === "done";
+                              const isProgress = s.includes("progress");
+                              const isNA = s === "n/a" || s === "na";
+                              return (
+                                <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#c8bba8]" : "text-[#8a7a62]"}`}>
+                                  <span className="font-medium">Larisa</span>
+                                  <span>{isDone ? "✓ done" : isProgress ? "· in progress" : isNA ? "n/a" : a.larisaStatus}</span>
+                                </span>
+                              );
+                            })()}
+                            {a.andyStatus && (() => {
+                              const s = a.andyStatus.toLowerCase();
+                              const isDone = s === "done";
+                              const isProgress = s.includes("progress");
+                              const isNA = s === "n/a" || s === "na";
+                              return (
+                                <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#c8bba8]" : "text-[#8a7a62]"}`}>
+                                  <span className="font-medium">Andy</span>
+                                  <span>{isDone ? "✓ done" : isProgress ? "· in progress" : isNA ? "n/a" : a.andyStatus}</span>
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        )}
+
+                        {/* Status notes from the Guide — Larisa's free-text summary of
+                            where the item stands (e.g., "Flights booked and info copied"). */}
+                        {a.statusNotes && (
+                          <p className="text-[11px] text-[#8a7a62] mt-1 italic leading-relaxed">
+                            {a.statusNotes}
+                          </p>
+                        )}
+
                         {/* Notes */}
                         {editingId === a.id ? (
                           <div className="mt-2.5">
