@@ -199,11 +199,6 @@ export async function readSpreadsheet(spreadsheetId: string): Promise<Spreadshee
   const kyotoHotelTab = findTemplateTab("kyoto");
   const activitiesTab = sheetNames.find(n => n.toLowerCase().includes("activities"));
   const actionsTab = sheetNames.find(n => n.toLowerCase() === "actions");
-  const flightInfoTab = sheetNames.find(n => n.toLowerCase().includes("flight"));
-  const tokyoHotelInfoTab = sheetNames.find(n => {
-    const lower = n.toLowerCase();
-    return lower.includes("tokyo") && lower.includes("hotel") && lower.includes("info");
-  });
 
   const cities = itineraryTab ? parseItinerary(rawTabData[itineraryTab]) : [];
   const tokyoHotels = tokyoHotelTab ? parseHotelTemplate(rawTabData[tokyoHotelTab], tokyoHotelTab) : [];
@@ -211,21 +206,30 @@ export async function readSpreadsheet(spreadsheetId: string): Promise<Spreadshee
   const activities = activitiesTab ? parseActivities(rawTabData[activitiesTab]) : [];
   const actions = actionsTab ? parseActions(rawTabData[actionsTab]) : [];
 
-  // Capture text rows from "narrative" tabs (Flight info, Tokyo Hotel Info, meeting summaries).
-  // These tabs are mostly visual in the sheet (images, merged cells) so the API-readable
-  // content is sparse — but Ken's rule is: anything Larisa puts in the sheet must show up
-  // in Wander. Every non-empty row becomes a note; later the UI displays them as
-  // "Notes from the Guide" with a link to the source tab.
-  const narrativeTabs = [flightInfoTab, tokyoHotelInfoTab].filter(Boolean) as string[];
-  // Also capture any other tab whose name suggests a meeting/summary/note
-  for (const name of sheetNames) {
-    if (narrativeTabs.includes(name)) continue;
-    const lower = name.toLowerCase();
-    if (lower.includes("summary") || lower.includes("notes") || lower.includes("mtg")) {
-      narrativeTabs.push(name);
+  // Capture ANY tab that isn't structurally parsed. Ken's rule: every tab Larisa put in
+  // her sheet must show up in Wander somehow. Structured tabs (itinerary, hotel templates,
+  // activities, actions) have their own parsers; every other tab — narrative or visual —
+  // gets its non-empty rows captured as SheetNotes. Visual-only tabs (maps, metro diagrams)
+  // will often contribute 0-1 text rows; they still get captured so the UI can surface an
+  // interactive Wander version alongside the link to the source tab.
+  const structuredTabs = new Set<string>(
+    [itineraryTab, tokyoHotelTab, kyotoHotelTab, activitiesTab, actionsTab]
+      .filter(Boolean) as string[],
+  );
+  const unstructuredTabs = sheetNames.filter(n => !structuredTabs.has(n));
+  const sheetNotes = parseSheetNotes(unstructuredTabs, rawTabData);
+  // Also record every unstructured tab name even if it contributed zero rows, so the UI
+  // can render a card per tab (e.g., visual-only map tabs that need an interactive replacement).
+  for (const tabName of unstructuredTabs) {
+    const hasNotes = sheetNotes.some(n => n.tabName === tabName);
+    if (!hasNotes) {
+      sheetNotes.push({
+        tabName,
+        rowIndex: -1, // sentinel: zero-text tab, capture the tab itself
+        text: "", // empty — the UI decides how to represent a visual-only tab
+      });
     }
   }
-  const sheetNotes = parseSheetNotes(narrativeTabs, rawTabData);
 
   return { cities, tokyoHotels, kyotoHotels, activities, actions, sheetNotes, rawTabData };
 }
