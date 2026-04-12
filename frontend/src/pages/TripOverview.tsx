@@ -98,25 +98,49 @@ export default function TripOverview() {
         api.get<Trip[]>("/trips"),
       ]);
 
-      // On first load, restore last-viewed trip if it differs from server's active trip
+      // On first load, auto-select the best trip for this planner.
+      // Priority: trip with the most recent sync (the one connected to Larisa's Guide).
+      // Fallback: last-viewed trip from localStorage.
+      // Final fallback: server's active trip.
       let effectiveActive = active;
       if (!initialLoadDone.current) {
         initialLoadDone.current = true;
-        const storedTripId = localStorage.getItem("wander:last-trip-id");
-        if (storedTripId && active && storedTripId !== active.id) {
-          const storedExists = all.some((t) => t.id === storedTripId);
-          if (storedExists) {
+
+        // For planners: find the trip with the most recent sync
+        const tripsWithSync = all.filter((t: any) => t.sheetSyncConfig?.lastSyncAt);
+        if (tripsWithSync.length > 0) {
+          const mostRecent = tripsWithSync.sort((a: any, b: any) =>
+            new Date(b.sheetSyncConfig.lastSyncAt).getTime() - new Date(a.sheetSyncConfig.lastSyncAt).getTime()
+          )[0];
+          if (mostRecent.id !== active?.id) {
             try {
-              const switched = await api.post<Trip>(`/trips/${storedTripId}/activate`, {});
+              const switched = await api.post<Trip>(`/trips/${mostRecent.id}/activate`, {});
               effectiveActive = switched;
+              localStorage.setItem("wander:last-trip-id", mostRecent.id);
             } catch {
-              localStorage.setItem("wander:last-trip-id", active.id);
+              // Fall through to localStorage logic
             }
           } else {
-            localStorage.removeItem("wander:last-trip-id");
+            localStorage.setItem("wander:last-trip-id", mostRecent.id);
           }
-        } else if (active) {
-          localStorage.setItem("wander:last-trip-id", active.id);
+        } else {
+          // No synced trips — use localStorage fallback (original behavior)
+          const storedTripId = localStorage.getItem("wander:last-trip-id");
+          if (storedTripId && active && storedTripId !== active.id) {
+            const storedExists = all.some((t) => t.id === storedTripId);
+            if (storedExists) {
+              try {
+                const switched = await api.post<Trip>(`/trips/${storedTripId}/activate`, {});
+                effectiveActive = switched;
+              } catch {
+                localStorage.setItem("wander:last-trip-id", active.id);
+              }
+            } else {
+              localStorage.removeItem("wander:last-trip-id");
+            }
+          } else if (active) {
+            localStorage.setItem("wander:last-trip-id", active.id);
+          }
         }
       }
 

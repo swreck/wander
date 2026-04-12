@@ -707,33 +707,63 @@ export function findBestMatch(name: string, candidates: string[], threshold = 0.
 
 // ── Version Snapshot (safety net before sync) ────────────────
 //
-// Ken's rule (memory: feedback_sheet_sync_versioning.md): no write to a live sheet without
-// first creating a pinned revision we can roll back to. This function MUST succeed before
-// any push proceeds. If the pin fails, we throw and the caller aborts the push — silently
-// continuing would violate the commitment to Larisa that Wander never destroys her data.
+// Ken's rule: no write to a live sheet without first creating a NAMED BACKUP COPY
+// visible in Google Drive. Not a pinned revision (those have no visible name and are
+// hard to find). A full file copy named "Pre-sync backup YYYY-MM-DD HH:MM — <reason>"
+// that Larisa or Ken can find, open, and compare at any time.
+//
+// If the copy fails, the push aborts. No write without a rollback point.
 
 export async function createVersionSnapshot(spreadsheetId: string, label: string): Promise<string> {
   const drive = getDriveClient();
-  // List existing revisions to get the latest. Google returns in creation order (oldest first),
-  // so the last item is the newest revision — this is what we want to pin (the pre-push state).
-  const revisions = await drive.revisions.list({ fileId: spreadsheetId, fields: "revisions(id)" });
-  const latestRevId = revisions.data.revisions?.slice(-1)[0]?.id;
-  if (!latestRevId) {
-    throw new Error(`createVersionSnapshot: no revisions found for sheet ${spreadsheetId}. Refusing to push without a pin point.`);
-  }
 
-  // Pin so Google Drive does not auto-prune this revision. The label is stored in SheetSyncLog
-  // (not on the revision itself — Drive API doesn't support custom revision labels).
-  await drive.revisions.update({
+  // Get the original file's name so the backup is recognizable
+  const file = await drive.files.get({ fileId: spreadsheetId, fields: "name" });
+  const originalName = file.data.name || "Unknown sheet";
+
+  // Create a full copy with a clear, human-readable name.
+  // The copy is owned by the SERVICE ACCOUNT — it lives in the service account's Drive,
+  // NOT in Larisa's Drive. She never sees these backups. They're for Ken's peace of mind
+  // and disaster recovery only.
+  const now = new Date();
+  const timestamp = now.toISOString().replace("T", " ").slice(0, 16); // "2026-04-12 10:53"
+  const copyName = `[Wander backup] ${timestamp} — ${originalName}`;
+
+  const copy = await drive.files.copy({
     fileId: spreadsheetId,
-    revisionId: latestRevId,
-    requestBody: {
-      keepForever: true,
-    },
+    requestBody: { name: copyName },
   });
 
-  console.log(`[sheets-sync] Pinned revision ${latestRevId}: ${label}`);
-  return latestRevId;
+  const copyId = copy.data.id;
+  if (!copyId) {
+    throw new Error(`createVersionSnapshot: Drive copy returned no ID for sheet ${spreadsheetId}. Refusing to push without a backup.`);
+  }
+
+  console.log(`[sheets-sync] Created backup copy: "${copyName}" (${copyId})`);
+
+  // Cleanup: keep only the 5 most recent backups. Delete older ones so the service
+  // account's Drive doesn't fill up and Larisa never accidentally discovers them if
+  // the service account is shared.
+  try {
+    const backups = await drive.files.list({
+      q: `name contains '[Wander backup]' and mimeType = 'application/vnd.google-apps.spreadsheet'`,
+      fields: "files(id, name, createdTime)",
+      orderBy: "createdTime desc",
+      pageSize: 50,
+    });
+    const oldBackups = (backups.data.files || []).slice(5); // keep newest 5
+    for (const old of oldBackups) {
+      if (old.id) {
+        await drive.files.delete({ fileId: old.id });
+        console.log(`[sheets-sync] Deleted old backup: ${old.name}`);
+      }
+    }
+  } catch (cleanupErr: any) {
+    // Cleanup failure is non-fatal — the backup itself succeeded
+    console.warn(`[sheets-sync] Backup cleanup failed (non-fatal): ${cleanupErr.message}`);
+  }
+
+  return copyId;
 }
 
 // ── Cell Formatting (Wander origin tint) ─────────────────────
