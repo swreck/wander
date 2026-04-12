@@ -124,9 +124,23 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   });
 
   // Map action names to Wander destinations
+  // For hotel actions, the action name usually contains the city (e.g., "Hotel-Tokyo",
+  // "Tokyo hotel", "Kyoto hotel"). Extract the city name and route to the matching
+  // decision. Previously this matched ANY hotel decision and sent users to the wrong
+  // city — Hotel-Tokyo → Kyoto bug caught in Chrome UX testing.
+  const KNOWN_CITIES = ["tokyo", "kyoto", "osaka", "okayama", "nagoya", "nikko", "hakata", "karatsu", "shirakabeso"];
   function getActionDestination(action: PlanningAction): string | null {
     const name = action.action.toLowerCase();
     if (name.includes("hotel")) {
+      // Try to find a city name in the action name first
+      const cityInAction = KNOWN_CITIES.find(c => name.includes(c));
+      if (cityInAction) {
+        const matchingDec = (decisions || []).find(d =>
+          d.title.toLowerCase().includes(cityInAction)
+        );
+        if (matchingDec) return `/plan?city=${matchingDec.cityId}`;
+      }
+      // Fallback: first hotel decision (better than nothing, but inexact)
       const hotelDec = (decisions || []).find(d => d.title.toLowerCase().includes("hotel"));
       if (hotelDec) return `/plan?city=${hotelDec.cityId}`;
     }
