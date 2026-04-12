@@ -1307,6 +1307,10 @@ function TripSwitcherList({
                       {isCurrent && <span className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Now</span>}
                     </div>
                   )}
+                  {/* Tagline — shows the sync source so planners can tell trips apart */}
+                  {t.tagline && (
+                    <p className="text-[11px] text-[#6b5d4a] italic truncate mt-0.5">{t.tagline}</p>
+                  )}
                   {/* Metadata line — smaller, muted */}
                   <div className="text-[11px] text-[#a89880] mt-0.5 flex items-center gap-1 flex-wrap">
                     <span>Started {createdAt ? new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</span>
