@@ -159,19 +159,26 @@ function SheetSyncSection() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [tripId, setTripId] = useState<string | null>(null);
+  const [syncSourceName, setSyncSourceName] = useState<string | null>(null);
 
   useEffect(() => {
     const lastTrip = localStorage.getItem("wander:last-trip-id");
+    const loadTrip = (id: string) => {
+      setTripId(id);
+      api.get<SyncStatus>(`/sheets-sync/status/${id}`).then(setStatus).catch(() => {});
+      // Fetch trip tagline to get dynamic sync source name
+      api.get<any>(`/trips/${id}`).then(t => {
+        const match = t?.tagline?.match(/^Synced with (.+?)(?:\s*·.*)?$/);
+        if (match) setSyncSourceName(match[1]);
+      }).catch(() => {});
+    };
     if (lastTrip) {
-      setTripId(lastTrip);
-      api.get<SyncStatus>(`/sheets-sync/status/${lastTrip}`).then(setStatus).catch(() => {});
+      loadTrip(lastTrip);
     } else {
-      // No cached trip — fetch active trip from API
       api.get<any>("/trips/active").then((trip) => {
         if (trip?.id) {
-          setTripId(trip.id);
           localStorage.setItem("wander:last-trip-id", trip.id);
-          api.get<SyncStatus>(`/sheets-sync/status/${trip.id}`).then(setStatus).catch(() => {});
+          loadTrip(trip.id);
         }
       }).catch(() => {});
     }
@@ -252,9 +259,9 @@ function SheetSyncSection() {
 
   return (
     <section className="border-t border-[#e0d8cc] pt-6">
-      <h2 className="text-sm font-medium text-[#3a3128] mb-1">Larisa's Japan Guide</h2>
+      <h2 className="text-sm font-medium text-[#3a3128] mb-1">{syncSourceName || "Larisa's Japan Guide"}</h2>
       <p className="text-xs text-[#8a7a62] mb-3">
-        Keep Wander in sync with Larisa's Japan Guide.
+        Keep Wander in sync with {syncSourceName || "Larisa's Japan Guide"}.
       </p>
 
       {/* Last sync info */}

@@ -1178,12 +1178,19 @@ export default function PlanPage() {
                             {isExpanded && (
                               <div className="mt-1 ml-3 space-y-1">
                                 {dec.options.map((opt: any) => {
-                                  const votes = voteCounts.get(opt.id) || 0;
+                                  // Show WHO ranked this option and WHAT rank — not just a count.
+                                  // "Larisa #1" tells a planner far more than "1 vote".
+                                  const optVotes = dec.votes
+                                    .filter((v: any) => v.optionId === opt.id)
+                                    .sort((a: any, b: any) => (a.rank || 99) - (b.rank || 99));
+                                  const rankLabel = optVotes
+                                    .map((v: any) => `${v.displayName || v.userCode} #${v.rank || "?"}`)
+                                    .join(", ");
                                   return (
                                     <div key={opt.id} className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-[#e8e0d4]">
                                       <span className="text-sm text-[#3a3128]">{opt.name}</span>
-                                      {votes > 0 && (
-                                        <span className="text-xs text-[#a89880] ml-2">{votes} vote{votes !== 1 ? "s" : ""}</span>
+                                      {rankLabel && (
+                                        <span className="text-xs text-[#a89880] ml-2 shrink-0">{rankLabel}</span>
                                       )}
                                     </div>
                                   );

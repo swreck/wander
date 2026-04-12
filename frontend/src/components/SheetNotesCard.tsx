@@ -32,6 +32,7 @@ interface SheetNote {
 interface NotesResponse {
   notes: SheetNote[];
   byTab: Record<string, { rowIndex: number; text: string }[]>;
+  tabGids?: Record<string, number>;
 }
 
 interface SyncStatus {
@@ -84,11 +85,15 @@ function interactiveReplacement(tabName: string): { label: string; url: string }
 export default function SheetNotesCard({ tripId }: { tripId: string }) {
   const [byTab, setByTab] = useState<Record<string, { rowIndex: number; text: string }[]>>({});
   const [spreadsheetId, setSpreadsheetId] = useState<string | null>(null);
+  const [tabGids, setTabGids] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     api.get<NotesResponse>(`/sheets-sync/notes/${tripId}`)
-      .then(res => setByTab(res?.byTab || {}))
+      .then(res => {
+        setByTab(res?.byTab || {});
+        if (res?.tabGids) setTabGids(res.tabGids);
+      })
       .catch(() => {});
     api.get<SyncStatus>(`/sheets-sync/status/${tripId}`)
       .then(res => { if (res?.configured && res.spreadsheetId) setSpreadsheetId(res.spreadsheetId); })
@@ -110,9 +115,12 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
   const totalTextRows = textTabs.reduce((sum, t) => sum + byTab[t].length, 0);
   const tabCountLabel = tabNames.length === 1 ? "1 tab" : `${tabNames.length} tabs`;
 
-  function openSheet() {
+  function openSheetTab(tabName?: string) {
     if (!spreadsheetId) return;
-    const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+    const gid = tabName ? tabGids[tabName] : undefined;
+    const url = gid != null
+      ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${gid}`
+      : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
@@ -124,11 +132,11 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
     <section className="mb-6">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full text-left flex items-center justify-between mb-2"
+        className="w-full text-left flex items-center justify-between min-h-[44px] py-2 mb-1"
       >
-        <h2 className="text-sm font-medium text-[#3a3128]">
+        <h2 className="text-sm font-medium text-[#514636]">
           From the Guide
-          <span className="ml-2 text-[#a89880] font-normal">
+          <span className="ml-2 text-[#a89880] font-normal text-xs">
             {tabCountLabel}{totalTextRows > 0 && `, ${totalTextRows} ${totalTextRows === 1 ? "note" : "notes"}`}
           </span>
         </h2>
@@ -151,7 +159,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                     {interactive && (
                       <button
                         onClick={() => openExternal(interactive.url)}
-                        className="text-xs text-[#514636] font-medium hover:text-[#3a3128] transition-colors"
+                        className="text-sm text-[#514636] font-medium hover:text-[#3a3128] transition-colors min-h-[44px] flex items-center"
                         title={interactive.label}
                       >
                         {interactive.label} &rarr;
@@ -159,8 +167,8 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                     )}
                     {spreadsheetId && (
                       <button
-                        onClick={openSheet}
-                        className="text-xs text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+                        onClick={() => openSheetTab(tabName)}
+                        className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors min-h-[44px] flex items-center"
                         title="Open this in Larisa's Guide"
                       >
                         Open in the Guide &rarr;
@@ -185,17 +193,17 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
               <h3 className="text-xs font-medium text-[#6b5d4a] uppercase tracking-wider mb-2">
                 Maps and images
               </h3>
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {visualTabs.map(tabName => {
                   const interactive = interactiveReplacement(tabName);
                   return (
-                    <li key={tabName} className="flex items-start justify-between gap-2">
-                      <span className="text-sm text-[#3a3128] pt-0.5">{tabName}</span>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
+                    <li key={tabName}>
+                      <span className="text-xs text-[#8a7a62]">{tabName}</span>
+                      <div className="flex items-center gap-3 mt-1">
                         {interactive && (
                           <button
                             onClick={() => openExternal(interactive.url)}
-                            className="text-xs text-[#514636] font-medium hover:text-[#3a3128] transition-colors text-right"
+                            className="text-sm text-[#514636] font-medium hover:text-[#3a3128] transition-colors min-h-[44px] flex items-center"
                             title={interactive.label}
                           >
                             {interactive.label} &rarr;
@@ -203,8 +211,8 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                         )}
                         {spreadsheetId && (
                           <button
-                            onClick={openSheet}
-                            className="text-xs text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+                            onClick={() => openSheetTab(tabName)}
+                            className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors min-h-[44px] flex items-center"
                           >
                             See in the Guide
                           </button>

@@ -75,6 +75,7 @@ export async function importFromSpreadsheet(
         tokyoHotelTab: "Tokyo Hotel Template",
         kyotoHotelTab: "Kyoto Hotel Template",
         activitiesTab: "Activities Template",
+        tabGids: data.tabGids, // tab name → gid for deep-linking
       },
     },
   });

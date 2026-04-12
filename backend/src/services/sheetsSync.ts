@@ -110,6 +110,7 @@ export interface SpreadsheetData {
   activities: ParsedActivity[];
   actions: ParsedAction[];
   sheetNotes: ParsedSheetNote[];
+  tabGids: Record<string, number>; // tab name → Google Sheets gid for deep-linking
   rawTabData: Record<string, string[][]>;
 }
 
@@ -171,6 +172,13 @@ export async function readSpreadsheet(spreadsheetId: string): Promise<Spreadshee
 
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const sheetNames = meta.data.sheets?.map(s => s.properties?.title).filter(Boolean) as string[];
+  // Build tab name → gid map for deep-linking
+  const tabGids: Record<string, number> = {};
+  meta.data.sheets?.forEach(s => {
+    if (s.properties?.title && s.properties?.sheetId != null) {
+      tabGids[s.properties.title] = s.properties.sheetId;
+    }
+  });
 
   const rawTabData: Record<string, string[][]> = {};
 
@@ -231,7 +239,7 @@ export async function readSpreadsheet(spreadsheetId: string): Promise<Spreadshee
     }
   }
 
-  return { cities, tokyoHotels, kyotoHotels, activities, actions, sheetNotes, rawTabData };
+  return { cities, tokyoHotels, kyotoHotels, activities, actions, sheetNotes, tabGids, rawTabData };
 }
 
 // ── Itinerary Parser ─────────────────────────────────────────

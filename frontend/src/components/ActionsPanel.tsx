@@ -293,7 +293,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                         {/* Status notes from the Guide — Larisa's free-text summary of
                             where the item stands (e.g., "Flights booked and info copied"). */}
                         {a.statusNotes && (
-                          <p className="text-[11px] text-[#8a7a62] mt-1 italic leading-relaxed">
+                          <p className="text-xs text-[#8a7a62] mt-1 italic leading-relaxed">
                             {a.statusNotes}
                           </p>
                         )}

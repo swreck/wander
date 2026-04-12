@@ -851,7 +851,10 @@ router.get("/notes/:tripId", async (req: AuthRequest, res) => {
       if (!byTab[n.tabName]) byTab[n.tabName] = [];
       byTab[n.tabName].push({ rowIndex: n.rowIndex, text: n.text });
     }
-    res.json({ notes, byTab });
+    // Include tabGids from sync config for deep-linked sheet URLs
+    const config = await prisma.sheetSyncConfig.findUnique({ where: { tripId } });
+    const tabGids = (config?.tabMappings as any)?.tabGids || {};
+    res.json({ notes, byTab, tabGids });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -900,6 +903,18 @@ router.patch("/actions/:id", async (req: AuthRequest, res) => {
     });
 
     res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DELETE /actions/:id — Remove an action ───────────────────
+router.delete("/actions/:id", async (req: AuthRequest, res) => {
+  try {
+    await prisma.planningAction.delete({
+      where: { id: req.params.id as string },
+    });
+    res.json({ deleted: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
