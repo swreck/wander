@@ -63,11 +63,14 @@ export async function importFromSpreadsheet(
     },
   });
 
-  // Create sync config
+  // Create sync config — set lastSyncAt to now so the trip picker doesn't show "No sync"
+  // when the trip was just created from a sheet import. The import IS a sync.
   await prisma.sheetSyncConfig.create({
     data: {
       tripId: trip.id,
       spreadsheetId: workingCopyId,
+      lastSyncAt: new Date(),
+      lastSyncStatus: "success",
       tabMappings: {
         sourceSpreadsheetId: spreadsheetId,
         backupSpreadsheetId: backupCopyId,
