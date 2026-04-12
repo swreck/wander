@@ -464,7 +464,7 @@ export default function TripOverview() {
             <div className="max-w-2xl mx-auto">
               <button
                 onClick={() => showSwitcherArrow && setShowTripSwitcher(true)}
-                className="text-left group"
+                className="text-left group min-h-[44px]"
               >
                 <h1 className="text-2xl font-light text-[#3a3128] inline">
                   {trip.name}
@@ -570,7 +570,7 @@ export default function TripOverview() {
                   setEditEndDate(trip.endDate ? trip.endDate.split("T")[0] : "");
                   setEditingTrip(true);
                 }}
-                className="ml-2 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
+                className="ml-2 text-sm text-[#c8bba8] hover:text-[#8a7a62] px-2 py-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 edit
               </button>
@@ -1962,7 +1962,7 @@ function TripMembers({ tripId }: { tripId: string }) {
     <section className="mb-6">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full text-left flex items-center justify-between mb-2"
+        className="w-full text-left flex items-center justify-between min-h-[44px] py-2 mb-1"
       >
         <h2 className="text-sm font-medium text-[#3a3128]">
           Travelers

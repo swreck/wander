@@ -137,7 +137,7 @@ export default function PhraseCard() {
       <button
         onClick={() => setOpen(true)}
         className="fixed z-30 flex items-center justify-center rounded-full shadow-md transition-all hover:scale-105 active:scale-95
-          left-4 w-9 h-9 bg-[#f0ece5] text-[#6b5d4a] border border-[#e0d8cc]"
+          left-4 w-11 h-11 bg-[#f0ece5] text-[#6b5d4a] border border-[#e0d8cc]"
         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)" }}
         aria-label={`${activePhrases.language} phrases`}
       >

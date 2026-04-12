@@ -367,7 +367,7 @@ export default function RouteSegmentsPanel({ tripId, segments, onRefresh }: Prop
           setExpanded(next);
           try { localStorage.setItem("wander:route-segments-expanded", String(next)); } catch {}
         }}
-        className="w-full text-left flex items-center justify-between mb-2"
+        className="w-full text-left flex items-center justify-between min-h-[44px] py-2 mb-1"
       >
         <h2 className="text-sm font-medium text-[#3a3128]">
           Travel
