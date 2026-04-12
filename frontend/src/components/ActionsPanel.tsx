@@ -67,6 +67,13 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
 
   useEffect(() => { loadActions(); }, [tripId]);
 
+  // Escape key closes the panel (standard overlay behavior)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
   async function handleAdd() {
     if (!newAction.trim()) return;
     try {
@@ -160,7 +167,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
       <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-4 py-3 flex items-center justify-between"
            style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="text-[#8a7a62] hover:text-[#3a3128] min-h-[44px] min-w-[44px] flex items-center justify-center">
+          <button onClick={onClose} className="text-[#8a7a62] hover:text-[#3a3128] min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Close">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6" />
             </svg>
@@ -223,6 +230,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                         onClick={() => handleToggleDone(a)}
                         className="mt-0.5 w-6 h-6 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors shrink-0"
                         title="Mark done"
+                        aria-label={`Mark ${a.action} as done`}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
