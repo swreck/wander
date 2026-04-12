@@ -510,7 +510,7 @@ export default function TripOverview() {
                     setEditEndDate(trip.endDate ? trip.endDate.split("T")[0] : "");
                     setEditingTrip(true);
                   }}
-                  className="ml-2 text-[#c8bba8] hover:text-[#8a7a62]"
+                  className="ml-2 text-[#c8bba8] hover:text-[#8a7a62] px-2 py-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
                 >
                   edit
                 </button>
@@ -861,6 +861,10 @@ export default function TripOverview() {
           )}
         </div>
 
+        {/* Notes from the Guide — positioned high because Wander IS a value-add
+             front end to the Guide. The Guide's context should be visible early. */}
+        {trip && <SheetNotesCard tripId={trip.id} />}
+
         {/* Add something */}
         <ImportCard tripId={trip.id} />
 
@@ -879,7 +883,7 @@ export default function TripOverview() {
                     <button
                       key={c.id}
                       onClick={() => navigate(`/city/${c.id}`)}
-                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors"
+                      className="px-3 py-2.5 rounded-full text-xs font-medium bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors min-h-[44px] flex items-center"
                     >
                       {c.name}{cityExpCount > 0 ? ` · ${cityExpCount} ideas` : ""}
                     </button>
@@ -898,26 +902,25 @@ export default function TripOverview() {
           experiences={experiences}
         />
 
-        {/* Route segments — intercity travel logistics */}
-        <RouteSegmentsPanel
-          tripId={trip.id}
-          segments={trip.routeSegments ?? []}
-          onRefresh={loadTrips}
-        />
+        {/* Lower-priority sections — separated visually from the planning surface above */}
+        <div className="border-t border-[#e5ddd0] mt-6 pt-4 space-y-4">
+          {/* Route segments — intercity travel logistics */}
+          <RouteSegmentsPanel
+            tripId={trip.id}
+            segments={trip.routeSegments ?? []}
+            onRefresh={loadTrips}
+          />
 
-        {/* Candidate destinations — cities with no dates but with experiences */}
-        <CandidateDestinations
-          cities={trip.cities}
-          experiences={experiences}
-          onNavigate={(cityId) => navigate(`/city/${cityId}`)}
-        />
+          {/* Candidate destinations — cities with no dates but with experiences */}
+          <CandidateDestinations
+            cities={trip.cities}
+            experiences={experiences}
+            onNavigate={(cityId) => navigate(`/city/${cityId}`)}
+          />
 
-        {/* Notes from the Guide — text captured from narrative tabs (Flight info,
-             Hotel Info, meeting summaries). Self-renders nothing when no notes exist. */}
-        {trip && <SheetNotesCard tripId={trip.id} />}
-
-        {/* Trip members & invite */}
-        {trip && <TripMembers tripId={trip.id} />}
+          {/* Trip members & invite */}
+          {trip && <TripMembers tripId={trip.id} />}
+        </div>
 
         {/* Activity feed — recent actions from the group */}
         {trip && <ActivityFeed tripId={trip.id} />}
