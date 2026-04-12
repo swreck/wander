@@ -13,7 +13,7 @@
  *      render a link to an interactive Wander feature or external live map instead of
  *      the static screenshot Larisa would've pasted.
  *
- *   3. Unknown visual tabs — fall back to a plain "See in sheet" link with the tab name.
+ *   3. Unknown visual tabs — fall back to a plain "See in the Guide" link with the tab name.
  *
  * Collapsible by default so it doesn't dominate the trip home. Hidden entirely when
  * the trip has no notes at all.
@@ -161,9 +161,9 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                       <button
                         onClick={openSheet}
                         className="text-xs text-[#8a7a62] hover:text-[#3a3128] transition-colors"
-                        title="Open this tab in the source spreadsheet"
+                        title="Open this in Larisa's Guide"
                       >
-                        Open in sheet &rarr;
+                        Open in the Guide &rarr;
                       </button>
                     )}
                   </div>
@@ -183,7 +183,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
           {visualTabs.length > 0 && (
             <div className="bg-white rounded-lg border border-[#e0d8cc] p-3">
               <h3 className="text-xs font-medium text-[#6b5d4a] uppercase tracking-wider mb-2">
-                Visual references
+                Maps and images
               </h3>
               <ul className="space-y-2">
                 {visualTabs.map(tabName => {
@@ -206,7 +206,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                             onClick={openSheet}
                             className="text-xs text-[#8a7a62] hover:text-[#3a3128] transition-colors"
                           >
-                            See in sheet
+                            See in the Guide
                           </button>
                         )}
                       </div>
@@ -215,7 +215,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                 })}
               </ul>
               <p className="text-xs text-[#a89880] italic mt-2">
-                Larisa pastes maps and diagrams as images. Wander offers live versions above when a match is known.
+                Some of Larisa's maps and photos are in the Guide — we've added interactive versions where we could.
               </p>
             </div>
           )}
