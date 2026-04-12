@@ -283,12 +283,17 @@ router.post("/pull", async (req: AuthRequest, res) => {
       }
     }
 
-    // Sync sheet notes from narrative tabs. Upsert by (tripId, tabName, rowIndex) so
-    // repeated pulls stay idempotent. Deleted rows from the sheet are NOT removed from
-    // Wander on pull — Larisa's intent when she deletes a row is ambiguous (could be a
-    // cut-and-paste in progress) so we preserve Wander's copy until a planner decides.
+    // Sync sheet notes from unstructured tabs. Upsert by (tripId, tabName, rowIndex)
+    // so repeated pulls stay idempotent. When the planner requests a reconcile pull
+    // (body.reconcile === true), we ALSO delete any Wander notes that are no longer
+    // in the sheet — useful after Larisa finishes a cut-and-paste. Default is
+    // conservative (preserve Wander's copy) because a mid-edit state in Larisa's sheet
+    // shouldn't destroy context planners might be relying on.
     let noteCount = 0;
+    let notesRemoved = 0;
+    const seenNoteKeys = new Set<string>();
     for (const note of data.sheetNotes) {
+      seenNoteKeys.add(`${note.tabName}::${note.rowIndex}`);
       await prisma.sheetNote.upsert({
         where: {
           tripId_tabName_rowIndex: {
@@ -308,6 +313,20 @@ router.post("/pull", async (req: AuthRequest, res) => {
         },
       });
       noteCount++;
+    }
+
+    if (req.body?.reconcile === true) {
+      const stale = await prisma.sheetNote.findMany({
+        where: { tripId },
+        select: { id: true, tabName: true, rowIndex: true },
+      });
+      const toDelete = stale.filter(n => !seenNoteKeys.has(`${n.tabName}::${n.rowIndex}`));
+      if (toDelete.length > 0) {
+        await prisma.sheetNote.deleteMany({
+          where: { id: { in: toDelete.map(n => n.id) } },
+        });
+        notesRemoved = toDelete.length;
+      }
     }
 
     // Sync date-column assignments from Guide → Wander
@@ -397,22 +416,28 @@ router.post("/pull", async (req: AuthRequest, res) => {
     });
 
     // Log the sync
+    const noteSummary = notesRemoved > 0
+      ? `, ${noteCount} notes synced (${notesRemoved} stale removed)`
+      : noteCount > 0 ? `, ${noteCount} notes synced` : "";
+    const summaryLine = `Pull: ${addedCount} added, ${updatedCount} updated${noteSummary}, ${conflicts.length} conflicts`;
     await prisma.$executeRawUnsafe(`
       INSERT INTO sheet_sync_logs (id, trip_id, direction, status, summary, conflicts, details, created_at)
       VALUES (gen_random_uuid(), $1, 'pull', $2, $3, $4::jsonb, $5::jsonb, NOW())
     `,
       tripId,
       conflicts.length > 0 ? "conflict" : "success",
-      `Pull: ${addedCount} added, ${updatedCount} updated, ${conflicts.length} conflicts`,
+      summaryLine,
       JSON.stringify(conflicts),
-      JSON.stringify({ addedCount, updatedCount }),
+      JSON.stringify({ addedCount, updatedCount, noteCount, notesRemoved }),
     );
 
     res.json({
       added: addedCount,
       updated: updatedCount,
+      noteCount,
+      notesRemoved,
       conflicts,
-      summary: `Pull complete: ${addedCount} added, ${updatedCount} updated, ${conflicts.length} conflicts`,
+      summary: `Pull complete: ${addedCount} added, ${updatedCount} updated${noteSummary}, ${conflicts.length} conflicts`,
     });
   } catch (err: any) {
     console.error("[sheets-sync] Pull failed:", err.message);
