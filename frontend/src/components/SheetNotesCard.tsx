@@ -137,30 +137,47 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
 
       {expanded && (
         <div className="space-y-3">
-          {/* Text tabs — narrative notes grouped by source tab */}
-          {textTabs.map(tabName => (
-            <div key={tabName} className="bg-white rounded-lg border border-[#e0d8cc] p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-medium text-[#6b5d4a] uppercase tracking-wider">{tabName}</h3>
-                {spreadsheetId && (
-                  <button
-                    onClick={openSheet}
-                    className="text-xs text-[#8a7a62] hover:text-[#3a3128] transition-colors"
-                    title="Open this tab in the source spreadsheet"
-                  >
-                    Open in sheet &rarr;
-                  </button>
-                )}
+          {/* Text tabs — narrative notes grouped by source tab. Tabs with a known map
+              pattern ALSO get the interactive CTA (e.g. "Tokyo Metro" has a "Tokyo Subway
+              Map" header row but the actual content is an image — the live version is
+              still the real value-add). */}
+          {textTabs.map(tabName => {
+            const interactive = interactiveReplacement(tabName);
+            return (
+              <div key={tabName} className="bg-white rounded-lg border border-[#e0d8cc] p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-medium text-[#6b5d4a] uppercase tracking-wider">{tabName}</h3>
+                  <div className="flex items-center gap-3">
+                    {interactive && (
+                      <button
+                        onClick={() => openExternal(interactive.url)}
+                        className="text-xs text-[#514636] font-medium hover:text-[#3a3128] transition-colors"
+                        title={interactive.label}
+                      >
+                        {interactive.label} &rarr;
+                      </button>
+                    )}
+                    {spreadsheetId && (
+                      <button
+                        onClick={openSheet}
+                        className="text-xs text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+                        title="Open this tab in the source spreadsheet"
+                      >
+                        Open in sheet &rarr;
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <ul className="space-y-1.5">
+                  {byTab[tabName].map(note => (
+                    <li key={note.rowIndex} className="text-sm text-[#3a3128] leading-relaxed">
+                      {note.text}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="space-y-1.5">
-                {byTab[tabName].map(note => (
-                  <li key={note.rowIndex} className="text-sm text-[#3a3128] leading-relaxed">
-                    {note.text}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Visual-only tabs — maps, diagrams. For known patterns, offer a live version. */}
           {visualTabs.length > 0 && (
