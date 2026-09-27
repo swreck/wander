@@ -391,11 +391,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {messages.length === 0 && (
             <div className="text-center text-[#8a7a62] text-sm py-8">
               <p>I'm Scout, your travel companion.</p>
-              <p className="mt-1">I know your whole trip — ask me anything or tell me what to change.</p>
+              <p className="mt-1">I know your whole trip — ask me anything about it.</p>
               <div className="mt-4 space-y-1.5 text-sm text-[#a89a82]">
                 <p>"What's planned for Tuesday?"</p>
-                <p>"Add Fushimi Inari to Kyoto"</p>
-                <p>"Move the temple visit to day 3"</p>
+                <p>"Where are we sleeping on the 18th?"</p>
+                <p>"Save Fushimi Inari as an idea for Kyoto"</p>
                 <p>"How far is the hotel from the temple?"</p>
               </div>
             </div>

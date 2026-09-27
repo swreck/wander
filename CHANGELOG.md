@@ -16,6 +16,7 @@ Larisa's Google Sheet is the master plan and Wander reads from it. Wander never 
 ### Changed
 - Settings now shows the Guide read-only: its name, "Wander reads from Larisa's Guide and never changes it", and when Wander last read it.
 - The server refuses to delete any trip that comes from Larisa's Guide.
+- Words that described the old behavior now match the new one: Scout's welcome ("ask me anything about it", new example questions), Home's Quick Start ("ask anything about the trip"), the in-app guide's Scout section (the plan lives in Larisa's Guide, so Scout doesn't delete or rearrange it), "Synced with Larisa's Japan Guide" labels → "From Larisa's Guide", and the Actions panel's "will sync to Larisa's Guide" message → "Got it — saved here in Wander".
 
 ### Added
 - Tests (backend/tests/downstream-safety.test.ts) that pin these protections: a Guide trip can't be deleted and survives the attempt, and no route can write to a sheet.
