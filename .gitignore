@@ -7,3 +7,8 @@ dist/
 *-service-account*.json
 *gserviceaccount*
 backend/public/
+
+# Private trip data (Larisa's spreadsheet snapshots). Never saved to GitHub:
+# this repository is PUBLIC.
+trip-data/
+*.xlsx

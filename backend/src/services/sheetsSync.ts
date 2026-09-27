@@ -1,15 +1,12 @@
 /**
- * Google Sheets ↔ Wander Sync Service
+ * Google Sheets → Wander reader
  *
- * Reads Larisa's spreadsheet, parses its structure-aware layout,
- * and maps data bidirectionally with the Wander database.
+ * Reads Larisa's spreadsheet and parses its structure-aware layout.
  *
- * Key design decisions:
- * - Parses by headers and list boundaries, NOT fixed cell addresses
- * - Fuzzy name matching for dedup (Jaro-Winkler)
- * - Spreadsheet wins on conflict (last-write-wins)
- * - Budget/weather columns are spreadsheet-only (not synced)
- * - Wander-only data (cultural notes, map pins, travel times) stays in Wander
+ * READ-ONLY BY DESIGN (Sep 2026): Larisa's sheet is the master and Wander is
+ * downstream of it. Nothing in Wander may write to a sheet or its version
+ * history. Google access is requested with a read-only scope, so even a
+ * mistaken write would be refused by Google.
  */
 
 import { google, type sheets_v4 } from "googleapis";
@@ -136,33 +133,12 @@ function getAuth() {
 
   return new google.auth.GoogleAuth({
     credentials,
-    scopes: [
-      "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/drive",
-    ],
+    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
 }
 
 function getSheetsClient() {
   return google.sheets({ version: "v4", auth: getAuth() });
-}
-
-function getDriveClient() {
-  return google.drive({ version: "v3", auth: getAuth() });
-}
-
-// ── Spreadsheet Copy ─────────────────────────────────────────
-
-export async function copySpreadsheet(
-  sourceId: string,
-  newTitle: string,
-): Promise<string> {
-  const drive = getDriveClient();
-  const res = await drive.files.copy({
-    fileId: sourceId,
-    requestBody: { name: newTitle },
-  });
-  return res.data.id!;
 }
 
 // ── Read All Data ────────────────────────────────────────────
@@ -705,119 +681,3 @@ export function findBestMatch(name: string, candidates: string[], threshold = 0.
   return bestMatch;
 }
 
-// ── Version Snapshot (safety net before sync) ────────────────
-//
-// Uses Google Sheets' built-in version history. Before any write, pin the current
-// revision with keepForever so it persists in File → Version history and can't be
-// auto-pruned. Both Ken and Larisa can see pinned revisions, restore from them.
-// No copies, no hidden files — just Google's own version control used correctly.
-
-export async function createVersionSnapshot(spreadsheetId: string, label: string): Promise<string> {
-  const drive = getDriveClient();
-
-  const revisions = await drive.revisions.list({
-    fileId: spreadsheetId,
-    fields: "revisions(id,modifiedTime)",
-  });
-  const latest = revisions.data.revisions?.slice(-1)[0];
-  if (!latest?.id) {
-    throw new Error(`createVersionSnapshot: no revisions found for sheet ${spreadsheetId}. Refusing to push without a rollback point.`);
-  }
-
-  await drive.revisions.update({
-    fileId: spreadsheetId,
-    revisionId: latest.id,
-    requestBody: { keepForever: true },
-  });
-
-  const pinnedAt = latest.modifiedTime || new Date().toISOString();
-  console.log(`[sheets-sync] Pinned revision ${latest.id} (${pinnedAt}): ${label}`);
-  console.log(`[sheets-sync] To restore: File → Version history → find the entry at ${pinnedAt}`);
-
-  return latest.id;
-}
-
-// ── Cell Formatting (Wander origin tint) ─────────────────────
-
-const WANDER_TINT = { red: 1.0, green: 0.976, blue: 0.902, alpha: 1.0 }; // #FFF9E6
-
-export async function tintCells(
-  spreadsheetId: string,
-  sheetName: string,
-  startRow: number, // 0-indexed
-  startCol: number, // 0-indexed
-  endRow: number,
-  endCol: number,
-) {
-  const sheets = getSheetsClient();
-
-  // Get the sheet ID from the sheet name
-  const meta = await sheets.spreadsheets.get({ spreadsheetId });
-  const sheet = meta.data.sheets?.find(s => s.properties?.title === sheetName);
-  if (!sheet?.properties?.sheetId && sheet?.properties?.sheetId !== 0) return;
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: {
-      requests: [{
-        repeatCell: {
-          range: {
-            sheetId: sheet.properties.sheetId,
-            startRowIndex: startRow,
-            endRowIndex: endRow,
-            startColumnIndex: startCol,
-            endColumnIndex: endCol,
-          },
-          cell: {
-            userEnteredFormat: {
-              backgroundColor: WANDER_TINT,
-            },
-          },
-          fields: "userEnteredFormat.backgroundColor",
-        },
-      }],
-    },
-  });
-}
-
-// ── Write to Spreadsheet ─────────────────────────────────────
-
-export async function writeToSheet(
-  spreadsheetId: string,
-  range: string,
-  values: string[][],
-) {
-  const sheets = getSheetsClient();
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range,
-    valueInputOption: "USER_ENTERED",
-    requestBody: { values },
-  });
-}
-
-export async function appendToSheet(
-  spreadsheetId: string,
-  range: string,
-  values: string[][],
-) {
-  const sheets = getSheetsClient();
-
-  // Find the last row with data, then write to the next row starting at column A
-  // This avoids Google Sheets' default append behavior which shifts columns right
-  const existing = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range,
-  });
-  const lastRow = (existing.data.values?.length || 0) + 1;
-
-  // Extract sheet name from range (e.g., "'Activities Template'" → "Activities Template")
-  const sheetName = range.replace(/'/g, "");
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: `'${sheetName}'!A${lastRow}`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: { values },
-  });
-}

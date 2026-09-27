@@ -8,7 +8,6 @@
 import prisma from "./db.js";
 import {
   readSpreadsheet,
-  copySpreadsheet,
   type ParsedCity,
   type ParsedDay,
   type ParsedHotel,

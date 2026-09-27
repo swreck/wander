@@ -2,6 +2,28 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-09-27 — Safety First: Wander Is Downstream of Larisa's Guide
+
+Larisa's Google Sheet is the master plan and Wander reads from it. Wander never changes the sheet, and an app bug or an AI mistake can no longer delete or restructure the trip.
+
+### Removed
+- Wander can no longer write to any Google Sheet. The "Sync now", "Pull only", "Push only", and auto-sync interval controls are gone from Settings, and the background auto-sync that ran on every screen is gone. The server routes behind them (import, pull, push, sync settings) were removed, along with every function that wrote cells, appended rows, tinted cells, copied sheets, or pinned versions in the sheet's history.
+- Google access is now requested read-only, so Google itself would refuse a write.
+- The ✕ "Remove this trip" button in the trip picker (tap the trip name on Home) is gone. Removing a trip wiped every day, place, and its history with no undo.
+- Scout can no longer delete or restructure the trip. Withdrawn: deleting places, cities, days, hotels, bookings, route legs, or group choices; shifting or re-dating days; reordering or hiding cities; creating or switching trips. Scout now says plainly that plan changes happen in Larisa's Guide.
+- Twelve developer scripts that wrote to Google Sheets were moved out of the project.
+
+### Changed
+- Settings now shows the Guide read-only: its name, "Wander reads from Larisa's Guide and never changes it", and when Wander last read it.
+- The server refuses to delete any trip that comes from Larisa's Guide.
+
+### Added
+- Tests (backend/tests/downstream-safety.test.ts) that pin these protections: a Guide trip can't be deleted and survives the attempt, and no route can write to a sheet.
+
+Affects: backend/src/services/sheetsSync.ts, backend/src/services/sheetImport.ts, backend/src/routes/sheetsSync.ts, backend/src/routes/trips.ts, backend/src/routes/chat.ts, frontend/src/App.tsx, frontend/src/components/AutoSync.tsx (deleted), frontend/src/pages/SettingsPage.tsx, frontend/src/pages/TripOverview.tsx
+
+SPEC UPDATE NEEDED: SPEC §3 describes Wander as replacing the spreadsheet; Wander is now the front end to Larisa's Guide, which stays the master. SPEC §28 (AI never modifies data) is now closer to true for Scout's structural tools.
+
 ## 2026-04-09 — Chrome Testing: 10 Bug Fixes
 
 ### Fixed
