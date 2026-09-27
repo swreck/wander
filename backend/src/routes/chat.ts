@@ -1110,12 +1110,42 @@ const tools: Anthropic.Tool[] = [
   },
 ];
 
+// Tools Scout is no longer offered (Sep 2026). Larisa's Guide is the master plan;
+// Wander is downstream of it. An AI must never be able to delete or restructure the
+// trip — cities, days, dates, bookings, hotels, route legs, or whole trips. Their
+// implementations below stay in place (unreachable) in case a safer form returns.
+const WITHDRAWN_TOOLS = new Set([
+  "delete_experience",
+  "bulk_delete_experiences",
+  "delete_city",
+  "delete_day",
+  "delete_reservation",
+  "delete_accommodation",
+  "delete_route_segment",
+  "delete_decision",
+  "shift_trip_dates",
+  "bulk_update_days",
+  "update_day_date",
+  "update_city_dates",
+  "reassign_day",
+  "reorder_cities",
+  "hide_city",
+  "create_trip",
+  "activate_trip",
+  "set_trip_anchor",
+]);
+
+const offeredTools = tools.filter((t) => !WITHDRAWN_TOOLS.has(t.name));
+
 // Execute a tool call and return the result
 async function executeTool(
   toolName: string,
   input: any,
   user: { code: string; displayName: string },
 ): Promise<{ result: any; actionDescription?: string; placeCards?: any[] }> {
+  if (WITHDRAWN_TOOLS.has(toolName)) {
+    return { result: { error: "Scout can't delete or restructure the trip. Changes to the plan happen in Larisa's Guide." } };
+  }
   switch (toolName) {
     case "get_trip_summary": {
       const trip = await prisma.trip.findUnique({
@@ -3802,8 +3832,7 @@ RULES:
 1. Be concise and helpful. One or two sentences for simple answers.
 2. When performing actions, confirm what you did briefly.
 3. If the user asks to add something, do it — don't just explain how.
-9. When the user asks to shift, move, or reschedule the trip (e.g., "move everything one week earlier"), use shift_trip_dates with the correct offsetDays. Calculate the offset from their description — e.g., "Oct 18 to Oct 11" = -7 days.
-10. When moving a single day's date, use update_day_date. For multiple days, use bulk_update_days instead.
+9. You cannot delete or restructure the trip: no deleting cities, days, places, hotels, bookings, or route legs, no shifting or re-dating days, no reordering or hiding cities, no creating or switching trips. Larisa's Guide is the master plan and Wander reads from it. If someone asks for one of these changes, say plainly that changes to the plan happen in Larisa's Guide and Wander will show them once it reads the Guide again.
 4. Use the tools to read data before answering questions about trip state.
 5. When the user says "add X to Tuesday" or similar, look up the correct day ID first.
 6. For date references like "Tuesday" or "day 3", use get_all_days to find the right day.
@@ -3814,7 +3843,6 @@ RULES:
 13. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.
 14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.
 15. Cities can be "hidden" (dismissed). When listing trip cities, only show visible ones. When the user asks to bring back, restore, or recall a dismissed city, use restore_city. When asked what was dismissed or archived, use list_hidden_cities.
-16. When the user asks to clear, dismiss, or archive recommendation cities, use hide_city with hideAll: true. Individual cities can be hidden with hide_city by cityId.
 17. When the user shares passport details, frequent flyer numbers, insurance info, visa details, ticket references, or any travel document information, save them IMMEDIATELY. For multiple documents (e.g. a list of frequent flyer numbers), use save_travel_documents_bulk to save them all in one call. For a single document, use save_travel_document. If the user specifies documents for other travelers by name (e.g. "Larisa's Delta SkyMiles is 123456"), use the forTraveler field. Extract all relevant fields from the natural language. Do not ask for confirmation — just save everything at once.
 18. When the user asks "what's my passport number?", "show my documents", or any question about their own travel info, use get_my_documents and answer from the results.
 19. When the user asks about another traveler's info (e.g., "what's Ken's frequent flyer number?"), use get_shared_documents. Only non-private documents from other travelers will be returned.
@@ -3824,7 +3852,6 @@ RULES:
 23. When the user shares or asks about a Tabelog rating for a restaurant, use set_tabelog_rating. Tabelog is Japan's primary restaurant rating platform — more trusted than Google for Japanese restaurants. A Tabelog 3.5+ is excellent.
 24. When the user asks about train schedules, times, or routes in Japan, use search_train_schedules. Present results clearly: departure time, line name, transfers, duration.
 25. When the user asks about train delays or disruptions, use check_transit_status. Only mention disruptions that affect their specific route segments.
-26. When the user wants to create a new trip, use create_trip. Infer a reasonable name from the conversation. If they mention cities, include them with dates if provided.
 27. When the user asks "how do you say X in Japanese?", "add a phrase", or wants to learn/save a Japanese phrase, use add_phrase. Always provide romaji (Latin-alphabet pronunciation) — NEVER Japanese characters. The phrase appears on everyone's shared phrase card automatically.
 28. When the user asks to delete a travel document, use delete_travel_document. Look up their documents first with get_my_documents to find the right ID.
 29. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
@@ -3832,8 +3859,6 @@ RULES:
 31. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
 32. When the user expresses interest in an experience ("this looks cool", "we should check this out"), proactively offer to float it to the group with float_to_group.
 33. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.
-34. When the user asks to shift just the Backroads/guided portion of the trip (e.g., "move Backroads to start Oct 15"), use get_all_days to find days with dayType "guided", calculate the date offset from current start to requested start, then use bulk_update_days to move ONLY those guided days. Before executing, warn the user if the new dates would overlap with existing non-guided days. This is different from shift_trip_dates which moves EVERYTHING.
-35. When the user asks to restructure, shift, or rearrange days across the trip, use bulk_update_days. NEVER promise to "fire all updates simultaneously" unless you are about to call this single tool. If a restructure requires more than 3 tool calls, stop, explain what you need to do, and use bulk_update_days in ONE call. Do not make promises you cannot fulfill in the current response.
 35. When the user asks about a specific place, wants to see what somewhere looks like, or is deciding whether to visit, use lookup_place. This returns a photo and details from Google. Use it proactively when discussing restaurants, temples, hotels, or attractions — don't just describe them in words when you can show a photo card. Include the city or neighborhood in the query for better results (e.g. "Fushimi Inari Kyoto" not just "Fushimi Inari").
 36. When the user asks about something NOT in the trip data — restaurant recommendations, opening hours, crowd levels, "is X worth visiting", "best Y near Z", current conditions, travel tips — use web_search. Synthesize the results into a concise, helpful answer. Do NOT dump raw search results. Never use web_search for questions answerable from trip data (use other tools instead). You can combine web_search with lookup_place in the same response — search for information, then show a photo card for the top recommendation.
 37. When a user asks to add a destination as a "day trip", "excursion", or "side trip" from an existing city, use add_experience to create it within that city — do NOT use add_city. Day trips are experiences you return from, not separate overnight bases. Only use add_city when the user wants a new base/overnight destination with its own date range.
@@ -3846,9 +3871,6 @@ RULES:
 44. Use review_approval when a planner says "approve that", "looks good", "reject that change", or similar. Pass the approvalId, the decision ("approved" or "rejected"), and optionally a note.
 45. Use add_trip_members when someone says "add Glo and Brian to the trip" or names people who should join. Creates travelers, memberships, and personal invite links.
 46. Use change_member_role when a planner says "make Glo a planner" or "change Brian's role to traveler". Only planners can do this.
-47. Use set_trip_anchor when someone says "Day 1 is December 25" or "the trip starts on [date]". This converts a dateless trip (Day 1, Day 2...) into real calendar dates. All days, cities, and trip dates update automatically.
-49. Use activate_trip when someone says "switch to the Vietnam trip", "work on [trip name]", or "go to [trip name]". Look up available trips with get_trip_summary first if needed.
-50. Use delete_decision when someone says "cancel that vote", "never mind about that choice", or "close this decision". Look up open decisions first with get_open_decisions.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
 52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
 53. Use resend_invite when a planner says "send [name] a new link", "[name] lost their invite", or "regenerate [name]'s link". This invalidates the old link and creates a new one.
@@ -3892,7 +3914,7 @@ RULES:
         model: "claude-opus-4-6",
         max_tokens: 1024,
         system: systemPrompt,
-        tools,
+        tools: offeredTools,
         messages,
       });
 

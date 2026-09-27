@@ -403,14 +403,6 @@ export default function TripOverview() {
               trips={allTrips}
               currentTripId={trip.id}
               onSwitch={handleSwitchTrip}
-              onDelete={async (id) => {
-                if (!confirm("Remove this trip? This can't be undone.")) return;
-                try {
-                  await api.delete(`/trips/${id}`);
-                  showToast("Trip removed", "success");
-                  loadTrips();
-                } catch { showToast("Couldn't remove trip", "error"); }
-              }}
               onNewTrip={() => { setShowTripSwitcher(false); setShowCreate(true); }}
               onRename={(id, newName) => {
                 setAllTrips(prev => prev.map(t => t.id === id ? { ...t, name: newName } : t));
@@ -1260,12 +1252,11 @@ function timeAgo(dateStr: string | null | undefined): string {
 }
 
 function TripSwitcherList({
-  trips, currentTripId, onSwitch, onDelete, onNewTrip, onRename,
+  trips, currentTripId, onSwitch, onNewTrip, onRename,
 }: {
   trips: Trip[];
   currentTripId: string;
   onSwitch: (id: string) => void;
-  onDelete: (id: string) => void;
   onNewTrip: () => void;
   onRename: (id: string, newName: string) => void;
 }) {
@@ -1348,14 +1339,8 @@ function TripSwitcherList({
                     <span>Opened {timeAgo(openedAt)}</span>
                   </div>
                 </div>
-                {/* Delete button */}
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
-                  className="text-[#d0c9be] hover:text-red-400 text-sm ml-2 mt-1 transition-colors"
-                  title="Remove trip"
-                >
-                  ✕
-                </button>
+                {/* No delete button: removing a trip wipes every day, place, and its history,
+                    with no undo. Too dangerous for a one-tap control. */}
               </div>
             </div>
           );

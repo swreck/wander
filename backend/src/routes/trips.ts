@@ -327,8 +327,18 @@ router.patch("/:id", async (req: AuthRequest, res) => {
 
 // Delete trip
 router.delete("/:id", async (req: AuthRequest, res) => {
-  const existing = await prisma.trip.findUnique({ where: { id: req.params.id as string } });
+  const existing = await prisma.trip.findUnique({
+    where: { id: req.params.id as string },
+    include: { sheetSyncConfig: { select: { id: true } } },
+  });
   if (!existing) { res.status(404).json({ error: "Trip not found" }); return; }
+
+  // A trip that comes from Larisa's Guide is never deleted from inside Wander.
+  // Deleting cascades to every day, item, and the change log, so there is no undo.
+  if (existing.sheetSyncConfig) {
+    res.status(403).json({ error: "This trip comes from Larisa's Guide, so Wander keeps it safe and won't delete it." });
+    return;
+  }
 
   // Log before delete — the cascade will remove ChangeLogs too,
   // but the FK constraint prevents inserting after the trip is gone

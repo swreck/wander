@@ -156,7 +156,7 @@ Every implementation session must include testing before presenting work as comp
 
 **Standard flow for any feature or fix:**
 1. Implement the change
-2. Type-check both frontend (`cd frontend && npx tsc --noEmit`) and backend (`cd backend && npx tsc --noEmit`)
+2. Type-check both frontend (`frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.app.json`) and backend (`cd backend && npx tsc --noEmit`). NOTE: `cd frontend && npx tsc --noEmit` checks NOTHING (frontend/tsconfig.json has `"files": []`). The real frontend check has ~146 pre-existing error lines (as of Sep 2026); compare before/after with line numbers stripped and never add new ones.
 3. Run the full test suite (`cd backend && npm test`) — all tests must pass
 4. If the change touches a new category of behavior (new entity operations, new API patterns, edge cases), write new chaos tests before calling it done
 5. Update CHANGELOG.md
@@ -187,6 +187,8 @@ Every implementation session must include testing before presenting work as comp
 - If tests mass-fail with connection errors, check `vitest-setup.ts` first.
 
 ### AI CHAT PARITY RULE
+
+**OVERRIDE (Sep 27, 2026 — Ken's decision): Wander is downstream of Larisa's Guide.** Her Google Sheet is the master plan; Wander reads it and never changes it. Scout must never delete or restructure the trip, and nothing in Wander may write to a sheet. Tools withdrawn from Scout (listed in `WITHDRAWN_TOOLS` in chat.ts; implementations kept but unreachable): delete_experience, bulk_delete_experiences, delete_city, delete_day, delete_reservation, delete_accommodation, delete_route_segment, delete_decision, shift_trip_dates, bulk_update_days, update_day_date, update_city_dates, reassign_day, reorder_cities, hide_city, create_trip, activate_trip, set_trip_anchor. Do not re-add them. Parity below applies only to Wander's own additions (Ken's notes, lookups, spur-of-the-moment choices), never to Guide-derived data.
 
 The AI chat assistant should be able to perform any data operation the UI can. When adding a new UI action that creates, updates, or deletes data, also add a corresponding chat tool in `backend/src/routes/chat.ts`. This includes:
 1. A tool definition in the `tools` array (name, description, input_schema)
