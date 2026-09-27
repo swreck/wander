@@ -767,7 +767,7 @@ export default function TripOverview() {
                       <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen</li>
                     )}
                     <li>• Tap any day below to see your map and what's planned</li>
-                    <li>• The chat bubble is <strong>Scout</strong> — ask questions or rearrange plans</li>
+                    <li>• The chat bubble is <strong>Scout</strong> — ask anything about the trip</li>
                   </ul>
                   <button
                     onClick={() => {

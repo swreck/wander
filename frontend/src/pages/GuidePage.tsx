@@ -6,7 +6,7 @@ const sections = [
   {
     id: "quick-start",
     title: "Quick Start",
-    body: `Wander is where the trip lives — every city, day, restaurant and temple. Scout is your travel companion inside the app — ask questions, make changes, or just chat about what to do next.
+    body: `Wander is where the trip lives — every city, day, restaurant and temple. Scout is your travel companion inside the app — ask anything about the trip, or just chat about what to do next.
 
 Tap the link you were sent, pick your name, and you're in the trip overview. Tap a day to see its city and activities. Details are below.`,
   },
@@ -24,7 +24,7 @@ Above the day strip: **Home** (back to the overview), **Add** (capture a new pla
   {
     id: "chat",
     title: "Scout — Your Travel Companion",
-    body: `The chat bubble in the bottom-right corner is Scout. Scout knows your whole trip — every city, day, reservation, and activity. You can ask questions, make changes, or just think out loud.
+    body: `The chat bubble in the bottom-right corner is Scout. Scout knows your whole trip — every city, day, reservation, and activity. You can ask questions, save a place you find, or just think out loud. The plan itself lives in Larisa's Guide, so Scout doesn't delete or rearrange it.
 
 _"What's planned for Tuesday?"_
 _"Add Fushimi Inari to the Kyoto days"_

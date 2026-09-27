@@ -227,7 +227,7 @@ export default function ExperienceDetail({
           <h2 className="text-lg font-medium text-[#3a3128]">
             {exp.name}
             {exp.sheetRowRef && (
-              <span className="ml-1 text-[#b8a990] text-sm font-normal" title="Synced with Larisa's Japan Guide">↔</span>
+              <span className="ml-1 text-[#b8a990] text-sm font-normal" title="From Larisa's Guide">↔</span>
             )}
           </h2>
         )}

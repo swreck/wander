@@ -1,5 +1,5 @@
 /**
- * ActionsPanel — Planning actions synced with Larisa's Japan Guide Actions tab
+ * ActionsPanel — Planning actions read from Larisa's Guide Actions tab (Wander never writes back)
  *
  * Full CRUD: view, add, edit, mark done. Bidirectional sync.
  */
@@ -86,7 +86,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
       });
       setNewAction(""); setNewOwner("Both"); setNewDue(""); setNewNotes("");
       setAdding(false);
-      showToast("Added — will sync to Larisa's Guide", "success");
+      showToast("Got it — saved here in Wander", "success");
       loadActions();
     } catch {
       showToast("Couldn't add that", "error");
@@ -174,7 +174,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           </button>
           <div>
             <h1 className="text-lg font-medium text-[#3a3128]">What's happening</h1>
-            <span className="text-[10px] text-[#a89880]">Synced with {syncSourceName || "Larisa's Japan Guide"}</span>
+            <span className="text-[10px] text-[#a89880]">From {syncSourceName || "Larisa's Guide"}</span>
           </div>
         </div>
         <button
