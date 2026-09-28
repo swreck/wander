@@ -42,7 +42,12 @@ async function cleanupStaleBranches(projectId: string, orgId: string): Promise<v
   console.log(`[neon-branch] Cleanup complete.`);
 }
 
-export async function createTestBranch(): Promise<string> {
+/**
+ * opts.prefix: branch name prefix. Anything other than "test-" survives the stale cleanup
+ * (use for a hand-made inspection copy; delete it yourself). opts.cleanup false: don't delete
+ * stale "test-" branches — required while a test run may be using one.
+ */
+export async function createTestBranch(opts: { prefix?: string; cleanup?: boolean } = {}): Promise<string> {
   // Read env vars at call time (after dotenv has loaded)
   apiKey = process.env.NEON_API_KEY || null;
   const projectId = process.env.NEON_PROJECT_ID || "polished-field-51914169";
@@ -58,9 +63,9 @@ export async function createTestBranch(): Promise<string> {
   }
 
   const orgId = process.env.NEON_ORG_ID || "org-little-glitter-64029838";
-  await cleanupStaleBranches(projectId, orgId);
+  if (opts.cleanup !== false) await cleanupStaleBranches(projectId, orgId);
 
-  const branchName = `test-${Date.now()}`;
+  const branchName = `${opts.prefix ?? "test-"}${Date.now()}`;
   console.log(`[neon-branch] Creating branch "${branchName}"...`);
 
   const result = await neonFetch(`/projects/${projectId}/branches?org_id=${orgId}`, {

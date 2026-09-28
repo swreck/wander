@@ -43,6 +43,7 @@ import travelAdvisoryRoutes from "./routes/travelAdvisory.js";
 import dedupRoutes from "./routes/dedup.js";
 import vaultRoutes from "./routes/vault.js";
 import sheetsSyncRoutes from "./routes/sheetsSync.js";
+import guideRoutes from "./routes/guide.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -132,6 +133,7 @@ app.use("/api/travel-advisory", travelAdvisoryRoutes);
 app.use("/api/dedup", dedupRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/sheets-sync", sheetsSyncRoutes);
+app.use("/api/guide", guideRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
 app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -21,6 +21,7 @@ import ActivityFeed from "../components/ActivityFeed";
 import SheetNotesCard from "../components/SheetNotesCard";
 import SyncAlert from "../components/SyncAlert";
 import ActionsPanel from "../components/ActionsPanel";
+import FaceIdSetup from "../components/FaceIdSetup";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -695,6 +696,9 @@ export default function TripOverview() {
             </div>
           </div>
         )}
+
+        {/* Face ID offer — only on a device that signed in some other way */}
+        <FaceIdSetup variant="card" />
 
         {/* Sync alert — planner-only, shows conflicts/errors with PWA badge */}
         <SyncAlert />

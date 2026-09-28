@@ -1137,6 +1137,15 @@ const WITHDRAWN_TOOLS = new Set([
 
 const offeredTools = tools.filter((t) => !WITHDRAWN_TOOLS.has(t.name));
 
+// Scout can't unlock anyone's vault (it only has the signed-in session), so vault-protected
+// document details never pass through it — same types the vault protects on screen
+// (routes/travelerDocuments.ts SENSITIVE_TYPES).
+const VAULT_PROTECTED_TYPES = ["passport", "visa", "insurance"];
+function maskVaultDocument<T extends { type: string; data: unknown }>(doc: T): T {
+  if (!VAULT_PROTECTED_TYPES.includes(doc.type)) return doc;
+  return { ...doc, data: { locked: true, howToSee: "Open your vault in Profile to see these details." } };
+}
+
 // Execute a tool call and return the result
 async function executeTool(
   toolName: string,
@@ -2288,7 +2297,7 @@ async function executeTool(
       });
 
       return {
-        result: { saved: true, documentId: doc.id, type: input.type, data: input.data, forTraveler: targetName },
+        result: { saved: true, documentId: doc.id, type: input.type, data: maskVaultDocument({ type: input.type, data: input.data }).data, forTraveler: targetName },
         actionDescription: `Saved ${(input.type || "travel").replace("_", " ")} for ${targetName}`,
       };
     }
@@ -2387,7 +2396,7 @@ async function executeTool(
       });
 
       return {
-        result: { updated: true, documentId: updated.id, type: updated.type, data: updated.data },
+        result: { updated: true, documentId: updated.id, type: updated.type, data: maskVaultDocument(updated).data },
         actionDescription: `Updated ${(updated.type || "travel").replace("_", " ")} for ${user.displayName}`,
       };
     }
@@ -2397,7 +2406,7 @@ async function executeTool(
         where: { tripId_userCode: { tripId: input.tripId, userCode: user.code } },
         include: { documents: { orderBy: { createdAt: "asc" } } },
       });
-      return { result: myProfile?.documents || [] };
+      return { result: (myProfile?.documents || []).map(maskVaultDocument) };
     }
 
     case "get_shared_documents": {
@@ -2410,7 +2419,7 @@ async function executeTool(
         traveler: p.displayName,
         documents: p.documents.filter(
           (d) => p.userCode === user.code || !d.isPrivate,
-        ).map((d) => ({ id: d.id, type: d.type, label: d.label, data: d.data, isPrivate: d.isPrivate })),
+        ).map((d) => maskVaultDocument({ id: d.id, type: d.type, label: d.label, data: d.data, isPrivate: d.isPrivate })),
       }));
       return { result: shared };
     }
@@ -3844,7 +3853,7 @@ RULES:
 14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.
 15. Cities can be "hidden" (dismissed). When listing trip cities, only show visible ones. When the user asks to bring back, restore, or recall a dismissed city, use restore_city. When asked what was dismissed or archived, use list_hidden_cities.
 17. When the user shares passport details, frequent flyer numbers, insurance info, visa details, ticket references, or any travel document information, save them IMMEDIATELY. For multiple documents (e.g. a list of frequent flyer numbers), use save_travel_documents_bulk to save them all in one call. For a single document, use save_travel_document. If the user specifies documents for other travelers by name (e.g. "Larisa's Delta SkyMiles is 123456"), use the forTraveler field. Extract all relevant fields from the natural language. Do not ask for confirmation — just save everything at once.
-18. When the user asks "what's my passport number?", "show my documents", or any question about their own travel info, use get_my_documents and answer from the results.
+18. When the user asks "show my documents" or about their own travel info, use get_my_documents and answer from the results. Passport, visa, and insurance details are kept in each person's vault and come back to you as locked — say plainly that they can see them by opening their vault in Profile (Face ID or PIN). Never guess or reconstruct those details.
 19. When the user asks about another traveler's info (e.g., "what's Ken's frequent flyer number?"), use get_shared_documents. Only non-private documents from other travelers will be returned.
 20. When the user asks "am I ready?", "what do I still need?", "travel readiness", or similar, use check_travel_readiness. Give a personalized, specific answer — not a generic checklist. Mention exact expiry dates, specific country requirements, and concrete next steps.
 21. Never store financial data (credit cards, bank accounts, PINs). Travel document numbers (passport, visa, frequent flyer, tickets) are standard travel information shared routinely with airlines and countries.

@@ -8,6 +8,7 @@
 
 import { writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
+import { execFileSync } from "child_process";
 import { config } from "dotenv";
 import { createTestBranch, deleteTestBranch } from "./neon-branch.js";
 
@@ -18,6 +19,14 @@ export async function setup() {
   config();
 
   const branchUrl = await createTestBranch();
+
+  // The branch copies production's schema. Apply this code's schema to the copy so tests
+  // check the code as written (db push refuses anything that would lose data).
+  execFileSync("npx", ["prisma", "db", "push", "--skip-generate"], {
+    cwd: join(import.meta.dirname, ".."),
+    env: { ...process.env, DATABASE_URL: branchUrl },
+    stdio: "inherit",
+  });
 
   // Write branch URL to a temp file so worker processes can read it
   // (globalSetup runs in a separate process; env vars don't propagate to forks in Vitest 4)

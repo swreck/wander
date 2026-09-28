@@ -1,11 +1,177 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import crypto from "crypto";
+import {
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+} from "@simplewebauthn/server";
 import { parseAccessCodes, signToken, requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { stringSimilarity } from "../services/geocoding.js";
 import { getUserRole } from "../middleware/role.js";
+import {
+  RP_ID,
+  RP_NAME,
+  EXPECTED_ORIGINS,
+  normalizeCredentials,
+  publicKeyBytes,
+  signChallenge,
+  readChallenge,
+  findTravelerByCredentialId,
+  saveCounter,
+} from "../services/passkeys.js";
 
 const router = Router();
+
+// Tapping a name used to sign anyone in as that person. In production, sign-in is by
+// Face ID passkey or a personal invite link. Name sign-in stays for local development
+// and tests, or when explicitly re-enabled with ALLOW_NAME_LOGIN=true.
+function isNameLoginAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.ALLOW_NAME_LOGIN === "true";
+}
+
+async function issueLogin(traveler: { id: string; displayName: string }) {
+  const activeTrip = await prisma.trip.findFirst({ where: { status: "active" } });
+  let role: string | undefined;
+  if (activeTrip) {
+    const r = await getUserRole(traveler.id, activeTrip.id);
+    if (r) role = r;
+  }
+  const token = signToken({
+    code: traveler.displayName,
+    displayName: traveler.displayName,
+    travelerId: traveler.id,
+    role,
+  });
+  return { token, displayName: traveler.displayName, travelerId: traveler.id, role };
+}
+
+// ── GET /login-methods ─────────────────────────────────────────
+// Tells the login screen which ways of signing in are available (no auth required).
+router.get("/login-methods", (_req, res) => {
+  res.json({ nameLogin: isNameLoginAllowed(), passkey: true });
+});
+
+// ── Passkey sign-in (Face ID) — no auth required ──────────────
+router.post("/passkey/login-options", async (_req, res) => {
+  const options = await generateAuthenticationOptions({
+    rpID: RP_ID,
+    userVerification: "required",
+    allowCredentials: [], // discoverable: the phone offers whichever Wander passkey it holds
+  });
+  res.json({ options, challengeToken: signChallenge(options.challenge, "login") });
+});
+
+router.post("/passkey/login-verify", async (req, res) => {
+  const { challengeToken, response } = req.body || {};
+  if (!challengeToken || !response?.id) {
+    res.status(400).json({ error: "Missing sign-in details" });
+    return;
+  }
+  try {
+    const expectedChallenge = readChallenge(challengeToken, "login");
+    const found = await findTravelerByCredentialId(response.id);
+    if (!found) {
+      res.status(401).json({ error: "This Face ID isn't set up for Wander yet. Open your personal link to set it up." });
+      return;
+    }
+    const verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: EXPECTED_ORIGINS,
+      expectedRPID: RP_ID,
+      credential: {
+        id: found.cred.id,
+        publicKey: publicKeyBytes(found.cred),
+        counter: found.cred.counter,
+        transports: found.cred.transports,
+      },
+      requireUserVerification: true,
+    });
+    if (!verification.verified) {
+      res.status(401).json({ error: "Face ID didn't check out. Try again?" });
+      return;
+    }
+    await saveCounter(found.traveler.id, found.creds, found.cred.id, verification.authenticationInfo.newCounter);
+    res.json(await issueLogin(found.traveler));
+  } catch (err: any) {
+    res.status(401).json({ error: "Face ID didn't check out. Try again?", detail: err.message });
+  }
+});
+
+// ── Passkey setup — signed-in traveler adds Face ID on this device ──
+router.get("/passkey/status", requireAuth, async (req: AuthRequest, res) => {
+  if (!req.user?.travelerId) { res.json({ count: 0 }); return; }
+  const t = await prisma.traveler.findUnique({ where: { id: req.user.travelerId }, select: { webauthnCredentials: true } });
+  res.json({ count: normalizeCredentials(t?.webauthnCredentials).length });
+});
+
+router.post("/passkey/register-options", requireAuth, async (req: AuthRequest, res) => {
+  if (!req.user?.travelerId) {
+    res.status(400).json({ error: "Open your personal link first, then set up Face ID." });
+    return;
+  }
+  const traveler = await prisma.traveler.findUnique({
+    where: { id: req.user.travelerId },
+    select: { id: true, displayName: true, webauthnCredentials: true },
+  });
+  if (!traveler) { res.status(404).json({ error: "Traveler not found" }); return; }
+  const existing = normalizeCredentials(traveler.webauthnCredentials);
+  const options = await generateRegistrationOptions({
+    rpName: RP_NAME,
+    rpID: RP_ID,
+    userName: traveler.displayName,
+    userDisplayName: traveler.displayName,
+    userID: new TextEncoder().encode(traveler.id),
+    attestationType: "none",
+    excludeCredentials: existing.map((c) => ({ id: c.id, transports: c.transports })),
+    authenticatorSelection: {
+      residentKey: "required",       // lets Face ID sign in without typing a name
+      userVerification: "required",
+    },
+  });
+  res.json({ options, challengeToken: signChallenge(options.challenge, "register", traveler.id) });
+});
+
+router.post("/passkey/register-verify", requireAuth, async (req: AuthRequest, res) => {
+  const { challengeToken, response } = req.body || {};
+  if (!req.user?.travelerId || !challengeToken || !response) {
+    res.status(400).json({ error: "Missing setup details" });
+    return;
+  }
+  try {
+    const expectedChallenge = readChallenge(challengeToken, "register", req.user.travelerId);
+    const verification = await verifyRegistrationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: EXPECTED_ORIGINS,
+      expectedRPID: RP_ID,
+      requireUserVerification: true,
+    });
+    if (!verification.verified || !verification.registrationInfo) {
+      res.status(400).json({ error: "Face ID setup didn't finish. Try again?" });
+      return;
+    }
+    const { credential } = verification.registrationInfo;
+    const traveler = await prisma.traveler.findUnique({ where: { id: req.user.travelerId }, select: { webauthnCredentials: true } });
+    const existing = normalizeCredentials(traveler?.webauthnCredentials);
+    const added = {
+      id: credential.id,
+      publicKey: Buffer.from(credential.publicKey).toString("base64url"),
+      counter: credential.counter,
+      transports: credential.transports || response.response?.transports || [],
+      createdAt: new Date().toISOString(),
+    };
+    await prisma.traveler.update({
+      where: { id: req.user.travelerId },
+      data: { webauthnCredentials: [...existing.filter((c) => c.id !== added.id), added] as any },
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ error: "Face ID setup didn't finish. Try again?", detail: err.message });
+  }
+});
 
 // ── GET /travelers ─────────────────────────────────────────────
 // Returns traveler names for the login page (no auth required)
@@ -47,20 +213,11 @@ router.post("/login", async (req, res) => {
   });
 
   if (traveler) {
-    // Get role on active trip
-    const activeTrip = await prisma.trip.findFirst({ where: { status: "active" } });
-    let role: string | undefined;
-    if (activeTrip) {
-      const r = await getUserRole(traveler.id, activeTrip.id);
-      if (r) role = r;
+    if (!isNameLoginAllowed()) {
+      res.status(403).json({ error: "Sign in with Face ID, or open your personal link." });
+      return;
     }
-    const token = signToken({
-      code: traveler.displayName,
-      displayName: traveler.displayName,
-      travelerId: traveler.id,
-      role,
-    });
-    res.json({ token, displayName: traveler.displayName, travelerId: traveler.id, role });
+    res.json(await issueLogin(traveler));
     return;
   }
 

@@ -115,7 +115,83 @@ model Trip {
   planningActions   PlanningAction[]
   sheetNotes        SheetNote[]
 
+  // Larisa's Guide (Sep 2026): the trip is built from snapshots of her sheet.
+  timeZone          String?          @map("time_zone") // e.g. "Asia/Tokyo" — local time for on-trip screens
+  guideSnapshots    GuideSnapshot[]
+  guideImages       GuideImage[]
+  guideItems        GuideItem[]
+
   @@map("trips")
+}
+
+// ── Larisa's Guide ──────────────────────────────────────────────
+// A snapshot is one version of her sheet, kept whole: every tab, every cell with its
+// address, bold/links, and where each pasted picture sits. Wander never edits it.
+model GuideSnapshot {
+  id          String   @id @default(cuid())
+  tripId      String   @map("trip_id")
+  sourceName  String   @map("source_name")   // e.g. "Japan Oct 2026.xlsx"
+  sourceKind  String   @map("source_kind")   // "xlsx" | "google_sheet"
+  contentHash String   @map("content_hash")
+  status      String   @default("current")   // "current" | "previous" | "rejected"
+  tabs        Json                            // normalized tabs (see services/guide/reader.ts)
+  report      Json?                           // what was understood, counts, warnings, changes vs previous
+  importedBy  String?  @map("imported_by")
+  importedAt  DateTime @default(now()) @map("imported_at")
+
+  trip  Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  items GuideItem[]
+
+  @@index([tripId, importedAt])
+  @@map("guide_snapshots")
+}
+
+// A picture pasted into the Guide (screenshots of bookings, maps). Stored once per trip by
+// content; what Claude read from it is cached so an unchanged picture is never re-read.
+model GuideImage {
+  id            String    @id @default(cuid())
+  tripId        String    @map("trip_id")
+  sha256        String
+  mimeType      String    @map("mime_type")
+  bytes         Bytes
+  readStatus    String    @default("unread") @map("read_status") // "unread" | "read" | "failed"
+  transcription String?                                          // everything legible, as text
+  facts         Json?                                            // structured facts (flights, bookings)
+  readAt        DateTime? @map("read_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, sha256])
+  @@map("guide_images")
+}
+
+// One dated or timed fact from the Guide, in Larisa's words, with where it came from.
+// Rebuilt from each good snapshot; nothing a person adds in Wander points at these.
+model GuideItem {
+  id           String    @id @default(cuid())
+  tripId       String    @map("trip_id")
+  snapshotId   String    @map("snapshot_id")
+  date         DateTime?                           // local calendar date (stored as UTC midnight)
+  time         String?                             // local "HH:MM"
+  endTime      String?   @map("end_time")
+  timeZone     String?   @map("time_zone")          // IANA zone for date/time
+  kind         String                              // flight | train | travel | stay | checkin | checkout | tour | meal | meeting | plan | note | deadline
+  title        String
+  detail       String?
+  forWhom      String?   @map("for_whom")           // "Ken & Larisa" | "Julie & Andy" | "Everyone"
+  place        String?
+  confirmation String?
+  link         String?
+  source       String                              // readable: "Itinerary · Notes (row 47)"
+  sourceRef    String    @map("source_ref")         // exact: "Japan-Oct26-Itinerary!Y47" or "image:<sha>"
+  sortOrder    Int       @default(0) @map("sort_order")
+
+  trip     Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  snapshot GuideSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, date])
+  @@map("guide_items")
 }
 
 model RouteSegment {
@@ -154,6 +230,7 @@ model City {
   departureDate DateTime? @map("departure_date")
   hidden        Boolean  @default(false)
   costEstimate  Json?    @map("cost_estimate") // { hotelDailyRate, hotelTotal, mealsDaily, budgetJA, budgetKL }
+  guideKey      String?  @map("guide_key")     // stable key when this city comes from Larisa's Guide
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   days           Day[]
@@ -265,6 +342,10 @@ model Accommodation {
   notes              String?
 
   sheetRowRef        String?  @map("sheet_row_ref")
+  checkInDate        DateTime? @map("check_in_date")   // first night (local date)
+  checkOutDate       DateTime? @map("check_out_date")  // morning you leave (local date)
+  forWhom            String?   @map("for_whom")        // "Ken & Larisa" | "Julie & Andy" | "Everyone"
+  guideKey           String?   @map("guide_key")       // stable key when this stay comes from Larisa's Guide
 
   trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city City  @relation(fields: [cityId], references: [id], onDelete: Cascade)
