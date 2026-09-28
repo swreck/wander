@@ -660,6 +660,9 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     const unconfirmed = itin.warnings.filter((w) => !Array.from(checkOutConfirmed).some((h) => w.startsWith(`${h}: the Guide gives no check-out date`)));
     report.warnings.push(...unconfirmed, ...itin.skippedSections.map((s) => `Left out on purpose — Larisa marked it: "${s.title}".`));
     report.textReadings = textReadings;
+    // The stored report must say what happened: this reading is the current, accepted one
+    report.accepted = true;
+    report.snapshotId = snap.id;
     await tx.guideSnapshot.update({ where: { id: snap.id }, data: { report: report as any } });
     return snap.id;
   }, { timeout: 120000, maxWait: 20000 });

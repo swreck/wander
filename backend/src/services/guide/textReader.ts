@@ -93,7 +93,7 @@ export async function readGuideText(tabName: string, text: string, tripDates: st
   try {
     const parsed = JSON.parse(out) as TextReading;
     const clean = (v: string | null) => (v === "" ? null : v);
-    parsed.bookings = parsed.bookings.map((b) => ({
+    parsed.bookings = parsed.bookings.filter((b) => b.name?.trim()).map((b) => ({
       ...b, date: clean(b.date), time: clean(b.time), checkOutDate: clean(b.checkOutDate), checkOutTime: clean(b.checkOutTime),
       confirmation: clean(b.confirmation), people: clean(b.people), details: clean(b.details),
     }));
