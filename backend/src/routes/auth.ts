@@ -73,6 +73,7 @@ router.post("/passkey/login-verify", async (req, res) => {
     const expectedChallenge = readChallenge(challengeToken, "login");
     const found = await findTravelerByCredentialId(response.id);
     if (!found) {
+      console.warn(`[passkey] sign-in with an unknown key (${String(response.id).slice(0, 8)}…)`);
       res.status(401).json({ error: "This Face ID isn't set up for Wander yet. Open your personal link to set it up." });
       return;
     }
@@ -90,12 +91,14 @@ router.post("/passkey/login-verify", async (req, res) => {
       requireUserVerification: true,
     });
     if (!verification.verified) {
+      console.warn(`[passkey] sign-in not verified for ${found.traveler.displayName}`);
       res.status(401).json({ error: "Face ID didn't check out. Try again?" });
       return;
     }
     await saveCounter(found.traveler.id, found.creds, found.cred.id, verification.authenticationInfo.newCounter);
     res.json(await issueLogin(found.traveler));
   } catch (err: any) {
+    console.warn(`[passkey] sign-in failed: ${err.message}`);
     res.status(401).json({ error: "Face ID didn't check out. Try again?", detail: err.message });
   }
 });
@@ -118,6 +121,8 @@ router.post("/passkey/register-options", requireAuth, async (req: AuthRequest, r
   });
   if (!traveler) { res.status(404).json({ error: "Traveler not found" }); return; }
   const existing = normalizeCredentials(traveler.webauthnCredentials);
+  // replace: the phone holds a Wander key that no longer signs in — let it make a fresh one in its place
+  const replace = req.body?.replace === true;
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
     rpID: RP_ID,
@@ -125,7 +130,7 @@ router.post("/passkey/register-options", requireAuth, async (req: AuthRequest, r
     userDisplayName: traveler.displayName,
     userID: new TextEncoder().encode(traveler.id),
     attestationType: "none",
-    excludeCredentials: existing.map((c) => ({ id: c.id, transports: c.transports })),
+    excludeCredentials: replace ? [] : existing.map((c) => ({ id: c.id, transports: c.transports })),
     authenticatorSelection: {
       residentKey: "required",       // lets Face ID sign in without typing a name
       userVerification: "required",
@@ -150,6 +155,7 @@ router.post("/passkey/register-verify", requireAuth, async (req: AuthRequest, re
       requireUserVerification: true,
     });
     if (!verification.verified || !verification.registrationInfo) {
+      console.warn(`[passkey] setup not verified for ${req.user.displayName}`);
       res.status(400).json({ error: "Face ID setup didn't finish. Try again?" });
       return;
     }
@@ -169,8 +175,19 @@ router.post("/passkey/register-verify", requireAuth, async (req: AuthRequest, re
     });
     res.json({ success: true });
   } catch (err: any) {
+    console.warn(`[passkey] setup failed for ${req.user?.displayName}: ${err.message}`);
     res.status(400).json({ error: "Face ID setup didn't finish. Try again?", detail: err.message });
   }
+});
+
+// ── Face ID problems seen on the phone ──
+// Some failures happen entirely on the device (it refuses before anything reaches the server).
+// The phone reports them here so they show up in the server log with their real cause.
+router.post("/passkey/client-problem", (req, res) => {
+  const clip = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").slice(0, 200);
+  const { stage, name, code, message } = req.body || {};
+  console.warn(`[passkey] phone reported: stage=${clip(stage)} name=${clip(name)} code=${clip(code)} message=${clip(message)} ua=${clip(req.headers["user-agent"])}`);
+  res.json({ ok: true });
 });
 
 // ── GET /travelers ─────────────────────────────────────────────
