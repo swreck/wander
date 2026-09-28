@@ -1,19 +1,12 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { deviceSupportsPasskeys, isUserCancel } from "../lib/passkeys";
 
 interface TravelerOption {
   id: string;
   displayName: string;
 }
-
-// Hardcoded fallback so buttons render instantly without waiting for API
-const DEFAULT_TRAVELERS: TravelerOption[] = [
-  { id: "ken", displayName: "Ken" },
-  { id: "julie", displayName: "Julie" },
-  { id: "andy", displayName: "Andy" },
-  { id: "larisa", displayName: "Larisa" },
-];
 
 // Pick a stable photo per day (not random per render)
 const PHOTOS = [
@@ -25,23 +18,45 @@ const PHOTOS = [
 const PHOTO_URL = PHOTOS[new Date().getDate() % PHOTOS.length];
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginWithPasskey } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [signing, setSigning] = useState<string | null>(null);
-  const [travelers, setTravelers] = useState<TravelerOption[]>(DEFAULT_TRAVELERS);
+  const [nameLogin, setNameLogin] = useState(false);
+  const [travelers, setTravelers] = useState<TravelerOption[]>([]);
+  const [canUseFaceId, setCanUseFaceId] = useState(true);
 
-  // Refresh from API (adds any new travelers, e.g. Kyler after joining)
   useEffect(() => {
-    fetch("/api/auth/travelers")
+    deviceSupportsPasskeys().then(setCanUseFaceId);
+    // Name sign-in exists only for local development and tests; production uses Face ID.
+    fetch("/api/auth/login-methods")
       .then((r) => r.json())
-      .then((data: TravelerOption[]) => {
-        if (data.length > 0) setTravelers(data);
+      .then((m: { nameLogin?: boolean }) => {
+        if (!m?.nameLogin) return;
+        setNameLogin(true);
+        return fetch("/api/auth/travelers")
+          .then((r) => r.json())
+          .then((data: TravelerOption[]) => setTravelers(Array.isArray(data) ? data : []));
       })
       .catch(() => {});
   }, []);
 
-  async function handleSelect(traveler: TravelerOption) {
+  async function handleFaceId() {
+    setError("");
+    setSigning("faceid");
+    try {
+      await loginWithPasskey();
+      navigate("/");
+    } catch (err) {
+      setError(isUserCancel(err)
+        ? "No problem — tap Sign in when you're ready."
+        : (err as Error).message || "Face ID didn't work. Try again?");
+    } finally {
+      setSigning(null);
+    }
+  }
+
+  async function handleName(traveler: TravelerOption) {
     setError("");
     setSigning(traveler.displayName);
     try {
@@ -80,26 +95,50 @@ export default function LoginPage() {
           Who's wandering?
         </p>
 
-        <div className="grid grid-cols-2 gap-3">
-          {travelers.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => handleSelect(t)}
-              disabled={signing !== null}
-              className={`py-4 px-3 rounded-xl text-base font-medium backdrop-blur-md
-                ${signing === t.displayName
-                  ? "bg-white text-[#3a3128] scale-95"
-                  : "bg-white/15 text-white border border-white/30 active:scale-95"
-                }
-                disabled:opacity-60`}
-            >
-              {signing === t.displayName ? "..." : t.displayName}
-            </button>
-          ))}
-        </div>
+        {canUseFaceId ? (
+          <button
+            onClick={handleFaceId}
+            disabled={signing !== null}
+            className="w-full min-h-[52px] py-4 px-3 rounded-xl text-base font-medium bg-white text-[#3a3128]
+                       active:scale-95 transition-transform disabled:opacity-60"
+          >
+            {signing === "faceid" ? "Checking…" : "Sign in with Face ID"}
+          </button>
+        ) : (
+          <p className="text-sm text-white/85 leading-relaxed">
+            This browser can't use Face ID. Open your personal Wander link instead.
+          </p>
+        )}
+
+        <p className="text-sm text-white/70 mt-4 leading-relaxed">
+          First time on this phone? Open your personal Wander link, then set up Face ID.
+        </p>
+
+        {nameLogin && travelers.length > 0 && (
+          <div className="mt-6">
+            <p className="text-xs text-white/60 mb-2">Test sign-in (not available in the live app)</p>
+            <div className="grid grid-cols-2 gap-3">
+              {travelers.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => handleName(t)}
+                  disabled={signing !== null}
+                  className={`min-h-[44px] py-3 px-3 rounded-xl text-base font-medium backdrop-blur-md
+                    ${signing === t.displayName
+                      ? "bg-white text-[#3a3128] scale-95"
+                      : "bg-white/15 text-white border border-white/30 active:scale-95"
+                    }
+                    disabled:opacity-60`}
+                >
+                  {signing === t.displayName ? "..." : t.displayName}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {error && (
-          <p className="text-sm text-red-300 mt-4">{error}</p>
+          <p className="text-sm text-red-200 mt-4" role="alert">{error}</p>
         )}
       </div>
     </div>

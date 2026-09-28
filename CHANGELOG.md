@@ -2,6 +2,46 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-09-28 — Wander Reads Larisa's Guide Faithfully (from a saved copy of the sheet)
+
+### Added
+- Wander builds the trip from a saved copy of Larisa's Guide (the .xlsx file downloaded from Google Sheets). It reads every tab, finds itinerary columns by their header names rather than their positions, and keeps her words as written. It reads the Notes column and rows without a date. Sections she marked "SKIP" stay out.
+- Pictures pasted into the Guide (flight confirmations, hotel bookings) are read, so facts that exist only in a screenshot reach Wander: confirmation codes, flight times, the Narita arrival, free-cancellation cutoffs. Pasted emails are read for bookings and deadlines. Deadlines worked out from a rule ("reconfirm 3–7 days prior") say so and quote the original words.
+- Each day now carries a dated list of what the Guide says about it: flights and landings, check-ins and check-outs (with who each room is for and each couple's confirmation), tours, meetings, meals, notes, and deadlines. Each item names where in the Guide it came from. Times appear only when the Guide states them.
+- Where the Guide is undecided, Wander keeps it undecided. A date mark with words ("X, if Julie isn't interested") shows on that day as "Maybe: …" in Larisa's words. Two hotels on the same night are both kept and flagged.
+- A new copy of the Guide replaces what Wander read before, and Wander records what changed. A copy that looks broken (no itinerary, no dates, or far fewer hotels or tabs than last time) is refused, and the last good reading stays.
+- Hotels now have check-in and check-out dates, so each night has a place to sleep.
+- The trip keeps a time zone (Asia/Tokyo for Japan).
+- Tests: backend/tests/guide-itinerary.test.ts (built from made-up sheets, never real trip data). The test setup now applies the current database layout to its temporary copy before running.
+
+### Not yet visible
+- Home and the Now screen don't show the new day-by-day items yet. That comes with the on-the-road screens (next step). Loading a new copy of the Guide is done by the developer for now; a planner upload screen comes next.
+
+Affects: backend/prisma/schema.prisma, backend/src/services/guide/ (new: reader, itinerary, images, textReader, importSnapshot), backend/src/routes/guide.ts (new), backend/src/index.ts, backend/scripts/import-guide-snapshot.ts (new), backend/tests/vitest-global-setup.ts
+
+SPEC UPDATE NEEDED: SPEC §7 (import: extraction → review → explicit confirm) and §3 (Wander replaces the spreadsheet). Wander now mirrors the Guide: each good copy replaces the Guide layer, changes are recorded, and broken copies are refused. §6 data model gains Guide snapshots, Guide items, and Guide pictures.
+
+## 2026-09-28 — Face ID Sign-In, a Vault That Opens With Face ID, and Scout Respecting the Vault
+
+### Added
+- Sign in with Face ID. The login screen (the first screen of Wander) now has one button, "Sign in with Face ID", and one line for a first visit: "First time on this phone? Open your personal Wander link, then set up Face ID."
+- After signing in with a personal link, Home shows a small card at the top: "Use Face ID next time?" with "Set up Face ID" and "Not now". It never shows again on that phone once Face ID is set up or dismissed.
+- Settings has a Face ID section: set up Face ID on this phone, or see that it's already set up.
+- Tests: backend/tests/passkeys.test.ts.
+
+### Changed
+- In the live app, tapping a name no longer signs anyone in. The name buttons remain only in local development and tests. Personal invite links still work and are how a new phone gets set up.
+- The vault now opens with the same Face ID. The earlier vault Face ID saved credentials in a broken format and always fell back to the PIN; existing credentials are read and repaired automatically, so nobody has to set it up again.
+- A planner resetting someone's vault PIN now clears only the PIN. It used to also erase their Face ID, which would now lock them out of Wander.
+- A failed sign-in check on a weak signal or during a quick reload no longer signs you out. Only a real "not authorized" answer from the server does.
+
+### Fixed
+- Scout no longer reveals passport, visa, or insurance details. They stay in each person's vault; Scout says they're locked and that the vault in Profile opens with Face ID or PIN.
+
+Affects: backend/src/services/passkeys.ts (new), backend/src/routes/auth.ts, backend/src/routes/vault.ts, backend/src/routes/chat.ts, frontend/src/lib/passkeys.ts (new), frontend/src/components/FaceIdSetup.tsx (new), frontend/src/pages/LoginPage.tsx, frontend/src/contexts/AuthContext.tsx, frontend/src/pages/TripOverview.tsx, frontend/src/pages/SettingsPage.tsx
+
+SPEC UPDATE NEEDED: SPEC §5 (Authentication) describes access codes only; sign-in is now Face ID passkeys with personal invite links as the setup path.
+
 ## 2026-09-27 — Safety First: Wander Is Downstream of Larisa's Guide
 
 Larisa's Google Sheet is the master plan and Wander reads from it. Wander never changes the sheet, and an app bug or an AI mistake can no longer delete or restructure the trip.

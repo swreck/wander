@@ -4,6 +4,7 @@ import { isNextUpEnabled, setNextUpEnabled } from "../components/NextUpOverlay";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { api } from "../lib/api";
+import FaceIdSetup from "../components/FaceIdSetup";
 
 const DURATION_OPTIONS = [
   { value: 1000, label: "1 second" },
@@ -118,6 +119,7 @@ export default function SettingsPage() {
 
         {/* Spreadsheet Sync (planner-only) */}
         {/* Sync section checks its own visibility via API */}
+        <FaceIdSetup variant="settings" />
         <SheetSyncSection />
 
         {/* Dedup review (planner-only) */}

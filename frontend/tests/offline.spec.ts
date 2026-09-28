@@ -118,10 +118,10 @@ test("chat panel close button is a chevron that preserves messages (requires bac
   }
 
   // Open chat — the bubble is positioned above the bottom nav
-  const chatBtn = page.getByLabel("Open chat assistant");
+  const chatBtn = page.getByLabel("Ask Scout");
   await expect(chatBtn).toBeVisible({ timeout: 10000 });
   await chatBtn.click();
-  await expect(page.getByText("Scout")).toBeVisible();
+  await expect(page.getByText("Scout", { exact: true })).toBeVisible();
 
   // The minimize button should have aria-label "Minimize chat" (not "Close chat")
   const minimizeBtn = page.getByLabel("Minimize chat");
@@ -137,8 +137,8 @@ test("chat panel close button is a chevron that preserves messages (requires bac
   await minimizeBtn.click();
 
   // Chat panel should be gone, bubble should be back
-  await expect(page.getByText("Scout")).not.toBeVisible();
-  await expect(page.getByLabel("Open chat assistant")).toBeVisible();
+  await expect(page.getByText("Scout", { exact: true })).not.toBeVisible();
+  await expect(page.getByLabel("Ask Scout")).toBeVisible();
 });
 
 // ── Offline indicator shows when offline ───────────────────────

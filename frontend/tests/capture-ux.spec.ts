@@ -30,10 +30,10 @@ test("chat clear button requires confirmation (requires backend)", async ({ page
   }
 
   // Open chat
-  const chatBtn = page.getByLabel("Open chat assistant");
+  const chatBtn = page.getByLabel("Ask Scout");
   await expect(chatBtn).toBeVisible({ timeout: 10000 });
   await chatBtn.click();
-  await expect(page.getByText("Scout")).toBeVisible();
+  await expect(page.getByText("Scout", { exact: true })).toBeVisible();
 
   // Type something so Clear button appears
   const input = page.locator("textarea");
