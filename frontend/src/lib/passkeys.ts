@@ -44,12 +44,60 @@ export async function signInWithPasskey(): Promise<{ token: string; displayName:
   return body;
 }
 
-/** Add a passkey for the signed-in person on this device. */
-export async function setUpPasskeyOnThisDevice(): Promise<void> {
-  const { options, challengeToken } = await api.post<{ options: any; challengeToken: string }>("/auth/passkey/register-options", {});
-  const response = await startRegistration({ optionsJSON: options });
-  await api.post("/auth/passkey/register-verify", { challengeToken, response });
+/**
+ * Send a Face ID failure's real cause to the server log. Many failures happen on the phone
+ * alone, so without this the only trace is the message the person saw.
+ */
+export function reportPasskeyProblem(stage: string, err: unknown) {
+  const e = err as { name?: string; code?: string; message?: string };
+  fetch("/api/auth/passkey/client-problem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stage, name: e?.name, code: e?.code, message: e?.message }),
+  }).catch(() => { /* reporting must never get in the way */ });
+}
+
+/** The phone already holds a Wander key and declined to make a duplicate. */
+export function isAlreadyOnDevice(err: unknown): boolean {
+  const e = err as { name?: string; code?: string };
+  return e?.name === "InvalidStateError" || e?.code === "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED";
+}
+
+// Each function below shows Face ID exactly once. Safari allows a Face ID prompt only right after a
+// tap, so every step gets its own button — never two prompts chained from one tap.
+
+/**
+ * Add Face ID for the signed-in person on this device.
+ * replace: the phone's older Wander key no longer works — make a fresh one in its place.
+ * Throws the phone's error; isAlreadyOnDevice(err) means this phone already has a Wander key.
+ */
+export async function setUpPasskeyOnThisDevice(replace = false): Promise<void> {
+  try {
+    const { options, challengeToken } = await api.post<{ options: any; challengeToken: string }>("/auth/passkey/register-options", { replace });
+    const response = await startRegistration({ optionsJSON: options });
+    await api.post("/auth/passkey/register-verify", { challengeToken, response });
+  } catch (err) {
+    if (!isUserCancel(err) && !isAlreadyOnDevice(err)) reportPasskeyProblem(replace ? "setup-replace" : "setup", err);
+    throw err;
+  }
   markSignedInWith("passkey");
+}
+
+/** Prove the Wander key already on this phone signs in as this person. */
+export async function confirmPasskeyOnThisDevice(travelerId?: string): Promise<boolean> {
+  try {
+    const who = await signInWithPasskey();
+    if (travelerId && who.travelerId !== travelerId) {
+      reportPasskeyProblem("confirm-existing", { name: "WrongPerson", message: "The key on this phone belongs to someone else" });
+      return false;
+    }
+    markSignedInWith("passkey");
+    return true;
+  } catch (err) {
+    if (isUserCancel(err)) throw err;
+    reportPasskeyProblem("confirm-existing", err);
+    return false;
+  }
 }
 
 export async function passkeyCount(): Promise<number> {

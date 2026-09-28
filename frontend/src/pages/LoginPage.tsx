@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { deviceSupportsPasskeys, isUserCancel } from "../lib/passkeys";
+import { deviceSupportsPasskeys, isUserCancel, reportPasskeyProblem } from "../lib/passkeys";
 
 interface TravelerOption {
   id: string;
@@ -48,9 +48,14 @@ export default function LoginPage() {
       await loginWithPasskey();
       navigate("/");
     } catch (err) {
-      setError(isUserCancel(err)
-        ? "No problem — tap Sign in when you're ready."
-        : (err as Error).message || "Face ID didn't work. Try again?");
+      if (isUserCancel(err)) {
+        setError("No problem — tap Sign in when you're ready.");
+      } else {
+        reportPasskeyProblem("sign-in", err);
+        // Wander's own messages are written for people; the phone's are not (they carry a code)
+        const fromWander = !(err as { code?: string }).code && (err as Error).message;
+        setError(fromWander || "Face ID didn't work on this phone. Try again, or open your personal link.");
+      }
     } finally {
       setSigning(null);
     }
