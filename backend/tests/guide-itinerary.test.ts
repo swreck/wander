@@ -76,6 +76,11 @@ describe("cityFromSection", () => {
     expect(cityFromSection("Backroads - Tokyo->Nikko (Day 1-4)")).toBe("Nikko");
     expect(cityFromSection("Backroads - Kyoto (Day 6-8)")).toBe("Kyoto");
     expect(cityFromSection("Kyoto ")).toBe("Kyoto");
+    // Her working notes after the name (Sep 29 copy) — the city is still the city
+    expect(cityFromSection("Tokyo (day trip to Mashiko - 1.5 hrs Shinkansen) - ASK KENJI TO INTEGRATE THE 2 TOURS AND FINISH 3:45-4p AT TRAIN)")).toBe("Tokyo");
+    expect(cityFromSection("Hakata - NOT AN OVERNIGHT (travel through)")).toBe("Hakata");
+    expect(cityFromSection("Karatsu (tour Karatsu - coordinate pu for tour), day trip to Arita)")).toBe("Karatsu");
+    expect(cityFromSection("Okayama (day trip to Bizen - 40 min JR train) - WHERE IS BIZEN TOUR STARTING")).toBe("Okayama");
   });
 });
 

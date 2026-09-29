@@ -2,6 +2,54 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-09-29 — Larisa's Detailed Day Plans, Scout on the Web, and Her Sep 29 Copy
+
+Ken defined readiness as two halves: a screen anyone can use without a manual, and taking in Larisa's new Guide information quickly and faithfully. Larisa has started adding a tab per key day (time blocks, sometimes several choices for one block). Her Sep 29 copy ("Japan Oct 2026-2") has eight of them: Tokyo Day 1–3 (no dates in the tabs) and Kyoto Sun 10/25 – Thu 10/29 (dated).
+
+### Added
+- **Larisa's plan for the day** (day screen, below the Itinerary's lines). Her day tab, shown in her order with her times as she wrote them ("~8:30–9:15", "After dinner"). Each line shows who it's for when the group splits ("For Larisa & Julie", "Yours · Ken & Andy"). Her longer notes sit under **Larisa's notes ›**. There's a Maps link when a line names a place; lines like "Taxi north" or "Shower/change/rest" get none. The header names the tab. When the tab gives no date, Wander says which day it matched the plan to and why, as Wander's own reading.
+- **Choices in a block.** When she lists several places for one time, each has **We're going here**. The pick is a plan added in Wander, and her sheet is untouched. The pick then shows **✓ The group's pick**, and the others offer **Switch to this**, which takes the first pick off so a lunch never has two. The tapped choice says "Saving…" until the server has it.
+- **"Now, in Larisa's plan"** on Home and on the Now tab ("MIHO Museum, until about 12:35 PM"). It appears only when a line has your name on it, or when it's for everyone outside a split.
+- **Her forecast** (the Lo / Hi / Precip columns) as a quiet line on each day of a stay, in her numbers with no units added.
+- **Scout searches the web and reads pages** (Anthropic's built-in search and fetch; no extra key). It says when an answer comes from the web and never passes a web answer off as her plan.
+
+### Changed
+- **Next** on Home and Now weighs her plan's times ("~2:00 PM Nishiki Market"). A plan line at the same time as an Itinerary line isn't shown twice. Her own way to the airport (the Haruka) replaces Wander's "leave for the airport" estimate on that day and the night before.
+- **Split groups are never guessed.** When the group splits (Oct 28), a line with no name on it inside the split (Maruni Toryo, the wood-firing visit) is never anyone's "Now" or "Next". It still shows in her plan exactly as she wrote it.
+- **Two places at one time** (Dining Resos, Oct 28 at 8 PM: Cafe Ensou and Enyuan Kobayashi) are flagged on Home as well as on the day screen, never resolved.
+- Rough times keep her "~" on Home.
+- **Reading her Guide:**
+  - Each tab gets exactly one reader. A reservations tab or a pasted booking email is never read as a day plan.
+  - Working notes in a heading ("Tokyo - ASK KENJI…") no longer create a city.
+  - Hotel dates written into a hotel's name ("Shiraume (10/25 - 10/27)") win over the date columns, and the report says so.
+  - "By 3:45p" is never a start time.
+  - A meal's time is copied only from a meal line in her day tab, with the tab named.
+- **Scout's honesty rules:**
+  - It never reconciles two tabs that disagree ("either way").
+  - It never adds units or claims.
+  - It knows a check-in time isn't an arrival time.
+  - It works out time zones before saying where someone is.
+  - It never assigns a split-group line without a name to anyone.
+  - It writes no "Message for Larisa" unless asked.
+  - A deadline with no time written says so instead of stating a time.
+  - It copies her transit directions word for word ("from Hibiya Station, take the Chiyoda Line").
+  - It treats a line's time as time spent at that place, never as a time to leave.
+  - It names a restaurant by its booking, never by its address.
+  - It never says which of two conflicting tabs "to go by".
+- **Facts Scout used to work out now arrive already worked out.**
+  - Split days: every line with no name on it during a split is marked "whose: not stated".
+  - Flights: each flight's time in the air is given in both Japan and California time, with where each party is at the moment of the question.
+  - Both were prompt rules before, and in testing Scout sometimes still assigned a line to a group or put Julie and Andy "in the air" hours before they left home.
+- **Dining Resos addresses are labelled "Address:"** on the day screen and for Scout. Her address block for La Table de Joël Robuchon (1F) opens with "Château Restaurant Joël Robuchon", the building's other restaurant.
+
+### Fixed
+- A mangled day link (for example /day/now) crashed the day screen. It now opens today.
+- The Four Seasons cancellation deadline showed as 11:59 PM. Her booking says 3:00 PM Kyoto time, and that's what Wander and Scout now say.
+
+Affects: frontend/src/pages/DayPage.tsx, frontend/src/components/TripGlance.tsx, frontend/src/lib/guideDisplay.ts, backend/src/services/guide/dayPlanReader.ts (new), importSnapshot.ts, itinerary.ts, scoutContext.ts, backend/src/routes/chat.ts, backend/prisma/schema.prisma (GuideItem.timeText, additive).
+
+SPEC UPDATE NEEDED: the day screen (a second section for her day plans, choices and picks), Home's Today card and the Now tab ("Now, in Larisa's plan", Next from her plan), Scout's web access and honesty rules, and how Wander reads day-plan tabs.
+
 ## 2026-09-28 — Scout Can Show You Things, Letting Someone In, and Wander's Own Additions (test rounds 2–3)
 
 Rounds 2 and 3 of scenario testing (fresh testers, each a specific traveler at a specific moment, scored against a rubric written beforehand) drove most of the fixes below. Ken asked for four new things: Scout that can move the screen and stay nearby afterwards, a short path from "I'll let you in" to a Wander icon on someone's iPhone, a way to pass suggestions to Larisa, and a guarantee that re-reading her Guide never loses what people added in Wander.

@@ -24,6 +24,10 @@ export interface GuideItem {
   source: string;
   /** A deadline that can be done over several days: its first day (YYYY-MM-DD) */
   windowStart?: string | null;
+  /** A day-plan block's time exactly as she wrote it ("~8:30–9:15", "Morning") */
+  timeText?: string | null;
+  /** Her order within the reading — a day plan is shown in this order, not re-sorted by clock */
+  sortOrder?: number;
 }
 
 export interface GuideStatus {

@@ -193,6 +193,9 @@ export function cityFromSection(title: string): string {
     if (t.includes("->")) t = t.split("->").pop()!.trim();
   }
   t = t.replace(/\(.*?\)/g, "").trim();
+  // Her working notes after the name ("Tokyo - ASK KENJI…", "Hakata - NOT AN OVERNIGHT", a stray
+  // ", day trip to Arita)") aren't part of it: a city name never has " - ", a comma or a bracket
+  t = t.split(/\s+[-–]\s+|,|\)|\(/)[0].trim();
   return t.replace(/\s+/g, " ");
 }
 
@@ -317,7 +320,9 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
     }
 
     if (desc && itemDate && !(isLeg && !confirmationMatch)) {
-      const stated = parseStatedTimes(desc);
+      // "Finish at Mashiko Station by 3:45p-4p" is a deadline in her words, not when the day starts
+      const byTime = /\b(by|until|before|no later than)\s*~?\d{1,2}(:\d{2})?\s*[ap]/i.test(desc);
+      const stated = byTime ? { start: null, end: null } : parseStatedTimes(desc);
       const rowStart = t1?.kind === "time" ? t1.time! : parseStatedTimes(t1?.text || "").start;
       const rowEnd = t2?.kind === "time" ? t2.time! : parseStatedTimes(t2?.text || "").start;
       const time = stated.start || (!isLeg ? rowStart : null);

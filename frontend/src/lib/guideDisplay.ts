@@ -86,10 +86,36 @@ export function leadItem(sorted: GuideItem[]): GuideItem | undefined {
  * The time column: a check-out time is the hotel's deadline ("by 12:00 PM"); a check-in time is
  * when the room opens ("from 2:00 PM"). Neither is an appointment.
  */
+/**
+ * Lines of her day plan that nobody can be said to own: unlabeled lines while the group is split.
+ * Oct 28: "For Larisa & Julie" 10:15–10:35, "For Ken & Andy" MIHO 10:15–12:35 — Maruni Toryo at 10:35 has
+ * no name on it, so it is never "next" for anyone (it could be either group's). Nothing is guessed.
+ */
+export function ownerlessInSplit(items: GuideItem[]): Set<string> {
+  const mins = (t: string | null | undefined) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : NaN);
+  const out = new Set<string>();
+  const byDate = new Map<string, GuideItem[]>();
+  for (const b of items) if (b.kind === "block" && b.date) byDate.set(b.date.slice(0, 10), [...(byDate.get(b.date.slice(0, 10)) || []), b]);
+  for (const blocks of byDate.values()) {
+    const labeled = blocks.filter((b) => b.time && b.forWhom && !/^everyone$/i.test(b.forWhom));
+    if (!labeled.length) continue;
+    const from = Math.min(...labeled.map((b) => mins(b.time)));
+    const to = Math.max(...labeled.map((b) => Math.max(mins(b.time), mins(b.endTime) || 0)));
+    for (const b of blocks) {
+      if (b.forWhom || !b.time) continue;
+      const t = mins(b.time);
+      if (t >= from && t < to) out.add(b.id);
+    }
+  }
+  return out;
+}
+
 export function timeLabel(i: GuideItem, day?: GuideItem[]) {
   if (!i.time) return "";
   if (i.kind === "checkout") return checkoutBeforeFirst(i, day) ? "Morning" : `by ${clock(i.time)}`;
   if (i.kind === "checkin") return checkinAfterLanding(i, day) ? "After landing" : `from ${clock(i.time)}`;
+  // A day-plan time she marked as rough ("~10:15") keeps her "~"
+  if (i.kind === "block" && (/^~/.test(i.timeText || "") || (i.detail || "").includes("Times are Larisa's estimate."))) return `~${clock(i.time)}`;
   return clock(i.time);
 }
 

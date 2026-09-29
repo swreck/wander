@@ -21,7 +21,7 @@ import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData"
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
-  freshness, isPlanningNote, isFragment, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem,
+  freshness, isPlanningNote, isFragment, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit,
   withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords,
 } from "../lib/guideDisplay";
 
@@ -100,6 +100,8 @@ function ItemLine({ i, me, stays, date, day }: { i: GuideItem; me?: string | nul
         {itemTitle(i, stays, date)}
         {checkoutBeforeFirst(i, day) && <span className="block text-xs text-[#6b5d4a] mt-0.5">The hotel's check-out time is {clock(i.time)}</span>}
         {other && <span className="block text-xs text-[#6b5d4a] mt-0.5">For {other}</span>}
+        {/* Two places booked for one time: say so here too, never pick one */}
+        {(() => { const two = (i.detail || "").match(/The .+ tab lists \d+ places for this date and time[^\n]*/)?.[0]; return two ? <span className="block text-xs text-[#8a5a1a] mt-0.5">{two}</span> : null; })()}
         {i.confirmation && !other && <span className="block text-xs text-[#6b5d4a] mt-0.5 [overflow-wrap:anywhere]">Confirmation {i.confirmation}</span>}
       </span>
     </li>
@@ -152,18 +154,26 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     // Your own first day: your first flight or check-in, when the Guide says whose they are
     const mine = party ? data.items.filter((i) => i.date && i.forWhom === party && ["flight", "checkin"].includes(i.kind) && !isLanding(i)) : [];
     const myFirst = mine.map((i) => ymd(i.date)).sort()[0] || first;
-    const on = (date: string) => sortDay(withCheckoutWho(data.items.filter((i) => ymd(i.date) === date && !["deadline", "stop"].includes(i.kind) && !isPlanningNote(i) && !isFragment(i)), date, data.stays, data.items));
+    const on = (date: string) => sortDay(withCheckoutWho(data.items.filter((i) => ymd(i.date) === date && !["deadline", "stop", "weather", "block"].includes(i.kind) && !isPlanningNote(i) && !isFragment(i)), date, data.stays, data.items));
     // Coming up — plus any that passed in the last day ("Passed"), so nobody wonders where one went
     const deadlinesAhead = (from: string, span: number) => data.items
       .filter((i) => i.kind === "deadline" && (!deadlineOver(i, tz) || deadlineJustPassed(i, tz)) &&
         (ymd(i.date) >= from || deadlineOnDate(i, from) || deadlineJustPassed(i, tz)) && (i.windowStart || ymd(i.date)) <= addDays(from, span))
       // A window sorts by when it opens ("Oct 10 – 14" before an Oct 11 cutoff)
       .sort((a, b) => (a.windowStart || ymd(a.date)).localeCompare(b.windowStart || ymd(b.date)));
-    return { first, last, tz, myFirst, on, deadlinesAhead };
+    // Larisa's detailed plan for a day (a day tab), in her order — Next weighs its times; a block at the
+    // same time as an Itinerary line is that line said again, so the Itinerary's wording is kept
+    const planOn = (date: string) => {
+      const blocks = data.items.filter((i) => i.kind === "block" && ymd(i.date) === date).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      const taken = new Set(on(date).map((i) => i.time).filter(Boolean));
+      const noOwner = ownerlessInSplit(blocks);
+      return { all: blocks, timed: blocks.filter((b) => b.time && !taken.has(b.time) && !noOwner.has(b.id)) };
+    };
+    return { first, last, tz, myFirst, on, planOn, deadlinesAhead };
   }, [data, me]);
 
   if (!data || !view || !view.first || !view.last) return null;
-  const { first, last, tz, myFirst, on, deadlinesAhead } = view;
+  const { first, last, tz, myFirst, on, planOn, deadlinesAhead } = view;
 
   const card = "mb-4 rounded-xl bg-white border border-[#e0d8cc] p-4";
   // Japan's own date and time (for the others, when you're not there yet)
@@ -250,11 +260,20 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const todays = on(today);
   const mineToday = todays.filter((i) => isFor(i, me));
   const flight = mineToday.find((i) => i.kind === "flight" && !isLanding(i) && i.time);
-  const leave = flight ? leaveForAirport(flight, cityOn(today)) : null;
+  const plan = planOn(today);
+  // Her own plan for getting to the airport replaces Wander's estimate
+  const herAirportPlan = plan.all.some((b) => /haruka|airport|\bKIX\b|transfer/i.test(b.title));
+  const leave = flight && !herAirportPlan ? leaveForAirport(flight, cityOn(today)) : null;
   const flightAt = flight ? toMin(flight.time) : -1;
   const showLeave = !!leave && now < flightAt;
-  const appointments = mineToday.filter((i) => i.time && !["checkout", "checkin"].includes(i.kind));
-  const next = appointments.find((i) => toMin(i.time) >= now);
+  const appointments = [...mineToday.filter((i) => i.time && !["checkout", "checkin"].includes(i.kind)), ...plan.timed.filter((b) => isFor(b, me))]
+    .sort((a, b) => a.time!.localeCompare(b.time!));
+  // Where her plan puts you right now ("MIHO Museum, until ~12:35 PM") — only a line with your name on it,
+  // or one for everybody outside a split; never a guess
+  const noOwner = ownerlessInSplit(plan.all);
+  const current = plan.all.filter((b) => b.time && b.endTime && isFor(b, me) && !noOwner.has(b.id) && toMin(b.time) <= now && now < toMin(b.endTime)).pop();
+  const next = appointments.find((i) => toMin(i.time) >= now && i !== current);
+  const currentRough = !!current && (/^~/.test(current.timeText || "") || (current.detail || "").includes("Times are Larisa's estimate."));
   // Leaving a hotel this morning comes before whatever is next ("by noon" isn't after an 8:30 meeting)
   // A check-out whose time has gone by (noon, when it's 3pm) is done — it no longer leads the card
   const checkouts = todays.filter((i) => i.kind === "checkout" && isFor(i, me) && (!i.time || toMin(i.time) >= now));
@@ -274,7 +293,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const tomorrowItems = tomorrow <= last ? on(tomorrow).filter((i) => isFor(i, me)) : [];
   const tomorrowFlight = tomorrowItems.find((i) => i.kind === "flight" && !isLanding(i) && i.time);
   const tomorrowLead = leadItem(tomorrowItems);
-  const tomorrowLeave = tomorrowFlight ? leaveForAirport(tomorrowFlight, cityOn(tomorrow) || cityOn(today)) : null;
+  const tomorrowLeave = tomorrowFlight && !planOn(tomorrow).all.some((b) => /haruka|airport|\bKIX\b|transfer/i.test(b.title)) ? leaveForAirport(tomorrowFlight, cityOn(tomorrow) || cityOn(today)) : null;
   const todayDeadlines = data.items.filter((i) => deadlineOnDate(i, today));
   const guidedToday = data.days.find((d) => ymd(d.date) === today)?.dayType === "guided";
   const guidedDays = data.days.filter((d) => d.dayType === "guided").map((d) => ymd(d.date)).sort();
@@ -304,12 +323,18 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           </div>
         )}
         {checkouts.length > 0 && next && <ul className="mt-1">{checkouts.map((i) => <ItemLine key={i.id} i={i} me={me} stays={data.stays} date={today} day={todays} />)}</ul>}
+        {current && (
+          <button onClick={() => openDay(today, current.id)} className="w-full text-left mt-2 min-h-[44px] text-sm text-[#3a3128]">
+            <span className="text-[#6b5d4a]">Now, in Larisa's plan · </span>{current.title.replace(/^./, (c) => c.toUpperCase())}
+            <span className="text-[#6b5d4a]">, until {currentRough ? "about " : ""}{clock(current.endTime)}</span>
+          </button>
+        )}
         {next && !(showLeave && next === flight) ? (
           <div className="mt-2 rounded-lg bg-[#f6f1e8] px-3 py-2">
             <p className="text-xs text-[#6b5d4a]">Next</p>
             <ul><ItemLine i={next} me={me} stays={data.stays} date={today} /></ul>
           </div>
-        ) : todays.length === 0 && todayChoices.length === 0 && !guidedToday ? (
+        ) : todays.length === 0 && todayChoices.length === 0 && plan.all.length === 0 && !guidedToday ? (
           <p className="text-sm text-[#6b5d4a] mt-2">Larisa's Guide has nothing set for today.</p>
         ) : null}
         {checkouts.length > 0 && !next && <ul className="mt-1">{checkouts.map((i) => <ItemLine key={i.id} i={i} me={me} stays={data.stays} date={today} day={todays} />)}</ul>}
@@ -366,7 +391,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
             </p>
           )
         )}
-        <button onClick={() => openDay(today)} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See all of today ›</button>
+        <button onClick={() => openDay(today)} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">{plan.all.length > 0 ? "See Larisa's full plan for today ›" : "See all of today ›"}</button>
       </div>
 
       {tomorrow <= last && (

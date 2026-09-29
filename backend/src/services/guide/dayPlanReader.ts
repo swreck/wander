@@ -97,7 +97,10 @@ export function dayPlanHash(text: string): string {
 /** A tab that might plan days: time blocks, or dates with activities, with enough text to be a plan */
 export function looksLikeDayPlan(text: string): boolean {
   const times = (text.match(/\b\d{1,2}(:\d{2})?\s*(AM|PM|a|p)\b/gi) || []).length;
-  return text.length > 200 && (times >= 3 || /\bday\s*\d+\b/i.test(text)) && !/cancellation policy|confirmation #|reservation id/i.test(text.slice(0, 400));
+  // A pasted booking email or confirmation is read for bookings, never as a day plan (the Four Seasons
+  // email was once mistaken for one, and its deadline and check-in went missing)
+  const email = /\b(dear\s|we are pleased|we look forward to welcoming|sincerely|best regards|kind regards|confirmation\s*#|reservation id|booking reference)\b/i.test(text);
+  return text.length > 200 && !email && (times >= 3 || /\bday\s*\d+\b/i.test(text));
 }
 
 // Words compared loosely: spacing, line breaks ("⏎"), dashes and quotes as she typed them may differ

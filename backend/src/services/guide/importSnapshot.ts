@@ -26,6 +26,7 @@ export interface ImportOptions {
   timeZone?: string;              // for a new trip, default Asia/Tokyo
   readPictures?: boolean;         // default true
   readDayPlans?: boolean;         // default true (her day-plan tabs; cached, so only changed tabs are read)
+  readText?: boolean;             // default true (her pasted emails/confirmations; cached the same way)
 }
 
 export interface ImportReport {
@@ -374,7 +375,10 @@ function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & {
         detail: [
           noReso ? "No reservation" : null,
           nameCell.text.split("\n").slice(1).map((l) => l.trim()).filter(Boolean).join(" · ") || null,
-          detailCell ? detailCell.text.split("\n").filter(Boolean).slice(0, 3).join(" · ") : null,
+          // Her next column is the place's address block, which can open with a building's name
+          // ("Château Restaurant Joël Robuchon · Reception Yasuda · Yebisu Garden Place…" for La Table,
+          // 1F) — labelled, so nobody reads it as the name of the restaurant booked
+          detailCell ? `Address: ${detailCell.text.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 3).join(" · ")}` : null,
         ].filter(Boolean).join("\n") || null,
         place: null, confirmation: null, sourceRef: `${tab.name}!${nameCell.a1}`, source: `${tab.name} (row ${r})`, city: null,
         link: linkCell?.link || linkCell?.text || null,
@@ -391,6 +395,16 @@ function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & {
     if (!(a.detail || "").includes(line)) a.detail = [a.detail, line].filter(Boolean).join("\n");
   }
   return out;
+}
+
+/**
+ * Which reader a tab gets. Her reservations tab ("Dinner Resos", now "Dining Resos") is read as
+ * reservations; a tab that plans days is read as a day plan; each tab by one reader only, so nothing
+ * shows twice and no fact from one tab lands on another's line.
+ */
+function isDayPlanTab(name: string, text: string): boolean {
+  if (/reso|reservation/i.test(name)) return false;
+  return looksLikeDayPlan(text);
 }
 
 // ── Validation ──────────────────────────────────────────────────
@@ -619,11 +633,15 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   const proseTabs = read.tabs
     .filter((t) => !structuredNames.has(t.name) && !/^actions$/i.test(t.name) && !/activities template/i.test(t.name))
     .map((t) => ({ tab: t, text: Array.from(rowsOf(t).entries()).sort((a, b) => a[0] - b[0]).map(([, cs]) => cs.sort((a, b) => a.c - b.c).map((c) => c.text).join(" | ")).join("\n") }))
-    .filter(({ text }) => isBookingProse(text));
+    // A day-plan tab is read as a day plan only: read for bookings too, the Shigaraki day's
+    // "lunch for 5, including Kimiko" landed on an 8 PM dinner listing — a false fact
+    .filter(({ tab, text }) => isBookingProse(text) && !isDayPlanTab(tab.name, text));
   await Promise.all(proseTabs.map(async ({ tab, text }) => {
     const hash = tabTextHash(text);
     let reading: TextReading | null = cachedText[hash] || null;
-    if (!reading && opts.readPictures !== false) {
+    // (its own switch: skipping pictures must never also skip her pasted bookings — the Robuchon
+    // deadlines vanished on a test re-read that way)
+    if (!reading && opts.readText !== false) {
       const r = await readGuideText(tab.name, text, tripDates).catch(() => ({ reading: null, failure: "Couldn't reach Claude." }));
       reading = r.reading;
       if (!reading) report.warnings.push(`Couldn't read the text on "${tab.name}" for bookings — it's still shown under From the Guide.`);
@@ -697,7 +715,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   const planTabs = read.tabs
     .filter((t) => t.name !== itin.tabName && !/^actions$/i.test(t.name) && !/activities template/i.test(t.name))
     .map((t) => ({ tab: t, text: Array.from(rowsOf(t).entries()).sort((a, b) => a[0] - b[0]).map(([, cs]) => cs.sort((a, b) => a.c - b.c).map((c) => c.text).join(" | ")).join("\n") }))
-    .filter(({ text }) => looksLikeDayPlan(text));
+    .filter(({ tab, text }) => isDayPlanTab(tab.name, text));
   await Promise.all(planTabs.map(async ({ tab, text }) => {
     const hash = dayPlanHash(text);
     let raw: DayPlanReading | null = cachedPlans[hash] || null;
@@ -713,12 +731,26 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     for (const p of reading.plans) {
       const day = p.date || p.matchedDate!;
       const matched = !p.date && p.matchedDate
-        ? `Wander matched this plan to ${new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })} — ${p.matchReason} (the tab doesn't give a date).`
+        ? `Wander matched this plan to ${new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}, since the tab doesn't give a date. ${(p.matchReason || "").trim().replace(/^./, (c) => c.toUpperCase()).replace(/([^.!?])$/, "$1.")}`
         : null;
       for (const b of p.blocks) {
-        // Already on the day from elsewhere (a dinner booking read from another tab): not twice
-        const words = norm(b.label).split(/[^a-z0-9]+/).filter((w) => w.length > 4 && !GENERIC_WORDS.has(w));
-        if (words.length && items.some((i) => i.date === day && i.kind !== "block" && words.filter((w) => norm(i.title).includes(w)).length >= Math.min(2, words.length))) continue;
+        // Every block stays: her plan is shown whole, in her order (a duplicate check dropped "~8:00 Breakfast /
+        // check out; leave luggage at Four Seasons" for looking like the check-out line). What it adds to the
+        // Itinerary's own line for the same thing: a time the line didn't have ("Une Immersion" → 7:00 PM),
+        // said to come from this tab.
+        // Only a meal's time onto the same meal: a looser match gave Shiraume's kaiseki dinner "5:00 PM"
+        // from "Taxi to Shiraume", and the day's title "Kyoto day 4 - Shigaraki" 9:15 — false times
+        const mealBlock = b.kind === "meal" || /\b(dinner|lunch|brunch|breakfast|reservation)\b/i.test(b.label);
+        if (b.start && mealBlock) {
+          for (const i of items) {
+            if (i.date !== day || i.time || i.kind !== "meal") continue;
+            const own = norm(i.title.split("\n")[0]).split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !GENERIC_WORDS.has(w));
+            if (!own.length || !own.every((w) => norm(b.label).includes(w))) continue;
+            i.time = b.start;
+            const line = `Time from the ${tab.name} tab.`;
+            if (!(i.detail || "").includes(line)) i.detail = [i.detail, line].filter(Boolean).join("\n");
+          }
+        }
         // Who it's for, when she names people of the group ("You + Julie" → Larisa & Julie; she writes "You")
         const whoNames = b.who ? b.who.split(/\s*(?:\+|&|,|\band\b)\s*/i).map((w) => w.trim()).filter(Boolean) : [];
         const party = whoNames.length && whoNames.every((w) => /^you$/i.test(w) || groupNames.has(w.toLowerCase()))
@@ -728,7 +760,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
           date: day, time: b.start, endTime: b.end, timeText: b.timeText,
           kind: "block", title: b.label, forWhom: party,
           detail: [
-            b.who && !party ? `For ${b.who}` : null,
+            b.who && !party ? (/^for\b/i.test(b.who) ? b.who[0].toUpperCase() + b.who.slice(1) : `For ${b.who}`) : null,
             b.approx ? "Times are Larisa's estimate." : null,
             ...b.choices.map((c) => `Choice: ${c.name}${c.note ? ` — ${c.note}` : ""}`),
             b.notes,
@@ -746,7 +778,15 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   // every day of that stop (the heading doesn't say which day), shown under the day's title.
   const sections = new Map<string, { note: string; from: string; to: string; source: string; sourceRef: string; city: string }>();
   for (const s of itin.stays) {
-    const note = (s.sectionTitle.match(/\(([^)]+)\)/) || [])[1]?.trim();
+    // Everything between her first "(" and last ")" — a stray bracket ("(tour Karatsu - coordinate pu
+    // for tour), day trip to Arita)") used to cut the note in half
+    const inner = (s.sectionTitle.match(/\((.*)\)/) || [])[1];
+    let depth = 0;
+    const note = inner === undefined ? undefined : Array.from(inner).filter((ch) => {
+      if (ch === "(") { depth++; return true; }
+      if (ch === ")") { if (depth === 0) return false; depth--; }
+      return true;
+    }).join("").replace(/\s{2,}/g, " ").trim();
     if (!note || /^day\s*\d/i.test(note) || !s.checkIn || !s.checkOut) continue;
     const lastNight = addDays(s.checkOut, -1);
     const had = sections.get(s.sectionTitle);

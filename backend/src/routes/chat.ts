@@ -1223,7 +1223,14 @@ const WITHDRAWN_TOOLS = new Set([
   "set_trip_anchor",
 ]);
 
-const offeredTools = tools.filter((t) => !WITHDRAWN_TOOLS.has(t.name));
+// Scout searches and reads the web with Anthropic's own tools (they need no other key, so they work
+// wherever Scout does — the old search needed a Brave key that wasn't always set, and Scout said it
+// "couldn't pull a live forecast"). The old client-side web_search stays defined but isn't offered.
+const offeredTools: Anthropic.ToolUnion[] = [
+  ...tools.filter((t) => !WITHDRAWN_TOOLS.has(t.name) && t.name !== "web_search"),
+  { type: "web_search_20260209", name: "web_search", max_uses: 5 },
+  { type: "web_fetch_20260209", name: "web_fetch", max_uses: 3 },
+];
 
 // Scout can't unlock anyone's vault (it only has the signed-in session), so vault-protected
 // document details never pass through it — same types the vault protects on screen
@@ -1264,6 +1271,26 @@ export async function guideItemRefusal(toolName: string, input: any): Promise<st
     default:
       return null;
   }
+}
+
+/**
+ * Takes a "Message for Larisa: …" line off a reply nobody asked a message for. Asked means the question
+ * itself wants her told ("text Larisa…", "draft a note", "let her know"), or it says yes to Scout's own
+ * offer on the previous turn ("Want me to draft a note to Larisa?" → "yes"). Never for Larisa herself.
+ */
+export function withoutUnaskedDraft(reply: string, message: string, history: unknown, asker?: string | null): string {
+  if (!/Message for Larisa:/i.test(reply)) return reply;
+  const q = String(message || "");
+  const asked = /\b(message|text|tell|ask|email|note to|let)\b[^.?!]{0,40}\blarisa\b/i.test(q)
+    || /\blarisa\b[^.?!]{0,40}\b(know|message|text|told)\b/i.test(q)
+    || /\b(draft|write)\b[^.?!]{0,30}\b(note|message|text)\b/i.test(q);
+  const last = Array.isArray(history) ? [...history].reverse().find((h: any) => h?.role === "assistant") : null;
+  const offered = !!last && /draft|message|note/i.test(String((last as any).content || "")) && /larisa/i.test(String((last as any).content || ""));
+  const saidYes = /^\s*(yes|yeah|yep|sure|ok(ay)?|please|do it|go ahead|sounds good)\b/i.test(q);
+  if (/^larisa$/i.test(String(asker || "").trim()) || !(asked || (offered && saidYes))) {
+    return reply.replace(/\n*\s*\**Message for Larisa:\**[\s\S]*$/i, "").trimEnd();
+  }
+  return reply;
 }
 
 export async function executeTool(
@@ -4131,7 +4158,14 @@ ANSWERING FROM THE GUIDE (most important):
 - Where the Guide lists two options or marks something as a maybe or TBD, say both and that it's still open. Never offer to settle it, save it, or pick one.
 - Deadlines: say what must be done, by when (weekday + date + time if given), and how, from the Guide's own text. Whether a deadline has passed, is open now, or hasn't opened yet is in DEADLINES — STATUS RIGHT NOW below: use that, exactly. For cancelling, charges or reconfirming, never read a policy ("7–4 days before: 60%") and work out today's charge yourself — the status lines already did; if one says PASSED, the free window is over. The dates in the DAY BY DAY lines (and "can be done any day from … through …") are already worked out too — never recompute them.
 - "When is… / what time is…": give the time exactly as the Guide has it, for the person asking, and say when it's only her estimate ("The end time is Larisa's estimate" → "about 3 PM"). When the Guide has no time, say so first and plainly ("Larisa's Guide doesn't give a time for it"); anything you add from general knowledge is labelled as yours, never as the plan. When their phone isn't on Japan's clock, give their own time too.
-- Detailed day plans: some days have both the Itinerary tab's overview line and blocks of Larisa's DETAILED PLAN from a day tab ("Kyoto Mon, 1026…", "Tokyo Day 2…"). For what happens when, where lunch is, when to leave, how to get there, answer from the detailed plan, with its times as she wrote them ("~8:30–9:15", "Morning") and her place names, and name the tab. Keep her order. A block "For Larisa & Julie" or "For Ken & Andy" is only for them — answer for the person asking (the group can split up). Choices in a block ("Choice: …") are all hers — list them; never pick one. When the overview and a day tab disagree (a time, a place, what the day is), say both with their tabs; never silently pick. When a day tab says a plan was matched to the date by Wander, say that it was.
+- Detailed day plans: some days have both the Itinerary tab's overview line and blocks of Larisa's DETAILED PLAN from a day tab ("Kyoto Mon, 1026…", "Tokyo Day 2…"). For what happens when, where lunch is, when to leave, how to get there, answer from the detailed plan, with its times as she wrote them ("~8:30–9:15", "Morning") and her place names, and name the tab. Keep her order. A block "For Larisa & Julie" or "For Ken & Andy" is only for them — answer for the person asking (the group can split up). While the group is split (after her "Split groups" line, until everyone is back together), a line with no "For" doesn't say whose it is — say that ("the next line, Maruni Toryo 10:35–11:35, doesn't say which group"), never assign it.
+- Relaying her plan: a line's time is when that line happens, at that place ("Evening Prep at the Imperial Hotel, 5:15–6:15" is time AT the hotel, resting and dressing) — never turn it into a time to leave, and when she gives no leaving time, say when the next line starts. Her transit notes name lines and stations exactly ("from Hibiya Station, take the Chiyoda Line (Green) to Meiji-jingumae") — copy them word for word, never shorten them into arrows or swap a station's name for a line's (Hibiya Station is not the Hibiya Line). A wrong train is worse than a long sentence.
+- Name a booked place by its booking — the line's title or her booking email/screenshot ("La Table de Joël Robuchon, 1F") — never by a name that appears only in its "Address:" line (that line can open with the building's name, "Château Restaurant Joël Robuchon", a different restaurant in the same building).
+- When two tabs disagree, never tell them which one "to go by", which is "the one that counts", or which "wins" — even when one looks more detailed. Say what each tab says; the tie-break is Larisa's.
+- When something has gone wrong (a missed train, a closed place, running late), lead with what they need to do now. Never reassure them with the other side of a conflict ("the Itinerary's 1:30 Haruka means you're still on plan"): a reserved seat, a booking or a meeting is tied to the one they missed.
+- Where someone is at a moment: only what the plan says for that time, said as the plan ("the plan has them at…"). Before saying anyone is traveling, work out their flight in the right zones (a noon California departure on Oct 13 is 4 AM Oct 14 in Japan — on Oct 13 in Japan they haven't left home). Choices in a block ("Choice: …") are all hers — list them; never pick one yourself. When the group has picked one, it appears as an ADDED IN WANDER line ("Lunch: Honke Owariya") — say it's the group's pick, added in Wander, and still name her other choices if asked. When the overview and a day tab disagree (a time, a place, what the day is), say both with their tabs; never silently pick. And never reconcile them yourself: no "either way…", "both put you…", "so it's around…" — each version's consequences differ (a 1:30 train doesn't reach the airport at 2:00), and a detail that only one tab states (a van at noon) belongs to that tab alone. Say what each tab says, then stop, or say which one to confirm with Larisa.
+- When the Guide is silent on something a traveler needs now — opening hours, whether a place is open today, how to get from A to B, today's weather, what a station exit is — look it up with web_search (and web_fetch to read the place's own page), and say where it came from ("the restaurant's site says…", "per Japan Guide…"). What you find online is never the plan; the Guide is. Never present a search result as certain when sources disagree.
+- Never add what her sheet doesn't state — not a unit (her forecast numbers have no °F/°C in the sheet), not a reason, not a consequence. If you add general knowledge, label it as yours in the same sentence. When a day tab says a plan was matched to the date by Wander, say that it was.
 - Flight times always say whose clock: "6:35 PM Japan time", "12:00 PM California time".
 - A check-in time is when the room is ready, not when they arrive: when a party lands after it, say "rooms are ready from 2:00 PM; they'll check in after landing at 3:00 PM" — never "land at 3:00 and check in at 2:00".
 - Where the Guide lists two places for a night, nothing that depends on it leads with one hotel's details — lead with the open question, then each hotel's own time and code.
@@ -4141,11 +4175,11 @@ ANSWERING FROM THE GUIDE (most important):
 - Same-day plans: the text is the plan itself ("Akihabara, Ken & Andy") — never repeat the time in it when you pass a time.
 
 HOW WANDER WORKS (for "how do I…" questions — describe these real screens only):
-- Home: today's plan from the Guide at the top (what's next, tonight's hotel, tomorrow, deadlines coming up), then the trip calendar. Tap any day to open that day.
-- A day: everything the Guide says for that date in time order, where everyone sleeps that night, and where each line came from. The arrows at the top move to the day before or after.
+- Home: today's plan from the Guide at the top (where Larisa's day plan has you now — "Now, in Larisa's plan" — what's next, tonight's hotel, tomorrow, deadlines coming up), then the trip calendar. Tap any day to open that day.
+- A day: everything the Guide says for that date in time order, where everyone sleeps that night, and where each line came from. The arrows at the top move to the day before or after. On days Larisa wrote a day tab for, "Larisa's plan for the day" follows: her lines in her order with her times, who each is for when the group splits, "Larisa's notes ›" and Maps. Where she lists choices for one time, each has "We're going here"; the pick shows "✓ The group's pick" for everyone (added in Wander — her sheet is unchanged), and the others offer "Switch to this".
 - A day also has "+ Add a plan for this day": a same-day plan anyone can add ("Ken and Andy: Musée Tomo this afternoon"). It shows on that day for everyone, labelled as added in Wander. It never changes the Guide.
 - Ideas (bottom bar): the ideas from the Activities tab of Larisa's Guide, city by city (opens on today's city), with who marked each one. On each idea: "+ Note" (for everyone, or "Just for me"), "Add to a day", Maps, and Ask Scout. Notes and plans typed with no signal are saved on the phone and sent later.
-- Now (bottom bar): today, with what's next at the top and how long until it (on a flight day, when to leave for the airport — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
+- Now (bottom bar): today, with where Larisa's day plan has you right now, what's next and how long until it (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
 - Actions (bottom bar): the to-dos from the Actions tab of Larisa's Guide.
 - Scout: that's you — the chat bubble.
 - Settings → People on this trip: who's in; for the trip's planners, "+ Add someone" (name + trip → a QR code or a message) and "New phone? New link". Face ID is set up from Home or Settings. On an iPhone, Wander goes on the Home Screen from Safari: Share → Add to Home Screen.
@@ -4205,7 +4239,7 @@ RULES:
 44. Use review_approval when a planner says "approve that", "looks good", "reject that change", or similar. Pass the approvalId, the decision ("approved" or "rejected"), and optionally a note.
 45. Letting people in: the trip's planners do it from Wander's People screen (Settings → People on this trip). "+ Add someone": type the name, pick the trip, and Wander shows a QR code for that person's iPhone camera (or "Send as a message"); their phone then shows how to put Wander on the Home Screen. Someone already in Wander from another trip just gets this trip too. For a new phone: "New phone? New link" next to their name. You can't make or show links in chat — say so plainly and point there. If the asker isn't a planner, say Ken or Larisa can do it. Don't guess anyone's pronouns — use their name.
 46d. Showing things: you can move Wander's screen with show_in_wander (it changes nothing). When someone asks to see, open, show or be taken to something — "show me our first day in Kyoto", "the day Andy and Julie arrive", "open tomorrow", "Tokyo ideas", "show me the deadlines" (that's Actions), "who's on the trip" (People) — work out the exact date or city from the Guide, call it with go=true, and reply in one short line that says what they're looking at ("Here's Wed, Oct 14 — Julie & Andy land at Narita at 3:00 PM."). Your panel steps down to a small bar while they look, so they can ask a follow-up; always pass a headline — the answer itself in a few words for that bar ("Oct 29 · still open: Shiraume or Four Seasons"). When you're talking about one line of that day (the Backroads meeting, a dinner), pass item with a few of its words so the screen scrolls to it. "Ideas I marked" / "Julie's ideas" → pass markedBy with that person's name (the asker's own name for "I"). "Take me back" / "go back" → target "back". When your answer is about one specific day, also call it with go=false so a button appears. If what they asked for doesn't exist in the plan (a city with no stay, a date outside the trip), say so in words first ("The trip ends Thu, Oct 29 — Nov 3 isn't part of it.") and offer the nearest real day as a button — never invent one, and never answer with only "tap below". Phrases like "been to by now" mean what the plan says up to today; say that you know the plan, not what they actually did. Everything you write before and after a tool call is shown together as one answer — so after a tool call, don't repeat yourself; add only what's new, or nothing.
-46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?") gets an answer, not a draft. Never do this when the asker is Larisa herself.
+46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?", "do we need to reconfirm anything?", "where does the tour start?", "are we going to X?") gets an answer, not a draft — at most offer in words ("Want me to draft a note to Larisa?"). Never do this when the asker is Larisa herself.
 46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to Musée Tomo this afternoon", "put the tea ceremony on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed — say both in one short line. Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Take back" under their own note in Ideas — someone else's note is theirs to take back.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
 52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
@@ -4274,6 +4308,11 @@ RULES:
         finalReply = finalReply ? `${finalReply}\n\n${textParts}` : textParts;
       }
 
+      // A long web search can pause the answer part-way; it's picked up where it stopped
+      if (response.stop_reason === "pause_turn") {
+        messages.push({ role: "assistant", content: response.content });
+        continue;
+      }
       // If no tool use, we're done
       if (response.stop_reason !== "tool_use") break;
 
@@ -4310,6 +4349,11 @@ RULES:
       messages.push({ role: "assistant", content: response.content });
       messages.push({ role: "user", content: toolResults });
     }
+
+    // A "Message for Larisa:" draft only when someone asked for one (rule 46c) — the prompt rule alone
+    // still let a plain "what time should we leave for the airport?" end in a draft, and the app turns
+    // that line into a Send button. Never for Larisa herself.
+    finalReply = withoutUnaskedDraft(finalReply, message, history, req.user?.displayName);
 
     // Persist conversation to DB
     if (tripId && req.user?.travelerId && finalReply) {

@@ -19,6 +19,31 @@ const TO_AIRPORT: Record<string, Record<string, number>> = {
 const AIRPORT_WORDS: Record<string, string> = { KIX: "Kansai", NRT: "Narita", HND: "Haneda", ITM: "Itami" };
 const clockOf = (m: number) => `${((Math.floor(m / 60) + 11) % 12) + 1}:${String(m % 60).padStart(2, "0")} ${m >= 720 ? "PM" : "AM"}`;
 
+const toMin = (t: string | null | undefined) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : NaN);
+
+/**
+ * Lines of her day plan nobody's name is on while the group is split (the same rule Home and Now use,
+ * lib/guideDisplay.ts ownerlessInSplit). A prompt rule alone once let Scout tell Julie "you're on the
+ * other track: … then Maruni Toryo" — so the context itself says WHOSE: NOT STATED.
+ */
+export function ownerlessInSplit<T extends { id: string; kind: string; time: string | null; endTime: string | null; forWhom: string | null }>(dayItems: T[]): Set<string> {
+  const blocks = dayItems.filter((b) => b.kind === "block");
+  const labeled = blocks.filter((b) => b.time && b.forWhom && !/^everyone$/i.test(b.forWhom));
+  const out = new Set<string>();
+  if (!labeled.length) return out;
+  const from = Math.min(...labeled.map((b) => toMin(b.time)));
+  const to = Math.max(...labeled.map((b) => Math.max(toMin(b.time), toMin(b.endTime) || 0)));
+  for (const b of blocks) if (!b.forWhom && b.time && toMin(b.time) >= from && toMin(b.time) < to) out.add(b.id);
+  return out;
+}
+
+const ZONE_WORDS: Record<string, string> = { "Asia/Tokyo": "Japan time", "America/Los_Angeles": "California time" };
+const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+/** "Tue, Oct 13, 12:00 PM California time" */
+function momentWords(at: Date, zone: string) {
+  return `${at.toLocaleString("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${ZONE_WORDS[zone] || zone}`;
+}
+
 /** The moment a local date and time happens in a time zone ("2026-10-09", 23:59, Tokyo → a Date) */
 function zonedMoment(date: string, minutes: number, zone: string): Date {
   const guess = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), 0, minutes));
@@ -118,6 +143,7 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
     out.push(`${weekday(k)} (${k}) — ${d.city.name}${d.dayType === "guided" ? ", with Backroads" : ""}`);
     // Mornings when two places from an open night both "check out": the time and code belong to one of them only
     const leavingHere = stays.filter((s) => ymd(s.checkOutDate) === k);
+    const noOwner = ownerlessInSplit(itemsByDate.get(k) || []);
     for (const i of itemsByDate.get(k) || []) {
       const openCheckout = i.kind === "checkout" && leavingHere.length > 1
         ? `[OPEN QUESTION: the night before, the Guide lists ${leavingHere.map((s) => s.name).join(" and ")}. This time/code is ${i.title.replace(/^Check out · /, "")}'s only; say "check out of whichever you're in" and give each hotel's own details]`
@@ -131,6 +157,7 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
         i.detail ? `— ${i.detail}` : null,
         i.place ? `at ${i.place}` : null,
         i.forWhom ? `For ${i.forWhom}` : null,
+        noOwner.has(i.id) ? "[WHOSE: NOT STATED — the group is split at this time and this line names no one. Never say or imply which group it belongs to, and never list it as part of anyone's track or plan; say her tab doesn't say whose it is]" : null,
         i.confirmation ? `Confirmation ${i.confirmation}` : null,
         openCheckout,
         i.kind === "weather" ? `[her forecast for every day ${i.windowStart || k} through ${k}]` : i.kind === "stop" ? `[Wander's screens call this "Larisa's note for the ${d.city.name} stay" — it's her heading for the whole stay, ${i.windowStart} through ${k}; it doesn't say which day. Her other notes (on hotel rows, in the Notes column) are separate notes — quote each exactly and never add to them]` : i.windowStart ? `[can be done any day from ${i.windowStart} through ${k}]` : null,
@@ -160,20 +187,61 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
     };
     for (const i of items.filter((x) => x.kind === "deadline" && x.date)) {
       const last = ymd(i.date);
-      const [h, m] = (i.time || "23:59").split(":").map(Number);
-      const end = zonedMoment(last, h * 60 + m, zone);
+      // Its own time: the time field, else a time in its words ("…free cancellation ends 3:00 PM Kyoto
+      // time"), as the screens read it — else the end of the day. (A bare end-of-day once told Scout
+      // the Four Seasons cutoff was 11:59 PM when her booking says 3:00 PM.)
+      const said = `${i.title} ${i.detail || ""}`.match(/\b(\d{1,2}):(\d{2})\s*(am|pm)\b/i) || `${i.title} ${i.detail || ""}`.match(/\b(\d{1,2})()\s*(am|pm)\b/i);
+      const saidMin = said ? ((Number(said[1]) % 12) + (/pm/i.test(said[3]) ? 12 : 0)) * 60 + Number(said[2] || 0) : null;
+      const timeMin = i.time ? Number(i.time.slice(0, 2)) * 60 + Number(i.time.slice(3, 5)) : saidMin;
+      const end = zonedMoment(last, timeMin ?? 23 * 60 + 59, zone);
       const start = i.windowStart ? zonedMoment(i.windowStart, 0, zone) : null;
       const status = opts.now > end
         ? "PASSED — it's over; say so gently"
         : start && opts.now < start
         ? `NOT OPEN YET — it can be done from ${i.windowStart} through ${last}`
-        : `OPEN NOW — last chance ${last} at ${i.time ? clockOf(Number(i.time.slice(0, 2)) * 60 + Number(i.time.slice(3, 5))) : "11:59 PM (the end of that day)"} ${zone === "Asia/Tokyo" ? "Japan time" : zone}${phoneWords(end)}`;
+        : timeMin !== null
+        ? `OPEN NOW — last chance ${last} at ${clockOf(timeMin)} ${zone === "Asia/Tokyo" ? "Japan time" : zone}${phoneWords(end)}`
+        : `OPEN NOW — last chance ${last}, by the end of that day ${zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`} — NO TIME IS GIVEN, so never state one${phoneWords(end)}`;
       lines.push(`  - ${i.title}${i.forWhom ? ` (For ${i.forWhom})` : ""}: ${status}`);
     }
     if (lines.length) {
       out.push("\nDEADLINES — STATUS RIGHT NOW (already worked out from the phone's clock; for anything about cancelling, charges or reconfirming, use ONLY these — never work out a policy's dates yourself):");
       out.push(...lines);
     }
+  }
+
+  // When each party is in the air, worked out here in both zones. A prompt rule alone once let Scout say
+  // Julie & Andy were "still in the air" at 8 PM Oct 13 Japan time — 4 AM in California, eight hours
+  // before their noon departure.
+  const tripZone = trip.timeZone || "Asia/Tokyo";
+  const windows: string[] = [];
+  for (const f of items) {
+    if (f.kind !== "flight" || /^Land at/i.test(f.title) || !f.time || !f.date) continue;
+    const departZone = f.timeZone || tripZone;
+    const departs = zonedMoment(ymd(f.date), toMin(f.time), departZone);
+    const land = (f.detail || "").match(/Lands at ([^\n]+?) \w{3}, (\w{3}) (\d{1,2}), (\d{1,2}):(\d{2}) (AM|PM) (California|Japan) time/i);
+    let lands: Date | null = null, landZone = tripZone, landPlace = "";
+    if (land) {
+      landZone = /california/i.test(land[7]) ? "America/Los_Angeles" : "Asia/Tokyo";
+      const mins = ((Number(land[4]) % 12) + (/pm/i.test(land[6]) ? 12 : 0)) * 60 + Number(land[5]);
+      const month = MONTHS[land[2].toLowerCase().slice(0, 3)];
+      lands = month ? zonedMoment(`${ymd(f.date).slice(0, 4)}-${String(month).padStart(2, "0")}-${land[3].padStart(2, "0")}`, mins, landZone) : null;
+      landPlace = land[1];
+    }
+    const other = departZone === "Asia/Tokyo" ? "America/Los_Angeles" : "Asia/Tokyo";
+    const who = f.forWhom || "(the Guide doesn't say who)";
+    const parts = [`- ${who} — ${f.title}: departs ${momentWords(departs, departZone)} (= ${momentWords(departs, other)})`];
+    if (lands) parts.push(`lands at ${landPlace} ${momentWords(lands, landZone)} (= ${momentWords(lands, landZone === "Asia/Tokyo" ? "America/Los_Angeles" : "Asia/Tokyo")})`);
+    parts.push(`IN THE AIR only between those two moments; before departure they are NOT traveling yet${lands ? "; after landing they are at the destination" : ""}`);
+    if (opts.now) {
+      const status = opts.now < departs ? "hasn't left yet" : lands && opts.now < lands ? "IN THE AIR" : lands ? "has landed" : "has departed";
+      parts.push(`at the moment of this question: ${status}`);
+    }
+    windows.push(parts.join("; "));
+  }
+  if (windows.length) {
+    out.push("\nTRAVEL WINDOWS (worked out from the Guide's flights in both zones — before saying anyone is traveling, in the air, or somewhere at a given moment, compare THAT moment with these):");
+    out.push(...windows);
   }
 
   // The leave-for-the-airport estimate Wander's screens show — one number everywhere

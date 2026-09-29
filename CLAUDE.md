@@ -79,6 +79,19 @@ code; they describe it in words. That semantic connection is easy to miss
 because it's not a dependency graph — it's meaning. Look anyway.
 === END RULE ===
 
+=== SCOUT ACCURACY RULE (PERMANENT — Ken, Sep 29 2026) ===
+To a traveler, one wrong answer about WHEN or WHERE something is happening outweighs many right
+ones. Scout never lies: it may honestly not know, but it never states a time, place, booking or fact
+it can't support. With Larisa's Guide (every tab) plus web search, Scout should be extremely
+competent at helping a confused traveler: the Guide's answer with its tab, the web when the Guide is
+silent (labelled as found online, not the plan), and plain words for what's unknown. Conflicts
+between tabs are shown, never silently resolved.
+
+Testing: exams are written from her text before building, never from Wander's output. Rerun them after
+any change to the reader, Scout's context or its prompt. Once Scout passes one, write a harder one.
+An honesty failure is a blocker.
+=== END RULE ===
+
 === REACT HOOKS SAFETY CHECK (PERMANENT) ===
 Before committing any change to a React component that has early returns
 (loading guards, null checks, conditional redirects):

@@ -26,6 +26,8 @@ Letting someone in (Ken and Larisa): **People on this trip → + Add someone**. 
     title: "A Day",
     body: `A day shows everything Larisa's Guide says for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, deadlines, and where everyone sleeps that night. Each line says where in the Guide it came from, and the bottom says when Wander last read the Guide.
 
+When Larisa wrote a detailed plan for the day, **Larisa's plan for the day** comes next, in her order and with her times. When the group splits up, each line says who it's for. Where she lists a few places for one time, tap **We're going here** on the one you choose. Everyone sees it as the group's pick, and her Guide stays as she wrote it.
+
 The arrows at the top move a day at a time. **‹ Back** goes back where you came from.
 
 **+ Add a plan for this day** puts your own plan on it — "Ken and Andy: Musée Tomo at 3." Everyone sees it, marked as added in Wander. **Tell Larisa** sends it to her as a message, already written.`,
@@ -33,7 +35,7 @@ The arrows at the top move a day at a time. **‹ Back** goes back where you cam
   {
     id: "travel-days",
     title: "Now",
-    body: `The **Now** tab is today, with what's next at the top and how long until it. Tap a place for directions in Maps. Quick Japanese phrases are there too.
+    body: `The **Now** tab is today: where Larisa's plan has you right now, what's next, and how long until it. Tap a place for directions in Maps. Quick Japanese phrases are there too.
 
 Before the trip, Now shows the first day. After it, the last.`,
   },
