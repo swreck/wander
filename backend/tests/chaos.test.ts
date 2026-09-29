@@ -53,6 +53,24 @@ async function getTokenWithTraveler(displayName: string, _tripId?: string): Prom
   return { token, travelerId: traveler.id };
 }
 
+// Helper: Alice with a traveler identity. Inviting, resending and adding people are planner-only,
+// and an access-code sign-in has no traveler identity, so it is never a planner. A trip created
+// with this token makes Alice its planner.
+async function plannerAliceToken(): Promise<string> {
+  return (await getTokenWithTraveler("Alice")).token;
+}
+
+const OPEN_LINK_OFF = "This trip no longer has an open invitation link. Ask Ken or Larisa to send you your own link from People in Wander.";
+
+// Helper: every invite in a members list is free of link codes
+function expectNoLinkCodes(membersBody: any) {
+  expect(membersBody.inviteToken).toBeUndefined();
+  for (const inv of membersBody.invites) {
+    expect(inv.inviteToken).toBeUndefined();
+    expect(Object.keys(inv).sort()).toEqual(["claimed", "claimedAt", "expectedName", "id"]);
+  }
+}
+
 // Helper: create a trip and return its ID
 async function createTrip(
   token: string,
@@ -4771,8 +4789,8 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
       expect(trip?.inviteToken).toBeTruthy();
     });
 
-    it("S166: POST /trips/:id/invite creates TripInvite records and returns link", async () => {
-      const token = await login("CHAOS1");
+    it("S166: POST /trips/:id/invite creates TripInvite records and returns personal links", async () => {
+      const token = await plannerAliceToken();
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
@@ -4784,20 +4802,35 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
         .set("Authorization", `Bearer ${token}`)
         .send({ names: ["Charlie", "Dana"] });
       expect(inviteRes.status).toBe(200);
-      expect(inviteRes.body.inviteLink).toContain("/join/");
       expect(inviteRes.body.created).toContain("Charlie");
       expect(inviteRes.body.created).toContain("Dana");
+      // Each person gets their own link
+      const charlie = inviteRes.body.personalLinks.find((p: any) => p.name === "Charlie");
+      expect(charlie.link).toContain(`/join/${charlie.token}`);
+      const invites = await prisma.tripInvite.findMany({ where: { tripId } });
+      expect(invites.map((i) => i.expectedName).sort()).toEqual(["Charlie", "Dana"]);
+
+      // A traveler on the trip (not a planner) can't invite anyone
+      const charlieJoin = await request(app).post(`/api/auth/join/${charlie.token}`).send({});
+      expect(charlieJoin.status).toBe(200);
+      const charlieToken = charlieJoin.body.token;
+      const nope = await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${charlieToken}`)
+        .send({ names: ["CharliesCousin"] });
+      expect(nope.status).toBe(403);
+      expect(await prisma.tripInvite.count({ where: { tripId } })).toBe(2);
     });
 
-    it("S167: GET /join/:token returns trip info with expected names", async () => {
-      const token = await login("CHAOS1");
+    it("S167: A stranger with the trip-wide link sees nothing; a personal link shows the trip", async () => {
+      const token = await plannerAliceToken();
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
         .send({ name: "S167 Trip", startDate: "2028-03-01", endDate: "2028-03-10" });
       const tripId = tripRes.body.id;
 
-      await request(app)
+      const inviteRes = await request(app)
         .post(`/api/trips/${tripId}/invite`)
         .set("Authorization", `Bearer ${token}`)
         .send({ names: ["Eve", "Frank"] });
@@ -4805,46 +4838,62 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
       const trip = await prisma.trip.findUnique({ where: { id: tripId } });
 
       const joinInfo = await request(app).get(`/api/auth/join/${trip!.inviteToken}`);
-      expect(joinInfo.status).toBe(200);
-      expect(joinInfo.body.tripName).toBe("S167 Trip");
-      expect(joinInfo.body.expectedNames).toContain("Eve");
-      expect(joinInfo.body.expectedNames).toContain("Frank");
+      expect(joinInfo.status).toBe(410);
+      expect(joinInfo.body.error).toBe(OPEN_LINK_OFF);
+      expect(joinInfo.body.tripName).toBeUndefined();
+      expect(joinInfo.body.expectedNames).toBeUndefined();
+      expect(JSON.stringify(joinInfo.body)).not.toContain("Eve");
+
+      const eve = inviteRes.body.personalLinks.find((p: any) => p.name === "Eve");
+      const eveInfo = await request(app).get(`/api/auth/join/${eve.token}`);
+      expect(eveInfo.status).toBe(200);
+      expect(eveInfo.body.tripName).toBe("S167 Trip");
+      expect(eveInfo.body.personalInvite).toBe(true);
+      expect(eveInfo.body.expectedName).toBe("Eve");
     });
 
-    it("S168: POST /join/:token creates traveler and membership (expected name)", async () => {
-      const token = await login("CHAOS1");
+    it("S168: Grace's personal link creates her traveler and membership; the trip-wide link doesn't", async () => {
+      const token = await plannerAliceToken();
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
         .send({ name: "S168 Trip", startDate: "2028-04-01", endDate: "2028-04-10" });
       const tripId = tripRes.body.id;
 
-      await request(app)
+      const inviteRes = await request(app)
         .post(`/api/trips/${tripId}/invite`)
         .set("Authorization", `Bearer ${token}`)
         .send({ names: ["Grace"] });
 
       const trip = await prisma.trip.findUnique({ where: { id: tripId } });
 
-      const joinRes = await request(app)
+      // Typing her name into the trip-wide link gets nowhere
+      const openRes = await request(app)
         .post(`/api/auth/join/${trip!.inviteToken}`)
         .send({ name: "Grace" });
+      expect(openRes.status).toBe(410);
+      expect(openRes.body.token).toBeUndefined();
+      expect(await prisma.tripMember.findFirst({ where: { tripId, traveler: { displayName: "Grace" } } })).toBeNull();
+
+      // Her own link signs her in
+      const grace = inviteRes.body.personalLinks.find((p: any) => p.name === "Grace");
+      const joinRes = await request(app).post(`/api/auth/join/${grace.token}`).send({});
       expect(joinRes.status).toBe(200);
       expect(joinRes.body.displayName).toBe("Grace");
       expect(joinRes.body.matched).toBe(true);
       expect(joinRes.body.token).toBeTruthy();
+      expect(joinRes.body.tripId).toBe(tripId);
 
-      // Verify membership created
       const membership = await prisma.tripMember.findFirst({
-        where: { tripId },
-        include: { traveler: true },
+        where: { tripId, traveler: { displayName: "Grace" } },
       });
-      // At least one member (could be Alice or Grace)
-      expect(membership).toBeTruthy();
+      expect(membership?.role).toBe("traveler");
+      const invite = await prisma.tripInvite.findFirst({ where: { tripId, expectedName: "Grace" } });
+      expect(invite?.claimedByTravelerId).toBe(membership?.travelerId);
     });
 
-    it("S169: POST /join/:token with unexpected name flags unexpected", async () => {
-      const token = await login("CHAOS1");
+    it("S169: A stranger's name on the trip-wide link is turned away", async () => {
+      const token = await plannerAliceToken();
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
@@ -4861,53 +4910,61 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
       const joinRes = await request(app)
         .post(`/api/auth/join/${trip!.inviteToken}`)
         .send({ name: "Stranger" });
-      expect(joinRes.status).toBe(200);
-      expect(joinRes.body.unexpected).toBe(true);
-      expect(joinRes.body.matched).toBe(false);
+      expect(joinRes.status).toBe(410);
+      expect(joinRes.body.error).toBe(OPEN_LINK_OFF);
+      expect(joinRes.body.token).toBeUndefined();
+      expect(await prisma.tripMember.findFirst({ where: { tripId, traveler: { displayName: "Stranger" } } })).toBeNull();
     });
 
-    it("S170: POST /join/:token twice returns alreadyMember", async () => {
-      const token = await login("CHAOS1");
+    it("S170: Opening a personal link twice signs the same person in again (alreadyMember)", async () => {
+      const token = await plannerAliceToken();
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
         .send({ name: "S170 Trip", startDate: "2028-06-01", endDate: "2028-06-10" });
       const tripId = tripRes.body.id;
 
-      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+      const inviteRes = await request(app)
+        .post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ names: ["Ivan"] });
+      const ivan = inviteRes.body.personalLinks.find((p: any) => p.name === "Ivan");
 
       // First join
-      await request(app)
-        .post(`/api/auth/join/${trip!.inviteToken}`)
-        .send({ name: "Ivan" });
+      const first = await request(app).post(`/api/auth/join/${ivan.token}`).send({});
+      expect(first.status).toBe(200);
 
-      // Second join — same name
-      const joinRes = await request(app)
-        .post(`/api/auth/join/${trip!.inviteToken}`)
-        .send({ name: "Ivan" });
+      // Second join — same link
+      const joinRes = await request(app).post(`/api/auth/join/${ivan.token}`).send({});
       expect(joinRes.status).toBe(200);
       expect(joinRes.body.alreadyMember).toBe(true);
+      expect(joinRes.body.displayName).toBe("Ivan");
+      expect(await prisma.tripMember.count({ where: { tripId, traveler: { displayName: "Ivan" } } })).toBe(1);
     });
 
-    it("S171: GET /trips/:id/members returns members and invites", async () => {
-      const token = await login("CHAOS1");
+    it("S171: GET /trips/:id/members returns members and invites, never link codes", async () => {
+      const token = await plannerAliceToken();
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
         .send({ name: "S171 Trip", startDate: "2028-07-01", endDate: "2028-07-10" });
       const tripId = tripRes.body.id;
 
-      await request(app)
+      const inviteRes = await request(app)
         .post(`/api/trips/${tripId}/invite`)
         .set("Authorization", `Bearer ${token}`)
         .send({ names: ["Jade"] });
+      const jadeToken = inviteRes.body.personalLinks.find((p: any) => p.name === "Jade").token;
 
       const membersRes = await request(app)
         .get(`/api/trips/${tripId}/members`)
         .set("Authorization", `Bearer ${token}`);
       expect(membersRes.status).toBe(200);
-      expect(membersRes.body.members.length).toBeGreaterThanOrEqual(0);
-      expect(membersRes.body.invites.some((i: any) => i.expectedName === "Jade")).toBe(true);
+      expect(membersRes.body.members.map((m: any) => [m.displayName, m.role])).toContainEqual(["Alice", "planner"]);
+      const jade = membersRes.body.invites.find((i: any) => i.expectedName === "Jade");
+      expect(jade).toMatchObject({ claimed: false, claimedAt: null });
+      expectNoLinkCodes(membersRes.body);
+      expect(JSON.stringify(membersRes.body)).not.toContain(jadeToken);
     });
 
     it("S172: Invalid invite token returns 404", async () => {
@@ -4920,31 +4977,43 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
       expect(res2.status).toBe(404);
     });
 
-    it("S173: Fuzzy name matching on join (case-insensitive)", async () => {
-      const token = await login("CHAOS1");
+    it("S173: A personal link matches an existing traveler regardless of letter case", async () => {
+      // With the trip-wide link gone, names are never typed at the door. The remaining
+      // case-insensitive match is between the invite's name and an existing traveler:
+      // Katherine already uses Wander, the planner types "katherine" — her link must sign
+      // in the Katherine who exists, not create a second one.
+      const existing = await prisma.traveler.create({ data: { displayName: "S173Katherine" } });
+      const token = await plannerAliceToken();
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
         .send({ name: "S173 Trip", startDate: "2028-08-01", endDate: "2028-08-10" });
       const tripId = tripRes.body.id;
 
-      await request(app)
+      const inviteRes = await request(app)
         .post(`/api/trips/${tripId}/invite`)
         .set("Authorization", `Bearer ${token}`)
-        .send({ names: ["Katherine"] });
+        .send({ names: ["s173katherine"] });
+      const link = inviteRes.body.personalLinks.find((p: any) => p.name === "s173katherine");
 
-      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
-
-      // Join with lowercase — should match
-      const joinRes = await request(app)
-        .post(`/api/auth/join/${trip!.inviteToken}`)
-        .send({ name: "katherine" });
+      const joinRes = await request(app).post(`/api/auth/join/${link.token}`).send({});
       expect(joinRes.status).toBe(200);
       expect(joinRes.body.matched).toBe(true);
+      expect(joinRes.body.displayName).toBe("S173Katherine");
+      const matches = await prisma.traveler.findMany({
+        where: { displayName: { equals: "s173katherine", mode: "insensitive" } },
+      });
+      expect(matches.map((t) => t.id)).toEqual([existing.id]);
+      expect(await prisma.tripMember.findFirst({ where: { tripId, travelerId: existing.id } })).toBeTruthy();
+
+      // The trip-wide link still turns a typed name away
+      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+      const open = await request(app).post(`/api/auth/join/${trip!.inviteToken}`).send({ name: "katherine" });
+      expect(open.status).toBe(410);
     });
 
     it("S174: Duplicate invite names are skipped", async () => {
-      const token = await login("CHAOS1");
+      const token = await plannerAliceToken();
       const tripRes = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${token}`)
@@ -5927,29 +5996,31 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
     // then Charlie needs a resend.
 
     it("S241: Full invite lifecycle — create invite, peek info, join, see trip", async () => {
-      const tripId = await createTrip(aliceToken, "S241 Invite Flow", "2026-12-25", "2027-01-01");
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S241 Invite Flow", "2026-12-25", "2027-01-01");
 
-      // Alice adds Charlie as expected member
+      // Alice (planner) adds Charlie as expected member — the link comes back to her once, to send
       const addRes = await request(app)
         .post(`/api/trips/${tripId}/add-members`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["Charlie"] });
       expect(addRes.status).toBe(200);
+      const charlieLink = addRes.body.created.find((c: any) => c.name === "Charlie");
+      expect(charlieLink.token).toBeTruthy();
 
-      // Check members — Charlie should be pending
+      // Check members — Charlie should be pending, and the list shows no link codes
       const members = await request(app)
         .get(`/api/trips/${tripId}/members`)
-        .set("Authorization", `Bearer ${aliceToken}`);
+        .set("Authorization", `Bearer ${planner}`);
       expect(members.status).toBe(200);
-      const pending = members.body.invites.filter((i: any) => !i.claimedAt);
-      expect(pending.length).toBeGreaterThanOrEqual(1);
+      const pending = members.body.invites.filter((i: any) => !i.claimed);
       const charlieInvite = pending.find((i: any) => i.expectedName === "Charlie");
       expect(charlieInvite).toBeDefined();
-      expect(charlieInvite.inviteToken).toBeTruthy();
+      expectNoLinkCodes(members.body);
 
       // Charlie peeks at the invite link (public endpoint)
       const peek = await request(app)
-        .get(`/api/auth/join/${charlieInvite.inviteToken}`);
+        .get(`/api/auth/join/${charlieLink.token}`);
       expect(peek.status).toBe(200);
       expect(peek.body.tripName).toBe("S241 Invite Flow");
       expect(peek.body.personalInvite).toBe(true);
@@ -5957,7 +6028,7 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
 
       // Charlie claims the invite
       const join = await request(app)
-        .post(`/api/auth/join/${charlieInvite.inviteToken}`);
+        .post(`/api/auth/join/${charlieLink.token}`);
       expect(join.status).toBe(200);
       expect(join.body.token).toBeTruthy();
       expect(join.body.displayName).toBe("Charlie");
@@ -5969,119 +6040,128 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
         .get(`/api/trips/${tripId}`)
         .set("Authorization", `Bearer ${charlieToken}`);
       expect(tripData.status).toBe(200);
+
+      // …and shows as joined
+      const after = await request(app)
+        .get(`/api/trips/${tripId}/members`)
+        .set("Authorization", `Bearer ${planner}`);
+      expect(after.body.invites.find((i: any) => i.expectedName === "Charlie").claimed).toBe(true);
     });
 
-    it("S242: Resend invite generates a new working token", async () => {
-      const tripId = await createTrip(aliceToken, "S242 Resend", "2026-12-01", "2026-12-05");
+    it("S242: Resend invite generates a new working token and retires the old one", async () => {
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S242 Resend", "2026-12-01", "2026-12-05");
 
-      await request(app)
+      const addRes = await request(app)
         .post(`/api/trips/${tripId}/add-members`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["DanaResend"] });
+      const originalToken = addRes.body.created.find((c: any) => c.name === "DanaResend").token;
 
-      // Get original invite token
       const members1 = await request(app)
         .get(`/api/trips/${tripId}/members`)
-        .set("Authorization", `Bearer ${aliceToken}`);
+        .set("Authorization", `Bearer ${planner}`);
       const invite1 = members1.body.invites.find((i: any) => i.expectedName === "DanaResend");
-      const originalToken = invite1.inviteToken;
 
       // Resend
       const resend = await request(app)
         .post(`/api/trips/${tripId}/resend-invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ inviteId: invite1.id });
       expect(resend.status).toBe(200);
+      const newToken = resend.body.invite.inviteToken;
+      expect(newToken).toBeTruthy();
+      expect(newToken).not.toBe(originalToken);
+      expect(resend.body.personalLink).toContain(`/join/${newToken}`);
 
-      // Get new token
+      // The members list still shows no link codes after a resend
       const members2 = await request(app)
         .get(`/api/trips/${tripId}/members`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      const invite2 = members2.body.invites.find((i: any) => i.expectedName === "DanaResend");
-      const newToken = invite2.inviteToken;
+        .set("Authorization", `Bearer ${planner}`);
+      expectNoLinkCodes(members2.body);
 
-      // New token should work
+      // New token works and signs Dana in
       const peek = await request(app).get(`/api/auth/join/${newToken}`);
       expect(peek.status).toBe(200);
+      expect(peek.body.expectedName).toBe("DanaResend");
+      const join = await request(app).post(`/api/auth/join/${newToken}`).send({});
+      expect(join.status).toBe(200);
+      expect(join.body.displayName).toBe("DanaResend");
 
-      // Old token should no longer work (if it was replaced) — or still work if it wasn't
-      // Either way, no crash
+      // Old token no longer opens anything
       const oldPeek = await request(app).get(`/api/auth/join/${originalToken}`);
-      expect(oldPeek.status).toBeLessThan(500);
+      expect(oldPeek.status).toBe(404);
     });
 
-    it("S243: Join with a slightly misspelled name (fuzzy match)", async () => {
-      const tripId = await createTrip(aliceToken, "S243 Fuzzy", "2026-12-01", "2026-12-05");
-
-      // Create trip-level invite token
-      const inviteRes = await request(app)
-        .post(`/api/trips/${tripId}/invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ type: "trip" });
-      expect(inviteRes.status).toBe(200);
-      const tripInviteToken = inviteRes.body.inviteToken;
+    it("S243: A near-miss of an invited name on the trip-wide link gets nobody in", async () => {
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S243 Fuzzy", "2026-12-01", "2026-12-05");
+      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+      const tripInviteToken = trip!.inviteToken!;
 
       // Add expected name "Evangeline"
       await request(app)
         .post(`/api/trips/${tripId}/add-members`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["Evangeline"] });
 
-      // Join with slightly different spelling
+      // Someone types a close spelling into the trip-wide link
       const join = await request(app)
         .post(`/api/auth/join/${tripInviteToken}`)
-        .send({ name: "Evangelina" }); // close enough for fuzzy match
-      expect(join.status).toBe(200);
-      // Should match or at least not crash
-      expect(join.body.token).toBeTruthy();
+        .send({ name: "Evangelina" });
+      expect(join.status).toBe(410);
+      expect(join.body.error).toBe(OPEN_LINK_OFF);
+      expect(join.body.token).toBeUndefined();
+
+      // Evangeline's own invite is untouched
+      const invite = await prisma.tripInvite.findFirst({ where: { tripId, expectedName: "Evangeline" } });
+      expect(invite?.claimedByTravelerId).toBeNull();
+      expect(await prisma.tripMember.count({ where: { tripId } })).toBe(1); // just Alice
     });
 
-    it("S244: Someone joins with an unexpected name (not on the invite list)", async () => {
-      const tripId = await createTrip(aliceToken, "S244 Surprise", "2026-12-01", "2026-12-05");
+    it("S244: Someone not on the invite list can't join through the trip-wide link", async () => {
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S244 Surprise", "2026-12-01", "2026-12-05");
+      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+      const tripInviteToken = trip!.inviteToken!;
 
-      const inviteRes = await request(app)
-        .post(`/api/trips/${tripId}/invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
-        .send({ type: "trip" });
-      const tripInviteToken = inviteRes.body.inviteToken;
-
-      // Add expected name "Frank"
       await request(app)
         .post(`/api/trips/${tripId}/add-members`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["FrankInvited"] });
 
-      // Someone completely different joins
+      // Someone completely different tries the trip-wide link
+      const peek = await request(app).get(`/api/auth/join/${tripInviteToken}`);
+      expect(peek.status).toBe(410);
       const join = await request(app)
         .post(`/api/auth/join/${tripInviteToken}`)
         .send({ name: "RandomStranger" });
-      expect(join.status).toBe(200);
-      // Should work but flag as unexpected
-      expect(join.body.unexpected).toBe(true);
+      expect(join.status).toBe(410);
+      expect(join.body.token).toBeUndefined();
+      expect(await prisma.tripMember.findFirst({ where: { tripId, traveler: { displayName: "RandomStranger" } } })).toBeNull();
     });
 
     it("S245: Claim the same personal invite twice (already joined)", async () => {
-      const tripId = await createTrip(aliceToken, "S245 Double Claim", "2026-12-01", "2026-12-05");
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S245 Double Claim", "2026-12-01", "2026-12-05");
 
-      await request(app)
+      const addRes = await request(app)
         .post(`/api/trips/${tripId}/add-members`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["DoubleClaimGrace"] });
-
-      const members = await request(app)
-        .get(`/api/trips/${tripId}/members`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      const invite = members.body.invites.find((i: any) => i.expectedName === "DoubleClaimGrace");
+      const link = addRes.body.created.find((c: any) => c.name === "DoubleClaimGrace");
 
       // First claim
-      const join1 = await request(app).post(`/api/auth/join/${invite.inviteToken}`);
+      const join1 = await request(app).post(`/api/auth/join/${link.token}`);
       expect(join1.status).toBe(200);
       expect(join1.body.token).toBeTruthy();
 
       // Second claim — should return existing token, not crash
-      const join2 = await request(app).post(`/api/auth/join/${invite.inviteToken}`);
+      const join2 = await request(app).post(`/api/auth/join/${link.token}`);
       expect(join2.status).toBe(200);
       expect(join2.body.alreadyMember).toBe(true);
+      expect(join2.body.displayName).toBe("DoubleClaimGrace");
+      expect(await prisma.tripMember.count({ where: { tripId, traveler: { displayName: "DoubleClaimGrace" } } })).toBe(1);
     });
 
     it("S246: Join with a completely bogus invite token", async () => {
@@ -6718,25 +6798,23 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
     });
 
     it("S270: Full journey — join trip, add documents, check readiness", async () => {
-      // Alice creates trip with cities
-      const tripId = await createTrip(aliceToken, "S270 Full Journey", "2026-12-25", "2027-01-01", [
+      // Alice (planner) creates trip with cities
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S270 Full Journey", "2026-12-25", "2027-01-01", [
         { name: "Ho Chi Minh City", country: "Vietnam" },
       ]);
 
-      // Add a member "FullJourney"
-      await request(app)
+      // Add a member "FullJourney" — Alice gets their personal link to send
+      const addRes = await request(app)
         .post(`/api/trips/${tripId}/add-members`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["FullJourneyTraveler"] });
-
-      // FullJourney claims the invite
-      const members = await request(app)
-        .get(`/api/trips/${tripId}/members`)
-        .set("Authorization", `Bearer ${aliceToken}`);
-      const invite = members.body.invites.find((i: any) => i.expectedName === "FullJourneyTraveler");
+      expect(addRes.status).toBe(200);
+      const invite = addRes.body.created.find((c: any) => c.name === "FullJourneyTraveler");
       expect(invite).toBeDefined();
 
-      const join = await request(app).post(`/api/auth/join/${invite.inviteToken}`);
+      // FullJourney opens their link
+      const join = await request(app).post(`/api/auth/join/${invite.token}`);
       expect(join.status).toBe(200);
       const fjToken = join.body.token;
 
@@ -6757,7 +6835,7 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
       // Alice can see FullJourney's non-private docs via shared endpoint
       const shared = await request(app)
         .get(`/api/traveler-documents/trip/${tripId}/shared`)
-        .set("Authorization", `Bearer ${aliceToken}`);
+        .set("Authorization", `Bearer ${planner}`);
       expect(shared.status).toBe(200);
       const fjDocs = shared.body.find((p: any) =>
         p.documents?.some((d: any) => d.data?.carrier === "Vietnam Airlines")
@@ -6769,7 +6847,7 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
       // This is expected: readiness tracks document completeness, not membership.
       const readiness = await request(app)
         .get(`/api/traveler-documents/trip/${tripId}/readiness`)
-        .set("Authorization", `Bearer ${aliceToken}`);
+        .set("Authorization", `Bearer ${planner}`);
       expect(readiness.status).toBe(200);
       expect(readiness.body.travelers.length).toBeGreaterThanOrEqual(1);
       expect(readiness.body.destinationCountries).toContain("Vietnam");
@@ -9991,30 +10069,38 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
     // ── Invite and membership flows ──────────────────────────────
 
     it("S435: Invite with empty names array creates nothing", async () => {
-      const tripId = await createTrip(aliceToken, "S435 Empty Invite", "2026-12-01", "2026-12-03");
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S435 Empty Invite", "2026-12-01", "2026-12-03");
       const res = await request(app).post(`/api/trips/${tripId}/invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: [] });
       expect(res.status).toBe(200);
       expect(res.body.created.length).toBe(0);
+      expect(await prisma.tripInvite.count({ where: { tripId } })).toBe(0);
     });
 
     it("S436: Invite same person twice — deduplicates", async () => {
-      const tripId = await createTrip(aliceToken, "S436 Dup Invite", "2026-12-01", "2026-12-03");
-      await request(app).post(`/api/trips/${tripId}/invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S436 Dup Invite", "2026-12-01", "2026-12-03");
+      const res1 = await request(app).post(`/api/trips/${tripId}/invite`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["Kyler"] });
+      expect(res1.status).toBe(200);
+      expect(res1.body.created).toEqual(["Kyler"]);
 
       const res2 = await request(app).post(`/api/trips/${tripId}/invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["Kyler"] });
+      expect(res2.status).toBe(200);
       expect(res2.body.created.length).toBe(0); // Already invited
+      expect(await prisma.tripInvite.count({ where: { tripId } })).toBe(1);
     });
 
     it("S437: Invite with whitespace-only name in array", async () => {
-      const tripId = await createTrip(aliceToken, "S437 WS Invite", "2026-12-01", "2026-12-03");
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S437 WS Invite", "2026-12-01", "2026-12-03");
       const res = await request(app).post(`/api/trips/${tripId}/invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["  ", "", "ValidPerson"] });
       expect(res.status).toBe(200);
       // Only ValidPerson should be created
@@ -10025,7 +10111,9 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
     it("S438: Get members of non-existent trip", async () => {
       const res = await request(app).get("/api/trips/fake-trip-id/members")
         .set("Authorization", `Bearer ${aliceToken}`);
-      expect(res.status).toBe(404);
+      // Only members see who's on a trip; an outsider can't tell whether a trip exists
+      expect(res.status).toBe(403);
+      expect(res.body.members).toBeUndefined();
     });
 
     it("S439: Change member role with invalid role string", async () => {
@@ -10526,38 +10614,54 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
     // ── Add-members endpoint ─────────────────────────────────────
 
     it("S464: Add members to trip — new invites created", async () => {
-      const tripId = await createTrip(aliceToken, "S464 Add Members", "2026-12-01", "2026-12-03");
+      const planner = await plannerAliceToken();
+      const tripId = await createTrip(planner, "S464 Add Members", "2026-12-01", "2026-12-03");
       const res = await request(app).post(`/api/trips/${tripId}/add-members`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["Julie", "Kyler"] });
       expect(res.status).toBe(200);
       expect(res.body.created.length).toBe(2);
+      // Each new link works
+      for (const c of res.body.created) {
+        const peek = await request(app).get(`/api/auth/join/${c.token}`);
+        expect(peek.status).toBe(200);
+        expect(peek.body.expectedName).toBe(c.name);
+      }
     });
 
-    it("S465: Add members to non-existent trip", async () => {
+    it("S465: Nobody can add members to a trip that doesn't exist", async () => {
+      // No one has a role on a trip that doesn't exist, so the planner check answers first (403, not 404)
+      const planner = await plannerAliceToken();
       const res = await request(app).post("/api/trips/fake-id/add-members")
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["Nobody"] });
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(403);
+      expect(res.body.created).toBeUndefined();
+      expect(await prisma.tripInvite.count({ where: { tripId: "fake-id" } })).toBe(0);
     });
 
     // ── Resend invite edge cases ─────────────────────────────────
 
     it("S466: Resend invite for wrong trip", async () => {
-      const t1 = await createTrip(aliceToken, "S466 Trip1", "2026-12-01", "2026-12-03");
-      const t2 = await createTrip(aliceToken, "S466 Trip2", "2026-12-10", "2026-12-12");
+      const planner = await plannerAliceToken();
+      const t1 = await createTrip(planner, "S466 Trip1", "2026-12-01", "2026-12-03");
+      const t2 = await createTrip(planner, "S466 Trip2", "2026-12-10", "2026-12-12");
 
       const invite = await request(app).post(`/api/trips/${t1}/invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ names: ["TestPerson"] });
+      expect(invite.status).toBe(200);
       const inviteId = invite.body.invites[0]?.id;
-      if (!inviteId) return; // skip if no invite ID in response
+      expect(inviteId).toBeTruthy();
+      const before = await prisma.tripInvite.findUnique({ where: { id: inviteId } });
 
-      // Try to resend via different trip
+      // Alice plans both trips, but the invite belongs to Trip1 — resending it via Trip2 fails
       const res = await request(app).post(`/api/trips/${t2}/resend-invite`)
-        .set("Authorization", `Bearer ${aliceToken}`)
+        .set("Authorization", `Bearer ${planner}`)
         .send({ inviteId });
       expect(res.status).toBe(404);
+      const after = await prisma.tripInvite.findUnique({ where: { id: inviteId } });
+      expect(after?.inviteToken).toBe(before?.inviteToken);
     });
 
     // ── Hidden cities: soft-delete behavior ──────────────────────

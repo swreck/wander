@@ -84,7 +84,7 @@ export default function SyncAlert() {
               : `Sync found ${conflictCount} conflict${conflictCount !== 1 ? "s" : ""}`
             }
           </p>
-          <p className="text-xs text-[#8a7a62] mt-0.5">
+          <p className="text-xs text-[#6b5d4a] mt-0.5">
             {alert.summary}
           </p>
           {conflictCount > 0 && (
@@ -95,14 +95,14 @@ export default function SyncAlert() {
                 </p>
               ))}
               {conflictCount > 3 && (
-                <p className="text-xs text-[#a89880]">and {conflictCount - 3} more</p>
+                <p className="text-xs text-[#6b5d4a]">and {conflictCount - 3} more</p>
               )}
             </div>
           )}
         </div>
         <button
           onClick={handleDismiss}
-          className="text-[#a89880] hover:text-[#6b5d4a] text-sm shrink-0"
+          className="text-[#6b5d4a] hover:text-[#6b5d4a] text-sm shrink-0"
         >
           ✕
         </button>

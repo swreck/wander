@@ -6,9 +6,10 @@
  * 2. GET /auth/join/:token reveals trip info
  * 3. POST /auth/join/:token claims invite, issues JWT
  * 4. Duplicate claim handling
- * 5. Trip-level (open) invite tokens
- * 6. Login event recording
- * 7. Traveler preferences endpoints
+ * 5. The trip-wide (open) link is switched off (Sep 28 2026 — Wander holds booking codes)
+ * 6. Only planners invite, resend or add people; the members list never shows link codes
+ * 7. Login event recording
+ * 8. Traveler preferences endpoints
  */
 
 import { describe, it, expect, afterAll } from "vitest";
@@ -19,7 +20,21 @@ process.env.ACCESS_CODES = "INVITE1:InvitePlanner,INVITE2:InviteTraveler";
 process.env.JWT_SECRET = "test-secret-invite";
 
 const { app } = await import("../src/index.js");
+const { signToken } = await import("../src/middleware/auth.js");
 const prisma = new PrismaClient();
+
+const OPEN_LINK_OFF = "This trip no longer has an open invitation link. Ask Ken or Larisa to send you your own link from People in Wander.";
+
+/**
+ * A token for a real traveler. Access-code sign-in carries no traveler identity, so it can
+ * never be a planner; planner-only actions need someone who is on the trip as a planner
+ * (creating a trip makes its creator one).
+ */
+async function tokenForTraveler(displayName: string): Promise<{ token: string; travelerId: string }> {
+  let traveler = await prisma.traveler.findFirst({ where: { displayName } });
+  if (!traveler) traveler = await prisma.traveler.create({ data: { displayName } });
+  return { token: signToken({ code: displayName, displayName, travelerId: traveler.id }), travelerId: traveler.id };
+}
 
 const TEST_TRIP_NAMES = [
   "Invite Test Trip",
@@ -28,8 +43,9 @@ const TEST_TRIP_NAMES = [
 ];
 
 let plannerToken: string;
+let avaToken: string; // a traveler (not a planner) on the trip
 let tripId: string;
-let tripInviteToken: string; // trip-level open invite
+let tripInviteToken: string; // trip-level open invite (switched off)
 let personalTokens: Record<string, string> = {}; // name → token
 
 afterAll(async () => {
@@ -41,7 +57,7 @@ afterAll(async () => {
   }
   // Clean up test travelers created via invite
   const testTravelers = await prisma.traveler.findMany({
-    where: { displayName: { in: ["Ava", "Brian", "Cintya", "NewPerson"] } },
+    where: { displayName: { in: ["Ava", "Brian", "Cintya", "NewPerson", "InvitePlanner"] } },
   });
   for (const t of testTravelers) {
     await prisma.traveler.delete({ where: { id: t.id } });
@@ -59,7 +75,8 @@ describe("Authentication", () => {
     expect(res.status).toBe(200);
     expect(res.body.token).toBeDefined();
     expect(res.body.displayName).toBe("InvitePlanner");
-    plannerToken = res.body.token;
+    // The planner acts with a traveler identity from here on (see tokenForTraveler).
+    plannerToken = (await tokenForTraveler("InvitePlanner")).token;
   });
 
   it("rejects invalid access code", async () => {
@@ -145,6 +162,13 @@ describe("Personal Invite Link", () => {
     expect(res.body.token).toBeDefined();
     expect(res.body.displayName).toBe("Ava");
     expect(res.body.tripId).toBe(tripId);
+    avaToken = res.body.token;
+
+    // She's on the trip as a traveler, not a planner
+    const member = await prisma.tripMember.findFirst({
+      where: { tripId, traveler: { displayName: "Ava" } },
+    });
+    expect(member?.role).toBe("traveler");
   });
 
   it("GET /join/:token shows already claimed after claim", async () => {
@@ -175,31 +199,51 @@ describe("Personal Invite Link", () => {
   });
 });
 
-// ─── Open (Trip-Level) Invite Flow ───────────────────────────
+// ─── Open (Trip-Level) Invite Flow — switched off ────────────
+// Anyone holding the trip-wide link could join under any name. Wander now holds booking
+// codes, so the trip-wide link is off and everyone gets their own link from People.
 
 describe("Trip-Level Open Invite", () => {
-  it("GET /join/:tripToken shows trip info", async () => {
+  it("GET /join/:tripToken says the open link is off and reveals nothing about the trip", async () => {
     const res = await request(app).get(`/api/auth/join/${tripInviteToken}`);
-    expect(res.status).toBe(200);
-    expect(res.body.tripName).toBe("Invite Test Trip");
-    expect(res.body.personalInvite).toBe(false);
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe(OPEN_LINK_OFF);
+    expect(res.body.tripName).toBeUndefined();
+    expect(res.body.tripId).toBeUndefined();
+    expect(res.body.currentMembers).toBeUndefined();
   });
 
-  it("POST /join/:tripToken with matching name claims invite", async () => {
+  it("POST /join/:tripToken with an invited person's name does not sign them in", async () => {
     const res = await request(app)
       .post(`/api/auth/join/${tripInviteToken}`)
       .send({ name: "Cintya" });
-    expect(res.status).toBe(200);
-    expect(res.body.displayName).toBe("Cintya");
-    expect(res.body.tripId).toBe(tripId);
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe(OPEN_LINK_OFF);
+    expect(res.body.token).toBeUndefined();
+
+    // Cintya's own invite is untouched, and she is not on the trip
+    const invite = await prisma.tripInvite.findFirst({ where: { tripId, expectedName: "Cintya" } });
+    expect(invite?.claimedByTravelerId).toBeNull();
+    const member = await prisma.tripMember.findFirst({ where: { tripId, traveler: { displayName: "Cintya" } } });
+    expect(member).toBeNull();
   });
 
-  it("POST /join/:tripToken with new name creates unexpected member", async () => {
+  it("POST /join/:tripToken with a stranger's name creates nobody", async () => {
     const res = await request(app)
       .post(`/api/auth/join/${tripInviteToken}`)
       .send({ name: "NewPerson" });
+    expect(res.status).toBe(410);
+    expect(res.body.token).toBeUndefined();
+    const stranger = await prisma.traveler.findFirst({ where: { displayName: "NewPerson" } });
+    expect(stranger).toBeNull();
+  });
+
+  it("Cintya's own personal link still signs her in", async () => {
+    const res = await request(app)
+      .post(`/api/auth/join/${personalTokens["Cintya"]}`)
+      .send({});
     expect(res.status).toBe(200);
-    expect(res.body.displayName).toBe("NewPerson");
+    expect(res.body.displayName).toBe("Cintya");
     expect(res.body.tripId).toBe(tripId);
   });
 });
@@ -223,29 +267,55 @@ describe("Invalid Invite Tokens", () => {
 // ─── Members List ────────────────────────────────────────────
 
 describe("Trip Members", () => {
-  it("lists all members and invites", async () => {
+  it("lists all members and invites, and never shows a link code", async () => {
     const res = await request(app)
       .get(`/api/trips/${tripId}/members`)
       .set("Authorization", `Bearer ${plannerToken}`);
     expect(res.status).toBe(200);
     expect(res.body.members).toBeDefined();
     expect(res.body.invites).toBeDefined();
-    // Planner + Ava + Brian + Cintya + NewPerson = at least 4 members
-    expect(res.body.members.length).toBeGreaterThanOrEqual(4);
+    // Planner + Ava + Brian + Cintya (each through a personal link)
+    const names = res.body.members.map((m: any) => m.displayName);
+    expect(names).toEqual(expect.arrayContaining(["InvitePlanner", "Ava", "Brian", "Cintya"]));
+    expect(res.body.members.find((m: any) => m.displayName === "InvitePlanner").role).toBe("planner");
+    expect(names).not.toContain("NewPerson");
+
+    // Each link code signs someone in, so none appear in the list
+    expect(res.body.inviteToken).toBeUndefined();
+    expect(res.body.invites.length).toBe(3);
+    for (const inv of res.body.invites) {
+      expect(Object.keys(inv).sort()).toEqual(["claimed", "claimedAt", "expectedName", "id"]);
+    }
+    expect(JSON.stringify(res.body)).not.toContain(personalTokens["Brian"]);
+    expect(res.body.invites.find((i: any) => i.expectedName === "Ava").claimed).toBe(true);
   });
 
-  it("resends invite (generates new token)", async () => {
-    // Find an invite to resend — get Ava's claimed invite
+  it("a traveler can't resend someone's invite", async () => {
     const membersRes = await request(app)
       .get(`/api/trips/${tripId}/members`)
       .set("Authorization", `Bearer ${plannerToken}`);
+    const brianInvite = membersRes.body.invites.find((i: any) => i.expectedName === "Brian");
 
-    const avaInvite = membersRes.body.invites.find(
-      (i: any) => i.expectedName === "Ava"
-    );
-    if (!avaInvite) return; // skip if no invite record
+    const res = await request(app)
+      .post(`/api/trips/${tripId}/resend-invite`)
+      .set("Authorization", `Bearer ${avaToken}`)
+      .send({ inviteId: brianInvite.id });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/^Only Ken or Larisa can invite people/);
+    expect(res.body.personalLink).toBeUndefined();
 
-    const oldToken = avaInvite.inviteToken;
+    // Brian's link is unchanged
+    const peek = await request(app).get(`/api/auth/join/${personalTokens["Brian"]}`);
+    expect(peek.status).toBe(200);
+  });
+
+  it("resending gives Ava a new working personal link and retires the old one", async () => {
+    const membersRes = await request(app)
+      .get(`/api/trips/${tripId}/members`)
+      .set("Authorization", `Bearer ${plannerToken}`);
+    const avaInvite = membersRes.body.invites.find((i: any) => i.expectedName === "Ava");
+    expect(avaInvite).toBeDefined();
+    const oldToken = personalTokens["Ava"];
 
     const res = await request(app)
       .post(`/api/trips/${tripId}/resend-invite`)
@@ -253,9 +323,23 @@ describe("Trip Members", () => {
       .send({ inviteId: avaInvite.id });
 
     expect(res.status).toBe(200);
-    expect(res.body.invite.inviteToken).toBeDefined();
-    // New token should differ from old
-    expect(res.body.invite.inviteToken).not.toBe(oldToken);
+    const newToken = res.body.invite.inviteToken;
+    expect(newToken).toBeTruthy();
+    expect(newToken).not.toBe(oldToken);
+    expect(res.body.personalLink).toContain(`/join/${newToken}`);
+
+    // The new link shows Ava's trip and signs her in as herself
+    const peek = await request(app).get(`/api/auth/join/${newToken}`);
+    expect(peek.status).toBe(200);
+    expect(peek.body.expectedName).toBe("Ava");
+    const join = await request(app).post(`/api/auth/join/${newToken}`).send({});
+    expect(join.status).toBe(200);
+    expect(join.body.displayName).toBe("Ava");
+    expect(join.body.tripId).toBe(tripId);
+
+    // The old link no longer opens anything
+    const oldPeek = await request(app).get(`/api/auth/join/${oldToken}`);
+    expect(oldPeek.status).toBe(404);
   });
 });
 
@@ -273,6 +357,25 @@ describe("Add Members Post-Creation", () => {
     expect(res.body.created.length).toBe(2);
     expect(res.body.created[0].link).toBeDefined();
     expect(res.body.created[0].token).toBeDefined();
+    expect(res.body.created[0].link).toContain(`/join/${res.body.created[0].token}`);
+
+    // Darryl's new personal link opens the trip for him
+    const darryl = res.body.created.find((c: any) => c.name === "Darryl");
+    const peek = await request(app).get(`/api/auth/join/${darryl.token}`);
+    expect(peek.status).toBe(200);
+    expect(peek.body.personalInvite).toBe(true);
+    expect(peek.body.expectedName).toBe("Darryl");
+  });
+
+  it("a traveler can't add people to the trip", async () => {
+    const res = await request(app)
+      .post(`/api/trips/${tripId}/add-members`)
+      .set("Authorization", `Bearer ${avaToken}`)
+      .send({ names: ["AvasFriend"] });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/^Only Ken or Larisa can invite people/);
+    const invite = await prisma.tripInvite.findFirst({ where: { tripId, expectedName: "AvasFriend" } });
+    expect(invite).toBeNull();
   });
 
   it("skips duplicate member names", async () => {

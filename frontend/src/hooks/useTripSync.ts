@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { changeWords } from "../lib/changeWords";
 
 interface SyncEvent {
   type: string;
@@ -64,7 +65,7 @@ export default function useTripSync(
           }
           if (data.type === "change" && data.userCode !== userCode) {
             setPendingChanges((n) => n + 1);
-            setLatestAction(`${data.displayName} ${data.description?.toLowerCase().slice(0, 60) || "made a change"}`);
+            setLatestAction(changeWords(data.displayName || "Someone", data.description, 70));
           }
         } catch {
           // Ignore malformed events

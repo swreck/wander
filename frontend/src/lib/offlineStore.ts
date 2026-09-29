@@ -87,6 +87,30 @@ export async function getQueueCount(): Promise<number> {
 }
 
 /**
+ * What's still waiting to send, for one kind of request ("/api/day-choices/<trip>") — so a plan or a
+ * note saved with no signal still shows as waiting after Wander is closed and opened again.
+ */
+export async function queuedBodies(urlPart: string, method = "POST"): Promise<Array<Record<string, unknown> & { _url: string; _at: number }>> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const all: QueuedRequest[] = await new Promise((resolve, reject) => {
+      const req = tx.objectStore(STORE_NAME).getAll();
+      req.onsuccess = () => resolve(req.result as QueuedRequest[]);
+      req.onerror = () => reject(req.error);
+    });
+    return all
+      .filter((q) => q.method === method && q.url.includes(urlPart) && q.body)
+      .map((q) => {
+        try { return { ...(JSON.parse(q.body as string) as Record<string, unknown>), _url: q.url, _at: q.timestamp }; } catch { return null; }
+      })
+      .filter((x): x is Record<string, unknown> & { _url: string; _at: number } => !!x);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Attempt to replay all queued requests (called on reconnect).
  */
 export async function replayQueue(): Promise<{ success: number; failed: number }> {

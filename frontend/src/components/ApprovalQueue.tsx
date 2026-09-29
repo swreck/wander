@@ -115,7 +115,7 @@ export default function ApprovalQueue({ tripId, isOpen, onClose, onReviewed }: A
           </span>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3]"
+            className="p-1.5 rounded-lg text-[#6b5d4a] hover:bg-[#f0ebe3]"
             aria-label="Close approval queue"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -127,13 +127,13 @@ export default function ApprovalQueue({ tripId, isOpen, onClose, onReviewed }: A
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
           {loading && (
-            <div className="text-center text-[#a89880] text-sm py-8">
+            <div className="text-center text-[#6b5d4a] text-sm py-8">
               Checking in...
             </div>
           )}
 
           {!loading && approvals.length === 0 && (
-            <div className="text-center text-[#a89880] text-sm py-8">
+            <div className="text-center text-[#6b5d4a] text-sm py-8">
               <p>Nothing to review — your group is in sync</p>
             </div>
           )}
@@ -148,7 +148,7 @@ export default function ApprovalQueue({ tripId, isOpen, onClose, onReviewed }: A
                 <span className="text-sm font-medium text-[#3a3128]">
                   {approval.requester.displayName}
                 </span>
-                <span className="text-xs text-[#a89880]">
+                <span className="text-xs text-[#6b5d4a]">
                   {formatTime(approval.createdAt)}
                 </span>
               </div>
@@ -166,7 +166,7 @@ export default function ApprovalQueue({ tripId, isOpen, onClose, onReviewed }: A
                     onChange={(e) => setRejectNote(e.target.value)}
                     placeholder="Want to say why? (optional)"
                     rows={2}
-                    className="w-full bg-white rounded-lg px-3 py-2 text-sm text-[#3a3128] placeholder:text-[#a89880] outline-none focus:ring-2 focus:ring-[#514636]/20 border border-[#e5ddd0] resize-none"
+                    className="w-full bg-white rounded-lg px-3 py-2 text-sm text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 border border-[#e5ddd0] resize-none"
                   />
                   <div className="flex gap-2 mt-2">
                     <button
@@ -178,7 +178,7 @@ export default function ApprovalQueue({ tripId, isOpen, onClose, onReviewed }: A
                     </button>
                     <button
                       onClick={() => { setRejectNoteId(null); setRejectNote(""); }}
-                      className="px-3 py-1.5 text-sm rounded-lg text-[#a89880] hover:bg-[#f0ebe3] transition-colors"
+                      className="px-3 py-1.5 text-sm rounded-lg text-[#6b5d4a] hover:bg-[#f0ebe3] transition-colors"
                     >
                       Cancel
                     </button>

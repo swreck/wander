@@ -491,7 +491,7 @@ export default function PlanPage() {
 
   if (loading || !trip) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
+      <div className="min-h-screen flex items-center justify-center text-[#6b5d4a] bg-[#faf8f5]">
         Getting your plan ready...
       </div>
     );
@@ -617,10 +617,10 @@ export default function PlanPage() {
                   {" — "}
                   {selectedDay.city.name}
                   {selectedDay.city.tagline && (
-                    <span className="text-[#a89880] font-normal ml-1">· {selectedDay.city.tagline}</span>
+                    <span className="text-[#6b5d4a] font-normal ml-1">· {selectedDay.city.tagline}</span>
                   )}
                 </div>
-                <div className="text-sm text-[#8a7a62] mt-0.5">
+                <div className="text-sm text-[#6b5d4a] mt-0.5">
                   {(() => {
                     const dayIdx = days.findIndex((d) => d.id === selectedDay.id);
                     const prev = dayIdx > 0 ? days[dayIdx - 1] : null;
@@ -633,7 +633,7 @@ export default function PlanPage() {
                       return (
                         <span className="text-amber-600 font-medium mr-1">
                           {emoji} {prev.city.name} → {selectedDay.city.name}
-                          {segment?.notes && <span className="font-normal text-[#8a7a62]"> · {segment.notes}</span>}
+                          {segment?.notes && <span className="font-normal text-[#6b5d4a]"> · {segment.notes}</span>}
                           {" ·"}
                         </span>
                       );
@@ -679,7 +679,7 @@ export default function PlanPage() {
                 </div>
                 <button
                   onClick={() => { setShowOrientation(false); localStorage.setItem("wander:plan-oriented", "1"); }}
-                  className="text-[#c8bba8] hover:text-[#8a7a62] shrink-0 text-sm"
+                  className="text-[#6b5d4a] hover:text-[#6b5d4a] shrink-0 text-sm"
                 >
                   &times;
                 </button>
@@ -692,7 +692,7 @@ export default function PlanPage() {
                style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
             {/* Action bar — Home, List, Add, Chat, Now */}
             <div className="flex items-center justify-around px-2 py-0.5 border-b border-[#e0d8cc]/40">
-              <button onClick={() => navigate("/")} className="flex flex-col items-center px-2 py-0.5 text-[#c8bba8] hover:text-[#6b5d4a] transition-colors">
+              <button onClick={() => navigate("/")} className="flex flex-col items-center px-2 py-0.5 text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                   <polyline points="9 22 9 12 15 12 15 22" />
@@ -736,14 +736,14 @@ export default function PlanPage() {
                   </>
                 )}
               </div>
-              <button onClick={() => navigate("/now")} className="flex flex-col items-center px-2 py-0.5 text-[#c8bba8] hover:text-[#6b5d4a] transition-colors">
+              <button onClick={() => navigate("/now")} className="flex flex-col items-center px-2 py-0.5 text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
                 <span className="text-[10px] leading-tight">Now</span>
               </button>
-              <button onClick={() => setShowActions(true)} className="flex flex-col items-center px-2 py-0.5 text-[#c8bba8] hover:text-[#6b5d4a] transition-colors">
+              <button onClick={() => setShowActions(true)} className="flex flex-col items-center px-2 py-0.5 text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
                 </svg>
@@ -849,7 +849,7 @@ export default function PlanPage() {
                         try { localStorage.setItem("wander:candidates-expanded", String(next)); } catch {}
                         if (!next) setSelectedCandidateCityId(null);
                       }}
-                      className="text-xs text-[#c8bba8] hover:text-[#8a7a62] whitespace-nowrap px-1"
+                      className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] whitespace-nowrap px-1"
                       title={candidatesExpanded ? "Collapse ideas" : "Show idea cities"}
                     >
                       {candidatesExpanded ? `${candidateCities.length} ideas ‹` : `${candidateCities.length} ideas ›`}
@@ -915,7 +915,7 @@ export default function PlanPage() {
                       <div className="shrink-0 flex flex-col items-center justify-center mx-1 self-stretch gap-1">
                         <button
                           onClick={handleHideAllCandidates}
-                          className="text-xs text-[#c8bba8] hover:text-[#8a7a62] whitespace-nowrap px-1"
+                          className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] whitespace-nowrap px-1"
                           title="Dismiss all recommendation cities"
                         >
                           dismiss all
@@ -1005,7 +1005,7 @@ export default function PlanPage() {
                  style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
               <button
                 onClick={() => navigate("/")}
-                className="text-sm text-[#8a7a62] hover:text-[#3a3128] min-h-[44px] flex items-center"
+                className="text-sm text-[#6b5d4a] hover:text-[#3a3128] min-h-[44px] flex items-center"
               >
                 &larr; Home
               </button>
@@ -1014,7 +1014,7 @@ export default function PlanPage() {
                   {trip?.cities.find(c => c.id === activeCityId)?.name || ""}
                 </div>
                 {selectedDay && (
-                  <div className="text-[10px] text-[#a89880]">
+                  <div className="text-[10px] text-[#6b5d4a]">
                     {new Date(selectedDay.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })}
                   </div>
                 )}
@@ -1069,16 +1069,16 @@ export default function PlanPage() {
 
                     return (
                       <div className="mb-6">
-                        <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">The plan</div>
+                        <div className="text-xs text-[#6b5d4a] uppercase tracking-wider mb-2">The plan</div>
                         {groups.map((group, gi) => (
                           <div key={gi} className={gi > 0 ? "mt-4" : ""}>
                             {group.day && (
                               <div className="mb-1.5 ml-1">
-                                <div className="text-xs font-medium text-[#8a7a62]">
+                                <div className="text-xs font-medium text-[#6b5d4a]">
                                   {new Date(group.day.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
                                 </div>
                                 {group.exps.length > 1 && (
-                                  <div className="text-[10px] text-[#c8bba8] mt-0.5">
+                                  <div className="text-[10px] text-[#6b5d4a] mt-0.5">
                                     {group.exps.length} things planned
                                   </div>
                                 )}
@@ -1093,7 +1093,7 @@ export default function PlanPage() {
                                 >
                                   <div className="text-sm font-medium text-[#3a3128]">{exp.name}</div>
                                   {exp.neighborhood && (
-                                    <div className="text-xs text-[#a89880] mt-0.5">{exp.neighborhood}</div>
+                                    <div className="text-xs text-[#6b5d4a] mt-0.5">{exp.neighborhood}</div>
                                   )}
                                 </button>
                               ))}
@@ -1115,7 +1115,7 @@ export default function PlanPage() {
                             <span className="text-base">🏨</span>
                             <div>
                               <div className="text-sm text-[#3a3128]">{a.name}</div>
-                              {a.address && <div className="text-xs text-[#a89880]">{a.address}</div>}
+                              {a.address && <div className="text-xs text-[#6b5d4a]">{a.address}</div>}
                             </div>
                           </div>
                         ))}
@@ -1130,11 +1130,11 @@ export default function PlanPage() {
                     if (daysWithNotes.length > 0) {
                       return (
                         <div className="mb-6">
-                          <div className="text-xs text-[#a89880] uppercase tracking-wider mb-2">The itinerary</div>
+                          <div className="text-xs text-[#6b5d4a] uppercase tracking-wider mb-2">The itinerary</div>
                           <div className="space-y-2">
                             {daysWithNotes.map(d => (
                               <div key={d.id} className="p-3 bg-white rounded-xl border border-[#e8e0d4]">
-                                <div className="text-xs font-medium text-[#8a7a62]">
+                                <div className="text-xs font-medium text-[#6b5d4a]">
                                   {new Date(d.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
                                 </div>
                                 <div className="text-sm text-[#3a3128] mt-1">{d.notes}</div>
@@ -1168,7 +1168,7 @@ export default function PlanPage() {
                               className="w-full text-left p-3 rounded-xl border border-amber-200/60 bg-amber-50/30"
                             >
                               <div className="text-sm font-medium text-[#3a3128]">{dec.title}</div>
-                              <div className="text-xs text-[#8a7a62] mt-0.5">
+                              <div className="text-xs text-[#6b5d4a] mt-0.5">
                                 {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
                                 {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
                                 {" · "}
@@ -1190,7 +1190,7 @@ export default function PlanPage() {
                                     <div key={opt.id} className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-[#e8e0d4]">
                                       <span className="text-sm text-[#3a3128]">{opt.name}</span>
                                       {rankLabel && (
-                                        <span className="text-xs text-[#a89880] ml-2 shrink-0">{rankLabel}</span>
+                                        <span className="text-xs text-[#6b5d4a] ml-2 shrink-0">{rankLabel}</span>
                                       )}
                                     </div>
                                   );
@@ -1212,7 +1212,7 @@ export default function PlanPage() {
                   {/* Section 3: Ideas */}
                   {possible.length > 0 ? (
                     <div>
-                      <div className="text-xs text-[#a89880] uppercase tracking-wider mb-3">Ideas for this city</div>
+                      <div className="text-xs text-[#6b5d4a] uppercase tracking-wider mb-3">Ideas for this city</div>
                       <div className="space-y-2">
                         {possible.map((exp) => (
                           <div key={exp.id}>
@@ -1222,15 +1222,15 @@ export default function PlanPage() {
                             >
                               <div className="text-sm text-[#3a3128]">{exp.name}</div>
                               {exp.neighborhood && (
-                                <div className="text-xs text-[#a89880] mt-0.5">{exp.neighborhood}</div>
+                                <div className="text-xs text-[#6b5d4a] mt-0.5">{exp.neighborhood}</div>
                               )}
                             </button>
                             {expandedIdeaId === exp.id && (
                               <div className="ml-3 mt-1 p-2.5 bg-[#faf8f5] rounded-lg border border-[#f0ece5] text-xs text-[#6b5d4a] space-y-1.5">
                                 {exp.description && <p>{exp.description}</p>}
-                                {exp.explorationZone && <p className="text-[#a89880]">{exp.explorationZone}</p>}
+                                {exp.explorationZone && <p className="text-[#6b5d4a]">{exp.explorationZone}</p>}
                                 {!exp.description && !exp.explorationZone && (
-                                  <p className="text-[#c8bba8] italic">No details yet — ask Scout for more info</p>
+                                  <p className="text-[#6b5d4a] italic">No details yet — ask Scout for more info</p>
                                 )}
                                 <button
                                   onClick={() => { setSelectedExpId(exp.id); setMobileView("map"); }}
@@ -1247,7 +1247,7 @@ export default function PlanPage() {
                   ) : selected.length === 0 && possible.length === 0 && (
                     <div className="py-12 text-center">
                       <p className="text-sm text-[#6b5d4a]">Wide open — what sounds good here?</p>
-                      <p className="text-xs text-[#c8bba8] mt-1">Ask Scout for ideas, or add your own</p>
+                      <p className="text-xs text-[#6b5d4a] mt-1">Ask Scout for ideas, or add your own</p>
                     </div>
                   )}
                 </>
@@ -1274,7 +1274,7 @@ export default function PlanPage() {
             <p className="text-sm text-[#3a3128] leading-relaxed mb-1">
               {nudgeMessage.nudge}
             </p>
-            <p className="text-sm text-[#a89880] mb-4">
+            <p className="text-sm text-[#6b5d4a] mb-4">
               {nudgeMessage.place.name} · {nudgeMessage.place.rating} stars
             </p>
             <div className="flex gap-3">

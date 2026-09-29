@@ -45,7 +45,7 @@ export default function ScoutNudge({ nudgeKey, message, onTap, tapLabel }: Scout
           )}
           <button
             onClick={handleDismiss}
-            className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+            className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
           >
             Got it
           </button>

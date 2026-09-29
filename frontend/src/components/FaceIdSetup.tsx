@@ -46,6 +46,7 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [justFinished, setJustFinished] = useState(false);
+  const [failures, setFailures] = useState(0);
 
   useEffect(() => {
     deviceSupportsPasskeys().then(setSupported);
@@ -54,6 +55,8 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
   function finished() {
     setReadyHere(true);
     setJustFinished(true);
+    // Home shows the next step (putting Wander on the Home Screen) once Face ID is ready
+    window.dispatchEvent(new CustomEvent("wander:faceid-ready"));
   }
 
   async function handleTap() {
@@ -70,7 +73,13 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
     } catch (err) {
       if (isUserCancel(err)) setMessage("No problem — you can set it up any time.");
       else if (isAlreadyOnDevice(err)) setStep("existing");
-      else setMessage("That didn't finish. Try again?");
+      else {
+        const n = failures + 1;
+        setFailures(n);
+        setMessage(n < 2
+          ? "That didn't finish. Try again?"
+          : "Face ID isn't working on this phone right now. Your link always gets you in — you can try Face ID again later.");
+      }
     } finally {
       setBusy(false);
     }
@@ -105,12 +114,12 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
               <button
                 onClick={handleNotNow}
                 disabled={busy}
-                className="min-h-[44px] px-4 rounded-lg text-sm text-[#8a7a62] hover:text-[#3a3128]"
+                className="min-h-[44px] px-4 rounded-lg text-sm text-[#6b5d4a] hover:text-[#3a3128]"
               >
                 Not now
               </button>
             </div>
-            {message && <p className="text-sm text-[#8a7a62] mt-2">{message}</p>}
+            {message && <p className="text-sm text-[#6b5d4a] mt-2">{message}</p>}
           </>
         )}
       </div>
@@ -122,12 +131,12 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
     <section className="border-t border-[#e0d8cc] pt-6">
       <h2 className="text-sm font-medium text-[#3a3128] mb-1">Face ID</h2>
       {supported === false ? (
-        <p className="text-xs text-[#8a7a62]">This browser can't use Face ID. Your personal Wander link still signs you in.</p>
+        <p className="text-xs text-[#6b5d4a]">This browser can't use Face ID. Your personal Wander link still signs you in.</p>
       ) : readyHere ? (
-        <p className="text-xs text-[#8a7a62]">Face ID signs you in on this phone.</p>
+        <p className="text-xs text-[#6b5d4a]">Face ID signs you in on this phone.</p>
       ) : (
         <>
-          <p className="text-xs text-[#8a7a62] mb-3">
+          <p className="text-xs text-[#6b5d4a] mb-3">
             {step === "offer" ? "Sign in with a glance instead of your personal link." : `${text.title}. ${text.body}`}
           </p>
           <button
@@ -139,7 +148,7 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
           </button>
         </>
       )}
-      {message && <p className="text-xs text-[#8a7a62] mt-2">{message}</p>}
+      {message && <p className="text-xs text-[#6b5d4a] mt-2">{message}</p>}
     </section>
   );
 }

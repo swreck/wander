@@ -290,9 +290,9 @@ export default function PlanningBoard({
   }
 
   function fullness(count: number): { text: string; cls: string } {
-    if (count === 0) return { text: "Wide open", cls: "text-[#c8bba8]" };
+    if (count === 0) return { text: "Wide open", cls: "text-[#6b5d4a]" };
     const s = count === 1 ? "thing" : "things";
-    if (count <= 3) return { text: `${count} ${s}`, cls: "text-[#8a7a62]" };
+    if (count <= 3) return { text: `${count} ${s}`, cls: "text-[#6b5d4a]" };
     if (count <= 5) return { text: `${count} ${s} \u2014 full day`, cls: "text-amber-600" };
     return { text: `${count} ${s} \u2014 packed`, cls: "text-amber-700" };
   }
@@ -317,7 +317,7 @@ export default function PlanningBoard({
         <div className="shrink-0 px-4 py-3 bg-white border-b border-[#e0d8cc] flex items-center gap-3">
           <button
             onClick={onClose}
-            className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors shrink-0 font-medium"
+            className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors shrink-0 font-medium"
           >
             <span className="lg:hidden">&larr; Map</span>
             <span className="hidden lg:inline">&larr; Done</span>
@@ -325,13 +325,13 @@ export default function PlanningBoard({
           <div className="flex-1 text-center min-w-0">
             <div className="text-sm font-medium text-[#3a3128] truncate">{trip.name}</div>
             {totalIdeas > 0 && (
-              <div className="text-[11px] text-[#a89880] mt-0.5 flex items-center justify-center gap-2">
+              <div className="text-[11px] text-[#6b5d4a] mt-0.5 flex items-center justify-center gap-2">
                 <span>{plannedCount} of {totalIdeas} ideas planned for {cityName}</span>
                 {plannedCount > 0 && (
                   <button
                     onClick={() => toggleSetForNow("city", selectedCityId)}
                     className={`transition-colors ${
-                      isCitySet ? "text-amber-600" : "text-[#c8bba8] hover:text-[#8a7a62]"
+                      isCitySet ? "text-amber-600" : "text-[#6b5d4a] hover:text-[#6b5d4a]"
                     }`}
                     title={isCitySet ? `${cityName} is set for now` : `Mark ${cityName} as set for now`}
                   >
@@ -345,7 +345,7 @@ export default function PlanningBoard({
             <div className="relative shrink-0">
               <button
                 onClick={() => setShowAddMenu(!showAddMenu)}
-                className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+                className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
               >
                 + Add
               </button>
@@ -393,7 +393,7 @@ export default function PlanningBoard({
                 >
                   {setForNow.cities.has(city.id) && <span className="mr-0.5">{"\u2728"}</span>}
                   {city.name}
-                  <span className={`ml-1.5 text-[11px] ${isActive ? "text-white/60" : "text-[#a89880]"}`}>
+                  <span className={`ml-1.5 text-[11px] ${isActive ? "text-white/60" : "text-[#6b5d4a]"}`}>
                     {cp}/{ct}
                   </span>
                 </button>
@@ -407,7 +407,7 @@ export default function PlanningBoard({
 
           {/* ── Desktop: days column (left) ── */}
           <div className="hidden lg:flex lg:flex-col w-72 xl:w-80 border-r border-[#f0ece5] bg-white overflow-y-auto">
-            <div className="px-3 py-2.5 text-[11px] font-medium text-[#a89880] uppercase tracking-wider border-b border-[#f0ece5]">
+            <div className="px-3 py-2.5 text-[11px] font-medium text-[#6b5d4a] uppercase tracking-wider border-b border-[#f0ece5]">
               {cityDays.length} day{cityDays.length !== 1 ? "s" : ""} in {cityName}
             </div>
 
@@ -456,14 +456,14 @@ export default function PlanningBoard({
                         ) : (
                           <div key={exp.id} className="flex items-center gap-1.5">
                             <span className="text-[10px] leading-none">{themeEmoji(exp)}</span>
-                            <span className="text-[11px] text-[#8a7a62] truncate">{exp.name}</span>
+                            <span className="text-[11px] text-[#6b5d4a] truncate">{exp.name}</span>
                           </div>
                         ))}
                       </div>
                     )}
 
                     {isActive && exps.length === 0 && (
-                      <p className="mt-1.5 text-[11px] text-[#c8bba8] italic leading-snug">
+                      <p className="mt-1.5 text-[11px] text-[#6b5d4a] italic leading-snug">
                         {dragExpId ? "Drop here" : "Wide open \u2014 pick ideas from the right \u2192"}
                       </p>
                     )}
@@ -475,7 +475,7 @@ export default function PlanningBoard({
                         className={`mt-2 text-[11px] transition-colors ${
                           setForNow.days.has(day.id)
                             ? "text-amber-600"
-                            : "text-[#c8bba8] hover:text-[#8a7a62]"
+                            : "text-[#6b5d4a] hover:text-[#6b5d4a]"
                         }`}
                       >
                         {setForNow.days.has(day.id) ? "\u2728 Happy with this" : "Good enough for now"}
@@ -487,7 +487,7 @@ export default function PlanningBoard({
             })}
 
             {cityDays.length === 0 && (
-              <div className="px-3 py-8 text-center text-sm text-[#a89880]">
+              <div className="px-3 py-8 text-center text-sm text-[#6b5d4a]">
                 No days set for {cityName} yet
               </div>
             )}
@@ -516,7 +516,7 @@ export default function PlanningBoard({
                       {setForNow.days.has(day.id) && <span className="mr-0.5">{"\u2728"}</span>}
                       {fmtDay(day, true)}
                       {count > 0 && (
-                        <span className={`ml-1 ${isActive ? "text-white/60" : "text-[#a89880]"}`}>
+                        <span className={`ml-1 ${isActive ? "text-white/60" : "text-[#6b5d4a]"}`}>
                           ({count})
                         </span>
                       )}
@@ -525,7 +525,7 @@ export default function PlanningBoard({
                 );
               })}
               {cityDays.length === 0 && (
-                <span className="text-xs text-[#a89880] py-1">No days yet</span>
+                <span className="text-xs text-[#6b5d4a] py-1">No days yet</span>
               )}
             </div>
 
@@ -536,7 +536,7 @@ export default function PlanningBoard({
                   onClick={() => setDayExpanded(!dayExpanded)}
                   className="w-full px-3 py-2.5 flex items-center gap-2 active:bg-[#faf8f5] transition-colors"
                 >
-                  <span className="text-base text-[#a89880]">{dayExpanded ? "\u25BE" : "\u25B8"}</span>
+                  <span className="text-base text-[#6b5d4a]">{dayExpanded ? "\u25BE" : "\u25B8"}</span>
                   <span className="text-sm font-medium text-[#3a3128]">{fmtDay(activeDay)}</span>
                   <span className={`text-[11px] ${fullness((dayExpsMap.get(activeDay.id) || []).length).cls}`}>
                     &middot; {fullness((dayExpsMap.get(activeDay.id) || []).length).text}
@@ -545,7 +545,7 @@ export default function PlanningBoard({
                 {dayExpanded && (
                   <div className="px-3 pb-2.5 space-y-1.5">
                     {(dayExpsMap.get(activeDay.id) || []).length === 0 ? (
-                      <p className="text-[11px] text-[#c8bba8] italic py-0.5">Nothing yet &mdash; tap + below</p>
+                      <p className="text-[11px] text-[#6b5d4a] italic py-0.5">Nothing yet &mdash; tap + below</p>
                     ) : (
                       (dayExpsMap.get(activeDay.id) || []).map(exp => (
                         <DayItemRow
@@ -570,7 +570,7 @@ export default function PlanningBoard({
                         className={`mt-1 text-[11px] transition-colors ${
                           setForNow.days.has(activeDay.id)
                             ? "text-amber-600"
-                            : "text-[#c8bba8]"
+                            : "text-[#6b5d4a]"
                         }`}
                       >
                         {setForNow.days.has(activeDay.id) ? "\u2728 Happy with this" : "Good enough for now"}
@@ -716,14 +716,14 @@ function DayItemRow({ exp, themeEmoji, onExperienceClick, onRemove, onStartMove,
         </span>
         <button
           onClick={e => { e.stopPropagation(); onStartMove(movingExpId === exp.id ? null : exp.id); }}
-          className={`text-[#8a7a62] hover:text-[#3a3128] text-[11px] font-medium transition-all px-1
+          className={`text-[#6b5d4a] hover:text-[#3a3128] text-[11px] font-medium transition-all px-1
                       ${desktop ? "lg:text-xs" : "text-[11px]"}`}
         >
           move
         </button>
         <button
           onClick={e => { e.stopPropagation(); onRemove(exp.id); }}
-          className="text-[#c8bba8] hover:text-red-400 text-xs transition-all px-1 -mr-1"
+          className="text-[#6b5d4a] hover:text-red-400 text-xs transition-all px-1 -mr-1"
         >
           &times;
         </button>
@@ -752,7 +752,7 @@ function DayItemRow({ exp, themeEmoji, onExperienceClick, onRemove, onStartMove,
           })}
           <button
             onClick={() => onStartMove(null)}
-            className="px-2 py-1 text-[11px] text-[#a89880] hover:text-[#6b5d4a]"
+            className="px-2 py-1 text-[11px] text-[#6b5d4a] hover:text-[#6b5d4a]"
           >
             cancel
           </button>
@@ -815,12 +815,12 @@ function PoolSection({
       {totalIdeas > 0 && (
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-[#8a7a62]">
+            <span className="text-xs text-[#6b5d4a]">
               {unassigned.length > 0
                 ? `${unassigned.length} idea${unassigned.length !== 1 ? "s" : ""} to plan`
                 : "All planned"}
             </span>
-            <span className="text-[11px] text-[#a89880]">{plannedCount}/{totalIdeas}</span>
+            <span className="text-[11px] text-[#6b5d4a]">{plannedCount}/{totalIdeas}</span>
           </div>
           <div className="h-1.5 bg-[#f0ece5] rounded-full overflow-hidden">
             <div
@@ -869,7 +869,7 @@ function PoolSection({
             <button
               onClick={() => setSort("name")}
               className={`px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
-                sort === "name" ? "bg-[#514636] text-white" : "bg-white text-[#8a7a62] hover:bg-[#f0ece5]"
+                sort === "name" ? "bg-[#514636] text-white" : "bg-white text-[#6b5d4a] hover:bg-[#f0ece5]"
               }`}
             >
               A-Z
@@ -877,7 +877,7 @@ function PoolSection({
             <button
               onClick={() => setSort("rating")}
               className={`px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
-                sort === "rating" ? "bg-[#514636] text-white" : "bg-white text-[#8a7a62] hover:bg-[#f0ece5]"
+                sort === "rating" ? "bg-[#514636] text-white" : "bg-white text-[#6b5d4a] hover:bg-[#f0ece5]"
               }`}
             >
               {"\u2605"}
@@ -895,7 +895,7 @@ function PoolSection({
             onChange={e => setSearch(e.target.value)}
             placeholder="Search ideas..."
             className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-sm text-[#3a3128]
-                       placeholder:text-[#c8bba8] focus:outline-none focus:border-[#a89880] transition-colors"
+                       placeholder:text-[#6b5d4a] focus:outline-none focus:border-[#a89880] transition-colors"
           />
         </div>
       )}
@@ -910,14 +910,14 @@ function PoolSection({
           <div className="text-sm text-[#6b5d4a] font-medium mb-1">
             {cityName} is all set
           </div>
-          <div className="text-xs text-[#a89880]">
+          <div className="text-xs text-[#6b5d4a]">
             Every idea has a day
           </div>
         </div>
       )}
 
       {pool.length === 0 && unassigned.length > 0 && (
-        <div className="text-center py-8 text-sm text-[#a89880]">
+        <div className="text-center py-8 text-sm text-[#6b5d4a]">
           No ideas match that filter
         </div>
       )}
@@ -925,7 +925,7 @@ function PoolSection({
       {pool.length === 0 && unassigned.length === 0 && assigned.length === 0 && (
         <div className="text-center py-10">
           <div className="text-sm text-[#6b5d4a] mb-1">Nothing here yet</div>
-          <div className="text-xs text-[#a89880] leading-relaxed">
+          <div className="text-xs text-[#6b5d4a] leading-relaxed">
             Tap + Add above to get started
           </div>
         </div>
@@ -946,10 +946,10 @@ function PoolSection({
                 >
                   <div className="text-sm text-[#3a3128] font-medium">{exp.name}{exp.sheetRowRef && <span className="ml-0.5 text-[#b8a990] text-xs font-normal" title="From Larisa's Guide">↔</span>}</div>
                   {rating != null && (
-                    <span className="text-[11px] text-[#a89880] whitespace-nowrap">{"\u2605"} {rating.toFixed(1)}</span>
+                    <span className="text-[11px] text-[#6b5d4a] whitespace-nowrap">{"\u2605"} {rating.toFixed(1)}</span>
                   )}
                   {exp.description && !exp.description.startsWith("Nearby") && (
-                    <p className="text-[11px] text-[#c8bba8] mt-0.5 line-clamp-3 leading-relaxed">{exp.description}</p>
+                    <p className="text-[11px] text-[#6b5d4a] mt-0.5 line-clamp-3 leading-relaxed">{exp.description}</p>
                   )}
                 </div>
                 <button
@@ -974,7 +974,7 @@ function PoolSection({
         <div className="mt-6 pt-4 border-t border-[#f0ece5]">
           <button
             onClick={() => setShowPlanned(!showPlanned)}
-            className="flex items-center gap-2 text-sm text-[#a89880] hover:text-[#8a7a62] transition-colors mb-2"
+            className="flex items-center gap-2 text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors mb-2"
           >
             <span className="text-base">{showPlanned ? "\u25BE" : "\u25B8"}</span>
             <span>Already planned ({assigned.length})</span>
@@ -984,7 +984,7 @@ function PoolSection({
             <div className="space-y-4">
               {assignedByDay.map(({ day, exps }) => (
                 <div key={day.id}>
-                  <div className="text-[11px] font-medium text-[#a89880] mb-1.5 uppercase tracking-wide">
+                  <div className="text-[11px] font-medium text-[#6b5d4a] mb-1.5 uppercase tracking-wide">
                     {fmtDay(day)}
                   </div>
                   <div className="space-y-1">
@@ -993,20 +993,20 @@ function PoolSection({
                         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#faf8f5] border border-[#f0ece5]">
                           <span className="text-sm leading-none shrink-0 opacity-50">{themeEmoji(exp)}</span>
                           <span
-                            className="text-xs text-[#8a7a62] flex-1 truncate cursor-pointer hover:text-[#6b5d4a] transition-colors"
+                            className="text-xs text-[#6b5d4a] flex-1 truncate cursor-pointer hover:text-[#6b5d4a] transition-colors"
                             onClick={() => onExperienceClick(exp.id)}
                           >
                             {exp.name}
                           </span>
                           <button
                             onClick={() => onStartMove(movingExpId === exp.id ? null : exp.id)}
-                            className="text-[#8a7a62] hover:text-[#3a3128] text-[11px] lg:text-xs font-medium px-1 transition-colors"
+                            className="text-[#6b5d4a] hover:text-[#3a3128] text-[11px] lg:text-xs font-medium px-1 transition-colors"
                           >
                             move
                           </button>
                           <button
                             onClick={() => onRemove(exp.id)}
-                            className="text-[#c8bba8] hover:text-red-400 text-xs px-1 transition-colors"
+                            className="text-[#6b5d4a] hover:text-red-400 text-xs px-1 transition-colors"
                           >
                             &times;
                           </button>
@@ -1032,7 +1032,7 @@ function PoolSection({
                             })}
                             <button
                               onClick={() => onStartMove(null)}
-                              className="px-2 py-1 text-[11px] text-[#a89880] hover:text-[#6b5d4a]"
+                              className="px-2 py-1 text-[11px] text-[#6b5d4a] hover:text-[#6b5d4a]"
                             >
                               cancel
                             </button>
@@ -1061,7 +1061,7 @@ function PoolDropZone() {
       className={`mb-3 py-3 rounded-lg border-2 border-dashed text-center text-xs transition-all ${
         isOver
           ? "border-[#514636] bg-[#514636]/5 text-[#514636]"
-          : "border-[#e0d8cc] text-[#c8bba8]"
+          : "border-[#e0d8cc] text-[#6b5d4a]"
       }`}
     >
       Drop here to unplan

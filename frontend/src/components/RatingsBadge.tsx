@@ -20,7 +20,7 @@ export default function RatingsBadge({ ratings, placeIdGoogle }: Props) {
 
   return (
     <div className="mt-1.5">
-      <div className="flex items-center gap-2 text-sm text-[#8a7a62]">
+      <div className="flex items-center gap-2 text-sm text-[#6b5d4a]">
         {ratings.map((r) => {
           const content = (
             <>
@@ -29,7 +29,7 @@ export default function RatingsBadge({ ratings, placeIdGoogle }: Props) {
               </span>
               <span>{"\u2605"}</span>
               <span>{r.ratingValue.toFixed(1)}</span>
-              <span className="text-[#c8bba8]">
+              <span className="text-[#6b5d4a]">
                 ({r.reviewCount >= 1000 ? `${(r.reviewCount / 1000).toFixed(1)}k` : r.reviewCount})
               </span>
             </>

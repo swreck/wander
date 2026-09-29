@@ -57,13 +57,13 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
       <div className="max-w-2xl mx-auto px-4 py-8">
         <button
           onClick={onBack}
-          className="text-sm text-[#8a7a62] hover:text-[#3a3128] mb-4 transition-colors"
+          className="text-sm text-[#6b5d4a] hover:text-[#3a3128] mb-4 transition-colors"
         >
           &larr; Back to import
         </button>
 
         <h1 className="text-2xl font-light text-[#3a3128] mb-1">Review Extraction</h1>
-        <p className="text-sm text-[#8a7a62] mb-6">
+        <p className="text-sm text-[#6b5d4a] mb-6">
           Review what was extracted. Remove items that don't belong, then confirm to create your trip.
         </p>
 
@@ -104,12 +104,12 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
 
         {/* Trip basics */}
         <section className="mb-6">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
             Trip
           </h2>
           <div className="bg-white rounded-lg border border-[#f0ece5] p-4 space-y-3">
             <div>
-              <label className="text-sm text-[#a89880]">Name</label>
+              <label className="text-sm text-[#6b5d4a]">Name</label>
               <input
                 type="text"
                 value={edited.tripName}
@@ -120,7 +120,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm text-[#a89880]">Start</label>
+                <label className="text-sm text-[#6b5d4a]">Start</label>
                 <input
                   type="date"
                   value={edited.startDate}
@@ -130,7 +130,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
                 />
               </div>
               <div>
-                <label className="text-sm text-[#a89880]">End</label>
+                <label className="text-sm text-[#6b5d4a]">End</label>
                 <input
                   type="date"
                   value={edited.endDate}
@@ -145,7 +145,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
 
         {/* Cities */}
         <section className="mb-6">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
             Cities ({edited.cities.length})
           </h2>
           <div className="space-y-2">
@@ -158,16 +158,16 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
                 <div>
                   <span className="text-[#3a3128] font-medium">{city.name}</span>
                   {city.country && (
-                    <span className="text-[#a89880] text-sm ml-2">{city.country}</span>
+                    <span className="text-[#6b5d4a] text-sm ml-2">{city.country}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-[#8a7a62]">
+                  <span className="text-sm text-[#6b5d4a]">
                     {formatDate(city.arrivalDate)} — {formatDate(city.departureDate)}
                   </span>
                   <button
                     onClick={() => removeCity(i)}
-                    className="text-[#c8bba8] hover:text-red-500 transition-colors text-lg"
+                    className="text-[#6b5d4a] hover:text-red-500 transition-colors text-lg"
                   >
                     &times;
                   </button>
@@ -180,7 +180,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
         {/* Route Segments */}
         {edited.routeSegments.length > 0 && (
           <section className="mb-6">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
               Route ({edited.routeSegments.length})
             </h2>
             <div className="space-y-2">
@@ -191,15 +191,15 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
                              bg-white rounded-lg border border-[#f0ece5] text-sm"
                 >
                   <span className="text-[#3a3128]">{seg.originCity}</span>
-                  <span className="text-[#c8bba8]">&rarr;</span>
+                  <span className="text-[#6b5d4a]">&rarr;</span>
                   <span className="text-[#3a3128]">{seg.destinationCity}</span>
-                  <span className="text-[#a89880] text-xs capitalize">{seg.transportMode}</span>
+                  <span className="text-[#6b5d4a] text-xs capitalize">{seg.transportMode}</span>
                   {seg.departureDate && (
-                    <span className="text-[#a89880] text-xs">{formatDate(seg.departureDate)}</span>
+                    <span className="text-[#6b5d4a] text-xs">{formatDate(seg.departureDate)}</span>
                   )}
                   <button
                     onClick={() => removeRouteSegment(i)}
-                    className="ml-auto text-[#c8bba8] hover:text-red-500 transition-colors text-lg"
+                    className="ml-auto text-[#6b5d4a] hover:text-red-500 transition-colors text-lg"
                   >
                     &times;
                   </button>
@@ -212,7 +212,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
         {/* Accommodations */}
         {edited.accommodations.length > 0 && (
           <section className="mb-6">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
               Accommodations ({edited.accommodations.length})
             </h2>
             <div className="space-y-2">
@@ -224,14 +224,14 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
                 >
                   <div>
                     <span className="text-[#3a3128] font-medium text-sm">{acc.name}</span>
-                    <span className="text-[#a89880] text-xs ml-2">{acc.cityName}</span>
+                    <span className="text-[#6b5d4a] text-xs ml-2">{acc.cityName}</span>
                     {acc.address && (
-                      <div className="text-sm text-[#8a7a62] mt-0.5">{acc.address}</div>
+                      <div className="text-sm text-[#6b5d4a] mt-0.5">{acc.address}</div>
                     )}
                   </div>
                   <button
                     onClick={() => removeAccommodation(i)}
-                    className="text-[#c8bba8] hover:text-red-500 transition-colors text-lg"
+                    className="text-[#6b5d4a] hover:text-red-500 transition-colors text-lg"
                   >
                     &times;
                   </button>
@@ -244,7 +244,7 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
         {/* Experiences grouped by city */}
         {edited.experiences.length > 0 && (
           <section className="mb-6">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
               Activities & Experiences ({edited.experiences.length})
             </h2>
             {Object.entries(experiencesByCity).map(([cityName, exps]) => (
@@ -277,23 +277,23 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
                             <div className="flex items-baseline gap-2">
                               <span className="text-[#3a3128] text-sm font-medium">{exp.name}</span>
                               {exp.dayDate && (
-                                <span className="text-sm text-[#a89880]">
+                                <span className="text-sm text-[#6b5d4a]">
                                   {formatDate(exp.dayDate)}
                                 </span>
                               )}
                               {exp.timeWindow && (
-                                <span className="text-sm text-[#c8bba8]">{exp.timeWindow}</span>
+                                <span className="text-sm text-[#6b5d4a]">{exp.timeWindow}</span>
                               )}
                             </div>
                             {exp.description && (
-                              <div className="text-sm text-[#8a7a62] mt-0.5 line-clamp-2">
+                              <div className="text-sm text-[#6b5d4a] mt-0.5 line-clamp-2">
                                 {exp.description}
                               </div>
                             )}
                           </div>
                           <button
                             onClick={() => removeExperience(globalIndex)}
-                            className="ml-2 text-[#c8bba8] hover:text-red-500 transition-colors text-lg flex-shrink-0"
+                            className="ml-2 text-[#6b5d4a] hover:text-red-500 transition-colors text-lg flex-shrink-0"
                           >
                             &times;
                           </button>
@@ -326,10 +326,10 @@ export default function ImportReview({ data, onCommit, onBack, submitting, error
         {/* Notes from extraction */}
         {edited.notes && (
           <section className="mb-6">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
               Notes
             </h2>
-            <div className="px-4 py-3 bg-white rounded-lg border border-[#f0ece5] text-sm text-[#8a7a62]">
+            <div className="px-4 py-3 bg-white rounded-lg border border-[#f0ece5] text-sm text-[#6b5d4a]">
               {edited.notes}
             </div>
           </section>

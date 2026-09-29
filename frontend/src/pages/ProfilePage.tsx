@@ -289,7 +289,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-[#faf8f5] flex items-center justify-center text-[#a89880]">
+      <div className="min-h-[100dvh] bg-[#faf8f5] flex items-center justify-center text-[#6b5d4a]">
         Finding your profile...
       </div>
     );
@@ -304,7 +304,7 @@ export default function ProfilePage() {
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="text-sm text-[#a89880] hover:text-[#3a3128] transition-colors"
+            className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
           >
             &larr; Back
           </button>
@@ -314,13 +314,13 @@ export default function ProfilePage() {
 
       <div className="max-w-lg mx-auto px-4 py-6 pb-16 space-y-6">
         {/* Intro */}
-        <p className="text-sm text-[#a89880] leading-relaxed">
+        <p className="text-sm text-[#6b5d4a] leading-relaxed">
           Here's what Scout knows about you &mdash; to help make every trip better.
         </p>
 
         {/* ── Section 1: About You ────────────────────────────── */}
         <section className="rounded-xl border border-[#e5ddd0] bg-white p-5">
-          <h2 className="text-sm font-medium text-[#a89880] mb-3">About You</h2>
+          <h2 className="text-sm font-medium text-[#6b5d4a] mb-3">About You</h2>
 
           <p className="text-sm text-[#6b5d4a] mb-4">
             What draws you to a place? Tap the ones that feel right.
@@ -343,7 +343,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex items-center justify-between">
-            <p className="text-xs text-[#c8bba8]">
+            <p className="text-xs text-[#6b5d4a]">
               You can also update this by telling Scout in chat
             </p>
             <button
@@ -365,7 +365,7 @@ export default function ProfilePage() {
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-[#e0d8cc]">
                 <h2 className="text-lg font-medium text-[#3a3128]">Unlock your documents</h2>
-                <button onClick={() => setShowVaultGate(false)} className="text-[#8a7a62] text-sm">
+                <button onClick={() => setShowVaultGate(false)} className="text-[#6b5d4a] text-sm">
                   Cancel
                 </button>
               </div>
@@ -392,7 +392,7 @@ export default function ProfilePage() {
         {/* ── Section 2: Your Documents ───────────────────────── */}
         <section className="rounded-xl border border-[#e5ddd0] bg-white p-5">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-medium text-[#a89880]">Your Documents</h2>
+            <h2 className="text-sm font-medium text-[#6b5d4a]">Your Documents</h2>
             {hasLockedDocs && !vaultToken && (
               <button
                 onClick={() => setShowVaultGate(true)}
@@ -402,10 +402,10 @@ export default function ProfilePage() {
               </button>
             )}
             {vaultToken && (
-              <span className="text-xs text-[#8a7a62]">Unlocked</span>
+              <span className="text-xs text-[#6b5d4a]">Unlocked</span>
             )}
           </div>
-          <p className="text-xs text-[#c8bba8] mb-4 leading-relaxed">
+          <p className="text-xs text-[#6b5d4a] mb-4 leading-relaxed">
             Passport, insurance, frequent flyer &mdash; anything useful during the trip.
             Documents are shared with your travel group by default. Tap the lock to make any item private.
           </p>
@@ -419,7 +419,7 @@ export default function ProfilePage() {
                   </h3>
                   <button
                     onClick={() => startAdd(section.value)}
-                    className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
+                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors"
                   >
                     + Add
                   </button>
@@ -433,7 +433,7 @@ export default function ProfilePage() {
                     <div key={doc.id} className="mb-2 bg-[#faf8f5] rounded-lg border border-[#e5ddd0] p-3">
                       {isLocked ? (
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-[#a89880]">
+                          <span className="text-sm text-[#6b5d4a]">
                             {section.icon} {doc.label || section.label}
                           </span>
                           <button
@@ -460,17 +460,17 @@ export default function ProfilePage() {
                             <div className="space-y-0.5">
                               {Object.entries(doc.data || {}).filter(([, v]) => v).map(([k, v]) => (
                                 <div key={k} className="text-sm">
-                                  <span className="text-[#a89880]">{FIELD_LABELS[k] || k}: </span>
+                                  <span className="text-[#6b5d4a]">{FIELD_LABELS[k] || k}: </span>
                                   <span className="text-[#3a3128]">{v}</span>
                                 </div>
                               ))}
                               {doc.label && (
-                                <div className="text-xs text-[#c8bba8]">{doc.label}</div>
+                                <div className="text-xs text-[#6b5d4a]">{doc.label}</div>
                               )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0 ml-2">
                               {doc.isPrivate && (
-                                <span className="text-xs text-[#c8bba8]" title="Only you can see this">{"\u{1F512}"}</span>
+                                <span className="text-xs text-[#6b5d4a]" title="Only you can see this">{"\u{1F512}"}</span>
                               )}
                               {confirmingDeleteId === doc.id ? (
                                 <>
@@ -483,7 +483,7 @@ export default function ProfilePage() {
                                   </button>
                                   <button
                                     onClick={() => setConfirmingDeleteId(null)}
-                                    className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
+                                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors"
                                   >
                                     Keep
                                   </button>
@@ -492,7 +492,7 @@ export default function ProfilePage() {
                                 <>
                                   <button
                                     onClick={() => startEdit(doc)}
-                                    className="text-xs text-[#a89880] hover:text-[#514636] transition-colors"
+                                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors"
                                   >
                                     Edit
                                   </button>
@@ -529,7 +529,7 @@ export default function ProfilePage() {
                 )}
 
                 {section.docs.length === 0 && addingType !== section.value && (
-                  <p className="text-xs text-[#c8bba8] mb-2">Nothing here yet</p>
+                  <p className="text-xs text-[#6b5d4a] mb-2">Nothing here yet</p>
                 )}
               </div>
             ))}
@@ -539,15 +539,15 @@ export default function ProfilePage() {
         {/* ── Section 3: Your Learnings (Planners only) ───────── */}
         {isPlanner && (
           <section className="rounded-xl border border-[#e5ddd0] bg-white p-5">
-            <h2 className="text-sm font-medium text-[#a89880] mb-1">Your Learnings</h2>
-            <p className="text-xs text-[#c8bba8] mb-4">
+            <h2 className="text-sm font-medium text-[#6b5d4a] mb-1">Your Learnings</h2>
+            <p className="text-xs text-[#6b5d4a] mb-4">
               Things you've picked up along the way &mdash; from conversations, research, and experience.
             </p>
 
             {learningsLoading ? (
-              <p className="text-sm text-[#a89880]">Finding your learnings...</p>
+              <p className="text-sm text-[#6b5d4a]">Finding your learnings...</p>
             ) : learnings.length === 0 ? (
-              <p className="text-sm text-[#c8bba8]">
+              <p className="text-sm text-[#6b5d4a]">
                 No learnings yet. As you use Scout, insights will show up here.
               </p>
             ) : (
@@ -555,7 +555,7 @@ export default function ProfilePage() {
                 {learnings.slice(0, 10).map((learning) => (
                   <div key={learning.id} className="bg-[#faf8f5] rounded-lg border border-[#e5ddd0] p-3">
                     <p className="text-sm text-[#3a3128] leading-relaxed">{learning.content}</p>
-                    <p className="text-xs text-[#c8bba8] mt-1">
+                    <p className="text-xs text-[#6b5d4a] mt-1">
                       {new Date(learning.createdAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -566,7 +566,7 @@ export default function ProfilePage() {
                   </div>
                 ))}
                 {learnings.length > 10 && (
-                  <p className="text-xs text-[#a89880] text-center">
+                  <p className="text-xs text-[#6b5d4a] text-center">
                     Showing 10 of {learnings.length}
                   </p>
                 )}
@@ -597,7 +597,7 @@ function DocumentForm({
     <div className="space-y-2">
       {fields.map((field) => (
         <div key={field}>
-          <label className="text-xs text-[#a89880]">{FIELD_LABELS[field] || field}</label>
+          <label className="text-xs text-[#6b5d4a]">{FIELD_LABELS[field] || field}</label>
           <input
             type={field === "expiry" || field === "date" ? "date" : "text"}
             value={data[field] || ""}
@@ -614,12 +614,12 @@ function DocumentForm({
           className={`text-xs px-2 py-1 rounded border transition-colors ${
             isPrivate
               ? "border-[#514636] bg-[#514636] text-white"
-              : "border-[#e5ddd0] text-[#a89880] hover:bg-[#f5f0ea]"
+              : "border-[#e5ddd0] text-[#6b5d4a] hover:bg-[#f5f0ea]"
           }`}
         >
           {isPrivate ? "\u{1F512} Only me" : "\u{1F465} Everyone in this trip"}
         </button>
-        <span className="text-xs text-[#c8bba8] flex-1">
+        <span className="text-xs text-[#6b5d4a] flex-1">
           {isPrivate ? "Only you can see this" : "Visible to everyone in the trip"}
         </span>
       </div>

@@ -6,60 +6,70 @@ const sections = [
   {
     id: "quick-start",
     title: "Quick Start",
-    body: `Wander is where the trip lives — every city, day, restaurant and temple. Scout is your travel companion inside the app — ask anything about the trip, or just chat about what to do next.
+    body: `Wander shows Larisa's Guide — her trip spreadsheet — on your phone, arranged by day.
 
-Tap the link you were sent, pick your name, and you're in the trip overview. Tap a day to see its city and activities. Details are below.`,
+**Home** opens on what matters now: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.
+
+Along the bottom: **Ideas** (Larisa's ideas, city by city), **Now** (today, with what's next), **Actions** (deadlines and to-dos), and **Scout** — ask it anything about the trip.`,
+  },
+  {
+    id: "getting-in",
+    title: "Getting In",
+    body: `The first time, point your iPhone's camera at the code Ken or Larisa shows you (or open the link they sent). In Safari, tap Share, then **Add to Home Screen** — Wander gets its own icon. Open it, then tap **Set up Face ID**. After that, just look at your phone.
+
+New phone? Ask Ken or Larisa — they make a new invite from **Settings → People on this trip**. Once you've set up Face ID, your old link stops working, so an old message can't be used by anyone else.
+
+Letting someone in (Ken and Larisa): **People on this trip → + Add someone**. Type their name, pick the trip, and show them the code.`,
   },
   {
     id: "getting-around",
-    title: "Getting Around",
-    body: `There are three main ways we move through the trip:
+    title: "A Day",
+    body: `A day shows everything Larisa's Guide says for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, deadlines, and where everyone sleeps that night. Each line says where in the Guide it came from, and the bottom says when Wander last read the Guide.
 
-The **home screen** shows a calendar, where each cell is a day, color-coded by city. Tap any day to jump into the day-by-day plan.
+The arrows at the top move a day at a time. **‹ Back** goes back where you came from.
 
-The **day-by-day** shows that day's activities on the map with the full schedule alongside — reservations, accommodations, and notes. A scrollable strip of day cards runs along the bottom; swipe to move between days.
+**+ Add a plan for this day** puts your own plan on it — "Ken and Andy: Musée Tomo at 3." Everyone sees it, marked as added in Wander. **Tell Larisa** sends it to her as a message, already written.`,
+  },
+  {
+    id: "travel-days",
+    title: "Now",
+    body: `The **Now** tab is today, with what's next at the top and how long until it. Tap a place for directions in Maps. Quick Japanese phrases are there too.
 
-Above the day strip: **Home** (back to the overview), **Add** (capture a new place or import), and **Scout** (your travel companion). On a phone, there's also a **List** button to switch between the map and list views — on a larger screen, both are visible side by side.`,
+Before the trip, Now shows the first day. After it, the last.`,
   },
   {
     id: "chat",
     title: "Scout — Your Travel Companion",
-    body: `The chat bubble in the bottom-right corner is Scout. Scout knows your whole trip — every city, day, reservation, and activity. You can ask questions, save a place you find, or just think out loud. The plan itself lives in Larisa's Guide, so Scout doesn't delete or rearrange it.
+    body: `Scout has read the whole Guide, including the pasted emails and booking screenshots, and knows what day and time it is where you are. It answers from the Guide first and tells you so. If the Guide doesn't have something, Scout says that. It can also look things up online. It never changes the plan.
 
-_"What's planned for Tuesday?"_
-_"Add Fushimi Inari to the Kyoto days"_
-_"How far is the hotel from the temple?"_
-_"What are we doing in Osaka?"_
+_"Where are we sleeping tonight?"_
+_"What time is dinner, and what should I wear?"_
+_"Any deadlines this week?"_
+_"How long to Kansai airport from here?"_
 
-Scout also stores your travel info if you tell it: _"My Delta SkyMiles number is 1234567."_
-
-Scout won't offer opinions on whether you'll love a place, and doesn't know things outside the trip data. If it misunderstands, just rephrase. You can type or tap the microphone and talk.`,
+You can type, tap a question, or tap the microphone and talk.`,
   },
   {
-    id: "travel-days",
-    title: "On Travel Days",
-    body: `During the trip, a **Now** button appears on the home screen — it's your day-of command center. It shows what's next on today's schedule, calculates when you should leave based on where you are and how you're getting there, and gives you one-tap directions in Apple or Google Maps. If trains are disrupted, you'll see an alert.
+    id: "the-guide",
+    title: "Where the Plan Lives",
+    body: `Larisa's Guide is the plan. Wander reads a copy of it and never changes it. Where the Guide still has an open question — two hotels for one night, a "maybe" day trip — Wander shows it as open.
 
-Wander works offline too; changes sync when you're back on wifi or cellular.`,
+If something in Wander looks different from what Larisa told you, trust Larisa. Wander may not have read her latest version yet.`,
   },
   {
-    id: "shaping",
-    title: "Shaping the Plan Together",
-    body: `Other than an easy reference, a point of having a shared app is we can change or discuss shared days without a long text thread. Activities in black at the top are "sure things." Grey items at the bottom are options from the system or any of us. When you're browsing activities on a day, tap the **up arrow** (↑) next to any activity to promote it onto the day's schedule, then pick which day. Tap the **down arrow** (↓) to move something off the schedule and back to candidates. The map updates. Nothing is permanent, and everything can be moved back.
-
-In the activity list, you may see a **Decide Together** section — that's the group choosing between options. Tap the one you'd pick, or tap "Happy with any" if you're flexible. When everyone's weighed in, someone taps **Resolve** to lock it in.
-
-Found a place you want to add? Tell Scout — _"add Café Kitsune to Thursday"_ — or tap **+** then **Manual**. You'll get three choices: **Add to itinerary** (onto the schedule), **Just an idea** (save for later), or **Ask the group** (start a group decision with this as the first option).`,
+    id: "notes",
+    title: "Ideas and Your Own Notes",
+    body: `**Ideas** shows the ideas in Larisa's Activities tab, starting with the city you're in, with who marked each one. On any idea: **+ Note** (for everyone, or just for you), **Add to a day**, Maps, and Ask Scout. Larisa's Guide stays as it is.`,
   },
   {
-    id: "browsing",
-    title: "Browsing by Interest",
-    body: `On the map, there's a column of filter buttons on the left — food, temples, nature, and more. Tap one to filter the map to just that category. Tap it again to show everything. Hold a button to see its label.`,
+    id: "no-signal",
+    title: "No Signal",
+    body: `Wander keeps a copy of the trip on your phone. With no signal, it shows that copy and says when it was saved. Scout needs a signal to answer.`,
   },
   {
     id: "travel-info",
     title: "Your Travel Info",
-    body: `Tap your name in the top-right corner of the home screen to reach your Profile. You can store passport numbers, frequent flyer details, insurance — anything useful during the trip. Mark items **private** (only you) or **shared** (the group can see them for coordinating bookings).`,
+    body: `Tap your name at the top of Home for your Profile. Passport, visa and insurance details go in your vault, which opens with Face ID. Scout never reads those out.`,
   },
   {
     id: "feedback",
@@ -78,7 +88,7 @@ function renderMarkdown(text: string) {
         return <strong key={j} className="font-medium text-[#3a3128]">{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith("_") && part.endsWith("_")) {
-        return <em key={j} className="text-[#8a7a62] not-italic">{part.slice(1, -1)}</em>;
+        return <em key={j} className="text-[#6b5d4a] not-italic">{part.slice(1, -1)}</em>;
       }
       if (part.startsWith("`") && part.endsWith("`")) {
         return <code key={j} className="px-1 py-0.5 bg-[#f0ece5] rounded text-xs">{part.slice(1, -1)}</code>;
@@ -113,14 +123,14 @@ export default function GuidePage() {
         <div className="flex items-center justify-between mb-8">
           <button
             onClick={() => navigate("/")}
-            className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+            className="min-h-[44px] px-1 text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
           >
             &larr; Home
           </button>
         </div>
 
         <h1 className="text-2xl font-light text-[#3a3128] mb-1">Wander</h1>
-        <p className="text-sm text-[#a89880] mb-8">Our trip, in one place</p>
+        <p className="text-sm text-[#6b5d4a] mb-8">Our trip, in one place</p>
 
         {/* Cards */}
         <div className="space-y-4">
@@ -134,14 +144,14 @@ export default function GuidePage() {
             >
               <h2
                 className={`text-sm font-medium mb-3 ${
-                  i === 0 ? "text-[#e0d8cc]" : "text-[#a89880]"
+                  i === 0 ? "text-[#e0d8cc]" : "text-[#6b5d4a]"
                 }`}
               >
                 {section.title}
               </h2>
               <div
                 className={`text-sm leading-relaxed ${
-                  i === 0 ? "text-[#faf8f5]/90 [&_strong]:text-[#faf8f5] [&_em]:text-[#e0d8cc]" : "text-[#6b5d4a] [&_em]:text-[#a89880]"
+                  i === 0 ? "text-[#faf8f5]/90 [&_strong]:text-[#faf8f5] [&_em]:text-[#e0d8cc]" : "text-[#6b5d4a] [&_em]:text-[#6b5d4a]"
                 }`}
               >
                 {renderMarkdown(section.body)}

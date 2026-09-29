@@ -16,14 +16,14 @@ export default function ImportCard({ tripId }: Props) {
           className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg bg-[#faf8f5] border border-[#f0ece5] hover:border-[#e0d8cc] transition-colors"
         >
           <span className="text-lg">📷</span>
-          <span className="text-xs text-[#8a7a62]">Camera</span>
+          <span className="text-xs text-[#6b5d4a]">Camera</span>
         </button>
         <button
           onClick={() => navigate("/plan?action=import")}
           className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg bg-[#faf8f5] border border-[#f0ece5] hover:border-[#e0d8cc] transition-colors"
         >
           <span className="text-lg">📋</span>
-          <span className="text-xs text-[#8a7a62]">Paste</span>
+          <span className="text-xs text-[#6b5d4a]">Paste</span>
         </button>
         <button
           onClick={() => {
@@ -32,7 +32,7 @@ export default function ImportCard({ tripId }: Props) {
           className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg bg-[#faf8f5] border border-[#f0ece5] hover:border-[#e0d8cc] transition-colors"
         >
           <span className="text-lg">💬</span>
-          <span className="text-xs text-[#8a7a62]">Ask Scout</span>
+          <span className="text-xs text-[#6b5d4a]">Ask Scout</span>
         </button>
       </div>
     </div>

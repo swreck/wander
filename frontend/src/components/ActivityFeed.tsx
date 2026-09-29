@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { changeRest } from "../lib/changeWords";
 import { api } from "../lib/api";
 
 interface FeedItem {
@@ -65,10 +66,10 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left"
       >
-        <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
           Recent activity
           {!expanded && feed.length > 4 && (
-            <span className="ml-1 text-[#c8bba8] normal-case tracking-normal">
+            <span className="ml-1 text-[#6b5d4a] normal-case tracking-normal">
               · {feed.length} total
             </span>
           )}
@@ -83,9 +84,9 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
             <div className="flex-1 min-w-0">
               <span className="text-[#3a3128] font-medium">{item.userDisplayName}</span>
               {" "}
-              <span className="text-[#8a7a62]">{item.description}</span>
+              <span className="text-[#6b5d4a]">{changeRest(item.userDisplayName, item.description)}</span>
             </div>
-            <span className="text-xs text-[#c8bba8] shrink-0 mt-0.5">
+            <span className="text-xs text-[#6b5d4a] shrink-0 mt-0.5">
               {timeAgo(item.createdAt)}
             </span>
           </div>
@@ -94,7 +95,7 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
       {feed.length > 4 && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="mt-2 text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+          className="mt-2 text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
         >
           {expanded ? "Show less" : `Show all ${feed.length}`}
         </button>

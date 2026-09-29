@@ -154,7 +154,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
                     : `${items.length} activities found`
               )}
             </h3>
-            <button onClick={handleClose} className="text-[#c8bba8] hover:text-[#6b5d4a] text-lg">&times;</button>
+            <button onClick={handleClose} className="text-[#6b5d4a] hover:text-[#6b5d4a] text-lg">&times;</button>
           </div>
           {hasVersionMatches && !showVersionMatches && (
             <button
@@ -171,7 +171,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
             {/* Input mode — Import button entry */}
             {inputMode && (
               <>
-                <p className="text-xs text-[#a89880] mb-3">
+                <p className="text-xs text-[#6b5d4a] mb-3">
                   Paste text, a URL, or upload a photo. Wander figures out the rest.
                 </p>
                 <textarea
@@ -195,7 +195,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
                 <div className="flex items-center gap-2 mt-2">
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="px-3 py-1.5 rounded border border-dashed border-[#e0d8cc] text-xs text-[#8a7a62]
+                    className="px-3 py-1.5 rounded border border-dashed border-[#e0d8cc] text-xs text-[#6b5d4a]
                                hover:border-[#a89880] transition-colors"
                   >
                     {inputFile ? inputFile.name : "📷 Photo or file"}
@@ -265,7 +265,7 @@ export default function UniversalCapturePanel({ trip, defaultCityId, onCommitted
                     <option key={city.id} value={city.id}>{city.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-[#a89880]">Location will be looked up automatically</p>
+                <p className="text-xs text-[#6b5d4a]">Location will be looked up automatically</p>
               </div>
             )}
 

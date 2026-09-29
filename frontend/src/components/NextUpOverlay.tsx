@@ -207,18 +207,18 @@ export default function NextUpOverlay() {
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
+            <div className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">
               {typeLabel} · {timeDescription}
             </div>
             <div className="text-base font-medium text-[#3a3128] truncate">
               {item.name}
             </div>
-            <div className="text-sm text-[#8a7a62] mt-0.5">
+            <div className="text-sm text-[#6b5d4a] mt-0.5">
               {item.timeLabel}
-              {item.detail && <span className="text-[#a89880]"> · {item.detail}</span>}
+              {item.detail && <span className="text-[#6b5d4a]"> · {item.detail}</span>}
             </div>
           </div>
-          <div className="text-[#c8bba8] text-xs mt-0.5 shrink-0">tap to close</div>
+          <div className="text-[#6b5d4a] text-xs mt-0.5 shrink-0">tap to close</div>
         </div>
       </button>
     </div>

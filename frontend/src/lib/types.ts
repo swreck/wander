@@ -132,6 +132,8 @@ export interface Experience {
   tripId: string;
   cityId: string;
   name: string;
+  /** Who marked this idea (Larisa's Guide Activities tab, or in Wander) */
+  interests?: { displayName: string }[];
   description: string | null;
   sourceUrl: string | null;
   sourceText: string | null;

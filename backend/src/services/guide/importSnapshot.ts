@@ -15,6 +15,7 @@ import { readGuideXlsx, rowsOf, type GuideReadResult, type GuideTab } from "./re
 import { interpretItinerary, parseStatedTimes, type ItineraryResult, type InterpretedItem } from "./itinerary.js";
 import { readGuideImage, whoFromNames, roomFor, type ImageReading } from "./images.js";
 import { readGuideText, isBookingProse, tabTextHash, type TextReading } from "./textReader.js";
+import { readDayPlans, looksLikeDayPlan, dayPlanHash, verifyAgainstTab, type DayPlanReading } from "./dayPlanReader.js";
 
 export interface ImportOptions {
   buffer: Buffer;
@@ -24,6 +25,7 @@ export interface ImportOptions {
   tripName?: string;              // for a new trip
   timeZone?: string;              // for a new trip, default Asia/Tokyo
   readPictures?: boolean;         // default true
+  readDayPlans?: boolean;         // default true (her day-plan tabs; cached, so only changed tabs are read)
 }
 
 export interface ImportReport {
@@ -36,6 +38,7 @@ export interface ImportReport {
   changes: { added: string[]; removed: string[] };
   pictures: { read: number; cached: number; failed: { tab: string; anchor: string; reason: string }[] };
   textReadings?: Record<string, TextReading>; // cached readings of prose tabs, by tab-text hash
+  dayPlanReadings?: Record<string, DayPlanReading>; // cached readings of day-plan tabs, by tab-text hash
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -63,9 +66,35 @@ function zoneFor(city: string | null, tripZone: string): string {
   return city && /san francisco/i.test(city) ? "America/Los_Angeles" : tripZone;
 }
 
-const AIRPORT_ZONES: Record<string, string> = { SFO: "America/Los_Angeles", KIX: "Asia/Tokyo", NRT: "Asia/Tokyo", HND: "Asia/Tokyo" };
+const AIRPORT_ZONES: Record<string, string> = { SFO: "America/Los_Angeles", LAX: "America/Los_Angeles", KIX: "Asia/Tokyo", NRT: "Asia/Tokyo", HND: "Asia/Tokyo", ITM: "Asia/Tokyo" };
+const AIRPORT_NAMES: Record<string, string> = { SFO: "San Francisco", LAX: "Los Angeles", KIX: "Kansai", NRT: "Narita", HND: "Haneda", ITM: "Itami" };
+const ZONE_WORDS: Record<string, string> = { "America/Los_Angeles": "California time", "Asia/Tokyo": "Japan time" };
 
-type Item = InterpretedItem & { forWhom?: string | null; link?: string | null; timeZone?: string };
+/** "KIX" → "Kansai (KIX)" */
+export function airportName(code: string | null | undefined): string {
+  if (!code) return "the airport";
+  return AIRPORT_NAMES[code] ? `${AIRPORT_NAMES[code]} (${code})` : code;
+}
+
+/** "United Airlines", "UA 35" → "United UA35" */
+export function flightLabel(airline: string | null | undefined, number: string | null | undefined): string {
+  const a = (airline || "").replace(/\s+(Airlines?|Airways|Air Lines)\b.*$/i, "").trim();
+  const n = (number || "").replace(/\s+/g, "");
+  return [a, n].filter(Boolean).join(" ") || "Flight";
+}
+
+/** "2026-10-06", "14:50", Tokyo → "Tue, Oct 6, 2:50 PM Japan time" */
+export function plainWhen(date: string | null | undefined, time: string | null | undefined, zone: string): string {
+  const day = date ? new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : "";
+  let clock = "";
+  if (time && /^\d{1,2}:\d{2}$/.test(time)) {
+    const [h, m] = time.split(":").map(Number);
+    clock = `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+  }
+  return [day, clock ? `${clock}${ZONE_WORDS[zone] ? ` ${ZONE_WORDS[zone]}` : ""}` : ""].filter(Boolean).join(", ");
+}
+
+type Item = InterpretedItem & { forWhom?: string | null; link?: string | null; timeZone?: string; windowStart?: string | null; timeText?: string | null };
 
 const GENERIC_WORDS = new Set(["hotel", "the", "ryokan", "residence", "tokyo", "kyoto", "resort", "inn", "and"]);
 /** Two hotel names refer to the same place when they share a distinctive word ("IMPERIAL HOTEL, TOKYO" ~ "Imperial Hotel"). */
@@ -99,12 +128,135 @@ function mergeInto(items: Item[], cand: Item, matches: (i: Item) => boolean): vo
       : cand.confirmation;
   }
   existing.forWhom = mergePeople(existing.forWhom, cand.forWhom);
-  if (cand.detail && !(existing.detail || "").includes(cand.detail)) existing.detail = [existing.detail, cand.detail].filter(Boolean).join(" · ");
+  // Each source's details on their own line (details are short labelled lines)
+  if (cand.detail && !(existing.detail || "").includes(cand.detail)) existing.detail = [existing.detail, cand.detail].filter(Boolean).join("\n");
   if (!existing.time && cand.time) existing.time = cand.time;
   if (!existing.endTime && cand.endTime) existing.endTime = cand.endTime;
   if (!existing.place && cand.place) existing.place = cand.place;
   if (!existing.link && cand.link) existing.link = cand.link;
   if (!existing.source.includes(cand.source)) existing.source = `${existing.source} + ${cand.source}`;
+}
+
+const minutesOf = (t: string | null | undefined) => {
+  const m = (t || "").match(/^(\d{1,2}):(\d{2})$/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+const QUESTION_STOP = new Set([...GENERIC_WORDS, "trip", "tour", "visit", "dinner", "lunch", "museum", "town", "village", "temple", "shrine", "garden", "market", "street", "from", "with"]);
+
+/**
+ * Last pass over the day-by-day items, after every source is merged:
+ * - A flight's arrival is never its "end time" (it's another zone, often the next day), and its time
+ *   is in the departure airport's zone, whichever city row it sat under.
+ * - A day note that is really the flight ("6:30p flight" beside a 6:35 PM departure) folds into the
+ *   flight, in Larisa's words, so it doesn't read as a second flight.
+ * - An open question from the Activities tab ("1 day to Mashiko-Julie interested?") travels to every
+ *   other day that mentions the same trip, so none of them reads as settled.
+ */
+export function tidyItems(items: Item[], openQuestions: { name: string; text: string; date: string }[]): void {
+  for (const f of items) {
+    if (f.kind !== "flight") continue;
+    f.endTime = null;
+    const code = (f.title.match(/\b[A-Z]{3}\b/g) || []).find((c) => AIRPORT_ZONES[c]);
+    if (code && !/^Land at/.test(f.title) && !f.source.includes("Screenshot")) f.timeZone = AIRPORT_ZONES[code];
+  }
+
+  // A row that only repeats a confirmation code already on that day's booking ("confirmation: : ABC123")
+  const repeats = new Set<Item>();
+  for (const n of items) {
+    if (!["note", "plan"].includes(n.kind)) continue;
+    const code = n.title.match(/^\s*confirmation\s*[:#]*\s*[:#]*\s*([A-Za-z0-9-]{5,})\s*$/i)?.[1];
+    if (code && items.some((o) => o !== n && o.date === n.date && (o.confirmation || "").includes(code))) repeats.add(n);
+  }
+  for (let k = items.length - 1; k >= 0; k--) if (repeats.has(items[k])) items.splice(k, 1);
+
+  const folded = new Set<Item>();
+  for (const f of items) {
+    if (f.kind !== "flight" || /^Land at/.test(f.title)) continue;
+    const at = minutesOf(f.time);
+    if (at === null) continue;
+    for (const n of items) {
+      if (n === f || folded.has(n) || n.date !== f.date || !["note", "plan", "travel"].includes(n.kind)) continue;
+      const nt = minutesOf(n.time);
+      if (nt === null || Math.abs(nt - at) > 15 || !/\b(flight|fly|flies|plane)\b/i.test(`${n.title} ${n.detail || ""}`)) continue;
+      // Quoted exactly as she wrote it ("6:30p flight - travel day…"), never with its time taken out
+      f.detail = [f.detail, `Larisa's note: "${n.said || n.title}"${n.detail ? ` — ${n.detail}` : ""}`].filter(Boolean).join("\n");
+      if (!f.source.includes(n.source)) f.source = `${f.source} + ${n.source}`;
+      folded.add(n);
+    }
+  }
+  // A note with no time on the same sheet row as a flight is about that flight ("ANA part of Star
+  // Alliance" beside Ken & Larisa's UA35) — on its own it showed to everyone as a line of its own
+  const rowOf = (s: string) => s.match(/^([^·(]+?)\s*·[^(]*\(row (\d+)\)/);
+  for (const n of items) {
+    if (folded.has(n) || n.kind !== "note" || n.time || n.forWhom) continue;
+    const nr = rowOf(n.source);
+    if (!nr) continue;
+    const f = items.find((o) => o.kind === "flight" && !/^Land at/.test(o.title) && o.date === n.date
+      && o.source.split(" + ").some((part) => { const r = rowOf(part); return !!r && r[1] === nr[1] && r[2] === nr[2]; }));
+    if (!f) continue;
+    f.detail = [f.detail, `Larisa's note: "${n.said || n.title}"`].filter(Boolean).join("\n");
+    if (!f.source.includes(n.source)) f.source = `${f.source} + ${n.source}`;
+    folded.add(n);
+  }
+  for (let k = items.length - 1; k >= 0; k--) if (folded.has(items[k])) items.splice(k, 1);
+
+  for (const q of openQuestions) {
+    const words = norm(q.name).split(/[^a-z]+/).filter((w) => w.length >= 5 && !QUESTION_STOP.has(w));
+    if (!words.length) continue;
+    const when = new Date(`${q.date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+    for (const i of items) {
+      if (!i.date || i.date === q.date || !["plan", "tour", "meal", "travel", "note"].includes(i.kind) || i.title.startsWith("Maybe:")) continue;
+      if (!words.some((w) => norm(i.title).includes(w))) continue;
+      const line = `Still open in the Guide: ${q.name} is also marked for ${when} ("${q.text}")`;
+      if (!(i.detail || "").includes(line)) i.detail = [i.detail, line].filter(Boolean).join("\n");
+    }
+  }
+}
+
+export const REMOVED_PREFIX = "Removed from Guide|";
+
+/**
+ * Larisa changes her sheet during the trip; Wander re-reads it. Anything people added in Wander
+ * must survive that. Most of it lives apart from the Guide and is never touched. The one risk: an
+ * idea of hers that people wrote on (notes, reactions, looked-up ratings, a same-day plan, a note on
+ * the idea itself) and that is gone from the new copy — renamed, moved, or removed.
+ * - Renamed (one new idea in the same city shares a distinctive word): everything moves onto it.
+ * - Otherwise: the old idea stays, marked "no longer in Larisa's Guide", with everything on it.
+ * Ideas nobody wrote on simply go, as before.
+ */
+export async function keepWhatPeopleAdded(
+  tx: any, tripId: string, ideaRefs: string[], createdNow: { id: string; cityId: string; name: string }[],
+  report: { warnings: string[] },
+): Promise<void> {
+  const gone = await tx.experience.findMany({
+    where: { tripId, sheetRowRef: { startsWith: "Activities Template|", notIn: ideaRefs.length ? ideaRefs : ["__none__"] } },
+    include: { notes: { select: { id: true } }, reactions: { select: { id: true } }, ratings: { select: { id: true } } },
+  });
+  for (const g of gone) {
+    const plans = await tx.dayChoice.count({ where: { tripId, experienceId: g.id } });
+    const written = g.notes.length + g.reactions.length + g.ratings.length + plans + (g.userNotes ? 1 : 0);
+    if (!written) continue;
+    const words = norm(g.name).split(/[^a-z]+/).filter((w: string) => w.length > 3 && !QUESTION_STOP.has(w));
+    const matches = createdNow.filter((e) => e.cityId === g.cityId && words.some((w: string) => norm(e.name).includes(w)));
+    if (matches.length === 1) {
+      const to = matches[0].id;
+      await tx.experienceNote.updateMany({ where: { experienceId: g.id }, data: { experienceId: to } });
+      await tx.experienceRating.updateMany({ where: { experienceId: g.id }, data: { experienceId: to } });
+      await tx.dayChoice.updateMany({ where: { tripId, experienceId: g.id }, data: { experienceId: to } });
+      // Reactions one by one: the new idea has none yet, but never let a clash lose the rest
+      for (const r of g.reactions) {
+        await tx.experienceReaction.update({ where: { id: r.id }, data: { experienceId: to } }).catch(() => {});
+      }
+      const carry: Record<string, unknown> = {};
+      if (g.userNotes) carry.userNotes = g.userNotes;
+      if (g.latitude !== null && g.longitude !== null) Object.assign(carry, { latitude: g.latitude, longitude: g.longitude, placeIdGoogle: g.placeIdGoogle, locationStatus: g.locationStatus });
+      if (Object.keys(carry).length) await tx.experience.update({ where: { id: to }, data: carry });
+      report.warnings.push(`"${g.name}" is now "${matches[0].name}" in the Guide — notes and plans on it moved across.`);
+    } else {
+      await tx.experience.update({ where: { id: g.id }, data: { sheetRowRef: `${REMOVED_PREFIX}${g.sheetRowRef}`, dayId: null, state: "possible" } });
+      report.warnings.push(`"${g.name}" is no longer in the Guide — kept in Wander, marked that way, because people wrote on it.`);
+    }
+  }
 }
 
 // ── Other tabs ──────────────────────────────────────────────────
@@ -175,9 +327,10 @@ export function parseIdeasTab(tabs: GuideTab[], tripYear: string): ParsedIdea[] 
         if (sec && / - /.test(sec)) section = sec;
         const name = at(nameCol);
         if (!name || rr === r) continue;
+        // An X is a mark; "Maybe" stays a maybe ("Larisa (maybe)") — never shown as a firm interest
         const interested = Array.from(personCols.entries())
           .filter(([, c]) => /^(x|yes|maybe)$/i.test(at(c) || ""))
-          .map(([p]) => p[0].toUpperCase() + p.slice(1));
+          .map(([p, c]) => `${p[0].toUpperCase() + p.slice(1)}${/^maybe$/i.test(at(c) || "") ? " (maybe)" : ""}`);
         const marks = dateCols.filter((d) => !!at(d.c)).map((d) => ({ date: d.date, text: at(d.c)!, firm: /^(x|yes)$/i.test(at(d.c)!) }));
         out.push({
           name, city: section.split(" - ")[0].trim(), section: section.split(" - ").slice(1).join(" - ").trim(),
@@ -212,14 +365,30 @@ function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & {
       const detailCell = sorted.find((c) => c.c > nameCell.c && c.kind === "text" && !/^https?:/i.test(c.text));
       const linkCell = sorted.find((c) => c.c > nameCell.c && (c.link || /^https?:/i.test(c.text)));
       const at = dateCell.text.match(/@\s*([\d:]+\s*[ap])/i);
+      const noReso = /no\s*resos?\b|no reservation/i.test(dateCell.text);
       out.push({
         date: `${year}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`,
         time: at ? parseStatedTimes(at[1]).start : null, endTime: null, kind: "meal",
-        title: nameCell.text.trim(), detail: detailCell ? detailCell.text.split("\n").filter(Boolean).slice(0, 3).join(" · ") : null,
+        // The name is the first line; what she wrote under it ("(Michelin 1 star - Tempura)") is detail
+        title: nameCell.text.split("\n")[0].trim(),
+        detail: [
+          noReso ? "No reservation" : null,
+          nameCell.text.split("\n").slice(1).map((l) => l.trim()).filter(Boolean).join(" · ") || null,
+          detailCell ? detailCell.text.split("\n").filter(Boolean).slice(0, 3).join(" · ") : null,
+        ].filter(Boolean).join("\n") || null,
         place: null, confirmation: null, sourceRef: `${tab.name}!${nameCell.a1}`, source: `${tab.name} (row ${r})`, city: null,
         link: linkCell?.link || linkCell?.text || null,
       });
     }
+  }
+  // Two places on the same date and time: a choice, or not yet settled — Wander doesn't guess which;
+  // each line says so, in plain words
+  for (const a of out) {
+    const same = out.filter((b) => b.date === a.date && b.time === a.time && b.source.split(" (")[0] === a.source.split(" (")[0]);
+    if (same.length < 2) continue;
+    const names = same.map((b) => b.title.split("\n")[0].trim());
+    const line = `The ${a.source.split(" (")[0]} tab lists ${same.length} places for this date${a.time ? " and time" : ""}: ${names.join(" and ")}.`;
+    if (!(a.detail || "").includes(line)) a.detail = [a.detail, line].filter(Boolean).join("\n");
   }
   return out;
 }
@@ -342,26 +511,43 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       if (f.status !== "confirmed" || !f.departDate) continue;
       const who = whoFromNames(f.travelers);
       const seats = (f.seats || []).map((s) => `${whoFromNames([s.traveler]) || s.traveler} ${s.seat}`).join(", ");
-      const flightName = [f.airline, f.flightNumber].filter(Boolean).join(" ") || "Flight";
+      const flightName = flightLabel(f.airline, f.flightNumber);
       const nextDay = !!(f.arriveDate && f.arriveDate !== f.departDate);
+      const depZone = (f.departAirport && AIRPORT_ZONES[f.departAirport]) || tripZone;
+      const arrZone = (f.arriveAirport && AIRPORT_ZONES[f.arriveAirport]) || tripZone;
+      // Said the way people say it: "United UA34 · Kansai (KIX) → San Francisco (SFO)"
+      const title = `${flightName} · ${airportName(f.departAirport)} → ${airportName(f.arriveAirport)}`;
+      const lands = f.arriveTime ? `Lands at ${airportName(f.arriveAirport)} ${plainWhen(f.arriveDate || f.departDate, f.arriveTime, arrZone)}` : null;
       const departure: Item = {
-        date: f.departDate, time: f.departTime, endTime: nextDay ? null : f.arriveTime, kind: "flight",
-        title: `${flightName} · ${f.departAirport} → ${f.arriveAirport}`,
-        detail: [nextDay ? `Arrives ${f.arriveAirport} ${f.arriveDate}${f.arriveTime ? ` at ${f.arriveTime}` : ""}` : null,
-          seats ? `Seats requested: ${seats}` : null].filter(Boolean).join(" · ") || null,
+        // Arrival is in another time zone, often the next day — never an "end time" on this line
+        date: f.departDate, time: f.departTime, endTime: null, kind: "flight", title,
+        detail: [lands, seats ? `Seats requested: ${seats}` : null].filter(Boolean).join("\n") || null,
         place: null, confirmation: f.confirmation, forWhom: who, sourceRef: `image:${image.sha256}`,
-        source: `Screenshot in ${place.tab.name}`, city: null, timeZone: (f.departAirport && AIRPORT_ZONES[f.departAirport]) || tripZone,
+        source: `Screenshot in ${place.tab.name}`, city: null, timeZone: depZone,
       };
-      // Same flight in Larisa's itinerary (same day, same departure time) → one item
-      mergeInto(items, departure, (i) => i.kind === "flight" && i.date === f.departDate && !!f.departTime && i.time === f.departTime);
+      // Same flight in Larisa's itinerary (same day, same departure time) → one item, with the booking's
+      // plain title and the departure airport's time zone (her row sits under a city, which can be the destination)
+      const sameFlight = (i: Item) => i.kind === "flight" && i.date === f.departDate && !!f.departTime && i.time === f.departTime;
+      const hers = items.find(sameFlight);
+      mergeInto(items, departure, sameFlight);
+      if (hers) {
+        // The booking page may not show the flight number; Larisa's row often does ("KIX - UA34 → SFO")
+        const numberInHers = !f.flightNumber ? hers.title.match(/\b([A-Z]{2})\s?(\d{1,4})\b/) : null;
+        const finalTitle = numberInHers ? `${flightLabel(f.airline, `${numberInHers[1]}${numberInHers[2]}`)} · ${airportName(f.departAirport)} → ${airportName(f.arriveAirport)}` : title;
+        if (hers.title !== finalTitle) hers.detail = [hers.detail, `Guide: "${hers.title}"`].filter(Boolean).join("\n");
+        hers.title = finalTitle;
+        hers.timeZone = depZone;
+        hers.endTime = null;
+      }
       // Landing on a later day gets its own item on that day
       if (nextDay && f.arriveDate) {
+        const landTitle = `Land at ${airportName(f.arriveAirport)} · ${flightName}`;
         mergeInto(items, {
-          date: f.arriveDate, time: f.arriveTime, endTime: null, kind: "flight",
-          title: `Land at ${f.arriveAirport} · ${flightName}`, detail: `Left ${f.departAirport} ${f.departDate}`,
-          place: f.arriveAirport, confirmation: f.confirmation, forWhom: who, sourceRef: `image:${image.sha256}`,
-          source: `Screenshot in ${place.tab.name}`, city: null, timeZone: (f.arriveAirport && AIRPORT_ZONES[f.arriveAirport]) || tripZone,
-        }, (i) => i.kind === "flight" && i.date === f.arriveDate && i.title.startsWith(`Land at ${f.arriveAirport}`) && i.time === f.arriveTime);
+          date: f.arriveDate, time: f.arriveTime, endTime: null, kind: "flight", title: landTitle,
+          detail: f.departTime ? `Left ${airportName(f.departAirport)} ${plainWhen(f.departDate, f.departTime, depZone)}` : null,
+          place: null, confirmation: f.confirmation, forWhom: who, sourceRef: `image:${image.sha256}`,
+          source: `Screenshot in ${place.tab.name}`, city: null, timeZone: arrZone,
+        }, (i) => i.kind === "flight" && i.date === f.arriveDate && i.title === landTitle && i.time === f.arriveTime);
       }
     }
     for (const b of reading.hotelBookings || []) {
@@ -373,20 +559,33 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   }
   for (const { b, sha, tab } of hotelBookings.values()) {
     const who = roomFor(b.bookedBy);
-    const name = b.hotel;
+    // Call the hotel what Larisa calls it ("Imperial Hotel"), not what the booking page shouts ("IMPERIAL HOTEL, TOKYO")
+    const stay = itin.stays.find((s) => sharesName(s.hotel, b.hotel) && s.checkIn && s.checkOut && b.checkInDate! >= s.checkIn && b.checkInDate! < s.checkOut);
+    const name = stay ? splitHotel(stay.hotel).name : b.hotel;
     const base = { place: b.address, confirmation: b.confirmation, forWhom: who, sourceRef: `image:${sha}`, source: `Screenshot in ${tab}`, city: null, timeZone: tripZone, endTime: null };
     const same = (title: string, date: string | null) => (i: Item) => i.title === title && i.date === date;
     const inTitle = `Check in · ${name}`;
+    // The room as a person says it: "Room: Tower Building High Floor Standard, Twin" — not the booking page's
+    // bedding options and rate names
+    const room = b.room ? b.room.split(/[;(]/)[0].replace(/\s*:\s*/g, ", ").replace(/\s+/g, " ").trim().replace(/,$/, "") : null;
     mergeInto(items, { ...base, date: b.checkInDate, time: b.checkInTime, kind: "checkin", title: inTitle,
-      detail: [b.bookedBy ? `Booked by ${b.bookedBy}` : null, b.room].filter(Boolean).join(" · ") || null }, same(inTitle, b.checkInDate));
+      detail: [b.bookedBy ? `Booked by ${b.bookedBy}` : null, room ? `Room: ${room}` : null].filter(Boolean).join("\n") || null }, same(inTitle, b.checkInDate));
     if (b.checkOutDate) {
       const outTitle = `Check out · ${name}`;
       mergeInto(items, { ...base, date: b.checkOutDate, time: b.checkOutTime, kind: "checkout", title: outTitle, detail: null }, same(outTitle, b.checkOutDate));
     }
     const cancelDate = dateFromWords(b.freeCancellationUntil);
-    // Larisa's itinerary may already carry the same cutoff ("cancellation date" column) → one item
-    if (cancelDate) mergeInto(items, { ...base, date: cancelDate, time: null, kind: "deadline", title: `Free cancellation ends · ${name}`, detail: b.freeCancellationUntil },
-      (i) => i.kind === "deadline" && i.date === cancelDate && sharesName(i.title, name));
+    // Larisa's itinerary may already carry the same cutoff ("cancellation date" column) → one item,
+    // worded the same way for every hotel: "Free cancellation ends · Imperial Hotel", "Until 11:59 PM Japan time"
+    if (cancelDate) {
+      const cancelTitle = `Free cancellation ends · ${name}`;
+      const at = (b.freeCancellationUntil || "").match(/\b(\d{1,2}:\d{2}\s*[AP]M)\b/i);
+      const until = at ? `Until ${at[1].toUpperCase().replace(/\s+/, " ")} ${ZONE_WORDS[tripZone] || ""}`.trim() : b.freeCancellationUntil;
+      const sameCutoff = (i: Item) => i.kind === "deadline" && i.date === cancelDate && sharesName(i.title, name) && (!i.forWhom || !who || i.forWhom === who);
+      mergeInto(items, { ...base, date: cancelDate, time: null, kind: "deadline", title: cancelTitle, detail: until }, sameCutoff);
+      const merged = items.find(sameCutoff);
+      if (merged) merged.title = cancelTitle;
+    }
   }
 
   const reservations = parseReservations(read.tabs, year).map((r) => ({ ...r, timeZone: tripZone }));
@@ -395,6 +594,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   // Ideas Larisa marked for a specific day (Activities tab). A plain mark is part of that day;
   // a mark with words is a maybe, shown in her words.
   const ideas = parseIdeasTab(read.tabs, year);
+  const openQuestions: { name: string; text: string; date: string }[] = [];
   for (const idea of ideas) {
     const tab = idea.ref.split("|")[0];
     const interested = idea.interested.length ? `Interested: ${idea.interested.join(", ")}` : null;
@@ -408,7 +608,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       };
       const words = norm(idea.name).split(/[^a-z]+/).filter((w) => w.length > 3);
       if (m.firm) mergeInto(items, cand, (i) => i.date === m.date && ["plan", "tour", "meal"].includes(i.kind) && words.some((w) => norm(i.title).includes(w)));
-      else items.push(cand);
+      else { items.push(cand); if (m.date) openQuestions.push({ name: idea.name, text: m.text, date: m.date }); }
     }
   }
 
@@ -431,27 +631,166 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     if (!reading) return;
     textReadings[hash] = reading;
     const src = { sourceRef: `${tab.name}!text`, source: `${tab.name} (pasted text)`, city: null, timeZone: tripZone, place: null, link: null };
+    // Whose name the booking is under, from her pasted confirmation ("お名前：Sato, Hana") — so a
+    // deadline answers "is this on me?"
+    const bookedUnder = (b: { quote?: string | null }) => {
+      const m = (b.quote || "").match(/(?:お名前|予約者名|Guest name|Booked under|Name)\s*[:：]\s*([^\n]{2,40})/i);
+      return m ? `Booked under ${m[1].trim()}` : null;
+    };
     for (const b of reading.bookings) {
       if (!b.date) continue;
       const kind: Item["kind"] = b.kind === "hotel" ? "checkin" : b.kind === "restaurant" ? "meal" : b.kind === "tour" ? "tour" : b.kind === "flight" ? "flight" : "note";
       const title = b.kind === "hotel" ? `Check in · ${b.name}` : b.name;
-      const detail = [b.people, b.details].filter(Boolean).join(" · ") || null;
+      // Labelled lines ("Party: 4", "Dress: …"); a bare "4" or "2 adults" becomes "Party: …"
+      const party = b.people && !/party\s*:/i.test(b.details || "") ? `Party: ${b.people.replace(/^party\s*:\s*/i, "")}` : null;
+      const detail = [bookedUnder(b), party, b.details, b.phone ? `Phone: ${b.phone}` : null].filter(Boolean).join("\n") || null;
       const nameWords = norm(b.name).split(/[^a-z]+/).filter((w) => w.length > 3);
-      mergeInto(items, { ...src, date: b.date, time: b.time, endTime: null, kind, title, detail, confirmation: b.confirmation, forWhom: null },
+      mergeInto(items, { ...src, place: b.address, date: b.date, time: b.time, endTime: null, kind, title, detail, confirmation: b.confirmation, forWhom: null },
         (i) => i.date === b.date && (i.kind === kind || (kind === "meal" && i.kind === "plan")) && nameWords.some((w) => norm(i.title).includes(w)));
       if (b.kind === "hotel" && b.checkOutDate) {
         mergeInto(items, { ...src, date: b.checkOutDate, time: b.checkOutTime, endTime: null, kind: "checkout", title: `Check out · ${b.name}`, detail: null, confirmation: b.confirmation, forWhom: null },
           (i) => i.date === b.checkOutDate && i.kind === "checkout" && nameWords.some((w) => norm(i.title).includes(w)));
       }
     }
+    const plainDay = (ymdStr: string) => new Date(`${ymdStr}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     for (const d of reading.deadlines) {
-      items.push({ ...src, date: d.date, time: null, endTime: null, kind: "deadline", title: d.what,
-        detail: [d.endDate ? `Between ${d.date} and ${d.endDate}` : null, d.computed ? `Worked out from: "${d.quote}"` : `"${d.quote}"`].filter(Boolean).join(" · "),
-        confirmation: null, forWhom: null });
+      // How to act on it: the booking it's about (same tab, name in the words) gives the phone and code
+      const about = reading.bookings.find((b) => norm(b.name).split(/[^a-z]+/).filter((w) => w.length > 3 && !GENERIC_WORDS.has(w)).some((w) => norm(d.what).includes(w)));
+      // A window ("reconfirm 3–7 days before") is listed on its LAST day — the day it must be done by —
+      // and its first day travels with it, so screens can show it for the whole window.
+      items.push({ ...src, date: d.endDate || d.date, time: null, endTime: null, kind: "deadline", title: d.what,
+        detail: [
+          d.endDate ? `Any day from ${plainDay(d.date)} through ${plainDay(d.endDate)}` : null,
+          about ? bookedUnder(about) : null,
+          about?.phone ? `Phone: ${about.phone}` : null,
+          d.computed ? `Worked out from: "${d.quote}"` : `"${d.quote}"`,
+        ].filter(Boolean).join("\n"),
+        confirmation: about?.confirmation || null, forWhom: null, windowStart: d.endDate ? d.date : null });
+      // A charge schedule ("7 days to 4 days before 60% …") also belongs on the booking itself
+      if (about?.date && /\d+\s*%/.test(d.quote)) {
+        const aboutWords = norm(about.name).split(/[^a-z]+/).filter((w) => w.length > 3 && !GENERIC_WORDS.has(w));
+        const booking = items.find((i) => i.date === about.date && ["meal", "plan", "tour"].includes(i.kind) && aboutWords.some((w) => norm(i.title).includes(w)));
+        const charges = `Cancellation charges: ${d.quote.replace(/^[^:：]*[:：]\s*/, "").replace(/\s*\n\s*/g, "; ").replace(/\s{2,}/g, " ").trim()}`;
+        if (booking && !(booking.detail || "").includes("Cancellation charges")) booking.detail = [booking.detail, charges].filter(Boolean).join("\n");
+      }
     }
   }));
 
   const textHotels = Object.values(textReadings).flatMap((r) => r.bookings.filter((b) => b.kind === "hotel" && b.date));
+
+  // Day-plan tabs (her detail for key days): time blocks, some with several choices, put on their day
+  // beside the Itinerary's overview line. Layout-tolerant reading, then checked word-for-word against
+  // her tab (dayPlanReader.ts). Cached by tab text.
+  // The Guide's author writes "You" for herself; the group is whoever her lines name ("Ken & Larisa", "Julie & Andy")
+  const guideOwner = "Larisa";
+  const groupNames = new Set<string>([guideOwner.toLowerCase()]);
+  for (const i of items) for (const n of (i.forWhom || "").split(/\s*&\s*/)) if (n && !/^everyone$/i.test(n)) groupNames.add(n.trim().toLowerCase());
+  const cachedPlans = ((previous?.report as any)?.dayPlanReadings || {}) as Record<string, DayPlanReading>;
+  const dayPlanReadings: Record<string, DayPlanReading> = {};
+  const tripDays = new Set<string>();
+  if (itin.firstDate && itin.lastDate) for (let d = itin.firstDate; d <= itin.lastDate; d = addDays(d, 1)) tripDays.add(d);
+  const overview = Array.from(tripDays).map((d) => {
+    const city = itin.stays.find((s) => s.checkIn && s.checkOut && s.checkIn <= d && d < s.checkOut)?.city || "";
+    const lines = items.filter((i) => i.date === d && ["plan", "note", "tour", "meal", "meeting", "travel", "train", "flight"].includes(i.kind)).slice(0, 5).map((i) => i.title);
+    return `${d} (${new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })}) ${city}: ${lines.join(" | ")}`;
+  }).join("\n");
+  const planTabs = read.tabs
+    .filter((t) => t.name !== itin.tabName && !/^actions$/i.test(t.name) && !/activities template/i.test(t.name))
+    .map((t) => ({ tab: t, text: Array.from(rowsOf(t).entries()).sort((a, b) => a[0] - b[0]).map(([, cs]) => cs.sort((a, b) => a.c - b.c).map((c) => c.text).join(" | ")).join("\n") }))
+    .filter(({ text }) => looksLikeDayPlan(text));
+  await Promise.all(planTabs.map(async ({ tab, text }) => {
+    const hash = dayPlanHash(text);
+    let raw: DayPlanReading | null = cachedPlans[hash] || null;
+    if (!raw && opts.readDayPlans !== false) {
+      const r = await readDayPlans(tab.name, text, tripDates, overview).catch(() => ({ reading: null, failure: "Couldn't reach Claude." }));
+      raw = r.reading;
+      if (!raw) report.warnings.push(`Couldn't read "${tab.name}" for day plans — its text is still shown under Larisa's Guide, tab by tab.`);
+    }
+    if (!raw) return;
+    dayPlanReadings[hash] = raw;
+    const { reading, dropped } = verifyAgainstTab(raw, text, tripDays);
+    if (dropped) report.warnings.push(`"${tab.name}": left out ${dropped} line${dropped === 1 ? "" : "s"} Wander couldn't match word for word to the tab (or to a day of the trip).`);
+    for (const p of reading.plans) {
+      const day = p.date || p.matchedDate!;
+      const matched = !p.date && p.matchedDate
+        ? `Wander matched this plan to ${new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })} — ${p.matchReason} (the tab doesn't give a date).`
+        : null;
+      for (const b of p.blocks) {
+        // Already on the day from elsewhere (a dinner booking read from another tab): not twice
+        const words = norm(b.label).split(/[^a-z0-9]+/).filter((w) => w.length > 4 && !GENERIC_WORDS.has(w));
+        if (words.length && items.some((i) => i.date === day && i.kind !== "block" && words.filter((w) => norm(i.title).includes(w)).length >= Math.min(2, words.length))) continue;
+        // Who it's for, when she names people of the group ("You + Julie" → Larisa & Julie; she writes "You")
+        const whoNames = b.who ? b.who.split(/\s*(?:\+|&|,|\band\b)\s*/i).map((w) => w.trim()).filter(Boolean) : [];
+        const party = whoNames.length && whoNames.every((w) => /^you$/i.test(w) || groupNames.has(w.toLowerCase()))
+          ? whoNames.map((w) => (/^you$/i.test(w) ? guideOwner : w)).join(" & ")
+          : null;
+        items.push({
+          date: day, time: b.start, endTime: b.end, timeText: b.timeText,
+          kind: "block", title: b.label, forWhom: party,
+          detail: [
+            b.who && !party ? `For ${b.who}` : null,
+            b.approx ? "Times are Larisa's estimate." : null,
+            ...b.choices.map((c) => `Choice: ${c.name}${c.note ? ` — ${c.note}` : ""}`),
+            b.notes,
+            matched,
+          ].filter(Boolean).join("\n") || null,
+          place: null, confirmation: null, link: null, city: null, timeZone: tripZone,
+          source: `${tab.name}${p.heading ? ` · ${p.heading}` : ""}`, sourceRef: `${tab.name}!plan`,
+        });
+      }
+    }
+  }));
+
+  // A stop's heading carries Larisa's summary of it — "Karatsu (tour Karatsu, day trip to Arita)",
+  // "Nagoya (bullet train 3.25 hrs; Tokoname day trip - 40 min by Meitetsu train)". Kept as a note for
+  // every day of that stop (the heading doesn't say which day), shown under the day's title.
+  const sections = new Map<string, { note: string; from: string; to: string; source: string; sourceRef: string; city: string }>();
+  for (const s of itin.stays) {
+    const note = (s.sectionTitle.match(/\(([^)]+)\)/) || [])[1]?.trim();
+    if (!note || /^day\s*\d/i.test(note) || !s.checkIn || !s.checkOut) continue;
+    const lastNight = addDays(s.checkOut, -1);
+    const had = sections.get(s.sectionTitle);
+    sections.set(s.sectionTitle, had
+      ? { ...had, from: s.checkIn < had.from ? s.checkIn : had.from, to: lastNight > had.to ? lastNight : had.to }
+      : { note, from: s.checkIn, to: lastNight, source: s.source.replace(/\s*·.*$/, "") + " (heading)", sourceRef: s.sourceRef, city: s.city });
+  }
+  for (const [title, sec] of sections) {
+    // Her travel notes on the stay's hotel rows ("Nagoya -> Tokoname (~40 min) via Meitetsu") go with it
+    const travel = Array.from(new Set(itin.stays.filter((s) => s.sectionTitle === title && s.travelNote).map((s) => s.travelNote!)));
+    items.push({
+      date: sec.to, windowStart: sec.from, time: null, endTime: null, kind: "stop", title: sec.note,
+      detail: travel.length ? travel.map((t) => `Larisa's travel note: ${t}`).join("\n") : null,
+      place: null, confirmation: null, forWhom: null, link: null, city: sec.city, timeZone: tripZone,
+      source: sec.source, sourceRef: sec.sourceRef,
+    });
+  }
+  // Her forecast for each stay, on every day of it
+  for (const s of itin.stays) {
+    if (!s.weather || !s.checkIn || !s.checkOut) continue;
+    items.push({
+      date: addDays(s.checkOut, -1), windowStart: s.checkIn, time: null, endTime: null, kind: "weather",
+      title: `Larisa's forecast: ${s.weather}`, detail: null, place: null, confirmation: null, forWhom: null, link: null,
+      city: s.city, timeZone: tripZone, source: s.source.replace(/\s*·.*$/, "") + " (forecast)", sourceRef: s.sourceRef,
+    });
+  }
+
+  // Every moving day says you're leaving the hotel. Larisa's itinerary has each check-out date;
+  // bookings added the time for some. A day two stays leave is one line (shown as "A or B").
+  for (const s of itin.stays) {
+    if (!s.checkOut || s.checkOutInferred) continue;
+    const { name, extra } = splitHotel(s.hotel);
+    const leavingSameDay = itin.stays.filter((o) => o.checkOut === s.checkOut).length > 1;
+    const already = items.some((i) => i.kind === "checkout" && i.date === s.checkOut && (leavingSameDay || sharesName(i.title, name)));
+    if (already) continue;
+    const outTime = extra ? parseStatedTimes((extra.match(/out\s+([^,]+)/i) || [])[1] || "").start : null;
+    items.push({
+      date: s.checkOut, time: outTime, endTime: null, kind: "checkout", title: `Check out · ${name}`, detail: null,
+      place: null, confirmation: null, forWhom: null, link: null, city: s.city, timeZone: tripZone,
+      source: s.source, sourceRef: s.sourceRef,
+    });
+  }
+
+  tidyItems(items, openQuestions);
 
   // ── Cities and days ──
   const nightCity = new Map<string, string>();
@@ -571,6 +910,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         tripId, snapshotId: snap.id, date: i.date ? asDate(i.date) : null, time: i.time, endTime: i.endTime,
         timeZone: i.timeZone || tripZone, kind: i.kind, title: i.title, detail: i.detail, forWhom: i.forWhom || null,
         place: i.place, confirmation: i.confirmation, link: (i as any).link || null, source: i.source, sourceRef: i.sourceRef, sortOrder: idx,
+        windowStart: i.windowStart || null, timeText: i.timeText || null,
       })),
     });
 
@@ -590,6 +930,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
 
     // Ideas (activities template)
     const ideaRefs = ideas.map((i) => i.ref);
+    const createdNow: { id: string; cityId: string; name: string }[] = [];
     for (const idea of ideas) {
       const cityId = cityIds.get(Array.from(cityIds.keys()).find((c) => norm(c) === norm(idea.city)) || "") || null;
       if (!cityId) { report.warnings.push(`"${idea.name}" is listed under ${idea.city}, which isn't a stop in the itinerary — kept in the Guide tab only.`); continue; }
@@ -597,12 +938,14 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       const data = {
         cityId, name: idea.name, description: [idea.comment, idea.area, ...idea.dateNotes].filter(Boolean).join(" — ") || null, sourceUrl: idea.url,
         explorationZoneAssociation: idea.area, state: (dayId ? "selected" : "possible") as any, dayId,
+        priorityOrder: idea.row, // Larisa's order in her Activities tab
         themes: (/restaurant/i.test(idea.section) ? ["food"] : []) as any,
       };
       const existing = await tx.experience.findFirst({ where: { tripId, sheetRowRef: idea.ref } });
       const exp = existing
         ? await tx.experience.update({ where: { id: existing.id }, data })
         : await tx.experience.create({ data: { ...data, tripId, sheetRowRef: idea.ref, createdBy: "Larisa" } });
+      if (!existing) createdNow.push({ id: exp.id, cityId, name: idea.name });
       await tx.experienceInterest.deleteMany({ where: { experienceId: exp.id } });
       if (idea.interested.length) {
         await tx.experienceInterest.createMany({
@@ -610,6 +953,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         });
       }
     }
+    await keepWhatPeopleAdded(tx, tripId, ideaRefs, createdNow, report);
     await tx.experience.deleteMany({ where: { tripId, sheetRowRef: { startsWith: "Activities Template|", notIn: ideaRefs.length ? ideaRefs : ["__none__"] } } });
 
     // "From the Guide": every tab that isn't read structurally, plus what each picture shows
@@ -660,6 +1004,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     const unconfirmed = itin.warnings.filter((w) => !Array.from(checkOutConfirmed).some((h) => w.startsWith(`${h}: the Guide gives no check-out date`)));
     report.warnings.push(...unconfirmed, ...itin.skippedSections.map((s) => `Left out on purpose — Larisa marked it: "${s.title}".`));
     report.textReadings = textReadings;
+    report.dayPlanReadings = dayPlanReadings;
     // The stored report must say what happened: this reading is the current, accepted one
     report.accepted = true;
     report.snapshotId = snap.id;

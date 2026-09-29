@@ -40,7 +40,7 @@ function AIObsDisclosure({ dayId }: { dayId: string }) {
     <div className="mb-3">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+        className="flex items-center gap-1.5 text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
       >
         <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-[#c8bba8] text-xs font-medium">
           i
@@ -420,15 +420,15 @@ export default function DayView({
           )}
           <div>
             <h2 className="text-lg font-light text-[#3a3128]">{formattedDate}</h2>
-            <p className="text-sm text-[#8a7a62]">
+            <p className="text-sm text-[#6b5d4a]">
               {day.city.name}
-              {day.city.tagline && <span className="ml-1 text-[#a89880]">\u00B7 {day.city.tagline}</span>}
+              {day.city.tagline && <span className="ml-1 text-[#6b5d4a]">\u00B7 {day.city.tagline}</span>}
             </p>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
+          className="text-sm text-[#6b5d4a] hover:text-[#3a3128]"
         >
           &times;
         </button>
@@ -525,12 +525,12 @@ export default function DayView({
       {/* Add reservation (kept as a separate action below timeline) */}
       <div className="mt-4 mb-4">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a]">
             Add a reservation
           </h3>
           <button
             onClick={() => setAddingRes(!addingRes)}
-            className="text-sm text-[#a89880] hover:text-[#514636]"
+            className="text-sm text-[#6b5d4a] hover:text-[#514636]"
           >
             {addingRes ? "Cancel" : "+ Add"}
           </button>
@@ -599,7 +599,7 @@ export default function DayView({
             />
             <div className="flex gap-2">
               <button onClick={saveZone} className="px-3 py-1 rounded bg-[#514636] text-white text-xs">Save</button>
-              <button onClick={() => setEditingZone(false)} className="text-sm text-[#8a7a62]">Cancel</button>
+              <button onClick={() => setEditingZone(false)} className="text-sm text-[#6b5d4a]">Cancel</button>
             </div>
           </div>
         ) : (
@@ -607,7 +607,7 @@ export default function DayView({
             className="px-3 py-2 bg-[#f0ece5] rounded-lg cursor-pointer hover:bg-[#e8e2d8] transition-colors"
             onClick={() => setEditingZone(true)}
           >
-            <span className="text-xs font-medium text-[#a89880]">Exploration Zone: </span>
+            <span className="text-xs font-medium text-[#6b5d4a]">Exploration Zone: </span>
             <span className="text-sm text-[#6b5d4a]">{day.explorationZone || "Tap to set..."}</span>
           </div>
         )}
@@ -627,7 +627,7 @@ export default function DayView({
             />
             <div className="flex gap-2">
               <button onClick={saveNotes} className="px-3 py-1 rounded bg-[#514636] text-white text-xs">Save</button>
-              <button onClick={() => setEditingNotes(false)} className="text-sm text-[#8a7a62]">Cancel</button>
+              <button onClick={() => setEditingNotes(false)} className="text-sm text-[#6b5d4a]">Cancel</button>
             </div>
           </div>
         ) : (
@@ -636,7 +636,7 @@ export default function DayView({
                        hover:border-[#e0d8cc] transition-colors"
             onClick={() => setEditingNotes(true)}
           >
-            <span className="text-sm text-[#8a7a62]">{day.notes || "Tap to add notes..."}</span>
+            <span className="text-sm text-[#6b5d4a]">{day.notes || "Tap to add notes..."}</span>
           </div>
         )}
       </div>

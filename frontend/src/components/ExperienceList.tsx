@@ -35,7 +35,7 @@ function SyncBadge({ exp }: { exp: Experience }) {
   return (
     <span className="relative ml-0.5 shrink-0 hidden lg:inline">
       <button
-        className="text-[#b8a990] hover:text-[#8a7a62] text-xs leading-none transition-colors"
+        className="text-[#b8a990] hover:text-[#6b5d4a] text-xs leading-none transition-colors"
         onClick={(e) => { e.stopPropagation(); setShowTip(!showTip); }}
         title="From Larisa's Guide"
       >↔</button>
@@ -154,7 +154,7 @@ function GroupInterestBadge({
             className="absolute top-full left-0 mt-1 z-30 bg-white rounded-lg border border-[#e0d8cc] shadow-lg p-2 min-w-[180px]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-xs text-[#8a7a62] mb-1.5">
+            <div className="text-xs text-[#6b5d4a] mb-1.5">
               <span className="font-medium text-[#3a3128]">{interest.displayName}</span> is interested
               {interest.note && <span className="italic"> — "{interest.note}"</span>}
             </div>
@@ -164,7 +164,7 @@ function GroupInterestBadge({
                   <div key={r.id} className="text-xs text-[#6b5d4a] flex items-center gap-1">
                     <span>{r.reaction === "interested" ? "+" : r.reaction === "maybe" ? "~" : "-"}</span>
                     <span className="font-medium">{r.displayName}</span>
-                    {r.note && <span className="text-[#a89880] italic truncate">"{r.note}"</span>}
+                    {r.note && <span className="text-[#6b5d4a] italic truncate">"{r.note}"</span>}
                   </div>
                 ))}
               </div>
@@ -216,7 +216,7 @@ function GroupInterestBadge({
     <span className="relative inline-flex items-center ml-1.5">
       <button
         onClick={(e) => { e.stopPropagation(); setShowForm(!showForm); }}
-        className="text-[#d0c8b8] hover:text-[#8a7a62] transition-colors p-0.5"
+        className="text-[#d0c8b8] hover:text-[#6b5d4a] transition-colors p-0.5"
         title="Share with the group"
       >
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -228,7 +228,7 @@ function GroupInterestBadge({
           className="absolute top-full left-0 mt-1 z-30 bg-white rounded-lg border border-[#e0d8cc] shadow-lg p-2 min-w-[200px]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="text-xs text-[#8a7a62] mb-1.5">Tell the group you're interested</div>
+          <div className="text-xs text-[#6b5d4a] mb-1.5">Tell the group you're interested</div>
           <input
             type="text"
             value={note}
@@ -249,7 +249,7 @@ function GroupInterestBadge({
             </button>
             <button
               onClick={() => { setShowForm(false); setNote(""); }}
-              className="px-2 py-1 text-xs text-[#8a7a62] hover:text-[#3a3128]"
+              className="px-2 py-1 text-xs text-[#6b5d4a] hover:text-[#3a3128]"
             >
               Cancel
             </button>
@@ -322,13 +322,13 @@ function LocationResolver({ exp, onResolved }: { exp: Experience; onResolved: ()
               className="w-full text-left px-2 py-1.5 rounded bg-[#faf8f5] hover:bg-[#f0ece5] transition-colors"
             >
               <div className="text-xs font-medium text-[#3a3128]">{r.name}</div>
-              <div className="text-sm text-[#8a7a62] truncate">{r.address}</div>
+              <div className="text-sm text-[#6b5d4a] truncate">{r.address}</div>
             </button>
           ))}
         </div>
       )}
       {results.length === 0 && !searching && (
-        <div className="text-sm text-[#c8bba8]">Search to find a map location</div>
+        <div className="text-sm text-[#6b5d4a]">Search to find a map location</div>
       )}
     </div>
   );
@@ -355,7 +355,7 @@ interface Props {
 function GripHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
   return (
     <button
-      className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 text-[#c8bba8] hover:text-[#8a7a62] transition-colors hidden lg:block"
+      className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors hidden lg:block"
       {...listeners}
       {...attributes}
     >
@@ -441,20 +441,20 @@ function SortableSelectedItem({
               <CreatorBadge exp={exp} />
               <GroupInterestBadge exp={exp} interest={interest} onInterestChanged={onInterestChanged} />
               {exp.timeWindow && (
-                <span className="text-sm text-[#a89880] ml-1.5">{exp.timeWindow}</span>
+                <span className="text-sm text-[#6b5d4a] ml-1.5">{exp.timeWindow}</span>
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-2">
               <button
                 onClick={(e) => { e.stopPropagation(); setShowMovePicker(!showMovePicker); }}
-                className="text-[10px] px-1.5 py-0.5 rounded border border-[#e0d8cc] text-[#8a7a62] hover:text-[#514636] hover:border-[#a89880] transition-colors"
+                className="text-[10px] px-1.5 py-0.5 rounded border border-[#e0d8cc] text-[#6b5d4a] hover:text-[#514636] hover:border-[#a89880] transition-colors"
                 title="Move to a different day"
               >
                 Move
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onExperienceClick(exp.id); }}
-                className="w-5 h-5 rounded-full border border-[#e0d8cc] text-[#a89880] hover:text-[#6b5d4a]
+                className="w-5 h-5 rounded-full border border-[#e0d8cc] text-[#6b5d4a] hover:text-[#6b5d4a]
                            flex items-center justify-center text-xs transition-colors"
                 title="Details"
               >
@@ -462,7 +462,7 @@ function SortableSelectedItem({
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
-                className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+                className="text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
                 title="Back to ideas"
               >
                 &darr;
@@ -576,7 +576,7 @@ function SortablePossibleItem({
             </span>
             <button
               onClick={(e) => { e.stopPropagation(); setPromotingId(promotingId === exp.id ? null : exp.id); }}
-              className="text-sm text-[#c8bba8] hover:text-[#514636] transition-colors shrink-0 ml-2"
+              className="text-sm text-[#6b5d4a] hover:text-[#514636] transition-colors shrink-0 ml-2"
               title="Add to itinerary"
             >
               &uarr;
@@ -591,7 +591,7 @@ function SortablePossibleItem({
         const showDays = cityDays.length > 0 ? cityDays : days;
         return (
           <div className="mt-1 p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-            <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">
+            <div className="text-sm text-[#6b5d4a] mb-1.5 uppercase tracking-wider">
               {cityDays.length > 0 ? `Pick a ${exp.city?.name || "city"} day` : "Pick a day"}
             </div>
             <div className="flex gap-1 overflow-x-auto pb-1">
@@ -610,7 +610,7 @@ function SortablePossibleItem({
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); setPromotingId(null); setPromoteDay(""); setPromoteTimeWindow(""); }}
-              className="mt-1 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
+              className="mt-1 text-sm text-[#6b5d4a] hover:text-[#6b5d4a]"
             >
               Cancel
             </button>
@@ -682,14 +682,14 @@ function ResolvedDecisions({ tripId, cityId }: { tripId: string; cityId: string 
                   {winner ? `Going with ${winner.name}` : dec.title}
                 </span>
                 {dec.resolvedAt && (
-                  <div className="text-[11px] text-[#a89880] mt-0.5">
+                  <div className="text-[11px] text-[#6b5d4a] mt-0.5">
                     Decided {new Date(dec.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </div>
                 )}
               </div>
               <button
                 onClick={() => setExpandedId(isExpanded ? null : dec.id)}
-                className="text-[11px] text-[#a89880] hover:text-[#6b5d4a] transition-colors shrink-0"
+                className="text-[11px] text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors shrink-0"
               >
                 {isExpanded ? "Hide" : "See the conversation"}
               </button>
@@ -703,14 +703,14 @@ function ResolvedDecisions({ tripId, cityId }: { tripId: string; cityId: string 
                     </span>
                     <div className="min-w-0">
                       <span className="text-[11px] font-medium text-[#6b5d4a]">{note.traveler.displayName}</span>
-                      <span className="text-[11px] text-[#a89880]"> on {note.optionName}</span>
+                      <span className="text-[11px] text-[#6b5d4a]"> on {note.optionName}</span>
                       <p className="text-xs text-[#3a3128] leading-relaxed mt-0.5">{note.content}</p>
                     </div>
                   </div>
                 )) : (
-                  <div className="text-[11px] text-[#a89880]">No conversation recorded</div>
+                  <div className="text-[11px] text-[#6b5d4a]">No conversation recorded</div>
                 )}
-                <div className="text-[11px] text-[#a89880] mt-1">
+                <div className="text-[11px] text-[#6b5d4a] mt-1">
                   Options considered: {dec.options.map((o) => o.name).join(", ")}
                 </div>
               </div>
@@ -922,7 +922,7 @@ function DecisionGroup({
       <div className="flex items-start justify-between mb-2">
         <div>
           <div className="text-sm font-medium text-[#3a3128]">{decision.title}</div>
-          <div className="text-[11px] text-[#a89880] mt-0.5">
+          <div className="text-[11px] text-[#6b5d4a] mt-0.5">
             {participantNames.size > 0
               ? `${[...participantNames].join(", ")} ${participantNames.size === 1 ? "has" : "have"} weighed in`
               : "No one has weighed in yet"
@@ -933,17 +933,17 @@ function DecisionGroup({
         {confirmingDelete ? (
           <span className="flex items-center gap-1.5 shrink-0">
             <button onClick={handleDelete} className="text-xs text-red-500 font-medium hover:text-red-700">Remove</button>
-            <button onClick={() => setConfirmingDelete(false)} className="text-xs text-[#a89880] hover:text-[#514636]">Keep</button>
+            <button onClick={() => setConfirmingDelete(false)} className="text-xs text-[#6b5d4a] hover:text-[#514636]">Keep</button>
           </span>
         ) : (
-          <button onClick={() => setConfirmingDelete(true)} className="text-[#c8bba8] hover:text-red-500 text-sm leading-none p-1" title="Remove decision">&times;</button>
+          <button onClick={() => setConfirmingDelete(true)} className="text-[#6b5d4a] hover:text-red-500 text-sm leading-none p-1" title="Remove decision">&times;</button>
         )}
       </div>
 
       {/* ── Conversation: what people are saying ── */}
       {allThoughts.length > 0 && (
         <div className="mb-3 space-y-2">
-          <div className="text-[10px] uppercase tracking-wider text-[#a89880] font-medium">What people are saying</div>
+          <div className="text-[10px] uppercase tracking-wider text-[#6b5d4a] font-medium">What people are saying</div>
           {allThoughts.map((note) => (
             <div key={note.id} className="flex gap-2 items-start">
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#f0ebe3] text-[#6b5d4a] text-[10px] font-medium shrink-0 mt-0.5">
@@ -951,7 +951,7 @@ function DecisionGroup({
               </span>
               <div className="min-w-0">
                 <span className="text-[11px] font-medium text-[#6b5d4a]">{note.traveler.displayName}</span>
-                <span className="text-[11px] text-[#a89880]"> on {note.optionName}</span>
+                <span className="text-[11px] text-[#6b5d4a]"> on {note.optionName}</span>
                 <p className="text-xs text-[#3a3128] leading-relaxed mt-0.5">{note.content}</p>
               </div>
             </div>
@@ -962,7 +962,7 @@ function DecisionGroup({
       {/* ── My top 3 picks box ── */}
       {myPickIds.length > 0 && (
         <div className="mb-3 bg-[#faf8f5] rounded-xl border border-[#e8e0d4] p-2.5">
-          <div className="text-[10px] uppercase tracking-wider text-[#a89880] font-medium mb-1.5">Your picks</div>
+          <div className="text-[10px] uppercase tracking-wider text-[#6b5d4a] font-medium mb-1.5">Your picks</div>
           <div className="space-y-1">
             {myVotes.filter(v => v.optionId).map((v, idx, arr) => {
               const opt = decision.options.find(o => o.id === v.optionId);
@@ -998,14 +998,14 @@ function DecisionGroup({
                   <span className="text-xs text-[#3a3128] flex-1 truncate">{opt.name}</span>
                   <div className="flex items-center gap-0.5 shrink-0">
                     {idx > 0 && (
-                      <button onClick={(e) => { e.stopPropagation(); moveUp(); }} className="text-[#a89880] hover:text-[#514636] text-xs px-1" title="Move up">↑</button>
+                      <button onClick={(e) => { e.stopPropagation(); moveUp(); }} className="text-[#6b5d4a] hover:text-[#514636] text-xs px-1" title="Move up">↑</button>
                     )}
                     {idx < arr.length - 1 && (
-                      <button onClick={(e) => { e.stopPropagation(); moveDown(); }} className="text-[#a89880] hover:text-[#514636] text-xs px-1" title="Move down">↓</button>
+                      <button onClick={(e) => { e.stopPropagation(); moveDown(); }} className="text-[#6b5d4a] hover:text-[#514636] text-xs px-1" title="Move down">↓</button>
                     )}
                     <button
                       onClick={(e) => { e.stopPropagation(); handleTogglePick(opt.id); }}
-                      className="text-[#c8bba8] hover:text-red-400 text-xs px-1"
+                      className="text-[#6b5d4a] hover:text-red-400 text-xs px-1"
                     >✕</button>
                   </div>
                 </div>
@@ -1046,7 +1046,7 @@ function DecisionGroup({
                       {isLeading && <span className="text-[10px] text-amber-600 font-medium shrink-0">leading</span>}
                     </div>
                     {(opt.description || rating) && (
-                      <div className="text-[11px] text-[#8a7a62] mt-0.5 truncate">
+                      <div className="text-[11px] text-[#6b5d4a] mt-0.5 truncate">
                         {rating && <span className="text-amber-700 font-medium mr-1.5">{rating}</span>}
                         {opt.description}
                       </div>
@@ -1075,7 +1075,7 @@ function DecisionGroup({
                       className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors text-sm ${
                         myRank
                           ? "bg-[#514636] text-white font-bold"
-                          : "text-[#c8bba8] hover:text-[#514636] hover:bg-[#f0ece5]"
+                          : "text-[#6b5d4a] hover:text-[#514636] hover:bg-[#f0ece5]"
                       }`}
                       title={myRank ? `Your #${myRank} pick` : "Add to your top 3"}
                     >
@@ -1096,7 +1096,7 @@ function DecisionGroup({
                     placeholder={`What do you know about ${opt.name.split(" ").slice(0, 2).join(" ")}?`}
                     autoFocus
                     className="flex-1 text-xs px-2.5 py-1.5 border border-[#e5ddd0] rounded-lg bg-[#faf8f5]
-                               focus:outline-none focus:border-amber-400 placeholder:text-[#c8bba8]"
+                               focus:outline-none focus:border-amber-400 placeholder:text-[#6b5d4a]"
                   />
                   {currentText.trim() && (
                     <button
@@ -1136,7 +1136,7 @@ function DecisionGroup({
 
         <button
           onClick={() => setShowAddOption(!showAddOption)}
-          className="text-xs text-[#a89880] hover:text-amber-600 transition-colors"
+          className="text-xs text-[#6b5d4a] hover:text-amber-600 transition-colors"
         >
           + suggest another
         </button>
@@ -1152,7 +1152,7 @@ function DecisionGroup({
             placeholder="Another option..."
             autoFocus
             className="flex-1 text-xs px-2.5 py-1.5 border border-[#e5ddd0] rounded-lg bg-white
-                       focus:outline-none focus:border-amber-400 placeholder:text-[#c8bba8]"
+                       focus:outline-none focus:border-amber-400 placeholder:text-[#6b5d4a]"
           />
           <button
             onClick={handleAddOption}
@@ -1168,7 +1168,7 @@ function DecisionGroup({
       {/* ── Suggest / Confirm — only when there's a clear direction ── */}
       {hasCleanLeader && leader && totalVotes >= 2 && !confirmResolve && (
         <div className="mt-3 pt-2.5 border-t border-amber-200/40">
-          <div className="text-[11px] text-[#8a7a62] mb-1.5">
+          <div className="text-[11px] text-[#6b5d4a] mb-1.5">
             {totalVotes} of the group {totalVotes === 1 ? "likes" : "like"} {leader.name}
             {happyWithAnyVoters.length > 0 && `, ${happyWithAnyVoters.length} flexible`}
           </div>
@@ -1400,7 +1400,7 @@ export default function ExperienceList({
       <div className="p-3">
         {/* Header — desktop only, hidden on mobile for cleaner view */}
         <div className="hidden lg:flex items-center justify-between mb-2">
-          <span className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
+          <span className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a]">
             {selected.length} Planned{decisions && decisions.length > 0 ? ` · ${decisions.length} Deciding` : ""} · {possible.length} Maybe
           </span>
         </div>
@@ -1438,13 +1438,13 @@ export default function ExperienceList({
                 <>
                   <button
                     onClick={() => setContributorViewCode(contributorFilter)}
-                    className="shrink-0 text-xs text-[#a89880] hover:text-[#514636] px-1 underline underline-offset-2"
+                    className="shrink-0 text-xs text-[#6b5d4a] hover:text-[#514636] px-1 underline underline-offset-2"
                   >
                     See all across trip
                   </button>
                   <button
                     onClick={() => setContributorFilter(null)}
-                    className="shrink-0 text-xs text-[#c8bba8] hover:text-[#8a7a62] px-1"
+                    className="shrink-0 text-xs text-[#6b5d4a] hover:text-[#6b5d4a] px-1"
                   >
                     All
                   </button>
@@ -1475,7 +1475,7 @@ export default function ExperienceList({
           const showDays = cityDays.length > 0 ? cityDays : days;
           return (
             <div className="mb-3 p-2 bg-[#faf8f5] rounded-lg border-2 border-[#a89880]">
-              <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">
+              <div className="text-sm text-[#6b5d4a] mb-1.5 uppercase tracking-wider">
                 Tap a day to add "{draggedExp?.name}"
               </div>
               <div className="flex gap-1 overflow-x-auto pb-1">
@@ -1499,7 +1499,7 @@ export default function ExperienceList({
               </div>
               <button
                 onClick={() => { setCrossZonePromoteId(null); setCrossPromoteDay(""); setCrossPromoteTimeWindow(""); }}
-                className="mt-1 text-sm text-[#c8bba8] hover:text-[#8a7a62]"
+                className="mt-1 text-sm text-[#6b5d4a] hover:text-[#6b5d4a]"
               >
                 Cancel
               </button>
@@ -1512,7 +1512,7 @@ export default function ExperienceList({
           <SortableContext items={selectedIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5 mb-3 min-h-[40px]">
               {filteredSelected.length === 0 && (
-                <div className="py-4 text-center text-sm text-[#c8bba8] border-2 border-dashed border-[#e0d8cc] rounded-lg">
+                <div className="py-4 text-center text-sm text-[#6b5d4a] border-2 border-dashed border-[#e0d8cc] rounded-lg">
                   {contributorFilter ? `No planned items from ${contributorFilter}` : "No planned items yet — add from the Maybe section below, or tap + to create new ones"}
                 </div>
               )}
@@ -1632,10 +1632,10 @@ export default function ExperienceList({
 
               {possible.length === 0 && selected.length === 0 && (
                 <div className="text-center py-10 px-6">
-                  <p className="text-[15px] text-[#8a7a62] leading-relaxed">
+                  <p className="text-[15px] text-[#6b5d4a] leading-relaxed">
                     {cityName ? `${cityName} is wide open.` : "Nothing here yet."}
                   </p>
-                  <p className="text-sm text-[#c8bba8] mt-1">
+                  <p className="text-sm text-[#6b5d4a] mt-1">
                     Paste something you've found, or ask the chat what's worth seeing.
                   </p>
                 </div>

@@ -73,7 +73,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
       <div className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-medium text-[#3a3128]">Add Experience</h3>
-          <button onClick={onClose} className="text-[#c8bba8] hover:text-[#6b5d4a] text-lg">
+          <button onClick={onClose} className="text-[#6b5d4a] hover:text-[#6b5d4a] text-lg">
             &times;
           </button>
         </div>
@@ -121,7 +121,7 @@ export default function CapturePanel({ trip, defaultCityId, onClose, onCaptured 
                        text-[#3a3128] placeholder-[#c8bba8] text-sm
                        focus:outline-none focus:ring-2 focus:ring-[#a89880]"
           />
-          <p className="text-xs text-[#a89880]">Location will be looked up automatically</p>
+          <p className="text-xs text-[#6b5d4a]">Location will be looked up automatically</p>
         </div>
 
         {/* Decision title (shown when "Decide together" tapped) */}

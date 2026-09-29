@@ -108,7 +108,7 @@ function FreeTimeSlot({ minutes, onTap }: { minutes: number; onTap?: () => void 
       onClick={onTap}
     >
       <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
-      <span className="text-xs text-[#c8bba8] whitespace-nowrap">{label}</span>
+      <span className="text-xs text-[#6b5d4a] whitespace-nowrap">{label}</span>
       <span className="flex-1 border-t border-dashed border-[#e0d8cc]" />
     </div>
   );
@@ -116,7 +116,7 @@ function FreeTimeSlot({ minutes, onTap }: { minutes: number; onTap?: () => void 
 
 function TimelineBadge({ label }: { label: string }) {
   return (
-    <span className="text-xs text-[#a89880] tabular-nums min-w-[52px] text-right shrink-0">
+    <span className="text-xs text-[#6b5d4a] tabular-nums min-w-[52px] text-right shrink-0">
       {label}
     </span>
   );
@@ -148,11 +148,11 @@ function ExperienceCard({
         </span>
         <div className="flex items-center gap-2">
           {exp.timeWindow && (
-            <span className="text-xs text-[#a89880]">{exp.timeWindow}</span>
+            <span className="text-xs text-[#6b5d4a]">{exp.timeWindow}</span>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onDemote(exp.id); }}
-            className="text-sm text-[#c8bba8] hover:text-[#8a7a62] p-1"
+            className="text-sm text-[#6b5d4a] hover:text-[#6b5d4a] p-1"
             aria-label="Move to city ideas"
           >
             &darr;
@@ -160,7 +160,7 @@ function ExperienceCard({
         </div>
       </div>
       {exp.description && (
-        <p className="text-sm text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</p>
+        <p className="text-sm text-[#6b5d4a] mt-1 line-clamp-2">{exp.description}</p>
       )}
       {exp.userNotes && (
         <p className="text-sm text-[#6b5d4a] mt-1 italic line-clamp-2">{exp.userNotes}</p>
@@ -203,11 +203,11 @@ function ReservationCard({ res }: { res: Reservation }) {
       </div>
       {res.confirmationNumber && (
         <button onClick={() => { navigator.clipboard.writeText(res.confirmationNumber!); showToast("Copied"); }}
-          className="text-xs text-[#a89880] mt-0.5 hover:text-[#514636] transition-colors">
+          className="text-xs text-[#6b5d4a] mt-0.5 hover:text-[#514636] transition-colors">
           Conf: {res.confirmationNumber} 📋
         </button>
       )}
-      {res.notes && <p className="text-xs text-[#a89880] mt-0.5">{res.notes}</p>}
+      {res.notes && <p className="text-xs text-[#6b5d4a] mt-0.5">{res.notes}</p>}
     </div>
   );
 }
@@ -221,7 +221,7 @@ function AccommodationCard({ acc, variant }: { acc: Accommodation; variant: "che
     <div className="px-4 py-3 bg-[#f0ece5] rounded-lg">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-[#3a3128]">{acc.name}</span>
-        <span className="text-xs text-[#a89880]">
+        <span className="text-xs text-[#6b5d4a]">
           {label}{timeStr ? ` · ${timeStr}` : ""}
         </span>
       </div>
@@ -229,14 +229,14 @@ function AccommodationCard({ acc, variant }: { acc: Accommodation; variant: "che
         acc.latitude != null && acc.longitude != null ? (
           <a href={`https://maps.apple.com/?ll=${acc.latitude},${acc.longitude}&q=${encodeURIComponent(acc.name)}`}
             target="_blank" rel="noopener noreferrer"
-            className="text-xs text-[#8a7a62] mt-0.5 underline decoration-[#d0c9be] block">{acc.address}</a>
+            className="text-xs text-[#6b5d4a] mt-0.5 underline decoration-[#d0c9be] block">{acc.address}</a>
         ) : (
-          <div className="text-xs text-[#8a7a62] mt-0.5">{acc.address}</div>
+          <div className="text-xs text-[#6b5d4a] mt-0.5">{acc.address}</div>
         )
       )}
       {acc.confirmationNumber && (
         <button onClick={() => { navigator.clipboard.writeText(acc.confirmationNumber!); showToast("Copied"); }}
-          className="text-xs text-[#a89880] mt-1 hover:text-[#514636] transition-colors">
+          className="text-xs text-[#6b5d4a] mt-1 hover:text-[#514636] transition-colors">
           Conf: {acc.confirmationNumber} 📋
         </button>
       )}
@@ -426,8 +426,8 @@ export default function DayTimeline({
       {/* Empty state */}
       {entries.length === 0 && !isGuided && (
         <div className="text-center py-8">
-          <p className="text-sm text-[#a89880]">Nothing planned yet</p>
-          <p className="text-xs text-[#c8bba8] mt-1">Tap Build to browse ideas, or ask Scout</p>
+          <p className="text-sm text-[#6b5d4a]">Nothing planned yet</p>
+          <p className="text-xs text-[#6b5d4a] mt-1">Tap Build to browse ideas, or ask Scout</p>
         </div>
       )}
 
@@ -451,7 +451,7 @@ export default function DayTimeline({
                 className="py-1.5 px-4 -mx-1 rounded"
                 style={{ backgroundColor: PHASE_COLORS[phase] }}
               >
-                <span className="text-[10px] uppercase tracking-widest text-[#c8bba8] font-medium">
+                <span className="text-[10px] uppercase tracking-widest text-[#6b5d4a] font-medium">
                   {phase}
                 </span>
               </div>

@@ -136,7 +136,7 @@ export default function TripPhaseContent({ phase, trip, days, experiences }: Tri
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-[#3a3128]">Today</span>
-              <span className="text-xs text-[#a89880]">
+              <span className="text-xs text-[#6b5d4a]">
                 {todayDay.city?.name || ""}
                 {" · tap for full view →"}
               </span>
@@ -147,7 +147,7 @@ export default function TripPhaseContent({ phase, trip, days, experiences }: Tri
               );
               const todayRes = todayDay.reservations || [];
               if (todayExps.length === 0 && todayRes.length === 0) {
-                return <p className="text-xs text-[#a89880]">A free day — go where the wind takes you</p>;
+                return <p className="text-xs text-[#6b5d4a]">A free day — go where the wind takes you</p>;
               }
               return (
                 <div className="flex flex-wrap gap-1.5 mt-1">
@@ -163,7 +163,7 @@ export default function TripPhaseContent({ phase, trip, days, experiences }: Tri
                     </span>
                   ))}
                   {todayExps.length > 4 && (
-                    <span className="text-xs text-[#c8bba8]">+{todayExps.length - 4} more</span>
+                    <span className="text-xs text-[#6b5d4a]">+{todayExps.length - 4} more</span>
                   )}
                 </div>
               );
@@ -177,18 +177,18 @@ export default function TripPhaseContent({ phase, trip, days, experiences }: Tri
         <div className="mb-4">
           <div className="px-3 py-2 bg-[#faf8f5] rounded-lg border border-[#f0ece5]">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-[#8a7a62]">Tomorrow</span>
-              <span className="text-xs text-[#c8bba8]">{tomorrowDay.city?.name || ""}</span>
+              <span className="text-xs font-medium text-[#6b5d4a]">Tomorrow</span>
+              <span className="text-xs text-[#6b5d4a]">{tomorrowDay.city?.name || ""}</span>
             </div>
             {(() => {
               const tmrwExps = experiences.filter(
                 e => e.dayId === tomorrowDay.id && e.state === "selected"
               );
               if (tmrwExps.length === 0) {
-                return <p className="text-xs text-[#c8bba8] mt-0.5">Nothing planned yet</p>;
+                return <p className="text-xs text-[#6b5d4a] mt-0.5">Nothing planned yet</p>;
               }
               return (
-                <p className="text-xs text-[#a89880] mt-0.5">
+                <p className="text-xs text-[#6b5d4a] mt-0.5">
                   {tmrwExps.slice(0, 3).map(e => e.name).join(", ")}
                   {tmrwExps.length > 3 ? ` +${tmrwExps.length - 3} more` : ""}
                 </p>
@@ -207,17 +207,17 @@ export default function TripPhaseContent({ phase, trip, days, experiences }: Tri
               <div className="text-lg font-light text-[#3a3128]">
                 {cities.filter(c => !c.hidden).length}
               </div>
-              <div className="text-xs text-[#a89880]">cities</div>
+              <div className="text-xs text-[#6b5d4a]">cities</div>
             </div>
             <div>
               <div className="text-lg font-light text-[#3a3128]">{days.length}</div>
-              <div className="text-xs text-[#a89880]">days</div>
+              <div className="text-xs text-[#6b5d4a]">days</div>
             </div>
             <div>
               <div className="text-lg font-light text-[#3a3128]">
                 {experiences.filter(e => e.state === "selected").length}
               </div>
-              <div className="text-xs text-[#a89880]">things you did</div>
+              <div className="text-xs text-[#6b5d4a]">things you did</div>
             </div>
           </div>
           {/* Contributor summary */}
@@ -229,7 +229,7 @@ export default function TripPhaseContent({ phase, trip, days, experiences }: Tri
             const contributors = Object.keys(byCreator);
             if (contributors.length <= 1) return null;
             return (
-              <p className="text-xs text-[#a89880] text-center">
+              <p className="text-xs text-[#6b5d4a] text-center">
                 {contributors.length} people contributed ideas
               </p>
             );

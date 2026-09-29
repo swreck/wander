@@ -93,7 +93,7 @@ export default function DailyGreeting() {
           {message}
         </p>
         <div className="mt-2 text-right">
-          <span className="text-xs text-[#c8bba8]">tap to dismiss</span>
+          <span className="text-xs text-[#6b5d4a]">tap to dismiss</span>
         </div>
       </div>
     </div>

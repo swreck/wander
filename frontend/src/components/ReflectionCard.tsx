@@ -101,13 +101,13 @@ export default function ReflectionCard({
       >
         <div className="px-4 pt-5 pb-3">
           <h2 className="text-lg font-light text-[#3a3128]">How was today?</h2>
-          <p className="text-sm text-[#8a7a62] mt-0.5">{dateLabel} in {cityName}</p>
+          <p className="text-sm text-[#6b5d4a] mt-0.5">{dateLabel} in {cityName}</p>
         </div>
 
         {/* Highlight activities */}
         {selectedExps.length > 0 && (
           <div className="px-4 pb-3">
-            <p className="text-xs text-[#a89880] mb-2">Tap any highlights</p>
+            <p className="text-xs text-[#6b5d4a] mb-2">Tap any highlights</p>
             <div className="flex flex-wrap gap-1.5">
               {selectedExps.map(exp => {
                 const isHl = highlights.includes(exp.id);
@@ -153,7 +153,7 @@ export default function ReflectionCard({
           </button>
           <button
             onClick={handleDismiss}
-            className="px-4 py-2 rounded-lg text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+            className="px-4 py-2 rounded-lg text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
           >
             Skip
           </button>

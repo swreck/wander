@@ -58,7 +58,7 @@ function IdeaCard({
   notes: ExperienceNoteEntry[];
   days: DayOption[];
   onReact: (experienceId: string, emoji: string) => void;
-  onAddNote: (experienceId: string, content: string) => void;
+  onAddNote: (experienceId: string, content: string) => Promise<boolean>;
   onAssignToDay: (experienceId: string, dayId: string) => void;
   onRemoveFromDay: (experienceId: string) => void;
   onTap: (id: string) => void;
@@ -66,7 +66,18 @@ function IdeaCard({
 }) {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
   const [showDayPicker, setShowDayPicker] = useState(false);
+
+  // Clear the box only once the note has saved; otherwise the words stay for another try
+  async function saveNote() {
+    const text = noteText.trim();
+    if (!text || savingNote) return;
+    setSavingNote(true);
+    const ok = await onAddNote(exp.id, text);
+    setSavingNote(false);
+    if (ok) { setNoteText(""); setShowNoteInput(false); }
+  }
   const isImported = exp.sourceText && /import|merged/i.test(exp.sourceText);
   const cc = (exp.createdBy && !isImported) ? getContributorColor(exp.createdBy) : null;
   const isScheduled = exp.state === "selected" && exp.dayId;
@@ -92,7 +103,7 @@ function IdeaCard({
           ) : (
             <button
               onClick={(e) => { e.stopPropagation(); setShowDayPicker(!showDayPicker); }}
-              className="text-[10px] text-[#8a7a62] bg-[#f0ece5] px-2 py-0.5 rounded-full shrink-0 hover:bg-[#e0d8cc] transition-colors"
+              className="text-[10px] text-[#6b5d4a] bg-[#f0ece5] px-2 py-0.5 rounded-full shrink-0 hover:bg-[#e0d8cc] transition-colors"
             >
               + Day
             </button>
@@ -103,7 +114,7 @@ function IdeaCard({
         {showDayPicker && (
           <div className="mt-2 flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
             {days.length === 0 && (
-              <span className="text-[11px] text-[#a89880]">No days set for this city yet — add dates first</span>
+              <span className="text-[11px] text-[#6b5d4a]">No days set for this city yet — add dates first</span>
             )}
             {days.map(d => {
               const date = new Date(d.date);
@@ -134,7 +145,14 @@ function IdeaCard({
 
         {/* Description */}
         {exp.description && (
-          <p className="text-xs text-[#8a7a62] mt-1 line-clamp-2">{exp.description}</p>
+          <p className="text-xs text-[#6b5d4a] mt-1 line-clamp-2">{exp.description}</p>
+        )}
+
+        {/* Who marked it — the Guide's own interest columns */}
+        {exp.interests && exp.interests.length > 0 && (
+          <p className="text-xs text-[#514636] mt-1">
+            Interested: {Array.from(new Set(exp.interests.map((i) => i.displayName))).join(", ")}
+          </p>
         )}
 
         {/* Ratings + contributor */}
@@ -166,7 +184,7 @@ function IdeaCard({
                     : "bg-[#f0ece5] border border-transparent hover:border-[#e0d8cc]"
                   }`}
               >
-                {emoji}{group ? <span className="text-xs ml-0.5 text-[#8a7a62]">{group.count}</span> : null}
+                {emoji}{group ? <span className="text-xs ml-0.5 text-[#6b5d4a]">{group.count}</span> : null}
               </button>
             );
           })}
@@ -179,7 +197,7 @@ function IdeaCard({
                 onClick={() => onReact(exp.id, r.emoji)}
                 className="px-2 py-1 rounded-full text-sm bg-amber-100 border border-amber-200"
               >
-                {r.emoji}<span className="text-xs ml-0.5 text-[#8a7a62]">{r.count}</span>
+                {r.emoji}<span className="text-xs ml-0.5 text-[#6b5d4a]">{r.count}</span>
               </button>
             ))}
         </div>
@@ -198,41 +216,46 @@ function IdeaCard({
         {/* Add note */}
         <div className="mt-1.5" onClick={e => e.stopPropagation()}>
           {showNoteInput ? (
-            <div className="flex gap-1">
-              <input
-                type="text"
-                value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                placeholder="Quick thought..."
-                className="flex-1 px-2 py-1 rounded border border-[#e0d8cc] text-xs text-[#3a3128]
-                           placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-[#a89880]"
-                autoFocus
-                onKeyDown={e => {
-                  if (e.key === "Enter" && noteText.trim()) {
-                    onAddNote(exp.id, noteText.trim());
-                    setNoteText("");
-                    setShowNoteInput(false);
-                  }
-                }}
-              />
-              <button
-                onClick={() => setShowNoteInput(false)}
-                className="text-xs text-[#c8bba8] hover:text-[#8a7a62]"
-              >
-                &times;
-              </button>
+            <div>
+              <div className="flex gap-1.5 items-center">
+                <input
+                  type="text"
+                  value={noteText}
+                  onChange={e => setNoteText(e.target.value)}
+                  placeholder="Quick thought…"
+                  className="flex-1 min-h-[40px] px-2 py-1 rounded border border-[#e0d8cc] text-sm text-[#3a3128]
+                             placeholder-[#c8bba8] focus:outline-none focus:ring-1 focus:ring-[#a89880]"
+                  autoFocus
+                  onKeyDown={e => { if (e.key === "Enter") saveNote(); }}
+                />
+                <button
+                  onClick={saveNote}
+                  disabled={!noteText.trim() || savingNote}
+                  className="min-h-[40px] px-3 rounded bg-[#514636] text-white text-sm disabled:opacity-40"
+                >
+                  {savingNote ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => setShowNoteInput(false)}
+                  aria-label="Cancel note"
+                  className="min-h-[40px] min-w-[40px] text-sm text-[#6b5d4a] hover:text-[#6b5d4a]"
+                >
+                  &times;
+                </button>
+              </div>
+              <p className="text-[11px] text-[#6b5d4a] mt-1">Everyone on the trip sees this. Larisa's Guide stays as it is.</p>
             </div>
           ) : (
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowNoteInput(true)}
-                className="text-[11px] text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+                className="min-h-[40px] px-1 text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors"
               >
                 + Add a note
               </button>
               <button
                 onClick={() => onAskScout(exp.name)}
-                className="text-[11px] text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+                className="min-h-[40px] px-1 text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors"
               >
                 Ask Scout
               </button>
@@ -336,12 +359,24 @@ export default function CityBoard() {
     }
   }
 
-  async function handleAddNote(experienceId: string, content: string) {
+  /** Save a note and show it at once. Returns false (keeping the typed text) if it didn't save. */
+  async function handleAddNote(experienceId: string, content: string): Promise<boolean> {
     try {
-      await api.post("/experience-notes", { experienceId, content });
-      loadData();
+      const created = await api.post<ExperienceNoteEntry & { _queued?: boolean }>("/experience-notes", { experienceId, content });
+      if ((created as { _queued?: boolean })?._queued) {
+        showToast("Saved for now — I'll finish when you're back online", "info");
+        return true;
+      }
+      const shown: ExperienceNoteEntry = created?.id
+        ? { ...created, traveler: created.traveler || { displayName: user?.displayName || "You" } }
+        : ({ id: `local-${Date.now()}`, experienceId, content, traveler: { displayName: user?.displayName || "You" }, createdAt: new Date().toISOString() } as unknown as ExperienceNoteEntry);
+      setNotes((prev) => ({ ...prev, [experienceId]: [...(prev[experienceId] || []), shown] }));
+      return true;
     } catch {
-      showToast("Couldn't save that note", "error");
+      showToast(navigator.onLine === false
+        ? "No signal — your note is still in the box. Tap Save when you're back online."
+        : "That note didn't save — try again?", "error");
+      return false;
     }
   }
 
@@ -402,7 +437,7 @@ export default function CityBoard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#faf8f5]">
-        <p className="text-sm text-[#a89880]">Getting the board ready...</p>
+        <p className="text-sm text-[#6b5d4a]">Getting the board ready...</p>
       </div>
     );
   }
@@ -410,7 +445,7 @@ export default function CityBoard() {
   if (!city) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#faf8f5]">
-        <p className="text-sm text-[#a89880]">Couldn't find that city — try heading back</p>
+        <p className="text-sm text-[#6b5d4a]">Couldn't find that city — try heading back</p>
       </div>
     );
   }
@@ -454,7 +489,7 @@ export default function CityBoard() {
       </div>
 
       {/* Stats bar */}
-      <div className="px-4 py-2 bg-white border-b border-[#f0ece5] flex items-center gap-4 text-xs text-[#a89880]">
+      <div className="px-4 py-2 bg-white border-b border-[#f0ece5] flex items-center gap-4 text-xs text-[#6b5d4a]">
         <span>{experiences.length} ideas</span>
         {totalReactions > 0 && <span>{totalReactions} reactions</span>}
         {experiences.filter(e => e.state === "selected").length > 0 && (
@@ -490,7 +525,7 @@ export default function CityBoard() {
               <h2 className="text-sm font-medium text-[#3a3128] flex items-center gap-1.5 mb-2">
                 <span>{meta.emoji}</span>
                 <span>{meta.label}</span>
-                <span className="text-xs text-[#c8bba8] font-normal ml-1">{exps.length}</span>
+                <span className="text-xs text-[#6b5d4a] font-normal ml-1">{exps.length}</span>
               </h2>
               <div className="space-y-2">
                 {exps.map(exp => (
@@ -515,8 +550,8 @@ export default function CityBoard() {
 
         {experiences.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-sm text-[#a89880]">No ideas saved for {city.name} yet</p>
-            <p className="text-xs text-[#c8bba8] mt-1">Add some from a recommendation, or ask Scout</p>
+            <p className="text-sm text-[#6b5d4a]">No ideas saved for {city.name} yet</p>
+            <p className="text-xs text-[#6b5d4a] mt-1">Add some from a recommendation, or ask Scout</p>
           </div>
         )}
       </div>

@@ -82,7 +82,7 @@ function describeInput(text: string, files: File[]): string | null {
 }
 
 export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: Props) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const [mode, setMode] = useState<Mode>("main");
   const [inviteLinks, setInviteLinks] = useState<{ name: string; token: string }[]>([]);
@@ -338,7 +338,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-[#3a3128]">{inv.name}</div>
-                  <div className="text-xs text-[#a89880] truncate">{buildLink(inv.token)}</div>
+                  <div className="text-xs text-[#6b5d4a] truncate">{buildLink(inv.token)}</div>
                 </div>
                 <button
                   onClick={() => copyOne(inv.token, inv.name)}
@@ -384,7 +384,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
         <div className="max-w-xl mx-auto px-4 py-8">
           <button
             onClick={() => setMode("main")}
-            className="text-sm text-[#8a7a62] hover:text-[#3a3128] mb-4 transition-colors"
+            className="text-sm text-[#6b5d4a] hover:text-[#3a3128] mb-4 transition-colors"
           >
             &larr; Back
           </button>
@@ -394,7 +394,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
           <form onSubmit={handleManualSubmit} className="space-y-6">
             {/* Trip name */}
             <div>
-              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">
                 What are you calling it?
               </label>
               <input
@@ -411,7 +411,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
 
             {/* Date state selector */}
             <div>
-              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
                 When?
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -440,18 +440,18 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
             {dateState !== "not_yet" && (
               <div>
                 {dateState === "roughly" && (
-                  <p className="text-xs text-[#a89880] mb-2 italic">
+                  <p className="text-xs text-[#6b5d4a] mb-2 italic">
                     These might shift — that's fine
                   </p>
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">Start</label>
+                    <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">Start</label>
                     <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
                       className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">End</label>
+                    <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">End</label>
                     <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
                       className="w-full px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
                   </div>
@@ -461,7 +461,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
 
             {/* Who's coming */}
             <div>
-              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
                 Who's coming?
               </label>
               {memberNames.length > 0 && (
@@ -475,7 +475,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                       <button
                         type="button"
                         onClick={() => removeMember(n)}
-                        className="text-[#c8bba8] hover:text-red-500 text-xs leading-none"
+                        className="text-[#6b5d4a] hover:text-red-500 text-xs leading-none"
                       >
                         &times;
                       </button>
@@ -506,14 +506,14 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                   Add
                 </button>
               </div>
-              <p className="text-xs text-[#c8bba8] mt-1">
+              <p className="text-xs text-[#6b5d4a] mt-1">
                 Each person gets their own invite link. You can add more later.
               </p>
             </div>
 
             {/* Cities */}
             <div>
-              <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-3">
                 Cities <span className="normal-case font-normal">(optional — add later too)</span>
               </label>
               <div className="space-y-3">
@@ -527,7 +527,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                         placeholder="Country"
                         className="w-28 px-3 py-2 rounded border border-[#e0d8cc] bg-white text-[#3a3128] placeholder-[#c8bba8] text-sm focus:outline-none focus:ring-2 focus:ring-[#a89880]" />
                       {cities.length > 1 && (
-                        <button type="button" onClick={() => removeCity(i)} className="px-2 text-[#c8bba8] hover:text-red-500 transition-colors">&times;</button>
+                        <button type="button" onClick={() => removeCity(i)} className="px-2 text-[#6b5d4a] hover:text-red-500 transition-colors">&times;</button>
                       )}
                     </div>
                     {dateState !== "not_yet" && (
@@ -572,7 +572,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
         <div className="fixed inset-0 z-50 bg-[#514636]/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
           <div className="bg-white rounded-2xl shadow-xl px-8 py-6 text-center">
             <div className="text-lg text-[#3a3128] font-medium">Drop your file here</div>
-            <div className="text-sm text-[#8a7a62] mt-1">PDF, image, or screenshot</div>
+            <div className="text-sm text-[#6b5d4a] mt-1">PDF, image, or screenshot</div>
           </div>
         </div>
       )}
@@ -580,12 +580,9 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
       <div className="max-w-xl mx-auto px-4 py-12">
         {/* Identity bar */}
         <div className="flex items-center justify-between mb-10">
-          <div className="text-xs text-[#a89880] tracking-wide uppercase">Wander</div>
+          <div className="text-xs text-[#6b5d4a] tracking-wide uppercase">Wander</div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-[#8a7a62]">{user?.displayName}</span>
-            <button onClick={logout} className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors">
-              Sign out
-            </button>
+            <span className="text-sm text-[#6b5d4a]">{user?.displayName}</span>
           </div>
         </div>
 
@@ -629,7 +626,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+                className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
               >
                 + Attach file
               </button>
@@ -637,7 +634,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                 <button
                   type="button"
                   onClick={clearInput}
-                  className="text-xs text-[#c8bba8] hover:text-red-500 transition-colors"
+                  className="text-xs text-[#6b5d4a] hover:text-red-500 transition-colors"
                 >
                   Clear
                 </button>
@@ -652,9 +649,9 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                 <div key={i} className="flex items-center justify-between px-3 py-2 bg-white rounded-lg border border-[#f0ece5] text-sm">
                   <span className="text-[#3a3128] truncate">
                     {f.type === "application/pdf" ? "PDF" : "Image"}: {f.name}
-                    <span className="text-[#c8bba8] ml-2">({(f.size / 1024 / 1024).toFixed(1)} MB)</span>
+                    <span className="text-[#6b5d4a] ml-2">({(f.size / 1024 / 1024).toFixed(1)} MB)</span>
                   </span>
-                  <button onClick={() => removeFile(i)} className="text-[#c8bba8] hover:text-red-500 ml-2 shrink-0">&times;</button>
+                  <button onClick={() => removeFile(i)} className="text-[#6b5d4a] hover:text-red-500 ml-2 shrink-0">&times;</button>
                 </div>
               ))}
             </div>
@@ -665,13 +662,13 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
             <button
               type="button"
               onClick={() => setStartDateHint(" ")}
-              className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+              className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
             >
               Does the itinerary use "Day 1, Day 2" instead of dates? Set a start date
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[#a89880] shrink-0">Trip starts:</label>
+              <label className="text-xs text-[#6b5d4a] shrink-0">Trip starts:</label>
               <input
                 type="date"
                 value={startDateHint.trim()}
@@ -679,7 +676,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                 className="flex-1 px-3 py-1.5 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128] text-sm
                            focus:outline-none focus:ring-2 focus:ring-[#a89880]"
               />
-              <button onClick={() => setStartDateHint("")} className="text-xs text-[#c8bba8] hover:text-red-500">&times;</button>
+              <button onClick={() => setStartDateHint("")} className="text-xs text-[#6b5d4a] hover:text-red-500">&times;</button>
             </div>
           )}
 
@@ -698,7 +695,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
             <button
               type="button"
               onClick={() => setMode("manual")}
-              className="text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+              className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
             >
               Or start from scratch
             </button>
@@ -709,7 +706,7 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
         {/* Existing trips — tap to switch */}
         {existingTrips && existingTrips.length > 0 && onSwitchTrip && (
           <div className="mt-10">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-3">
               Your Trips
             </h2>
             <div className="space-y-2">
@@ -722,11 +719,12 @@ export default function CreateTrip({ onCreated, existingTrips, onSwitchTrip }: P
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-[#3a3128]">{t.name}</span>
-                    <span className="text-xs uppercase text-[#c8bba8]">{t.status}</span>
+                    <span className="text-xs uppercase text-[#6b5d4a]">{t.status}</span>
                   </div>
-                  <div className="text-xs text-[#a89880] mt-0.5">
+                  <div className="text-xs text-[#6b5d4a] mt-0.5">
                     {t.startDate && t.endDate
-                      ? `${new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — ${new Date(t.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                      // Calendar dates, read as dates (in UTC) — a US phone showed Oct 4–28 for an Oct 5–29 trip
+                      ? `${new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} — ${new Date(t.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`
                       : "Dates TBD"
                     }
                   </div>

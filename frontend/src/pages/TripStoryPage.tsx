@@ -97,7 +97,7 @@ export default function TripStoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
+      <div className="min-h-screen flex items-center justify-center text-[#6b5d4a] bg-[#faf8f5]">
         Loading your story...
       </div>
     );
@@ -143,9 +143,9 @@ export default function TripStoryPage() {
             <div className="mb-4">
               <h2 className="text-xl font-light text-[#3a3128]">{section.city.name}</h2>
               {section.city.country && (
-                <p className="text-sm text-[#a89880]">{section.city.country}</p>
+                <p className="text-sm text-[#6b5d4a]">{section.city.country}</p>
               )}
-              <p className="text-xs text-[#c8bba8] mt-0.5">
+              <p className="text-xs text-[#6b5d4a] mt-0.5">
                 {section.days.length} day{section.days.length !== 1 ? "s" : ""}
               </p>
             </div>
@@ -158,7 +158,7 @@ export default function TripStoryPage() {
 
               return (
                 <div key={day.id} className="mb-4 pl-4 border-l-2 border-[#e0d8cc]">
-                  <p className="text-xs text-[#a89880] mb-1">{dateLabel}</p>
+                  <p className="text-xs text-[#6b5d4a] mb-1">{dateLabel}</p>
 
                   {/* Activities */}
                   {exps.length > 0 ? (
@@ -176,21 +176,21 @@ export default function TripStoryPage() {
                           >
                             {isHighlight && "⭐ "}{exp.name}
                             {exp.description && (
-                              <span className="text-[#a89880] ml-1 text-xs">— {exp.description}</span>
+                              <span className="text-[#6b5d4a] ml-1 text-xs">— {exp.description}</span>
                             )}
                           </div>
                         );
                       })}
                     </div>
                   ) : (
-                    <p className="text-xs text-[#c8bba8] italic">A free day</p>
+                    <p className="text-xs text-[#6b5d4a] italic">A free day</p>
                   )}
 
                   {/* Reflection note */}
                   {reflection?.note && (
                     <div className="mt-2 px-3 py-2 bg-[#f0ece5] rounded-lg text-sm text-[#6b5d4a] italic">
                       "{reflection.note}"
-                      <span className="text-xs text-[#a89880] ml-1">— {reflection.traveler.displayName}</span>
+                      <span className="text-xs text-[#6b5d4a] ml-1">— {reflection.traveler.displayName}</span>
                     </div>
                   )}
                 </div>
@@ -201,8 +201,8 @@ export default function TripStoryPage() {
 
         {storySections.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-sm text-[#a89880]">Your story is still being written</p>
-            <p className="text-xs text-[#c8bba8] mt-1">Come back after your trip to see it all come together</p>
+            <p className="text-sm text-[#6b5d4a]">Your story is still being written</p>
+            <p className="text-xs text-[#6b5d4a] mt-1">Come back after your trip to see it all come together</p>
           </div>
         )}
 
@@ -241,7 +241,7 @@ function LearningPrompt({ tripId }: { tripId: string }) {
   if (saved) {
     return (
       <div className="mt-8 mb-4 text-center">
-        <p className="text-sm text-[#8a7a62]">Noted — that'll come in handy next time</p>
+        <p className="text-sm text-[#6b5d4a]">Noted — that'll come in handy next time</p>
       </div>
     );
   }
@@ -249,7 +249,7 @@ function LearningPrompt({ tripId }: { tripId: string }) {
   return (
     <div className="mt-8 mb-4 p-4 bg-[#f0ece5] rounded-xl">
       <p className="text-sm font-medium text-[#3a3128] mb-2">Anything you'd do differently?</p>
-      <p className="text-xs text-[#a89880] mb-3">Skip a place, change the order, pack something different — anything future-you should know.</p>
+      <p className="text-xs text-[#6b5d4a] mb-3">Skip a place, change the order, pack something different — anything future-you should know.</p>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

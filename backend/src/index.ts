@@ -44,6 +44,8 @@ import dedupRoutes from "./routes/dedup.js";
 import vaultRoutes from "./routes/vault.js";
 import sheetsSyncRoutes from "./routes/sheetsSync.js";
 import guideRoutes from "./routes/guide.js";
+import peopleRoutes from "./routes/people.js";
+import dayChoiceRoutes from "./routes/dayChoices.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -97,6 +99,23 @@ app.use(express.json({ limit: "10mb" })); // Reduced from 50mb
 
 // API routes
 app.use("/api/auth", authRoutes);
+
+// The Home Screen icon for someone opening their invite: the same web app manifest, but it starts
+// at their invite link, so the icon opens Wander signed in as them (a Home Screen app on an iPhone
+// keeps its own storage, separate from Safari). Only /join/<code> starts are allowed.
+app.get("/api/manifest.json", (req, res) => {
+  const start = typeof req.query.start === "string" && /^\/join\/[A-Za-z0-9_-]{8,64}$/.test(req.query.start) ? req.query.start : "/";
+  res.type("application/manifest+json").set("Cache-Control", "no-store").json({
+    name: "Wander", short_name: "Wander", description: "Our trip, from Larisa's Guide",
+    start_url: start, scope: "/", display: "standalone",
+    background_color: "#faf8f5", theme_color: "#514636",
+    icons: [
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  });
+});
 app.use("/api/trips", tripRoutes);
 app.use("/api/cities", cityRoutes);
 app.use("/api/days", dayRoutes);
@@ -134,6 +153,8 @@ app.use("/api/dedup", dedupRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/sheets-sync", sheetsSyncRoutes);
 app.use("/api/guide", guideRoutes);
+app.use("/api/people", peopleRoutes);
+app.use("/api/day-choices", dayChoiceRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
 app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

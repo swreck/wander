@@ -431,7 +431,7 @@ export default function NowPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
+      <div className="min-h-screen flex items-center justify-center text-[#6b5d4a] bg-[#faf8f5]">
         Checking what's next...
       </div>
     );
@@ -440,7 +440,7 @@ export default function NowPage() {
   if (loadError) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#faf8f5] px-4 gap-4">
-        <p className="text-[#8a7a62] text-lg">Couldn't load your trip right now</p>
+        <p className="text-[#6b5d4a] text-lg">Couldn't load your trip right now</p>
         <button
           onClick={() => { setLoading(true); loadData(); }}
           className="px-5 py-2 rounded-full bg-[#514636] text-white text-sm"
@@ -458,7 +458,7 @@ export default function NowPage() {
         <div className="max-w-lg mx-auto">
           <button
             onClick={() => navigate("/")}
-            className="text-sm text-[#8a7a62] hover:text-[#3a3128] mb-6"
+            className="text-sm text-[#6b5d4a] hover:text-[#3a3128] mb-6"
           >
             &larr; Home
           </button>
@@ -469,7 +469,7 @@ export default function NowPage() {
               <h1 className="text-2xl font-light text-[#3a3128] mb-1">
                 {tripPhase === "soon" ? "Almost time" : "Getting ready"}
               </h1>
-              <p className="text-sm text-[#8a7a62] mb-6">
+              <p className="text-sm text-[#6b5d4a] mb-6">
                 {trip.name}
                 {trip.startDate && (() => {
                   const today = new Date();
@@ -484,7 +484,7 @@ export default function NowPage() {
 
               {planningInsights.length > 0 ? (
                 <div className="space-y-3 mb-8">
-                  <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
+                  <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a]">
                     A few things worth knowing
                   </h2>
                   {planningInsights.map(insight => (
@@ -504,15 +504,15 @@ export default function NowPage() {
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-sm text-[#a89880]">Looking good so far</p>
-                  <p className="text-xs text-[#c8bba8] mt-1">Check back closer to your trip for insights</p>
+                  <p className="text-sm text-[#6b5d4a]">Looking good so far</p>
+                  <p className="text-xs text-[#6b5d4a] mt-1">Check back closer to your trip for insights</p>
                 </div>
               )}
 
               {/* Travel readiness — visa & health advisories */}
               {advisorySummary && (advisorySummary.visaActions.length > 0 || advisorySummary.vaccineActions.length > 0) && (
                 <div className="space-y-3 mb-8">
-                  <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880]">
+                  <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a]">
                     Before you go
                   </h2>
 
@@ -541,14 +541,14 @@ export default function NowPage() {
                       <div className="text-sm font-medium text-[#3a3128] mb-1">
                         Recommended vaccines
                       </div>
-                      <p className="text-xs text-[#8a7a62] mb-2">
+                      <p className="text-xs text-[#6b5d4a] mb-2">
                         Talk to your doctor or a travel clinic about these:
                       </p>
                       <div className="space-y-1.5">
                         {advisorySummary.vaccineActions.map((v) => (
                           <div key={v.name} className="text-xs text-[#6b5d4a]">
                             <span className="font-medium">{v.name}</span>
-                            <span className="text-[#a89880]"> — {v.notes}</span>
+                            <span className="text-[#6b5d4a]"> — {v.notes}</span>
                           </div>
                         ))}
                       </div>
@@ -560,7 +560,7 @@ export default function NowPage() {
                     <div className="p-3 rounded-lg border border-[#e0d8cc] bg-[#f5f0e8]">
                       <div className="text-sm font-medium text-[#3a3128]">Connectivity heads-up</div>
                       <p className="text-xs text-[#6b5d4a] mt-1">{advisorySummary.connectivityNote}</p>
-                      <p className="text-xs text-[#a89880] mt-1">Wander saves your plans offline — you'll have everything you need even without signal.</p>
+                      <p className="text-xs text-[#6b5d4a] mt-1">Wander saves your plans offline — you'll have everything you need even without signal.</p>
                     </div>
                   )}
                 </div>
@@ -569,7 +569,7 @@ export default function NowPage() {
               {/* Preview of what Now becomes during travel */}
               {allDays.length > 0 && (
                 <div className="mt-6 p-4 bg-[#f0ece5] rounded-lg border border-[#e0d8cc]">
-                  <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
                     During your trip
                   </h3>
                   <p className="text-sm text-[#6b5d4a]">
@@ -591,7 +591,7 @@ export default function NowPage() {
                           </span>
                         ))}
                         {firstDayExps.length > 3 && (
-                          <span className="text-xs text-[#a89880]">+{firstDayExps.length - 3} more on Day 1</span>
+                          <span className="text-xs text-[#6b5d4a]">+{firstDayExps.length - 3} more on Day 1</span>
                         )}
                       </div>
                     );
@@ -605,23 +605,23 @@ export default function NowPage() {
           {trip && tripPhase === "past" && (
             <>
               <h1 className="text-2xl font-light text-[#3a3128] mb-1">Welcome home</h1>
-              <p className="text-sm text-[#8a7a62] mb-6">{trip.name}</p>
+              <p className="text-sm text-[#6b5d4a] mb-6">{trip.name}</p>
               <div className="grid grid-cols-3 gap-4 text-center mb-6">
                 <div className="p-3 bg-white rounded-lg border border-[#f0ece5]">
                   <div className="text-2xl font-light text-[#3a3128]">
                     {(trip.cities || []).filter(c => !c.hidden).length}
                   </div>
-                  <div className="text-xs text-[#a89880]">cities</div>
+                  <div className="text-xs text-[#6b5d4a]">cities</div>
                 </div>
                 <div className="p-3 bg-white rounded-lg border border-[#f0ece5]">
                   <div className="text-2xl font-light text-[#3a3128]">{allDays.length}</div>
-                  <div className="text-xs text-[#a89880]">days</div>
+                  <div className="text-xs text-[#6b5d4a]">days</div>
                 </div>
                 <div className="p-3 bg-white rounded-lg border border-[#f0ece5]">
                   <div className="text-2xl font-light text-[#3a3128]">
                     {allExperiences.filter(e => e.state === "selected").length}
                   </div>
-                  <div className="text-xs text-[#a89880]">things done</div>
+                  <div className="text-xs text-[#6b5d4a]">things done</div>
                 </div>
               </div>
 
@@ -634,7 +634,7 @@ export default function NowPage() {
                 const contributors = Object.keys(byCreator);
                 if (contributors.length <= 1) return null;
                 return (
-                  <p className="text-sm text-[#a89880] text-center mb-6">
+                  <p className="text-sm text-[#6b5d4a] text-center mb-6">
                     {contributors.length} people contributed ideas to this trip
                   </p>
                 );
@@ -663,7 +663,7 @@ export default function NowPage() {
           {!trip && (
             <div className="text-center py-16">
               <h1 className="text-xl font-light text-[#3a3128] mb-2">Nothing here yet</h1>
-              <p className="text-sm text-[#8a7a62]">Create a trip to get started.</p>
+              <p className="text-sm text-[#6b5d4a]">Create a trip to get started.</p>
             </div>
           )}
         </div>
@@ -704,17 +704,17 @@ export default function NowPage() {
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => navigate("/plan")}
-            className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
+            className="text-sm text-[#6b5d4a] hover:text-[#3a3128]"
           >
             &larr; Planning
           </button>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-[#c8bba8]">
+            <span className="text-sm text-[#6b5d4a]">
               {now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </span>
             <button
               onClick={() => navigate("/guide#travel-days")}
-              className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+              className="text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
               aria-label="Guide"
             >
               ?
@@ -724,15 +724,15 @@ export default function NowPage() {
 
         {/* Today — morning briefing header */}
         <section className="mb-8">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">
             Today
           </h2>
           <h1 className="text-2xl font-light text-[#3a3128]">
             {new Date(today.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}
           </h1>
-          <p className="text-sm text-[#8a7a62] mt-1">
+          <p className="text-sm text-[#6b5d4a] mt-1">
             {today.city.name}
-            {today.city.tagline && <span className="text-[#a89880] ml-1">· {today.city.tagline}</span>}
+            {today.city.tagline && <span className="text-[#6b5d4a] ml-1">· {today.city.tagline}</span>}
           </p>
           {accommodations.length > 0 && (() => {
             const acc = accommodations[0];
@@ -745,13 +745,13 @@ export default function NowPage() {
                       href={`https://maps.apple.com/?daddr=${acc.latitude},${acc.longitude}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-[#a89880] hover:text-[#514636]"
+                      className="text-sm text-[#6b5d4a] hover:text-[#514636]"
                     >
                       navigate
                     </a>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-sm text-[#8a7a62]">
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-sm text-[#6b5d4a]">
                   {acc.checkInTime && <span>Check-in: {acc.checkInTime}</span>}
                   {acc.checkOutTime && <span>Check-out: {acc.checkOutTime}</span>}
                   {acc.confirmationNumber && (
@@ -764,7 +764,7 @@ export default function NowPage() {
             );
           })()}
           {/* Quick summary line */}
-          <p className="text-sm text-[#c8bba8] mt-2">
+          <p className="text-sm text-[#6b5d4a] mt-2">
             {selectedExps.length} planned
             {reservations.length > 0 && ` · ${reservations.length} reservation${reservations.length > 1 ? "s" : ""}`}
           </p>
@@ -800,13 +800,13 @@ export default function NowPage() {
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-[#3a3128]">{opt.name}</span>
                             {voteCount > 0 && (
-                              <span className="text-xs text-[#a89880]">
+                              <span className="text-xs text-[#6b5d4a]">
                                 {voteCount} {voteCount === 1 ? "vote" : "votes"}
                               </span>
                             )}
                           </div>
                           {opt.description && (
-                            <p className="text-xs text-[#8a7a62] mt-0.5">{opt.description}</p>
+                            <p className="text-xs text-[#6b5d4a] mt-0.5">{opt.description}</p>
                           )}
                         </button>
                       );
@@ -817,13 +817,13 @@ export default function NowPage() {
                     <button
                       onClick={() => castDayVote(decision.id, null)}
                       disabled={votingId === decision.id}
-                      className="mt-2 text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+                      className="mt-2 text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
                     >
                       Happy with either
                     </button>
                   )}
                   {userVote && (
-                    <p className="mt-2 text-xs text-[#a89880]">
+                    <p className="mt-2 text-xs text-[#6b5d4a]">
                       You voted{userVote.optionId ? "" : " — happy with either"}
                     </p>
                   )}
@@ -836,12 +836,12 @@ export default function NowPage() {
         {/* Question 2 & 3: What's next? When should I leave? */}
         {nextAnchor && (
           <section className="mb-8 p-4 bg-white rounded-xl border border-[#e0d8cc]">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
               Next
             </h2>
             <div className="text-lg font-medium text-[#3a3128]">{nextAnchor.name}</div>
             {nextAnchor.detail && (
-              <div className="text-sm text-[#8a7a62] mt-1">{nextAnchor.detail}</div>
+              <div className="text-sm text-[#6b5d4a] mt-1">{nextAnchor.detail}</div>
             )}
 
             {/* Leave-time calculation */}
@@ -854,7 +854,7 @@ export default function NowPage() {
                   {nextTravelResult.durationMinutes} min {MODE_LABELS[effectiveMode]} + {nextTravelResult.bufferMinutes} min buffer to {nextAnchor.name}
                 </div>
                 {nextTravelResult.source === "fallback" && (
-                  <div className="text-sm text-[#a89880] mt-1 italic">Estimated from distance</div>
+                  <div className="text-sm text-[#6b5d4a] mt-1 italic">Estimated from distance</div>
                 )}
               </div>
             )}
@@ -1011,11 +1011,11 @@ export default function NowPage() {
           if (items.length === 0) return null;
           return (
             <div className="mb-4 p-3 bg-[#f5f0e8] rounded-lg border border-[#e0d8cc]">
-              <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">Your travel docs</div>
+              <div className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">Your travel docs</div>
               <div className="space-y-1">
                 {items.map((item, i) => (
                   <div key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-[#8a7a62]">{item.label}</span>
+                    <span className="text-[#6b5d4a]">{item.label}</span>
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(item.value);
@@ -1034,7 +1034,7 @@ export default function NowPage() {
 
         {/* Full schedule */}
         <section>
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-3">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-3">
             Today's Schedule
           </h2>
           <div className="space-y-4">
@@ -1049,20 +1049,20 @@ export default function NowPage() {
                     isNext
                       ? "bg-white border-2 border-[#514636]"
                       : isPast
-                        ? "bg-[#f0ece5]/50 text-[#c8bba8]"
+                        ? "bg-[#f0ece5]/50 text-[#6b5d4a]"
                         : "bg-white border border-[#f0ece5]"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm font-medium ${isNext ? "text-[#3a3128]" : isPast ? "text-[#c8bba8]" : "text-[#3a3128]"}`}>
+                    <span className={`text-sm font-medium ${isNext ? "text-[#3a3128]" : isPast ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>
                       {anchor.name}
                     </span>
-                    <span className={`text-xs capitalize ${isPast ? "text-[#c8bba8]" : "text-[#a89880]"}`}>
+                    <span className={`text-xs capitalize ${isPast ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
                       {anchor.type}
                     </span>
                   </div>
                   {anchor.detail && (
-                    <div className={`text-xs mt-0.5 ${isPast ? "text-[#c8bba8]" : "text-[#8a7a62]"}`}>
+                    <div className={`text-xs mt-0.5 ${isPast ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
                       {anchor.detail}
                     </div>
                   )}
@@ -1077,7 +1077,7 @@ export default function NowPage() {
             })}
 
             {anchors.length === 0 && (
-              <div className="text-center py-8 text-sm text-[#c8bba8]">
+              <div className="text-center py-8 text-sm text-[#6b5d4a]">
                 Nothing planned for today yet.
               </div>
             )}
@@ -1112,7 +1112,7 @@ export default function NowPage() {
               </button>
               <button
                 onClick={() => { setShowQuickCapture(false); setQuickCaptureName(""); }}
-                className="px-3 py-2 text-sm text-[#8a7a62] hover:text-[#3a3128]"
+                className="px-3 py-2 text-sm text-[#6b5d4a] hover:text-[#3a3128]"
               >
                 Cancel
               </button>
@@ -1121,7 +1121,7 @@ export default function NowPage() {
         ) : (
           <button
             onClick={() => setShowQuickCapture(true)}
-            className="mt-6 w-full py-3 rounded-lg border-2 border-dashed border-[#e0d8cc] text-sm text-[#a89880]
+            className="mt-6 w-full py-3 rounded-lg border-2 border-dashed border-[#e0d8cc] text-sm text-[#6b5d4a]
                        hover:border-[#a89880] hover:text-[#6b5d4a] transition-colors"
           >
             + Add a discovery
@@ -1139,7 +1139,7 @@ export default function NowPage() {
 
         {/* Next-up overlay setting */}
         <div className="mt-6 flex items-center justify-between px-1">
-          <span className="text-xs text-[#a89880]">Show next-up reminder on open</span>
+          <span className="text-xs text-[#6b5d4a]">Show next-up reminder on open</span>
           <button
             onClick={() => {
               const newVal = !isNextUpEnabled();

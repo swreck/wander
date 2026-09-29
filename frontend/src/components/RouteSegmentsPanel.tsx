@@ -372,10 +372,10 @@ export default function RouteSegmentsPanel({ tripId, segments, onRefresh }: Prop
         <h2 className="text-sm font-medium text-[#3a3128]">
           Travel
           {segments.length > 0 && (
-            <span className="ml-2 text-[#a89880] font-normal">{segments.length} leg{segments.length !== 1 ? "s" : ""}</span>
+            <span className="ml-2 text-[#6b5d4a] font-normal">{segments.length} leg{segments.length !== 1 ? "s" : ""}</span>
           )}
         </h2>
-        <span className="text-sm text-[#a89880]">{expanded ? "\u25B4" : "\u25BE"}</span>
+        <span className="text-sm text-[#6b5d4a]">{expanded ? "\u25B4" : "\u25BE"}</span>
       </button>
 
       {expanded && (

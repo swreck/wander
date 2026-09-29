@@ -9,31 +9,46 @@ import { getUserRole } from "../middleware/role.js";
 const router = Router();
 router.use(requireAuth);
 
-// List all trips
-router.get("/", async (_req, res) => {
+// Each person sees only the trips they're on. Two trips can have two different groups: someone
+// invited to one never sees the other. (Signed in without a person — the old shared access code —
+// keeps the whole list, as before.)
+function myTrips(req: AuthRequest) {
+  const travelerId = req.user?.travelerId;
+  return travelerId ? { tripMembers: { some: { travelerId } } } : {};
+}
+
+// List my trips, each with my role on it
+router.get("/", async (req: AuthRequest, res) => {
   const trips = await prisma.trip.findMany({
+    where: myTrips(req),
     orderBy: { lastOpenedAt: { sort: "desc", nulls: "last" } },
     include: {
       cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       _count: { select: { experiences: true, days: true } },
       sheetSyncConfig: { select: { lastSyncAt: true } },
+      ...(req.user?.travelerId ? { tripMembers: { where: { travelerId: req.user.travelerId }, select: { role: true } } } : {}),
     },
   });
-  res.json(trips);
+  res.json(trips.map(({ tripMembers, ...t }: any) => ({ ...t, myRole: tripMembers?.[0]?.role || null })));
 });
 
-// Get active trip
-router.get("/active", async (_req, res) => {
-  const trip = await prisma.trip.findFirst({
-    where: { status: "active" },
-    orderBy: { updatedAt: "desc" },
-    include: {
-      cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
-      routeSegments: { orderBy: { sequenceOrder: "asc" } },
-      days: { orderBy: { date: "asc" }, include: { city: true } },
-      sheetSyncConfig: { select: { lastSyncAt: true } },
-    },
-  });
+// Get active trip (among my trips)
+router.get("/active", async (req: AuthRequest, res) => {
+  const include = {
+    cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" as const } },
+    routeSegments: { orderBy: { sequenceOrder: "asc" as const } },
+    days: { orderBy: { date: "asc" as const }, include: { city: true } },
+    sheetSyncConfig: { select: { lastSyncAt: true } },
+  };
+  let trip = await prisma.trip.findFirst({ where: { status: "active", ...myTrips(req) }, orderBy: { updatedAt: "desc" }, include });
+  // "Active" is one switch for all of Wander; when Ken's current trip is another group's, this person
+  // still gets their own most recent trip rather than nothing
+  if (!trip && req.user?.travelerId) {
+    trip = await prisma.trip.findFirst({
+      where: { ...myTrips(req), status: { not: "archived" as any } },
+      orderBy: [{ lastOpenedAt: { sort: "desc", nulls: "last" } }, { updatedAt: "desc" }], include,
+    }) || await prisma.trip.findFirst({ where: myTrips(req), orderBy: { updatedAt: "desc" }, include });
+  }
   // Stamp lastOpenedAt
   if (trip) {
     prisma.trip.update({ where: { id: trip.id }, data: { lastOpenedAt: new Date() } }).catch(() => {});
@@ -41,10 +56,14 @@ router.get("/active", async (_req, res) => {
   res.json(trip);
 });
 
-// Get trip by ID
-router.get("/:id", async (req, res) => {
+// Get trip by ID (only a trip I'm on)
+router.get("/:id", async (req: AuthRequest, res) => {
+  if (req.user?.travelerId && !(await getUserRole(req.user.travelerId, req.params.id as string))) {
+    res.status(404).json({ error: "Trip not found" });
+    return;
+  }
   const trip = await prisma.trip.findUnique({
-    where: { id: req.params.id },
+    where: { id: req.params.id as string },
     include: {
       cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },
@@ -358,9 +377,18 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   res.json({ deleted: true });
 });
 
+/** Invitations are a planner's job — Wander holds booking codes, so only planners hand out ways in. */
+async function plannerOnly(req: AuthRequest, res: import("express").Response, tripId: string): Promise<boolean> {
+  const role = req.user?.travelerId ? await getUserRole(req.user.travelerId, tripId) : null;
+  if (role === "planner") return true;
+  res.status(403).json({ error: "Only Ken or Larisa can invite people. They can send you a link from People in Wander." });
+  return false;
+}
+
 // ── POST /:id/invite ─────────────────────────────────────────
 // Add expected guest names and get/generate the invite link
 router.post("/:id/invite", async (req: AuthRequest, res) => {
+  if (!(await plannerOnly(req, res, req.params.id as string))) return;
   const { names } = req.body; // string[]
   const trip = await prisma.trip.findUnique({
     where: { id: req.params.id as string },
@@ -429,6 +457,11 @@ router.post("/:id/invite", async (req: AuthRequest, res) => {
 // ── GET /:id/members ─────────────────────────────────────────
 // List trip members and pending invites
 router.get("/:id/members", async (req: AuthRequest, res) => {
+  // Only people on the trip see who else is on it
+  if (!req.user?.travelerId || !(await getUserRole(req.user.travelerId, req.params.id as string))) {
+    res.status(403).json({ error: "Not a member of this trip" });
+    return;
+  }
   const trip = await prisma.trip.findUnique({
     where: { id: req.params.id as string },
     include: {
@@ -449,20 +482,21 @@ router.get("/:id/members", async (req: AuthRequest, res) => {
     joinedAt: m.joinedAt,
   }));
 
+  // Link codes are never listed: each one signs someone in. Links are sent from People instead.
   const invites = trip.tripInvites.map((i) => ({
     id: i.id,
     expectedName: i.expectedName,
-    inviteToken: i.inviteToken,
     claimed: !!i.claimedByTravelerId,
     claimedAt: i.claimedAt,
   }));
 
-  res.json({ members, invites, inviteToken: trip.inviteToken });
+  res.json({ members, invites });
 });
 
 // ── POST /:id/resend-invite ──────────────────────────────────
 // Regenerate a personal invite token for a specific person (invalidates old one)
 router.post("/:id/resend-invite", async (req: AuthRequest, res) => {
+  if (!(await plannerOnly(req, res, req.params.id as string))) return;
   const { inviteId } = req.body;
   if (!inviteId) {
     res.status(400).json({ error: "Invite ID required" });
@@ -479,7 +513,8 @@ router.post("/:id/resend-invite", async (req: AuthRequest, res) => {
   const newToken = crypto.randomBytes(8).toString("hex");
   const updated = await prisma.tripInvite.update({
     where: { id: inviteId },
-    data: { inviteToken: newToken, claimedByTravelerId: null, claimedAt: null },
+    // A new link is new as of now — otherwise, for someone already on Face ID, it counts as retired
+    data: { inviteToken: newToken, claimedByTravelerId: null, claimedAt: null, createdAt: new Date() },
   });
 
   const protocol = req.get("x-forwarded-proto") || req.protocol;
@@ -494,6 +529,7 @@ router.post("/:id/resend-invite", async (req: AuthRequest, res) => {
 // ── POST /:id/add-members ────────────────────────────────────
 // Add new members to a trip (generates personal invite tokens)
 router.post("/:id/add-members", async (req: AuthRequest, res) => {
+  if (!(await plannerOnly(req, res, req.params.id as string))) return;
   const { names } = req.body;
   const tripId = req.params.id as string;
 

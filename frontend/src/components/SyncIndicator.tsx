@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import useTripSync from "../hooks/useTripSync";
+import useScoutDocked from "../hooks/useScoutDocked";
 
 export default function SyncIndicator() {
   const { user } = useAuth();
@@ -17,21 +18,23 @@ export default function SyncIndicator() {
   }, [user]);
 
   const { pendingChanges, latestAction, dismiss } = useTripSync(tripId, user?.code);
+  // While Scout's bar is showing, the news waits (it stays until tapped) — one floating layer at a time
+  const scoutDocked = useScoutDocked();
 
-  if (!user || location.pathname === "/login" || pendingChanges === 0) return null;
+  if (!user || location.pathname === "/login" || location.pathname.startsWith("/join") || pendingChanges === 0 || scoutDocked) return null;
 
+  // Sits just above the bottom bar, clear of the title and the Scout button, and waits for a tap
+  // so nothing changes under someone's thumb while they read.
   return (
     <button
       onClick={dismiss}
-      className="fixed top-2 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-full
-                 bg-[#514636] text-white text-xs font-medium shadow-lg
+      className="fixed left-4 right-20 z-[55] min-h-[44px] px-4 py-2 rounded-2xl text-left
+                 bg-[#514636] text-white text-[13px] leading-snug shadow-lg
                  animate-[slideDown_0.3s_ease-out] hover:bg-[#3a3128] transition-colors"
-      style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 68px + var(--scout-dock, 0px))" }}
     >
-      {latestAction
-        ? `${latestAction} — tap to refresh`
-        : `${pendingChanges} new ${pendingChanges === 1 ? "change" : "changes"} — tap to refresh`
-      }
+      {latestAction || (pendingChanges === 1 ? "Someone made a change" : `${pendingChanges} new changes from the group`)}
+      <span className="font-medium underline underline-offset-2 ml-1.5">Show me</span>
     </button>
   );
 }

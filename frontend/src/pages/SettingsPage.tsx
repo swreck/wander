@@ -1,55 +1,28 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { isNextUpEnabled, setNextUpEnabled } from "../components/NextUpOverlay";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { api } from "../lib/api";
 import FaceIdSetup from "../components/FaceIdSetup";
-
-const DURATION_OPTIONS = [
-  { value: 1000, label: "1 second" },
-  { value: 3000, label: "3 seconds" },
-  { value: 5000, label: "5 seconds" },
-];
-
-function getSplashDuration(): number {
-  try {
-    const val = localStorage.getItem("wander:splash-duration");
-    if (val) return parseInt(val);
-  } catch {}
-  return 1000;
-}
+import { signedInWithPasskeyHere } from "../lib/passkeys";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { logout, user: authUser } = useAuth();
-  const { showToast } = useToast();
-  const [splashDuration, setSplashDuration] = useState(getSplashDuration);
-  const [nextUp, setNextUp] = useState(isNextUpEnabled);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const faceIdHere = signedInWithPasskeyHere();
 
-  function handleDuration(ms: number) {
-    setSplashDuration(ms);
-    localStorage.setItem("wander:splash-duration", String(ms));
-    showToast(`City photo: ${ms / 1000}s`, "success");
-  }
-
-  function handleNextUp(enabled: boolean) {
-    setNextUp(enabled);
-    setNextUpEnabled(enabled);
-    showToast(enabled ? "Next-up reminders on" : "Next-up reminders off", "success");
-  }
-
-  function resetGuides() {
-    const keys = Object.keys(localStorage).filter((k) => k.startsWith("wander:guide:") || (k.startsWith("wander:") && k.endsWith("-oriented")));
-    keys.forEach((k) => localStorage.removeItem(k));
-    showToast(`Reset ${keys.length} guide(s)`, "success");
+  function signOut() {
+    logout();
+    navigate("/login", { state: { signedOut: true } });
   }
 
   return (
     <div className="min-h-[100dvh] bg-[#faf8f5]">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-[#8a7a62] hover:text-[#3a3128]">
+      <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-2 py-1 flex items-center gap-1"
+        style={{ paddingTop: "max(env(safe-area-inset-top), 4px)" }}>
+        <button onClick={() => navigate(-1)} aria-label="Back" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#514636]">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6" />
           </svg>
@@ -58,81 +31,63 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6 pb-40 space-y-6">
-        {/* City Photo Duration */}
-        <section>
-          <h2 className="text-sm font-medium text-[#3a3128] mb-1">City intro photo</h2>
-          <p className="text-xs text-[#8a7a62] mb-3">When you switch to a new city, its photo appears briefly. Quick (1s) or longer view (5s).</p>
-          <div className="flex gap-2">
-            {DURATION_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => handleDuration(opt.value)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  splashDuration === opt.value
-                    ? "bg-[#514636] text-white"
-                    : "bg-white border border-[#e0d8cc] text-[#6b5d4a] hover:bg-[#f0ece5]"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </section>
+        {/* Who this phone is */}
+        {authUser && (
+          <p className="text-sm text-[#3a3128]">
+            Signed in as <span className="font-medium">{authUser.displayName}</span>
+            <span className="text-[#6b5d4a]">{faceIdHere ? " · Face ID is on for this phone" : " · Face ID isn't set up on this phone yet"}</span>
+          </p>
+        )}
 
-        {/* Next-Up Reminder */}
+        {/* People on this trip — who's in, and sending someone their link */}
         <section>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-medium text-[#3a3128]">Next-up reminder</h2>
-              <p className="text-xs text-[#8a7a62] mt-0.5">Show what's next when you open Wander during your trip.</p>
-            </div>
-            <button
-              onClick={() => handleNextUp(!nextUp)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${nextUp ? "bg-[#514636]" : "bg-[#d0c9be]"}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${nextUp ? "translate-x-5" : ""}`} />
-            </button>
-          </div>
-        </section>
-
-        {/* Reset Guides */}
-        <section>
-          <h2 className="text-sm font-medium text-[#3a3128] mb-1">First-time guides</h2>
-          <p className="text-xs text-[#8a7a62] mb-3">Re-show the orientation tips on each screen.</p>
           <button
-            onClick={resetGuides}
-            className="py-2 px-4 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a] hover:bg-[#f0ece5] transition-colors"
+            onClick={() => navigate("/people")}
+            className="w-full min-h-[52px] flex items-center justify-between px-4 rounded-xl bg-white border border-[#e0d8cc] text-left"
           >
-            Reset all guides
+            <span>
+              <span className="block text-sm font-medium text-[#3a3128]">People on this trip</span>
+              <span className="block text-xs text-[#6b5d4a] mt-0.5">{authUser?.role === "planner" ? "Who's in, and letting someone in" : "Who's on this trip"}</span>
+            </span>
+            <span className="text-[#6b5d4a]" aria-hidden>›</span>
           </button>
         </section>
 
-        {/* Guide */}
         <section>
           <button
             onClick={() => navigate("/guide")}
-            className="py-2 px-4 rounded-lg border border-[#e0d8cc] text-sm text-[#6b5d4a] hover:bg-[#f0ece5] transition-colors"
+            className="w-full min-h-[52px] flex items-center justify-between px-4 rounded-xl bg-white border border-[#e0d8cc] text-left"
           >
-            View guide
+            <span className="text-sm font-medium text-[#3a3128]">How Wander works</span>
+            <span className="text-[#6b5d4a]" aria-hidden>›</span>
           </button>
         </section>
 
-        {/* Spreadsheet Sync (planner-only) */}
-        {/* Sync section checks its own visibility via API */}
         <FaceIdSetup variant="settings" />
         <SheetSyncSection />
 
         {/* Dedup review (planner-only) */}
         <DedupSection />
 
-        {/* Logout */}
+        {/* Sign out — with a warning when this phone has no Face ID to get back in */}
         <section>
-          <button
-            onClick={() => { logout(); navigate("/login"); }}
-            className="w-full py-3 rounded-xl bg-red-50 text-red-600 border border-red-200 text-sm font-medium hover:bg-red-100 transition-colors"
-          >
-            Sign out
-          </button>
+          {confirmSignOut ? (
+            <div className="rounded-xl border border-[#e0d8cc] bg-white p-4">
+              <p className="text-sm text-[#3a3128]">This phone doesn't have Face ID set up for Wander.</p>
+              <p className="text-sm text-[#6b5d4a] mt-1">After signing out, you'll need your link from Ken or Larisa to get back in.</p>
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => setConfirmSignOut(false)} className="min-h-[44px] flex-1 rounded-lg bg-[#514636] text-white text-sm">Stay signed in</button>
+                <button onClick={signOut} className="min-h-[44px] flex-1 rounded-lg border border-[#d6ccbc] text-[#8a3a2a] text-sm">Sign out anyway</button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => { if (faceIdHere) signOut(); else setConfirmSignOut(true); }}
+              className="w-full min-h-[44px] py-3 rounded-xl border border-[#e0d8cc] text-[#8a3a2a] text-sm font-medium hover:bg-[#f5f0ea] transition-colors"
+            >
+              Sign out of Wander on this phone
+            </button>
+          )}
         </section>
       </div>
     </div>
@@ -183,13 +138,13 @@ function SheetSyncSection() {
   return (
     <section className="border-t border-[#e0d8cc] pt-6">
       <h2 className="text-sm font-medium text-[#3a3128] mb-1">{syncSourceName || "Larisa's Japan Guide"}</h2>
-      <p className="text-xs text-[#8a7a62] mb-3">
+      <p className="text-xs text-[#6b5d4a] mb-3">
         Wander reads from Larisa's Guide and never changes it.
       </p>
       {lastRead && (
         <div className="bg-white rounded-lg border border-[#e0d8cc] p-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[#8a7a62]">Last read</span>
+            <span className="text-[#6b5d4a]">Last read</span>
             <span className="text-[#3a3128] font-medium">{lastRead}</span>
           </div>
         </div>
@@ -246,7 +201,7 @@ function DedupSection() {
   return (
     <section className="border-t border-[#e0d8cc] pt-6">
       <h2 className="text-sm font-medium text-[#3a3128] mb-1">Things I tidied up</h2>
-      <p className="text-xs text-[#8a7a62] mb-3">
+      <p className="text-xs text-[#6b5d4a] mb-3">
         Duplicates I noticed and merged. Reject any that were a mistake.
       </p>
       <div className="space-y-2">
@@ -262,7 +217,7 @@ function DedupSection() {
               </button>
               <button
                 onClick={() => handleAction(s.id, "reject")}
-                className="text-xs px-3 py-1.5 rounded-lg text-[#a89880] hover:text-[#6b5d4a]"
+                className="text-xs px-3 py-1.5 rounded-lg text-[#6b5d4a] hover:text-[#6b5d4a]"
               >
                 Undo
               </button>

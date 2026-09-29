@@ -6,6 +6,8 @@ const API_BASE = "/api";
 const QUEUEABLE_PATHS = [
   "/experiences", "/reservations", "/accommodations",
   "/days", "/cities", "/route-segments", "/captures",
+  // Notes and same-day plans typed with no signal are kept on the phone and sent later
+  "/experience-notes", "/day-choices",
 ];
 
 function isQueueable(path: string, method: string): boolean {
@@ -34,23 +36,38 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const method = options.method || "GET";
 
+  // A read that hangs (bars showing, nothing answering) gives up after 12 seconds, so screens can
+  // fall back to what the phone saved instead of waiting forever. Saves are never cut short.
+  const controller = method === "GET" && !options.signal ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 12_000) : null;
+
   try {
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    const res = await fetch(`${API_BASE}${path}`, { ...options, headers, ...(controller ? { signal: controller.signal } : {}) });
+    if (timer) clearTimeout(timer);
+
+    // The offline helper answered from the phone's saved copy (weak or no signal)
+    const saved = res.headers.get("x-wander-saved-copy");
+    if (saved) window.dispatchEvent(new CustomEvent("wander:saved-copy", { detail: { savedAt: saved === "yes" ? null : saved } }));
 
     if (res.status === 401) {
       localStorage.removeItem("wander_token");
       localStorage.removeItem("wander_user");
-      window.dispatchEvent(new CustomEvent("wander:session-expired"));
+      // Only a sign-in that was actually turned away is news. (After signing out on purpose, a request
+      // still on its way comes back refused — that's not an "expired session".)
+      if (token) window.dispatchEvent(new CustomEvent("wander:session-expired"));
       throw new Error("Unauthorized");
     }
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `Request failed: ${res.status}`);
+      // The status and the whole answer ride along, for screens that act on them (People: "same name?")
+      throw Object.assign(new Error(body.error || `Request failed: ${res.status}`), { status: res.status, body });
     }
 
     return res.json();
   } catch (err) {
+    if (timer) clearTimeout(timer);
+    if (controller?.signal.aborted) throw new TypeError("Failed to fetch: no answer (weak signal)");
     // Queue mutations when offline
     if (isNetworkError(err) && isQueueable(path, method)) {
       await queueRequest({

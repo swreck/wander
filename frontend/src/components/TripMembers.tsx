@@ -135,14 +135,14 @@ export default function TripMembers({ tripId, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#e0d8cc]">
           <h2 className="text-lg font-medium text-[#3a3128]">Trip members</h2>
-          <button onClick={onClose} className="text-[#8a7a62] text-sm">
+          <button onClick={onClose} className="text-[#6b5d4a] text-sm">
             Done
           </button>
         </div>
 
         <div className="overflow-y-auto flex-1 px-4 py-3">
           {loading ? (
-            <p className="text-sm text-[#a89880] text-center py-8">Loading...</p>
+            <p className="text-sm text-[#6b5d4a] text-center py-8">Loading...</p>
           ) : (
             <>
               {/* Current members */}
@@ -157,7 +157,7 @@ export default function TripMembers({ tripId, onClose }: Props) {
                         {m.displayName}
                       </span>
                       {m.role === "planner" && (
-                        <span className="ml-2 text-xs text-[#8a7a62] bg-[#f0ece4] px-1.5 py-0.5 rounded">
+                        <span className="ml-2 text-xs text-[#6b5d4a] bg-[#f0ece4] px-1.5 py-0.5 rounded">
                           Planner
                         </span>
                       )}
@@ -174,7 +174,7 @@ export default function TripMembers({ tripId, onClose }: Props) {
                             </button>
                             <button
                               onClick={() => setResetConfirm(null)}
-                              className="text-xs text-[#a89880]"
+                              className="text-xs text-[#6b5d4a]"
                             >
                               Cancel
                             </button>
@@ -182,7 +182,7 @@ export default function TripMembers({ tripId, onClose }: Props) {
                         ) : (
                           <button
                             onClick={() => setResetConfirm(m.travelerId)}
-                            className="text-xs text-[#a89880] hover:text-[#8a7a62]"
+                            className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a]"
                             title="Reset vault PIN"
                           >
                             Reset PIN
@@ -197,7 +197,7 @@ export default function TripMembers({ tripId, onClose }: Props) {
               {/* Pending invites */}
               {pendingInvites.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-xs text-[#a89880] uppercase tracking-wide mb-2">
+                  <h3 className="text-xs text-[#6b5d4a] uppercase tracking-wide mb-2">
                     Waiting to join
                   </h3>
                   <div className="space-y-2">
@@ -206,7 +206,7 @@ export default function TripMembers({ tripId, onClose }: Props) {
                         key={inv.id}
                         className="flex items-center justify-between py-2"
                       >
-                        <span className="text-sm text-[#8a7a62]">
+                        <span className="text-sm text-[#6b5d4a]">
                           {inv.expectedName}
                         </span>
                         <div className="flex items-center gap-2">
@@ -221,7 +221,7 @@ export default function TripMembers({ tripId, onClose }: Props) {
                           {isPlanner && (
                             <button
                               onClick={() => resendInvite(inv.id)}
-                              className="text-xs text-[#8a7a62]"
+                              className="text-xs text-[#6b5d4a]"
                             >
                               {copiedId === inv.id ? "Sent!" : "Resend"}
                             </button>
@@ -236,7 +236,7 @@ export default function TripMembers({ tripId, onClose }: Props) {
               {/* Add member (planner only) */}
               {isPlanner && (
                 <div className="mb-4">
-                  <h3 className="text-xs text-[#a89880] uppercase tracking-wide mb-2">
+                  <h3 className="text-xs text-[#6b5d4a] uppercase tracking-wide mb-2">
                     Invite someone new
                   </h3>
                   <div className="flex gap-2">
@@ -270,7 +270,7 @@ export default function TripMembers({ tripId, onClose }: Props) {
 
               {/* Status message */}
               {message && (
-                <p className="text-sm text-[#8a7a62] text-center mt-3">
+                <p className="text-sm text-[#6b5d4a] text-center mt-3">
                   {message}
                 </p>
               )}

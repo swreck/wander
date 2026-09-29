@@ -36,7 +36,7 @@ export default function FirstTimeGuide({ id, lines }: Props) {
       <ul className="space-y-1.5 mb-4">
         {lines.map((line, i) => (
           <li key={i} className="text-sm text-[#6b5d4a] flex items-start gap-2 leading-relaxed">
-            <span className="text-[#a89880] mt-0.5 shrink-0">&bull;</span>
+            <span className="text-[#6b5d4a] mt-0.5 shrink-0">&bull;</span>
             <span>{line}</span>
           </li>
         ))}

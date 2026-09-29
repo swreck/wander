@@ -1,12 +1,14 @@
 /**
- * ActionsPanel — Planning actions read from Larisa's Guide Actions tab (Wander never writes back)
- *
- * Full CRUD: view, add, edit, mark done. Bidirectional sync.
+ * ActionsPanel — "Actions": the Guide's deadlines coming up, then the to-dos from Larisa's
+ * Actions tab (read-only — she ticks them in her sheet), then any to-dos added in Wander
+ * (those can be ticked and noted here). Wander never writes to the Guide.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { api } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
+import { guideData, type TripGuideData } from "../lib/guideData";
+import { deadlineOver, deadlineTimeWords, deadlineWhen } from "../lib/guideDisplay";
 
 interface PlanningAction {
   id: string;
@@ -39,6 +41,27 @@ interface Props {
   syncSourceName?: string; // display name of the source spreadsheet (e.g. "Claude's Japan Oct 2026.4.8")
 }
 
+/** "2026-04-15" or "4/15" → a date (the trip's year for "4/15"); null for "TBD" or anything else. */
+function parseDue(due: string | null): Date | null {
+  if (!due) return null;
+  const iso = due.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
+  const md = due.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (md) return new Date(2026, +md[1] - 1, +md[2]);
+  return null;
+}
+
+function isPastDue(due: string | null, todayStart: Date): boolean {
+  const d = parseDue(due);
+  return !!d && d < todayStart;
+}
+
+/** "Apr 15" — how a person writes a date. Falls back to the Guide's own text. */
+function dueWords(due: string): string {
+  const d = parseDue(due);
+  return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : due;
+}
+
 export default function ActionsPanel({ tripId, onClose, decisions, userCode, onNavigate, syncSourceName }: Props) {
   const { showToast } = useToast();
   const [actions, setActions] = useState<PlanningAction[]>([]);
@@ -57,15 +80,30 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
 
   // Done section toggle — must be above early return to avoid hooks ordering violation
   const [showDone, setShowDone] = useState(false);
+  // With no signal: the list this phone saved, or an honest "can't load" (never a false "nothing")
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [unreachable, setUnreachable] = useState(false);
+  const [guide, setGuide] = useState<TripGuideData | null>(null);
 
   function loadActions() {
+    const key = `wander:actions-copy:${tripId}`;
     api.get<PlanningAction[]>(`/sheets-sync/actions/${tripId}`)
-      .then(setActions)
-      .catch(() => {})
+      .then((list) => {
+        setActions(list); setSavedAt(null); setUnreachable(false);
+        try { localStorage.setItem(key, JSON.stringify({ list, savedAt: new Date().toISOString() })); } catch { /* full */ }
+      })
+      .catch(() => {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) { const saved = JSON.parse(raw); setActions(saved.list); setSavedAt(saved.savedAt); return; }
+        } catch { /* unreadable */ }
+        setUnreachable(true);
+      })
       .finally(() => setLoading(false));
   }
 
   useEffect(() => { loadActions(); }, [tripId]);
+  useEffect(() => { guideData(tripId).then(setGuide).catch(() => { /* deadlines just don't show */ }); }, [tripId]);
 
   // Escape key closes the panel (standard overlay behavior)
   useEffect(() => {
@@ -116,12 +154,17 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 bg-[#faf8f5] flex items-center justify-center">
-        <p className="text-sm text-[#8a7a62]">Loading...</p>
+        <p className="text-sm text-[#6b5d4a]">Loading...</p>
       </div>
     );
   }
 
-  const open = actions.filter(a => a.status === "open");
+  // Due dates arrive as "2026-04-15" (from the Guide) or "4/15" (typed here). Past-due ones aren't
+  // "coming up" — they're earlier to-dos in the Guide, shown quietly below.
+  const todayStart = new Date(new Date().toDateString());
+  const upcoming = actions.filter(a => a.status === "open" && !isPastDue(a.dueDate, todayStart));
+  const earlier = actions.filter(a => a.status === "open" && isPastDue(a.dueDate, todayStart));
+  const open = [...upcoming, ...earlier];
   const done = actions.filter(a => a.status === "done");
 
   // Decisions that need THIS user's input
@@ -145,36 +188,39 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
         const matchingDec = (decisions || []).find(d =>
           d.title.toLowerCase().includes(cityInAction)
         );
-        if (matchingDec) return `/plan?city=${matchingDec.cityId}`;
+        if (matchingDec) return `/ideas?city=${matchingDec.cityId}`;
       }
-      // Fallback: first hotel decision (better than nothing, but inexact)
-      const hotelDec = (decisions || []).find(d => d.title.toLowerCase().includes("hotel"));
-      if (hotelDec) return `/plan?city=${hotelDec.cityId}`;
+      return null;
     }
-    if (name.includes("restaurant") || name.includes("food")) {
-      return "/plan";
-    }
-    if (name.includes("activit")) {
-      return "/plan";
+    if (name.includes("restaurant") || name.includes("food") || name.includes("activit")) {
+      return "/ideas";
     }
     return null;
   }
 
+  // Deadlines from the Guide in the next two weeks — the same list as Home, where people look for "things to do"
+  const tz = guide?.trip.timeZone || "Asia/Tokyo";
+  const todayYmd = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+  const in14 = (() => { const d = new Date(`${todayYmd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 14); return d.toISOString().slice(0, 10); })();
+  const deadlines = (guide?.items || [])
+    .filter((i) => i.kind === "deadline" && !deadlineOver(i, tz) && (i.windowStart || (i.date || "").slice(0, 10)) <= in14)
+    .sort((a, b) => (a.windowStart || (a.date || "").slice(0, 10)).localeCompare(b.windowStart || (b.date || "").slice(0, 10)));
+
   return (
     <div className="fixed inset-0 z-50 bg-[#faf8f5] overflow-y-auto"
-         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
+         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px + var(--scout-dock, 0px))" }}>
       {/* Header */}
       <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-4 py-3 flex items-center justify-between"
            style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="text-[#8a7a62] hover:text-[#3a3128] min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Close">
+          <button onClick={onClose} className="text-[#6b5d4a] hover:text-[#3a3128] min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Close">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
           <div>
-            <h1 className="text-lg font-medium text-[#3a3128]">What's happening</h1>
-            <span className="text-[10px] text-[#a89880]">From {syncSourceName || "Larisa's Guide"}</span>
+            <h1 className="text-lg font-medium text-[#3a3128]">Actions</h1>
+            <span className="text-xs text-[#6b5d4a]">Deadlines and to-dos from {syncSourceName ? "Larisa's Guide" : "Larisa's Guide"}</span>
           </div>
         </div>
         <button
@@ -186,6 +232,35 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-4">
+
+        {savedAt && (
+          <p className="mb-4 text-sm text-[#6b5d4a] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2" role="status">
+            No signal — showing what this phone saved {new Date(savedAt).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}.
+          </p>
+        )}
+
+        {/* ── Deadlines from the Guide ── */}
+        {deadlines.length > 0 && (
+          <div className="mb-6">
+            <div className="text-xs text-[#8a5a1a] uppercase tracking-wider font-medium mb-2">Deadlines in the next two weeks</div>
+            <ul className="space-y-2">
+              {deadlines.map((i) => {
+                const time = deadlineTimeWords(i, tz);
+                return (
+                  <li key={i.id}>
+                    <button onClick={() => onNavigate?.(`/day/${(i.date || "").slice(0, 10)}#item-${i.id}`)}
+                      className="w-full text-left bg-[#fff8ec] rounded-xl border border-[#e8c98f] p-3.5">
+                      <div className="text-sm text-[#3a3128]"><span className="text-[#8a5a1a]">{deadlineWhen(i, todayYmd)}</span> · {i.title}</div>
+                      {(i.forWhom || time) && (
+                        <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : null, time].filter(Boolean).join(" · ")}</div>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* ── Section 1: Needs your input ── */}
         {needsMyInput.length > 0 && (
@@ -200,11 +275,11 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                 return (
                   <button
                     key={dec.id}
-                    onClick={() => onNavigate?.(`/plan?city=${dec.cityId}`)}
+                    onClick={() => onNavigate?.(`/ideas?city=${dec.cityId}`)}
                     className="w-full text-left p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-50 transition-colors"
                   >
                     <div className="text-sm font-medium text-[#3a3128]">{dec.title}</div>
-                    <div className="text-xs text-[#8a7a62] mt-1">
+                    <div className="text-xs text-[#6b5d4a] mt-1">
                       {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
                       {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
                     </div>
@@ -216,45 +291,53 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           </div>
         )}
 
-        {/* ── Section 2: Coming up (Guide Actions) ── */}
+        {/* ── Section 2: Coming up (Guide Actions), then earlier to-dos the Guide still lists ── */}
         {open.length > 0 && (
           <div className="mb-6">
-            <div className="text-xs text-[#a89880] uppercase tracking-wider font-medium mb-2">Coming up</div>
+            <div className="text-xs text-[#6b5d4a] uppercase tracking-wider font-medium mb-2">
+              {upcoming.length > 0 ? "Coming up" : "Earlier to-dos in the Guide"}
+            </div>
             <div className="space-y-2">
-              {open.map((a) => {
+              {open.map((a, idx) => {
+                const firstEarlier = upcoming.length > 0 && idx === upcoming.length;
                 const dest = getActionDestination(a);
                 return (
-                  <div key={a.id} className="bg-white rounded-xl border border-[#e8e0d4] p-3.5">
+                  <Fragment key={a.id}>
+                  {firstEarlier && (
+                    <div className="text-xs text-[#6b5d4a] uppercase tracking-wider font-medium pt-4 pb-1">Earlier to-dos in the Guide</div>
+                  )}
+                  <div className="bg-white rounded-xl border border-[#e8e0d4] p-3.5">
                     <div className="flex items-start gap-3">
-                      <button
-                        onClick={() => handleToggleDone(a)}
-                        className="mt-0.5 w-6 h-6 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors shrink-0"
-                        title="Mark done"
-                        aria-label={`Mark ${a.action} as done`}
-                      />
+                      {/* The Guide's own to-dos are Larisa's to tick, in her sheet; only Wander's own can be ticked here */}
+                      {!a.sheetRowRef && (
+                        <button
+                          onClick={() => handleToggleDone(a)}
+                          className="-m-2.5 p-2.5 shrink-0"
+                          aria-label={`Mark ${a.action} as done`}
+                        >
+                          <span className="block w-6 h-6 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors" />
+                        </button>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <div className="text-sm font-medium text-[#3a3128]">{a.action}</div>
                           {dest && (
                             <button
                               onClick={() => onNavigate?.(dest)}
-                              className="text-xs text-[#a89880] hover:text-[#514636] shrink-0 ml-2"
+                              className="text-sm text-[#514636] shrink-0 ml-2 min-h-[44px] px-2"
                             >
-                              Go →
+                              Ideas ›
                             </button>
                           )}
                         </div>
-                        <div className="text-xs text-[#8a7a62] mt-1 flex items-center gap-2 flex-wrap">
+                        <div className="text-xs text-[#6b5d4a] mt-1 flex items-center gap-2 flex-wrap">
                           <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a] font-medium">
                             {a.owner === "Both" ? "Group" : a.owner === "LF" ? "Larisa" : a.owner === "KR" ? "Ken" : a.owner}
                           </span>
-                          {a.dueDate && a.dueDate !== "TBD" && (() => {
-                            // Check if overdue
-                            const match = a.dueDate.match(/^(\d{1,2})\/(\d{1,2})$/);
-                            const isOverdue = match ? new Date(2026, parseInt(match[1]) - 1, parseInt(match[2])) < new Date(new Date().toDateString()) : false;
-                            return <span className={isOverdue ? "text-amber-600" : ""}>{isOverdue ? "was aiming for " : "around "}{a.dueDate}</span>;
-                          })()}
-                          {a.sheetRowRef && <span className="text-[10px] text-[#b8a990]">from Guide</span>}
+                          {a.dueDate && a.dueDate !== "TBD" && (
+                            <span>{isPastDue(a.dueDate, todayStart) ? "was aiming for " : "by "}{dueWords(a.dueDate)}</span>
+                          )}
+                          <span className="text-xs text-[#6b5d4a]">{a.sheetRowRef ? "in Larisa's Guide" : "added in Wander"}</span>
                         </div>
 
                         {/* Per-person status pills from Larisa's Actions tab.
@@ -269,7 +352,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               const isProgress = s.includes("progress");
                               const isNA = s === "n/a" || s === "na";
                               return (
-                                <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#c8bba8]" : "text-[#8a7a62]"}`}>
+                                <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
                                   <span className="font-medium">Larisa</span>
                                   <span>{isDone ? "✓ done" : isProgress ? "· in progress" : isNA ? "n/a" : a.larisaStatus}</span>
                                 </span>
@@ -281,7 +364,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               const isProgress = s.includes("progress");
                               const isNA = s === "n/a" || s === "na";
                               return (
-                                <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#c8bba8]" : "text-[#8a7a62]"}`}>
+                                <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
                                   <span className="font-medium">Andy</span>
                                   <span>{isDone ? "✓ done" : isProgress ? "· in progress" : isNA ? "n/a" : a.andyStatus}</span>
                                 </span>
@@ -293,7 +376,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                         {/* Status notes from the Guide — Larisa's free-text summary of
                             where the item stands (e.g., "Flights booked and info copied"). */}
                         {a.statusNotes && (
-                          <p className="text-xs text-[#8a7a62] mt-1 italic leading-relaxed">
+                          <p className="text-xs text-[#6b5d4a] mt-1 italic leading-relaxed">
                             {a.statusNotes}
                           </p>
                         )}
@@ -310,20 +393,20 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveNotes(a.id); } if (e.key === "Escape") setEditingId(null); }}
                             />
                             <div className="flex justify-end gap-2 mt-1.5">
-                              <button onClick={() => setEditingId(null)} className="text-xs text-[#a89880]">Cancel</button>
+                              <button onClick={() => setEditingId(null)} className="text-xs text-[#6b5d4a]">Cancel</button>
                               <button onClick={() => handleSaveNotes(a.id)} className="text-xs text-white bg-[#514636] px-3 py-1 rounded-lg font-medium">Save</button>
                             </div>
                           </div>
                         ) : a.notes ? (
                           <p
-                            className="text-sm text-[#6b5d4a] mt-2 leading-relaxed cursor-text bg-[#faf8f5] rounded-lg px-3 py-2"
-                            onClick={() => { setEditingId(a.id); setEditNotes(a.notes || ""); }}
+                            className={`text-sm text-[#6b5d4a] mt-2 leading-relaxed bg-[#faf8f5] rounded-lg px-3 py-2 ${a.sheetRowRef ? "" : "cursor-text"}`}
+                            onClick={() => { if (!a.sheetRowRef) { setEditingId(a.id); setEditNotes(a.notes || ""); } }}
                           >
                             {a.notes}
                           </p>
-                        ) : (
+                        ) : a.sheetRowRef ? null : (
                           <button
-                            className="text-xs text-[#c8bba8] hover:text-[#8a7a62] mt-2 transition-colors"
+                            className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] mt-2 transition-colors"
                             onClick={() => { setEditingId(a.id); setEditNotes(""); }}
                           >
                             Add a note
@@ -332,6 +415,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       </div>
                     </div>
                   </div>
+                  </Fragment>
                 );
               })}
             </div>
@@ -383,8 +467,11 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           </div>
         )}
 
-        {actions.length === 0 && !adding && needsMyInput.length === 0 && (
-          <p className="text-sm text-[#a89880] text-center py-8">Nothing happening yet</p>
+        {unreachable && (
+          <p className="text-sm text-[#6b5d4a] text-center py-8">No signal, and this phone hasn't saved the to-dos yet. They'll show once you're back online.</p>
+        )}
+        {!unreachable && actions.length === 0 && !adding && needsMyInput.length === 0 && deadlines.length === 0 && (
+          <p className="text-sm text-[#6b5d4a] text-center py-8">Nothing to do right now.</p>
         )}
 
         {/* ── Section 3: Done — collapsed by default ── */}
@@ -392,7 +479,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           <div>
             <button
               onClick={() => setShowDone(!showDone)}
-              className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+              className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
             >
               {showDone ? "Hide" : `${done.length} done`}
             </button>
@@ -408,9 +495,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       >
                         <span className="text-white text-[10px]">✓</span>
                       </button>
-                      <span className="text-sm text-[#a89880] line-through">{a.action}</span>
+                      <span className="text-sm text-[#6b5d4a] line-through">{a.action}</span>
                     </div>
-                    {a.notes && <p className="text-[11px] text-[#c8bba8] ml-7 mt-0.5">{a.notes}</p>}
+                    {a.notes && <p className="text-[11px] text-[#6b5d4a] ml-7 mt-0.5">{a.notes}</p>}
                   </div>
                 ))}
               </div>

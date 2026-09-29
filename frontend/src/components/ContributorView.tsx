@@ -42,18 +42,18 @@ export default function ContributorView({ travelerCode, experiences, trip, onClo
           </span>
           <div className="flex-1">
             <h3 className="text-sm font-medium text-[#3a3128]">{travelerCode}'s contributions</h3>
-            <p className="text-xs text-[#a89880]">
+            <p className="text-xs text-[#6b5d4a]">
               {travelerExps.length} activit{travelerExps.length !== 1 ? "ies" : "y"} across {Object.keys(byCity).length} cit{Object.keys(byCity).length !== 1 ? "ies" : "y"}
             </p>
           </div>
-          <button onClick={onClose} className="text-[#c8bba8] hover:text-[#6b5d4a] text-lg">&times;</button>
+          <button onClick={onClose} className="text-[#6b5d4a] hover:text-[#6b5d4a] text-lg">&times;</button>
         </div>
 
         {/* City groups */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
           {Object.entries(byCity).map(([cityName, { items }]) => (
             <div key={cityName}>
-              <div className="text-xs font-medium text-[#a89880] uppercase tracking-wider mb-1.5">{cityName} ({items.length})</div>
+              <div className="text-xs font-medium text-[#6b5d4a] uppercase tracking-wider mb-1.5">{cityName} ({items.length})</div>
               <div className="space-y-1">
                 {items.map(exp => (
                   <div
@@ -66,13 +66,13 @@ export default function ContributorView({ travelerCode, experiences, trip, onClo
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-[#3a3128] truncate">{exp.name}</div>
                       {exp.description && (
-                        <div className="text-xs text-[#a89880] truncate">{exp.description}</div>
+                        <div className="text-xs text-[#6b5d4a] truncate">{exp.description}</div>
                       )}
                     </div>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 ${
                       exp.state === "selected"
                         ? "bg-green-100 text-green-700"
-                        : "bg-[#f0ece5] text-[#8a7a62]"
+                        : "bg-[#f0ece5] text-[#6b5d4a]"
                     }`}>
                       {exp.state === "selected" ? "Planned" : "Maybe"}
                     </span>

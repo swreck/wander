@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import CreateTrip from "../components/CreateTrip";
@@ -8,20 +8,23 @@ import { APIProvider, Map as GoogleMap, AdvancedMarker, useMap } from "@vis.gl/r
 import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
 import type { Trip, City, Day, Experience, ChangeLogEntry, Decision } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
+import useBackToClose from "../hooks/useBackToClose";
 import useUniversalCapture from "../hooks/useUniversalCapture";
-import RouteSegmentsPanel from "../components/RouteSegmentsPanel";
 import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
 import ContributorView from "../components/ContributorView";
-import ImportCard from "../components/ImportCard";
 import ApprovalQueue from "../components/ApprovalQueue";
 import LearningsPanel from "../components/LearningsPanel";
-import TripPhaseContent from "../components/TripPhaseContent";
 import { getTripPhase } from "../lib/tripPhase";
 import ActivityFeed from "../components/ActivityFeed";
 import SheetNotesCard from "../components/SheetNotesCard";
 import SyncAlert from "../components/SyncAlert";
 import ActionsPanel from "../components/ActionsPanel";
 import FaceIdSetup from "../components/FaceIdSetup";
+import { warmGuideData } from "../lib/guideData";
+import TripGlance from "../components/TripGlance";
+import { changeRest } from "../lib/changeWords";
+import AddToHomeScreen from "../components/AddToHomeScreen";
+import { signedInWithPasskeyHere } from "../lib/passkeys";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -30,23 +33,59 @@ let _cachedTrip: Trip | null = null;
 let _cachedDays: Day[] = [];
 let _cachedExperiences: Experience[] = [];
 
+// The phone's own copy of Home from the last good load: opens Home instantly, and keeps the trip
+// on screen with no signal. Labelled with whose it is, so a phone switched to another person
+// never shows the previous person's trip.
+const SAVED_HOME_KEY = "wander:home-copy";
+interface SavedHome { owner: string; savedAt: string; trip: Trip; days: Day[]; allTrips: Trip[] }
+
+function homeOwner(): string {
+  try { return localStorage.getItem("wander_user") || ""; } catch { return ""; }
+}
+
+function readSavedHome(): SavedHome | null {
+  try {
+    const raw = localStorage.getItem(SAVED_HOME_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as SavedHome;
+    return saved.owner && saved.owner === homeOwner() && saved.trip ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveHome(trip: Trip, days: Day[], allTrips: Trip[]) {
+  try {
+    const copy: SavedHome = { owner: homeOwner(), savedAt: new Date().toISOString(), trip, days, allTrips };
+    localStorage.setItem(SAVED_HOME_KEY, JSON.stringify(copy));
+  } catch { /* storage full or unavailable — the live load still works */ }
+}
+
+function savedAtWords(iso: string) {
+  const d = new Date(iso);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return sameDay ? `today at ${time}` : `${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at ${time}`;
+}
+
 export default function TripOverview() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
-  const [trip, setTrip] = useState<Trip | null>(_cachedTrip);
-  const [allTrips, setAllTrips] = useState<Trip[]>([]);
-  const [days, setDays] = useState<Day[]>(_cachedDays);
+  const [savedHome] = useState(() => (_cachedTrip ? null : readSavedHome()));
+  const [trip, setTrip] = useState<Trip | null>(_cachedTrip || savedHome?.trip || null);
+  const [allTrips, setAllTrips] = useState<Trip[]>(savedHome?.allTrips || []);
+  const [days, setDays] = useState<Day[]>(_cachedTrip ? _cachedDays : savedHome?.days || []);
   const [experiences, setExperiences] = useState<Experience[]>(_cachedExperiences);
-  const [loading, setLoading] = useState(!_cachedTrip);
+  const [loading, setLoading] = useState(!_cachedTrip && !savedHome);
   const [showCreate, setShowCreate] = useState(false);
+  // When the last load couldn't reach Wander: the saved copy's time, "never" if there's no copy, null when fine
+  const [unreachableSince, setUnreachableSince] = useState<string | null>(null);
   const [editingTrip, setEditingTrip] = useState(false);
   const [editName, setEditName] = useState("");
-  const [editStartDate, setEditStartDate] = useState("");
-  const [editEndDate, setEditEndDate] = useState("");
   const [editTagline, setEditTagline] = useState("");
   const [recentActivity, setRecentActivity] = useState<ChangeLogEntry[]>([]);
-  const [collabWelcome, setCollabWelcome] = useState<{ names: string[]; tripName: string } | null>(null);
   const [showTripSwitcher, setShowTripSwitcher] = useState(false);
   const [savingTrip, setSavingTrip] = useState(false);
   const [contributorViewCode, setContributorViewCode] = useState<string | null>(null);
@@ -54,9 +93,10 @@ export default function TripOverview() {
   const [showApprovals, setShowApprovals] = useState(false);
   const [showLearnings, setShowLearnings] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  // The phone's Back closes these panels instead of leaving Wander
+  useBackToClose(showTripSwitcher, () => setShowTripSwitcher(false));
+  useBackToClose(showActions, () => setShowActions(false));
   const [openDecisions, setOpenDecisions] = useState<Decision[]>([]);
-  const [showInfoPanel, setShowInfoPanel] = useState(() => !localStorage.getItem("wander:overview-oriented"));
-  const [peekDay, setPeekDay] = useState<{ dayId: string; cityId: string } | null>(null);
 
   const isPlanner = user?.role === "planner";
   const initialLoadDone = useRef(false);
@@ -64,25 +104,24 @@ export default function TripOverview() {
   useKeyboardShortcuts();
   useUniversalCapture(trip?.id);
 
-  // Track visits and auto-prompt to hide info panel at ~4 and ~10 visits
-  useEffect(() => {
-    const count = parseInt(localStorage.getItem("wander:visit-count") || "0") + 1;
-    localStorage.setItem("wander:visit-count", String(count));
-    // If user has NOT yet dismissed and they're at visit 4 or 10, show the auto-prompt
-    // by forcing showInfoPanel true (it will render the auto-prompt branch)
-    const dismissed = !!localStorage.getItem("wander:overview-oriented");
-    if (!dismissed && (count === 4 || count === 10)) {
-      localStorage.setItem("wander:auto-prompt-pending", "1");
-      setShowInfoPanel(true);
-    }
-  }, []);
-
-  // Listen for bottom nav actions trigger
+  // Listen for bottom nav actions trigger (on Home), or arrive from another tab asking for it
   useEffect(() => {
     const handler = () => setShowActions(true);
+    const close = () => setShowActions(false);
     window.addEventListener("wander-open-actions", handler);
-    return () => window.removeEventListener("wander-open-actions", handler);
+    window.addEventListener("wander-close-actions", close);
+    if ((location.state as { openActions?: boolean } | null)?.openActions) {
+      setShowActions(true);
+      navigate(".", { replace: true, state: null });
+    }
+    return () => { window.removeEventListener("wander-open-actions", handler); window.removeEventListener("wander-close-actions", close); };
   }, []);
+
+  // Tell the tab bar when Actions is open, so Actions (not Home) is highlighted
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("wander:actions-panel", { detail: { open: showActions } }));
+    return () => { window.dispatchEvent(new CustomEvent("wander:actions-panel", { detail: { open: false } })); };
+  }, [showActions]);
 
   // Signal to BottomNav whether actions need attention
   useEffect(() => {
@@ -93,11 +132,30 @@ export default function TripOverview() {
 
   async function loadTrips(silent = false) {
     if (!silent) setLoading(true);
+    let active: Trip | null;
+    let all: Trip[];
     try {
-      const [active, all] = await Promise.all([
+      [active, all] = await Promise.all([
         api.get<Trip | null>("/trips/active"),
         api.get<Trip[]>("/trips"),
       ]);
+      setUnreachableSince(null);
+    } catch {
+      // No signal (or the server didn't answer). Never conclude "no trip" from a failed request:
+      // show the copy this phone kept from its last good load, and say so.
+      const saved = readSavedHome();
+      if (saved) {
+        setTrip(saved.trip); _cachedTrip = saved.trip;
+        setDays(saved.days); _cachedDays = saved.days;
+        setAllTrips(saved.allTrips);
+        setUnreachableSince(saved.savedAt);
+      } else {
+        setUnreachableSince("never");
+      }
+      setLoading(false);
+      return;
+    }
+    try {
 
       // On first load, auto-select the best trip for this planner.
       // Priority: trip with the most recent sync (the one connected to Larisa's Guide).
@@ -150,27 +208,20 @@ export default function TripOverview() {
       setAllTrips(all);
       if (!effectiveActive) { setShowCreate(true); }
       else {
+        // Fetch the Guide's day-by-day items now, so tapping a day opens at once
+        warmGuideData(effectiveActive.id);
         const [d, e] = await Promise.all([
           api.get<Day[]>(`/days/trip/${effectiveActive.id}`),
           api.get<Experience[]>(`/experiences/trip/${effectiveActive.id}`),
         ]);
         setDays(d); _cachedDays = d;
         setExperiences(e); _cachedExperiences = e;
+        saveHome(effectiveActive, d, all);
         try {
           const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${effectiveActive.id}?limit=50`);
           setRecentActivity(logs.slice(0, 5));
-
-          const welcomeKey = `wander:trip-welcomed:${effectiveActive.id}:${user?.displayName}`;
-          if (user && !localStorage.getItem(welcomeKey)) {
-            const myEntries = logs.filter((l) => l.userDisplayName === user.displayName);
-            if (myEntries.length === 0 && logs.length > 0) {
-              const otherNames = [...new Set(logs.map((l) => l.userDisplayName))].filter(n => n !== "System" && n !== "system");
-              if (otherNames.length > 0) {
-                setCollabWelcome({ names: otherNames, tripName: effectiveActive.name });
-              }
-            }
-            localStorage.setItem(welcomeKey, "1");
-          }
+          // (A first-visit overlay — "X has already started the itinerary… everyone will see your
+          // changes" — was removed: it covered Home on first open and wasn't true; the plan is Larisa's Guide.)
         } catch { /* ignore */ }
         // Fetch pending approvals count for planners
         try {
@@ -276,10 +327,41 @@ export default function TripOverview() {
     return Array.from(cityMap.values());
   }, [days, cities]);
 
+  // Face ID set up on this phone (now or before) → the Home Screen step can follow
+  const [faceIdHere, setFaceIdHere] = useState(signedInWithPasskeyHere);
+  useEffect(() => {
+    const on = () => setFaceIdHere(true);
+    window.addEventListener("wander:faceid-ready", on);
+    return () => window.removeEventListener("wander:faceid-ready", on);
+  }, []);
+
+  // Unlocking the phone in the morning redraws Home, so the calendar rings today — not yesterday
+  const [, setWakeTick] = useState(0);
+  useEffect(() => {
+    const bump = () => { if (document.visibilityState === "visible") setWakeTick((n) => n + 1); };
+    document.addEventListener("visibilitychange", bump);
+    window.addEventListener("focus", bump);
+    const every = setInterval(() => setWakeTick((n) => n + 1), 60000);
+    return () => { document.removeEventListener("visibilitychange", bump); window.removeEventListener("focus", bump); clearInterval(every); };
+  }, []);
+
+  // Coming back to Home (Back from a day) lands where you left it: App.tsx's ScrollKeeper does that for every screen.
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
+      <div className="min-h-screen flex items-center justify-center text-[#6b5d4a] bg-[#faf8f5]">
         Finding your trip...
+      </div>
+    );
+  }
+
+  // Couldn't reach Wander and there's no copy on this phone yet: say so — never offer a new trip
+  if (!trip && unreachableSince) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#faf8f5] p-6 text-center">
+        <p className="text-base text-[#3a3128] mb-1">Wander can't reach the trip right now.</p>
+        <p className="text-sm text-[#6b5d4a] mb-5">It looks like there's no signal. Once this phone has opened the trip with a signal, it keeps a copy for times like this.</p>
+        <button onClick={() => loadTrips()} className="min-h-[44px] px-5 rounded-xl bg-[#514636] text-white text-sm">Try again</button>
       </div>
     );
   }
@@ -342,12 +424,13 @@ export default function TripOverview() {
   const archivedTrips = allTrips.filter((t) => t.status === "archived");
   // Always show trip switcher — "Plan a new trip" inside is the planner-gated action
   const showSwitcherArrow = true;
+  // The trip menu lists real trips — ones read from Larisa's Guide — not April's placeholder or test trips
+  const menuTrips = allTrips.filter((t) => t.id === trip?.id || /^From Larisa's Guide/.test(t.tagline || ""));
   const tripPhase = getTripPhase({
     datesKnown: trip.datesKnown !== false,
     startDate: trip.startDate,
     endDate: trip.endDate,
   });
-  const isWithinDates = tripPhase === "active";
 
   const selectedPerDay: Record<string, number> = {};
   const possiblePerCity: Record<string, number> = {};
@@ -365,30 +448,9 @@ export default function TripOverview() {
 
   return (
     <div className="min-h-screen bg-[#faf8f5] pb-20">
-      {/* Collaboration welcome */}
-      {collabWelcome && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm"
-          onClick={() => setCollabWelcome(null)}>
-          <div
-            className="mx-6 max-w-sm w-full bg-white rounded-2xl shadow-xl p-6 animate-greetingFadeIn"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-[15px] text-[#3a3128] leading-relaxed">
-              {formatNameList(collabWelcome.names)}{" "}
-              {collabWelcome.names.length === 1 ? "has" : "have"} already started
-              the {collabWelcome.tripName} itinerary. Once you enter, you'll be
-              collaborating on the trip and everyone will see your changes.
-            </p>
-            <div className="mt-4 text-center">
-              <span className="text-sm text-[#c8bba8]">tap anywhere to continue</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Trip switcher bottom sheet */}
       {showTripSwitcher && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/20 backdrop-blur-sm"
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/20 backdrop-blur-sm"
           onClick={() => setShowTripSwitcher(false)}>
           <div
             className="w-full sm:max-w-md sm:mx-4 bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[60vh] overflow-y-auto"
@@ -397,11 +459,11 @@ export default function TripOverview() {
           >
             <div className="px-4 pt-4 pb-2 border-b border-[#f0ece5] flex items-center justify-between">
               <h3 className="text-sm font-medium text-[#3a3128]">Your Trips</h3>
-              <button onClick={() => setShowTripSwitcher(false)} className="text-[#c8bba8] hover:text-[#8a7a62] text-lg">&times;</button>
+              <button onClick={() => setShowTripSwitcher(false)} aria-label="Close" className="min-h-[44px] min-w-[44px] text-[#6b5d4a] hover:text-[#6b5d4a] text-lg">&times;</button>
             </div>
             {/* All trips — sorted by last opened */}
             <TripSwitcherList
-              trips={allTrips}
+              trips={menuTrips}
               currentTripId={trip.id}
               onSwitch={handleSwitchTrip}
               onNewTrip={() => { setShowTripSwitcher(false); setShowCreate(true); }}
@@ -487,110 +549,49 @@ export default function TripOverview() {
                   {trip.name}
                 </h1>
                 {showSwitcherArrow && (
-                  <span className="ml-2 text-[#8a7a62] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
+                  <span className="ml-2 text-[#6b5d4a] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
                 )}
               </button>
               {trip.tagline && (
                 <p className="text-sm text-[#6b5d4a] italic">{trip.tagline}</p>
               )}
-              <p className="text-sm text-[#8a7a62] mt-1">
+              <p className="text-sm text-[#6b5d4a] mt-1">
+                {/* Just the trip's dates: the Today card says where each person is in it (Julie's trip
+                    starts later than Ken's; a "Day 12 of 25" count was wrong for her and went stale overnight) */}
                 {trip.startDate && trip.endDate ? (
-                  <>
-                    {(() => {
-                      const today = new Date();
-                      const nowUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-                      const [sy, sm, sd] = trip.startDate!.split("T")[0].split("-").map(Number);
-                      const [ey, em, ed] = trip.endDate!.split("T")[0].split("-").map(Number);
-                      const startUTC = Date.UTC(sy, sm - 1, sd);
-                      const endUTC = Date.UTC(ey, em - 1, ed);
-                      const msPerDay = 86400000;
-                      const daysUntil = Math.round((startUTC - nowUTC) / msPerDay);
-                      const totalDays = Math.round((endUTC - startUTC) / msPerDay) + 1;
-
-                      if (daysUntil > 1) return `${daysUntil} days away`;
-                      if (daysUntil === 1) return "Tomorrow!";
-                      if (daysUntil === 0) return "Today!";
-                      const dayNum = Math.abs(daysUntil) + 1;
-                      return dayNum <= totalDays ? `Day ${dayNum} of ${totalDays}` : "Welcome home";
-                    })()}
-                    {" · "}
-                    {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
-                  </>
+                  <>{formatDate(trip.startDate)} — {formatDate(trip.endDate)}</>
                 ) : (
                   <span>{days.length} days planned · Dates TBD</span>
                 )}
-                <button
-                  onClick={() => {
-                    setEditName(trip.name);
-                    setEditTagline(trip.tagline || "");
-                    setEditStartDate(trip.startDate ? trip.startDate.split("T")[0] : "");
-                    setEditEndDate(trip.endDate ? trip.endDate.split("T")[0] : "");
-                    setEditingTrip(true);
-                  }}
-                  className="ml-2 text-[#c8bba8] hover:text-[#8a7a62] px-2 py-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
-                >
-                  edit
-                </button>
               </p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-4 pt-6 pb-36">{/* room at the bottom so nothing ends under the tab bar or Scout's bubble */}
         {/* Header — only when there's no map */}
         {!hasMap && (
           <div className="mb-8">
             <button
               onClick={() => showSwitcherArrow && setShowTripSwitcher(true)}
-              className="text-left group"
+              className="text-left group min-h-[44px]"
             >
               <h1 className="text-2xl font-light text-[#3a3128] inline">
                 {trip.name}
               </h1>
               {showSwitcherArrow && (
-                <span className="ml-2 text-[#8a7a62] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
+                <span className="ml-2 text-[#6b5d4a] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
               )}
             </button>
             {trip.tagline && (
               <p className="text-sm text-[#6b5d4a] mt-0.5 italic">{trip.tagline}</p>
             )}
-            <p className="text-sm text-[#8a7a62] mt-1">
+            <p className="text-sm text-[#6b5d4a] mt-1">
               {trip.startDate && trip.endDate
-                ? (() => {
-                    const today = new Date();
-                    const nowUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-                    const [sy, sm, sd] = trip.startDate!.split("T")[0].split("-").map(Number);
-                    const [ey, em, ed] = trip.endDate!.split("T")[0].split("-").map(Number);
-                    const startUTC = Date.UTC(sy, sm - 1, sd);
-                    const endUTC = Date.UTC(ey, em - 1, ed);
-                    const msPerDay = 86400000;
-                    const daysUntil = Math.round((startUTC - nowUTC) / msPerDay);
-                    const totalDays = Math.round((endUTC - startUTC) / msPerDay) + 1;
-                    let prefix = "";
-                    if (daysUntil > 1) prefix = `${daysUntil} days away · `;
-                    else if (daysUntil === 1) prefix = "Tomorrow! · ";
-                    else if (daysUntil === 0) prefix = "Today! · ";
-                    else {
-                      const dayNum = Math.abs(daysUntil) + 1;
-                      prefix = dayNum <= totalDays ? `Day ${dayNum} of ${totalDays} · ` : "Welcome home · ";
-                    }
-                    return `${prefix}${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`;
-                  })()
+                ? `${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`
                 : `${days.length} days planned · Dates TBD`
               }
-              <button
-                onClick={() => {
-                  setEditName(trip.name);
-                  setEditTagline(trip.tagline || "");
-                  setEditStartDate(trip.startDate ? trip.startDate.split("T")[0] : "");
-                  setEditEndDate(trip.endDate ? trip.endDate.split("T")[0] : "");
-                  setEditingTrip(true);
-                }}
-                className="ml-2 text-sm text-[#c8bba8] hover:text-[#8a7a62] px-2 py-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
-              >
-                edit
-              </button>
             </p>
           </div>
         )}
@@ -598,31 +599,21 @@ export default function TripOverview() {
         {/* Identity bar — min 44px tap targets for mobile */}
         <div className="flex items-center justify-end gap-1 mb-4">
           <button
-            onClick={() => navigate("/guide#getting-around")}
-            className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"
-            aria-label="Guide"
+            onClick={() => navigate("/guide")}
+            className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            aria-label="How Wander works"
           >
-            ?
+            <span className="w-6 h-6 rounded-full border border-[#c8bba8] flex items-center justify-center text-xs">?</span>
           </button>
-          {localStorage.getItem("wander:overview-oriented") && !showInfoPanel && (
-            <button
-              onClick={() => setShowInfoPanel(true)}
-              className="text-sm text-[#c8bba8] hover:text-[#6b5d4a] transition-colors px-1.5 py-2.5 min-h-[44px] flex items-center"
-              aria-label="Show tips"
-              title="Quick start tips"
-            >
-              ℹ️
-            </button>
-          )}
           <button
             onClick={() => navigate("/history")}
-            className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"
+            className="text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"
           >
             History
           </button>
           <button
             onClick={() => navigate("/settings")}
-            className="text-[#a89880] hover:text-[#6b5d4a] transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Settings"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -638,22 +629,11 @@ export default function TripOverview() {
               {pendingApprovals} to review
             </button>
           )}
-          {isPlanner && (
-            <button
-              onClick={() => setShowLearnings(true)}
-              className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"
-              title="Trip learnings"
-            >
-              Learnings
-            </button>
-          )}
-          <button onClick={() => navigate("/profile")} className="text-sm text-[#8a7a62] hover:text-[#514636] transition-colors underline decoration-dotted underline-offset-2 px-1 py-2.5 min-h-[44px] flex items-center">{user?.displayName}</button>
-          <button onClick={logout} className="text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors px-1 py-2.5 min-h-[44px] flex items-center">
-            Sign out
-          </button>
+          
+          <button onClick={() => navigate("/profile")} className="text-sm text-[#6b5d4a] hover:text-[#514636] transition-colors underline decoration-dotted underline-offset-2 px-1 py-2.5 min-h-[44px] min-w-[44px] justify-center flex items-center">{user?.displayName}</button>
           <button
             onClick={() => setShowActions(true)}
-            className="text-[#a89880] hover:text-[#6b5d4a] transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Actions"
             title="What's happening"
           >
@@ -681,7 +661,7 @@ export default function TripOverview() {
               className="w-full text-sm text-[#6b5d4a] border-b border-[#e0d8cc]
                          focus:outline-none focus:border-[#a89880] bg-transparent placeholder-[#c8bba8]"
             />
-            <p className="text-sm text-[#a89880]">
+            <p className="text-sm text-[#6b5d4a]">
               Dates are set automatically from your city schedules
             </p>
             <div className="flex gap-2">
@@ -690,15 +670,13 @@ export default function TripOverview() {
                 {savingTrip ? "Saving..." : "Save"}
               </button>
               <button onClick={() => setEditingTrip(false)}
-                className="px-3 py-1 text-sm text-[#8a7a62] hover:text-[#3a3128]">
+                className="px-3 py-1 text-sm text-[#6b5d4a] hover:text-[#3a3128]">
                 Cancel
               </button>
             </div>
           </div>
         )}
 
-        {/* Face ID offer — only on a device that signed in some other way */}
-        <FaceIdSetup variant="card" />
 
         {/* Sync alert — planner-only, shows conflicts/errors with PWA badge */}
         <SyncAlert />
@@ -725,7 +703,7 @@ export default function TripOverview() {
                     <span className="text-amber-600 text-sm">●</span>
                     <span className="text-sm font-medium text-[#3a3128]">{dec.title}</span>
                   </div>
-                  <div className="text-xs text-[#8a7a62] ml-5">
+                  <div className="text-xs text-[#6b5d4a] ml-5">
                     {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
                     {totalVotes > 0 && ` · ${totalVotes} weighing in`}
                     {totalThoughts > 0 && ` · ${totalThoughts} thought${totalThoughts !== 1 ? "s" : ""} shared`}
@@ -737,57 +715,19 @@ export default function TripOverview() {
           </div>
         )}
 
-        {/* Info panel — dismissible, reopenable via ℹ️ */}
-        {showInfoPanel && experiences.length > 0 && (() => {
-          const isAutoPrompt = !!localStorage.getItem("wander:auto-prompt-pending");
-          return (
-            <div className="mb-4 p-3 bg-white rounded-lg border border-[#e0d8cc] text-sm">
-              {isAutoPrompt ? (
-                <>
-                  <p className="text-[#6b5d4a] mb-2">Done with the quick start tips?</p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        localStorage.setItem("wander:overview-oriented", "1");
-                        localStorage.removeItem("wander:auto-prompt-pending");
-                        setShowInfoPanel(false);
-                      }}
-                      className="text-xs text-[#514636] font-medium"
-                    >Hide</button>
-                    <button
-                      onClick={() => {
-                        localStorage.removeItem("wander:auto-prompt-pending");
-                        setShowInfoPanel(false);
-                      }}
-                      className="text-xs text-[#c8bba8]"
-                    >Keep it for now</button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="font-medium text-[#3a3128] mb-1.5">Quick start</p>
-                  <ul className="text-[#6b5d4a] space-y-0.5 list-none">
-                    {!window.matchMedia("(display-mode: standalone)").matches && (
-                      <li>• <strong>Save to phone:</strong> tap Share → Add to Home Screen</li>
-                    )}
-                    <li>• Tap any day below to see your map and what's planned</li>
-                    <li>• The chat bubble is <strong>Scout</strong> — ask anything about the trip</li>
-                  </ul>
-                  <button
-                    onClick={() => {
-                      localStorage.setItem("wander:overview-oriented", "1");
-                      setShowInfoPanel(false);
-                      showToast("Tucked away — tap ℹ️ at the top to see this again");
-                    }}
-                    className="text-xs text-[#c8bba8] hover:text-[#6b5d4a] mt-1.5 transition-colors"
-                  >
-                    Hide this message
-                  </button>
-                </>
-              )}
-            </div>
-          );
-        })()}
+        {/* What the Guide says matters now — today, tomorrow, deadlines (or the start / welcome home) */}
+        {unreachableSince && unreachableSince !== "never" && (
+          <p className="mb-3 text-sm text-[#6b5d4a] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2" role="status">
+            No signal — showing what this phone saved {savedAtWords(unreachableSince)}.
+          </p>
+        )}
+        {/* Face ID offer first — it only shows until it's set up or dismissed, and a first-timer
+            in a hurry may never scroll to it (on a device that signed in some other way) */}
+        <FaceIdSetup variant="card" />
+        {/* In iPhone Safari with Face ID set up: the Home Screen icon (it signs in with Face ID) */}
+        {faceIdHere && <AddToHomeScreen variant="card" />}
+
+        <TripGlance tripId={trip.id} />
 
         {/* Calendar / At-a-Glance toggle */}
         {tripPhase !== "past" && (trip.datesKnown !== false ? (
@@ -801,7 +741,9 @@ export default function TripOverview() {
             accommodations={trip.accommodations || []}
             decisions={openDecisions}
             onDayClick={(cityId, dayId) => {
-              if (dayId) setPeekDay({ dayId, cityId });
+              // Tapping a day opens that day
+              const day = dayId ? days.find((d) => d.id === dayId) : null;
+              if (day) navigate(`/day/${day.date.slice(0, 10)}`);
               else navigate(`/plan?city=${cityId}`);
             }}
             onCityClick={(cityId) => navigate(`/plan?city=${cityId}`)}
@@ -814,133 +756,20 @@ export default function TripOverview() {
           />
         ))}
 
-        {/* Day peek card — tap a calendar day to preview before navigating */}
-        {peekDay && (() => {
-          const day = days.find(d => d.id === peekDay.dayId);
-          const city = trip.cities.find(c => c.id === peekDay.cityId);
-          if (!day || !city) return null;
-          const dayExps = experiences.filter(e => e.dayId === day.id && e.state === "selected");
-          const dayDate = new Date(day.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
-          return (
-            <div className="fixed inset-0 z-40 flex items-end justify-center pb-24 sm:items-center sm:pb-0"
-              onClick={() => setPeekDay(null)}>
-              <div className="mx-4 max-w-sm w-full bg-white rounded-2xl shadow-xl p-4 animate-greetingFadeIn"
-                onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="text-sm font-medium text-[#3a3128]">{city.name}</div>
-                    <div className="text-xs text-[#a89880]">{dayDate}</div>
-                  </div>
-                  <button onClick={() => { setPeekDay(null); navigate(`/plan?city=${peekDay.cityId}`); }}
-                    className="text-xs text-[#514636] font-medium px-3 py-1.5 rounded-lg bg-[#f0ece5] hover:bg-[#e0d8cc]">
-                    Open →
-                  </button>
-                </div>
-                {dayExps.length > 0 ? (
-                  <div className="space-y-1 mt-2">
-                    {dayExps.slice(0, 4).map(e => (
-                      <div key={e.id} className="text-xs text-[#6b5d4a] py-1 border-b border-[#f5f3f0] last:border-0">
-                        {e.name}
-                      </div>
-                    ))}
-                    {dayExps.length > 4 && <div className="text-[10px] text-[#a89880] mt-1">+ {dayExps.length - 4} more</div>}
-                  </div>
-                ) : (
-                  <p className="text-xs text-[#a89880] mt-2">Wide open</p>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Scout briefing — below the calendar per Ken's 2-line rule */}
-        <GroupPulse
-          trip={trip}
-          experiences={experiences}
-          days={days}
-          openDecisions={openDecisions}
-          userCode={user?.code || ""}
-          onNavigate={(path) => navigate(path)}
-        />
-
-        {/* Primary action — go plan */}
-        <div className="flex gap-3 mb-4">
-          <button
-            onClick={() => navigate("/plan")}
-            className="flex-1 py-3 rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors"
-          >
-            Day by Day
-          </button>
-          {isWithinDates && (
-            <button
-              onClick={() => navigate("/now")}
-              className="px-4 py-3 rounded-lg bg-[#6b5d4a] text-white text-sm font-medium hover:bg-[#514636] transition-colors"
-            >
-              Now
-            </button>
-          )}
-        </div>
-
-        {/* Notes from the Guide — positioned high because Wander IS a value-add
-             front end to the Guide. The Guide's context should be visible early. */}
+        {/* Larisa's original tabs — the Guide's own words, for anyone who wants the source */}
         {trip && <SheetNotesCard tripId={trip.id} />}
 
-        {/* Add something */}
-        <ImportCard tripId={trip.id} />
-
-        {/* City browse links — quick access to each city's idea board */}
-        {tripPhase !== "past" && trip.datesKnown !== false && (() => {
-          const datedCityIds = [...new Set(days.map(d => d.cityId))];
-          const datedCities = (trip.cities || []).filter(c => datedCityIds.includes(c.id));
-          if (datedCities.length === 0) return null;
-          return (
-            <div className="mb-4">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">Explore by city</h3>
-              <div className="flex flex-wrap gap-2">
-                {datedCities.map(c => {
-                  const cityExpCount = experiences.filter(e => e.cityId === c.id).length;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => navigate(`/city/${c.id}`)}
-                      className="px-3 py-2.5 rounded-full text-xs font-medium bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0] transition-colors min-h-[44px] flex items-center"
-                    >
-                      {c.name}{cityExpCount > 0 ? ` · ${cityExpCount} ideas` : ""}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Phase-aware content — adapts to trip lifecycle */}
-        <TripPhaseContent
-          phase={tripPhase}
-          trip={trip}
-          days={days}
-          experiences={experiences}
-        />
-
-        {/* Lower-priority sections — separated visually from the planning surface above */}
-        <div className="border-t border-[#e5ddd0] mt-6 pt-4 space-y-4">
-          {/* Route segments — intercity travel logistics */}
-          <RouteSegmentsPanel
-            tripId={trip.id}
-            segments={trip.routeSegments ?? []}
-            onRefresh={loadTrips}
-          />
-
-          {/* Candidate destinations — cities with no dates but with experiences */}
-          <CandidateDestinations
-            cities={trip.cities}
-            experiences={experiences}
-            onNavigate={(cityId) => navigate(`/city/${cityId}`)}
-          />
-
-          {/* Trip members & invite */}
-          {trip && <TripMembers tripId={trip.id} />}
-        </div>
+        {/* People on this trip — who's in, and sending someone their link */}
+        <button
+          onClick={() => navigate("/people")}
+          className="w-full min-h-[52px] mb-4 flex items-center justify-between px-4 rounded-xl bg-white border border-[#e0d8cc] text-left"
+        >
+          <span>
+            <span className="block text-sm text-[#3a3128]">People on this trip</span>
+            <span className="block text-xs text-[#6b5d4a] mt-0.5">{isPlanner ? "Who's in, and letting someone in" : "Who's on this trip"}</span>
+          </span>
+          <span className="text-[#6b5d4a]" aria-hidden>›</span>
+        </button>
 
         {/* Activity feed — recent actions from the group */}
         {trip && <ActivityFeed tripId={trip.id} />}
@@ -1052,15 +881,15 @@ function DatelessTripView({
   if (visibleCities.length === 0) {
     return (
       <div className="mb-6 text-center py-8">
-        <p className="text-sm text-[#8a7a62] mb-2">Your trip is a blank canvas.</p>
-        <p className="text-xs text-[#c8bba8]">Add cities below, or tell Scout what you're thinking.</p>
+        <p className="text-sm text-[#6b5d4a] mb-2">Your trip is a blank canvas.</p>
+        <p className="text-xs text-[#6b5d4a]">Add cities below, or tell Scout what you're thinking.</p>
       </div>
     );
   }
 
   return (
     <section className="mb-6 space-y-2">
-      <div className="text-xs text-[#a89880] uppercase font-medium mb-2">Your cities</div>
+      <div className="text-xs text-[#6b5d4a] uppercase font-medium mb-2">Your cities</div>
       {visibleCities.map((city, i) => {
         const cityDays = daysByCity.get(city.id) || [];
         const pastel = getCityPastel(visibleCities, city.id);
@@ -1076,7 +905,7 @@ function DatelessTripView({
             />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-[#3a3128] truncate">{city.name}</div>
-              <div className="text-xs text-[#a89880]">
+              <div className="text-xs text-[#6b5d4a]">
                 {cityDays.length > 0
                   ? `${cityDays.length} day${cityDays.length !== 1 ? "s" : ""}`
                   : "No days yet"
@@ -1084,176 +913,17 @@ function DatelessTripView({
                 {city.country ? ` · ${city.country}` : ""}
               </div>
             </div>
-            <span className="text-[#c8bba8] text-sm">→</span>
+            <span className="text-[#6b5d4a] text-sm">→</span>
           </button>
         );
       })}
-      <p className="text-xs text-[#c8bba8] text-center pt-2">
+      <p className="text-xs text-[#6b5d4a] text-center pt-2">
         When dates are ready, tell Scout: "Day 1 is December 25"
       </p>
     </section>
   );
 }
 
-// ── Group Pulse — "What's happening" Scout briefing ──────────────
-
-function GroupPulse({
-  trip, experiences, days, openDecisions, userCode, onNavigate,
-}: {
-  trip: Trip;
-  experiences: Experience[];
-  days: Day[];
-  openDecisions: Decision[];
-  userCode: string;
-  onNavigate: (path: string) => void;
-}) {
-  const [actions, setActions] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (trip?.id) {
-      api.get<any[]>(`/sheets-sync/actions/${trip.id}`).then(setActions).catch(() => {});
-    }
-  }, [trip?.id]);
-
-  // Build the briefing items
-  const items: { text: string; detail: string; action: string; path: string }[] = [];
-
-  // Planning actions — summarize as one line
-  const openActions = actions.filter((a: any) => a.status === "open" && a.dueDate);
-  if (openActions.length > 0) {
-    const nearest = openActions[0];
-    const summary = openActions.length === 1
-      ? `${nearest.action} · around ${nearest.dueDate}`
-      : `${openActions.length} things coming up — ${nearest.action} around ${nearest.dueDate}`;
-    items.push({
-      text: summary,
-      detail: "",
-      action: "",
-      path: "/settings",
-    });
-  }
-
-  // 1. Decisions where user hasn't voted
-  const unvotedDecisions = openDecisions.filter(
-    (d) => !d.votes.some((v) => v.userCode === userCode)
-  );
-  // Don't duplicate decisions already shown as cards above — only add non-decision items here
-
-  // 2. Cities with activities user hasn't reacted to
-  const cityIdToName = new Map<string, string>();
-  for (const c of trip.cities) cityIdToName.set(c.id, c.name);
-
-  const nonDecisionExps = experiences.filter((e) => e.state !== "voting");
-  const byCity = new Map<string, { total: number; withMyInterest: number; contributors: Set<string> }>();
-
-  for (const exp of nonDecisionExps) {
-    if (!byCity.has(exp.cityId)) {
-      byCity.set(exp.cityId, { total: 0, withMyInterest: 0, contributors: new Set() });
-    }
-    const bucket = byCity.get(exp.cityId)!;
-    bucket.total++;
-    bucket.contributors.add(exp.createdBy);
-    // Check if user has expressed interest (we don't have interests loaded here,
-    // but we can check sheetRowRef — if it has one, it came from spreadsheet/someone else)
-  }
-
-  // Aggregate city data into a single summary instead of one row per city
-  let totalIdeas = 0;
-  let citiesWithIdeas = 0;
-  let othersContributed = false;
-  let primaryContributor = "";
-  const topCities: { name: string; count: number; cityId: string }[] = [];
-
-  for (const [cityId, data] of byCity) {
-    if (data.total === 0) continue;
-    totalIdeas += data.total;
-    citiesWithIdeas++;
-    const cityName = cityIdToName.get(cityId) || "Unknown";
-    topCities.push({ name: cityName, count: data.total, cityId });
-    const others = [...data.contributors].filter((c) => c !== userCode);
-    if (others.length > 0) {
-      othersContributed = true;
-      primaryContributor = others[0];
-    }
-  }
-
-  // Sort by count, show top 3 as individual items, rest as summary
-  topCities.sort((a, b) => b.count - a.count);
-
-  if (totalIdeas > 0) {
-    const topCity = topCities[0];
-    const who = othersContributed ? `${primaryContributor} shared` : "";
-    const summary = citiesWithIdeas === 1
-      ? `${totalIdeas} idea${totalIdeas !== 1 ? "s" : ""} for ${topCity.name}`
-      : `${totalIdeas} ideas across ${citiesWithIdeas} cities`;
-    items.push({
-      text: who ? `${who} ${summary}` : summary,
-      detail: topCity ? `${topCity.name} has the most` : "",
-      action: "Take a look",
-      path: `/plan?city=${topCity.cityId}`,
-    });
-  }
-
-  // 3. Days that are wide open (no selected experiences) in cities that have ideas
-  const emptyDayCount = days.filter((d) => {
-    const cityData = byCity.get(d.cityId);
-    const hasIdeas = cityData && cityData.total > 0;
-    const hasSelected = nonDecisionExps.some((e) => e.dayId === d.id && e.state === "selected");
-    return hasIdeas && !hasSelected;
-  }).length;
-
-  if (emptyDayCount > 3) {
-    items.push({
-      text: `${emptyDayCount} days wide open`,
-      detail: "Good time to start shaping the itinerary",
-      action: "Build a day",
-      path: "/plan",
-    });
-  }
-
-  // Don't show if nothing to say
-  if (items.length === 0) return null;
-
-  return (
-    <div className="mb-4">
-      <p className="text-xs text-[#8a7a62] mb-2">
-        {items.some(i => i.action === "See your list") ? "Your Japan Guide is here" : "The group's been busy"}
-      </p>
-      <div className="space-y-1.5">
-        {items.map((item, i) => (
-          <button
-            key={i}
-            onClick={() => onNavigate(item.path)}
-            className="w-full text-left px-3 py-2.5 rounded-lg bg-[#faf8f5] border border-[#ebe5db] hover:bg-[#f5f0e8] transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <span className="text-sm font-medium text-[#3a3128]">{item.text}</span>
-                <span className="text-xs text-[#8a7a62] ml-1.5">{item.detail}</span>
-              </div>
-              <span className="text-xs text-[#a89880] shrink-0 ml-2">{item.action} →</span>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Trip Switcher List ──────────────────────────────────────────
-
-function timeAgo(dateStr: string | null | undefined): string {
-  if (!dateStr) return "never";
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 function TripSwitcherList({
   trips, currentTripId, onSwitch, onNewTrip, onRename,
@@ -1294,8 +964,6 @@ function TripSwitcherList({
         {sorted.map((t) => {
           const isCurrent = t.id === currentTripId;
           const syncAt = (t as any).sheetSyncConfig?.lastSyncAt;
-          const openedAt = (t as any).lastOpenedAt;
-          const createdAt = t.createdAt || (t as any).created_at;
 
           return (
             <div
@@ -1331,16 +999,12 @@ function TripSwitcherList({
                     <p className="text-[11px] text-[#6b5d4a] italic truncate mt-0.5">{t.tagline}</p>
                   )}
                   {/* Metadata line — smaller, muted */}
-                  <div className="text-[11px] text-[#a89880] mt-0.5 flex items-center gap-1 flex-wrap">
-                    <span>Started {createdAt ? new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</span>
-                    <span>·</span>
-                    {syncAt ? (
-                      <span className="text-[#6b5d4a] font-medium">Synced {timeAgo(syncAt)}</span>
-                    ) : (
-                      <span>No sync</span>
+                  {/* The trip's own dates, and how fresh Wander's copy of the Guide is */}
+                  <div className="text-xs text-[#6b5d4a] mt-0.5 flex items-center gap-1 flex-wrap">
+                    {t.startDate && t.endDate && (
+                      <span>{new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} – {new Date(t.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
                     )}
-                    <span>·</span>
-                    <span>Opened {timeAgo(openedAt)}</span>
+                    {syncAt && <><span>·</span><span>Guide read {new Date(syncAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></>}
                   </div>
                 </div>
                 {/* No delete button: removing a trip wipes every day, place, and its history,
@@ -1350,15 +1014,17 @@ function TripSwitcherList({
           );
         })}
       </div>
-      {/* New trip */}
-      <div className="px-4 pt-3 pb-2">
-        <button
-          onClick={onNewTrip}
-          className="w-full py-2.5 rounded-lg border border-dashed border-[#c8bba8] text-sm text-[#8a7a62] hover:bg-[#faf8f5] transition-colors"
-        >
-          + Plan a new trip
-        </button>
-      </div>
+      {/* New trip — only for someone who plans a trip; a guest only wants the trip they were let into */}
+      {sorted.some((t) => (t as any).myRole === "planner") && (
+        <div className="px-4 pt-3 pb-2">
+          <button
+            onClick={onNewTrip}
+            className="w-full min-h-[44px] rounded-lg border border-dashed border-[#c8bba8] text-sm text-[#6b5d4a] hover:bg-[#faf8f5] transition-colors"
+          >
+            + Plan a new trip
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -1491,7 +1157,7 @@ function AtAGlanceView({
             >
               <div>
                 <span className="text-sm font-medium text-[#3a3128]">{city.name}</span>
-                {isBackroads && <span className="ml-1.5 text-[10px] text-[#8a7a62]">🚐 Backroads</span>}
+                {isBackroads && <span className="ml-1.5 text-[10px] text-[#6b5d4a]">🚐 Backroads</span>}
               </div>
               <span className="text-xs text-[#6b5d4a]">{dateRange} · {nights} night{nights !== 1 ? "s" : ""}</span>
             </div>
@@ -1499,7 +1165,7 @@ function AtAGlanceView({
             {/* Details */}
             <div className="px-3 py-2 space-y-1 bg-white">
               {segment && (
-                <div className="text-xs text-[#8a7a62]">
+                <div className="text-xs text-[#6b5d4a]">
                   {segment.transportMode === "train" ? "🚃" : segment.transportMode === "flight" ? "✈️" : "🚐"}{" "}
                   From {segment.originCity}
                   {segment.departureTime ? ` · ${segment.departureTime}` : ""}
@@ -1511,17 +1177,17 @@ function AtAGlanceView({
                   🏨 {acc.name}
                 </div>
               ) : hotelDecision ? (
-                <div className="text-xs text-[#a89880]">
+                <div className="text-xs text-[#6b5d4a]">
                   🏨 Deciding — {hotelDecision.options?.length} option{hotelDecision.options?.length !== 1 ? "s" : ""}
                 </div>
               ) : null}
 
               {highlights.map((h, i) => (
-                <div key={i} className="text-[11px] text-[#8a7a62] italic">{h}</div>
+                <div key={i} className="text-[11px] text-[#6b5d4a] italic">{h}</div>
               ))}
 
               {!segment && !acc && !hotelDecision && highlights.length === 0 && (
-                <div className="text-[11px] text-[#c8bba8]">Wide open</div>
+                <div className="text-[11px] text-[#6b5d4a]">Wide open</div>
               )}
             </div>
           </button>
@@ -1662,6 +1328,9 @@ function CalendarCluster({
   }
 
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  // The phone's own calendar date, to ring today's square
+  const now = new Date();
+  const phoneTodayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   // Month header
   const monthLabel = firstDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -1672,12 +1341,12 @@ function CalendarCluster({
 
   return (
     <div className="mb-4">
-      <div className="text-sm text-[#8a7a62] mb-2">{headerLabel}</div>
+      <div className="text-sm text-[#6b5d4a] mb-2">{headerLabel}</div>
 
       {/* Day-of-week headers */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {dayLabels.map((l) => (
-          <div key={l} className="text-center text-xs font-medium text-[#a89880] uppercase">
+          <div key={l} className="text-center text-xs font-medium text-[#6b5d4a] uppercase">
             {l}
           </div>
         ))}
@@ -1711,11 +1380,15 @@ function CalendarCluster({
                 return map[m] || m;
               });
 
+              const dayKey = new Date(day.date).toISOString().slice(0, 10);
+              const isToday = dayKey === phoneTodayKey;
               return (
                 <button
                   key={day.id}
                   onClick={() => onDayClick(day.cityId, day.id)}
-                  className="aspect-[3/4] rounded-lg flex flex-col items-center justify-center relative overflow-hidden hover:shadow-md transition-shadow"
+                  aria-label={`${new Date(day.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}, ${city?.name || ""}${isBackroads ? ", with Backroads" : ""}${isToday ? ", today" : ""}`}
+                  aria-current={isToday ? "date" : undefined}
+                  className={`aspect-[3/4] rounded-lg flex flex-col items-center justify-center relative overflow-hidden hover:shadow-md transition-shadow ${isToday ? "ring-2 ring-[#514636] ring-offset-1 ring-offset-[#faf8f5]" : ""}`}
                   style={{ backgroundColor: cityColor, borderLeft: `4px solid ${dotColor}` }}
                 >
                   {mapUrl && (
@@ -1732,9 +1405,11 @@ function CalendarCluster({
                     <div className="text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
                       {dayNum}
                     </div>
-                    <div className="text-xs text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-1 text-center mt-0.5"
-                      style={{ wordBreak: "break-word" }}>
-                      {city?.name || ""}
+                    {/* A tile fits about six letters: known short forms, else a long name breaks between syllables with a hyphen */}
+                    <div className="text-[11px] text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-0.5 text-center mt-0.5 max-w-full" aria-hidden>
+                      {tileLines(city?.name || "").map((w, i) => (
+                        <span key={i} className="block max-w-full overflow-hidden whitespace-nowrap">{w}</span>
+                      ))}
                     </div>
                   </div>
                 </button>
@@ -1747,6 +1422,34 @@ function CalendarCluster({
   );
 }
 
+// ── Calendar tile names ──────────────────────────────────────────
+
+const TILE_SHORT: Record<string, string[]> = { "san francisco": ["SF"], "los angeles": ["LA"] };
+const VOWEL = /[aeiou]/i;
+
+/**
+ * A city name as lines that fit a calendar tile (about six letters each):
+ * "Okayama" → ["Oka-", "yama"], "Shirakabeso" → ["Shira-", "kabeso"], "San Francisco" → ["SF"].
+ * Breaks fall before a consonant that starts a syllable, as Japanese place names are read.
+ */
+export function tileLines(name: string): string[] {
+  const known = TILE_SHORT[name.trim().toLowerCase()];
+  if (known) return known;
+  return name.split(" ").flatMap((w) => {
+    if (w.length <= 6) return [w];
+    let best = -1;
+    for (let i = 2; i <= w.length - 3; i++) {
+      // before a consonant + vowel ("Oka-yama"), or before ts/sh/ch + vowel ("Kara-tsu")
+      const digraph = /^(ts|sh|ch)$/i.test(w.slice(i, i + 2)) && VOWEL.test(w[i + 2] || "");
+      if (!VOWEL.test(w[i]) && (VOWEL.test(w[i + 1] || "") || digraph) && VOWEL.test(w[i - 1])) {
+        if (best < 0 || Math.abs(i - w.length / 2) < Math.abs(best - w.length / 2)) best = i;
+      }
+    }
+    if (best < 0) best = Math.ceil(w.length / 2);
+    return [`${w.slice(0, best)}-`, w.slice(best)];
+  });
+}
+
 // ── Recent Activity Modal ────────────────────────────────────────
 
 function RecentActivityButton({ activity }: { activity: ChangeLogEntry[] }) {
@@ -1755,7 +1458,7 @@ function RecentActivityButton({ activity }: { activity: ChangeLogEntry[] }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="mb-4 flex items-center gap-2 text-sm text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+        className="mb-4 flex items-center gap-2 text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
       >
         <span>🔔</span>
         <span>{activity.length} recent changes</span>
@@ -1765,14 +1468,14 @@ function RecentActivityButton({ activity }: { activity: ChangeLogEntry[] }) {
           <div className="mx-4 max-w-md w-full bg-white rounded-xl shadow-xl p-4 max-h-[60vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-[#3a3128]">Recent Activity</h3>
-              <button onClick={() => setOpen(false)} className="text-[#c8bba8] hover:text-[#8a7a62] text-lg">&times;</button>
+              <button onClick={() => setOpen(false)} className="text-[#6b5d4a] hover:text-[#6b5d4a] text-lg">&times;</button>
             </div>
             <div className="space-y-2">
               {activity.map((log) => (
-                <div key={log.id} className="px-3 py-2 bg-[#faf8f5] rounded-lg text-sm text-[#8a7a62]">
+                <div key={log.id} className="px-3 py-2 bg-[#faf8f5] rounded-lg text-sm text-[#6b5d4a]">
                   <span className="text-[#3a3128] font-medium">{log.userDisplayName}</span>
-                  {" "}{log.description.replace(`${log.userDisplayName} `, "")}
-                  <span className="text-[#c8bba8] ml-2">{formatRelativeTime(log.createdAt)}</span>
+                  {" "}{changeRest(log.userDisplayName, log.description)}
+                  <span className="text-[#6b5d4a] ml-2">{formatRelativeTime(log.createdAt)}</span>
                 </div>
               ))}
             </div>
@@ -1781,332 +1484,6 @@ function RecentActivityButton({ activity }: { activity: ChangeLogEntry[] }) {
       )}
     </>
   );
-}
-
-// ── Candidate Destinations ────────────────────────────────────────
-
-function CandidateDestinations({
-  cities,
-  experiences,
-  onNavigate,
-}: {
-  cities: City[];
-  experiences: Experience[];
-  onNavigate: (cityId: string) => void;
-}) {
-  const [expandedCity, setExpandedCity] = useState<string | null>(null);
-  const [sectionExpanded, setSectionExpanded] = useState(() => {
-    try { return localStorage.getItem("wander:candidates-expanded") === "true"; } catch { return false; }
-  });
-
-  // Candidate cities: no dates, but have experiences
-  const candidateCities = cities.filter(
-    (c) => !c.arrivalDate && !c.departureDate
-  );
-
-  // Count experiences per candidate city
-  const expsByCity: Record<string, Experience[]> = {};
-  for (const c of candidateCities) {
-    expsByCity[c.id] = experiences.filter((e) => e.cityId === c.id);
-  }
-
-  // Only show cities that actually have experiences
-  const visibleCities = candidateCities.filter((c) => (expsByCity[c.id]?.length || 0) > 0);
-
-  if (visibleCities.length === 0) return null;
-
-  // Group by tagline (which stores the region from recommendation import)
-  const byRegion: Record<string, typeof visibleCities> = {};
-  for (const c of visibleCities) {
-    const region = c.tagline || "Other destinations";
-    if (!byRegion[region]) byRegion[region] = [];
-    byRegion[region].push(c);
-  }
-
-  const totalExps = visibleCities.reduce((sum, c) => sum + (expsByCity[c.id]?.length || 0), 0);
-
-  return (
-    <section className="mb-6">
-      <button
-        onClick={() => {
-          const next = !sectionExpanded;
-          setSectionExpanded(next);
-          try { localStorage.setItem("wander:candidates-expanded", String(next)); } catch {}
-        }}
-        className="w-full text-left flex items-center justify-between mb-2"
-      >
-        <h2 className="text-sm font-medium text-[#3a3128]">
-          Candidate Destinations
-          <span className="ml-2 text-[#a89880] font-normal">{visibleCities.length} cities · {totalExps} ideas</span>
-        </h2>
-        <span className="text-sm text-[#a89880]">{sectionExpanded ? "\u25B4" : "\u25BE"}</span>
-      </button>
-      {!sectionExpanded ? null : (<>
-      <p className="text-sm text-[#a89880] mb-3">
-        Places to consider if you adjust your itinerary. Tap to browse suggestions.
-      </p>
-      {Object.entries(byRegion).map(([region, regionCities]) => (
-        <div key={region} className="mb-3">
-          <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1.5">
-            {region}
-          </div>
-          <div className="space-y-1.5">
-            {regionCities.map((city) => {
-              const cityExps = expsByCity[city.id] || [];
-              const isExpanded = expandedCity === city.id;
-              return (
-                <div key={city.id}>
-                  <button
-                    onClick={() => setExpandedCity(isExpanded ? null : city.id)}
-                    className="w-full text-left px-3 py-2 rounded-lg bg-white border border-[#f0ece5]
-                               hover:border-[#a89880] transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-[#3a3128]">{city.name}</span>
-                      <span className="text-sm text-[#a89880]">
-                        {cityExps.length} suggestion{cityExps.length !== 1 ? "s" : ""}
-                        <span className="ml-1">{isExpanded ? "\u25B4" : "\u25BE"}</span>
-                      </span>
-                    </div>
-                  </button>
-                  {isExpanded && (
-                    <div className="ml-3 mt-1 space-y-1 mb-2">
-                      {cityExps.map((exp) => (
-                        <div
-                          key={exp.id}
-                          className="px-3 py-2 rounded bg-[#faf8f5] border border-[#f0ece5]"
-                        >
-                          <div className="text-sm font-medium text-[#3a3128]">{exp.name}</div>
-                          {exp.description && (
-                            <div className="text-sm text-[#8a7a62] mt-0.5 whitespace-pre-line line-clamp-3">
-                              {exp.description}
-                            </div>
-                          )}
-                          {exp.sourceText && (
-                            <div className="text-sm text-[#c8bba8] mt-1">
-                              via {exp.sourceText}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-      </>)}
-    </section>
-  );
-}
-
-// ── Trip Members & Invite ────────────────────────────────────────
-
-function TripMembers({ tripId }: { tripId: string }) {
-  const { user } = useAuth();
-  const [expanded, setExpanded] = useState(false);
-  const [members, setMembers] = useState<{ displayName: string; role: string; travelerId: string }[]>([]);
-  const [invites, setInvites] = useState<{ id: string; expectedName: string; claimed: boolean; inviteToken?: string }[]>([]);
-  const [inviteToken, setInviteToken] = useState<string | null>(null);
-  const [newNames, setNewNames] = useState("");
-  const [sending, setSending] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [resetConfirm, setResetConfirm] = useState<string | null>(null);
-  const [resetMessage, setResetMessage] = useState("");
-  const isPlanner = user?.role === "planner";
-
-  async function loadMembers() {
-    try {
-      const data = await api.get<{
-        members: { displayName: string; role: string; travelerId: string }[];
-        invites: { id: string; expectedName: string; claimed: boolean; inviteToken?: string }[];
-        inviteToken: string | null;
-      }>(`/trips/${tripId}/members`);
-      setMembers(data.members);
-      setInvites(data.invites);
-      setInviteToken(data.inviteToken);
-    } catch { /* ignore */ }
-  }
-
-  useEffect(() => {
-    if (expanded) loadMembers();
-  }, [expanded, tripId]);
-
-  async function handleInvite() {
-    const names = newNames.split(",").map((n) => n.trim()).filter(Boolean);
-    if (names.length === 0) return;
-    setSending(true);
-    try {
-      await api.post(`/trips/${tripId}/add-members`, { names });
-      setNewNames("");
-      loadMembers();
-    } catch { /* ignore */ }
-    setSending(false);
-  }
-
-  async function resetVaultPin(travelerId: string, name: string) {
-    try {
-      await api.post(`/vault/reset-pin/${travelerId}`, {});
-      setResetMessage(`${name}'s vault PIN has been reset`);
-      setResetConfirm(null);
-      setTimeout(() => setResetMessage(""), 3000);
-    } catch {
-      setResetMessage("Couldn't reset PIN");
-      setTimeout(() => setResetMessage(""), 3000);
-    }
-  }
-
-  function copyPersonalLink(token: string, id: string) {
-    const link = `${window.location.origin}/join/${token}`;
-    navigator.clipboard.writeText(link).then(() => {
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    });
-  }
-
-  async function handleResend(inviteId: string) {
-    try {
-      await api.post(`/trips/${tripId}/resend-invite`, { inviteId });
-      loadMembers();
-    } catch { /* ignore */ }
-  }
-
-  const pendingInvites = invites.filter((i) => !i.claimed);
-
-  return (
-    <section className="mb-6">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full text-left flex items-center justify-between min-h-[44px] py-2 mb-1"
-      >
-        <h2 className="text-sm font-medium text-[#3a3128]">
-          Travelers
-          {members.length > 0 && (
-            <span className="ml-2 text-[#a89880] font-normal">{members.length} members</span>
-          )}
-        </h2>
-        <span className="text-sm text-[#a89880]">{expanded ? "\u25B4" : "\u25BE"}</span>
-      </button>
-
-      {expanded && (
-        <div className="p-4 bg-white rounded-lg border border-[#e0d8cc] space-y-3">
-          {/* Current members */}
-          {members.length > 0 && (
-            <div className="space-y-1.5">
-              {members.map((m) => (
-                <div
-                  key={m.displayName}
-                  className="flex items-center justify-between py-1.5 px-3 bg-[#f0ece5] rounded-lg"
-                >
-                  <span className="text-sm text-[#3a3128]">
-                    {m.displayName}
-                    {(m.role === "planner" || m.role === "owner") && (
-                      <span className="ml-1 text-xs text-[#a89880]">(planner)</span>
-                    )}
-                  </span>
-                  {isPlanner && m.travelerId !== user?.travelerId && (
-                    <div className="flex items-center gap-1">
-                      {resetConfirm === m.travelerId ? (
-                        <>
-                          <button
-                            onClick={() => resetVaultPin(m.travelerId, m.displayName)}
-                            className="text-xs text-red-600"
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            onClick={() => setResetConfirm(null)}
-                            className="text-xs text-[#a89880]"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => setResetConfirm(m.travelerId)}
-                          className="text-xs text-[#a89880] hover:text-[#8a7a62]"
-                        >
-                          Reset PIN
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {resetMessage && (
-            <p className="text-xs text-[#8a7a62] text-center">{resetMessage}</p>
-          )}
-
-          {/* Pending invites with personal links */}
-          {pendingInvites.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-[#a89880] uppercase tracking-wider">
-                Waiting to join
-              </div>
-              {pendingInvites.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between py-1.5 px-3 bg-[#faf8f5] rounded-lg border border-[#f0ece5]">
-                  <span className="text-sm text-[#3a3128]">{inv.expectedName}</span>
-                  <div className="flex items-center gap-2">
-                    {inv.inviteToken && (
-                      <button
-                        onClick={() => copyPersonalLink(inv.inviteToken!, inv.id)}
-                        className="text-xs px-2 py-1 rounded bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
-                      >
-                        {copiedId === inv.id ? "Copied!" : "Copy link"}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleResend(inv.id)}
-                      className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
-                    >
-                      Resend
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Add people */}
-          <div>
-            <label className="text-xs text-[#8a7a62] block mb-1">
-              Who else is coming?
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newNames}
-                onChange={(e) => setNewNames(e.target.value)}
-                placeholder="Names, separated by commas"
-                className="flex-1 px-3 py-2 rounded-lg border border-[#e0d8cc] bg-white text-sm text-[#3a3128] focus:outline-none focus:ring-2 focus:ring-[#514636]/30 placeholder-[#c8bba8]"
-                onKeyDown={(e) => e.key === "Enter" && handleInvite()}
-              />
-              <button
-                onClick={handleInvite}
-                disabled={sending || !newNames.trim()}
-                className="px-4 py-2 rounded-lg bg-[#514636] text-white text-sm hover:bg-[#3a3128] transition-colors disabled:opacity-50"
-              >
-                {sending ? "..." : "Add"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ── Utility functions ───────────────────────────────────────────
-
-function formatNameList(names: string[]): string {
-  if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function formatRelativeTime(dateStr: string): string {

@@ -31,6 +31,7 @@ export interface StoredCredential {
   counter: number;
   transports: AuthenticatorTransportFuture[];
   createdAt?: string;
+  lastUsedAt?: string;
 }
 
 /** Read credentials in the current shape or the legacy vault shape. */
@@ -53,6 +54,7 @@ export function normalizeCredentials(raw: unknown): StoredCredential[] {
       counter: typeof c.counter === "number" ? c.counter : 0,
       transports: Array.isArray(c.transports) ? c.transports : [],
       createdAt: c.createdAt,
+      lastUsedAt: c.lastUsedAt,
     });
   }
   return out;
@@ -91,9 +93,20 @@ export async function findTravelerByCredentialId(credentialId: string) {
   return null;
 }
 
-/** Save a credential's new signature counter (and migrate legacy-shaped credentials in the same write). */
+/**
+ * A personal link has done its job once its person has Face ID working — a key set up, or an existing
+ * key used, after the link was made. From then on Face ID is the way in; a planner can send a new link.
+ */
+export async function isLinkRetired(travelerId: string | null | undefined, linkCreatedAt: Date): Promise<boolean> {
+  if (!travelerId) return false;
+  const t = await prisma.traveler.findUnique({ where: { id: travelerId }, select: { webauthnCredentials: true } });
+  return normalizeCredentials(t?.webauthnCredentials).some((c) =>
+    [c.createdAt, c.lastUsedAt].some((when) => when && new Date(when) > linkCreatedAt));
+}
+
+/** Save a credential's new signature counter and when it was used (and migrate legacy-shaped credentials in the same write). */
 export async function saveCounter(travelerId: string, creds: StoredCredential[], credentialId: string, newCounter: number) {
-  const updated = creds.map((c) => (c.id === credentialId ? { ...c, counter: newCounter } : c));
+  const updated = creds.map((c) => (c.id === credentialId ? { ...c, counter: newCounter, lastUsedAt: new Date().toISOString() } : c));
   await prisma.traveler.update({
     where: { id: travelerId },
     data: { webauthnCredentials: updated as any },

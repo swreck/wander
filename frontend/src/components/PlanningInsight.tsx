@@ -47,7 +47,7 @@ export default function PlanningInsight({
             localStorage.setItem(storageKey, "1");
             setDismissed(true);
           }}
-          className="text-xs text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+          className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
         >
           Dismiss
         </button>
