@@ -23,8 +23,8 @@ export default function SyncIndicator() {
 
   if (!user || location.pathname === "/login" || location.pathname.startsWith("/join") || pendingChanges === 0 || scoutDocked) return null;
 
-  // Sits just above the bottom bar, clear of the title and the Scout button, and waits for a tap
-  // so nothing changes under someone's thumb while they read.
+  // Sits just above the bottom bar, clear of the title and the Scout button. The screens behind it have
+  // already caught up (useTripSync); this says what changed, and stays until tapped.
   return (
     <button
       onClick={dismiss}
@@ -34,7 +34,7 @@ export default function SyncIndicator() {
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 68px + var(--scout-dock, 0px))" }}
     >
       {latestAction || (pendingChanges === 1 ? "Someone made a change" : `${pendingChanges} new changes from the group`)}
-      <span className="font-medium underline underline-offset-2 ml-1.5">Show me</span>
+      <span className="font-medium underline underline-offset-2 ml-1.5">Got it</span>
     </button>
   );
 }

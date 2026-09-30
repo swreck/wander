@@ -27,6 +27,13 @@ export interface ImportOptions {
   readPictures?: boolean;         // default true
   readDayPlans?: boolean;         // default true (her day-plan tabs; cached, so only changed tabs are read)
   readText?: boolean;             // default true (her pasted emails/confirmations; cached the same way)
+  // Readings already made from the same file elsewhere (another copy of the database), keyed exactly as
+  // they're cached here — so the same file imported again reads nothing twice
+  seedReadings?: {
+    textReadings?: Record<string, TextReading>;
+    dayPlanReadings?: Record<string, DayPlanReading>;
+    images?: Record<string, { transcription: string | null; facts: unknown }>; // by picture sha256
+  };
 }
 
 export interface ImportReport {
@@ -98,6 +105,104 @@ export function plainWhen(date: string | null | undefined, time: string | null |
 type Item = InterpretedItem & { forWhom?: string | null; link?: string | null; timeZone?: string; windowStart?: string | null; timeText?: string | null };
 
 const GENERIC_WORDS = new Set(["hotel", "the", "ryokan", "residence", "tokyo", "kyoto", "resort", "inn", "and"]);
+
+// Words that don't pick out one place or thing ("lunch", "taxi", "station") — two lines sharing only these
+// aren't about the same thing
+const PLAN_WORDS = new Set([...GENERIC_WORDS, "lunch", "dinner", "breakfast", "brunch", "light", "reservation", "visit", "stop",
+  "return", "leave", "taxi", "board", "reserved", "arrive", "depart", "check", "collect", "luggage", "complimentary",
+  "transfer", "station", "market", "street", "walk", "with", "from", "into", "back", "toward", "towards", "optional",
+  "easy", "focused", "additional", "traditional", "private", "shower", "change", "rest", "split", "groups", "tour",
+  "day", "trip", "then", "after", "before", "early", "late", "time", "flight", "train", "gallery", "cafe", "museum", "shop",
+  "michelin", "star", "stars", "japanese", "style"]);
+/** "Café ENSOU lunch" → ["ensou"]; "Board reserved HARUKA" → ["haruka"] */
+export function distinctWords(s: string): string[] {
+  return Array.from(new Set(s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    .split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !PLAN_WORDS.has(w) && !/^\d+$/.test(w))));
+}
+
+/**
+ * Her pasted map links are sometimes a Google search of a Maps address
+ * ("google.com/search?q=https://maps.apple.com/%3Fq%3DFour%2BSeasons…") — tapped, that opens a search page,
+ * not Maps. The Maps address inside is the link she meant.
+ */
+export function unwrapSearchLink(url: string): string {
+  try {
+    const u = new URL(url);
+    if (/(^|\.)google\.[a-z.]+$/i.test(u.hostname) && u.pathname === "/search") {
+      const q = u.searchParams.get("q") || "";
+      if (/^https?:\/\//i.test(q)) return q;
+    }
+  } catch { /* not a URL — keep as is */ }
+  return url;
+}
+
+/** "13:30" → "1:30 PM" */
+const clock12 = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+};
+const toMinutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+// "Dining Resos (row 30)" → "Dining Resos"; "Kyoto Thu, 1029 (Flight Home) · Day 5" → "Kyoto Thu, 1029 (Flight Home)"
+const tabOf = (source: string) => (/itinerary/i.test(source) ? "Itinerary" : source.split(/ · | \(row /)[0]);
+
+/**
+ * Where her tabs disagree about the same thing, both lines say so — Wander never settles it. A line of
+ * her day plan and another tab's line that name the same distinctive thing ("HARUKA", "ENSOU") at times
+ * 30+ minutes apart: her Oct 29 day tab boards the Haruka "~12:30–1:00", her Itinerary note says
+ * "1:30-2:00p Haruka"; Dining Resos lists Cafe Ensou at 8 PM, her Oct 28 tab has it as the 1:00 lunch.
+ * Each line gets "Tabs differ: …" quoting the other, which every screen shows on the line itself.
+ */
+export function markTabsDiffer(items: Item[]): void {
+  const note = (i: Item, line: string) => { if (!(i.detail || "").includes(line)) i.detail = [i.detail, line].filter(Boolean).join("\n"); };
+  for (const b of items) {
+    if (b.kind !== "block" || !b.time || !b.date) continue;
+    const words = distinctWords(b.title);
+    if (!words.length) continue;
+    const blockSaid = `"${b.title}" at ${b.timeText || clock12(b.time)}`;
+    for (const o of items) {
+      if (o === b || o.date !== b.date || o.kind === "block" || ["checkout", "checkin", "deadline", "weather", "stop"].includes(o.kind)) continue;
+      // The same booked place, but her day tab puts it in a neighbourhood its address doesn't name:
+      // "DINNER RESERVATION – Yakiniku Yazawa Tokyo (Ginza)" vs "Address: … 5-10 Yaesu 1-chome" (round 7)
+      const area = b.title.match(/\(([^)]+)\)\s*$/)?.[1];
+      const address = (o.detail || "").match(/^Address: ([^\n]+)/m)?.[1];
+      if (area && address && o.kind === "meal" && o.time === b.time && words.some((w) => distinctWords(o.title).includes(w))) {
+        const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+        const named = area.split(/[/,&]| and /).map((x) => fold(x).trim()).filter((x) => x.length > 2);
+        if (named.length && !named.some((x) => fold(address).includes(x))) {
+          note(b, `Tabs differ: her ${tabOf(b.source)} tab puts it in ${area}; her ${tabOf(o.source)} address is "${address}".`);
+          note(o, `Tabs differ: her ${tabOf(b.source)} tab puts it in ${area}; this address is her ${tabOf(o.source)} tab's.`);
+        }
+      }
+      // Another tab's line for the same thing, at another time
+      const oWords = distinctWords(o.title);
+      if (o.time && words.some((w) => oWords.includes(w)) && Math.abs(toMinutes(o.time) - toMinutes(b.time)) >= 30) {
+        note(b, `Tabs differ: her ${tabOf(o.source)} tab has "${o.title.split("\n")[0]}" at ${clock12(o.time)}.`);
+        note(o, `Tabs differ: her ${tabOf(b.source)} tab has ${blockSaid}.`);
+        continue;
+      }
+      // A note on another tab's line that names it with a time ("1:30-2:00p Haruka from Kyoto to KIX")
+      for (const seg of (o.detail || "").split(/\n| — |; /)) {
+        // Her words only — never Wander's own notes ("Tabs differ: …", "Time from the … tab") or a chain
+        // reaction follows ("Depart Shigaraki" matched the tab name inside another line's note)
+        if (/^(Tabs differ:|Time from the |The .+ tab lists |Wander matched |Times are Larisa's|Address:)/.test(seg.trim())) continue;
+        if (!words.some((w) => distinctWords(seg).includes(w))) continue;
+        // A time has minutes or an am/pm ("1:30-2:00p", "8p") — never a bare number ("Michelin 1 star")
+        const t = seg.match(/\b(\d{1,2}):(\d{2})\s*(?:(a|p)\.?m?\b)?(?:\s*[-–]\s*\d{1,2}(?::\d{2})?\s*(a|p)\.?m?\b)?/i)
+          || seg.match(/\b(\d{1,2})()\s*(a|p)\.?m?\b/i);
+        if (!t) continue;
+        const half = (t[3] || t[4] || "").toLowerCase();
+        let h = Number(t[1]) % 12;
+        if (half === "p" || (!half && h < 7)) h += 12;
+        const mins = h * 60 + Number(t[2] || 0);
+        if (Math.abs(mins - toMinutes(b.time)) < 30) continue;
+        const said = seg.replace(/^Larisa's (travel )?note:\s*/i, "").replace(/^"|"$/g, "").trim();
+        note(b, `Tabs differ: her ${tabOf(o.source)} tab says "${said}".`);
+        note(o, `Tabs differ: her ${tabOf(b.source)} tab has ${blockSaid}.`);
+        break;
+      }
+    }
+  }
+}
 /** Two hotel names refer to the same place when they share a distinctive word ("IMPERIAL HOTEL, TOKYO" ~ "Imperial Hotel"). */
 function sharesName(a: string, b: string): boolean {
   const words = (s: string) => new Set(norm(s).split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !GENERIC_WORDS.has(w)));
@@ -180,7 +285,8 @@ export function tidyItems(items: Item[], openQuestions: { name: string; text: st
       const nt = minutesOf(n.time);
       if (nt === null || Math.abs(nt - at) > 15 || !/\b(flight|fly|flies|plane)\b/i.test(`${n.title} ${n.detail || ""}`)) continue;
       // Quoted exactly as she wrote it ("6:30p flight - travel day…"), never with its time taken out
-      f.detail = [f.detail, `Larisa's note: "${n.said || n.title}"${n.detail ? ` — ${n.detail}` : ""}`].filter(Boolean).join("\n");
+      // Each of her notes on its own line — "Larisa's note: … — Larisa's travel note: …" ran together
+      f.detail = [f.detail, `Larisa's note: "${n.said || n.title}"`, n.detail || null].filter(Boolean).join("\n");
       if (!f.source.includes(n.source)) f.source = `${f.source} + ${n.source}`;
       folded.add(n);
     }
@@ -484,6 +590,18 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   }
   const placements = read.tabs.flatMap((t) => t.images.map((p) => ({ tab: t, ...p })));
   const tripDates = `${itin.firstDate} to ${itin.lastDate}`;
+  const seededImages = opts.seedReadings?.images || {};
+  if (Object.keys(seededImages).length) {
+    const notRead = await prisma.guideImage.findMany({ where: { tripId, readStatus: { not: "read" }, sha256: { in: read.images.map((i) => i.sha256) } } });
+    for (const img of notRead) {
+      const seed = seededImages[img.sha256];
+      if (!seed?.facts) continue;
+      await prisma.guideImage.update({
+        where: { id: img.id },
+        data: { readStatus: "read", transcription: seed.transcription, facts: seed.facts as any, readAt: new Date() },
+      });
+    }
+  }
   if (opts.readPictures !== false) {
     const unread = await prisma.guideImage.findMany({ where: { tripId, readStatus: { not: "read" }, sha256: { in: read.images.map((i) => i.sha256) } } });
     report.pictures.cached = read.images.length - unread.length;
@@ -511,6 +629,9 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       }
     };
     await Promise.all([worker(), worker(), worker(), worker()]);
+  } else {
+    const unread = await prisma.guideImage.count({ where: { tripId, readStatus: { not: "read" }, sha256: { in: read.images.map((i) => i.sha256) } } });
+    if (unread) report.warnings.push(`${unread} picture${unread === 1 ? "" : "s"} in the Guide weren't read this time (pictures were switched off).`);
   }
   const images = await prisma.guideImage.findMany({ where: { tripId, sha256: { in: read.images.map((i) => i.sha256) } } });
   const readings = images.filter((i) => i.readStatus === "read" && i.facts).map((i) => ({ image: i, reading: i.facts as unknown as ImageReading, place: placements.find((p) => p.sha256 === i.sha256)! }));
@@ -627,7 +748,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   }
 
   // Prose tabs (pasted emails): bookings and deadlines stated only in text. Cached by tab text.
-  const cachedText = ((previous?.report as any)?.textReadings || {}) as Record<string, TextReading>;
+  const cachedText = { ...opts.seedReadings?.textReadings, ...((previous?.report as any)?.textReadings || {}) } as Record<string, TextReading>;
   const textReadings: Record<string, TextReading> = {};
   const structuredNames = new Set([itin.tabName]);
   const proseTabs = read.tabs
@@ -703,7 +824,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   const guideOwner = "Larisa";
   const groupNames = new Set<string>([guideOwner.toLowerCase()]);
   for (const i of items) for (const n of (i.forWhom || "").split(/\s*&\s*/)) if (n && !/^everyone$/i.test(n)) groupNames.add(n.trim().toLowerCase());
-  const cachedPlans = ((previous?.report as any)?.dayPlanReadings || {}) as Record<string, DayPlanReading>;
+  const cachedPlans = { ...opts.seedReadings?.dayPlanReadings, ...((previous?.report as any)?.dayPlanReadings || {}) } as Record<string, DayPlanReading>;
   const dayPlanReadings: Record<string, DayPlanReading> = {};
   const tripDays = new Set<string>();
   if (itin.firstDate && itin.lastDate) for (let d = itin.firstDate; d <= itin.lastDate; d = addDays(d, 1)) tripDays.add(d);
@@ -728,6 +849,23 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     dayPlanReadings[hash] = raw;
     const { reading, dropped } = verifyAgainstTab(raw, text, tripDays);
     if (dropped) report.warnings.push(`"${tab.name}": left out ${dropped} line${dropped === 1 ? "" : "s"} Wander couldn't match word for word to the tab (or to a day of the trip).`);
+    // Her own map links: a day tab's stop list ("Stop 4: Shoraian (Tofu & yuba lunch)" linked to the
+    // place). A plan line naming that place gets her link — a search built from the line's words once sent
+    // "Café ENSOU lunch, Kyoto" for a café in Shigaraki.
+    const stops = Array.from(rowsOf(tab).values()).flat()
+      .filter((c) => c.link && (c.text.match(/stop\s*\d/gi) || []).length === 1)
+      // A stop's name can wrap inside its cell ("Stop 4: Gallery & Cafe ⏎ ENSOU (Woodland lunch stop)")
+      .map((c) => ({ link: unwrapSearchLink(c.link!), words: distinctWords((c.text.replace(/\s+/g, " ").match(/stop\s*\d+[a-z]?\s*:\s*([^(]+)/i) || [])[1] || "") }))
+      .filter((s) => s.words.length);
+    // Every distinctive word of her stop's name must be in the line ("Gallery & Cafe ENSOU" → "Café ENSOU
+    // lunch"); a shared neighborhood alone ("Montbell Ginza" vs "Ginza Premium Retail Walk") is no match.
+    // Leaving a place isn't going there: "Leave Four Seasons" gets no map of the hotel you're standing in.
+    const stopLink = (label: string) => {
+      if (/^\s*(leave|depart)\b/i.test(label)) return null;
+      const own = distinctWords(label);
+      const best = stops.filter((s) => s.words.every((w) => own.includes(w))).sort((a, b) => b.words.length - a.words.length)[0];
+      return best ? best.link : null;
+    };
     for (const p of reading.plans) {
       const day = p.date || p.matchedDate!;
       const matched = !p.date && p.matchedDate
@@ -766,12 +904,13 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
             b.notes,
             matched,
           ].filter(Boolean).join("\n") || null,
-          place: null, confirmation: null, link: null, city: null, timeZone: tripZone,
+          place: null, confirmation: null, link: stopLink(b.label), city: null, timeZone: tripZone,
           source: `${tab.name}${p.heading ? ` · ${p.heading}` : ""}`, sourceRef: `${tab.name}!plan`,
         });
       }
     }
   }));
+  markTabsDiffer(items);
 
   // A stop's heading carries Larisa's summary of it — "Karatsu (tour Karatsu, day trip to Arita)",
   // "Nagoya (bullet train 3.25 hrs; Tokoname day trip - 40 min by Meitetsu train)". Kept as a note for
@@ -1020,7 +1159,8 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       where: { id: tripId },
       data: {
         startDate: asDate(itin.firstDate!), endDate: asDate(itin.lastDate!), timeZone: tripZone,
-        tagline: `From Larisa's Guide · ${opts.sourceName.replace(/\.xlsx$/i, "")}`,
+        // Her sheet's name, without the computer's copy mark ("Japan Oct 2026-2" read like a file version)
+        tagline: `From Larisa's Guide · ${opts.sourceName.replace(/\.xlsx$/i, "").replace(/(?:-\d| \(\d+\)| copy(?: \d+)?)$/i, "")}`,
       },
     });
     await tx.sheetSyncConfig.upsert({

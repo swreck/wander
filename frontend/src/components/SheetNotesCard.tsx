@@ -176,7 +176,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                     className="flex-1 min-w-0 min-h-[44px] text-left flex items-center justify-between gap-3"
                   >
                     <h3 className="text-sm font-medium text-[#3a3128] [overflow-wrap:anywhere]">{tabName}</h3>
-                    <span className="text-sm text-[#514636] shrink-0">{openTab === tabName ? "Close ▴" : "Read ▾"}</span>
+                    <span className="text-sm text-[#514636] shrink-0 inline-flex items-center min-h-[44px]">{openTab === tabName ? "Close ▴" : "Read ▾"}</span>
                   </button>
                   <div className="flex items-center gap-3">
                     {interactive && (

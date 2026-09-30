@@ -46,6 +46,56 @@ Ken defined readiness as two halves: a screen anyone can use without a manual, a
 - A mangled day link (for example /day/now) crashed the day screen. It now opens today.
 - The Four Seasons cancellation deadline showed as 11:59 PM. Her booking says 3:00 PM Kyoto time, and that's what Wander and Scout now say.
 
+### After test round 6 (five fresh testers on the day-plan screens; Scout not used)
+- **Her tabs disagreeing is shown on the line itself, never settled.** Wander marks a line "Her tabs differ" when her day plan and another tab name the same distinctive thing at times 30+ minutes apart (the Oct 29 Haruka: day tab ~12:30–1:00, Itinerary note 1:30–2:00p; Café Ensou: lunch in her Oct 28 tab, 8 PM in Dining Resos). Both lines quote the other, on the day screen, Home and Now. Before, Home showed "~12:30 Board reserved HARUKA" as the plan.
+- **Her plan leads the day.** On a day with her detailed plan, it comes first. Her Itinerary line for the day sits in its header as hers ("Her Itinerary line for today: 'Kyoto day 2 - Viator Tour?'"), and bookings, deadlines and flights follow under "Also in her Guide for today". "See Larisa's full plan" lands on it.
+- **Where you are in her plan.** Today's plan marks the line you're on ("Now") and dims the ones behind you. Home, Now and the day screen use one rule: a line with no end time runs until her next line ("Collect luggage, until her next line at 12:00 PM").
+- **Lines nobody's name is on during a split** say "Her Guide doesn't say who — the group is split here". Home and Now mention one coming up ("At 10:35 AM, her plan has Maruni Toryo — her Guide doesn't say which group") instead of skipping it.
+- **Her own map links.** Plan lines use the links from her stop list ("Stop 4: Shoraian"), matched by every distinctive word of the stop's name. Without one, Maps appears only when her words name a place ("to Kyoto Station", "ideally Shoraian"). Before, Wander searched "Ginza Premium Retail Walk, Tokyo" and "Café ENSOU lunch, Kyoto" for a café in Shigaraki. Bookings get Maps from her address, and links say what they open ("Michelin page").
+- **Choosing among her places.** A pick is one step that replaces any other pick for that line, on the server. Two changes of mind with no signal had left two "group picks" for everyone. Only the places her line lists can be picked, and a plan someone typed is never replaced. The pick says who made it ("✓ The group's pick · Ken, in Wander"). Home and Now show it on her line ("Lunch — Omen · the group's pick"), or "2 places to choose from" before anyone picks. History says "switched 'Lunch' to Omen" in one line.
+- **Home:** her remaining plan lines are listed. Every line opens its day. The noon check-out no longer hides a 12:00 line about something else. The check-out stops showing once her plan's own check-out line has passed. A closed to-do deadline reads "Closed … Wander can't tell whether it was done — ask Larisa if you're not sure", with no strikethrough. A deadline "ending 3:00 PM" holds through 3:00. The Face ID offer sits under Today, so it no longer shoves the day down.
+- **Smaller fixes:**
+  - Her notes are split into lines ("Transit:", "Experience:"), and short ones like "pending confirmation" show without a tap.
+  - "Hide notes" was added.
+  - A deadline's quoted policy sits behind "Why this date? ›".
+  - Her flight-card notes are on separate lines.
+  - The trip subtitle drops the file's copy mark ("Japan Oct 2026-2" becomes "Japan Oct 2026").
+  - A note gets a plain dot, not a pencil.
+  - "Show all" in Recent activity is a 44-point tap target.
+
+### After test round 7 (four fresh testers; Julie, Andy, Larisa and Ken at moments on Oct 13–29)
+- **Her pasted map links open the place.** Some of her links are a Google search whose query is a Maps address (for example, the Four Seasons). Wander now opens the Maps address inside the search. This happens on import and on screen.
+- **A booked dinner her day tab places in another neighbourhood than its address** (Yakiniku Yazawa: "(Ginza)" in her Tokyo Day 1 tab, a Yaesu address in Dining Resos) says "Her tabs differ" on both lines.
+- A stop name her sheet wraps across two lines still finds its map link.
+- **"Leave …" and "Depart …" lines get no Maps link.** Before, "Leave Four Seasons" opened a map of the hotel you're standing in.
+- **"Now, in Larisa's plan" ends on a clock time** ("Shower/change/rest, until 7:30 PM"). It used to repeat her range ("until 6:45–7:30").
+- The Next card on Now shows the group's pick, or "2 places to choose from", and whether her tabs differ.
+- On Home, when two bookings share a time, the one her day plan names comes first (Oct 28: Enyuan Kobayashi before Cafe Ensou). A day with only her note reads "Her note for today", not "Her Itinerary line". "and N more ›" opens her full plan.
+- **Scout, from reading every answer word for word:**
+  - Every Guide date is read as a Japan date. Each day now says who isn't in Japan yet. Before this, 1 in 5 answers had Julie "in the air" on Japan's Oct 13, while she was still at home. After the fix, 5 of 5 answers were right.
+  - Scout says today, tomorrow and yesterday by name, worked out in advance.
+  - Answers no longer include "I'll check —" narration, and sentences no longer run together without a space.
+  - Scout leads with what to do when something has gone wrong.
+  - Scout never credits something it found online to Larisa.
+  - Picks made in Wander reach Scout as Wander's additions.
+  - The examples in Scout's instructions are placeholders, so its wording can't leak into answers. A made-up "van" came from one of those examples.
+
+### After tester v3 (choosing lunch on two phones, weak signal)
+- **Open screens catch up by themselves.** When someone else changes the plan, every open screen (Home, Now, the day) reloads at once. The dark notice at the bottom says what changed, with "Got it". Screens also catch up after a dropped connection, for example a phone waking up. Before, Larisa's open Now card kept the old lunch and its Maps link until she tapped the notice.
+- **A pick is never lost to a weak signal.** If the server hasn't answered a pick within 6 seconds, the pick is kept on the phone ("The signal's weak — saved on this phone, and I'll send it as soon as it gets through") and sent on the next open. Before, closing Wander during a long "Saving…" lost the change silently. A newer pick for the same line replaces any older one still waiting on the phone.
+- **The pick lives on her line** (the day screen): "✓ The group's pick · Ken, in Wander", with **Undo** and **Tell Larisa** right there. A pick still on the phone says "✓ Your pick · on this phone until there's signal". A pick no longer appears a second time as an "Added in Wander" card. Undo on a pick still waiting on the phone takes it back before it's sent.
+- **The Now card says whose is what:** "Her plan lists 2 places · Ken picked Honke Owariya for the group, in Wander".
+- **Home always shows a line of her plan that still needs a pick** ("Lunch · 2 places to choose from ›"), even past the first five rows.
+- **Recent activity** merges quick changes of mind (picks, switches and Undos by one person, for one line, within half an hour) into the latest one.
+- **Maps searches for her plan use her tab's city** ("Honke Owariya, Kyoto, Japan"), not a place's description ("soba since 1465") or just "Japan" ("TeamLab, Japan" could land on the Tokyo teamLab).
+- On Now, a line nobody's name is on reads "At 11:35 AM, her plan has…", not her range.
+- **Importing a Guide copy can reuse readings made elsewhere.** New options: `import-guide-snapshot.ts --seed <readings.json> --no-ai`, and `export-guide-readings.ts`. The same file goes into production with no AI calls. With `--no-ai`, anything not already read is listed as a warning.
+
+### Scout costs less, with the same answers
+- **The prompt Scout rereads is now cached for an hour.** Its instructions and the Guide come first and are identical across people and moments. What changes per question comes last: the time, the page, deadline statuses, which flights are in the air, and when Wander last read the Guide. Measured per question: about $0.05 after the first question in an hour, and about $0.78 for that first one. It was $0.16–0.55 per question before.
+- **One step instead of two** when Scout has answered and only opened a screen. The second step reread the whole prompt to add "Tap below".
+- Every answer logs its tokens and cost ("Scout usage: …").
+
 Affects: frontend/src/pages/DayPage.tsx, frontend/src/components/TripGlance.tsx, frontend/src/lib/guideDisplay.ts, backend/src/services/guide/dayPlanReader.ts (new), importSnapshot.ts, itinerary.ts, scoutContext.ts, backend/src/routes/chat.ts, backend/prisma/schema.prisma (GuideItem.timeText, additive).
 
 SPEC UPDATE NEEDED: the day screen (a second section for her day plans, choices and picks), Home's Today card and the Now tab ("Now, in Larisa's plan", Next from her plan), Scout's web access and honesty rules, and how Wander reads day-plan tabs.

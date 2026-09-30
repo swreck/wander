@@ -111,6 +111,37 @@ export async function queuedBodies(urlPart: string, method = "POST"): Promise<Ar
 }
 
 /**
+ * Take back something still waiting to send ("Undo" on a pick made with no signal) — otherwise it would
+ * go out later, after the person had changed their mind.
+ */
+export async function dropQueued(urlPart: string, matches: (body: Record<string, unknown>) => boolean, method = "POST"): Promise<number> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    let dropped = 0;
+    await new Promise<void>((resolve, reject) => {
+      const req = store.openCursor();
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (!cursor) return;
+        const q = cursor.value as QueuedRequest;
+        let body: Record<string, unknown> | null = null;
+        try { body = q.body ? JSON.parse(q.body) : null; } catch { body = null; }
+        if (q.method === method && q.url.includes(urlPart) && body && matches(body)) { cursor.delete(); dropped++; }
+        cursor.continue();
+      };
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    return dropped;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Attempt to replay all queued requests (called on reconnect).
  */
 export async function replayQueue(): Promise<{ success: number; failed: number }> {

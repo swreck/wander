@@ -38,6 +38,7 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
   }, [tripId]);
 
   if (feed.length === 0) return null;
+  const shown = latestPicksOnly(feed);
 
   const typeIcon = (type: string) => {
     switch (type) {
@@ -58,7 +59,7 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
     return `${days}d ago`;
   }
 
-  const visible = expanded ? feed : feed.slice(0, 4);
+  const visible = expanded ? shown : shown.slice(0, 4);
 
   return (
     <div className="mb-4">
@@ -68,9 +69,9 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
       >
         <h3 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
           Recent activity
-          {!expanded && feed.length > 4 && (
+          {!expanded && shown.length > 4 && (
             <span className="ml-1 text-[#6b5d4a] normal-case tracking-normal">
-              · {feed.length} total
+              · {shown.length} total
             </span>
           )}
         </h3>
@@ -92,14 +93,41 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
           </div>
         ))}
       </div>
-      {feed.length > 4 && (
+      {shown.length > 4 && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="mt-2 text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
+          className="mt-1 min-h-[44px] text-sm text-[#514636] underline underline-offset-2"
         >
-          {expanded ? "Show less" : `Show all ${feed.length}`}
+          {expanded ? "Show less" : `Show all ${shown.length}`}
         </button>
       )}
     </div>
   );
+}
+
+/**
+ * Quick changes of mind about one line of her plan read as one: the latest ("Ken switched "Lunch" to Omen"),
+ * not three entries on everyone's Home (round 7). Only picks and Undos by the same person, for the same
+ * line and day, within half an hour of each other are merged; the feed arrives newest first.
+ */
+function latestPicksOnly(feed: FeedItem[]): FeedItem[] {
+  const pickKey = (i: FeedItem) => {
+    const m = i.description.match(/^switched "(.+?)" to .+ on (.+)$/) || i.description.match(/^picked .+ for "(.+?)" on (.+)$/)
+      // An Undo ("took "Lunch: Omen" off Tue, Oct 27") is part of the same change of mind
+      || i.description.match(/^took "(.+?): .+" off (.+)$/);
+    return m ? `${i.userDisplayName}|${m[1]}|${m[2]}` : null;
+  };
+  const kept: FeedItem[] = [];
+  const newestAt = new Map<string, number>();
+  for (const item of feed) {
+    const key = pickKey(item);
+    const at = new Date(item.createdAt).getTime();
+    if (key) {
+      const newer = newestAt.get(key);
+      newestAt.set(key, at);
+      if (newer !== undefined && newer - at <= 30 * 60_000) continue;
+    }
+    kept.push(item);
+  }
+  return kept;
 }

@@ -47,10 +47,14 @@ export async function listDayChoices(tripId: string, date?: string): Promise<Day
   }));
 }
 
-export type AddResult = { ok: true; choice: DayChoiceView } | { ok: false; status: number; error: string };
+export type AddResult = { ok: true; choice: DayChoiceView; replaced?: string[] } | { ok: false; status: number; error: string };
 
 export async function addDayChoice(input: {
   tripId: string; travelerId: string; date: string; text?: string | null; time?: string | null; experienceId?: string | null;
+  /** The line of Larisa's plan this picks one of her choices for ("Lunch") — the pick REPLACES any other
+   *  pick for that line, in one step. Two separate steps (take off, then add) left two picks for everyone
+   *  when someone changed their mind twice with no signal (round 6). */
+  pickFor?: string | null;
 }): Promise<AddResult> {
   const date = String(input.date || "").slice(0, 10);
   if (!DATE.test(date)) return { ok: false, status: 400, error: "Which day is this for?" };
@@ -76,6 +80,26 @@ export async function addDayChoice(input: {
   if (experienceId) {
     const dup = await prisma.dayChoice.findFirst({ where: { tripId: input.tripId, date, experienceId } });
     if (dup) return { ok: true, choice: (await listDayChoices(input.tripId, date)).find((c) => c.id === dup.id)! };
+  }
+
+  // One pick per line of her plan: this one replaces the others; the same pick again is the same pick
+  const pickFor = input.pickFor ? String(input.pickFor).trim() : "";
+  if (pickFor) {
+    if (!text.startsWith(`${pickFor}: `)) return { ok: false, status: 400, error: "That pick doesn't match the line it's for." };
+    // Her line and the choices she lists on it ("Choice: Omen — udon near Ginkaku-ji"); only those count as
+    // picks — a plan someone typed that happens to start "Lunch: " is theirs and is never replaced
+    const lines = await prisma.guideItem.findMany({ where: { tripId: input.tripId, kind: "block", title: pickFor, date: new Date(`${date}T00:00:00.000Z`) }, select: { detail: true } });
+    const names = lines.flatMap((l) => (l.detail || "").split("\n").filter((x) => x.startsWith("Choice: ")).map((x) => x.slice(8).split(" — ")[0].trim()));
+    const pickTexts = names.map((n) => `${pickFor}: ${n}`);
+    if (!pickTexts.includes(text)) return { ok: false, status: 400, error: "That isn't one of the places her plan lists for this." };
+    const prior = await prisma.dayChoice.findMany({ where: { tripId: input.tripId, date, text: { in: pickTexts } } });
+    const same = prior.find((p) => p.text === text);
+    const row = await prisma.$transaction(async (tx) => {
+      await tx.dayChoice.deleteMany({ where: { id: { in: prior.filter((p) => p !== same).map((p) => p.id) } } });
+      return same || tx.dayChoice.create({ data: { tripId: input.tripId, travelerId: input.travelerId, date, time, text, experienceId } });
+    });
+    const replaced = prior.filter((p) => p !== same).map((p) => p.text);
+    return { ok: true, choice: (await listDayChoices(input.tripId, date)).find((c) => c.id === row.id)!, replaced };
   }
 
   const row = await prisma.dayChoice.create({

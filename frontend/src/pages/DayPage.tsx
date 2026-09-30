@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
-import { queuedBodies } from "../lib/offlineStore";
+import { queuedBodies, dropQueued } from "../lib/offlineStore";
 import type { Trip } from "../lib/types";
 import { useAuth } from "../contexts/AuthContext";
 import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
@@ -25,7 +25,7 @@ import {
   nightOf, isFor, isLanding, deadlineOnDate, deadlineOver, deadlineTimeWords, deadlineWhen,
   leaveForAirport, isPlanningNote, isFragment, partyOf, myNight, leavingOn, stayMapsQuery,
   checkoutBeforeFirst, checkinAfterLanding, leadItem, withCheckoutWho, minutesToClock, lateLeaveWords,
-  ownerlessInSplit,
+  ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, saidAgain, currentUnownedLine, unwrapSearchLink,
 } from "../lib/guideDisplay";
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
@@ -40,28 +40,68 @@ function planTime(b: GuideItem): string {
 
 // Lines that are moves, not places ("Taxi north", "Leave Shiraume", "Shower/change/rest") get no Maps link
 const NOT_A_PLACE = /^(taxi|leave|return|depart|arrive|collect|check|shower|split|breakfast|lunch$|evening|refresh|flight|board|drop|continue|finish|optional|traditional)/i;
-/** The place a block names, for Maps: after "LIGHT LUNCH – …", before "Hassun — Michelin…", "… ideally Shoraian" */
+/**
+ * The place a line of her plan names, for Maps — only when her words name one. Her own stop links come
+ * first (the Guide reader attaches them); this is the fallback. Round 6: "Ginza Premium Retail Walk, Tokyo"
+ * and "Complimentary Residence transfer to Kyoto Station" were searched as if they were places.
+ */
 function placeOf(label: string): string | null {
-  const ideally = label.match(/\bideally\s+(?:at\s+)?([^,;()]+)/i);
-  if (ideally) return ideally[1].trim();
-  // A name has a capital past its first word ("Café ENSOU lunch") or is short ("Tenryu-ji", "Nishiki Market");
-  // "Additional studio/private artist visit if arranged" is a description, not a place to look up
-  const words = label.trim().split(/\s+/);
-  const named = words.slice(1).some((w) => /^[A-Z]/.test(w)) || (words.length <= 2 && /^[A-Z]/.test(label.trim()));
-  if (NOT_A_PLACE.test(label.trim()) || !named) return null;
-  const caps = label.match(/^[A-Z][A-Z &-]+\s+[–-]\s+(.+)$/);
-  const place = (caps ? caps[1] : label.split(/\s+[—–]\s+|,\s/)[0]).replace(/\s*\([^)]*\)\s*$/, "").trim();
-  return place.length > 2 ? place : null;
+  const t = label.trim();
+  // Named outright: "… ideally Shoraian", "transfer to Kyoto Station", "Refresh at the Imperial Hotel"
+  const explicit = t.match(/\bideally\s+(?:at\s+)?([^,;()]+)/i) || t.match(/\b(?:to|at)\s+(?:the\s+)?([A-Z][^,;()—–/]*)$/);
+  if (explicit) return explicit[1].trim() || null;
+  if (NOT_A_PLACE.test(t)) return null;
+  // A heading-style line: "LIGHT LUNCH – Ginza Mitsukoshi Depachika", "DINNER RESERVATION – UNE IMMERSION (Shibuya)"
+  const caps = t.match(/^[A-Z][A-Z &-]+\s+[–-]\s+(.+)$/);
+  if (caps) return caps[1].replace(/\s*\([^)]*\)\s*$/, "").trim();
+  // A short proper name ("Tenryu-ji", "Nishiki Market", "Hassun — Michelin…"); a longer line is a description
+  const name = t.split(/\s+[—–]\s+/)[0].replace(/\s+(lunch|dinner|breakfast)$/i, "").trim();
+  const words = name.split(/\s+/);
+  return words.length <= 3 && words.every((w) => /^[A-Z]/.test(w)) && !name.includes("/") ? name : null;
 }
+/** Where a line of her plan is on a map: her own link, else a search for the place her words name */
+function planMapHref(b: GuideItem): string | null {
+  // A line with choices ("Lunch") isn't a place — each choice is (round 6: "Test lunch, Kyoto")
+  if (choicesOf(b).length) return null;
+  // Leaving a place isn't going there — no map of the hotel you're standing in
+  if (/^\s*(leave|depart)\b/i.test(b.title)) return null;
+  if (b.link) return unwrapSearchLink(b.link);
+  const p = placeOf(b.title);
+  return p ? mapsLink(`${p}, ${areaOf(b)}Japan`) : null;
+}
+/**
+ * The city her day tab is about, for a Maps search ("Kyoto Tue, 1027…" → "Kyoto, "). Round 7: "TeamLab,
+ * Japan" could land on the Tokyo teamLab. Only the city: the rest of a tab name is cut short by the
+ * sheet ("Kappabashi & Akihab", "1027Kiyomizu-dera Te") and would mislead a search.
+ */
+function areaOf(b: GuideItem): string {
+  const city = b.source.match(/^([A-Z][a-z]{2,})\s/)?.[1];
+  return city && !/^(Day|Dining|Flight)$/.test(city) ? `${city}, ` : "";
+}
+/** Her choices on a line: [{ name: "Omen", note: "udon near Ginkaku-ji" }] */
+function choicesOf(b: GuideItem): { name: string; note: string }[] {
+  return (b.detail || "").split("\n").filter((l) => l.startsWith("Choice: ")).map((l) => {
+    const [name, ...rest] = l.slice(8).split(" — ");
+    return { name: name.trim(), note: rest.join(" — ").trim() };
+  });
+}
+/** Maps for one of her choices: its name and the area of her plan ("Omen, Kyoto, Japan"). Her note on it
+ *  stays out of the search — "Honke Owariya soba since 1465" isn't what a map knows it as (round 7). */
+const choiceMapHref = (c: { name: string }, line: GuideItem) => mapsLink(`${c.name}, ${areaOf(line)}Japan`);
 
 /**
- * Larisa's detailed plan for a day (from a day tab such as "Kyoto Mon, 1026…"), under the Itinerary's
- * overview: her order, her times as written, who a block is for when the group splits, her choices
- * (each can be picked as the group's plan — added in Wander, her sheet untouched), and her notes.
+ * Larisa's detailed plan for a day (from a day tab such as "Kyoto Mon, 1026…"): her order, her times as
+ * written, who a line is for when the group splits — and, where it doesn't say, that it doesn't — her
+ * choices (each can be picked as the group's plan: added in Wander, her sheet untouched), her notes, and
+ * where her tabs disagree, on the line itself. On a plan day it leads the screen; her Itinerary tab's own
+ * line for the day sits in its header, as hers, so the two never read as rival plans. Today, the line
+ * she has you on now is marked and the ones behind you step back.
  */
-function PlanSection({ blocks, me, highlight, city, picked, onPick }: {
-  blocks: GuideItem[]; me: string | null; highlight: string | null; city: string;
-  picked: Set<string>; onPick: (text: string, time: string | null, replacing?: string[]) => Promise<void>;
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt }: {
+  blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
+  picked: Map<string, DayChoice>; onPick: (text: string, time: string | null, pickFor: string) => Promise<void>;
+  onUndo: (c: DayChoice) => Promise<void>; tellName: string | null; onTell: (c: DayChoice) => void;
+  nowAt: number | null;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   // The choice just tapped says "Saving…" until the pick is back from the server (a switch takes two steps)
@@ -70,61 +110,96 @@ function PlanSection({ blocks, me, highlight, city, picked, onPick }: {
   const heading = blocks[0].source.split(" · ").slice(1).join(" · ");
   // Wander's own match of an undated tab to this day — said once, as Wander's
   const matched = (blocks.map((b) => (b.detail || "").split("\n").find((l) => l.startsWith("Wander matched this plan"))).find(Boolean)) || null;
+  const noOwner = ownerlessInSplit(blocks);
+  // When each line ends, and the line you're on now — the same rule Home and Now use (lib/guideDisplay.ts)
+  const endOf = (b: GuideItem) => planLineEnd(b, blocks);
+  const current = nowAt === null ? null : currentPlanLine(blocks, nowAt, me) || currentUnownedLine(blocks, nowAt) || null;
   return (
-    <section className="mt-5">
+    <section id="plan" className="mb-5 scroll-mt-24">
       <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">Larisa's plan for the day</h2>
-      <p className="text-xs text-[#6b5d4a] mt-0.5 mb-2">From the {tab} tab{heading ? ` — ${heading}` : ""}</p>
-      {matched && <p className="text-xs text-[#8a5a1a] mb-2">{matched}</p>}
-      <ol className="bg-white rounded-xl border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
+      <p className="text-[13px] text-[#6b5d4a] mt-0.5">From the {tab} tab{heading ? ` — ${heading}` : ""}</p>
+      {overview.map((o) => (
+        <p key={o.id} className="text-[13px] text-[#514636] mt-1">{o.kind === "note" ? "Her note for today" : "Her Itinerary line for today"}: “{o.title}”</p>
+      ))}
+      {matched && <p className="text-[13px] text-[#8a5a1a] mt-1">{matched}</p>}
+      <ol className="mt-2 bg-white rounded-xl border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
         {blocks.map((b) => {
           const lines = (b.detail || "").split("\n").filter((l) => l && !l.startsWith("Wander matched this plan"));
           const choices = lines.filter((l) => l.startsWith("Choice: ")).map((l) => l.slice(8));
           const estimate = lines.includes("Times are Larisa's estimate.");
-          const notes = lines.filter((l) => !l.startsWith("Choice: ") && l !== "Times are Larisa's estimate.");
+          const differ = tabsDiffer(b);
+          const notes = lines.filter((l) => !l.startsWith("Choice: ") && !l.startsWith("Tabs differ: ") && l !== "Times are Larisa's estimate.");
+          // Her "Transit: … Experience: …" on their own lines; a short note ("pending confirmation") in full
+          const noteText = notes.join("\n").replace(/\s+(Experience|Transit|Note):/g, "\n$1:");
+          const shortNote = noteText.length <= 90;
           // With choices, each choice gets its own Maps link; the line itself ("Lunch") isn't a place
-          const place = choices.length ? null : placeOf(b.title);
+          const map = choices.length ? null : planMapHref(b);
           const time = planTime(b);
           const pickedHere = choices.map((c) => `${b.title}: ${c.split(" — ")[0]}`).filter((t) => picked.has(t));
+          const isNow = current?.id === b.id;
+          const past = nowAt !== null && b.time && !isNow && endOf(b) <= nowAt;
+          const ring = highlight === b.id || isNow ? "ring-2 ring-[#c8a060] rounded-xl" : "";
           return (
-            <li key={b.id} id={`item-${b.id}`} className={`flex gap-3 p-3 transition-shadow ${highlight === b.id ? "ring-2 ring-[#c8a060] rounded-xl" : ""}`}>
-              <div className="w-20 shrink-0 text-right text-sm text-[#3a3128] [overflow-wrap:anywhere]" title={estimate ? "Larisa's estimate" : undefined}>{time}</div>
+            <li key={b.id} id={`item-${b.id}`} className={`flex gap-3 p-3 transition-shadow ${ring} ${past ? "opacity-60" : ""}`}>
+              <div className="w-20 shrink-0 text-right text-sm text-[#3a3128] [overflow-wrap:anywhere]" title={estimate ? "Larisa's estimate" : undefined}>
+                {isNow && <span className="block text-[11px] uppercase tracking-wide text-[#8a5a1a]">Now</span>}
+                {time}
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start gap-2">
-                  <p className="flex-1 text-[15px] leading-snug text-[#3a3128] [overflow-wrap:anywhere]">{b.title}</p>
-                  {place && (
-                    <a href={mapsLink(`${place}${city ? `, ${city}` : ""}, Japan`)} aria-label={`${place} in Maps`}
+                  <p className="flex-1 text-[15px] leading-snug text-[#3a3128] [overflow-wrap:anywhere]">{b.title.replace(/^./, (c) => c.toUpperCase())}</p>
+                  {map && (
+                    <a href={map} target="_blank" rel="noreferrer" aria-label={`${b.title} in Maps`}
                       className="-mt-2.5 -mb-2 shrink-0 inline-flex items-center min-h-[44px] px-1 text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>
                   )}
                 </div>
-                {b.forWhom && <p className="text-xs text-[#514636] mt-0.5">{isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`}</p>}
+                {b.forWhom && <p className="text-sm text-[#514636] mt-0.5">{isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`}</p>}
+                {noOwner.has(b.id) && <p className="text-sm text-[#8a5a1a] mt-0.5">Her Guide doesn't say who — the group is split here</p>}
+                {differ.map((d) => <p key={d} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">Her tabs differ — {d.replace(/^her /, "")}</p>)}
                 {choices.length > 0 && (
                   <ul className="mt-1.5 space-y-1">
                     {choices.map((c) => {
                       const name = c.split(" — ")[0];
                       const text = `${b.title}: ${name}`;
+                      const pick = picked.get(text);
                       return (
                         <li key={c} className="flex flex-wrap items-center gap-x-3">
                           <span className="text-sm text-[#3a3128]">{c}</span>
-                          {picked.has(text)
-                            ? <span className="text-sm text-[#3f5a2a]">✓ The group's pick</span>
+                          {pick
+                            // The pick lives here, on her line — with a way back to "not decided", and
+                            // (until it reaches everyone) honest that it's only on this phone so far
+                            ? <>
+                                <span className="text-sm text-[#3f5a2a]">
+                                  {pick._pending ? "✓ Your pick · on this phone until there's signal" : `✓ The group's pick · ${pick.addedBy}, in Wander`}
+                                </span>
+                                {tapped === `undo:${text}`
+                                  ? <span className="inline-flex items-center min-h-[44px] text-sm text-[#6b5d4a]" role="status">Taking it off…</span>
+                                  : <button disabled={!!tapped} onClick={() => { setTapped(`undo:${text}`); onUndo(pick).finally(() => setTapped(null)); }}
+                                      aria-label={`Undo the pick of ${name}`}
+                                      className="min-h-[44px] text-sm text-[#6b5d4a] underline underline-offset-2 disabled:opacity-50">Undo</button>}
+                                {tellName && !pick._pending && (
+                                  <button onClick={() => onTell(pick)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Tell {tellName}</button>
+                                )}
+                              </>
                             : tapped === text
                             ? <span className="inline-flex items-center min-h-[44px] text-sm text-[#6b5d4a]" role="status">Saving…</span>
-                            : <button disabled={!!tapped} onClick={() => { setTapped(text); onPick(text, b.time, pickedHere).finally(() => setTapped(null)); }}
+                            : <button disabled={!!tapped} onClick={() => { setTapped(text); onPick(text, b.time, b.title).finally(() => setTapped(null)); }}
                                 className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2 disabled:opacity-50">
                                 {pickedHere.length ? "Switch to this" : "We're going here"}
                               </button>}
-                          {placeOf(name) && (
-                            <a href={mapsLink(`${placeOf(name)}${city ? `, ${city}` : ""}, Japan`)} aria-label={`${name} in Maps`}
-                              className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>
-                          )}
+                          <a href={choiceMapHref({ name }, b)} target="_blank" rel="noreferrer" aria-label={`${name} in Maps`}
+                            className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>
                         </li>
                       );
                     })}
                   </ul>
                 )}
                 {notes.length > 0 && (
-                  open[b.id]
-                    ? <GuideText text={notes.join("\n")} className="text-sm text-[#6b5d4a] mt-1" />
+                  shortNote || open[b.id]
+                    ? <>
+                        <GuideText text={noteText} className="text-sm text-[#6b5d4a] mt-1" />
+                        {!shortNote && <button onClick={() => setOpen((o) => ({ ...o, [b.id]: false }))} className="-mb-2 min-h-[44px] text-sm text-[#514636]">Hide notes</button>}
+                      </>
                     : <button onClick={() => setOpen((o) => ({ ...o, [b.id]: true }))} className="-mb-2 min-h-[44px] text-sm text-[#514636]">Larisa's notes ›</button>
                 )}
               </div>
@@ -152,10 +227,11 @@ import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwn
 
 const KIND_MARK: Record<string, string> = {
   flight: "✈︎", train: "🚄", travel: "🚐", meeting: "📍", tour: "🧭", meal: "🍽", checkin: "🛎", checkout: "🧳",
-  deadline: "⏰", plan: "•", note: "✎",
+  // Her notes get a plain mark — a pencil read as "tap to edit" and did nothing (round 6)
+  deadline: "⏰", plan: "•", note: "•",
 };
 
-interface DayChoice { id: string; date: string; time: string | null; text: string; addedBy: string; fromGuideIdea?: boolean; _pending?: boolean }
+interface DayChoice { id: string; date: string; time: string | null; text: string; addedBy: string; fromGuideIdea?: boolean; _pending?: boolean; _pickFor?: string }
 
 const ymd = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
 
@@ -289,9 +365,19 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     let cancelled = false;
     // Plans saved with no signal wait on this phone — shown, marked as waiting, even after Wander was
     // closed and opened again (they used to vanish until the signal came back)
-    const waiting = async (have: DayChoice[]) => (await queuedBodies(`/day-choices/${tripId}`))
-      .filter((q) => q.date === date && typeof q.text === "string" && !have.some((c) => c.text === q.text))
-      .map((q): DayChoice => ({ id: `pending-${q._at}`, date, time: (q.time as string | null) || null, text: q.text as string, addedBy: me || "You", _pending: true }));
+    const waiting = async (have: DayChoice[]) => {
+      const queued = (await queuedBodies(`/day-choices/${tripId}`)).filter((q) => q.date === date && typeof q.text === "string");
+      // Picks for the same line of her plan: only the last one queued counts (it replaces the others on arrival)
+      const lastPick = new Map<string, unknown>();
+      for (const q of queued) if (typeof q.pickFor === "string") lastPick.set(q.pickFor, q);
+      return queued
+        .filter((q) => typeof q.pickFor !== "string" || lastPick.get(q.pickFor as string) === q)
+        .filter((q) => !have.some((c) => c.text === q.text))
+        .map((q): DayChoice => ({ id: `pending-${q._at}`, date, time: (q.time as string | null) || null, text: q.text as string, addedBy: me || "You", _pending: true,
+          _pickFor: typeof q.pickFor === "string" ? q.pickFor : undefined }));
+    };
+    // Once a queued pick has gone through, the "waiting for signal" words go too
+    const settle = (w: DayChoice[]) => { if (!w.length) setNotice((n) => (n && n.startsWith("Saved on this phone") ? null : n)); };
     // On a slow signal the day starts from this phone's last copy of the group's plans (and says it's
     // checking), instead of looking as if nothing was planned
     const copyKey = `wander:day-plans:${tripId}:${date}`;
@@ -299,7 +385,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       .then(async (c) => {
         try { localStorage.setItem(copyKey, JSON.stringify(c)); } catch { /* full */ }
         const w = await waiting(c);
-        if (!cancelled) { setChoices([...c, ...w]); setChoicesChecked(true); }
+        if (!cancelled) {
+          // A pick still waiting on this phone stands in for the one it will replace
+          const pendingLines = w.filter((p) => p._pickFor).map((p) => `${p._pickFor}: `);
+          setChoices([...c.filter((x) => !pendingLines.some((l) => x.text.startsWith(l))), ...w]);
+          setChoicesChecked(true);
+          settle(w);
+        }
       })
       .catch(async () => { const w = await waiting([]); if (!cancelled) { setChoices((prev) => [...prev.filter((p) => !p._pending), ...w]); setChoicesChecked(true); } });
     let saved: DayChoice[] = [];
@@ -326,12 +418,23 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       forecast: items.find((i) => i.kind === "weather" && (i.windowStart || ymd(i.date)) <= date && date <= ymd(i.date)) || null,
     };
   }, [items, date, stays]);
+  // On a day with her detailed plan, her Itinerary tab's own untimed line for the day ("Kyoto day 2 - Viator
+  // Tour?") goes in the plan's header as hers; everything else (bookings, deadlines, flights) follows the plan
+  const { itineraryLines, otherItems } = useMemo(() => {
+    if (!planBlocks.length) return { itineraryLines: [] as GuideItem[], otherItems: dayItems };
+    const lines = dayItems.filter((i) => !i.time && /itinerary/i.test(i.source) && ["plan", "tour", "note"].includes(i.kind));
+    return { itineraryLines: lines, otherItems: dayItems.filter((i) => !lines.includes(i)) };
+  }, [dayItems, planBlocks]);
   // What happens when, for "Next": the overview's lines and her detailed plan together
   // Next weighs her plan's times too — but never a line nobody's name is on while the group is split
   const timeline = useMemo(() => {
     const noOwner = ownerlessInSplit(planBlocks);
-    return sortDay([...dayItems, ...planBlocks.filter((b) => b.time && !noOwner.has(b.id))]);
+    return sortDay([...dayItems, ...planBlocks.filter((b) => b.time && !noOwner.has(b.id) && !dayItems.some((o) => saidAgain(b, o)))]);
   }, [dayItems, planBlocks]);
+
+  // What a pick of one of her choices is saved as ("Lunch: Omen") — such a plan belongs on her line, not
+  // in "Added in Wander" too (round 7: lunch showed two or three times)
+  const pickTexts = useMemo(() => new Set(planBlocks.flatMap((b) => choicesOf(b).map((o) => `${b.title}: ${o.name}`))), [planBlocks]);
 
   const night = useMemo(() => nightOf(date, stays, items), [date, stays, items]);
   const cityOf = (id?: string | null) => (id ? trip?.cities.find((c) => c.id === id)?.name ?? null : null);
@@ -349,6 +452,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // Opened from a line on Home: bring that line into view and mark it briefly
   useEffect(() => {
     if (state !== "ready") return;
+    // "See Larisa's full plan" from Home: straight to her plan
+    if (location.hash === "#plan") {
+      if (scrolledFor.current === `${date}:plan`) return;
+      scrolledFor.current = `${date}:plan`;
+      requestAnimationFrame(() => document.getElementById("plan")?.scrollIntoView({ block: "start" }));
+      return;
+    }
     const id = location.hash.startsWith("#item-") ? location.hash.slice(6) : null;
     if (!id || scrolledFor.current === `${date}:${id}`) return;
     scrolledFor.current = `${date}:${id}`;
@@ -382,28 +492,29 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   }
 
   /** "We're going here": one of her choices, marked as the group's pick (a plan added in Wander) */
-  async function pickChoice(text: string, time: string | null, replacing: string[] = []) {
+  // One step: the server replaces any other pick for this line of her plan ("pickFor"). Two steps (take off,
+  // then add) left two picks for everyone after two changes of mind with no signal (round 6); queued picks
+  // now replay in order and the last one wins.
+  async function pickChoice(text: string, time: string | null, pickFor: string) {
     if (!tripId || saving) return;
     setSaving(true);
+    const sameLine = (c: DayChoice) => c.text.startsWith(`${pickFor}: `) && c.text !== text;
     try {
-      // Changing their minds: the earlier pick for this time comes off first, so a lunch never has two
-      for (const old of choices.filter((c) => replacing.includes(c.text))) {
-        if (old._pending) { setChoices((list) => list.filter((x) => x.id !== old.id)); continue; }
-        try {
-          await api.delete(`/day-choices/${tripId}/${old.id}`);
-          setChoices((list) => list.filter((x) => x.id !== old.id));
-        } catch {
-          setNotice(navigator.onLine === false ? "No signal — switch when you're back online." : "That didn't switch — try again?");
-          return;
-        }
-      }
-      const created = await api.post<DayChoice & { _queued?: boolean }>(`/day-choices/${tripId}`, { date, text, time });
+      // A newer pick for the line replaces any still waiting on this phone — sent later, an older one
+      // would undo this one
+      await dropQueued(`/day-choices/${tripId}`, (b) => b.date === date && b.pickFor === pickFor);
+      const created = await api.postRepeatable<DayChoice & { _queued?: boolean }>(`/day-choices/${tripId}`, { date, text, time, pickFor });
       if ((created as { _queued?: boolean })._queued) {
-        setChoices((c) => [...c, { id: `pending-${Date.now()}`, date, time, text, addedBy: me || "You", _pending: true }]);
-        setNotice("Saved on this phone — I'll add it for everyone when you have signal.");
+        setChoices((c) => [...c.filter((x) => !sameLine(x) && x.text !== text), { id: `pending-${Date.now()}`, date, time, text, addedBy: me || "You", _pending: true, _pickFor: pickFor }]);
+        setNotice(navigator.onLine === false
+          ? "Saved on this phone — I'll add it for everyone when you have signal."
+          : "The signal's weak — saved on this phone, and I'll send it as soon as it gets through.");
       } else {
-        setChoices((c) => [...c, created]);
+        setChoices((c) => [...c.filter((x) => !sameLine(x) && x.id !== created.id), created]);
         setNotice(null);
+        // Home and Now (and any other open screen) show the pick too — even if the save landed after
+        // this screen was left (round 7: Home kept the old pick)
+        window.dispatchEvent(new CustomEvent("wander:data-changed"));
       }
     } catch {
       setNotice("That didn't save — try again?");
@@ -414,11 +525,20 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 
   async function removeChoice(c: DayChoice) {
     if (!tripId) return;
-    if (c._pending) { setChoices((list) => list.filter((x) => x.id !== c.id)); setConfirmRemove(null); return; }
+    if (c._pending) {
+      // Still on this phone: take it back before it's sent
+      await dropQueued(`/day-choices/${tripId}`, (b) => b.date === date && b.text === c.text);
+      setChoices((list) => list.filter((x) => x.id !== c.id));
+      setConfirmRemove(null);
+      setNotice((n) => (n && /saved on this phone/i.test(n) ? null : n));
+      window.dispatchEvent(new CustomEvent("wander:data-changed"));
+      return;
+    }
     try {
       await api.delete(`/day-choices/${tripId}/${c.id}`);
       setChoices((list) => list.filter((x) => x.id !== c.id));
       setNotice(null);
+      window.dispatchEvent(new CustomEvent("wander:data-changed"));
     } catch {
       setNotice(navigator.onLine === false ? "No signal — try taking it off again when you're back online." : "That didn't come off — try again?");
     }
@@ -449,14 +569,19 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const flightAt = myFlight?.time ? toMin(myFlight.time) : null;
   // Where her plan puts you right now — a line with your name on it, or one for everybody outside a split
   const noOwner = ownerlessInSplit(planBlocks);
-  const currentBlock = isToday
-    ? planBlocks.filter((b) => b.time && b.endTime && isFor(b, me) && !noOwner.has(b.id) && toMin(b.time) <= nowMin() && nowMin() < toMin(b.endTime)).pop()
-    : undefined;
+  const currentBlock = isToday ? currentPlanLine(planBlocks, nowMin(), me) : undefined;
+  const currentUnowned = isToday && !currentBlock ? currentUnownedLine(planBlocks, nowMin()) : undefined;
   const upcomingGuide = isToday
     ? timeline.find((i) => i.time && !["deadline", "checkout", "checkin"].includes(i.kind) && isFor(i, me) && toMin(i.time) >= nowMin() && i !== currentBlock)
     : undefined;
+  // A line nobody's name is on during a split, coming up before "Next" — said, never assigned (round 6:
+  // "Next · in 2 hr 40 min: lunch" told Julie she was free while her Guide lists Maruni Toryo at 10:35)
+  const unownedSoon = isToday
+    ? planBlocks.find((b) => b !== currentUnowned && noOwner.has(b.id) && b.time && toMin(b.time) >= nowMin() && (!upcomingGuide?.time || toMin(b.time) < toMin(upcomingGuide.time)))
+    : undefined;
+  const ownPlans = choices.filter((c) => !pickTexts.has(c.text));
   const upcomingChoice = isToday
-    ? choices.filter((c) => c.time && toMin(c.time) >= nowMin()).sort((a, b) => a.time!.localeCompare(b.time!))[0]
+    ? ownPlans.filter((c) => c.time && toMin(c.time) >= nowMin()).sort((a, b) => a.time!.localeCompare(b.time!))[0]
     : undefined;
   const nextIsChoice = !!upcomingChoice && (!upcomingGuide || upcomingChoice.time! < upcomingGuide.time!);
   const upcoming = now ? upcomingGuide : undefined;
@@ -521,7 +646,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               <StopNote key={s.id} note={s} city={stopCity(s)} />
             ))}
             {/* Her forecast for this stay, in her numbers (the sheet gives no units) */}
-            {forecast && <p className="text-sm text-[#6b5d4a] mb-3">{forecast.title.replace(/^Larisa's forecast:\s*/, "Larisa's forecast: ")}</p>}
+            {forecast && <p className="text-sm text-[#6b5d4a] mb-3">{forecast.title.replace(/^Larisa's forecast:\s*/, "Larisa's expected weather: ")}</p>}
 
             {leave && flightAt !== null && nowMin() < flightAt && (
               <div className={`mb-3 rounded-xl p-4 text-white ${nowMin() > leave.minutes ? "bg-[#8a5a1a]" : "bg-[#514636]"}`}>
@@ -541,8 +666,22 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               <button onClick={() => document.getElementById(`item-${currentBlock.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
                 className="block w-full text-left mb-2 min-h-[44px] text-[15px] text-[#3a3128]">
                 <span className="text-[#6b5d4a]">Now, in Larisa's plan · </span>{currentBlock.title.replace(/^./, (c) => c.toUpperCase())}
-                <span className="text-[#6b5d4a]">, until {timeLabel({ ...currentBlock, time: currentBlock.endTime }).replace(/^~/, "about ")}</span>
+                <span className="text-[#6b5d4a]">{currentBlock.endTime ? `, until ${/^~/.test(currentBlock.timeText || "") || (currentBlock.detail || "").includes("Times are Larisa's estimate.") ? "about " : ""}${clock(currentBlock.endTime)}` : `, until about ${minutesToClock(planLineEnd(currentBlock, planBlocks))}`}</span>
+                {tabsDiffer(currentBlock).map((d) => <span key={d} className="block text-sm text-[#8a5a1a] mt-0.5">Her tabs differ — {d.replace(/^her /, "")}</span>)}
               </button>
+            )}
+            {now && currentUnowned && (
+              <p className="mb-2 text-[15px] text-[#3a3128]">
+                <span className="text-[#6b5d4a]">Now, in Larisa's plan · </span>{currentUnowned.title.replace(/^./, (c) => c.toUpperCase())}
+                <span className="text-[#6b5d4a]">, until {currentUnowned.endTime ? clock(currentUnowned.endTime) : `about ${minutesToClock(planLineEnd(currentUnowned, planBlocks))}`}</span>
+                <span className="block text-sm text-[#8a5a1a]">Her Guide doesn't say which group this is for.</span>
+              </p>
+            )}
+            {/* During a split, a line nobody's name is on is never "yours" — but it isn't hidden either */}
+            {now && unownedSoon && (
+              <p className="mb-2 text-sm text-[#8a5a1a]">
+                At {clock(unownedSoon.time)}, her plan has {unownedSoon.title} — her Guide doesn't say which group.
+              </p>
             )}
             {now && isToday && (nextIsChoice ? upcomingChoice : upcoming) && !(leave && !nextIsChoice && upcoming === myFlight) && (() => {
               if (nextIsChoice && upcomingChoice) {
@@ -555,17 +694,29 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 );
               }
               const u = upcoming!;
-              // A line of her day plan: its place by name ("Ginkaku-ji"), and nothing for "Taxi north"
-              const blockPlace = u.kind === "block" ? placeOf(u.title) : null;
-              const q = u.kind === "block" ? (blockPlace ? `${blockPlace}, ${cityName || "Japan"}` : null) : mapsQueryFor(u);
+              // A line of her day plan: her own map link, or the place her words name; nothing for "Taxi north".
+              // A booking: its name and her address. A line with choices: the group's pick, or that there's a choice.
+              const opts = u.kind === "block" ? choicesOf(u) : [];
+              const pick = opts.length ? choices.find((c) => opts.some((o) => c.text === `${u.title}: ${o.name}`)) : undefined;
+              const pickOpt = pick ? opts.find((o) => pick.text === `${u.title}: ${o.name}`) : undefined;
+              const mapHref = pickOpt ? choiceMapHref(pickOpt, u) : u.kind === "block" ? planMapHref(u) : (mapsQueryFor(u) ? mapsLink(mapsQueryFor(u)!) : null);
               return (
                 <div className="mb-3 rounded-xl bg-[#514636] text-white p-4">
                   <p className="text-xs uppercase tracking-wide text-white/70">Next · {inWords(toMin(u.time!) - nowMin())}</p>
-                  <p className="text-lg leading-snug mt-1">{u.kind === "block" ? timeLabel(u) : clock(u.time)} · {itemTitle(u, stays, date)}</p>
-                  {u.kind === "block" && <p className="text-sm text-white/80 mt-1">From Larisa's plan for the day</p>}
+                  <p className="text-lg leading-snug mt-1">{u.kind === "block" ? timeLabel(u) : clock(u.time)} · {itemTitle(u, stays, date)}{pickOpt ? ` — ${pickOpt.name}` : ""}</p>
+                  {/* Whose is what: her plan lists the places; the pick was made in Wander (round 7: "added in
+                      Wander by Ken" then "From Larisa's plan" read as if the pick were hers) */}
+                  {pick && pickOpt && (
+                    <p className="text-sm text-white/85 mt-1">
+                      Her plan lists {opts.length} places · {pick._pending ? `you picked ${pickOpt.name} (on this phone until there's signal)` : `${pick.addedBy} picked ${pickOpt.name} for the group, in Wander`}
+                    </p>
+                  )}
+                  {opts.length > 0 && !pick && <p className="text-sm text-white/85 mt-1">{opts.length} places to choose from — see her plan below</p>}
+                  {tabsDiffer(u).map((d) => <p key={d} className="text-sm text-[#f3d9a8] mt-1">Her tabs differ — {d.replace(/^her /, "")}</p>)}
+                  {!pick && <p className="text-sm text-white/80 mt-1">{u.kind === "block" ? "From Larisa's plan for the day" : friendlySource(u.source)}</p>}
                   {u.confirmation && <p className="text-sm text-white/80 mt-1">Confirmation {u.confirmation}</p>}
-                  {q && (
-                    <a href={mapsLink(q)} className="inline-flex items-center min-h-[44px] text-sm underline underline-offset-2">
+                  {mapHref && (
+                    <a href={mapHref} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm underline underline-offset-2">
                       Find in Maps ↗
                     </a>
                   )}
@@ -624,6 +775,26 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 </p>
               );
             })()}
+            {/* A day with her detailed plan: the plan leads (round 6 — "See Larisa's full plan" landed on a
+                hotel's cancellation paragraph); her Itinerary line for the day sits in its header, as hers */}
+            {planBlocks.length > 0 && (
+              <PlanSection
+                blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight}
+                picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
+                onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}
+                onUndo={removeChoice}
+                tellName={owner && me !== owner ? owner : null}
+                onTell={async (c) => {
+                  // "we picked Omen for your "Lunch" line", not "Lunch: Omen"
+                  const [line, ...rest] = c.text.split(": ");
+                  setNotice(await sendToGuideOwner(owner!, planMessage(owner!, { ...c, text: `we picked ${rest.join(": ")} for your "${line}" line` }, me)));
+                }}
+                nowAt={isToday ? nowMin() : null}
+              />
+            )}
+            {planBlocks.length > 0 && otherItems.length > 0 && (
+              <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Also in her Guide for today</h2>
+            )}
             {dayItems.length === 0 && choices.length === 0 && planBlocks.length === 0 ? (
               day?.dayType === "guided" ? null : (
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4">
@@ -632,28 +803,19 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               )
             ) : (
               <ol className="space-y-2">
-                {dayItems.map((i) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={dayItems} />)}
+                {otherItems.map((i) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} />)}
               </ol>
-            )}
-
-            {/* Her detailed plan for the day, from a day tab — in her order, her times as she wrote them */}
-            {planBlocks.length > 0 && (
-              <PlanSection
-                blocks={planBlocks} me={me} highlight={highlight} city={cityName}
-                picked={new Set(choices.map((c) => c.text))}
-                onPick={(text, time, replacing) => pickChoice(text, time, replacing)}
-              />
             )}
 
             {/* Same-day plans added in Wander — the group's own, beside the Guide */}
             <section className="mt-5">
               {!choicesChecked && <p className="text-sm text-[#6b5d4a] mb-2" role="status">Checking for plans added in Wander…</p>}
-              {choices.length > 0 && (
+              {ownPlans.length > 0 && (
                 <>
                   <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Added in Wander</h2>
                   <ul className="space-y-2">
                     {/* In the order they'll happen: times first (2:30 before 3:00), then plans with no time */}
-                    {[...choices].sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || "").localeCompare(b.time || "")).map((c) => (
+                    {[...ownPlans].sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || "").localeCompare(b.time || "")).map((c) => (
                       <li key={c.id} className="bg-white rounded-xl border border-[#e0d8cc] p-3">
                         <div className="flex gap-3">
                           <div className="w-16 shrink-0 text-right text-sm font-medium text-[#3a3128]">{c.time ? clock(c.time) : <span className="text-[#6b5d4a]" aria-hidden>✦</span>}</div>
@@ -819,6 +981,15 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day }: {
   const split = bothLeaving.length > 1;
   const ownHotel = i.title.replace(/^Check out · /, "");
   const tone = over ? "bg-[#f4efe7] border-[#e0d8cc]" : deadline ? "bg-[#fff8ec] border-[#e8c98f]" : maybe ? "bg-white/60 border-dashed border-[#d6ccbc]" : "bg-white border-[#e0d8cc]";
+  // Her quoted policy ("Worked out from: …") is the why, not the what — one tap away, not a wall of text
+  const [showWhy, setShowWhy] = useState(false);
+  const differ = tabsDiffer(i);
+  const allLines = (windowWords ? (i.detail || "").replace(/^Any day from [^\n]*\n?/, "") : (i.detail || "")).split("\n");
+  const whyAt = allLines.findIndex((l) => l.startsWith("Worked out from:"));
+  const shown = allLines.filter((l, n) => l && !l.startsWith("Tabs differ: ") && (whyAt < 0 || n < whyAt));
+  const why = whyAt >= 0 ? allLines.slice(whyAt).join("\n") : "";
+  // A to-do whose window closed: say plainly Wander can't know whether it was done
+  const couldBeDone = over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title);
   return (
     <li id={`item-${i.id}`} className={`rounded-xl border p-3 transition-shadow ${tone} ${highlight ? "ring-2 ring-[#c8a060] shadow-md" : ""}`}>
       <div className="flex gap-3">
@@ -836,11 +1007,15 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day }: {
         </div>
         <div className="flex-1 min-w-0">
           <p className={`text-[15px] leading-snug ${over ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
-            {deadline && <span className="font-medium">{over ? "Passed · " : "Deadline · "}</span>}{itemTitle(i, stays, date)}
+            {deadline && <span className="font-medium">{over ? "Ended · " : "Deadline · "}</span>}{itemTitle(i, stays, date)}
           </p>
-          {deadline && (windowWords || time) && (
-            <p className="text-sm text-[#8a5a1a] mt-1">{over ? `Ended ${time || ""}`.trim() : [windowWords, time].filter(Boolean).join(" · ")}</p>
+          {deadline && (over || windowWords || time) && (
+            <p className="text-sm text-[#8a5a1a] mt-1">
+              {over ? `Ended ${time || ""}`.trim() + "." : [windowWords, time].filter(Boolean).join(" · ")}
+              {couldBeDone && " Wander can't tell whether it was done — ask Larisa if you're not sure."}
+            </p>
           )}
+          {differ.map((d) => <p key={d} className="text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">Her tabs differ — {d.replace(/^her /, "")}</p>)}
           {split && (
             <ul className="text-sm text-[#3a3128] mt-1 space-y-0.5">
               {bothLeaving.map((s) => {
@@ -859,10 +1034,10 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day }: {
           {/* Only a booked meal (a place or a confirmation) is missing a time; "Dinner on our own" isn't */}
           {i.kind === "meal" && !i.time && (i.confirmation || i.place) && <p className="text-sm text-[#6b5d4a] mt-1">No time in the Guide.</p>}
           {/* The window was just said above ("Any day through Wed, Oct 14") — not twice */}
-          {(() => {
-            const detail = windowWords ? (i.detail || "").replace(/^Any day from [^\n]*\n?/, "") : i.detail;
-            return detail ? <GuideText text={detail} className="text-sm text-[#6b5d4a] mt-1" /> : null;
-          })()}
+          {shown.length > 0 && <GuideText text={shown.join("\n")} className="text-sm text-[#6b5d4a] mt-1" />}
+          {why && (showWhy
+            ? <GuideText text={why} className="text-sm text-[#6b5d4a] mt-1" />
+            : <button onClick={() => setShowWhy(true)} className="min-h-[44px] text-sm text-[#514636]">Why this date? ›</button>)}
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs">
             {i.forWhom && <span className="text-[#514636]">{/^everyone$/i.test(i.forWhom) ? "Everyone" : isFor(i, me) ? `Yours · ${i.forWhom}` : `For ${i.forWhom}`}</span>}
             {i.confirmation && !split && <span className="text-[#514636] [overflow-wrap:anywhere]">Confirmation {i.confirmation}</span>}
@@ -872,8 +1047,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day }: {
               {i.place ? `${i.place} ↗` : "Find in Maps ↗"}
             </a>
           )}
-          {i.link && !q && (
-            <a href={i.link} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Link ↗</a>
+          {i.link && (
+            <a href={unwrapSearchLink(i.link)} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] ml-3 first:ml-0 text-sm text-[#514636] underline underline-offset-2">{linkLabel(unwrapSearchLink(i.link))} ↗</a>
           )}
           <p className="text-xs text-[#6b5d4a] mt-1">{friendlySource(i.source)}</p>
         </div>

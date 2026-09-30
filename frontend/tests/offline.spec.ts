@@ -123,16 +123,23 @@ test("chat panel close button is a chevron that preserves messages (requires bac
   await scoutTab.click();
   await expect(page.getByRole("dialog", { name: "Scout" })).toBeVisible();
 
-  // The chevron makes Scout small (it doesn't throw the conversation away)
+  // With a conversation, the chevron makes Scout small (it doesn't throw the conversation away). With no
+  // conversation yet there is nothing to keep, so the panel offers only ✕ (the design since Sep 28) — which
+  // case this phone is in depends on whether this person talked to Scout earlier today.
   const minimizeBtn = page.getByRole("button", { name: "Make Scout small" });
-  await expect(minimizeBtn).toBeVisible();
-  const pathD = await minimizeBtn.locator("svg path").getAttribute("d");
-  expect(pathD).toContain("6 9");  // Chevron path
-  await minimizeBtn.click();
+  if (await minimizeBtn.isVisible()) {
+    const pathD = await minimizeBtn.locator("svg path").getAttribute("d");
+    expect(pathD).toContain("6 9");  // Chevron path
+    await minimizeBtn.click();
+  } else {
+    await page.getByRole("button", { name: "Close Scout" }).click();
+  }
 
-  // No conversation yet: the panel goes, and the Scout tab brings it back
+  // Either way the panel goes, and the Scout tab brings it back
   await expect(page.getByRole("dialog", { name: "Scout" })).not.toBeVisible();
   await expect(scoutTab).toBeVisible();
+  await scoutTab.click();
+  await expect(page.getByRole("dialog", { name: "Scout" })).toBeVisible();
 });
 
 // ── Offline indicator shows when offline ───────────────────────

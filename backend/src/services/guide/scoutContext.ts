@@ -57,7 +57,20 @@ function zonedMoment(date: string, minutes: number, zone: string): Date {
   }
 }
 
+/** The Guide for Scout as one text (both parts) — for scripts and checks. */
 export async function buildGuideContext(tripId: string, opts: { phoneZone?: string; now?: Date } = {}): Promise<string> {
+  const { stable, live } = await buildGuideContextParts(tripId, opts);
+  return stable && live ? `${stable}\n\n${live}` : stable;
+}
+
+/**
+ * The Guide for Scout in two parts. "stable" is the plan itself — the same for everyone until her copy is
+ * read again or someone adds a plan — so it's cached and costs a tenth to reuse. "live" is what depends on
+ * this moment or this phone (deadline statuses now, who is in the air now, when Wander last read it in the
+ * asker's own clock); it goes after the cached part. Mixed together, every question re-stored the whole
+ * Guide (~64,000 tokens at 1.25x).
+ */
+export async function buildGuideContextParts(tripId: string, opts: { phoneZone?: string; now?: Date } = {}): Promise<{ stable: string; live: string }> {
   const [trip, snapshot, items, stays, days, ideas, notes] = await Promise.all([
     prisma.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true, endDate: true, timeZone: true } }),
     prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { sourceName: true, importedAt: true } }),
@@ -70,16 +83,20 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
     }),
     prisma.sheetNote.findMany({ where: { tripId }, orderBy: [{ tabName: "asc" }, { rowIndex: "asc" }], select: { tabName: true, text: true } }),
   ]);
-  if (!trip || !snapshot) return "";
+  if (!trip || !snapshot) return { stable: "", live: "" };
 
   const out: string[] = [];
+  const live: string[] = [];
   out.push(`TRIP: ${trip.name}, ${ymd(trip.startDate)} to ${ymd(trip.endDate)}. Local time zone in Japan: ${trip.timeZone || "Asia/Tokyo"}.`);
   // Written out already in the phone's own time zone, as every Wander screen shows it
   let readWords = snapshot.importedAt.toISOString().slice(0, 10);
   try {
     readWords = snapshot.importedAt.toLocaleString("en-US", { timeZone: opts.phoneZone || trip.timeZone || "Asia/Tokyo", weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
   } catch { /* unknown zone: keep the plain date */ }
-  out.push(`Wander's copy of Larisa's Guide: "${snapshot.sourceName.replace(/\.xlsx$/i, "")}", last read ${readWords} (the phone's own time; say it exactly like that). Larisa keeps the Guide; it may have changed since.`);
+  out.push(`Wander's copy of Larisa's Guide: "${snapshot.sourceName.replace(/\.xlsx$/i, "")}" (when Wander last read it is under RIGHT NOW, at the end). Larisa keeps the Guide; it may have changed since.`);
+  // What depends on the moment or the asker's phone goes in "live", after the cached part — so the Guide
+  // itself stays byte-for-byte the same across people and hours, and is read from cache (a tenth of the price)
+  live.push(`Wander last read Larisa's Guide ${readWords} (the phone's own time; say it exactly like that).`);
 
   // Who is on this trip in Wander (People shows the same list) — the Guide's travelers, plus anyone let in
   const [members, pending] = await Promise.all([
@@ -138,12 +155,31 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
     const k = ymd(i.date) || "undated";
     itemsByDate.set(k, [...(itemsByDate.get(k) || []), i]);
   }
+  // Who hasn't reached Japan yet on each Japan date, said on that date itself — Scout told Julie "the 13th is
+  // the day you and Andy are in the air" (Japan's Oct 13 is before they leave home; they fly on California's)
+  const tripZoneForDays = trip.timeZone || "Asia/Tokyo";
+  const arrivals = items
+    .filter((f) => f.kind === "flight" && !/^Land at/i.test(f.title) && f.time && f.date && f.forWhom && !/^everyone$/i.test(f.forWhom)
+      && (f.timeZone || tripZoneForDays) !== tripZoneForDays)
+    .map((f) => {
+      const departs = zonedMoment(ymd(f.date), toMin(f.time), f.timeZone || tripZoneForDays);
+      return { who: f.forWhom!, departs, departJapanDay: departs.toLocaleDateString("en-CA", { timeZone: tripZoneForDays }) };
+    });
   for (const d of days) {
     const k = ymd(d.date);
     out.push(`${weekday(k)} (${k}) — ${d.city.name}${d.dayType === "guided" ? ", with Backroads" : ""}`);
+    for (const a of arrivals) {
+      if (k < a.departJapanDay) out.push(`  - [WHERE: on this Japan date ${a.who} are NOT in Japan and NOT traveling — still at home; their flight takes off ${momentWords(a.departs, tripZoneForDays)}]`);
+    }
     // Mornings when two places from an open night both "check out": the time and code belong to one of them only
     const leavingHere = stays.filter((s) => ymd(s.checkOutDate) === k);
     const noOwner = ownerlessInSplit(itemsByDate.get(k) || []);
+    // A check-out time is the latest they can leave, not when they will: "8:30 AM meet Backroads,
+    // noon check out" once read as a timeline. Say so where anything the same day comes before it
+    // (Home and Now show "Morning" for the same case — lib/guideDisplay.ts checkoutBeforeFirst).
+    const earliestOther = (itemsByDate.get(k) || [])
+      .filter((x) => x.time && !["checkout", "checkin", "deadline", "weather", "stop"].includes(x.kind) && !(x.kind === "flight" && /^Land at/i.test(x.title)))
+      .map((x) => x.time!).sort()[0];
     for (const i of itemsByDate.get(k) || []) {
       const openCheckout = i.kind === "checkout" && leavingHere.length > 1
         ? `[OPEN QUESTION: the night before, the Guide lists ${leavingHere.map((s) => s.name).join(" and ")}. This time/code is ${i.title.replace(/^Check out · /, "")}'s only; say "check out of whichever you're in" and give each hotel's own details]`
@@ -157,6 +193,9 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
         i.detail ? `— ${i.detail}` : null,
         i.place ? `at ${i.place}` : null,
         i.forWhom ? `For ${i.forWhom}` : null,
+        i.kind === "checkout" && i.time && earliestOther && earliestOther < i.time
+          ? `[${clockOf(toMin(i.time))} is the hotel's LATEST check-out, not when they check out: this day's plan already has a line at ${clockOf(toMin(earliestOther))}. Never list check-out as a ${clockOf(toMin(i.time))} step after that line; say "the hotel's check-out is by ${clockOf(toMin(i.time))}", and if a plan line says when she has them checking out, give that line's time as hers]`
+          : null,
         noOwner.has(i.id) ? "[WHOSE: NOT STATED — the group is split at this time and this line names no one. Never say or imply which group it belongs to, and never list it as part of anyone's track or plan; say her tab doesn't say whose it is]" : null,
         i.confirmation ? `Confirmation ${i.confirmation}` : null,
         openCheckout,
@@ -205,8 +244,8 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
       lines.push(`  - ${i.title}${i.forWhom ? ` (For ${i.forWhom})` : ""}: ${status}`);
     }
     if (lines.length) {
-      out.push("\nDEADLINES — STATUS RIGHT NOW (already worked out from the phone's clock; for anything about cancelling, charges or reconfirming, use ONLY these — never work out a policy's dates yourself):");
-      out.push(...lines);
+      live.push("DEADLINES — STATUS RIGHT NOW (already worked out from the phone's clock; for anything about cancelling, charges or reconfirming, use ONLY these — never work out a policy's dates yourself):");
+      live.push(...lines);
     }
   }
 
@@ -215,6 +254,7 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
   // before their noon departure.
   const tripZone = trip.timeZone || "Asia/Tokyo";
   const windows: string[] = [];
+  const travelNow: string[] = [];
   for (const f of items) {
     if (f.kind !== "flight" || /^Land at/i.test(f.title) || !f.time || !f.date) continue;
     const departZone = f.timeZone || tripZone;
@@ -233,14 +273,23 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
     const parts = [`- ${who} — ${f.title}: departs ${momentWords(departs, departZone)} (= ${momentWords(departs, other)})`];
     if (lands) parts.push(`lands at ${landPlace} ${momentWords(lands, landZone)} (= ${momentWords(lands, landZone === "Asia/Tokyo" ? "America/Los_Angeles" : "Asia/Tokyo")})`);
     parts.push(`IN THE AIR only between those two moments; before departure they are NOT traveling yet${lands ? "; after landing they are at the destination" : ""}`);
+    // The whole Japan calendar day before a Japan-bound departure, said outright: Scout once told Julie
+    // "on the 13th you and Andy are still flying" — on Japan's Oct 13 they hadn't left home
+    if (lands && landZone === tripZone && departZone !== tripZone) {
+      const departJapanDay = departs.toLocaleDateString("en-CA", { timeZone: tripZone });
+      const dayBefore = new Date(`${departJapanDay}T00:00:00Z`);
+      dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+      const dayBeforeWords = dayBefore.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+      parts.push(`on Japan's ${dayBeforeWords} and every Japan day before it, ${who} are NOT traveling — they are still at home; the flight takes off ${momentWords(departs, tripZone)}`);
+    }
     if (opts.now) {
       const status = opts.now < departs ? "hasn't left yet" : lands && opts.now < lands ? "IN THE AIR" : lands ? "has landed" : "has departed";
-      parts.push(`at the moment of this question: ${status}`);
+      travelNow.push(`- ${who} — ${f.title}: ${status}`);
     }
     windows.push(parts.join("; "));
   }
   if (windows.length) {
-    out.push("\nTRAVEL WINDOWS (worked out from the Guide's flights in both zones — before saying anyone is traveling, in the air, or somewhere at a given moment, compare THAT moment with these):");
+    out.push("\nTRAVEL WINDOWS (worked out from the Guide's flights in both zones — before saying anyone is traveling, in the air, or somewhere at a given moment, compare THAT moment with these; where each flight stands right now is under RIGHT NOW, at the end):");
     out.push(...windows);
   }
 
@@ -293,5 +342,6 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
       lastTab = n.tabName;
     }
   }
-  return out.join("\n");
+  if (travelNow.length) live.push("FLIGHTS — WHERE EACH STANDS RIGHT NOW:", ...travelNow);
+  return { stable: out.join("\n"), live: live.join("\n") };
 }

@@ -21,12 +21,13 @@ describe("Message for Larisa only when asked", () => {
   });
 
   it("keeps it when they say yes to Scout's own offer", () => {
-    const history = [{ role: "user", content: "which haruka?" }, { role: "assistant", content: "Want me to draft a note to Larisa asking?" }];
+    // The shape the app sends (ChatBubble): { role, text }
+    const history = [{ role: "user", text: "which haruka?" }, { role: "assistant", text: "Want me to draft a note to Larisa asking?" }];
     expect(withoutUnaskedDraft(answer + draft, "yes please", history, "Andy")).toBe(answer + draft);
   });
 
   it("a yes to something else isn't a yes to a draft", () => {
-    const history = [{ role: "assistant", content: "Want me to open Oct 29?" }];
+    const history = [{ role: "assistant", text: "Want me to open Oct 29?" }];
     expect(withoutUnaskedDraft(answer + draft, "yes", history, "Ken")).toBe(answer);
   });
 

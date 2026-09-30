@@ -2,7 +2,7 @@
  * Same-day plans added in Wander (see services/dayChoices.ts). Trip members only.
  *
  * GET    /api/day-choices/:tripId?date=YYYY-MM-DD
- * POST   /api/day-choices/:tripId   { date, text?, time?, experienceId? }
+ * POST   /api/day-choices/:tripId   { date, text?, time?, experienceId?, pickFor? }  (pickFor: one pick per plan line)
  * DELETE /api/day-choices/:tripId/:id
  */
 
@@ -31,9 +31,15 @@ router.post("/:tripId", async (req: AuthRequest, res) => {
   if (!(await member(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
   const result = await addDayChoice({ tripId, travelerId: req.user!.travelerId!, ...req.body });
   if (!result.ok) { res.status(result.status).json({ error: result.error }); return; }
+  // A change of mind is one event in History ("switched Lunch to Omen"), not a take-off and an add
+  const pickFor = typeof req.body?.pickFor === "string" ? req.body.pickFor.trim() : "";
+  const picked = pickFor ? result.choice.text.slice(pickFor.length + 2) : "";
   logChange({
     tripId, user: req.user!, actionType: "day_choice_added", entityType: "day_choice", entityId: result.choice.id,
-    entityName: result.choice.text, description: `added "${result.choice.text}" to ${plainDay(result.choice.date)}`,
+    entityName: result.choice.text,
+    description: pickFor
+      ? (result.replaced?.length ? `switched "${pickFor}" to ${picked} on ${plainDay(result.choice.date)}` : `picked ${picked} for "${pickFor}" on ${plainDay(result.choice.date)}`)
+      : `added "${result.choice.text}" to ${plainDay(result.choice.date)}`,
     newState: result.choice,
   }).catch(() => {});
   res.status(201).json(result.choice);

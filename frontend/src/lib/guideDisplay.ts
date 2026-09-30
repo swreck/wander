@@ -114,8 +114,13 @@ export function timeLabel(i: GuideItem, day?: GuideItem[]) {
   if (!i.time) return "";
   if (i.kind === "checkout") return checkoutBeforeFirst(i, day) ? "Morning" : `by ${clock(i.time)}`;
   if (i.kind === "checkin") return checkinAfterLanding(i, day) ? "After landing" : `from ${clock(i.time)}`;
-  // A day-plan time she marked as rough ("~10:15") keeps her "~"
-  if (i.kind === "block" && (/^~/.test(i.timeText || "") || (i.detail || "").includes("Times are Larisa's estimate."))) return `~${clock(i.time)}`;
+  // A line of her day plan: her own words for the time when they're short ("~12:30–1:00", "9:15–10:30") —
+  // Home cut her ranges to a start time, and the Haruka's range is the very thing her tabs disagree on
+  if (i.kind === "block") {
+    const t = (i.timeText || "").trim();
+    if (t && t.length <= 12 && !/^\d{2}:\d{2}(:00)?$/.test(t)) return t;
+    if (/^~/.test(t) || (i.detail || "").includes("Times are Larisa's estimate.")) return `~${clock(i.time)}`;
+  }
   return clock(i.time);
 }
 
@@ -282,7 +287,8 @@ const ZONE_WORDS: Record<string, string> = { "America/Los_Angeles": "California 
 export function deadlineOver(i: GuideItem, tripZone: string, now = new Date()) {
   if (i.kind !== "deadline" || !i.date) return false;
   const at = deadlineMinutes(i) ?? 24 * 60 - 1;
-  return now.getTime() > zonedMoment(ymd(i.date), at, tripZone).getTime();
+  // "Ends 3:00 PM" holds through 3:00 itself — over from 3:01 (it read "Passed" at 3:00:00)
+  return now.getTime() >= zonedMoment(ymd(i.date), at, tripZone).getTime() + 60_000;
 }
 
 /** A deadline worth showing on this date: its day, or any day of its window ("any day Oct 10–14"). */
@@ -478,6 +484,14 @@ export function friendlySource(source: string) {
  */
 export function mapsQueryFor(i: GuideItem): string | null {
   if (i.place) return i.place;
+  // A booked meal: its name with the street part of her address column ("Address: Hassun · 京都府… · (5 min walk…)")
+  if (i.kind === "meal") {
+    const addr = (i.detail || "").match(/^Address: ([^\n]+)/m)?.[1];
+    if (!addr) return null;
+    const segs = addr.split(" · ").map((s) => s.trim()).filter((s) => s && !/^\(/.test(s));
+    const street = segs.find((s) => /\d/.test(s)) || segs[0];
+    return street ? `${i.title.split("\n")[0]}, ${street}` : null;
+  }
   if (i.kind !== "meeting" && i.kind !== "tour") return null;
   // The place in her words: "Meet Backroads 8:30a Courtyard by Marriott Tokyo Station" → "Courtyard by Marriott Tokyo Station"
   let text = i.title.replace(/~?\b\d{1,2}(:\d{2})?\s*-?\s*\d{0,2}(:\d{2})?\s*[ap]m?\b/gi, " ").replace(/\bmeet(ing)?\b/gi, " ").replace(/\s{2,}/g, " ").trim();
@@ -490,6 +504,84 @@ export function mapsQueryFor(i: GuideItem): string | null {
 }
 
 export const mapsLink = (q: string) => `https://maps.apple.com/?q=${encodeURIComponent(q)}`;
+
+/** What a link opens, in words ("Link ↗" said nothing): "Michelin page", "Booking page", "Map", "Website" */
+export function linkLabel(url: string): string {
+  if (/michelin/i.test(url)) return "Michelin page";
+  if (/tablecheck|pocket-concierge|omakase|opentable|resy|booking|reserv/i.test(url)) return "Booking page";
+  if (/maps\.(apple|google)|google\.[a-z.]+\/maps|goo\.gl\/maps|maps\.app/i.test(url)) return "Map";
+  if (/tabelog/i.test(url)) return "Tabelog page";
+  return "Website";
+}
+
+// Words that don't pick out one place ("lunch", "taxi") — two lines sharing only these aren't the same thing
+const PLAN_WORDS = new Set(["hotel", "the", "ryokan", "residence", "tokyo", "kyoto", "resort", "inn", "and", "lunch", "dinner",
+  "breakfast", "brunch", "light", "reservation", "visit", "stop", "return", "leave", "taxi", "board", "reserved", "arrive",
+  "depart", "check", "collect", "luggage", "complimentary", "transfer", "station", "market", "street", "walk", "with", "from",
+  "into", "back", "toward", "towards", "optional", "easy", "focused", "additional", "traditional", "private", "shower",
+  "change", "rest", "split", "groups", "tour", "day", "trip", "then", "after", "before", "early", "late", "time", "flight",
+  "train", "gallery", "cafe", "museum", "shop", "michelin", "star", "stars", "japanese", "style"]);
+/** "Café ENSOU lunch" → ["ensou"] (the same rule the Guide reader uses to see two tabs name one thing) */
+export function distinctWords(s: string): string[] {
+  return Array.from(new Set(s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    .split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !PLAN_WORDS.has(w) && !/^\d+$/.test(w))));
+}
+/** Two lines about the same thing: they share a word that names it ("Hassun" and "Hassun — Michelin 1★…") */
+export const sameThing = (a: string, b: string) => { const w = distinctWords(b); return distinctWords(a).some((x) => w.includes(x)); };
+
+/**
+ * A line of her plan said again at the same time as another Guide line: it names the same thing
+ * ("Hassun — Michelin…" beside Hassun) or is only a general word ("Flight" beside UA34 at 6:35 PM).
+ */
+export const saidAgain = (block: GuideItem, other: GuideItem) =>
+  !!block.time && block.time === other.time && (sameThing(other.title, block.title)
+    // only a one- or two-word general line ("Flight") — "Complimentary Residence transfer to Kyoto Station"
+    // also has no distinctive word, and was taken for the noon check-out said again
+    || (distinctWords(block.title).length === 0 && block.title.trim().split(/\s+/).length <= 2));
+
+const hm = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+/** When a line of her plan ends: its own end, else when her next timed line starts, else half an hour on */
+export function planLineEnd(b: GuideItem, blocks: GuideItem[]): number {
+  if (b.endTime) return hm(b.endTime);
+  const start = hm(b.time!);
+  const next = blocks.filter((x) => x.time && hm(x.time) > start).map((x) => hm(x.time!)).sort((a, c) => a - c)[0];
+  return next ?? start + 30;
+}
+/**
+ * The line her plan has you on right now: your name on it, or nobody's outside a split — never a line
+ * whose group isn't named. One rule for Home, Now and the day screen ("~11:30 Collect luggage" has no end
+ * time; it runs until her next line).
+ */
+export function currentPlanLine(blocks: GuideItem[], nowMin: number, me: string | null | undefined): GuideItem | undefined {
+  const noOwner = ownerlessInSplit(blocks);
+  return blocks.filter((b) => b.time && hm(b.time) <= nowMin && nowMin < planLineEnd(b, blocks) && isFor(b, me) && !noOwner.has(b.id))
+    .sort((a, c) => hm(a.time!) - hm(c.time!)).pop();
+}
+
+/**
+ * The line under way right now that names no one while the group is split (Maruni Toryo 10:35–11:35 on
+ * Oct 28) — said as "now", with its group left unsaid. Round 7: at 10:40 Home and Now said nothing at all.
+ */
+export function currentUnownedLine(blocks: GuideItem[], nowMin: number): GuideItem | undefined {
+  const noOwner = ownerlessInSplit(blocks);
+  return blocks.filter((b) => b.time && noOwner.has(b.id) && hm(b.time) <= nowMin && nowMin < planLineEnd(b, blocks))
+    .sort((a, c) => hm(a.time!) - hm(c.time!)).pop();
+}
+
+/** Her pasted map links can be a Google search of a Maps address — the Maps address is what she meant */
+export function unwrapSearchLink(url: string): string {
+  try {
+    const u = new URL(url);
+    if (/(^|\.)google\.[a-z.]+$/i.test(u.hostname) && u.pathname === "/search") {
+      const q = u.searchParams.get("q") || "";
+      if (/^https?:\/\//i.test(q)) return q;
+    }
+  } catch { /* not a URL */ }
+  return url;
+}
+
+/** Her words that differ between tabs, on the line itself ("Tabs differ: her Itinerary tab says …") */
+export const tabsDiffer = (i: GuideItem) => (i.detail || "").split("\n").filter((l) => l.startsWith("Tabs differ: ")).map((l) => l.slice(13));
 
 /** A hotel is found by its name and city ("Imperial Hotel, Tokyo, Japan"). A bare district address
  *  ("Chiyoda City") put the pin on the Imperial Palace grounds, over a kilometre away. */

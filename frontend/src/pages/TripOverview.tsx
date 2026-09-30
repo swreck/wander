@@ -721,13 +721,13 @@ export default function TripOverview() {
             No signal — showing what this phone saved {savedAtWords(unreachableSince)}.
           </p>
         )}
-        {/* Face ID offer first — it only shows until it's set up or dismissed, and a first-timer
-            in a hurry may never scroll to it (on a device that signed in some other way) */}
+        <TripGlance tripId={trip.id} />
+
+        {/* Face ID offer right under Today — it only shows until it's set up or dismissed. Above Today it
+            arrived a moment late and shoved the day's plan half a screen down (round 6). */}
         <FaceIdSetup variant="card" />
         {/* In iPhone Safari with Face ID set up: the Home Screen icon (it signs in with Face ID) */}
         {faceIdHere && <AddToHomeScreen variant="card" />}
-
-        <TripGlance tripId={trip.id} />
 
         {/* Calendar / At-a-Glance toggle */}
         {tripPhase !== "past" && (trip.datesKnown !== false ? (

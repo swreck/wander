@@ -35,7 +35,12 @@ test("chat clear button requires confirmation (requires backend)", async ({ page
   await scoutTab.click();
   await expect(page.getByRole("dialog", { name: "Scout" })).toBeVisible();
 
-  // Say something so "Start fresh" appears
+  // Say something so "Start fresh" appears. Scout's answer is canned here: this tests the panel,
+  // not Scout, and a real answer costs money on every run (Ken, Sep 29)
+  await page.route("**/api/chat", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ reply: "A canned answer for the panel test.", actions: [], hasActions: false }),
+  }));
   const input = page.getByPlaceholder("Ask about the trip…");
   await input.fill("test message");
   await input.press("Enter");
