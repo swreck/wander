@@ -8,8 +8,8 @@
 
 import { describe, it, expect } from "vitest";
 import type { GuideCell, GuideTab } from "../src/services/guide/reader.js";
-import { interpretItinerary, parseStatedTimes, cityFromSection } from "../src/services/guide/itinerary.js";
-import { parseIdeasTab } from "../src/services/guide/importSnapshot.js";
+import { interpretItinerary, parseStatedTimes, cityFromSection, withoutStatedTime, mergeSameMoment } from "../src/services/guide/itinerary.js";
+import { parseIdeasTab, tidyItems } from "../src/services/guide/importSnapshot.js";
 
 let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 letters = [...letters, ...letters.map((l) => "A" + l)];
@@ -76,6 +76,11 @@ describe("cityFromSection", () => {
     expect(cityFromSection("Backroads - Tokyo->Nikko (Day 1-4)")).toBe("Nikko");
     expect(cityFromSection("Backroads - Kyoto (Day 6-8)")).toBe("Kyoto");
     expect(cityFromSection("Kyoto ")).toBe("Kyoto");
+    // Her working notes after the name (Sep 29 copy) — the city is still the city
+    expect(cityFromSection("Tokyo (day trip to Mashiko - 1.5 hrs Shinkansen) - ASK KENJI TO INTEGRATE THE 2 TOURS AND FINISH 3:45-4p AT TRAIN)")).toBe("Tokyo");
+    expect(cityFromSection("Hakata - NOT AN OVERNIGHT (travel through)")).toBe("Hakata");
+    expect(cityFromSection("Karatsu (tour Karatsu - coordinate pu for tour), day trip to Arita)")).toBe("Karatsu");
+    expect(cityFromSection("Okayama (day trip to Bizen - 40 min JR train) - WHERE IS BIZEN TOUR STARTING")).toBe("Okayama");
   });
 });
 
@@ -127,10 +132,12 @@ describe("interpretItinerary", () => {
   });
 
   it("turns the Notes column into a timed note on that date", () => {
+    // A time mid-sentence stays in her words; nothing else about the row (which hotel it sat beside) is shown
     const meet = r.items.find((i) => i.title === "Meet the guide 8:30a at the station")!;
     expect(meet.date).toBe("2026-05-02");
     expect(meet.time).toBe("08:30");
     expect(meet.kind).toBe("meeting");
+    expect(meet.detail).toBeNull();
   });
 
   it("reads an entry window from the description", () => {
@@ -160,6 +167,30 @@ describe("interpretItinerary", () => {
   });
 });
 
+describe("reading a line the way a traveler reads it", () => {
+  it("drops a time only when it opens the line — anywhere else her words stay as written", () => {
+    expect(withoutStatedTime("8:30a meet the guide")).toBe("Meet the guide");
+    expect(withoutStatedTime("6:30p flight - travel day")).toBe("Flight - travel day");
+    expect(withoutStatedTime("Meet the guide 8:30a at the station")).toBe("Meet the guide 8:30a at the station");
+    expect(withoutStatedTime("Museum (entry window: 11-11:30a)")).toBe("Museum (entry window: 11-11:30a)");
+    expect(withoutStatedTime("Ends: 11:30a hotel/12p station")).toBe("Ends: 11:30a hotel/12p station");
+    expect(withoutStatedTime("6:30p")).toBe("6:30p"); // nothing else to say — keep her words
+  });
+
+  it("merges two lines about the same moment into one, keeping the fuller wording and both sources", () => {
+    const base = { endTime: null, detail: null, place: null, confirmation: null, city: "Kyoto" };
+    const merged = mergeSameMoment([
+      { ...base, date: "2026-05-03", time: "08:30", kind: "meeting", title: "Meet the Zephyr group", sourceRef: "a", source: "Itinerary · Description (row 5)" },
+      { ...base, date: "2026-05-03", time: "08:30", kind: "meeting", title: "Meet the Zephyr group at the North Station lobby", sourceRef: "b", source: "Itinerary · Notes (row 7)" },
+      { ...base, date: "2026-05-03", time: "08:30", kind: "plan", title: "Breakfast downstairs", sourceRef: "c", source: "Itinerary · Description (row 6)" },
+      { ...base, date: "2026-05-04", time: "08:30", kind: "meeting", title: "Meet the Zephyr group", sourceRef: "d", source: "Itinerary · Description (row 8)" },
+    ]);
+    expect(merged).toHaveLength(3);
+    expect(merged[0].title).toBe("Meet the Zephyr group at the North Station lobby");
+    expect(merged[0].source).toBe("Itinerary · Description (row 5) + Itinerary · Notes (row 7)");
+  });
+});
+
 describe("Activities tab date marks", () => {
   const ACTIVITIES = tab("Activities Template", [
     { A: "b:Julie", B: "b:Andy", C: "b:Larisa", D: "b:Ken", E: "b:Kyoto - Activities", H: "b:Comment", J: "b:5/2/2026 (travel day)", K: "b:Day 1: 5/3/2026" },
@@ -178,5 +209,74 @@ describe("Activities tab date marks", () => {
     const tea = ideas.find((i) => i.name === "Tea house")!;
     expect(tea.dates).toEqual([]);
     expect(tea.marks).toEqual([{ date: "2026-05-03", text: "maybe", firm: false }]);
+  });
+});
+
+// ── The last pass over a day's items (made-up trip) ─────────────────────
+describe("tidyItems", () => {
+  const base = { endTime: null, detail: null, place: null, confirmation: null, forWhom: null, link: null, city: null, timeZone: "Asia/Tokyo", sourceRef: "x" };
+  const item = (o: Record<string, unknown>) => ({ ...base, ...o }) as any;
+
+  it("never gives a flight an end time, and uses the departure airport's time zone", () => {
+    const items = [item({ date: "2026-05-10", time: "18:35", endTime: "12:30", kind: "flight", title: "KIX - XX12 → SFO", timeZone: "America/Los_Angeles", source: "Itinerary (row 9)" })];
+    tidyItems(items, []);
+    expect(items[0].endTime).toBeNull();
+    expect(items[0].timeZone).toBe("Asia/Tokyo");
+  });
+
+  it("folds a day note that is really the flight into the flight, in her words", () => {
+    const items = [
+      item({ date: "2026-05-10", time: "18:35", kind: "flight", title: "Airline XX12 · Kansai (KIX) → San Francisco (SFO)", source: "Screenshot in Flights" }),
+      item({ date: "2026-05-10", time: "18:30", kind: "note", title: "Flight - travel day", source: "Itinerary (row 9)" }),
+      item({ date: "2026-05-10", time: "09:00", kind: "note", title: "Pack", source: "Itinerary (row 8)" }),
+    ];
+    tidyItems(items, []);
+    expect(items.map((i) => i.title)).toEqual(["Airline XX12 · Kansai (KIX) → San Francisco (SFO)", "Pack"]);
+    expect(items[0].detail).toContain('Larisa\'s note: "Flight - travel day"');
+  });
+
+  it("quotes her note exactly as written, time included", () => {
+    const items = [
+      item({ date: "2026-05-10", time: "18:35", kind: "flight", title: "Airline XX12 · Kansai (KIX) → San Francisco (SFO)", source: "Screenshot in Flights" }),
+      item({ date: "2026-05-10", time: "18:30", kind: "note", title: "Flight - travel day", said: "6:30p flight - travel day", source: "Itinerary · Description (row 9)" }),
+    ];
+    tidyItems(items, []);
+    expect(items[0].detail).toContain('Larisa\'s note: "6:30p flight - travel day"');
+  });
+
+  it("folds an untimed note on the flight's own row into that flight (and only that one)", () => {
+    const items = [
+      item({ date: "2026-05-01", time: "10:45", kind: "flight", forWhom: "Pat & Sam", title: "Airline XX35 · SFO → KIX", source: "Itinerary · travel (row 3) + Screenshot in Flights" }),
+      item({ date: "2026-05-01", time: null, kind: "note", title: "Part of Star Alliance", source: "Itinerary · Notes (row 3)" }),
+      item({ date: "2026-05-01", time: null, kind: "note", title: "Bring snacks", source: "Itinerary · Notes (row 4)" }),
+      item({ date: "2026-05-01", time: null, kind: "note", title: "Other tab's row 3", source: "Packing · Notes (row 3)" }),
+    ];
+    tidyItems(items, []);
+    expect(items.map((i) => i.title)).toEqual(["Airline XX35 · SFO → KIX", "Bring snacks", "Other tab's row 3"]);
+    expect(items[0].detail).toContain('Larisa\'s note: "Part of Star Alliance"');
+  });
+
+  it("leaves a note alone when its time is far from the flight", () => {
+    const items = [
+      item({ date: "2026-05-10", time: "18:35", kind: "flight", title: "Airline XX12 · KIX → SFO", source: "s" }),
+      item({ date: "2026-05-10", time: "10:00", kind: "note", title: "Flight check-in opens online", source: "s" }),
+    ];
+    tidyItems(items, []);
+    expect(items).toHaveLength(2);
+  });
+
+  it("drops a row that only repeats a confirmation code already on that day", () => {
+    const items = [
+      item({ date: "2026-05-01", time: "10:45", kind: "flight", title: "Airline XX35 · SFO → KIX", confirmation: "ABC123", source: "s" }),
+      item({ date: "2026-05-01", time: null, kind: "note", title: "confirmation: : ABC123", source: "s" }),
+    ];
+    tidyItems(items, []);
+    expect(items).toHaveLength(1);
+  });
+
+  it("keeps an open question open on other days that mention the same trip", () => {
+    const items = [item({ date: "2026-05-04", time: null, kind: "plan", title: "day trip to Mashiko", source: "Itinerary (row 20)" })];
+    tidyItems(items, [{ name: "Mashiko (ceramics town)", text: "if Julie isn't interested", date: "2026-05-03" }]);
+    expect(items[0].detail).toContain("Still open in the Guide: Mashiko (ceramics town) is also marked for Sun, May 3");
   });
 });

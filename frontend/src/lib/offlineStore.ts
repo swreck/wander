@@ -87,6 +87,61 @@ export async function getQueueCount(): Promise<number> {
 }
 
 /**
+ * What's still waiting to send, for one kind of request ("/api/day-choices/<trip>") — so a plan or a
+ * note saved with no signal still shows as waiting after Wander is closed and opened again.
+ */
+export async function queuedBodies(urlPart: string, method = "POST"): Promise<Array<Record<string, unknown> & { _url: string; _at: number }>> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const all: QueuedRequest[] = await new Promise((resolve, reject) => {
+      const req = tx.objectStore(STORE_NAME).getAll();
+      req.onsuccess = () => resolve(req.result as QueuedRequest[]);
+      req.onerror = () => reject(req.error);
+    });
+    return all
+      .filter((q) => q.method === method && q.url.includes(urlPart) && q.body)
+      .map((q) => {
+        try { return { ...(JSON.parse(q.body as string) as Record<string, unknown>), _url: q.url, _at: q.timestamp }; } catch { return null; }
+      })
+      .filter((x): x is Record<string, unknown> & { _url: string; _at: number } => !!x);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Take back something still waiting to send ("Undo" on a pick made with no signal) — otherwise it would
+ * go out later, after the person had changed their mind.
+ */
+export async function dropQueued(urlPart: string, matches: (body: Record<string, unknown>) => boolean, method = "POST"): Promise<number> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    let dropped = 0;
+    await new Promise<void>((resolve, reject) => {
+      const req = store.openCursor();
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (!cursor) return;
+        const q = cursor.value as QueuedRequest;
+        let body: Record<string, unknown> | null = null;
+        try { body = q.body ? JSON.parse(q.body) : null; } catch { body = null; }
+        if (q.method === method && q.url.includes(urlPart) && body && matches(body)) { cursor.delete(); dropped++; }
+        cursor.continue();
+      };
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    return dropped;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Attempt to replay all queued requests (called on reconnect).
  */
 export async function replayQueue(): Promise<{ success: number; failed: number }> {

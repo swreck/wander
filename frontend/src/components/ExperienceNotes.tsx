@@ -85,17 +85,17 @@ export default function ExperienceNotes({ experienceId, notes, onNotesChanged }:
                       autoFocus
                     />
                     <button onClick={() => handleUpdate(note.id)} disabled={saving} className="text-[#514636] font-medium">Save</button>
-                    <button onClick={() => setEditingId(null)} className="text-[#a89880]">✕</button>
+                    <button onClick={() => setEditingId(null)} className="text-[#6b5d4a]">✕</button>
                   </div>
                 ) : (
                   <div className="flex items-start gap-1">
-                    <span className={isMine ? "text-[#3a3128]" : "text-[#8a7a62] italic"}>
+                    <span className={isMine ? "text-[#3a3128]" : "text-[#6b5d4a] italic"}>
                       <span className="font-medium">{note.traveler.displayName}:</span> {note.content}
                     </span>
                     {isMine && (
                       <button
                         onClick={() => { setEditingId(note.id); setEditContent(note.content); }}
-                        className="text-[#c8bba8] hover:text-[#8a7a62] shrink-0 ml-1"
+                        className="text-[#6b5d4a] hover:text-[#6b5d4a] shrink-0 ml-1"
                         title="Edit"
                       >✎</button>
                     )}
@@ -125,14 +125,14 @@ export default function ExperienceNotes({ experienceId, notes, onNotesChanged }:
                 className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
                   visibility === "group"
                     ? "border-[#514636] text-[#514636] bg-[#faf8f5]"
-                    : "border-[#c8bba8] text-[#8a7a62]"
+                    : "border-[#c8bba8] text-[#6b5d4a]"
                 }`}
               >
                 {visibility === "group" ? "For group" : "Just for me"}
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => { setDrafting(false); setDraft(""); }} className="text-xs text-[#a89880]">Cancel</button>
+              <button onClick={() => { setDrafting(false); setDraft(""); }} className="text-xs text-[#6b5d4a]">Cancel</button>
               <button
                 onClick={handleSave}
                 disabled={saving || !draft.trim()}
@@ -146,7 +146,7 @@ export default function ExperienceNotes({ experienceId, notes, onNotesChanged }:
       ) : (
         <button
           onClick={() => setDrafting(true)}
-          className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors"
+          className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
         >
           {sorted.length > 0 ? "Add a note" : "Add a note about this"}
         </button>

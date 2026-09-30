@@ -107,7 +107,7 @@ export default function NewMemberOnboarding({
         <h2 className="text-xl font-light text-[#3a3128] mb-1">
           Welcome to {tripName}!
         </h2>
-        <p className="text-sm text-[#8a7a62] mb-6">
+        <p className="text-sm text-[#6b5d4a] mb-6">
           Scout is your travel companion &mdash; here to help you explore, plan, and keep track of everything along the way.
         </p>
 
@@ -143,20 +143,20 @@ export default function NewMemberOnboarding({
           <div className="flex gap-2">
             <button
               onClick={handleRemindLater}
-              className="flex-1 py-2 text-sm text-[#8a7a62] hover:text-[#3a3128] transition-colors"
+              className="flex-1 py-2 text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
             >
               Remind me later
             </button>
             <button
               onClick={handleSkip}
-              className="flex-1 py-2 text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+              className="flex-1 py-2 text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
             >
               Skip for now
             </button>
           </div>
         </div>
 
-        <p className="text-xs text-[#c8bba8] text-center mt-4">
+        <p className="text-xs text-[#6b5d4a] text-center mt-4">
           You can always update this in Settings
         </p>
       </div>

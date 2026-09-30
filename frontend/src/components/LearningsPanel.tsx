@@ -186,7 +186,7 @@ export default function LearningsPanel({ tripId, travelerId, isOpen, onClose }: 
           <span className="text-sm font-medium text-[#3a3128]">Trip learnings</span>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3]"
+            className="p-1.5 rounded-lg text-[#6b5d4a] hover:bg-[#f0ebe3]"
             aria-label="Close learnings panel"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -208,7 +208,7 @@ export default function LearningsPanel({ tripId, travelerId, isOpen, onClose }: 
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 scopeFilter === value
                   ? "bg-[#514636] text-[#faf8f5]"
-                  : "bg-[#f0ebe3] text-[#8a7a62] hover:bg-[#e5ddd0]"
+                  : "bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e5ddd0]"
               }`}
             >
               {label}
@@ -231,7 +231,7 @@ export default function LearningsPanel({ tripId, travelerId, isOpen, onClose }: 
               }}
               placeholder="Something you learned on this trip..."
               rows={2}
-              className="flex-1 bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-sm text-[#3a3128] placeholder:text-[#a89880] outline-none focus:ring-2 focus:ring-[#514636]/20 resize-none"
+              className="flex-1 bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-sm text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 resize-none"
             />
             <button
               onClick={handleAdd}
@@ -247,13 +247,13 @@ export default function LearningsPanel({ tripId, travelerId, isOpen, onClose }: 
         {/* Learnings list */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
           {loading && (
-            <div className="text-center text-[#a89880] text-sm py-8">
+            <div className="text-center text-[#6b5d4a] text-sm py-8">
               Finding your learnings...
             </div>
           )}
 
           {!loading && filtered.length === 0 && (
-            <div className="text-center text-[#a89880] text-sm py-8">
+            <div className="text-center text-[#6b5d4a] text-sm py-8">
               No learnings yet — these build up as you travel together
             </div>
           )}
@@ -291,7 +291,7 @@ export default function LearningsPanel({ tripId, travelerId, isOpen, onClose }: 
                   </p>
 
                   <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-2 text-xs text-[#a89880]">
+                    <div className="flex items-center gap-2 text-xs text-[#6b5d4a]">
                       <span>{learning.contributor}</span>
                       <span>&middot;</span>
                       <span>{formatDate(learning.createdAt)}</span>
@@ -324,7 +324,7 @@ export default function LearningsPanel({ tripId, travelerId, isOpen, onClose }: 
                           </button>
                           <button
                             onClick={() => setDeletingId(null)}
-                            className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#e5ddd0] text-[#8a7a62] hover:bg-[#d4c9b8] transition-colors"
+                            className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#e5ddd0] text-[#6b5d4a] hover:bg-[#d4c9b8] transition-colors"
                           >
                             Keep
                           </button>
@@ -332,7 +332,7 @@ export default function LearningsPanel({ tripId, travelerId, isOpen, onClose }: 
                       ) : (
                         <button
                           onClick={() => setDeletingId(learning.id)}
-                          className="ml-1 p-1 rounded text-[#c8bba8] hover:text-red-500 hover:bg-red-50 transition-all"
+                          className="ml-1 p-1 rounded text-[#6b5d4a] hover:text-red-500 hover:bg-red-50 transition-all"
                           aria-label="Remove learning"
                         >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

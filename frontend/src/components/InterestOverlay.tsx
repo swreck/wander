@@ -129,9 +129,9 @@ export default function InterestOverlay() {
           <div className="text-sm text-[#3a3128] mb-3">
             <strong>{interest.displayName}</strong> is interested in your activity{" "}
             <strong>{exp?.name || "something"}</strong>
-            {cityName && <span className="text-[#8a7a62]"> in {cityName}</span>}
+            {cityName && <span className="text-[#6b5d4a]"> in {cityName}</span>}
             {interest.note && (
-              <span className="text-[#a89880]"> — "{interest.note}"</span>
+              <span className="text-[#6b5d4a]"> — "{interest.note}"</span>
             )}
           </div>
           <div className="flex gap-2">
@@ -169,20 +169,20 @@ export default function InterestOverlay() {
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
+            <div className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">
               Group interest · {timeAgo}
             </div>
             <div className="text-base font-medium text-[#3a3128]">
               {interest.displayName} is interested in {exp?.name || "something"}
             </div>
-            <div className="text-sm text-[#8a7a62] mt-0.5">
+            <div className="text-sm text-[#6b5d4a] mt-0.5">
               {cityName && `in ${cityName}`}
               {interest.note && (
-                <span className="text-[#a89880]"> — "{interest.note}"</span>
+                <span className="text-[#6b5d4a]"> — "{interest.note}"</span>
               )}
             </div>
           </div>
-          <div className="text-[#c8bba8] text-xs mt-0.5 shrink-0">take a look</div>
+          <div className="text-[#6b5d4a] text-xs mt-0.5 shrink-0">take a look</div>
         </div>
       </button>
     </div>

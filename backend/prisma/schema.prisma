@@ -120,8 +120,30 @@ model Trip {
   guideSnapshots    GuideSnapshot[]
   guideImages       GuideImage[]
   guideItems        GuideItem[]
+  dayChoices        DayChoice[]
 
   @@map("trips")
+}
+
+// ── Day choices (Wander's own, never the Guide's) ─────────────
+// A same-day plan someone adds on the road: "Ken and Andy: Musée Tomo this afternoon".
+// Kept apart from the Guide so a re-read of Larisa's sheet never touches it, and shown
+// on that day labelled as added in Wander, by whom.
+model DayChoice {
+  id           String   @id @default(cuid())
+  tripId       String   @map("trip_id")
+  date         String   // YYYY-MM-DD, the trip's local date
+  time         String?  // HH:MM when the person gave one
+  text         String
+  experienceId String?  @map("experience_id") // the idea it came from, when there is one
+  travelerId   String   @map("traveler_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, date])
+  @@map("day_choices")
 }
 
 // ── Larisa's Guide ──────────────────────────────────────────────
@@ -186,6 +208,8 @@ model GuideItem {
   source       String                              // readable: "Itinerary · Notes (row 47)"
   sourceRef    String    @map("source_ref")         // exact: "Japan-Oct26-Itinerary!Y47" or "image:<sha>"
   sortOrder    Int       @default(0) @map("sort_order")
+  windowStart  String?   @map("window_start")       // a deadline that can be done over several days: its first day, YYYY-MM-DD
+  timeText     String?   @map("time_text")          // a day-plan block's time exactly as she wrote it ("~8:30–9:15", "Morning")
 
   trip     Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
   snapshot GuideSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
@@ -548,6 +572,7 @@ model Traveler {
   approvalRequests    ApprovalRequest[]   @relation("ApprovalRequester")
   reviewedApprovals   ApprovalRequest[]   @relation("ApprovalReviewer")
   loginEvents         LoginEvent[]
+  dayChoices          DayChoice[]
 
   @@map("travelers")
 }

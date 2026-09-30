@@ -52,7 +52,7 @@ export default function CaptureSharePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[#8a7a62] bg-[#faf8f5]">
+      <div className="min-h-screen flex items-center justify-center text-[#6b5d4a] bg-[#faf8f5]">
         Getting things ready...
       </div>
     );
@@ -64,11 +64,11 @@ export default function CaptureSharePage() {
     <div className="min-h-screen bg-[#faf8f5] pb-20">
       <div className="max-w-md mx-auto px-4 py-8">
         <h1 className="text-xl font-light text-[#3a3128] mb-1">Save to Wander</h1>
-        <p className="text-sm text-[#8a7a62] mb-6">Add this to your trip</p>
+        <p className="text-sm text-[#6b5d4a] mb-6">Add this to your trip</p>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">
               Name
             </label>
             <input
@@ -82,7 +82,7 @@ export default function CaptureSharePage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">
               City
             </label>
             <select
@@ -98,7 +98,7 @@ export default function CaptureSharePage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium uppercase tracking-wider text-[#a89880] mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-1">
               Notes
             </label>
             <textarea
@@ -111,7 +111,7 @@ export default function CaptureSharePage() {
           </div>
 
           {sharedUrl && (
-            <div className="text-sm text-[#a89880] truncate">
+            <div className="text-sm text-[#6b5d4a] truncate">
               Source: {sharedUrl}
             </div>
           )}

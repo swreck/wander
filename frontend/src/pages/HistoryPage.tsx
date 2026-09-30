@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import type { ChangeLogEntry, Trip } from "../lib/types";
+import { changeRest } from "../lib/changeWords";
 
 const RESTORABLE_ACTIONS = ["delete", "remove", "deleted", "removed"];
 const RESTORABLE_ENTITIES = ["experience", "reservation", "accommodation", "route_segment", "day"];
@@ -30,11 +31,17 @@ export default function HistoryPage() {
 
   const isPlanner = user?.role === "planner";
 
+  const [unreachable, setUnreachable] = useState(false);
+
+  // The same trip Home shows (not whichever the server last marked active for this person)
   useEffect(() => {
-    api.get<Trip>("/trips/active").then((t) => {
-      if (!t) { navigate("/"); return; }
-      setTrip(t);
-    });
+    const id = localStorage.getItem("wander:last-trip-id");
+    (id ? api.get<Trip>(`/trips/${id}`).catch(() => api.get<Trip>("/trips/active")) : api.get<Trip>("/trips/active"))
+      .then((t) => {
+        if (!t) { navigate("/"); return; }
+        setTrip(t);
+      })
+      .catch(() => { setUnreachable(true); setLoading(false); });
   }, [navigate]);
 
   const fetchLogs = useCallback(() => {
@@ -48,6 +55,11 @@ export default function HistoryPage() {
     ).then(({ logs, total }) => {
       setLogs(logs);
       setTotal(total);
+      setUnreachable(false);
+      setLoading(false);
+    }).catch(() => {
+      // Never "No changes yet" when the truth is "couldn't look"
+      setUnreachable(true);
       setLoading(false);
     });
   }, [trip, search]);
@@ -104,27 +116,26 @@ export default function HistoryPage() {
     <div className="min-h-screen bg-[#faf8f5] pb-20">
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => navigate("/")}
-            className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
+            className="min-h-[44px] pr-3 text-sm text-[#514636]"
           >
             &larr; Home
           </button>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-[#c8bba8]">{total} changes</span>
-            <button onClick={() => navigate("/guide")} className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors" aria-label="Guide">?</button>
-          </div>
         </div>
 
-        <h1 className="text-2xl font-light text-[#3a3128] mb-4">History</h1>
+        <h1 className="text-2xl font-light text-[#3a3128]">What's changed in Wander</h1>
+        <p className="text-sm text-[#6b5d4a] mb-4">
+          Notes, plans and additions people made here{total > 0 ? ` (${total})` : ""}. Changes to Larisa's Guide happen in her sheet.
+        </p>
 
         {/* Search */}
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search changes... (name, person, action)"
+          placeholder="Look for a name or place"
           className="w-full px-4 py-2 rounded-lg border border-[#e0d8cc] bg-white
                      text-[#3a3128] placeholder-[#c8bba8] text-sm mb-4
                      focus:outline-none focus:ring-2 focus:ring-[#a89880]"
@@ -132,7 +143,7 @@ export default function HistoryPage() {
 
         {/* Log entries */}
         {loading ? (
-          <div className="text-center py-8 text-sm text-[#8a7a62]">Looking back...</div>
+          <div className="text-center py-8 text-sm text-[#6b5d4a]">Looking back...</div>
         ) : (
           <div className="space-y-2">
             {logs.map((log) => {
@@ -147,19 +158,19 @@ export default function HistoryPage() {
                       <span className="text-sm font-medium text-[#3a3128]">
                         {log.userDisplayName}
                       </span>
-                      <span className="text-sm text-[#8a7a62] ml-1">{log.description}</span>
+                      <span className="text-sm text-[#6b5d4a] ml-1">{changeRest(log.userDisplayName, log.description)}</span>
                     </div>
                     <div className="flex items-center gap-2 ml-2 shrink-0">
                       {restorable && (
                         <button
                           onClick={() => handleRestore(log)}
                           disabled={restoring === log.id}
-                          className="text-xs text-[#a89880] hover:text-[#514636] transition-colors disabled:opacity-50"
+                          className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors disabled:opacity-50"
                         >
                           {restoring === log.id ? "..." : "Bring back"}
                         </button>
                       )}
-                      <span className="text-sm text-[#c8bba8] whitespace-nowrap">
+                      <span className="text-sm text-[#6b5d4a] whitespace-nowrap">
                         {formatRelativeTime(log.createdAt)}
                       </span>
                     </div>
@@ -169,8 +180,10 @@ export default function HistoryPage() {
             })}
 
             {logs.length === 0 && (
-              <div className="text-center py-8 text-sm text-[#c8bba8]">
-                {search ? "Nothing matching that." : "No changes yet."}
+              <div className="text-center py-8 text-sm text-[#6b5d4a]">
+                {unreachable
+                  ? "Wander can't reach the trip right now, so it can't show what's changed. Try again when you have signal."
+                  : search ? "Nothing matching that." : "Nobody has changed anything in Wander yet."}
               </div>
             )}
           </div>

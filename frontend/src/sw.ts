@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches, matchPrecache } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { NetworkFirst, StaleWhileRevalidate, CacheFirst } from 'workbox-strategies';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
@@ -86,119 +86,63 @@ registerRoute(
   })
 );
 
-// ── API: Active trip — NetworkFirst so Now screen works offline ──
-registerRoute(
-  ({ url }) => url.pathname === '/api/trips/active',
-  new NetworkFirst({
-    cacheName: API_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 5, maxAgeSeconds: 7 * 24 * 60 * 60 }),
-    ],
+// ── API data: fresh when there's signal, the phone's saved copy when there isn't ──
+// One expiry rule per store. (Several rules with different limits on one store trimmed each
+// other's entries — a 5-entry rule quietly threw away the saved sign-in and trip answers.)
+const apiExpiry = new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 40 * 24 * 60 * 60 });
+const guideExpiry = new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 40 * 24 * 60 * 60 });
+
+// An answer from the saved copy says so, so the screen can tell people what they're looking at
+// ("Weak signal — showing what this phone saved at 7:47 AM").
+const markSavedCopy = {
+  cachedResponseWillBeUsed: async ({ cachedResponse }: { cachedResponse?: Response }) => {
+    if (!cachedResponse) return null;
+    const headers = new Headers(cachedResponse.headers);
+    headers.set('x-wander-saved-copy', cachedResponse.headers.get('date') || 'yes');
+    return new Response(await cachedResponse.blob(), { status: cachedResponse.status, statusText: cachedResponse.statusText, headers });
+  },
+};
+
+function freshOrSaved(cacheName: string, expiry: ExpirationPlugin) {
+  return new NetworkFirst({
+    cacheName,
+    plugins: [new CacheableResponsePlugin({ statuses: [200] }), expiry, markSavedCopy],
     networkTimeoutSeconds: 3,
-  })
+  });
+}
+
+// Larisa's Guide — the whole trip's day-by-day items and how current they are, kept for the length of a trip
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/api/guide/items/') || url.pathname.startsWith('/api/guide/status/'),
+  freshOrSaved(DAY_CACHE, guideExpiry)
 );
 
-// ── API: Trip structure overview (cities, dates, route segments) ──
-registerRoute(
-  ({ url }) => /^\/api\/trips\/[^/]+$/.test(url.pathname),
-  new NetworkFirst({
-    cacheName: API_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 10, maxAgeSeconds: 7 * 24 * 60 * 60 }),
-    ],
-    networkTimeoutSeconds: 3,
-  })
-);
-
-// ── API: Days data — NetworkFirst for today/tomorrow instant offline loads ──
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/days/'),
-  new NetworkFirst({
-    cacheName: DAY_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 }),
-    ],
-    networkTimeoutSeconds: 3,
-  })
-);
-
-// ── API: Experiences for full trip (confirmed locations) ──
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/experiences'),
-  new NetworkFirst({
-    cacheName: API_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 7 * 24 * 60 * 60 }),
-    ],
-    networkTimeoutSeconds: 3,
-  })
-);
-
-// ── API: Accommodations — cache for offline Now page ──
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/accommodations'),
-  new NetworkFirst({
-    cacheName: API_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 7 * 24 * 60 * 60 }),
-    ],
-    networkTimeoutSeconds: 3,
-  })
-);
-
-// ── API: Reservations — cache for offline Now page ──
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/reservations'),
-  new NetworkFirst({
-    cacheName: API_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 30, maxAgeSeconds: 7 * 24 * 60 * 60 }),
-    ],
-    networkTimeoutSeconds: 3,
-  })
-);
-
-// ── API: Route segments — cache for offline transport info ──
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/route-segments'),
-  new NetworkFirst({
-    cacheName: API_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 7 * 24 * 60 * 60 }),
-    ],
-    networkTimeoutSeconds: 3,
-  })
-);
-
-// ── API: All other GET requests — StaleWhileRevalidate ──
+// Everything else Wander reads. Never the live-update stream, sign-in or Scout: a stream never
+// ends, so trying to keep a copy held its connection open for good — after a few opens the
+// browser ran out of connections and Wander went blank. Those go straight to the network.
+const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat'];
 registerRoute(
   ({ url, request }) =>
-    url.pathname.startsWith('/api/') && request.method === 'GET',
-  new StaleWhileRevalidate({
-    cacheName: API_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 }),
-    ],
+    url.pathname.startsWith('/api/') && request.method === 'GET' &&
+    !NEVER_CACHED.some((p) => url.pathname.startsWith(p)) &&
+    !(request.headers.get('accept') || '').includes('text/event-stream'),
+  freshOrSaved(API_CACHE, apiExpiry)
+);
+
+// ── Opening any Wander address (a day, Now, a reload) ──
+// Fresh when there's signal; with none, the app from the phone, which then shows the saved trip.
+// (Only "/" used to have a saved page — reloading a day with no signal showed the browser's error.)
+const pageFromNetwork = new NetworkFirst({ cacheName: 'wander-navigation-v1', networkTimeoutSeconds: 3 });
+registerRoute(
+  new NavigationRoute(async (options) => {
+    try {
+      const fresh = await pageFromNetwork.handle(options);
+      if (fresh) return fresh;
+    } catch { /* no signal */ }
+    return (await matchPrecache('/index.html')) || (await matchPrecache('index.html')) || Response.error();
   })
 );
 
-// ── SPA navigation fallback ──
-registerRoute(
-  new NavigationRoute(
-    new NetworkFirst({
-      cacheName: 'wander-navigation-v1',
-      networkTimeoutSeconds: 3,
-    })
-  )
-);
 
 // ── Offline capture queue: sync when connectivity returns ──
 // POST/PATCH requests that fail offline are queued in IndexedDB by the app layer

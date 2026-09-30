@@ -21,10 +21,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  // Only show loading state if there's a token to verify.
+  // Who this phone last saw signed in. With it, Wander opens at once and checks in the background,
+  // so a slow or stuck check never leaves a blank screen.
+  const savedMe = (): User | null => {
+    try {
+      if (!localStorage.getItem("wander_token")) return null;
+      const cached = localStorage.getItem("wander_me");
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  };
+  const [user, setUser] = useState<User | null>(savedMe);
+  // Only wait when there's a token to verify and no saved copy to open with.
   // No token = skip straight to login page (no intermediate null render).
-  const [loading, setLoading] = useState(() => !!localStorage.getItem("wander_token"));
+  const [loading, setLoading] = useState(() => !!localStorage.getItem("wander_token") && !savedMe());
 
   useEffect(() => {
     const token = localStorage.getItem("wander_token");
@@ -35,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Only a real "not authorized" answer signs someone out (api.ts has already
           // cleared the token in that case). A weak signal, a timeout, or a check cut off
           // by a quick reload must not erase the sign-in — fall back to who we last saw here.
-          if (err?.message === "Unauthorized") return;
+          if (err?.message === "Unauthorized") { setUser(null); return; }
           try {
             const cached = localStorage.getItem("wander_me");
             if (cached) setUser(JSON.parse(cached));
@@ -66,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loginWithPasskey() {
     const res = await signInWithPasskey();
+    localStorage.removeItem("wander_me");
     localStorage.setItem("wander_token", res.token);
     localStorage.setItem("wander_user", res.displayName);
     setUser({ code: res.displayName, displayName: res.displayName, travelerId: res.travelerId, role: res.role });
@@ -76,6 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function loginWithToken(token: string, displayName: string) {
     localStorage.setItem("wander_token", token);
     localStorage.setItem("wander_user", displayName);
+    // Forget the saved copy of whoever was signed in before, so a weak signal can't bring them back
+    localStorage.removeItem("wander_me");
     markSignedInWith("link");
     // Refresh user data from /me to get travelerId and role
     api.get<User>("/auth/me")

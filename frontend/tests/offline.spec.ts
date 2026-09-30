@@ -49,8 +49,8 @@ test("trip overview loads from cache when offline (requires backend)", async ({ 
   const offlineBody = await page.locator("body").innerText();
   expect(offlineBody.length).toBeGreaterThan(20);
 
-  // Offline indicator should be visible
-  await expect(page.getByText("Offline")).toBeVisible();
+  // The lasting "No signal" line says what's on screen is this phone's saved copy
+  await expect(page.getByText(/No signal/).first()).toBeVisible();
 
   await context.setOffline(false);
 });
@@ -117,28 +117,29 @@ test("chat panel close button is a chevron that preserves messages (requires bac
     test.skip(true, "Login did not complete — backend may have different access codes");
   }
 
-  // Open chat — the bubble is positioned above the bottom nav
-  const chatBtn = page.getByLabel("Ask Scout");
-  await expect(chatBtn).toBeVisible({ timeout: 10000 });
-  await chatBtn.click();
-  await expect(page.getByText("Scout", { exact: true })).toBeVisible();
+  // Open Scout from its tab in the bottom bar
+  const scoutTab = page.locator("nav button", { hasText: "Scout" });
+  await expect(scoutTab).toBeVisible({ timeout: 10000 });
+  await scoutTab.click();
+  await expect(page.getByRole("dialog", { name: "Scout" })).toBeVisible();
 
-  // The minimize button should have aria-label "Minimize chat" (not "Close chat")
-  const minimizeBtn = page.getByLabel("Minimize chat");
-  await expect(minimizeBtn).toBeVisible();
+  // With a conversation, the chevron makes Scout small (it doesn't throw the conversation away). With no
+  // conversation yet there is nothing to keep, so the panel offers only ✕ (the design since Sep 28) — which
+  // case this phone is in depends on whether this person talked to Scout earlier today.
+  const minimizeBtn = page.getByRole("button", { name: "Make Scout small" });
+  if (await minimizeBtn.isVisible()) {
+    const pathD = await minimizeBtn.locator("svg path").getAttribute("d");
+    expect(pathD).toContain("6 9");  // Chevron path
+    await minimizeBtn.click();
+  } else {
+    await page.getByRole("button", { name: "Close Scout" }).click();
+  }
 
-  // The button should contain a chevron SVG path (d="M6 9l6 6 6-6"), not an X
-  const svgPath = minimizeBtn.locator("svg path");
-  const pathD = await svgPath.getAttribute("d");
-  expect(pathD).toContain("6 9");  // Chevron path
-  expect(pathD).not.toContain("18 6"); // Not the X path
-
-  // Close with chevron
-  await minimizeBtn.click();
-
-  // Chat panel should be gone, bubble should be back
-  await expect(page.getByText("Scout", { exact: true })).not.toBeVisible();
-  await expect(page.getByLabel("Ask Scout")).toBeVisible();
+  // Either way the panel goes, and the Scout tab brings it back
+  await expect(page.getByRole("dialog", { name: "Scout" })).not.toBeVisible();
+  await expect(scoutTab).toBeVisible();
+  await scoutTab.click();
+  await expect(page.getByRole("dialog", { name: "Scout" })).toBeVisible();
 });
 
 // ── Offline indicator shows when offline ───────────────────────
@@ -147,22 +148,19 @@ test("offline indicator appears and disappears with connectivity (requires backe
   await skipIfNoBackend(page, test);
   await loginAndWait(page);
 
-  // Should NOT show offline indicator when online
-  await expect(page.getByText("Offline")).not.toBeVisible();
+  // No "No signal" line while online
+  const noSignal = page.getByText("No signal — showing what this phone saved");
+  await expect(noSignal).not.toBeVisible();
 
-  // Go offline
+  // Go offline: the line appears and stays
   await context.setOffline(true);
   await page.waitForTimeout(500);
+  await expect(noSignal).toBeVisible();
 
-  // Should show offline indicator
-  await expect(page.getByText("Offline")).toBeVisible();
-
-  // Come back online
+  // Back online: it goes at once
   await context.setOffline(false);
   await page.waitForTimeout(500);
-
-  // Indicator should disappear
-  await expect(page.getByText("Offline")).not.toBeVisible();
+  await expect(noSignal).not.toBeVisible();
 });
 
 // ── Navigation works across pages offline ──────────────────────

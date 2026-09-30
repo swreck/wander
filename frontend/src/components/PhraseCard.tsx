@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
+import useBackToClose from "../hooks/useBackToClose";
 
 // ── Country phrase data ────────────────────────────────────────
 interface LocalPhrase {
@@ -91,10 +93,13 @@ function detectCountries(tripName: string, cities: { name: string; country?: str
 
 // ── Component ──────────────────────────────────────────────────
 
-export default function PhraseCard() {
+/** inHeader: a button in the Now screen's header, instead of floating over the day's cards */
+export default function PhraseCard({ inHeader = false }: { inHeader?: boolean } = {}) {
   const { user } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  // The phone's Back closes the phrases instead of leaving Wander
+  useBackToClose(open, () => setOpen(false));
   const [tripCountries, setTripCountries] = useState<string[]>([]);
   const [activeCountry, setActiveCountry] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -133,24 +138,39 @@ export default function PhraseCard() {
   if (!activePhrases) return null;
 
   if (!open) {
+    if (inHeader) {
+      return (
+        <button
+          onClick={() => setOpen(true)}
+          className="min-h-[44px] px-2 flex items-center gap-1 rounded-lg text-[#514636] active:bg-[#f0ebe3]"
+          aria-label={`${activePhrases.language} phrases`}
+        >
+          <span className="text-base font-bold leading-none" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
+          <span className="text-sm">Phrases</span>
+        </button>
+      );
+    }
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed z-30 flex items-center justify-center rounded-full shadow-md transition-all hover:scale-105 active:scale-95
-          left-4 w-11 h-11 bg-[#f0ece5] text-[#6b5d4a] border border-[#e0d8cc]"
-        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)" }}
+        className="fixed z-30 flex items-center gap-1.5 rounded-full shadow-md transition-all active:scale-95
+          left-4 h-11 px-3.5 bg-[#f0ece5] text-[#514636] border border-[#e0d8cc]"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px + var(--scout-dock, 0px))" }}
         aria-label={`${activePhrases.language} phrases`}
       >
-        <span className="text-base font-bold leading-none" style={{ fontFamily: "serif" }}>{activePhrases.icon}</span>
+        <span className="text-base font-bold leading-none" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
+        <span className="text-sm">Phrases</span>
       </button>
     );
   }
 
-  return (
+  // Drawn on the page itself: inside the Now header (which blurs what's behind it) a fixed panel
+  // would be trapped in the header's box
+  return createPortal(
     <>
-      <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setOpen(false)} />
+      <div className="fixed inset-0 bg-black/20 z-[60]" onClick={() => setOpen(false)} />
       <div
-        className="fixed z-40 left-1/2 -translate-x-1/2 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border border-b-0 border-[#e5ddd0] flex flex-col"
+        className="fixed z-[60] left-1/2 -translate-x-1/2 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border border-b-0 border-[#e5ddd0] flex flex-col"
         style={{
           maxHeight: "50vh",
           maxWidth: "360px",
@@ -164,7 +184,8 @@ export default function PhraseCard() {
           <span className="text-sm font-medium text-[#3a3128]">Quick Phrases</span>
           <button
             onClick={() => setOpen(false)}
-            className="p-1.5 rounded-lg text-[#8a7a62] hover:bg-[#f0ebe3]"
+            aria-label="Close phrases"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[#6b5d4a] hover:bg-[#f0ebe3]"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 9l6 6 6-6" />
@@ -205,13 +226,14 @@ export default function PhraseCard() {
             <div key={i} className="py-2.5">
               <div className="text-base font-medium text-[#3a3128]">
                 {p.local}
-                <span className="text-xs font-normal text-[#a89880] ml-1.5">({p.pronunciation})</span>
+                <span className="text-xs font-normal text-[#6b5d4a] ml-1.5">({p.pronunciation})</span>
               </div>
-              <div className="text-xs text-[#8a7a62]">{p.english}</div>
+              <div className="text-xs text-[#6b5d4a]">{p.english}</div>
             </div>
           ))}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

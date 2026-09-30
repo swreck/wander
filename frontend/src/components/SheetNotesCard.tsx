@@ -21,6 +21,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
+import useBackToClose from "../hooks/useBackToClose";
 
 interface SheetNote {
   id: string;
@@ -87,6 +88,16 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
   const [spreadsheetId, setSpreadsheetId] = useState<string | null>(null);
   const [tabGids, setTabGids] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState(false);
+  // One tab open at a time — a list of Larisa's tabs, not one endless page
+  const [openTab, setOpenTab] = useState<string | null>(null);
+  // The phone's Back closes the tab being read, instead of leaving Wander
+  useBackToClose(!!openTab, () => setOpenTab(null));
+
+  function closeTab(tabName: string) {
+    setOpenTab(null);
+    // Long tabs: bring the tab's name back into view once it folds up
+    requestAnimationFrame(() => document.getElementById(`guide-tab-${tabName}`)?.scrollIntoView({ block: "nearest" }));
+  }
 
   useEffect(() => {
     api.get<NotesResponse>(`/sheets-sync/notes/${tripId}`)
@@ -109,11 +120,11 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
   const isVisualOnly = (rows: { rowIndex: number; text: string }[]) =>
     rows.length === 1 && rows[0].rowIndex === -1 && !rows[0].text;
 
-  const textTabs = tabNames.filter(t => !isVisualOnly(byTab[t]));
+  // A tab with nothing readable (a lone "A" left from a heading) isn't worth opening
+  const hasWords = (rows: { text: string }[]) => rows.some((r) => r.text.replace(/\s+/g, "").length > 2);
+  const textTabs = tabNames.filter(t => !isVisualOnly(byTab[t]) && hasWords(byTab[t]));
   const visualTabs = tabNames.filter(t => isVisualOnly(byTab[t]));
 
-  const totalTextRows = textTabs.reduce((sum, t) => sum + byTab[t].length, 0);
-  const tabCountLabel = tabNames.length === 1 ? "1 tab" : `${tabNames.length} tabs`;
 
   function openSheetTab(tabName?: string) {
     if (!spreadsheetId) return;
@@ -135,12 +146,12 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
         className="w-full text-left flex items-center justify-between min-h-[44px] py-2 mb-1"
       >
         <h2 className="text-sm font-medium text-[#514636]">
-          From the Guide
-          <span className="ml-2 text-[#a89880] font-normal text-xs">
-            {tabCountLabel}{totalTextRows > 0 && `, ${totalTextRows} ${totalTextRows === 1 ? "note" : "notes"}`}
+          Larisa's Guide, tab by tab
+          <span className="block text-[#6b5d4a] font-normal text-xs mt-0.5">
+            Her other tabs, as she wrote them. Where she pasted a picture, Wander describes it and says so. The Itinerary is the days above; Activities are in Ideas; Actions are in Actions.
           </span>
         </h2>
-        <span className="text-sm text-[#a89880]">{expanded ? "\u25B4" : "\u25BE"}</span>
+        <span className="text-sm text-[#6b5d4a]">{expanded ? "\u25B4" : "\u25BE"}</span>
       </button>
 
       {expanded && (
@@ -152,9 +163,21 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
           {textTabs.map(tabName => {
             const interactive = interactiveReplacement(tabName);
             return (
-              <div key={tabName} className="bg-white rounded-lg border border-[#e0d8cc] p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-medium text-[#6b5d4a] uppercase tracking-wider">{tabName}</h3>
+              <div key={tabName} id={`guide-tab-${tabName}`} className="bg-white rounded-lg border border-[#e0d8cc] p-3 min-w-0 scroll-mt-4">
+                <div className="flex flex-wrap items-center justify-between gap-x-3">
+                  <button
+                    onClick={() => {
+                      if (openTab === tabName) { closeTab(tabName); return; }
+                      setOpenTab(tabName);
+                      // Its words start right here, not below the bottom of the screen
+                      requestAnimationFrame(() => document.getElementById(`guide-tab-${tabName}`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+                    }}
+                    aria-expanded={openTab === tabName}
+                    className="flex-1 min-w-0 min-h-[44px] text-left flex items-center justify-between gap-3"
+                  >
+                    <h3 className="text-sm font-medium text-[#3a3128] [overflow-wrap:anywhere]">{tabName}</h3>
+                    <span className="text-sm text-[#514636] shrink-0 inline-flex items-center min-h-[44px]">{openTab === tabName ? "Close ▴" : "Read ▾"}</span>
+                  </button>
                   <div className="flex items-center gap-3">
                     {interactive && (
                       <button
@@ -168,7 +191,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                     {spreadsheetId && (
                       <button
                         onClick={() => openSheetTab(tabName)}
-                        className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors min-h-[44px] flex items-center"
+                        className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors min-h-[44px] flex items-center"
                         title="Open this in Larisa's Guide"
                       >
                         Open in the Guide &rarr;
@@ -176,13 +199,24 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                     )}
                   </div>
                 </div>
-                <ul className="space-y-1.5">
-                  {byTab[tabName].map(note => (
-                    <li key={note.rowIndex} className="text-sm text-[#3a3128] leading-relaxed">
-                      {note.text}
-                    </li>
-                  ))}
-                </ul>
+                {openTab === tabName && (
+                  <>
+                    <ul className="space-y-1.5 mt-1">
+                      {byTab[tabName].map(note => note.text.startsWith("Picture") ? (
+                        // Wander's words about a picture she pasted — never passed off as hers
+                        <li key={note.rowIndex} className="text-sm text-[#514636] leading-relaxed whitespace-pre-line [overflow-wrap:anywhere] bg-[#f6f1e8] rounded-lg px-3 py-2">
+                          <span className="block text-xs text-[#6b5d4a] mb-0.5">A picture Larisa pasted — Wander's description</span>
+                          {note.text.replace(/^Picture:\s*/, "").replace(/^Picture \(not read yet\)$/, "Not described yet — open it in the Guide to see it.")}
+                        </li>
+                      ) : (
+                        <li key={note.rowIndex} className="text-sm text-[#3a3128] leading-relaxed whitespace-pre-line [overflow-wrap:anywhere]">
+                          {note.text.replace(/[ \t]{3,}/g, "  ")}
+                        </li>
+                      ))}
+                    </ul>
+                    <button onClick={() => closeTab(tabName)} className="mt-2 min-h-[44px] text-sm text-[#514636]">Close {tabName} ▴</button>
+                  </>
+                )}
               </div>
             );
           })}
@@ -198,7 +232,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                   const interactive = interactiveReplacement(tabName);
                   return (
                     <li key={tabName}>
-                      <span className="text-xs text-[#8a7a62]">{tabName}</span>
+                      <span className="text-xs text-[#6b5d4a]">{tabName}</span>
                       <div className="flex items-center gap-3 mt-1">
                         {interactive && (
                           <button
@@ -212,7 +246,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                         {spreadsheetId && (
                           <button
                             onClick={() => openSheetTab(tabName)}
-                            className="text-xs text-[#a89880] hover:text-[#6b5d4a] transition-colors min-h-[44px] flex items-center"
+                            className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors min-h-[44px] flex items-center"
                           >
                             See in the Guide
                           </button>
@@ -222,7 +256,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                   );
                 })}
               </ul>
-              <p className="text-xs text-[#a89880] italic mt-2">
+              <p className="text-xs text-[#6b5d4a] italic mt-2">
                 Some of Larisa's maps and photos are in the Guide — we've added interactive versions where we could.
               </p>
             </div>

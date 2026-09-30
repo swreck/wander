@@ -1,9 +1,16 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import TripOverview from "./pages/TripOverview";
-import PlanPage from "./pages/PlanPage";
-import NowPage from "./pages/NowPage";
+import IdeasPage from "./pages/IdeasPage";
+
+function PlanToIdeas() {
+  const { search } = useLocation();
+  const city = new URLSearchParams(search).get("city");
+  return <Navigate to={city ? `/ideas?city=${encodeURIComponent(city)}` : "/ideas"} replace />;
+}
+import DayPage from "./pages/DayPage";
+import PeoplePage from "./pages/PeoplePage";
 import HistoryPage from "./pages/HistoryPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
@@ -12,26 +19,19 @@ import GuidePage from "./pages/GuidePage";
 import JoinPage from "./pages/JoinPage";
 import CityBoard from "./pages/CityBoard";
 import TripStoryPage from "./pages/TripStoryPage";
-import OfflineIndicator from "./components/OfflineIndicator";
-import PhraseCard from "./components/PhraseCard";
 import ChatBubble from "./components/ChatBubble";
-import DailyGreeting from "./components/DailyGreeting";
-import NextUpOverlay from "./components/NextUpOverlay";
 import InterestOverlay from "./components/InterestOverlay";
 import { ToastProvider } from "./contexts/ToastContext";
 import { useToast } from "./contexts/ToastContext";
 import { CaptureProvider } from "./contexts/CaptureContext";
 import CaptureToast from "./components/CaptureToast";
 import CaptureFAB from "./components/CaptureFAB";
-import ReflectionCard from "./components/ReflectionCard";
 import SyncIndicator from "./components/SyncIndicator";
+import SavedCopyNotice from "./components/SavedCopyNotice";
 import BottomNav from "./components/BottomNav";
 import UpdatePrompt from "./components/UpdatePrompt";
-import NewMemberOnboarding from "./components/NewMemberOnboarding";
-import { shouldShowOnboarding } from "./components/NewMemberOnboarding";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { api } from "./lib/api";
-import type { Day, Experience, Trip } from "./lib/types";
 
 function ShortcutHelp() {
   const [show, setShow] = useState(false);
@@ -63,7 +63,7 @@ function ShortcutHelp() {
         <div className="space-y-1.5">
           {shortcuts.map(([key, desc]) => (
             <div key={key} className="flex items-center justify-between text-xs">
-              <span className="text-[#8a7a62]">{desc}</span>
+              <span className="text-[#6b5d4a]">{desc}</span>
               <kbd className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#3a3128] font-mono text-xs border border-[#e0d8cc]">{key}</kbd>
             </div>
           ))}
@@ -91,7 +91,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
         <div className="min-h-screen flex items-center justify-center bg-[#faf8f5] p-8">
           <div className="max-w-md text-center">
             <h1 className="text-lg font-medium text-[#3a3128] mb-2">Hmm, something broke</h1>
-            <p className="text-sm text-[#8a7a62] mb-4">{this.state.error.message}</p>
+            <p className="text-sm text-[#6b5d4a] mb-4">{this.state.error.message}</p>
             <pre className="text-xs text-left bg-[#f0ebe3] rounded-lg p-3 mb-4 max-h-40 overflow-auto whitespace-pre-wrap text-[#6b5d4a]">{this.state.error.stack?.split("\n").slice(0, 6).join("\n")}</pre>
             <button
               onClick={() => { this.setState({ error: null }); window.location.reload(); }}
@@ -109,7 +109,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-[#8a7a62]">Finding your trip...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-[#6b5d4a]">Finding your trip...</div>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -158,26 +158,25 @@ function ChatOverlay() {
 
   const pageName = {
     "/": "Trip Overview",
-    "/plan": "Plan",
+    "/ideas": "Ideas",
     "/now": "Now",
     "/history": "History",
   }[location.pathname] || "Unknown";
 
-  // Pick up day/city context from PlanPage if available
-  const wanderCtx = (window as any).__wanderContext || {};
+  // What the person is looking at, so "this day" or "here" means that day or city
+  const dayOnScreen = location.pathname.match(/^\/day\/(\d{4}-\d{2}-\d{2})/)?.[1];
+  const cityOnScreen = location.pathname === "/ideas" ? new URLSearchParams(location.search).get("city") || undefined : undefined;
 
-  // Scout floats on every page
-  const hideBubble = false;
+  // Scout opens from its own tab in the bottom bar — a floating button covered whatever was under it
+  const hideBubble = true;
 
   return (
     <ChatBubble
       context={{
-        page: pageName,
+        page: dayOnScreen ? `Day ${dayOnScreen}` : pageName,
         tripId,
-        dayId: wanderCtx.dayId,
-        dayDate: wanderCtx.dayDate,
-        cityId: wanderCtx.cityId,
-        cityName: wanderCtx.cityName,
+        dayDate: dayOnScreen,
+        cityId: cityOnScreen,
       }}
       onDataChanged={handleDataChanged}
       hideBubble={hideBubble}
@@ -185,99 +184,68 @@ function ChatOverlay() {
   );
 }
 
-function OnboardingOverlay() {
-  const { user } = useAuth();
+/**
+ * Where each screen was scrolled. Going back (phone Back, "‹ Back", Scout's "↩ Back") lands where you
+ * left that screen; opening a screen (a tapped day, a tab, Scout showing you something) starts at its top.
+ * Without this, a new screen opened at the old screen's scroll spot — a day Scout showed you could open
+ * at its bottom, with the thing Scout named out of sight.
+ */
+function ScrollKeeper() {
   const location = useLocation();
-  const [show, setShow] = useState(false);
-  const [tripName, setTripName] = useState("");
-
-  useEffect(() => {
-    if (!user?.travelerId) return;
-    if (location.pathname === "/login" || location.pathname.startsWith("/join")) return;
-    if (location.pathname === "/guide") return; // Don't overlay on top of guide
-
-    // Check if onboarding should show (not completed, not snoozed)
-    if (!shouldShowOnboarding()) return;
-
-    // Delay 5s so new users see the trip before being asked about interests
-    const timer = setTimeout(() => {
-      // Check if user already has interests set — if so, mark complete silently
-      api.get<{ preferences: Record<string, unknown> | null }>(`/auth/travelers/${user.travelerId}`)
-        .then((t) => {
-          const prefs = t?.preferences as Record<string, unknown> | null;
-          const interests = (prefs?.interests as string[]) || [];
-          if (interests.length > 0) {
-            localStorage.setItem("wander:onboarding-completed", "1");
-            return;
-          }
-          return api.get<Trip>("/trips/active").then((trip) => {
-            if (trip?.name) {
-              setTripName(trip.name);
-              setShow(true);
-            }
-          });
-        })
-        .catch(() => {});
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, [user?.travelerId, location.pathname]);
-
-  if (!show || !user?.travelerId) return null;
-
-  return (
-    <NewMemberOnboarding
-      tripName={tripName}
-      displayName={user.displayName}
-      travelerId={user.travelerId}
-      onComplete={() => setShow(false)}
-    />
-  );
-}
-
-function ReflectionOverlay() {
-  const { user } = useAuth();
-  const [dayData, setDayData] = useState<{
-    tripId: string; dayId: string; dayDate: string; cityName: string; experiences: Experience[];
-  } | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    const hour = new Date().getHours();
-    if (hour < 18) return; // Only after 6pm
-
-    api.get<any>("/trips/active").then(async (trip) => {
-      if (!trip) return;
-      // Check if today is within trip dates
-      const todayStr = new Date().toISOString().split("T")[0];
-      if (trip.startDate && todayStr < trip.startDate.split("T")[0]) return;
-      if (trip.endDate && todayStr > trip.endDate.split("T")[0]) return;
-
-      const days = await api.get<Day[]>(`/days/trip/${trip.id}`);
-      const today = days.find((d: Day) => d.date.split("T")[0] === todayStr);
-      if (!today) return;
-
-      const exps = await api.get<Experience[]>(`/experiences/trip/${trip.id}?cityId=${today.cityId}`);
-      setDayData({
-        tripId: trip.id,
-        dayId: today.id,
-        dayDate: today.date,
-        cityName: today.city?.name || "",
-        experiences: exps,
-      });
-    }).catch(() => {});
-  }, [user]);
-
-  if (!dayData) return null;
-  return (
-    <ReflectionCard
-      tripId={dayData.tripId}
-      dayId={dayData.dayId}
-      dayDate={dayData.dayDate}
-      cityName={dayData.cityName}
-      experiences={dayData.experiences}
-    />
-  );
+  const navType = useNavigationType();
+  const seenFirst = useRef(false);
+  useLayoutEffect(() => {
+    try { window.history.scrollRestoration = "manual"; } catch { /* old browsers */ }
+  }, []);
+  useLayoutEffect(() => {
+    const store = "wander:scroll";
+    const read = (): Record<string, number> => {
+      try { return JSON.parse(sessionStorage.getItem(store) || "{}"); } catch { return {}; }
+    };
+    const key = location.key;
+    let timers: ReturnType<typeof setTimeout>[] = [];
+    // A fresh open starts at the top (every first load shares the key "default", so restoring there
+    // took whatever spot the last fresh open had). Coming BACK to that first screen later still restores.
+    const firstLoad = !seenFirst.current;
+    seenFirst.current = true;
+    if (navType === "POP" && !firstLoad) {
+      const saved = read()[key] || 0;
+      // Screens fill in over a moment, so the spot is restored a few times until the person moves
+      timers = [0, 120, 350, 800].map((ms) => setTimeout(() => {
+        if (Math.abs(window.scrollY - saved) > 4) window.scrollTo(0, saved);
+      }, ms));
+    } else if (!location.hash) {
+      window.scrollTo(0, 0);
+    }
+    const stop = () => { timers.forEach(clearTimeout); timers = []; };
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const save = () => {
+      if (pending) return;
+      pending = setTimeout(() => {
+        pending = null;
+        const all = read();
+        all[key] = Math.round(window.scrollY);
+        const keys = Object.keys(all);
+        if (keys.length > 60) delete all[keys[0]];
+        try { sessionStorage.setItem(store, JSON.stringify(all)); } catch { /* private mode */ }
+      }, 150);
+    };
+    window.addEventListener("touchstart", stop, { passive: true });
+    window.addEventListener("wheel", stop, { passive: true });
+    window.addEventListener("scroll", save, { passive: true });
+    return () => {
+      stop();
+      // Save this screen's spot now, before the next screen changes the page's height
+      if (pending) clearTimeout(pending);
+      const all = read();
+      all[key] = Math.round(window.scrollY);
+      try { sessionStorage.setItem(store, JSON.stringify(all)); } catch { /* private mode */ }
+      window.removeEventListener("touchstart", stop);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("scroll", save);
+    };
+  }, [location.key, navType, location.hash]);
+  return null;
 }
 
 function SessionExpiredHandler() {
@@ -286,7 +254,7 @@ function SessionExpiredHandler() {
 
   useEffect(() => {
     const handler = () => {
-      showToast("Your session expired — signing you back in", "info");
+      showToast("Please sign in again — Face ID or your link brings you back", "info");
       navigate("/login", { replace: true });
     };
     window.addEventListener("wander:session-expired", handler);
@@ -301,8 +269,10 @@ function SyncNotifier() {
 
   useEffect(() => {
     const onQueued = (e: Event) => {
-      const count = (e as CustomEvent).detail?.count ?? 0;
-      showToast("Saved for now — you're offline", "info");
+      // Notes and day plans say "waiting for signal" right where they were saved — no second message
+      const path = String((e as CustomEvent).detail?.path || "");
+      if (/^\/(experience-notes|day-choices)/.test(path)) return;
+      showToast("Saved on this phone — I'll send it when you have signal", "info");
     };
     const onSynced = (e: Event) => {
       const { success, failed } = (e as CustomEvent).detail || {};
@@ -334,8 +304,13 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/join/:token" element={<JoinPage />} />
       <Route path="/" element={<ProtectedRoute><TripOverview /></ProtectedRoute>} />
-      <Route path="/plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
-      <Route path="/now" element={<ProtectedRoute><NowPage /></ProtectedRoute>} />
+      <Route path="/ideas" element={<ProtectedRoute><IdeasPage /></ProtectedRoute>} />
+      {/* The planning board is retired (the Guide is the plan); old links land on the same city's ideas */}
+      <Route path="/plan" element={<PlanToIdeas />} />
+      {/* The Now tab: today from Larisa's Guide (the old Now screen's file is kept, not routed) */}
+      <Route path="/now" element={<ProtectedRoute><DayPage now /></ProtectedRoute>} />
+      <Route path="/day/:date" element={<ProtectedRoute><DayPage /></ProtectedRoute>} />
+      <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
       <Route path="/capture-share" element={<ProtectedRoute><CaptureSharePage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
@@ -355,23 +330,23 @@ export default function App() {
         <AuthProvider>
           <ToastProvider>
             <CaptureProvider>
+              {/* Before the routes, so it saves the old screen's spot before the new screen replaces it */}
+              <ScrollKeeper />
               <AppRoutes />
-              <DailyGreeting />
-              <NextUpOverlay />
-              {/* InterestOverlay removed — it interrupts the clean overview */}
+              {/* Nothing covers the trip uninvited. The daily greeting, next-up overlay, new-member
+                  interest picker and evening check-in are no longer mounted (code kept): they covered
+                  today's plan at the wrong moments and used out-of-date "today" logic. Home's Today
+                  and the Now tab carry what matters. The phrase card lives on the Now tab. */}
               <ChatOverlay />
               <CaptureToast />
               <CaptureFAB />
-              <PhraseCard />
               <ShortcutHelp />
-              <OfflineIndicator />
               <SessionExpiredHandler />
               <SyncNotifier />
               <SyncIndicator />
+              <SavedCopyNotice />
               <UpdatePrompt />
               <BottomNav />
-              <OnboardingOverlay />
-              <ReflectionOverlay />
             </CaptureProvider>
           </ToastProvider>
         </AuthProvider>

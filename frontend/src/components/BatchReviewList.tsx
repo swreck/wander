@@ -32,7 +32,7 @@ export default function BatchReviewList({ items, trip, defaultCityId, onUpdateIt
 
   return (
     <div className="space-y-1.5">
-      <p className="text-xs text-[#a89880] mb-2">
+      <p className="text-xs text-[#6b5d4a] mb-2">
         Tap any item to edit. Tap the &times; to remove.
       </p>
       {items.map((item, index) => {
@@ -56,11 +56,11 @@ export default function BatchReviewList({ items, trip, defaultCityId, onUpdateIt
               <span className={`w-2 h-2 rounded-full shrink-0 ${isExistingCity ? "bg-green-400" : "bg-amber-400"}`} />
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-[#3a3128] truncate font-medium">{item.name}</div>
-                <div className="text-xs text-[#a89880] truncate">{cityName}</div>
+                <div className="text-xs text-[#6b5d4a] truncate">{cityName}</div>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onRemoveItem(index); }}
-                className="text-[#c8bba8] hover:text-red-400 text-sm shrink-0 px-1"
+                className="text-[#6b5d4a] hover:text-red-400 text-sm shrink-0 px-1"
               >
                 &times;
               </button>

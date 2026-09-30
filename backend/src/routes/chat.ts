@@ -9,6 +9,7 @@ import { geocodeExperience, geocodeCity } from "../services/geocoding.js";
 import { findDuplicate } from "../services/dedup.js";
 import { enrichExperience } from "../services/capture.js";
 import { getCountryAdvisories, getPreTripSummary } from "../services/travelAdvisory.js";
+import { addDayChoice, removeDayChoice, listDayChoices, plainDay } from "../services/dayChoices.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -774,6 +775,87 @@ const tools: Anthropic.Tool[] = [
       required: ["tripId", "english", "romaji"],
     },
   },
+  // ── Showing things in Wander (moves the screen; changes nothing) ──────────────
+  {
+    name: "show_in_wander",
+    description: "Open a screen in Wander for the person: a day (by date), a city's ideas, Now, Actions, People, Home, History or the help page. Use go=true when they ask to see/open/show/take them to something ('show me our first day in Kyoto', 'take me to the day Andy and Julie arrive', 'open tomorrow') — Scout's panel steps down to a small bar and that screen opens. Use go=false when your answer is about a specific day or place and a button to open it would help ('Open Thu, Oct 15 ›'). Work out the date from the Guide first. Never open a day that isn't part of the trip. Always give a headline: the answer in a few words for Scout's small bar.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        target: { type: "string", enum: ["day", "ideas", "now", "actions", "people", "home", "history", "help", "back"], description: "'actions' holds the deadlines and to-dos; 'back' returns to the screen they were on before" },
+        date: { type: "string", description: "YYYY-MM-DD, for target 'day'" },
+        city: { type: "string", description: "City name, for target 'ideas' (e.g. 'Tokyo')" },
+        markedBy: { type: "string", description: "For target 'ideas': only the ideas this person marked ('the Kyoto ideas I marked' → the asker's own name)" },
+        item: { type: "string", description: "For target 'day': a few words from the Guide line you're talking about ('Meet Backroads', 'Robuchon', 'Check out') — the screen scrolls to it and highlights it" },
+        go: { type: "boolean", description: "true: open it now (they asked to be shown). false: offer a button." },
+        headline: { type: "string", description: "The answer in 4–9 words for Scout's small bar, leading with the fact, no 'Here's', people's names spelled out (never the Guide's initials like 'J/A' or 'K/L'): 'Sat Oct 17 · Robuchon 6:00 PM, jackets', 'Oct 29 · still open: Shiraume or Four Seasons', 'Nothing records a reconfirm yet'" },
+      },
+      required: ["tripId", "target", "go"],
+    },
+  },
+  // ── Notes on ideas (Wander's own; the Guide is never changed) ──────────────
+  {
+    name: "add_idea_note",
+    description: "Write a note on one of the trip's ideas for the person asking, e.g. 'note on Tsukiji: go early, before 8'. Everyone on the trip sees it under that idea in Ideas, with the person's name — unless justForMe is true (only they see it). It does not change Larisa's Guide. Find the idea's id with search_experiences.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        experienceId: { type: "string" },
+        content: { type: "string", description: "The note, in their words, without their name in front" },
+        justForMe: { type: "boolean" },
+      },
+      required: ["tripId", "experienceId", "content"],
+    },
+  },
+  {
+    name: "take_back_idea_note",
+    description: "Take back a note the person asking wrote on an idea ('take back my note on Tsukiji'). Only their own notes; with text, the one that matches it, otherwise their latest on that idea.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        experienceId: { type: "string" },
+        text: { type: "string", description: "Words from the note, when they have more than one there" },
+      },
+      required: ["tripId", "experienceId"],
+    },
+  },
+  // ── Same-day choices (Wander's own; the Guide is never changed) ──────────────
+  {
+    name: "add_same_day_plan",
+    description: "Put a same-day plan on a day, e.g. 'Ken and Andy are going to <a museum> this afternoon', 'we're doing <an activity> at 3'. It shows on that day in Wander (Home, the day screen, Now) for everyone on the trip, labelled as added in Wander by this person. It does not change Larisa's Guide. Pass experienceId when it's one of the trip's ideas (find it with search_experiences).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        date: { type: "string", description: "YYYY-MM-DD, the trip's local date (today unless they say otherwise)" },
+        text: { type: "string", description: "The plan in the person's own words, short: 'Ken & Andy: <a museum> this afternoon'" },
+        time: { type: "string", description: "HH:MM 24-hour, only when they gave a time" },
+        experienceId: { type: "string", description: "The idea this is, when there is one" },
+      },
+      required: ["tripId", "date", "text"],
+    },
+  },
+  {
+    name: "remove_same_day_plan",
+    description: "Take a same-day plan that was added in Wander off its day ('we're not doing <that museum> after all'). Only for choices added in Wander — never Guide items. Find the id with get_same_day_plans.",
+    input_schema: {
+      type: "object" as const,
+      properties: { tripId: { type: "string" }, choiceId: { type: "string" } },
+      required: ["tripId", "choiceId"],
+    },
+  },
+  {
+    name: "get_same_day_plans",
+    description: "List the same-day plans people added in Wander, for one date or the whole trip.",
+    input_schema: {
+      type: "object" as const,
+      properties: { tripId: { type: "string" }, date: { type: "string", description: "YYYY-MM-DD (optional)" } },
+      required: ["tripId"],
+    },
+  },
   // ── Bulk day operations ──────────────────────────────
   {
     name: "bulk_update_days",
@@ -1115,6 +1197,12 @@ const tools: Anthropic.Tool[] = [
 // trip — cities, days, dates, bookings, hotels, route legs, or whole trips. Their
 // implementations below stay in place (unreachable) in case a safer form returns.
 const WITHDRAWN_TOOLS = new Set([
+  // Who is on the trip and who plans it: planners decide, from People — never Scout
+  "add_trip_members",
+  "change_member_role",
+  // Sign-in links come only from People, which shares them without ever showing the code
+  // (a link Scout printed in chat was already retired and scrolled away)
+  "resend_invite",
   "delete_experience",
   "bulk_delete_experiences",
   "delete_city",
@@ -1135,7 +1223,16 @@ const WITHDRAWN_TOOLS = new Set([
   "set_trip_anchor",
 ]);
 
-const offeredTools = tools.filter((t) => !WITHDRAWN_TOOLS.has(t.name));
+// Scout searches and reads the web with Anthropic's own tools (they need no other key, so they work
+// wherever Scout does — the old search needed a Brave key that wasn't always set, and Scout said it
+// "couldn't pull a live forecast"). The old client-side web_search stays defined but isn't offered.
+const offeredTools: Anthropic.ToolUnion[] = [
+  ...tools.filter((t) => !WITHDRAWN_TOOLS.has(t.name) && t.name !== "web_search"),
+  { type: "web_search_20260209", name: "web_search", max_uses: 5 },
+  { type: "web_fetch_20260209", name: "web_fetch", max_uses: 3 },
+];
+/** The tools Scout is offered — exported for size checks (tools are part of every question's prompt) */
+export const scoutTools = offeredTools;
 
 // Scout can't unlock anyone's vault (it only has the signed-in session), so vault-protected
 // document details never pass through it — same types the vault protects on screen
@@ -1147,11 +1244,91 @@ function maskVaultDocument<T extends { type: string; data: unknown }>(doc: T): T
 }
 
 // Execute a tool call and return the result
-async function executeTool(
+const NOT_YOURS = "That's part of Larisa's Guide, so Wander doesn't change it (the next read of her Guide would undo it anyway). Offer instead: a same-day plan (add_same_day_plan), a note on the idea, or a message to Larisa.";
+
+export async function guideItemRefusal(toolName: string, input: any): Promise<string | null> {
+  const isGuideIdea = async (id: string) => {
+    const e = await prisma.experience.findUnique({ where: { id }, select: { sheetRowRef: true } });
+    return !!e?.sheetRowRef && !e.sheetRowRef.startsWith("Removed from Guide|");
+  };
+  switch (toolName) {
+    case "promote_experience": case "demote_experience": case "update_experience": case "move_experience":
+      return input?.experienceId && (await isGuideIdea(String(input.experienceId))) ? NOT_YOURS : null;
+    case "reorder_experiences":
+      for (const id of (input?.experienceIds || []) as string[]) if (await isGuideIdea(String(id))) return NOT_YOURS;
+      return null;
+    case "update_day_notes": {
+      const day = input?.dayId ? await prisma.day.findUnique({ where: { id: String(input.dayId) }, select: { tripId: true } }) : null;
+      const fromGuide = day ? await prisma.guideSnapshot.count({ where: { tripId: day.tripId } }) : 0;
+      return fromGuide ? NOT_YOURS : null;
+    }
+    case "update_city": {
+      const c = input?.cityId ? await prisma.city.findUnique({ where: { id: String(input.cityId) }, select: { guideKey: true } }) : null;
+      return c?.guideKey ? NOT_YOURS : null;
+    }
+    case "update_accommodation": {
+      const a = input?.accommodationId ? await prisma.accommodation.findUnique({ where: { id: String(input.accommodationId) }, select: { guideKey: true } }) : null;
+      return a?.guideKey ? NOT_YOURS : null;
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Takes a "Message for Larisa: …" line off a reply nobody asked a message for. Asked means the question
+ * itself wants her told ("text Larisa…", "draft a note", "let her know"), or it says yes to Scout's own
+ * offer on the previous turn ("Want me to draft a note to Larisa?" → "yes"). Never for Larisa herself.
+ */
+/**
+ * Scout's answer arrives in pieces around a web search. Joined as they come, a line said before searching
+ * ("I'll check — the Raku Museum is on your plan…") stayed in and ran into the answer ("afternoon.Yes —").
+ * Pieces are joined with a space where a sentence ended, and "let me check" narration is taken out.
+ */
+export function joinAnswerPieces(pieces: string[]): string {
+  let out = "";
+  for (const p of pieces) {
+    if (!p) continue;
+    out += out && /[.!?]$/.test(out) && /^[A-Z*]/.test(p) ? ` ${p}` : p;
+  }
+  return withoutNarration(out.trim());
+}
+export function withoutNarration(text: string): string {
+  return text
+    // "I'll check — …" / "Let me check the hours." / "Let me look that up:" at the start of a sentence
+    .replace(/(^|(?<=[.!?]\s)|(?<=\n))(?:I'll|I will|Let me|Let's) (?:check|look(?: that)? up|look|see|search)\b[^.!?\n—:]*(?:[.!?:]\s*|\s*—\s*[^.!?\n]*[.!?]\s*)/gi, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+export function withoutUnaskedDraft(reply: string, message: string, history: unknown, asker?: string | null): string {
+  if (!/Message for Larisa:/i.test(reply)) return reply;
+  const q = String(message || "");
+  const asked = /\b(message|text|tell|ask|email|note to|let)\b[^.?!]{0,40}\blarisa\b/i.test(q)
+    || /\blarisa\b[^.?!]{0,40}\b(know|message|text|told)\b/i.test(q)
+    || /\b(draft|write)\b[^.?!]{0,30}\b(note|message|text)\b/i.test(q);
+  // The app sends history as { role, text } (ChatBubble); "content" is accepted too
+  const last = Array.isArray(history) ? [...history].reverse().find((h: any) => h?.role === "assistant") : null;
+  const lastWords = String((last as any)?.text ?? (last as any)?.content ?? "");
+  const offered = /draft|message|note/i.test(lastWords) && /larisa/i.test(lastWords);
+  const saidYes = /^\s*(yes|yeah|yep|sure|ok(ay)?|please|do it|go ahead|sounds good)\b/i.test(q);
+  if (/^larisa$/i.test(String(asker || "").trim()) || !(asked || (offered && saidYes))) {
+    return reply.replace(/\n*\s*\**Message for Larisa:\**[\s\S]*$/i, "").trimEnd();
+  }
+  return reply;
+}
+
+export async function executeTool(
   toolName: string,
   input: any,
   user: { code: string; displayName: string },
-): Promise<{ result: any; actionDescription?: string; placeCards?: any[] }> {
+): Promise<{ result: any; actionDescription?: string; placeCards?: any[]; navigate?: { path: string; label: string; go: boolean; headline?: string } }> {
+  // Larisa's own items (her ideas, stops, hotels, days) come from her Guide; the next read of it
+  // would silently undo any change Scout made to them, losing what the person meant. So Scout
+  // doesn't change them — it adds a note or a same-day plan, which always survive.
+  const guideRefusal = await guideItemRefusal(toolName, input);
+  if (guideRefusal) return { result: { error: guideRefusal } };
+
   if (WITHDRAWN_TOOLS.has(toolName)) {
     return { result: { error: "Scout can't delete or restructure the trip. Changes to the plan happen in Larisa's Guide." } };
   }
@@ -3024,6 +3201,140 @@ async function executeTool(
       };
     }
 
+    case "show_in_wander": {
+      const tripId = String(input.tripId || "");
+      const go = input.go === true;
+      // A few words for Scout's small bar; the bar falls back to the answer's first line without it
+      const headline = typeof input.headline === "string" ? input.headline.replace(/\s+/g, " ").trim().slice(0, 90) || undefined : undefined;
+      const fixed: Record<string, [string, string]> = {
+        back: ["back", "Back to where you were"],
+        now: ["/now", "Open Now"], actions: ["/?actions=1", "Open Actions"], people: ["/people", "Open People on this trip"],
+        home: ["/", "Open Home"], history: ["/history", "Open What's changed"], help: ["/guide", "Open How Wander works"],
+      };
+      if (input.target === "day") {
+        const date = String(input.date || "").slice(0, 10);
+        const day = /^\d{4}-\d{2}-\d{2}$/.test(date)
+          ? await prisma.day.findFirst({ where: { tripId, date: new Date(`${date}T00:00:00.000Z`) }, include: { city: { select: { name: true } } } })
+          : null;
+        if (!day) return { result: { error: `${date || "That date"} isn't a day of this trip — nothing opened.` } };
+        // A moving day names both places ("Tokyo → Nikko"), as the day screen does — the 8:30 meeting is in Tokyo
+        const prevDate = new Date(`${date}T00:00:00.000Z`);
+        prevDate.setUTCDate(prevDate.getUTCDate() - 1);
+        const prev = await prisma.day.findFirst({ where: { tripId, date: prevDate }, include: { city: { select: { name: true } } } });
+        const where = prev?.city?.name && day.city?.name && prev.city.name !== day.city.name ? `${prev.city.name} → ${day.city.name}` : day.city?.name;
+        const label = `Open ${plainDay(date)}${where ? ` · ${where}` : ""}`;
+        // The line Scout is talking about: the screen scrolls to it and marks it, so it's never below the fold
+        let hash = "";
+        const want = typeof input.item === "string" ? input.item.toLowerCase().split(/[^a-z0-9]+/).filter((w: string) => w.length > 2) : [];
+        if (want.length) {
+          const items = await prisma.guideItem.findMany({ where: { tripId, date: new Date(`${date}T00:00:00.000Z`), kind: { not: "stop" } }, select: { id: true, title: true, kind: true } });
+          const scored = items
+            .map((i) => ({ i, n: want.filter((w: string) => i.title.toLowerCase().includes(w)).length }))
+            .filter((x) => x.n > 0)
+            .sort((a, b) => b.n - a.n || (a.i.kind === "deadline" ? 1 : 0) - (b.i.kind === "deadline" ? 1 : 0));
+          if (scored[0]) hash = `#item-${scored[0].i.id}`;
+        }
+        return { result: { opened: go, screen: label }, navigate: { path: `/day/${date}${hash}`, label, go, headline } };
+      }
+      if (input.target === "ideas") {
+        const want = String(input.city || "").trim().toLowerCase();
+        const cities = await prisma.city.findMany({ where: { tripId, hidden: false }, select: { id: true, name: true } });
+        const city = want ? cities.find((c) => c.name.toLowerCase() === want) || cities.find((c) => c.name.toLowerCase().includes(want) || want.includes(c.name.toLowerCase())) : null;
+        if (want && !city) return { result: { error: `${input.city} isn't a stop on this trip — nothing opened. Stops: ${cities.map((c) => c.name).join(", ")}.` } };
+        // "The Kyoto ideas I marked": the screen opens with that person's marks only — the words and the
+        // screen agree (it used to open on everyone's, 12 ideas, while Scout said three)
+        let by: string | null = null;
+        if (typeof input.markedBy === "string" && input.markedBy.trim()) {
+          const want = input.markedBy.trim().toLowerCase();
+          const marks = await prisma.experienceInterest.findMany({
+            where: { experience: { tripId, ...(city ? { cityId: city.id } : {}) } },
+            select: { displayName: true },
+          });
+          const names = Array.from(new Set(marks.map((m) => m.displayName.replace(/\s*\(maybe\)$/i, ""))));
+          by = names.find((n) => n.toLowerCase() === want) || names.find((n) => n.toLowerCase().startsWith(want)) || null;
+          if (!by) return { result: { error: `${input.markedBy} hasn't marked any ideas${city ? ` in ${city.name}` : ""} — nothing opened.` } };
+        }
+        const label = city ? `Open Ideas · ${city.name}${by ? ` · marked by ${by}` : ""}` : "Open Ideas";
+        const query = [city ? `city=${city.id}` : null, by ? `by=${encodeURIComponent(by)}` : null].filter(Boolean).join("&");
+        return { result: { opened: go, screen: label }, navigate: { path: query ? `/ideas?${query}` : "/ideas", label, go, headline } };
+      }
+      const f = fixed[input.target as string];
+      if (!f) return { result: { error: "That isn't a screen in Wander." } };
+      return { result: { opened: go, screen: f[1] }, navigate: { path: f[0], label: f[1], go, headline } };
+    }
+
+    case "add_idea_note": {
+      const traveler = await prisma.traveler.findUnique({ where: { displayName: user.displayName }, select: { id: true } });
+      if (!traveler) return { result: { error: "I couldn't tell who's asking — try again after signing in." } };
+      const exp = await prisma.experience.findFirst({ where: { id: String(input.experienceId || ""), tripId: input.tripId }, select: { id: true, name: true, tripId: true } });
+      if (!exp) return { result: { error: "That idea isn't on this trip — look it up with search_experiences first." } };
+      if (!(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: exp.tripId, travelerId: traveler.id } } }))) return { result: { error: "That trip isn't one of yours." } };
+      const content = String(input.content || "").trim().slice(0, 1000);
+      if (!content) return { result: { error: "The note is empty." } };
+      const visibility = input.justForMe === true ? "private" : "group";
+      const note = await prisma.experienceNote.create({ data: { experienceId: exp.id, travelerId: traveler.id, content, visibility } });
+      if (visibility === "group") {
+        logChange({
+          tripId: exp.tripId, user: user as any, actionType: "note_added", entityType: "experience_note", entityId: note.id,
+          entityName: exp.name, description: `noted on ${exp.name}: "${content.slice(0, 80)}"`, newState: { experienceId: exp.id, content },
+        }).catch(() => {});
+      }
+      return {
+        result: { saved: true, idea: exp.name, whoSees: visibility === "group" ? "everyone on the trip" : "only you", guideChanged: false },
+        actionDescription: `Note on ${exp.name}${visibility === "private" ? " (just for you)" : ""}`,
+      };
+    }
+
+    case "take_back_idea_note": {
+      const traveler = await prisma.traveler.findUnique({ where: { displayName: user.displayName }, select: { id: true } });
+      if (!traveler) return { result: { error: "I couldn't tell who's asking — try again after signing in." } };
+      const exp = await prisma.experience.findFirst({ where: { id: String(input.experienceId || ""), tripId: input.tripId }, select: { id: true, name: true, tripId: true } });
+      if (!exp) return { result: { error: "That idea isn't on this trip." } };
+      if (!(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: exp.tripId, travelerId: traveler.id } } }))) return { result: { error: "That trip isn't one of yours." } };
+      const mine = await prisma.experienceNote.findMany({ where: { experienceId: exp.id, travelerId: traveler.id }, orderBy: { createdAt: "desc" } });
+      const want = typeof input.text === "string" ? input.text.trim().toLowerCase() : "";
+      const note = want ? mine.find((n) => n.content.toLowerCase().includes(want)) : mine[0];
+      if (!note) return { result: { error: mine.length ? "None of your notes there match those words." : `You haven't written a note on ${exp.name}. (Only your own notes can be taken back.)` } };
+      await prisma.experienceNote.delete({ where: { id: note.id } });
+      if (note.visibility === "group") {
+        logChange({
+          tripId: exp.tripId, user: user as any, actionType: "note_removed", entityType: "experience_note", entityId: note.id,
+          entityName: exp.name, description: `took back a note on ${exp.name}`, previousState: { experienceId: exp.id, content: note.content },
+        }).catch(() => {});
+      }
+      return { result: { removed: true, idea: exp.name, note: note.content }, actionDescription: `Took back your note on ${exp.name}` };
+    }
+
+    case "add_same_day_plan": {
+      const traveler = await prisma.traveler.findUnique({ where: { displayName: user.displayName }, select: { id: true } });
+      if (!traveler) return { result: { error: "I couldn't tell who's asking — try again after signing in." } };
+      const added = await addDayChoice({ tripId: input.tripId, travelerId: traveler.id, date: input.date, text: input.text, time: input.time, experienceId: input.experienceId });
+      if (!added.ok) return { result: { error: added.error } };
+      // In History like one added by tapping
+      logChange({
+        tripId: input.tripId, user: user as any, actionType: "day_choice_added", entityType: "day_choice", entityId: added.choice.id,
+        entityName: added.choice.text, description: `added "${added.choice.text}" to ${plainDay(added.choice.date)}`, newState: added.choice,
+      }).catch(() => {});
+      return {
+        result: { saved: true, choice: added.choice, whoSees: "everyone on the trip", guideChanged: false },
+        actionDescription: `On ${plainDay(added.choice.date)}: ${added.choice.text}`,
+      };
+    }
+
+    case "remove_same_day_plan": {
+      const removed = await removeDayChoice(input.tripId, input.choiceId);
+      if (!removed.ok) return { result: { error: removed.error } };
+      logChange({
+        tripId: input.tripId, user: user as any, actionType: "day_choice_removed", entityType: "day_choice", entityId: removed.removed.id,
+        entityName: removed.removed.text, description: `took "${removed.removed.text}" off ${plainDay(removed.removed.date)}`, previousState: removed.removed,
+      }).catch(() => {});
+      return { result: { removed: true, choice: removed.removed }, actionDescription: `Off ${plainDay(removed.removed.date)}: ${removed.removed.text}` };
+    }
+
+    case "get_same_day_plans": {
+      return { result: { choices: await listDayChoices(input.tripId, input.date || undefined) } };
+    }
+
     case "bulk_update_days": {
       const results = { updated: 0, created: 0, deleted: 0, errors: [] as string[] };
 
@@ -3716,7 +4027,7 @@ async function executeTool(
 
 router.post("/", async (req: AuthRequest, res) => {
   try {
-    const { message, context, history } = req.body;
+    const { message, context, history, clientTime } = req.body;
 
     if (!message) {
       res.status(400).json({ error: "message is required" });
@@ -3728,9 +4039,28 @@ router.post("/", async (req: AuthRequest, res) => {
     // Ensure we have a tripId — fall back to the active trip
     let tripId = context?.tripId;
     if (!tripId) {
-      // Fall back to most recently updated active trip (not just first in DB)
-      const activeTrip = await prisma.trip.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" }, select: { id: true } });
-      if (activeTrip) tripId = activeTrip.id;
+      // Fall back to this person's own most recently updated active trip (trips are private to their people)
+      const mine = req.user?.travelerId
+        ? await prisma.tripMember.findFirst({ where: { travelerId: req.user.travelerId, trip: { status: "active" } }, orderBy: { trip: { updatedAt: "desc" } }, select: { tripId: true } })
+        : null;
+      if (mine) tripId = mine.tripId;
+      else if (!req.user?.travelerId) {
+        const activeTrip = await prisma.trip.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" }, select: { id: true } });
+        if (activeTrip) tripId = activeTrip.id;
+      }
+    }
+
+    // Scout doesn't talk about (or act on) a trip you're not on — checked before anything runs
+    let memberRole: string | null = null;
+    if (req.user?.travelerId && tripId) {
+      try {
+        const { getUserRole: getRole } = await import("../middleware/role.js");
+        memberRole = await getRole(req.user.travelerId, tripId);
+      } catch { memberRole = "unknown"; /* couldn't check — carry on as before */ }
+      if (!memberRole) {
+        res.status(403).json({ error: "That trip isn't one of yours." });
+        return;
+      }
     }
 
     // Fast-path: detect recommendation-like text and import directly
@@ -3743,12 +4073,14 @@ router.post("/", async (req: AuthRequest, res) => {
       // Check if user recently pasted recs and is now saying "do it" / "yes"
       const lastUserMsg = [...history].reverse().find((h: any) => h.role === "user");
       if (lastUserMsg) {
-        const hLines = lastUserMsg.text.split("\n").filter((l: string) => l.trim().length > 0);
-        if (hLines.length >= 5 && lastUserMsg.text.length > 300) {
+        // A history line without text (an odd client) is skipped, never a crash
+        const lastText = String(lastUserMsg.text ?? lastUserMsg.content ?? "");
+        const hLines = lastText.split("\n").filter((l: string) => l.trim().length > 0);
+        if (hLines.length >= 5 && lastText.length > 300) {
           const shortFollowUp = message.length < 100;
           if (shortFollowUp) {
             looksLikeRecs = true;
-            recText = lastUserMsg.text;
+            recText = lastText;
           }
         }
       }
@@ -3761,7 +4093,10 @@ router.post("/", async (req: AuthRequest, res) => {
       /\b(american|united|delta|southwest|alaska|jetblue|continental)\s*(air|airline)?/i,
     ];
     const looksLikeTravelDocs = travelDocPatterns.some(p => p.test(recText));
-    if (looksLikeRecs && !looksLikeTravelDocs) {
+    // The paste shortcut filed any long pasted text as places to visit without Scout reading it —
+    // a pasted hotel email asking "what time is check-in?" became ideas. Scout now reads everything.
+    const PASTE_SHORTCUT = false;
+    if (PASTE_SHORTCUT && looksLikeRecs && !looksLikeTravelDocs) {
       console.log("Chat fast-path: detected recommendation text, importing directly");
       try {
         const { result, actionDescription } = await executeTool(
@@ -3795,14 +4130,9 @@ router.post("/", async (req: AuthRequest, res) => {
     }
 
     // Determine user's role on this trip
+    // (membership was checked above)
     let userRole = "planner";
-    if (req.user?.travelerId && tripId) {
-      try {
-        const { getUserRole: getRole } = await import("../middleware/role.js");
-        const role = await getRole(req.user.travelerId, tripId);
-        if (role) userRole = role;
-      } catch { /* fallback to planner */ }
-    }
+    if (memberRole && memberRole !== "unknown") userRole = memberRole;
 
     // Fetch relevant learnings to inject into context (planners only)
     let learningsContext = "";
@@ -3825,17 +4155,74 @@ router.post("/", async (req: AuthRequest, res) => {
       } catch { /* non-blocking */ }
     }
 
-    // Build system prompt with page context
-    const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything. You help plan trips, answer questions, and take care of details so travelers can focus on the experience.
+    // What time it is for the person asking — their phone's date, time and time zone
+    // Today, tomorrow and yesterday already worked out in words, on the asker's own calendar — Scout once
+    // wrote "7:59 AM tomorrow, Sun… sorry, Mon, Oct 12" working out the weekday itself
+    const dayWords = (ymd: string, add: number) => {
+      const d = new Date(`${ymd}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + add);
+      return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
+    };
+    const validDay = typeof clientTime?.localDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(clientTime.localDate);
+    const nowLine = clientTime?.localDate && clientTime?.localTime
+      ? `RIGHT NOW for ${req.user?.displayName || "this person"}: ${clientTime.weekday || ""} ${clientTime.localDate}, ${clientTime.localTime} (${clientTime.timeZone || "their phone's time zone"}). "Today", "tonight", "tomorrow" and "now" always mean this — never the day on the screen they're looking at.${validDay ? ` On their calendar: today is ${dayWords(clientTime.localDate, 0)}; tomorrow is ${dayWords(clientTime.localDate, 1)}; yesterday was ${dayWords(clientTime.localDate, -1)}.` : ""}`
+      : `RIGHT NOW: the phone didn't send its time; if the answer depends on the date, ask which day they mean.`;
 
-CURRENT CONTEXT:
-- Page: ${context?.page || "unknown"}
-- Trip ID: ${tripId || "none"}
-- User: ${req.user?.displayName || "unknown"} (role: ${userRole})
-${context?.cityId ? `- Viewing city ID: ${context.cityId}` : ""}
-${context?.cityName ? `- Viewing city: ${context.cityName}` : ""}
-${context?.dayId ? `- Viewing day ID: ${context.dayId}` : ""}
-${context?.dayDate ? `- Viewing day: ${context.dayDate}` : ""}${learningsContext}
+    // Larisa's Guide, as Wander read it — the same facts every Wander screen shows
+    let guideContext = "";
+    let guideLive = "";
+    if (tripId) {
+      try {
+        const { buildGuideContextParts } = await import("../services/guide/scoutContext.js");
+        const phoneNow = typeof clientTime?.iso === "string" && !isNaN(Date.parse(clientTime.iso)) ? new Date(clientTime.iso) : new Date();
+        const parts = await buildGuideContextParts(tripId, { phoneZone: typeof clientTime?.timeZone === "string" ? clientTime.timeZone : undefined, now: phoneNow });
+        guideContext = parts.stable;
+        guideLive = parts.live;
+      } catch (e: any) { console.warn("[scout] guide context unavailable:", e.message); }
+    }
+
+    // Build system prompt with page context
+    const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
+
+Wander is the family's window into Larisa's Guide — her trip spreadsheet, which is the plan. You know the Guide (below), you know how Wander works (below), and you can look things up on the internet. You never change the plan. What time it is for the person asking, and what the Guide's deadlines and flights stand at right now, are under RIGHT NOW at the very end.
+
+ANSWERING FROM THE GUIDE (most important):
+- For anything about this trip — where we sleep, what's on a day, times, bookings, confirmation numbers, deadlines, who's going, dinners — answer from LARISA'S GUIDE below first, and say it comes from Larisa's Guide.
+- Use the Guide's own words for times and places. Give the confirmation number when it's asked for or clearly useful.
+- If the Guide doesn't have it, say plainly "That isn't in Larisa's Guide" (and that she may have it). Never say something "isn't saved in Wander" or "hasn't been added" — if it's in the Guide below, you have it.
+- Never invent or guess plan details: no "typical" check-out times, no airports or hotels the Guide doesn't name. General travel knowledge (how long Kyoto to Kansai airport takes, weather patterns) is fine — label it as your own estimate, never as the plan.
+- Where the Guide lists two options or marks something as a maybe or TBD, say both and that it's still open. Never offer to settle it, save it, or pick one.
+- Deadlines: say what must be done, by when (weekday + date + time if given), and how, from the Guide's own text. Whether a deadline has passed, is open now, or hasn't opened yet is in DEADLINES — STATUS RIGHT NOW below: use that, exactly. For cancelling, charges or reconfirming, never read a policy ("7–4 days before: 60%") and work out today's charge yourself — the status lines already did; if one says PASSED, the free window is over. The dates in the DAY BY DAY lines (and "can be done any day from … through …") are already worked out too — never recompute them.
+- "When is… / what time is…": give the time exactly as the Guide has it, for the person asking, and say when it's only her estimate ("The end time is Larisa's estimate" → "about 3 PM"). When the Guide has no time, say so first and plainly ("Larisa's Guide doesn't give a time for it"); anything you add from general knowledge is labelled as yours, never as the plan. When their phone isn't on Japan's clock, give their own time too.
+- Detailed day plans: some days have both the Itinerary tab's overview line and blocks of Larisa's DETAILED PLAN from a day tab ("Kyoto Mon, 1026…", "Tokyo Day 2…"). For what happens when, where lunch is, when to leave, how to get there, answer from the detailed plan, with its times as she wrote them ("~8:30–9:15", "Morning") and her place names, and name the tab. Keep her order. A block "For Larisa & Julie" or "For Ken & Andy" is only for them — answer for the person asking (the group can split up). While the group is split (after her "Split groups" line, until everyone is back together), a line with no "For" doesn't say whose it is — say that ("the next line, Maruni Toryo 10:35–11:35, doesn't say which group"), never assign it.
+- Relaying her plan: a line's time is when that line happens, at that place ("Evening Prep at the Imperial Hotel, 5:15–6:15" is time AT the hotel, resting and dressing) — never turn it into a time to leave, and when she gives no leaving time, say when the next line starts. Her transit notes name lines and stations exactly ("from Hibiya Station, take the Chiyoda Line (Green) to Meiji-jingumae") — copy them word for word, never shorten them into arrows or swap a station's name for a line's (Hibiya Station is not the Hibiya Line). A wrong train is worse than a long sentence.
+- Name a booked place by its booking — the line's title or her booking email/screenshot ("La Table de Joël Robuchon, 1F") — never by a name that appears only in its "Address:" line (that line can open with the building's name, "Château Restaurant Joël Robuchon", a different restaurant in the same building).
+- When two tabs disagree, never tell them which one "to go by", which is "the one that counts", or which "wins" — even when one looks more detailed. Say what each tab says; the tie-break is Larisa's.
+- When something has gone wrong (a missed train, a closed place, running late), lead with what they need to do now. Never reassure them with the other side of a conflict ("the Itinerary's 1:30 Haruka means you're still on plan"): a reserved seat, a booking or a meeting is tied to the one they missed.
+- Where someone is at a moment: only what the plan says for that time, said as the plan ("the plan has them at…"). Before saying anyone is traveling, work out their flight in the right zones (a noon California departure on Oct 13 is 4 AM Oct 14 in Japan — on Oct 13 in Japan they haven't left home). Choices in a block ("Choice: …") are all hers — list them; never pick one yourself. When the group has picked one, it appears as an ADDED IN WANDER line ("<her line>: <the place picked>") — say it's the group's pick, added in Wander, and still name her other choices if asked. When the overview and a day tab disagree (a time, a place, what the day is), say both with their tabs; never silently pick. And never reconcile them yourself: no "either way…", "both put you…", "so it's around…" — each version's consequences differ (a 1:30 train doesn't reach the airport at 2:00), and a detail that only one tab states (the Residence transfer at noon) belongs to that tab alone. Say what each tab says, then stop, or say which one to confirm with Larisa.
+- When the Guide is silent on something a traveler needs now — opening hours, whether a place is open today, how to get from A to B, today's weather, what a station exit is — look it up with web_search (and web_fetch to read the place's own page), and say where it came from ("the restaurant's site says…", "per Japan Guide…"). What you find online is never the plan; the Guide is. Never present a search result as certain when sources disagree. Never credit something you found online to Larisa ("she notes…", "her Guide says…") — only what is in her Guide is hers. Search first, then write the answer once: no "let me check", no restarting a sentence mid-way ("— sorry, …"), no saying the same thing before and after a search, and times from the web in the same words as the Guide's ("6:00 PM", never "18:00").
+- Never add what her sheet doesn't state — not a unit (her forecast numbers have no °F/°C in the sheet), not a reason, not a consequence. If you add general knowledge, label it as yours in the same sentence. When a day tab says a plan was matched to the date by Wander, say that it was.
+- Flight times always say whose clock: "6:35 PM Japan time", "12:00 PM California time".
+- Every date in the Guide is a Japan date. A person still at home lives on another calendar: Julie's "Oct 13" in California (the day she flies) is not the Guide's Oct 13 (when she is still at home). Before saying where someone is on a Guide date, read that date's WHERE line in DAY BY DAY; never map a Japan date onto their own calendar day.
+- A check-in time is when the room is ready, not when they arrive: when a party lands after it, say "rooms are ready from 2:00 PM; they'll check in after landing at 3:00 PM" — never "land at 3:00 and check in at 2:00".
+- Where the Guide lists two places for a night, nothing that depends on it leads with one hotel's details — lead with the open question, then each hotel's own time and code.
+- Split parties: each couple may have its own flight, confirmation and room ("For Ken & Larisa"). Match the person asking.
+- Never attach a Guide fact to a person the Guide doesn't name ("one guest has an allium allergy", not "your allergy"). Label transit routes and travel times you work out yourself as your own suggestion, and only name lines and stations you're sure of.
+- Words: dates like "Fri, Oct 16"; times like "6:00 PM" (never 24-hour, never "12:00" alone — say noon). Lead with the answer in a sentence or two; extras on one short line. Larisa's "Activities tab" is what Wander shows under Ideas.
+- Same-day plans: the text is the plan itself ("<place>, <who>") — never repeat the time in it when you pass a time.
+
+HOW WANDER WORKS (for "how do I…" questions — describe these real screens only):
+- Home: today's plan from the Guide at the top (where Larisa's day plan has you now — "Now, in Larisa's plan" — what's next, tonight's hotel, tomorrow, deadlines coming up), then the trip calendar. Tap any day to open that day.
+- A day: everything the Guide says for that date in time order, where everyone sleeps that night, and where each line came from. The arrows at the top move to the day before or after. On days Larisa wrote a day tab for, "Larisa's plan for the day" follows: her lines in her order with her times, who each is for when the group splits, "Larisa's notes ›" and Maps. Where she lists choices for one time, each has "We're going here"; the pick shows "✓ The group's pick" for everyone (added in Wander — her sheet is unchanged), and the others offer "Switch to this".
+- A day also has "+ Add a plan for this day": a same-day plan anyone can add ("Ken and Andy: <a museum> this afternoon"). It shows on that day for everyone, labelled as added in Wander. It never changes the Guide.
+- Ideas (bottom bar): the ideas from the Activities tab of Larisa's Guide, city by city (opens on today's city), with who marked each one. On each idea: "+ Note" (for everyone, or "Just for me"), "Add to a day", Maps, and Ask Scout. Notes and plans typed with no signal are saved on the phone and sent later.
+- Now (bottom bar): today, with where Larisa's day plan has you right now, what's next and how long until it (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
+- Actions (bottom bar): the to-dos from the Actions tab of Larisa's Guide.
+- Scout: that's you — the chat bubble.
+- Settings → People on this trip: who's in; for the trip's planners, "+ Add someone" (name + trip → a QR code or a message) and "New phone? New link". Face ID is set up from Home or Settings. On an iPhone, Wander goes on the Home Screen from Safari: Share → Add to Home Screen.
+- Each trip shows only its own people and plan; someone on two trips switches between them from the trip name at the top of Home.
+- Wander never changes Larisa's Guide. Plan changes happen in her sheet; Wander shows the newest copy it has read.
+- Wander does NOT read the Guide live. If asked how current it is, give the date Wander last read it (at the top of LARISA'S GUIDE) and say Larisa may have changed things since.
 
 RULES:
 1. Be concise and helpful. One or two sentences for simple answers.
@@ -3847,7 +4234,7 @@ RULES:
 6. For date references like "Tuesday" or "day 3", use get_all_days to find the right day.
 7. Never fabricate data — always query first.
 8. When the user says "move X to Y day", demote first then promote to the new day.
-11. NEVER ask the user for a trip ID, city ID, day ID, or any internal identifier. These are always provided in the CURRENT CONTEXT above. If the trip ID shows "none", tell the user no active trip was found.
+11. NEVER ask the user for a trip ID, city ID, day ID, or any internal identifier. These are always provided in the CURRENT CONTEXT at the end. If the trip ID shows "none", tell the user no active trip was found.
 12. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations IMMEDIATELY. Do not ask for confirmation first — just do it. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
 13. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.
 14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.
@@ -3878,36 +4265,41 @@ RULES:
 42. Use update_learning and delete_learning when the user wants to edit or remove a saved learning.
 43. When a planner asks "anything to review?", "pending changes?", or similar, use get_pending_approvals to show queued approval requests.
 44. Use review_approval when a planner says "approve that", "looks good", "reject that change", or similar. Pass the approvalId, the decision ("approved" or "rejected"), and optionally a note.
-45. Use add_trip_members when someone says "add Glo and Brian to the trip" or names people who should join. Creates travelers, memberships, and personal invite links.
-46. Use change_member_role when a planner says "make Glo a planner" or "change Brian's role to traveler". Only planners can do this.
+45. Letting people in: the trip's planners do it from Wander's People screen (Settings → People on this trip). "+ Add someone": type the name, pick the trip, and Wander shows a QR code for that person's iPhone camera (or "Send as a message"); their phone then shows how to put Wander on the Home Screen. Someone already in Wander from another trip just gets this trip too. For a new phone: "New phone? New link" next to their name. You can't make or show links in chat — say so plainly and point there. If the asker isn't a planner, say Ken or Larisa can do it. Don't guess anyone's pronouns — use their name.
+46d. Showing things: you can move Wander's screen with show_in_wander (it changes nothing). When someone asks to see, open, show or be taken to something — "show me our first day in Kyoto", "the day Andy and Julie arrive", "open tomorrow", "Tokyo ideas", "show me the deadlines" (that's Actions), "who's on the trip" (People) — work out the exact date or city from the Guide, call it with go=true, and reply in one short line that says what they're looking at ("Here's Wed, Oct 14 — Julie & Andy land at Narita at 3:00 PM."). Your panel steps down to a small bar while they look, so they can ask a follow-up; always pass a headline — the answer itself in a few words for that bar ("Oct 29 · still open: Shiraume or Four Seasons"). When you're talking about one line of that day (the Backroads meeting, a dinner), pass item with a few of its words so the screen scrolls to it. "Ideas I marked" / "Julie's ideas" → pass markedBy with that person's name (the asker's own name for "I"). "Take me back" / "go back" → target "back". When your answer is about one specific day, also call it with go=false so a button appears. If what they asked for doesn't exist in the plan (a city with no stay, a date outside the trip), say so in words first ("The trip ends Thu, Oct 29 — Nov 3 isn't part of it.") and offer the nearest real day as a button — never invent one, and never answer with only "tap below". Phrases like "been to by now" mean what the plan says up to today; say that you know the plan, not what they actually did. Everything you write before and after a tool call is shown together as one answer — so after a tool call, don't repeat yourself; add only what's new, or nothing.
+46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?", "do we need to reconfirm anything?", "where does the tour start?", "are we going to X?") gets an answer, not a draft — at most offer in words ("Want me to draft a note to Larisa?"). Never do this when the asker is Larisa herself.
+46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed — say both in one short line. Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Take back" under their own note in Ideas — someone else's note is theirs to take back.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
 52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
-53. Use resend_invite when a planner says "send [name] a new link", "[name] lost their invite", or "regenerate [name]'s link". This invalidates the old link and creates a new one.
 54. Use create_day_choice when someone says "some of us might want to do X while others do Y", "we could split up", or "there are two options for the afternoon". This creates a Decision tied to a specific day so everyone can vote on what they want to do.
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
 
-    // Build conversation with persistent history from DB
+    // The conversation is what THIS phone shows. A chat from another phone, or from last night,
+    // must never steer an answer here (it once made Scout say "no check-out today" on a moving day).
+    // The saved history below is used only when the phone sent none at all (older app versions).
     let messages: Anthropic.MessageParam[] = [];
-    if (tripId && req.user?.travelerId) {
+    if (Array.isArray(history)) {
+      for (const h of history.slice(-10)) {
+        if ((h.role === "user" || h.role === "assistant") && typeof h.text === "string" && h.text.trim()) {
+          messages.push({ role: h.role, content: h.text });
+        }
+      }
+      // The API needs alternating turns starting with the person; drop a leading assistant greeting
+      while (messages.length && messages[0].role !== "user") messages.shift();
+    } else if (tripId && req.user?.travelerId) {
       try {
+        // Only the current conversation (the last six hours) — older exchanges may rest on a
+        // previous copy of the Guide or an earlier day, and shouldn't steer today's answers
         const dbMessages = await prisma.chatMessage.findMany({
-          where: { tripId, travelerId: req.user.travelerId },
+          where: { tripId, travelerId: req.user.travelerId, createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) } },
           orderBy: { createdAt: "desc" },
           take: 20,
         });
         for (const msg of dbMessages.reverse()) {
           messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
         }
-      } catch { /* fall back to client history if DB fails */ }
-    }
-    // Fallback: use client-passed history if no DB messages
-    if (messages.length === 0 && Array.isArray(history) && history.length > 0) {
-      for (const h of history.slice(-10)) {
-        if (h.role === "user" || h.role === "assistant") {
-          messages.push({ role: h.role, content: h.text });
-        }
-      }
+      } catch { /* no saved history — answer this question on its own */ }
     }
     // Append tripId hint to the user message so the model can't miss it
     const augmentedMessage = tripId
@@ -3916,44 +4308,92 @@ RULES:
     messages.push({ role: "user", content: augmentedMessage });
     const actions: string[] = [];
     const placeCards: any[] = [];
+    // Screens Scout opened or offered ("Open Wed, Oct 14 · Tokyo")
+    const shows: { path: string; label: string; go: boolean; headline?: string }[] = [];
     let finalReply = "";
+    // What this answer used, across every step, logged once at the end — real cost, not a guess
+    const used = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0, searches: 0, steps: 0 };
+
+    // Cheapest order that loses nothing (measured Sep 29): Scout's instructions (the same for everyone) and
+    // the Guide (the same for everyone until her copy is read again or a plan is added) are cached for an
+    // hour and reused at a tenth of the price; only this question's details are paid in full. Before, the
+    // time and the page sat inside the instructions and the Guide carried "right now" statuses, so almost
+    // every question re-stored all ~73,000 tokens.
+    const liveTail = [
+      "RIGHT NOW (this question):",
+      nowLine,
+      guideLive,
+      "",
+      "CURRENT CONTEXT:",
+      `- Page: ${context?.page || "unknown"}`,
+      `- Trip ID: ${tripId || "none"}`,
+      `- User: ${req.user?.displayName || "unknown"} (role: ${userRole})`,
+      context?.cityId ? `- Viewing city ID: ${context.cityId}` : "",
+      context?.cityName ? `- Viewing city: ${context.cityName}` : "",
+      context?.dayId ? `- Viewing day ID: ${context.dayId}` : "",
+      context?.dayDate ? `- Viewing day: ${context.dayDate}` : "",
+      learningsContext,
+    ].filter(Boolean).join("\n");
+    const HOUR = { type: "ephemeral" as const, ttl: "1h" as const };
+    const system: Anthropic.TextBlockParam[] = [
+      { type: "text", text: systemPrompt, cache_control: HOUR },
+      ...(guideContext ? [{ type: "text" as const, text: `LARISA'S GUIDE (the plan, as Wander last read it):\n${guideContext}`, cache_control: HOUR }] : []),
+      { type: "text", text: liveTail },
+    ];
 
     for (let turn = 0; turn < 8; turn++) {
       const response = await anthropic.messages.create({
-        model: "claude-opus-4-6",
-        max_tokens: 1024,
-        system: systemPrompt,
+        model: "claude-opus-5",
+        max_tokens: 2048,
+        system,
         tools: offeredTools,
         messages,
       });
+      const u: any = response.usage || {};
+      used.input += u.input_tokens || 0;
+      used.cacheWrite += u.cache_creation_input_tokens || 0;
+      used.cacheRead += u.cache_read_input_tokens || 0;
+      used.output += u.output_tokens || 0;
+      used.searches += u.server_tool_use?.web_search_requests || 0;
+      used.steps++;
 
-      // Collect text parts
-      const textParts = response.content.filter((b) => b.type === "text").map((b) => (b as any).text);
-      if (textParts.length > 0) {
-        finalReply = textParts.join("");
+      // Collect text parts — from every step. (Scout often answers, then calls a tool, then adds a
+      // short line; keeping only the last step's words threw the real answer away: "Tap below to open it.")
+      const textParts = joinAnswerPieces(response.content.filter((b) => b.type === "text").map((b) => (b as any).text));
+      if (textParts) {
+        finalReply = finalReply ? `${finalReply}\n\n${textParts}` : textParts;
       }
 
+      // A long web search can pause the answer part-way; it's picked up where it stopped
+      if (response.stop_reason === "pause_turn") {
+        messages.push({ role: "assistant", content: response.content });
+        continue;
+      }
       // If no tool use, we're done
       if (response.stop_reason !== "tool_use") break;
 
       // Process tool calls
       const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
+      let screenOnlyOk = toolUseBlocks.every((b) => (b as Anthropic.ToolUseBlock).name === "show_in_wander");
 
       for (const block of toolUseBlocks) {
         const toolBlock = block as Anthropic.ToolUseBlock;
         console.log(`Chat tool call: ${toolBlock.name}`, JSON.stringify(toolBlock.input).slice(0, 200));
         try {
-          const { result, actionDescription, placeCards: cards } = await executeTool(toolBlock.name, toolBlock.input, user);
+          const { result, actionDescription, placeCards: cards, navigate } = await executeTool(toolBlock.name, toolBlock.input, user);
           if (actionDescription) actions.push(actionDescription);
           if (cards) placeCards.push(...cards);
+          if (navigate && !shows.some((s) => s.path === navigate.path) && shows.length < 3) shows.push(navigate);
           console.log(`Chat tool result: ${toolBlock.name} OK`);
+          if ((result as any)?.error) screenOnlyOk = false;
           toolResults.push({
             type: "tool_result",
             tool_use_id: toolBlock.id,
             content: JSON.stringify(result),
           });
         } catch (toolErr: any) {
+          screenOnlyOk = false;
           console.error(`Chat tool error: ${toolBlock.name}`, toolErr.message);
           toolResults.push({
             type: "tool_result",
@@ -3964,10 +4404,25 @@ RULES:
         }
       }
 
+      // The answer is already written and the only tool was opening a screen, which worked: done. The
+      // extra step only re-read the whole prompt (~72,000 tokens) to add "Tap below" — about 40% of a
+      // typical answer's cost, and a few seconds (measured Sep 29).
+      if (screenOnlyOk && textParts.length >= 40) break;
+
       // Add assistant response and tool results for next turn
       messages.push({ role: "assistant", content: response.content });
       messages.push({ role: "user", content: toolResults });
     }
+
+    // A "Message for Larisa:" draft only when someone asked for one (rule 46c) — the prompt rule alone
+    // still let a plain "what time should we leave for the airport?" end in a draft, and the app turns
+    // that line into a Send button. Never for Larisa herself.
+    finalReply = withoutUnaskedDraft(finalReply, message, history, req.user?.displayName);
+
+    // Opus 5 list price: $5/M input, $25/M output, one-hour cache writes 2x input ($10/M), cache reads 0.1x,
+    // searches $10/1,000
+    const dollars = (used.input * 5 + used.cacheWrite * 10 + used.cacheRead * 0.5 + used.output * 25) / 1e6 + used.searches * 0.01;
+    console.log(`Scout usage: steps=${used.steps} input=${used.input} cacheWrite=${used.cacheWrite} cacheRead=${used.cacheRead} output=${used.output} searches=${used.searches} ≈ $${dollars.toFixed(3)}`);
 
     // Persist conversation to DB
     if (tripId && req.user?.travelerId && finalReply) {
@@ -3984,6 +4439,7 @@ RULES:
       actions,
       hasActions: actions.length > 0,
       ...(placeCards.length > 0 && { places: placeCards }),
+      ...(shows.length > 0 && { shows }),
     });
   } catch (err: any) {
     console.error("Chat error:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));

@@ -29,36 +29,31 @@ test("chat clear button requires confirmation (requires backend)", async ({ page
     test.skip(true, "Login did not complete");
   }
 
-  // Open chat
-  const chatBtn = page.getByLabel("Ask Scout");
-  await expect(chatBtn).toBeVisible({ timeout: 10000 });
-  await chatBtn.click();
-  await expect(page.getByText("Scout", { exact: true })).toBeVisible();
+  // Open Scout from its tab in the bottom bar
+  const scoutTab = page.locator("nav button", { hasText: "Scout" });
+  await expect(scoutTab).toBeVisible({ timeout: 10000 });
+  await scoutTab.click();
+  await expect(page.getByRole("dialog", { name: "Scout" })).toBeVisible();
 
-  // Type something so Clear button appears
-  const input = page.locator("textarea");
+  // Say something so "Start fresh" appears. Scout's answer is canned here: this tests the panel,
+  // not Scout, and a real answer costs money on every run (Ken, Sep 29)
+  await page.route("**/api/chat", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ reply: "A canned answer for the panel test.", actions: [], hasActions: false }),
+  }));
+  const input = page.getByPlaceholder("Ask about the trip…");
   await input.fill("test message");
   await input.press("Enter");
   await page.waitForTimeout(2000);
 
-  // Clear button should be visible
-  const clearBtn = page.getByRole("button", { name: "Clear" });
-  await expect(clearBtn).toBeVisible();
-
-  // Set up dialog handler to dismiss (cancel)
-  page.once("dialog", async (dialog: any) => {
-    expect(dialog.message()).toContain("Clear the conversation");
-    await dialog.dismiss(); // Cancel
-  });
-
-  // Click Clear — dialog should appear but conversation should remain
-  await clearBtn.click();
-  await page.waitForTimeout(500);
-
-  // Messages should still be there (we dismissed the dialog)
-  const messages = page.locator("[data-chat-panel] .whitespace-pre-wrap");
-  const count = await messages.count();
-  expect(count).toBeGreaterThan(0);
+  // "Start fresh" asks first; "Keep" keeps the conversation
+  // (it sits at the end of the conversation once Scout has answered)
+  await page.getByRole("button", { name: "Start fresh", exact: true }).click({ timeout: 60000 });
+  await expect(page.getByText("Clear this conversation?")).toBeVisible();
+  await page.getByRole("button", { name: "Keep" }).click();
+  await page.waitForTimeout(300);
+  const messages = page.locator("[data-chat-panel] [data-msg]");
+  expect(await messages.count()).toBeGreaterThan(0);
 });
 
 // ── Profile page delete confirmation ─────────────────────────────
@@ -99,8 +94,9 @@ test("settings page shows updated labels (requires backend)", async ({ page }) =
 
   await expect(page.getByText("Something went wrong")).not.toBeVisible();
 
-  // Updated label from "City photo duration" to "City intro photo"
-  await expect(page.getByText("City intro photo")).toBeVisible();
+  // Who this phone is, and the way to the trip's people
+  await expect(page.getByText("Signed in as")).toBeVisible();
+  await expect(page.getByText("People on this trip")).toBeVisible();
 });
 
 // ── FirstTimeGuide is not a modal (inline card) ──────────────────

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { deviceSupportsPasskeys, isUserCancel, reportPasskeyProblem } from "../lib/passkeys";
 
 interface TravelerOption {
@@ -20,6 +20,7 @@ const PHOTO_URL = PHOTOS[new Date().getDate() % PHOTOS.length];
 export default function LoginPage() {
   const { login, loginWithPasskey } = useAuth();
   const navigate = useNavigate();
+  const signedOut = !!(useLocation().state as { signedOut?: boolean } | null)?.signedOut;
   const [error, setError] = useState("");
   const [signing, setSigning] = useState<string | null>(null);
   const [nameLogin, setNameLogin] = useState(false);
@@ -49,7 +50,8 @@ export default function LoginPage() {
       navigate("/");
     } catch (err) {
       if (isUserCancel(err)) {
-        setError("No problem — tap Sign in when you're ready.");
+        // iPhones report "closed" and "no Wander Face ID on this phone" the same way — cover both
+        setError("Face ID didn't sign you in. If this phone hasn't used Wander before, open the link Ken or Larisa sent you.");
       } else {
         reportPasskeyProblem("sign-in", err);
         // Wander's own messages are written for people; the phone's are not (they carry a code)
@@ -96,8 +98,8 @@ export default function LoginPage() {
         <h1 className="text-4xl font-light tracking-tight text-white mb-1 drop-shadow-lg">
           Wander
         </h1>
-        <p className="text-sm text-white/70 mb-8">
-          Who's wandering?
+        <p className="text-sm text-white/80 mb-8" role={signedOut ? "status" : undefined}>
+          {signedOut ? "You're signed out. Face ID brings you back." : "Larisa's Japan Guide, on your phone"}
         </p>
 
         {canUseFaceId ? (

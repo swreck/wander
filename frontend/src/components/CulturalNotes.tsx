@@ -47,7 +47,7 @@ export default function CulturalNotes({ experienceId, cachedNotes, onNotesLoaded
     <div>
       <button
         onClick={loadNotes}
-        className="flex items-center gap-1.5 text-sm text-[#8a7a62] hover:text-[#514636] transition-colors"
+        className="flex items-center gap-1.5 text-sm text-[#6b5d4a] hover:text-[#514636] transition-colors"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
@@ -72,7 +72,7 @@ export default function CulturalNotes({ experienceId, cachedNotes, onNotesLoaded
       )}
 
       {expanded && notes && notes.length === 0 && !loading && (
-        <p className="mt-2 text-sm text-[#c8bba8] italic">We don't have specific tips for this one yet</p>
+        <p className="mt-2 text-sm text-[#6b5d4a] italic">We don't have specific tips for this one yet</p>
       )}
     </div>
   );

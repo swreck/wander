@@ -17,7 +17,15 @@ process.env.ACCESS_CODES = "ROLE1:PlannerKen,ROLE2:TravelerGlo,ROLE3:TravelerBri
 process.env.JWT_SECRET = "test-secret-roles";
 
 const { app } = await import("../src/index.js");
+const { signToken } = await import("../src/middleware/auth.js");
 const prisma = new PrismaClient();
+
+/** A token for a real traveler — access-code sign-in carries no traveler identity, so it can't be a planner. */
+async function tokenForTraveler(displayName: string): Promise<{ token: string; travelerId: string }> {
+  let traveler = await prisma.traveler.findFirst({ where: { displayName } });
+  if (!traveler) traveler = await prisma.traveler.create({ data: { displayName } });
+  return { token: signToken({ code: displayName, displayName, travelerId: traveler.id }), travelerId: traveler.id };
+}
 
 const TEST_TRIP_NAME = "Roles Test Trip";
 
@@ -34,6 +42,7 @@ afterAll(async () => {
   for (const t of trips) {
     await prisma.trip.delete({ where: { id: t.id } });
   }
+  await prisma.traveler.deleteMany({ where: { displayName: "PlannerKen" } }).catch(() => {});
   await prisma.$disconnect();
 });
 
@@ -42,8 +51,9 @@ afterAll(async () => {
 describe("Setup", () => {
   it("logs in all three users", async () => {
     const p = await request(app).post("/api/auth/login").send({ code: "ROLE1" });
-    plannerToken = p.body.token;
-    plannerTravelerId = p.body.travelerId;
+    expect(p.status).toBe(200);
+    // The planner acts with a traveler identity, so creating the trip makes them its planner.
+    ({ token: plannerToken, travelerId: plannerTravelerId } = await tokenForTraveler("PlannerKen"));
 
     const t = await request(app).post("/api/auth/login").send({ code: "ROLE2" });
     travelerToken = t.body.token;
@@ -189,7 +199,21 @@ describe("Role Changes", () => {
 // ─── Add Members ─────────────────────────────────────────────
 
 describe("Add Members", () => {
+  it("someone who isn't a planner on the trip can't add members", async () => {
+    const res = await request(app)
+      .post(`/api/trips/${tripId}/add-members`)
+      .set("Authorization", `Bearer ${travelerToken}`)
+      .send({ names: ["Gatecrasher"] });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/^Only Ken or Larisa can invite people/);
+    const invite = await prisma.tripInvite.findFirst({ where: { tripId, expectedName: "Gatecrasher" } });
+    expect(invite).toBeNull();
+  });
+
   it("planner adds new members", async () => {
+    expect(await prisma.tripMember.findUnique({
+      where: { tripId_travelerId: { tripId, travelerId: plannerTravelerId } },
+    })).toMatchObject({ role: "planner" });
     const res = await request(app)
       .post(`/api/trips/${tripId}/add-members`)
       .set("Authorization", `Bearer ${plannerToken}`)

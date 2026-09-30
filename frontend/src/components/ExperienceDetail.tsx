@@ -96,7 +96,7 @@ export default function ExperienceDetail({
   if (!exp) {
     return (
       <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-96 bg-white border-l border-[#f0ece5] shadow-xl z-40
-                      flex items-center justify-center text-[#8a7a62]">
+                      flex items-center justify-center text-[#6b5d4a]">
         Pulling up the details...
       </div>
     );
@@ -110,14 +110,14 @@ export default function ExperienceDetail({
            style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
         <button
           onClick={onClose}
-          className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
+          className="text-sm text-[#6b5d4a] hover:text-[#3a3128]"
         >
           &larr; Back
         </button>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setEditing(!editing)}
-            className="text-sm text-[#8a7a62] hover:text-[#3a3128]"
+            className="text-sm text-[#6b5d4a] hover:text-[#3a3128]"
           >
             {editing ? "Cancel" : "Edit"}
           </button>
@@ -147,7 +147,7 @@ export default function ExperienceDetail({
           />
         ) : (
           <div className="w-full h-24 bg-[#f0ece5] rounded-lg flex items-center justify-center">
-            <span className="text-lg text-[#c8bba8]">{exp.name.charAt(0)}</span>
+            <span className="text-lg text-[#6b5d4a]">{exp.name.charAt(0)}</span>
           </div>
         )}
 
@@ -232,7 +232,7 @@ export default function ExperienceDetail({
           </h2>
         )}
 
-        <div className="flex items-center gap-2 text-sm text-[#8a7a62] flex-wrap">
+        <div className="flex items-center gap-2 text-sm text-[#6b5d4a] flex-wrap">
           <span>{exp.city?.name}</span>
           {exp.themes.map((t) => (
             <span key={t} className="px-2 py-0.5 bg-[#f0ece5] rounded-full capitalize">{t}</span>
@@ -248,7 +248,7 @@ export default function ExperienceDetail({
           ) : (
             <button
               onClick={handleGeocode}
-              className="text-sm text-[#a89880] hover:text-[#514636] transition-colors"
+              className="text-sm text-[#6b5d4a] hover:text-[#514636] transition-colors"
             >
               Find location
             </button>
@@ -313,7 +313,7 @@ export default function ExperienceDetail({
         <RatingsBadge ratings={exp.ratings} placeIdGoogle={exp.placeIdGoogle} />
         <button
           onClick={handleRefreshRatings}
-          className="text-sm text-[#c8bba8] hover:text-[#8a7a62] transition-colors"
+          className="text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
         >
           Look this up
         </button>
@@ -332,7 +332,7 @@ export default function ExperienceDetail({
         />
 
         {/* Source + attribution */}
-        <div className="flex items-center justify-between text-sm text-[#a89880]">
+        <div className="flex items-center justify-between text-sm text-[#6b5d4a]">
           {exp.sourceUrl ? (
             <a
               href={exp.sourceUrl}
@@ -343,7 +343,7 @@ export default function ExperienceDetail({
               From: {extractDomain(exp.sourceUrl)}
             </a>
           ) : <span />}
-          <span className="text-[#c8bba8]">
+          <span className="text-[#6b5d4a]">
             {exp.createdBy && `${exp.createdBy} · `}
             {new Date(exp.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
@@ -372,7 +372,7 @@ export default function ExperienceDetail({
               </button>
               {showPromote && (
                 <div className="p-2 bg-[#faf8f5] rounded-lg border border-[#e0d8cc]">
-                  <div className="text-sm text-[#a89880] mb-1.5 uppercase tracking-wider">Which day?</div>
+                  <div className="text-sm text-[#6b5d4a] mb-1.5 uppercase tracking-wider">Which day?</div>
                   <div className="flex gap-1 overflow-x-auto pb-1">
                     {days.map((d) => {
                       const isMatchCity = exp ? d.cityId === exp.cityId : false;
@@ -385,11 +385,11 @@ export default function ExperienceDetail({
                           className={`flex flex-col items-center px-2.5 py-2 rounded text-xs shrink-0 transition-colors ${
                             isMatchCity
                               ? "bg-[#514636] text-white hover:bg-[#3a3128]"
-                              : "bg-white text-[#8a7a62] border border-[#e0d8cc] hover:bg-[#f0ece5]"
+                              : "bg-white text-[#6b5d4a] border border-[#e0d8cc] hover:bg-[#f0ece5]"
                           }`}
                         >
                           <span className="font-medium">{shortDate}</span>
-                          <span className={isMatchCity ? "opacity-70" : "text-[#c8bba8]"}>{cityAbbr}</span>
+                          <span className={isMatchCity ? "opacity-70" : "text-[#6b5d4a]"}>{cityAbbr}</span>
                         </button>
                       );
                     })}
@@ -505,7 +505,7 @@ function GroupInterestSection({
   if (interest) {
     return (
       <div className="p-3 bg-[#fdf8f0] rounded-lg border border-[#e8dcc8]">
-        <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+        <div className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
           Group Interest
         </div>
         <div className="text-sm text-[#3a3128] mb-1">
@@ -524,8 +524,8 @@ function GroupInterestSection({
                   {r.reaction === "interested" ? "+" : r.reaction === "maybe" ? "~" : "-"}
                 </span>
                 <span className="font-medium">{r.displayName}</span>
-                <span className="text-[#a89880] capitalize">{r.reaction}</span>
-                {r.note && <span className="text-[#a89880] italic text-xs">"{r.note}"</span>}
+                <span className="text-[#6b5d4a] capitalize">{r.reaction}</span>
+                {r.note && <span className="text-[#6b5d4a] italic text-xs">"{r.note}"</span>}
               </div>
             ))}
           </div>
@@ -579,10 +579,10 @@ function GroupInterestSection({
   // Not floated — show share option
   return (
     <div className="p-3 bg-[#faf8f5] rounded-lg border border-[#f0ece5]">
-      <div className="text-xs font-medium uppercase tracking-wider text-[#a89880] mb-2">
+      <div className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
         Share with Group
       </div>
-      <div className="text-sm text-[#8a7a62] mb-2">
+      <div className="text-sm text-[#6b5d4a] mb-2">
         Let your travel companions know you're interested in this
       </div>
       <input

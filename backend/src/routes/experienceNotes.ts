@@ -1,9 +1,16 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { logChange } from "../services/changeLog.js";
+import { getUserRole } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
+
+// Trips are private to their people: notes are read and written only by someone on the trip
+async function onTrip(req: AuthRequest, tripId: string) {
+  return req.user?.travelerId ? !!(await getUserRole(req.user.travelerId, tripId)) : false;
+}
 
 // Add a note to an experience
 router.post("/", async (req: AuthRequest, res) => {
@@ -24,6 +31,10 @@ router.post("/", async (req: AuthRequest, res) => {
     res.status(404).json({ error: "Experience not found" });
     return;
   }
+  if (!(await onTrip(req, experience.tripId))) {
+    res.status(403).json({ error: "Not a member of this trip" });
+    return;
+  }
 
   const note = await prisma.experienceNote.create({
     data: {
@@ -34,6 +45,15 @@ router.post("/", async (req: AuthRequest, res) => {
     },
     include: { traveler: { select: { displayName: true } } },
   });
+
+  // Group notes show in History; "just for me" notes never do
+  if (note.visibility === "group") {
+    logChange({
+      tripId: experience.tripId, user: req.user!, actionType: "note_added", entityType: "experience_note", entityId: note.id,
+      entityName: experience.name, description: `noted on ${experience.name}: "${note.content.slice(0, 80)}"`,
+      newState: { experienceId, content: note.content },
+    }).catch(() => {});
+  }
 
   res.status(201).json(note);
 });
@@ -63,6 +83,9 @@ router.patch("/:id", async (req: AuthRequest, res) => {
 // Get notes for experiences in a city
 // Private notes are only visible to their author
 router.get("/city/:cityId", async (req: AuthRequest, res) => {
+  const city = await prisma.city.findUnique({ where: { id: req.params.cityId as string }, select: { tripId: true } });
+  if (!city) { res.json({}); return; }
+  if (!(await onTrip(req, city.tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
   const notes = await prisma.experienceNote.findMany({
     where: {
       experience: { cityId: req.params.cityId as string },
@@ -102,6 +125,17 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   }
 
   await prisma.experienceNote.delete({ where: { id: req.params.id as string } });
+  // A group note taken back shows in History, like its adding did
+  if (note.visibility === "group") {
+    const experience = await prisma.experience.findUnique({ where: { id: note.experienceId }, select: { tripId: true, name: true } });
+    if (experience) {
+      logChange({
+        tripId: experience.tripId, user: req.user!, actionType: "note_removed", entityType: "experience_note", entityId: note.id,
+        entityName: experience.name, description: `took back a note on ${experience.name}`,
+        previousState: { experienceId: note.experienceId, content: note.content },
+      }).catch(() => {});
+    }
+  }
   res.json({ deleted: true });
 });
 

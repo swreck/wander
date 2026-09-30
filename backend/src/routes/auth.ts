@@ -20,7 +20,22 @@ import {
   readChallenge,
   findTravelerByCredentialId,
   saveCounter,
+  isLinkRetired,
 } from "../services/passkeys.js";
+
+/** What the link page says when a personal link has done its job. */
+function retiredMessage(name: string) {
+  return `${name} already uses Face ID, so this link has done its job. On that phone, open Wander and tap Sign in with Face ID. On a new phone, ask Ken or Larisa to send a new link from People in Wander.`;
+}
+
+const OPEN_LINK_OFF = "This trip no longer has an open invitation link. Ask Ken or Larisa to send you your own link from People in Wander.";
+
+/** The person a personal link belongs to (the claimer, or the named traveler it was made for). */
+async function linkOwnerId(invite: { claimedByTravelerId: string | null; expectedName: string }) {
+  if (invite.claimedByTravelerId) return invite.claimedByTravelerId;
+  const t = await prisma.traveler.findFirst({ where: { displayName: { equals: invite.expectedName, mode: "insensitive" } }, select: { id: true } });
+  return t?.id || null;
+}
 
 const router = Router();
 
@@ -314,6 +329,10 @@ router.get("/join/:token", async (req, res) => {
   });
 
   if (personalInvite) {
+    if (await isLinkRetired(await linkOwnerId(personalInvite), personalInvite.createdAt)) {
+      res.status(410).json({ error: retiredMessage(personalInvite.expectedName), retired: true, expectedName: personalInvite.expectedName });
+      return;
+    }
     const trip = personalInvite.trip;
     const members = trip.tripMembers.map((m) => m.traveler.displayName);
     // Count cities and experiences for the trip snapshot
@@ -341,30 +360,14 @@ router.get("/join/:token", async (req, res) => {
     return;
   }
 
-  // 2. Fall back to trip-level invite token
-  const trip = await prisma.trip.findUnique({
-    where: { inviteToken: tokenValue },
-    include: {
-      tripInvites: true,
-      tripMembers: { include: { traveler: true } },
-    },
-  });
-
-  if (!trip) {
-    res.status(404).json({ error: "Invalid or expired invite link" });
+  // 2. The trip-wide open link (anyone with it could join under any name) is switched off:
+  //    Wander now holds booking codes, so everyone gets their own link from People.
+  const trip = await prisma.trip.findUnique({ where: { inviteToken: tokenValue }, select: { id: true } });
+  if (trip) {
+    res.status(410).json({ error: OPEN_LINK_OFF });
     return;
   }
-
-  const unclaimed = trip.tripInvites.filter((i) => !i.claimedByTravelerId);
-  const members = trip.tripMembers.map((m) => m.traveler.displayName);
-
-  res.json({
-    tripId: trip.id,
-    tripName: trip.name,
-    personalInvite: false,
-    expectedNames: unclaimed.map((i) => i.expectedName),
-    currentMembers: members,
-  });
+  res.status(404).json({ error: "This link doesn't open anything — part of it may have been cut off when it was copied. Ask Ken or Larisa to send it again from People in Wander." });
 });
 
 // ── POST /join/:token ──────────────────────────────────────────
@@ -381,6 +384,10 @@ router.post("/join/:token", async (req, res) => {
   });
 
   if (personalInvite) {
+    if (await isLinkRetired(await linkOwnerId(personalInvite), personalInvite.createdAt)) {
+      res.status(410).json({ error: retiredMessage(personalInvite.expectedName), retired: true });
+      return;
+    }
     if (personalInvite.claimedByTravelerId) {
       // Already claimed — return existing traveler's token
       const existingTraveler = await prisma.traveler.findUnique({
@@ -454,96 +461,13 @@ router.post("/join/:token", async (req, res) => {
     return;
   }
 
-  // 2. Fall back to trip-level invite token
-  const { name } = req.body;
-  if (!name || typeof name !== "string" || name.trim().length === 0) {
-    res.status(400).json({ error: "Name is required" });
+  // 2. The trip-wide open link is switched off (anyone holding it could join under any name).
+  const trip = await prisma.trip.findUnique({ where: { inviteToken: tokenValue }, select: { id: true } });
+  if (trip) {
+    res.status(410).json({ error: OPEN_LINK_OFF });
     return;
   }
-
-  const cleanName = name.trim();
-  const trip = await prisma.trip.findUnique({
-    where: { inviteToken: tokenValue },
-    include: { tripInvites: true },
-  });
-
-  if (!trip) {
-    res.status(404).json({ error: "Invalid or expired invite link" });
-    return;
-  }
-
-  // Find or create traveler
-  let traveler = await prisma.traveler.findFirst({
-    where: { displayName: { equals: cleanName, mode: "insensitive" } },
-  });
-  if (!traveler) {
-    traveler = await prisma.traveler.create({
-      data: { displayName: cleanName },
-    });
-  }
-
-  // Check if already a member
-  const existing = await prisma.tripMember.findUnique({
-    where: {
-      tripId_travelerId: { tripId: trip.id, travelerId: traveler.id },
-    },
-  });
-  if (existing) {
-    const role = await getUserRole(traveler.id, trip.id);
-    const token = signToken({
-      code: traveler.displayName,
-      displayName: traveler.displayName,
-      travelerId: traveler.id,
-      role: role || "traveler",
-    });
-    res.json({ token, displayName: traveler.displayName, alreadyMember: true, tripId: trip.id });
-    return;
-  }
-
-  // Fuzzy match against unclaimed invites
-  const unclaimed = trip.tripInvites.filter((i) => !i.claimedByTravelerId);
-  const match = unclaimed.find((i) => {
-    if (i.expectedName.toLowerCase() === cleanName.toLowerCase()) return true;
-    return stringSimilarity(
-      i.expectedName.toLowerCase(),
-      cleanName.toLowerCase(),
-    ) > 0.85;
-  });
-
-  // Create membership — new joiners via trip-level token are travelers
-  await prisma.tripMember.create({
-    data: { tripId: trip.id, travelerId: traveler.id, role: "traveler" },
-  });
-
-  // Claim invite if matched
-  let unexpected = false;
-  if (match) {
-    await prisma.tripInvite.update({
-      where: { id: match.id },
-      data: { claimedByTravelerId: traveler.id, claimedAt: new Date() },
-    });
-  } else if (unclaimed.length > 0) {
-    unexpected = true;
-    console.warn(
-      `[invite] UNEXPECTED JOIN: "${cleanName}" joined trip "${trip.name}" but wasn't on the expected list. Expected: ${unclaimed.map((i) => i.expectedName).join(", ")}`,
-    );
-  }
-
-  const role = await getUserRole(traveler.id, trip.id);
-  const token = signToken({
-    code: traveler.displayName,
-    displayName: traveler.displayName,
-    travelerId: traveler.id,
-    role: role || "traveler",
-  });
-
-  res.json({
-    token,
-    displayName: traveler.displayName,
-    tripId: trip.id,
-    matched: !!match,
-    unexpected,
-  });
+  res.status(404).json({ error: "This link doesn't open anything — part of it may have been cut off when it was copied. Ask Ken or Larisa to send it again from People in Wander." });
 });
 
 // ── GET /travelers/:id ──────────────────────────────────────────

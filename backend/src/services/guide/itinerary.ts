@@ -27,13 +27,26 @@ export interface InterpretedStay {
   source: string;
   /** The itinerary gives no check-out; the date was worked out (and a warning says so). */
   checkOutInferred?: boolean;
+  /** Her forecast for the stay, as written ("lows 57-63, highs 72-76, rain 0-.1 in") */
+  weather?: string | null;
+  /** Her travel note on the hotel row ("Nagoya -> Tokoname (~40 min) via Meitetsu") */
+  travelNote?: string | null;
+}
+
+/** Her forecast columns, in her numbers: "lows 57-63, highs 72-76, rain 0-.1 in" */
+function weatherWords(lo: string, hi: string, precip: string): string | null {
+  const n = (v: string) => v.replace(/(\d)\.0\b/g, "$1");   // a spreadsheet's "64.0" is her 64
+  const parts = [lo ? `lows ${n(lo)}` : "", hi ? `highs ${n(hi)}` : "", precip ? `rain ${n(precip)}` : ""].filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
 }
 
 export interface InterpretedItem {
   date: string | null;         // YYYY-MM-DD
   time: string | null;         // HH:MM
   endTime: string | null;
-  kind: "flight" | "train" | "travel" | "plan" | "note" | "deadline" | "meeting" | "tour" | "meal" | "checkin" | "checkout";
+  // "stop": Larisa's summary in a stop's heading, for every day of that stop (windowStart → date)
+  // "block": one time block of her detailed plan for a day (a day-plan tab), in her order
+  kind: "flight" | "train" | "travel" | "plan" | "note" | "deadline" | "meeting" | "tour" | "meal" | "checkin" | "checkout" | "stop" | "block" | "weather";
   title: string;
   detail: string | null;
   place: string | null;
@@ -41,6 +54,9 @@ export interface InterpretedItem {
   sourceRef: string;
   source: string;
   city: string | null;
+  /** Larisa's cell exactly as written, when the title is shortened (its opening time moved to the time
+   *  column). Anything that quotes her uses this, so a quote is never edited. */
+  said?: string;
 }
 
 export interface ItineraryResult {
@@ -73,7 +89,8 @@ export function findItineraryTab(tabs: GuideTab[]): { tab: GuideTab; headerRow: 
 
 type Role =
   | "date" | "checkout" | "nights" | "description" | "from" | "to" | "depart" | "arrive" | "flightTime"
-  | "time1" | "to2" | "time2" | "total" | "hotel" | "cancellation" | "notes" | "notes2" | "meals";
+  | "time1" | "to2" | "time2" | "total" | "hotel" | "cancellation" | "notes" | "notes2" | "meals"
+  | "lo" | "hi" | "precip";
 
 function mapColumns(tab: GuideTab, headerRow: number): Map<Role, number> {
   const roles = new Map<Role, number>();
@@ -97,6 +114,10 @@ function mapColumns(tab: GuideTab, headerRow: number): Map<Role, number> {
     else if (t.startsWith("cancellation")) set("cancellation");
     else if (t === "notes") { notesCount++; set(notesCount === 1 ? "notes" : "notes2"); }
     else if (t.startsWith("meals")) set("meals");
+    // Her forecast columns (added Sep 29)
+    else if (t === "lo" || t === "low") set("lo");
+    else if (t === "hi" || t === "high") set("hi");
+    else if (t.startsWith("precip") || t === "rain") set("precip");
   }
   return roles;
 }
@@ -115,6 +136,47 @@ export function parseStatedTimes(text: string): { start: string | null; end: str
   return { start: null, end: null };
 }
 
+/**
+ * Larisa's words without a time that only opens the line, since Wander shows it beside them:
+ * "8:30a meet Backroads" → "Meet Backroads". A time anywhere else stays exactly as written —
+ * "Team Lab Kyoto (entry window: 11-11:30a)" and "Concludes: 11:30a hotel/12p Kyoto train station"
+ * mean something only with their times in place.
+ */
+export function withoutStatedTime(text: string): string {
+  const leading = /^\s*~?\d{1,2}(?::\d{2})?\s*(?:-\s*\d{1,2}(?::\d{2})?\s*)?[ap]m?\b\.?\s*[-–:,]?\s*/i;
+  if (!leading.test(text)) return text.trim();
+  const stripped = text.replace(leading, "").trim();
+  if (!stripped) return text.trim();
+  return stripped[0].toUpperCase() + stripped.slice(1);
+}
+
+const COMMON_WORDS = new Set(["meet", "with", "the", "and", "from", "into", "day", "trip", "tour", "visit", "check", "time"]);
+
+/**
+ * Two lines in the itinerary about the same moment — same day, same stated time, a shared distinctive
+ * word ("8:30a meet Backroads" in Description, "Meet Backroads 8:30a Courtyard by Marriott Tokyo
+ * Station" in Notes) — become one item: the fuller wording, both sources.
+ */
+export function mergeSameMoment(items: InterpretedItem[]): InterpretedItem[] {
+  const words = (s: string) => new Set(s.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 3 && !COMMON_WORDS.has(w)));
+  const out: InterpretedItem[] = [];
+  for (const item of items) {
+    const twin = item.time && item.date
+      ? out.find((o) => o.date === item.date && o.time === item.time && o.kind !== "deadline" && item.kind !== "deadline"
+          && Array.from(words(item.title)).some((w) => words(o.title).has(w)))
+      : undefined;
+    if (!twin) { out.push(item); continue; }
+    if (item.title.length > twin.title.length) twin.title = item.title;
+    if (twin.kind === "note" || twin.kind === "plan") twin.kind = item.kind;
+    twin.endTime ||= item.endTime;
+    twin.confirmation ||= item.confirmation;
+    twin.place ||= item.place;
+    if (item.detail && !(twin.detail || "").includes(item.detail)) twin.detail = [twin.detail, item.detail].filter(Boolean).join(" · ");
+    if (!twin.source.includes(item.source)) twin.source = `${twin.source} + ${item.source}`;
+  }
+  return out;
+}
+
 function to24(h: number, m: number, ap: string): string | null {
   if (h < 1 || h > 12 || m > 59) return null;
   let hh = h % 12;
@@ -131,6 +193,9 @@ export function cityFromSection(title: string): string {
     if (t.includes("->")) t = t.split("->").pop()!.trim();
   }
   t = t.replace(/\(.*?\)/g, "").trim();
+  // Her working notes after the name ("Tokyo - ASK KENJI…", "Hakata - NOT AN OVERNIGHT", a stray
+  // ", day trip to Arita)") aren't part of it: a city name never has " - ", a comma or a bracket
+  t = t.split(/\s+[-–]\s+|,|\)|\(/)[0].trim();
   return t.replace(/\s+/g, " ");
 }
 
@@ -196,12 +261,24 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
       const nightsCell = cellIn(row, roles.get("nights"));
       const cancelCell = cellIn(row, roles.get("cancellation"));
       const notes = [textIn(row, roles.get("notes")), textIn(row, roles.get("notes2"))].filter(Boolean);
+      // Dates she wrote into the hotel's name ("Shiraume (10/25 - 10/27)") are her latest word on the
+      // nights — they settle two stays that overlap in the date columns. Used, and said in the report.
+      const named = hotel.match(/\(\s*(\d{1,2})\/(\d{1,2})\s*[-–]\s*(\d{1,2})\/(\d{1,2})\s*\)/);
+      const yr = date.slice(0, 4);
+      const namedIn = named ? `${yr}-${named[1].padStart(2, "0")}-${named[2].padStart(2, "0")}` : null;
+      const namedOut = named ? `${yr}-${named[3].padStart(2, "0")}-${named[4].padStart(2, "0")}` : null;
+      const hotelName = named ? hotel.replace(named[0], "").replace(/\s{2,}/g, " ").trim() : hotel;
+      if (named && (namedIn !== date || namedOut !== (checkoutCell?.date || null))) {
+        result.warnings.push(`${hotelName}: using the dates in its name (${named[1]}/${named[2]}–${named[3]}/${named[4]}) — the date columns say ${date} to ${checkoutCell?.date || "?"}.`);
+      }
       result.stays.push({
         sectionTitle: section.title,
         city,
-        hotel,
-        checkIn: date,
-        checkOut: checkoutCell?.date || null,
+        hotel: hotelName,
+        checkIn: namedIn || date,
+        checkOut: namedOut || checkoutCell?.date || null,
+        weather: weatherWords(textIn(row, roles.get("lo")), textIn(row, roles.get("hi")), textIn(row, roles.get("precip"))),
+        travelNote: textIn(row, roles.get("total")) || null,
         nights: nightsCell ? Number(nightsCell.text) || null : null,
         cancellationDate: cancelCell?.date || null,
         notes,
@@ -243,20 +320,40 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
     }
 
     if (desc && itemDate && !(isLeg && !confirmationMatch)) {
-      const stated = parseStatedTimes(desc);
+      // "Finish at Mashiko Station by 3:45p-4p" is a deadline in her words, not when the day starts
+      const byTime = /\b(by|until|before|no later than)\s*~?\d{1,2}(:\d{2})?\s*[ap]/i.test(desc);
+      const stated = byTime ? { start: null, end: null } : parseStatedTimes(desc);
       const rowStart = t1?.kind === "time" ? t1.time! : parseStatedTimes(t1?.text || "").start;
       const rowEnd = t2?.kind === "time" ? t2.time! : parseStatedTimes(t2?.text || "").start;
       const time = stated.start || (!isLeg ? rowStart : null);
       const endTime = stated.end || (!isLeg && time ? rowEnd : null);
+      // "~3p" is her estimate: kept in her words so no screen (or Scout) states it as exact
+      const endText = stated.end ? desc : (!isLeg && time ? t2?.text || "" : "");
+      const approxEnd = endTime && /~\s*\d|\b(about|approx|around|ish)\b/i.test(endText)
+        ? `The end time is Larisa's estimate ("${(endText.match(/~\s*\d{1,2}(?::\d{2})?\s*[ap]?m?/i) || [endText.trim()])[0].trim()}").`
+        : null;
       const kind: InterpretedItem["kind"] = confirmationMatch ? "note"
         : /\btour\b/i.test(desc) ? "tour"
         : /\bmeet\b/i.test(desc) ? "meeting"
         : /\b(dinner|lunch|brunch|breakfast)\b/i.test(desc) ? "meal"
         : date ? "plan" : "note";
       result.items.push({
-        date: itemDate, time, endTime, kind, title: desc, detail: null, place: null,
+        date: itemDate, time, endTime, kind, title: stated.start ? withoutStatedTime(desc) : desc,
+        // Her note on getting there, written beside the day ("Tokyo → 8:07a Utsunomiya ~50 min Shinkansen…")
+        detail: [approxEnd, !isLeg && total ? `Larisa's travel note: ${total}` : null].filter(Boolean).join("\n") || null,
+        place: null,
+        said: stated.start ? desc.trim() : undefined,
         confirmation: confirmationMatch ? confirmationMatch[1] : null,
         sourceRef: ref(descCell!.a1), source: readable("Description", r), city,
+      });
+    }
+
+    // Her forecast on a day's own row (a hotel row's forecast goes with the stay)
+    const dayWeather = !(hotel && date) ? weatherWords(textIn(row, roles.get("lo")), textIn(row, roles.get("hi")), textIn(row, roles.get("precip"))) : null;
+    if (dayWeather && itemDate) {
+      result.items.push({
+        date: itemDate, time: null, endTime: null, kind: "weather", title: `Larisa's forecast: ${dayWeather}`, detail: null,
+        place: null, confirmation: null, sourceRef: ref((cellIn(row, roles.get("lo")) || cellIn(row, roles.get("hi")))!.a1), source: readable("forecast", r), city,
       });
     }
 
@@ -270,7 +367,9 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
       result.items.push({
         date: itemDate, time: stated.start, endTime: stated.end,
         kind: /\bmeet\b/i.test(note) && stated.start ? "meeting" : "note",
-        title: note, detail: hotel ? `Noted on ${hotel}` : null, place: null, confirmation: null,
+        // Which row the note sat on is bookkeeping — the source line keeps it, travelers don't need it
+        title: stated.start ? withoutStatedTime(note) : note, detail: null, place: null, confirmation: null,
+        said: stated.start ? note : undefined,
         sourceRef: ref(noteCell!.a1), source: readable("Notes", r), city,
       });
     }
@@ -308,6 +407,8 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
   for (const [night, list] of nights) {
     if (list.length > 1) result.warnings.push(`${night}: the Guide lists more than one hotel for this night — ${list.map((s) => s.hotel).join(" and ")}.`);
   }
+
+  result.items = mergeSameMoment(result.items);
 
   return result;
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { changeWords } from "../lib/changeWords";
 
 interface SyncEvent {
   type: string;
@@ -29,7 +30,7 @@ export default function useTripSync(
   const dismiss = useCallback(() => {
     setPendingChanges(0);
     setLatestAction(null);
-    // Trigger data refresh
+    // Screens already caught up when the news arrived; one more look costs little
     window.dispatchEvent(new CustomEvent("wander:data-changed"));
   }, []);
 
@@ -52,6 +53,8 @@ export default function useTripSync(
 
       es.onopen = () => {
         setConnected(true);
+        // Back after a dropped connection: changes made meanwhile never arrived as news, so catch up
+        if (retryCountRef.current > 0) window.dispatchEvent(new CustomEvent("wander:data-changed"));
         retryCountRef.current = 0; // Reset backoff on successful connection
       };
 
@@ -64,7 +67,11 @@ export default function useTripSync(
           }
           if (data.type === "change" && data.userCode !== userCode) {
             setPendingChanges((n) => n + 1);
-            setLatestAction(`${data.displayName} ${data.description?.toLowerCase().slice(0, 60) || "made a change"}`);
+            setLatestAction(changeWords(data.displayName || "Someone", data.description, 70));
+            // Open screens catch up at once; the notice stays to say what changed. Round 7: after Ken
+            // switched lunch, Larisa's open Now card kept the old place and its Maps link until she
+            // tapped the notice. A wrong "where" is worse than a screen that updates while you look.
+            window.dispatchEvent(new CustomEvent("wander:data-changed"));
           }
         } catch {
           // Ignore malformed events

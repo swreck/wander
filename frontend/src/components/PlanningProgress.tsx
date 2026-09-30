@@ -59,7 +59,7 @@ export default function PlanningProgress({ days, experiences, cities }: Planning
 
       {/* Cities needing attention */}
       {citiesNeedingAttention.length > 0 && (
-        <p className="text-xs text-[#a89880] mt-2">
+        <p className="text-xs text-[#6b5d4a] mt-2">
           {citiesNeedingAttention.length === 1
             ? `${citiesNeedingAttention[0].name} doesn't have any ideas saved yet`
             : `${citiesNeedingAttention.map((c, i, arr) => i === arr.length - 1 ? `and ${c.name}` : c.name).join(", ")} could use some ideas`}

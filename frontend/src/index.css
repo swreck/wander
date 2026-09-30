@@ -22,7 +22,8 @@ body {
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
   padding-top: env(safe-area-inset-top, 0);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  /* --scout-dock: room for Scout's slim bar when it's showing, so it never sits on the page */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--scout-dock, 0px));
 }
 
 /* Safe area helpers */

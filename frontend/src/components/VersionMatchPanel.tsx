@@ -91,7 +91,7 @@ export default function VersionMatchPanel({ matches, onApply, onDismiss, committ
                       +{fieldLabels[diff.field] || diff.field}
                     </span>
                     {diff.incoming && (
-                      <span className="text-[#8a7a62] ml-1">
+                      <span className="text-[#6b5d4a] ml-1">
                         {diff.incoming.length > 80
                           ? diff.incoming.slice(0, 80) + "..."
                           : diff.incoming}

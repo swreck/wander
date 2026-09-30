@@ -151,7 +151,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
   if (state === "checking" || state === "unlocking") {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-[#a89880] text-sm">
+        <div className="text-[#6b5d4a] text-sm">
           {state === "unlocking" ? "Verifying..." : "Checking..."}
         </div>
       </div>
@@ -160,7 +160,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
 
   if (state === "error") {
     return (
-      <div className="text-center py-12 text-[#a89880] text-sm">
+      <div className="text-center py-12 text-[#6b5d4a] text-sm">
         Couldn't check vault status. Try refreshing.
       </div>
     );
@@ -174,7 +174,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
           <h3 className="text-lg font-medium text-[#3a3128] mb-1">
             Protect your travel documents
           </h3>
-          <p className="text-sm text-[#8a7a62]">
+          <p className="text-sm text-[#6b5d4a]">
             Set a 4-digit PIN to keep your passport, visa, and other sensitive info safe.
             You'll use this (or Face ID) to view them.
           </p>
@@ -182,7 +182,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-[#a89880] mb-1">PIN</label>
+            <label className="block text-xs text-[#6b5d4a] mb-1">PIN</label>
             <input
               ref={inputRef}
               type="password"
@@ -198,7 +198,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
             />
           </div>
           <div>
-            <label className="block text-xs text-[#a89880] mb-1">Confirm PIN</label>
+            <label className="block text-xs text-[#6b5d4a] mb-1">Confirm PIN</label>
             <input
               type="password"
               inputMode="numeric"
@@ -236,11 +236,11 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
             Unlock your documents
           </h3>
           {hasBiometric && !showPinFallback ? (
-            <p className="text-sm text-[#8a7a62]">
+            <p className="text-sm text-[#6b5d4a]">
               Use Face ID or enter your PIN
             </p>
           ) : (
-            <p className="text-sm text-[#8a7a62]">Enter your 4-digit PIN</p>
+            <p className="text-sm text-[#6b5d4a]">Enter your 4-digit PIN</p>
           )}
         </div>
 
@@ -273,13 +273,13 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
           {hasBiometric && showPinFallback && (
             <button
               onClick={() => { setShowPinFallback(false); tryBiometric(); }}
-              className="w-full py-2 text-sm text-[#8a7a62] hover:text-[#514636]"
+              className="w-full py-2 text-sm text-[#6b5d4a] hover:text-[#514636]"
             >
               Try Face ID instead
             </button>
           )}
 
-          <p className="text-xs text-center text-[#c8bba8]">
+          <p className="text-xs text-center text-[#6b5d4a]">
             Forgot your PIN? Ask a trip planner to reset it.
           </p>
         </div>
@@ -295,7 +295,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
           <h3 className="text-lg font-medium text-[#3a3128] mb-1">
             Skip the PIN next time?
           </h3>
-          <p className="text-sm text-[#8a7a62]">
+          <p className="text-sm text-[#6b5d4a]">
             Use Face ID to open your documents — faster and just as secure.
           </p>
         </div>
@@ -308,7 +308,7 @@ export default function VaultGate({ children, onSetupComplete }: VaultGateProps)
           </button>
           <button
             onClick={skipBiometric}
-            className="w-full py-2 text-sm text-[#8a7a62] hover:text-[#514636]"
+            className="w-full py-2 text-sm text-[#6b5d4a] hover:text-[#514636]"
           >
             I'll stick with the PIN
           </button>

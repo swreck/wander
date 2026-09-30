@@ -21,7 +21,9 @@ export interface TextBooking {
   checkOutTime: string | null;
   confirmation: string | null;
   people: string | null;        // as written, e.g. "4 people", "2 adults"
-  details: string | null;       // short, in the source's words (dress code, allergies noted…)
+  details: string | null;       // short labelled lines, in the source's words ("Dress: …\nAllergy: …")
+  address: string | null;       // street address as written, for Maps
+  phone: string | null;         // the place's own phone number, as written
   quote: string;                // the words this came from
 }
 
@@ -45,10 +47,10 @@ const SCHEMA = {
       type: "array",
       items: {
         type: "object", additionalProperties: false,
-        required: ["kind", "name", "date", "time", "checkOutDate", "checkOutTime", "confirmation", "people", "details", "quote"],
+        required: ["kind", "name", "date", "time", "checkOutDate", "checkOutTime", "confirmation", "people", "details", "address", "phone", "quote"],
         properties: {
           kind: { type: "string", enum: ["hotel", "restaurant", "tour", "flight", "other"] },
-          name: s, date: s, time: s, checkOutDate: s, checkOutTime: s, confirmation: s, people: s, details: s, quote: s,
+          name: s, date: s, time: s, checkOutDate: s, checkOutTime: s, confirmation: s, people: s, details: s, address: s, phone: s, quote: s,
         },
       },
     },
@@ -69,13 +71,26 @@ Return only what the text states:
 - "bookings": confirmed reservations (hotel, restaurant, tour, flight) with their confirmation or reservation number when shown. Recommendations, options under consideration, and availability replies are NOT bookings.
 - "deadlines": things that must be done by a date for a booking to hold — reconfirmation, free-cancellation cutoffs, payment dates. When the text states a rule relative to a known date ("reconfirm 3-7 days prior" to a stated reservation date), work out the dates, set "computed" true, and keep the original words in "quote".
 - Dates YYYY-MM-DD, times 24-hour HH:MM, local time. Use an empty string for anything not stated. Never guess.
-- "what" is short and plain. "quote" is the exact source words (trimmed).`;
+- "what" is short and plain and always names the booking it's about, so it makes sense on its own in a list:
+  "Four Seasons Kyoto: free cancellation ends 3:00 PM Kyoto time", "Reconfirm the Joël Robuchon dinner (Oct 17)".
+- "details" is what a traveler needs at the door, as short labelled lines separated by newlines, in the source's own words
+  where it matters. Use only labels that apply, in this order: "Party: 4", "Dress: …" (the actual rule, e.g. "jacket or collared
+  shirt; no T-shirts, shorts, sportswear or sandals; ties not needed"), "Allergy: …", "Menu: …", "Seating: …", "Note: …".
+  Leave out the address and phone (they have their own fields), prices already paid, email-signature names, and
+  check-in/check-out times (they have their own fields). Write every line in plain English: translate Japanese
+  ("4名" → "4", "店内" → "indoor seating").
+- "name" is what people call the place, short: "La Table de Joël Robuchon (Ebisu)", not the booking page's full header.
+- "address" is the place's street address as written; "phone" is the place's own phone number (not the booker's).
+- "quote" is the exact source words (trimmed).`;
+
+/** Bump when the instructions above change, so cached readings are read again. */
+const READER_VERSION = "4";
 
 let client: Anthropic | null = null;
 const anthropic = () => (client ||= new Anthropic());
 
 export function tabTextHash(text: string): string {
-  return crypto.createHash("sha256").update(text).digest("hex");
+  return crypto.createHash("sha256").update(`${READER_VERSION}\n${text}`).digest("hex");
 }
 
 export async function readGuideText(tabName: string, text: string, tripDates: string): Promise<{ reading: TextReading | null; failure?: string }> {
@@ -96,6 +111,7 @@ export async function readGuideText(tabName: string, text: string, tripDates: st
     parsed.bookings = parsed.bookings.filter((b) => b.name?.trim()).map((b) => ({
       ...b, date: clean(b.date), time: clean(b.time), checkOutDate: clean(b.checkOutDate), checkOutTime: clean(b.checkOutTime),
       confirmation: clean(b.confirmation), people: clean(b.people), details: clean(b.details),
+      address: clean(b.address), phone: clean(b.phone),
     }));
     parsed.deadlines = parsed.deadlines.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.date)).map((d) => ({ ...d, endDate: clean(d.endDate) }));
     return { reading: parsed };

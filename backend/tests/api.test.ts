@@ -49,6 +49,7 @@ let accommodationId: string;
 let reservationId: string;
 let routeSegmentId: string;
 let importedTripId: string;
+let romeTripId: string; // the Rome trip imported in section 18, planned in section 19
 
 describe("Wander API — Comprehensive Test Suite", () => {
 
@@ -1442,6 +1443,7 @@ describe("Wander API — Comprehensive Test Suite", () => {
       expect(res.status).toBe(201);
       // Ghost Hotel should be skipped (cityName doesn't match)
       expect(res.body.accommodations.length).toBe(0);
+      romeTripId = res.body.id;
     });
   });
 
@@ -1450,10 +1452,15 @@ describe("Wander API — Comprehensive Test Suite", () => {
   // ═══════════════════════════════════════════════════════════════════
   describe("19. Full Workflow Integration", () => {
     it("simulates a complete planning session", async () => {
-      // 1. Get active trip
+      // 1. Open the Rome trip this file just imported. By id, not /trips/active: there is one
+      //    active trip for everyone, and test files running alongside this one create, activate
+      //    and delete trips, so "active" can be another file's trip or none at all (that race,
+      //    not the invite changes, made this step read null in full-suite runs).
+      expect(romeTripId).toBeTruthy();
       const tripRes = await request(app)
-        .get("/api/trips/active")
+        .get(`/api/trips/${romeTripId}`)
         .set("Authorization", `Bearer ${token}`);
+      expect(tripRes.status).toBe(200);
       const activeTripId = tripRes.body.id;
       const firstCityId = tripRes.body.cities[0].id;
 

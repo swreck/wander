@@ -24,7 +24,8 @@ router.get("/trip/:tripId", async (req, res) => {
   const experiences = await prisma.experience.findMany({
     where,
     orderBy: { priorityOrder: "asc" },
-    include: { ratings: true, city: true, day: true },
+    // interests: who marked the idea in Larisa's Guide (or in Wander) — people choose by this
+    include: { ratings: true, city: true, day: true, interests: { select: { displayName: true } } },
   });
   res.json(experiences);
 });

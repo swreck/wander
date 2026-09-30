@@ -172,7 +172,7 @@ export function ThemeChip({ theme }: { theme: string }) {
   return (
     <span className="inline-flex items-center gap-1">
       <span style={{ fontSize: 12 }}>{config.emoji}</span>
-      <span className="text-xs text-[#8a7a62] capitalize">{label}</span>
+      <span className="text-xs text-[#6b5d4a] capitalize">{label}</span>
     </span>
   );
 }
@@ -553,7 +553,7 @@ function ThemeFilterBar({ activeTheme, onSelect, availableThemes }: { activeThem
           <button
             onClick={() => onSelect(null)}
             className="w-10 h-10 rounded-full bg-white shadow-md border border-[#e0d8cc]
-                       flex items-center justify-center text-xs text-[#8a7a62] hover:bg-[#f0ece5]"
+                       flex items-center justify-center text-xs text-[#6b5d4a] hover:bg-[#f0ece5]"
             title="Show all"
           >
             All
@@ -660,7 +660,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
   if (!API_KEY) {
     return (
       <div className="w-full h-full bg-[#e8e2d8] flex items-center justify-center">
-        <div className="text-center text-[#8a7a62]">
+        <div className="text-center text-[#6b5d4a]">
           <p className="text-sm">Map requires Google Maps API key</p>
           <p className="text-xs mt-1">Set VITE_GOOGLE_MAPS_API_KEY in environment</p>
         </div>
@@ -793,7 +793,7 @@ export default function MapCanvas({ center, experiences, accommodations, onExper
           </div>
           <button
             onClick={() => setQuickAction(null)}
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-[#e0d8cc] text-[#8a7a62] flex items-center justify-center text-xs shadow-sm"
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-[#e0d8cc] text-[#6b5d4a] flex items-center justify-center text-xs shadow-sm"
           >
             &times;
           </button>
