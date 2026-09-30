@@ -7,6 +7,7 @@
  */
 
 import prisma from "../db.js";
+import { tabsOfCopy, wordsAt, cellsOfItem, ideaRef, type ContextLine, type SourceView, type SourcePart } from "./sources.js";
 
 const ymd = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
 const weekday = (date: string) =>
@@ -70,10 +71,19 @@ export async function buildGuideContext(tripId: string, opts: { phoneZone?: stri
  * asker's own clock); it goes after the cached part. Mixed together, every question re-stored the whole
  * Guide (~64,000 tokens at 1.25x).
  */
-export async function buildGuideContextParts(tripId: string, opts: { phoneZone?: string; now?: Date } = {}): Promise<{ stable: string; live: string }> {
+export interface GuideContextParts {
+  stable: string;
+  live: string;
+  // The same text, line by line, each with where it came from — what Scout's citations point at
+  stableLines: ContextLine[];
+  liveLines: ContextLine[];
+  copy: string | null;   // which copy of her Guide these came from ("Japan Oct 2026-2")
+}
+
+export async function buildGuideContextParts(tripId: string, opts: { phoneZone?: string; now?: Date } = {}): Promise<GuideContextParts> {
   const [trip, snapshot, items, stays, days, ideas, notes] = await Promise.all([
     prisma.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true, endDate: true, timeZone: true } }),
-    prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { sourceName: true, importedAt: true } }),
+    prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true, sourceName: true, importedAt: true } }),
     prisma.guideItem.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }] }),
     prisma.accommodation.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: { checkInDate: "asc" } }),
     prisma.day.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: { date: "asc" } }),
@@ -81,22 +91,31 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       where: { tripId, sheetRowRef: { not: null } },
       include: { city: { select: { name: true } }, interests: { select: { displayName: true } }, day: { select: { date: true } } },
     }),
-    prisma.sheetNote.findMany({ where: { tripId }, orderBy: [{ tabName: "asc" }, { rowIndex: "asc" }], select: { tabName: true, text: true } }),
+    prisma.sheetNote.findMany({ where: { tripId }, orderBy: [{ tabName: "asc" }, { rowIndex: "asc" }], select: { tabName: true, text: true, rowIndex: true } }),
   ]);
-  if (!trip || !snapshot) return { stable: "", live: "" };
+  if (!trip || !snapshot) return { stable: "", live: "", stableLines: [], liveLines: [], copy: null };
 
-  const out: string[] = [];
-  const live: string[] = [];
-  out.push(`TRIP: ${trip.name}, ${ymd(trip.startDate)} to ${ymd(trip.endDate)}. Local time zone in Japan: ${trip.timeZone || "Asia/Tokyo"}.`);
+  // Every line carries its source (sources.ts). A heading or an instruction to Scout has none.
+  const out: ContextLine[] = [];
+  const live: ContextLine[] = [];
+  const say = (to: ContextLine[], text: string, src: SourceView | null = null) => { to.push({ text, src }); };
+  const tabs = await tabsOfCopy(snapshot.id);
+  const partOf = (i: (typeof items)[number]): SourcePart => ({ label: i.source, cells: cellsOfItem(i, tabs) });
+  const worked = (what: string, from: SourcePart[]): SourceView => ({ type: "wander", what, from });
+  // Wander's own notes in a line's detail — listed apart from her words
+  const WANDER_DETAIL = /^(Tabs differ:|Time from the |The .+ tab lists |Wander matched |Still open in the Guide|Worked out from:)/;
+  say(out, `TRIP: ${trip.name}, ${ymd(trip.startDate)} to ${ymd(trip.endDate)}. Local time zone in Japan: ${trip.timeZone || "Asia/Tokyo"}.`,
+    worked("The trip's dates, from the first and last days in her Guide", []));
   // Written out already in the phone's own time zone, as every Wander screen shows it
   let readWords = snapshot.importedAt.toISOString().slice(0, 10);
   try {
     readWords = snapshot.importedAt.toLocaleString("en-US", { timeZone: opts.phoneZone || trip.timeZone || "Asia/Tokyo", weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
   } catch { /* unknown zone: keep the plain date */ }
-  out.push(`Wander's copy of Larisa's Guide: "${snapshot.sourceName.replace(/\.xlsx$/i, "")}" (when Wander last read it is under RIGHT NOW, at the end). Larisa keeps the Guide; it may have changed since.`);
+  const copyNote = worked(`Which copy of her Guide Wander read ("${snapshot.sourceName.replace(/\.xlsx$/i, "")}") and when`, []);
+  say(out, `Wander's copy of Larisa's Guide: "${snapshot.sourceName.replace(/\.xlsx$/i, "")}" (when Wander last read it is under RIGHT NOW, with their latest message). Larisa keeps the Guide; it may have changed since.`, copyNote);
   // What depends on the moment or the asker's phone goes in "live", after the cached part — so the Guide
   // itself stays byte-for-byte the same across people and hours, and is read from cache (a tenth of the price)
-  live.push(`Wander last read Larisa's Guide ${readWords} (the phone's own time; say it exactly like that).`);
+  say(live, `Wander last read Larisa's Guide ${readWords} (the phone's own time; say it exactly like that).`, copyNote);
 
   // Who is on this trip in Wander (People shows the same list) — the Guide's travelers, plus anyone let in
   const [members, pending] = await Promise.all([
@@ -105,9 +124,23 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   ]);
   const memberNames = members.map((m) => m.traveler.displayName);
   const waiting = Array.from(new Set(pending.map((p) => p.expectedName).filter((n): n is string => !!n && !memberNames.includes(n))));
-  out.push(`PEOPLE ON THIS TRIP IN WANDER (the People screen shows the same): ${memberNames.join(", ")}${waiting.length ? `; invited, hasn't opened their link yet: ${waiting.join(", ")}` : ""}. The Guide's traveling group may be smaller — say so when it matters.`);
+  say(out, `PEOPLE ON THIS TRIP IN WANDER (the People screen shows the same): ${memberNames.join(", ")}${waiting.length ? `; invited, hasn't opened their link yet: ${waiting.join(", ")}` : ""}. The Guide's traveling group may be smaller — say so when it matters.`,
+    worked("Who is on this trip in Wander (the People screen)", []));
 
-  out.push("\nWHERE EVERYONE SLEEPS (from the Guide):");
+  // A hotel's line: her hotel cell, and the check-in and check-out lines for that hotel (her rows, her
+  // pasted confirmations, the booking screenshots) — each already pinned to its cell at import
+  const stayParts = (s: (typeof stays)[number]): SourcePart[] => {
+    const first = s.name.toLowerCase().split(" ")[0];
+    const own = items.filter((i) => ["checkin", "checkout"].includes(i.kind) && (i.sourceRef === s.sheetRowRef
+      || (i.title.toLowerCase().includes(first) && i.date && s.checkInDate && s.checkOutDate && i.date >= s.checkInDate && i.date <= s.checkOutDate)));
+    return [
+      ...(s.sheetRowRef ? [{ label: `${s.name} — her hotel row`, cells: wordsAt([s.sheetRowRef], tabs) }] : []),
+      ...own.map(partOf),
+    ];
+  };
+  const stayCells = (s: (typeof stays)[number]) => stayParts(s).flatMap((p) => p.cells);
+
+  say(out, "\nWHERE EVERYONE SLEEPS (from the Guide):");
   for (const s of stays) {
     // Spell out the nights: "Oct 18–21" is easy to misread as including the 21st
     const nightList: string[] = [];
@@ -128,7 +161,8 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       s.address ? `address ${s.address}` : null,
       s.notes ? `notes: ${s.notes}` : null,
     ].filter(Boolean);
-    out.push(`- ${parts.join("; ")}`);
+    const sepNote = own.length > 1 ? ["Each couple's first night comes from their own booking"] : [];
+    say(out, `- ${parts.join("; ")}`, { type: "guide", label: s.name, cells: dedupeCells(stayCells(s)), ...(sepNote.length ? { wanderNotes: sepNote } : {}) });
   }
   // Nights where the Guide lists more than one place — an open question, not an error
   const byNight = new Map<string, string[]>();
@@ -141,15 +175,18 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   }
   const doubled = Array.from(byNight.entries()).filter(([, v]) => v.length > 1);
   if (doubled.length) {
-    out.push("OPEN QUESTION in the Guide: more than one place is listed for these nights — say both, and that it's still being worked out. This holds for EVERYTHING that depends on it: where they sleep, check-in, the next morning's check-out time, bags, where to leave from. Never quietly assume one (say 'whichever of the two you're in'; a check-out time or code belongs only to its own hotel):");
-    for (const [night, names] of doubled) out.push(`  ${night}: ${names.join(" and ")}`);
+    say(out, "OPEN QUESTION in the Guide: more than one place is listed for these nights — say both, and that it's still being worked out. This holds for EVERYTHING that depends on it: where they sleep, check-in, the next morning's check-out time, bags, where to leave from. Never quietly assume one (say 'whichever of the two you're in'; a check-out time or code belongs only to its own hotel):");
+    for (const [night, names] of doubled) {
+      say(out, `  ${night}: ${names.join(" and ")}`, worked(`Her Guide lists more than one place for the night of ${night}`,
+        stays.filter((s) => names.includes(s.name)).map((s) => ({ label: s.name, cells: dedupeCells(stayCells(s)) }))));
+    }
   }
 
   const choices = await prisma.dayChoice.findMany({ where: { tripId }, include: { traveler: { select: { displayName: true } } }, orderBy: { createdAt: "asc" } });
   const choicesByDate = new Map<string, typeof choices>();
   for (const c of choices) choicesByDate.set(c.date, [...(choicesByDate.get(c.date) || []), c]);
 
-  out.push("\nDAY BY DAY (from the Guide; times are local; 'For' says who it applies to; lines marked ADDED IN WANDER are the group's own same-day plans, not Larisa's):");
+  say(out, "\nDAY BY DAY (from the Guide; times are local; 'For' says who it applies to; lines marked ADDED IN WANDER are the group's own same-day plans, not Larisa's):");
   const itemsByDate = new Map<string, typeof items>();
   for (const i of items) {
     const k = ymd(i.date) || "undated";
@@ -163,13 +200,19 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       && (f.timeZone || tripZoneForDays) !== tripZoneForDays)
     .map((f) => {
       const departs = zonedMoment(ymd(f.date), toMin(f.time), f.timeZone || tripZoneForDays);
-      return { who: f.forWhom!, departs, departJapanDay: departs.toLocaleDateString("en-CA", { timeZone: tripZoneForDays }) };
+      return { who: f.forWhom!, departs, departJapanDay: departs.toLocaleDateString("en-CA", { timeZone: tripZoneForDays }), flight: f };
     });
   for (const d of days) {
     const k = ymd(d.date);
-    out.push(`${weekday(k)} (${k}) — ${d.city.name}${d.dayType === "guided" ? ", with Backroads" : ""}`);
+    // The day's heading: the city is where her Itinerary puts that night
+    const nightHere = stays.find((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= k && k < ymd(s.checkOutDate));
+    say(out, `${weekday(k)} (${k}) — ${d.city.name}${d.dayType === "guided" ? ", with Backroads" : ""}`,
+      worked("Which city Wander files this day under, from her Itinerary", nightHere ? [{ label: nightHere.name, cells: dedupeCells(stayCells(nightHere)) }] : []));
     for (const a of arrivals) {
-      if (k < a.departJapanDay) out.push(`  - [WHERE: on this Japan date ${a.who} are NOT in Japan and NOT traveling — still at home; their flight takes off ${momentWords(a.departs, tripZoneForDays)}]`);
+      if (k < a.departJapanDay) {
+        say(out, `  - [WHERE: on this Japan date ${a.who} are NOT in Japan and NOT traveling — still at home; their flight takes off ${momentWords(a.departs, tripZoneForDays)}]`,
+          worked(`${a.who} are still at home on this Japan date — worked out from their flight's departure, ${momentWords(a.departs, tripZoneForDays)}`, [partOf(a.flight)]));
+      }
     }
     // Mornings when two places from an open night both "check out": the time and code belong to one of them only
     const leavingHere = stays.filter((s) => ymd(s.checkOutDate) === k);
@@ -202,17 +245,28 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
         i.kind === "weather" ? `[her forecast for every day ${i.windowStart || k} through ${k}]` : i.kind === "stop" ? `[Wander's screens call this "Larisa's note for the ${d.city.name} stay" — it's her heading for the whole stay, ${i.windowStart} through ${k}; it doesn't say which day. Her other notes (on hotel rows, in the Notes column) are separate notes — quote each exactly and never add to them]` : i.windowStart ? `[can be done any day from ${i.windowStart} through ${k}]` : null,
         `(source: ${i.source})`,
       ].filter(Boolean);
-      out.push(`  - ${parts.join(" ")}`);
+      // Wander's own notes on this line, in plain words — shown apart from her words, never as hers
+      const notesOnLine = [
+        ...(i.detail || "").split("\n").filter((l) => WANDER_DETAIL.test(l)),
+        i.kind === "checkout" && i.time && earliestOther && earliestOther < i.time
+          ? `${clockOf(toMin(i.time))} is the hotel's latest check-out; her plan for the day already has something at ${clockOf(toMin(earliestOther))}` : null,
+        noOwner.has(i.id) ? "The group is split at this time, and her line names no one" : null,
+        openCheckout ? `The night before, her Guide lists two places (${leavingHere.map((s) => s.name).join(" and ")}); this is ${i.title.replace(/^Check out · /, "")}'s own` : null,
+        i.kind === "weather" ? `Her forecast is for every day ${i.windowStart || k} through ${k}` : null,
+        i.kind !== "weather" && i.kind !== "stop" && i.windowStart ? `Can be done any day from ${i.windowStart} through ${k}` : null,
+      ].filter((n): n is string => !!n);
+      say(out, `  - ${parts.join(" ")}`, { type: "guide", label: i.source, cells: cellsOfItem(i, tabs), ...(notesOnLine.length ? { wanderNotes: notesOnLine } : {}) });
     }
     for (const c of choicesByDate.get(k) || []) {
-      out.push(`  - ${c.time || "(no time given)"} ADDED IN WANDER by ${c.traveler.displayName} (not in the Guide): ${c.text}`);
+      say(out, `  - ${c.time || "(no time given)"} ADDED IN WANDER by ${c.traveler.displayName} (not in the Guide): ${c.text}`,
+        { type: "added", by: c.traveler.displayName, text: c.text });
     }
   }
   // Every deadline's status at this moment, worked out here — Scout once read a cancellation policy
   // itself and told Larisa free cancellation ended "tonight" when the 60% charge had already begun
   if (opts.now) {
     const zone = trip.timeZone || "Asia/Tokyo";
-    const lines: string[] = [];
+    const lines: ContextLine[] = [];
     // The same moment on the asker's own clock, when their phone isn't on Japan's (say both)
     const phoneWords = (at: Date) => {
       const pz = opts.phoneZone;
@@ -241,10 +295,11 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
         : timeMin !== null
         ? `OPEN NOW — last chance ${last} at ${clockOf(timeMin)} ${zone === "Asia/Tokyo" ? "Japan time" : zone}${phoneWords(end)}`
         : `OPEN NOW — last chance ${last}, by the end of that day ${zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`} — NO TIME IS GIVEN, so never state one${phoneWords(end)}`;
-      lines.push(`  - ${i.title}${i.forWhom ? ` (For ${i.forWhom})` : ""}: ${status}`);
+      say(lines, `  - ${i.title}${i.forWhom ? ` (For ${i.forWhom})` : ""}: ${status}`,
+        worked(`Whether "${i.title}" is still open, worked out from its date${timeMin !== null ? " and time" : ""} and the time on the phone`, [partOf(i)]));
     }
     if (lines.length) {
-      live.push("DEADLINES — STATUS RIGHT NOW (already worked out from the phone's clock; for anything about cancelling, charges or reconfirming, use ONLY these — never work out a policy's dates yourself):");
+      say(live, "DEADLINES — STATUS RIGHT NOW (already worked out from the phone's clock; for anything about cancelling, charges or reconfirming, use ONLY these — never work out a policy's dates yourself):");
       live.push(...lines);
     }
   }
@@ -253,8 +308,8 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   // Julie & Andy were "still in the air" at 8 PM Oct 13 Japan time — 4 AM in California, eight hours
   // before their noon departure.
   const tripZone = trip.timeZone || "Asia/Tokyo";
-  const windows: string[] = [];
-  const travelNow: string[] = [];
+  const windows: ContextLine[] = [];
+  const travelNow: ContextLine[] = [];
   for (const f of items) {
     if (f.kind !== "flight" || /^Land at/i.test(f.title) || !f.time || !f.date) continue;
     const departZone = f.timeZone || tripZone;
@@ -284,17 +339,17 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     }
     if (opts.now) {
       const status = opts.now < departs ? "hasn't left yet" : lands && opts.now < lands ? "IN THE AIR" : lands ? "has landed" : "has departed";
-      travelNow.push(`- ${who} — ${f.title}: ${status}`);
+      say(travelNow, `- ${who} — ${f.title}: ${status}`, worked(`Where ${f.title} stands right now, from its times and the time on the phone`, [partOf(f)]));
     }
-    windows.push(parts.join("; "));
+    say(windows, parts.join("; "), worked(`${f.title}'s departure and landing in both Japan and California time, worked out from her flight details`, [partOf(f)]));
   }
   if (windows.length) {
-    out.push("\nTRAVEL WINDOWS (worked out from the Guide's flights in both zones — before saying anyone is traveling, in the air, or somewhere at a given moment, compare THAT moment with these; where each flight stands right now is under RIGHT NOW, at the end):");
+    say(out, "\nTRAVEL WINDOWS (worked out from the Guide's flights in both zones — before saying anyone is traveling, in the air, or somewhere at a given moment, compare THAT moment with these; where each flight stands right now is under RIGHT NOW, with their latest message):");
     out.push(...windows);
   }
 
   // The leave-for-the-airport estimate Wander's screens show — one number everywhere
-  const estimates: string[] = [];
+  const estimates: ContextLine[] = [];
   for (const f of items) {
     if (f.kind !== "flight" || /^Land at/i.test(f.title) || !f.time || !f.date) continue;
     const code = (f.title.match(/\b([A-Z]{3})\b/) || [])[1];
@@ -306,42 +361,66 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     const herPlan = items.filter((b) => ymd(b.date) === ymd(f.date) && (b.kind === "block" || /haruka|transfer/i.test(b.detail || ""))
       && /haruka|airport|\bKIX\b|transfer|station/i.test(`${b.title} ${b.detail || ""}`));
     if (herPlan.length) {
-      estimates.push(`- ${weekday(ymd(f.date))}: Larisa's Guide has its own plan for getting to the airport — use HER plan (the DAY BY DAY lines for this date, with their tabs), not an estimate. If her tabs disagree on a time (e.g. the Itinerary tab's note vs the day's tab), say both with their tabs.`);
+      say(estimates, `- ${weekday(ymd(f.date))}: Larisa's Guide has its own plan for getting to the airport — use HER plan (the DAY BY DAY lines for this date, with their tabs), not an estimate. If her tabs disagree on a time (e.g. the Itinerary tab's note vs the day's tab), say both with their tabs.`,
+        worked(`Her own plan for getting to the airport on ${weekday(ymd(f.date))}`, herPlan.map(partOf)));
       continue;
     }
     const [h, m] = f.time.split(":").map(Number);
     const leave = Math.floor((h * 60 + m - 150 - travel) / 5) * 5;
-    estimates.push(`- ${weekday(ymd(f.date))}: ${f.title} at ${clockOf(h * 60 + m)} → leave ${cityName} for ${AIRPORT_WORDS[code!] || code} by about ${clockOf(leave)} (about ${travel} min to the airport + 2 hr 30 min there for an international flight). This is WANDER'S OWN ESTIMATE, shown on Home and Now; if asked, give this same time, say it's an estimate, and add how you'd get there if useful.`);
+    say(estimates, `- ${weekday(ymd(f.date))}: ${f.title} at ${clockOf(h * 60 + m)} → leave ${cityName} for ${AIRPORT_WORDS[code!] || code} by about ${clockOf(leave)} (about ${travel} min to the airport + 2 hr 30 min there for an international flight). This is WANDER'S OWN ESTIMATE, shown on Home and Now; if asked, give this same time, say it's an estimate, and add how you'd get there if useful.`,
+      worked(`Wander's estimate of when to leave for the airport: the flight's time, less about ${travel} minutes to ${AIRPORT_WORDS[code!] || code} and 2½ hours there. Not in her Guide`, [partOf(f)]));
   }
-  if (estimates.length) out.push("\nLEAVING FOR THE AIRPORT (Wander's estimate, not the Guide):", ...estimates);
+  if (estimates.length) { say(out, "\nLEAVING FOR THE AIRPORT (Wander's estimate, not the Guide):"); out.push(...estimates); }
 
   const undated = itemsByDate.get("undated") || [];
   if (undated.length) {
-    out.push("Undated notes:");
-    for (const i of undated) out.push(`  - ${i.title}${i.detail ? ` — ${i.detail}` : ""} (source: ${i.source})`);
+    say(out, "Undated notes:");
+    for (const i of undated) say(out, `  - ${i.title}${i.detail ? ` — ${i.detail}` : ""} (source: ${i.source})`, { type: "guide", label: i.source, cells: cellsOfItem(i, tabs) });
   }
 
   if (ideas.length) {
-    out.push("\nIDEAS LARISA RESEARCHED (Activities tab; 'interested' = who marked it; a day means it's placed on that day):");
+    say(out, "\nIDEAS LARISA RESEARCHED (Activities tab; 'interested' = who marked it; a day means it's placed on that day):");
     for (const e of ideas) {
       const who = e.interests.map((x) => x.displayName).join(", ");
       const removed = (e.sheetRowRef || "").startsWith("Removed from Guide|");
-      out.push(`- ${e.name} (${e.city?.name || "?"})${removed ? " [NO LONGER IN LARISA'S GUIDE — kept in Wander because people wrote on it]" : ""}${e.day ? ` on ${ymd(e.day.date)}` : ""}${who ? ` — interested: ${who}` : ""}${e.description ? ` — ${e.description.slice(0, 200)}` : ""}`);
+      say(out, `- ${e.name} (${e.city?.name || "?"})${removed ? " [NO LONGER IN LARISA'S GUIDE — kept in Wander because people wrote on it]" : ""}${e.day ? ` on ${ymd(e.day.date)}` : ""}${who ? ` — interested: ${who}` : ""}${e.description ? ` — ${e.description.slice(0, 200)}` : ""}`,
+        removed
+          ? worked(`${e.name} is no longer in her Guide; Wander kept it because people wrote on it`, [])
+          : { type: "guide", label: `${e.name} — her Activities tab`, cells: wordsAt([ideaRef(e.sheetRowRef || "", tabs)].filter((r): r is string => !!r), tabs),
+              ...(who ? { wanderNotes: [`Marked in Wander as interesting to ${who}`] } : {}) });
     }
   }
 
   if (notes.length) {
-    out.push("\nTHE GUIDE'S OTHER TABS (Larisa's own text, including pasted emails and picture summaries):");
+    say(out, "\nTHE GUIDE'S OTHER TABS (Larisa's own text, including pasted emails and picture summaries):");
     let budget = 30000;
     let lastTab = "";
     for (const n of notes) {
       const line = `${n.tabName !== lastTab ? `\n[${n.tabName}]\n` : ""}${n.text}`;
-      if (budget - line.length < 0) { out.push("\n(…more in the Guide's tabs; Larisa's sheet has the rest)"); break; }
-      out.push(line);
+      if (budget - line.length < 0) { say(out, "\n(…more in the Guide's tabs; Larisa's sheet has the rest)"); break; }
+      // A text row is her row in that tab; a picture summary is Wander's reading of her picture
+      const tab = tabs.find((t) => t.name === n.tabName);
+      const picture = n.rowIndex >= 100000 ? tab?.images[n.rowIndex - 100000] : undefined;
+      say(out, line, picture
+        ? worked(`Wander's reading of a picture in her ${n.tabName} tab`, [{ label: `A picture in her ${n.tabName} tab`, cells: [{ kind: "picture", tab: n.tabName, anchor: picture.anchor, sha256: picture.sha256 }] }])
+        : { type: "guide", label: `Her ${n.tabName} tab`, cells: wordsAt([`${n.tabName}!${n.rowIndex}`], tabs) });
       budget -= line.length;
       lastTab = n.tabName;
     }
   }
-  if (travelNow.length) live.push("FLIGHTS — WHERE EACH STANDS RIGHT NOW:", ...travelNow);
-  return { stable: out.join("\n"), live: live.join("\n") };
+  if (travelNow.length) { say(live, "FLIGHTS — WHERE EACH STANDS RIGHT NOW:"); live.push(...travelNow); }
+  const text = (lines: ContextLine[]) => lines.map((l) => l.text).join("\n");
+  return { stable: text(out), live: text(live), stableLines: out, liveLines: live, copy: snapshot.sourceName.replace(/\.xlsx$/i, "") };
+}
+
+/** The same cell listed once */
+function dedupeCells<T extends { kind: string }>(cells: T[]): T[] {
+  const seen = new Set<string>();
+  return cells.filter((c) => {
+    const x = c as any;
+    const key = `${x.kind}|${x.tab}|${x.a1 || ""}|${x.sha256 || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

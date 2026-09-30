@@ -10,6 +10,8 @@ import { findDuplicate } from "../services/dedup.js";
 import { enrichExperience } from "../services/capture.js";
 import { getCountryAdvisories, getPreTripSummary } from "../services/travelAdvisory.js";
 import { addDayChoice, removeDayChoice, listDayChoices, plainDay } from "../services/dayChoices.js";
+import type { ContextLine } from "../services/guide/sources.js";
+import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -1228,8 +1230,11 @@ const WITHDRAWN_TOOLS = new Set([
 // "couldn't pull a live forecast"). The old client-side web_search stays defined but isn't offered.
 const offeredTools: Anthropic.ToolUnion[] = [
   ...tools.filter((t) => !WITHDRAWN_TOOLS.has(t.name) && t.name !== "web_search"),
-  { type: "web_search_20260209", name: "web_search", max_uses: 5 },
-  { type: "web_fetch_20260209", name: "web_fetch", max_uses: 3 },
+  // The basic search and fetch: each claim from the web comes back with its page's title, address and the
+  // words quoted, for "Sources". The newer filtering search (web_search_20260209) dropped those citations
+  // and took 34 s against 13 s on the same question (probe, Sep 30 2026).
+  { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+  { type: "web_fetch_20250910", name: "web_fetch", max_uses: 3, citations: { enabled: true } },
 ];
 /** The tools Scout is offered — exported for size checks (tools are part of every question's prompt) */
 export const scoutTools = offeredTools;
@@ -1297,6 +1302,8 @@ export function withoutNarration(text: string): string {
   return text
     // "I'll check — …" / "Let me check the hours." / "Let me look that up:" at the start of a sentence
     .replace(/(^|(?<=[.!?]\s)|(?<=\n))(?:I'll|I will|Let me|Let's) (?:check|look(?: that)? up|look|see|search)\b[^.!?\n—:]*(?:[.!?:]\s*|\s*—\s*[^.!?\n]*[.!?]\s*)/gi, "$1")
+    // A false start corrected mid-sentence: "Tomorrow morning — Fri… rather, the Imperial is…" (Sep 30, 1 in 4)
+    .replace(/\b[A-Za-z]{1,9}(?:…|\.\.\.)\s*(?:rather|sorry|I mean|make that|no)\b,?\s*/g, "")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
 }
@@ -4170,21 +4177,28 @@ router.post("/", async (req: AuthRequest, res) => {
 
     // Larisa's Guide, as Wander read it — the same facts every Wander screen shows
     let guideContext = "";
-    let guideLive = "";
+    // The same Guide, line by line with each line's source — sent as documents Scout cites as it answers
+    let guideLines: ContextLine[] = [];
+    let liveLines: ContextLine[] = [];
+    let guideCopy: string | null = null;
     if (tripId) {
       try {
         const { buildGuideContextParts } = await import("../services/guide/scoutContext.js");
         const phoneNow = typeof clientTime?.iso === "string" && !isNaN(Date.parse(clientTime.iso)) ? new Date(clientTime.iso) : new Date();
         const parts = await buildGuideContextParts(tripId, { phoneZone: typeof clientTime?.timeZone === "string" ? clientTime.timeZone : undefined, now: phoneNow });
         guideContext = parts.stable;
-        guideLive = parts.live;
+        guideLines = parts.stableLines.filter((l) => l.text.trim());
+        liveLines = parts.liveLines.filter((l) => l.text.trim());
+        guideCopy = parts.copy;
       } catch (e: any) { console.warn("[scout] guide context unavailable:", e.message); }
     }
 
     // Build system prompt with page context
     const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
 
-Wander is the family's window into Larisa's Guide — her trip spreadsheet, which is the plan. You know the Guide (below), you know how Wander works (below), and you can look things up on the internet. You never change the plan. What time it is for the person asking, and what the Guide's deadlines and flights stand at right now, are under RIGHT NOW at the very end.
+Wander is the family's window into Larisa's Guide — her trip spreadsheet, which is the plan. You know the Guide (the document at the start of the conversation), you know how Wander works (below), and you can look things up on the internet. You never change the plan. What time it is for the person asking, and what the Guide's deadlines and flights stand at right now, are in RIGHT NOW with their latest message.
+
+CITING (every answer): the Guide and the right-now statuses are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
 
 ANSWERING FROM THE GUIDE (most important):
 - For anything about this trip — where we sleep, what's on a day, times, bookings, confirmation numbers, deadlines, who's going, dinners — answer from LARISA'S GUIDE below first, and say it comes from Larisa's Guide.
@@ -4192,7 +4206,7 @@ ANSWERING FROM THE GUIDE (most important):
 - If the Guide doesn't have it, say plainly "That isn't in Larisa's Guide" (and that she may have it). Never say something "isn't saved in Wander" or "hasn't been added" — if it's in the Guide below, you have it.
 - Never invent or guess plan details: no "typical" check-out times, no airports or hotels the Guide doesn't name. General travel knowledge (how long Kyoto to Kansai airport takes, weather patterns) is fine — label it as your own estimate, never as the plan.
 - Where the Guide lists two options or marks something as a maybe or TBD, say both and that it's still open. Never offer to settle it, save it, or pick one.
-- Deadlines: say what must be done, by when (weekday + date + time if given), and how, from the Guide's own text. Whether a deadline has passed, is open now, or hasn't opened yet is in DEADLINES — STATUS RIGHT NOW below: use that, exactly. For cancelling, charges or reconfirming, never read a policy ("7–4 days before: 60%") and work out today's charge yourself — the status lines already did; if one says PASSED, the free window is over. The dates in the DAY BY DAY lines (and "can be done any day from … through …") are already worked out too — never recompute them.
+- Deadlines: say what must be done, by when (weekday + date + time if given), and how, from the Guide's own text. Whether a deadline has passed, is open now, or hasn't opened yet is in DEADLINES — STATUS RIGHT NOW (with their latest message): use that, exactly. For cancelling, charges or reconfirming, never read a policy ("7–4 days before: 60%") and work out today's charge yourself — the status lines already did; if one says PASSED, the free window is over. The dates in the DAY BY DAY lines (and "can be done any day from … through …") are already worked out too — never recompute them.
 - "When is… / what time is…": give the time exactly as the Guide has it, for the person asking, and say when it's only her estimate ("The end time is Larisa's estimate" → "about 3 PM"). When the Guide has no time, say so first and plainly ("Larisa's Guide doesn't give a time for it"); anything you add from general knowledge is labelled as yours, never as the plan. When their phone isn't on Japan's clock, give their own time too.
 - Detailed day plans: some days have both the Itinerary tab's overview line and blocks of Larisa's DETAILED PLAN from a day tab ("Kyoto Mon, 1026…", "Tokyo Day 2…"). For what happens when, where lunch is, when to leave, how to get there, answer from the detailed plan, with its times as she wrote them ("~8:30–9:15", "Morning") and her place names, and name the tab. Keep her order. A block "For Larisa & Julie" or "For Ken & Andy" is only for them — answer for the person asking (the group can split up). While the group is split (after her "Split groups" line, until everyone is back together), a line with no "For" doesn't say whose it is — say that ("the next line, Maruni Toryo 10:35–11:35, doesn't say which group"), never assign it.
 - Relaying her plan: a line's time is when that line happens, at that place ("Evening Prep at the Imperial Hotel, 5:15–6:15" is time AT the hotel, resting and dressing) — never turn it into a time to leave, and when she gives no leaving time, say when the next line starts. Her transit notes name lines and stations exactly ("from Hibiya Station, take the Chiyoda Line (Green) to Meiji-jingumae") — copy them word for word, never shorten them into arrows or swap a station's name for a line's (Hibiya Station is not the Hibiya Line). A wrong train is worse than a long sentence.
@@ -4234,7 +4248,7 @@ RULES:
 6. For date references like "Tuesday" or "day 3", use get_all_days to find the right day.
 7. Never fabricate data — always query first.
 8. When the user says "move X to Y day", demote first then promote to the new day.
-11. NEVER ask the user for a trip ID, city ID, day ID, or any internal identifier. These are always provided in the CURRENT CONTEXT at the end. If the trip ID shows "none", tell the user no active trip was found.
+11. NEVER ask the user for a trip ID, city ID, day ID, or any internal identifier. These are always provided in the CURRENT CONTEXT with their latest message. If the trip ID shows "none", tell the user no active trip was found.
 12. When the user pastes a block of text containing travel recommendations, suggestions, or a list of places to visit (from a friend, email, blog, etc.), use import_recommendations IMMEDIATELY. Do not ask for confirmation first — just do it. Do NOT try to add_experience one by one — the import tool handles extraction, city matching, and categorization automatically. Signs of a recommendation list: multiple place names, regions, personal tips, "you should try", restaurant names, hotel suggestions, etc.
 13. After importing recommendations, tell the user how many were imported and where they went (existing cities vs. new candidate cities vs. Ideas bucket). If the sender included general notes, share those too.
 14. NEVER ask "shall I proceed?" or "are you ready?" before performing an action. When the user gives you data or instructions, act on them immediately.
@@ -4305,7 +4319,6 @@ RULES:
     const augmentedMessage = tripId
       ? `${message}\n\n[System: The active trip ID is ${tripId}. Use it for any tool calls. Do not ask the user for it.]`
       : message;
-    messages.push({ role: "user", content: augmentedMessage });
     const actions: string[] = [];
     const placeCards: any[] = [];
     // Screens Scout opened or offered ("Open Wed, Oct 14 · Tokyo")
@@ -4319,10 +4332,25 @@ RULES:
     // hour and reused at a tenth of the price; only this question's details are paid in full. Before, the
     // time and the page sat inside the instructions and the Guide carried "right now" statuses, so almost
     // every question re-stored all ~73,000 tokens.
+    //
+    // Sources (Sep 30): the Guide goes to Scout as a document with citations on, one block per line, so each
+    // piece of an answer comes back pointing at the lines it used — resolved to the source recorded with each
+    // line. A document belongs in a message, so it opens the conversation (cached for an hour after the
+    // instructions); this question's details and the right-now statuses (a small second document) go with
+    // the latest message, after everything cached.
+    const HOUR = { type: "ephemeral" as const, ttl: "1h" as const };
+    const GUIDE_TITLE = "Larisa's Guide (the plan, as Wander last read it)";
+    const LIVE_TITLE = "Right now: her Guide's deadlines and flights";
+    const citedDocs: CitedDocument[] = [{ title: GUIDE_TITLE, lines: guideLines }, { title: LIVE_TITLE, lines: liveLines }];
+    const asDocument = (title: string, lines: ContextLine[], cache: boolean): any => ({
+      type: "document", title, citations: { enabled: true },
+      source: { type: "content", content: lines.map((l) => ({ type: "text", text: l.text })) },
+      ...(cache ? { cache_control: HOUR } : {}),
+    });
     const liveTail = [
       "RIGHT NOW (this question):",
       nowLine,
-      guideLive,
+      liveLines.length ? `(What her Guide's deadlines and flights stand at right now is in the document "${LIVE_TITLE}".)` : "",
       "",
       "CURRENT CONTEXT:",
       `- Page: ${context?.page || "unknown"}`,
@@ -4334,12 +4362,23 @@ RULES:
       context?.dayDate ? `- Viewing day: ${context.dayDate}` : "",
       learningsContext,
     ].filter(Boolean).join("\n");
-    const HOUR = { type: "ephemeral" as const, ttl: "1h" as const };
-    const system: Anthropic.TextBlockParam[] = [
-      { type: "text", text: systemPrompt, cache_control: HOUR },
-      ...(guideContext ? [{ type: "text" as const, text: `LARISA'S GUIDE (the plan, as Wander last read it):\n${guideContext}`, cache_control: HOUR }] : []),
+    const system: Anthropic.TextBlockParam[] = [{ type: "text", text: systemPrompt, cache_control: HOUR }];
+    // The latest message: the right-now statuses, this question's details, then the question itself
+    const latest: any[] = [
+      ...(liveLines.length ? [asDocument(LIVE_TITLE, liveLines, false)] : []),
       { type: "text", text: liveTail },
+      { type: "text", text: augmentedMessage },
     ];
+    messages.push({ role: "user", content: latest });
+    // The Guide opens the conversation — the same bytes for everyone, so it's read from the cache
+    if (guideContext && guideLines.length) {
+      const first = messages[0];
+      const rest = typeof first.content === "string" ? [{ type: "text", text: first.content }] : (first.content as any[]);
+      messages[0] = { role: "user", content: [asDocument(GUIDE_TITLE, guideLines, true), ...rest] };
+    }
+    // Every piece of the answer with its citations, and pages Scout fetched (their citations name them by title)
+    const answerPieces: AnswerPiece[] = [];
+    const fetchedPages: { url: string; title: string }[] = [];
 
     for (let turn = 0; turn < 8; turn++) {
       const response = await anthropic.messages.create({
@@ -4359,7 +4398,14 @@ RULES:
 
       // Collect text parts — from every step. (Scout often answers, then calls a tool, then adds a
       // short line; keeping only the last step's words threw the real answer away: "Tap below to open it.")
-      const textParts = joinAnswerPieces(response.content.filter((b) => b.type === "text").map((b) => (b as any).text));
+      // With citations on, one stretch of text arrives in pieces (split where a citation starts or ends); pieces
+      // side by side join as written, and stretches between tool calls join as before.
+      const step = piecesOfStep(response.content as any[]);
+      answerPieces.push(...step.pieces);
+      for (const b of response.content as any[]) {
+        if (b?.type === "web_fetch_tool_result" && b.content?.url) fetchedPages.push({ url: b.content.url, title: b.content.content?.title || b.content.url });
+      }
+      const textParts = joinAnswerPieces(step.groups);
       if (textParts) {
         finalReply = finalReply ? `${finalReply}\n\n${textParts}` : textParts;
       }
@@ -4419,6 +4465,12 @@ RULES:
     // that line into a Send button. Never for Larisa herself.
     finalReply = withoutUnaskedDraft(finalReply, message, history, req.user?.displayName);
 
+    // Where the answer came from — its citations as Scout wrote them, each resolved to the source recorded
+    // with the line it points at; the parts with none are Scout's own words. Shown only when someone taps
+    // "Sources" under the answer.
+    const sources = finalReply ? answerSources(finalReply, answerPieces, citedDocs, guideCopy, fetchedPages) : null;
+    const hasSources = !!sources && (sources.claims.length > 0 || sources.ownWords.length > 0);
+
     // Opus 5 list price: $5/M input, $25/M output, one-hour cache writes 2x input ($10/M), cache reads 0.1x,
     // searches $10/1,000
     const dollars = (used.input * 5 + used.cacheWrite * 10 + used.cacheRead * 0.5 + used.output * 25) / 1e6 + used.searches * 0.01;
@@ -4429,7 +4481,7 @@ RULES:
       prisma.chatMessage.createMany({
         data: [
           { tripId, travelerId: req.user.travelerId, role: "user", content: message },
-          { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply },
+          { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply, ...(hasSources ? { sources: sources as any } : {}) },
         ],
       }).catch(() => { /* non-critical — don't fail the response */ });
     }
@@ -4440,6 +4492,7 @@ RULES:
       hasActions: actions.length > 0,
       ...(placeCards.length > 0 && { places: placeCards }),
       ...(shows.length > 0 && { shows }),
+      ...(hasSources && { sources }),
     });
   } catch (err: any) {
     console.error("Chat error:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));

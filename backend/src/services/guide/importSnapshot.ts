@@ -102,7 +102,86 @@ export function plainWhen(date: string | null | undefined, time: string | null |
   return [day, clock ? `${clock}${ZONE_WORDS[zone] ? ` ${ZONE_WORDS[zone]}` : ""}` : ""].filter(Boolean).join(", ");
 }
 
-type Item = InterpretedItem & { forWhom?: string | null; link?: string | null; timeZone?: string; windowStart?: string | null; timeText?: string | null };
+// `refs`: every cell (or picture) this line's words came from, when more than its sourceRef — a line merged
+// from two tabs, a day-plan line located in her tab. Worked out here, from her cells, at import.
+type Item = InterpretedItem & { forWhom?: string | null; link?: string | null; timeZone?: string; windowStart?: string | null; timeText?: string | null; refs?: string[] };
+
+/** Where a line's source is, and her exact words there — what "Sources" under a Scout answer shows */
+export type GuideCellWords =
+  | { kind: "cell"; tab: string; a1: string; text: string; part?: boolean }  // part: only the lines that bear on it
+  | { kind: "picture"; tab: string; anchor: string; sha256: string }
+  | { kind: "tab"; tab: string };  // her tab, where Wander couldn't pin the one cell — said so, never guessed
+
+const flatWords = (s: string) => norm(s).replace(/[‐-―]/g, "-").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+
+/**
+ * The cell in her tab holding a line's own words — the smallest cell containing all of them (a stop list and a
+ * narrative can both mention a place; the line itself is the tighter match) — and, in a Time | Plan table,
+ * the time cell beside it. Nothing when her words can't be found: the source then names the tab only.
+ */
+export function cellsHolding(tab: GuideTab, words: string, timeText?: string | null): string[] {
+  const want = flatWords(words);
+  if (!want) return [];
+  let hits = tab.cells.filter((c) => flatWords(c.text).includes(want));
+  if (!hits.length) {
+    const own = distinctWords(words);
+    if (own.length >= 2) hits = tab.cells.filter((c) => own.every((w) => flatWords(c.text).includes(w)));
+  }
+  if (!hits.length) return [];
+  // With a time, the cell that has her time too: "Stop 2: ART AQUARIUM MUSEUM" is in her stop list, but the
+  // 11:15 AM – 12:30 PM is in her narrative — a source without the time wouldn't show where it came from
+  const t = timeText ? flatWords(timeText) : "";
+  const withTime = t ? hits.filter((c) => flatWords(c.text).includes(t)) : [];
+  const cell = [...(withTime.length ? withTime : hits)].sort((a, b) => a.text.length - b.text.length)[0];
+  const refs = [`${tab.name}!${cell.a1}`];
+  if (timeText && !withTime.length) {
+    const beside = tab.cells.find((c) => c.r === cell.r && c.a1 !== cell.a1 && t && flatWords(c.text).includes(t));
+    if (beside) refs.unshift(`${tab.name}!${beside.a1}`);
+  }
+  return refs;
+}
+
+/**
+ * A line read from one row of her table also carries words from that row's other cells (her travel note, the
+ * arrival city). Each such cell is a source exactly when its words are in the line — decided here, from her
+ * cells, never guessed. Short cells ("3p", "X") are left out: too easily found by accident.
+ */
+export function rowCellsInLine(ref: string, line: string, read: GuideReadResult): string[] {
+  const bang = ref.lastIndexOf("!");
+  if (bang < 0) return [];
+  const tab = read.tabs.find((t) => t.name === ref.slice(0, bang));
+  const own = tab?.cells.find((c) => c.a1 === ref.slice(bang + 1));
+  if (!tab || !own) return [];
+  const said = flatWords(line);
+  return tab.cells
+    .filter((c) => c.r === own.r && c.a1 !== own.a1 && flatWords(c.text).length >= 4 && said.includes(flatWords(c.text)))
+    .map((c) => `${tab.name}!${c.a1}`);
+}
+
+/** Her words at each of a line's sources, from the copy just read */
+export function cellWordsFor(refs: string[], read: GuideReadResult): GuideCellWords[] {
+  const out: GuideCellWords[] = [];
+  for (const ref of Array.from(new Set(refs))) {
+    if (ref.startsWith("image:")) {
+      const sha = ref.slice(6);
+      const at = read.tabs.flatMap((t) => t.images.map((p) => ({ tab: t.name, ...p }))).find((p) => p.sha256 === sha);
+      out.push({ kind: "picture", tab: at?.tab || "", anchor: at?.anchor || "", sha256: sha });
+      continue;
+    }
+    const bang = ref.lastIndexOf("!");
+    const tabName = bang > 0 ? ref.slice(0, bang) : ref;
+    const a1 = bang > 0 ? ref.slice(bang + 1) : "";
+    const tab = read.tabs.find((t) => t.name === tabName);
+    // A whole row ("Activities Template!37"): its filled cells, left to right
+    if (tab && /^\d+$/.test(a1)) {
+      const row = tab.cells.filter((c) => c.r === Number(a1) && c.text.trim()).sort((a, b) => a.c - b.c).slice(0, 8);
+      if (row.length) { for (const c of row) out.push({ kind: "cell", tab: tabName, a1: c.a1, text: c.text }); continue; }
+    }
+    const cell = tab && /^[A-Z]+\d+$/.test(a1) ? tab.cells.find((c) => c.a1 === a1) : undefined;
+    out.push(cell ? { kind: "cell", tab: tabName, a1, text: cell.text } : { kind: "tab", tab: tabName });
+  }
+  return out;
+}
 
 const GENERIC_WORDS = new Set(["hotel", "the", "ryokan", "residence", "tokyo", "kyoto", "resort", "inn", "and"]);
 
@@ -241,6 +320,8 @@ function mergeInto(items: Item[], cand: Item, matches: (i: Item) => boolean): vo
   if (!existing.place && cand.place) existing.place = cand.place;
   if (!existing.link && cand.link) existing.link = cand.link;
   if (!existing.source.includes(cand.source)) existing.source = `${existing.source} + ${cand.source}`;
+  // Both lines' cells stay its sources (only the first one's was kept before)
+  existing.refs = Array.from(new Set([...(existing.refs || [existing.sourceRef]), ...(cand.refs || [cand.sourceRef])]));
 }
 
 const minutesOf = (t: string | null | undefined) => {
@@ -457,8 +538,8 @@ export function parseIdeasTab(tabs: GuideTab[], tripYear: string): ParsedIdea[] 
 }
 
 /** Dinner reservation tab rows like "Sa, 10/17 @6p" + restaurant name to the right. */
-function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & { link: string | null })[] {
-  const out: (InterpretedItem & { link: string | null })[] = [];
+function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & { link: string | null; refs?: string[] })[] {
+  const out: (InterpretedItem & { link: string | null; refs?: string[] })[] = [];
   for (const tab of tabs) {
     if (!/reso|reservation|dinner/i.test(tab.name)) continue;
     const rows = rowsOf(tab);
@@ -488,6 +569,8 @@ function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & {
         ].filter(Boolean).join("\n") || null,
         place: null, confirmation: null, sourceRef: `${tab.name}!${nameCell.a1}`, source: `${tab.name} (row ${r})`, city: null,
         link: linkCell?.link || linkCell?.text || null,
+        // Its date and time, its name and its address each come from their own cell
+        refs: [dateCell, nameCell, detailCell].filter((c): c is NonNullable<typeof c> => !!c).map((c) => `${tab.name}!${c.a1}`),
       });
     }
   }
@@ -770,6 +853,11 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     if (!reading) return;
     textReadings[hash] = reading;
     const src = { sourceRef: `${tab.name}!text`, source: `${tab.name} (pasted text)`, city: null, timeZone: tripZone, place: null, link: null };
+    // The cell her pasted words are in (the reading quotes them; the quote is found in her cells)
+    const quoteRefs = (quote?: string | null) => {
+      const found = cellsHolding(tab, (quote || "").split("\n").find((l) => l.trim().length > 8) || "");
+      return found.length ? found : [`${tab.name}!text`];
+    };
     // Whose name the booking is under, from her pasted confirmation ("お名前：Sato, Hana") — so a
     // deadline answers "is this on me?"
     const bookedUnder = (b: { quote?: string | null }) => {
@@ -784,10 +872,10 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       const party = b.people && !/party\s*:/i.test(b.details || "") ? `Party: ${b.people.replace(/^party\s*:\s*/i, "")}` : null;
       const detail = [bookedUnder(b), party, b.details, b.phone ? `Phone: ${b.phone}` : null].filter(Boolean).join("\n") || null;
       const nameWords = norm(b.name).split(/[^a-z]+/).filter((w) => w.length > 3);
-      mergeInto(items, { ...src, place: b.address, date: b.date, time: b.time, endTime: null, kind, title, detail, confirmation: b.confirmation, forWhom: null },
+      mergeInto(items, { ...src, refs: quoteRefs(b.quote), place: b.address, date: b.date, time: b.time, endTime: null, kind, title, detail, confirmation: b.confirmation, forWhom: null },
         (i) => i.date === b.date && (i.kind === kind || (kind === "meal" && i.kind === "plan")) && nameWords.some((w) => norm(i.title).includes(w)));
       if (b.kind === "hotel" && b.checkOutDate) {
-        mergeInto(items, { ...src, date: b.checkOutDate, time: b.checkOutTime, endTime: null, kind: "checkout", title: `Check out · ${b.name}`, detail: null, confirmation: b.confirmation, forWhom: null },
+        mergeInto(items, { ...src, refs: quoteRefs(b.quote), date: b.checkOutDate, time: b.checkOutTime, endTime: null, kind: "checkout", title: `Check out · ${b.name}`, detail: null, confirmation: b.confirmation, forWhom: null },
           (i) => i.date === b.checkOutDate && i.kind === "checkout" && nameWords.some((w) => norm(i.title).includes(w)));
       }
     }
@@ -797,7 +885,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       const about = reading.bookings.find((b) => norm(b.name).split(/[^a-z]+/).filter((w) => w.length > 3 && !GENERIC_WORDS.has(w)).some((w) => norm(d.what).includes(w)));
       // A window ("reconfirm 3–7 days before") is listed on its LAST day — the day it must be done by —
       // and its first day travels with it, so screens can show it for the whole window.
-      items.push({ ...src, date: d.endDate || d.date, time: null, endTime: null, kind: "deadline", title: d.what,
+      items.push({ ...src, refs: quoteRefs(d.quote), date: d.endDate || d.date, time: null, endTime: null, kind: "deadline", title: d.what,
         detail: [
           d.endDate ? `Any day from ${plainDay(d.date)} through ${plainDay(d.endDate)}` : null,
           about ? bookedUnder(about) : null,
@@ -885,6 +973,8 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
             const own = norm(i.title.split("\n")[0]).split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !GENERIC_WORDS.has(w));
             if (!own.length || !own.every((w) => norm(b.label).includes(w))) continue;
             i.time = b.start;
+            // Its time's cell is one of its sources now
+            i.refs = Array.from(new Set([...(i.refs || [i.sourceRef]), ...cellsHolding(tab, b.label, b.timeText)]));
             const line = `Time from the ${tab.name} tab.`;
             if (!(i.detail || "").includes(line)) i.detail = [i.detail, line].filter(Boolean).join("\n");
           }
@@ -906,6 +996,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
           ].filter(Boolean).join("\n") || null,
           place: null, confirmation: null, link: stopLink(b.label), city: null, timeZone: tripZone,
           source: `${tab.name}${p.heading ? ` · ${p.heading}` : ""}`, sourceRef: `${tab.name}!plan`,
+          refs: cellsHolding(tab, b.label, b.timeText),
         });
       }
     }
@@ -1090,6 +1181,11 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         timeZone: i.timeZone || tripZone, kind: i.kind, title: i.title, detail: i.detail, forWhom: i.forWhom || null,
         place: i.place, confirmation: i.confirmation, link: (i as any).link || null, source: i.source, sourceRef: i.sourceRef, sortOrder: idx,
         windowStart: i.windowStart || null, timeText: i.timeText || null,
+        cells: (() => {
+          const refs = i.refs?.length ? i.refs : [i.sourceRef];
+          const line = [i.title, i.detail, i.place, i.timeText].filter(Boolean).join(" ");
+          return cellWordsFor([...refs, ...refs.flatMap((r) => rowCellsInLine(r, line, read))], read) as any;
+        })(),
       })),
     });
 

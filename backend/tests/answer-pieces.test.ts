@@ -29,6 +29,13 @@ describe("joining Scout's answer pieces", () => {
     expect(withoutNarration("Worth a quick check with Larisa. Check out is by noon.")).toBe("Worth a quick check with Larisa. Check out is by noon.");
   });
 
+  it("drops a false start corrected mid-sentence ('Fri… rather,')", () => {
+    expect(withoutNarration("Tomorrow morning — Fri… rather, the Imperial is your last night tonight; everyone checks out Sun, Oct 18."))
+      .toBe("Tomorrow morning — the Imperial is your last night tonight; everyone checks out Sun, Oct 18.");
+    // An ordinary ellipsis stays
+    expect(withoutNarration("Her note says \"1 day to Shigaraki…\" and nothing more.")).toBe("Her note says \"1 day to Shigaraki…\" and nothing more.");
+  });
+
   it("drops 'Let me look that up:' and 'I'll search for that.' at a sentence start", () => {
     expect(withoutNarration("Let me look that up: the Raku Museum closes Mondays.")).toBe("the Raku Museum closes Mondays.");
     expect(withoutNarration("The Guide doesn't say. I'll search for that. It opens at 10:00 AM.")).toBe("The Guide doesn't say. It opens at 10:00 AM.");

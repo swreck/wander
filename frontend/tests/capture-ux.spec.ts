@@ -56,6 +56,55 @@ test("chat clear button requires confirmation (requires backend)", async ({ page
   expect(await messages.count()).toBeGreaterThan(0);
 });
 
+// ── Sources under a Scout answer (Sep 30) ────────────────────────
+// Canned answer with sources, in the shape the server records them — this tests the screen, not Scout
+
+test("an answer's Sources open on tap, show her cell, and close with Done or Back (requires backend)", async ({ page }) => {
+  await skipIfNoBackend(page, test);
+  await loginAndWait(page);
+  if (page.url().includes("/login")) test.skip(true, "Login did not complete");
+
+  await page.route("**/api/chat", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({
+      reply: "Dinner tonight is Ristorante Dono at 6:30 PM.", actions: [], hasActions: false,
+      sources: {
+        copy: "Japan Oct 2026-2",
+        claims: [{ said: "Ristorante Dono at 6:30 PM", sources: [{ type: "guide", label: "Dining Resos (row 22)",
+          cells: [{ kind: "cell", tab: "Dining Resos", a1: "B22", text: "Tu, 10/27 @ 6:30p" }] }] }],
+        ownWords: [],
+      },
+    }),
+  }));
+  await page.locator("nav button", { hasText: "Scout" }).click();
+  const scout = page.getByRole("dialog", { name: "Scout" });
+  await expect(scout).toBeVisible();
+  const input = page.getByPlaceholder("Ask about the trip…");
+  await input.fill("where's dinner tonight?");
+  await input.press("Enter");
+
+  // Nothing about sources shows until asked — just a quiet link
+  const link = page.locator('[data-msg="assistant"]').last().getByRole("button", { name: "Sources" });
+  await expect(link).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("Tu, 10/27 @ 6:30p")).toHaveCount(0);
+
+  const panel = page.getByRole("dialog", { name: "Where this answer came from" });
+  await link.click();
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText("Dining Resos · B22")).toBeVisible();
+  await expect(panel.getByText("Tu, 10/27 @ 6:30p")).toBeVisible();
+  await panel.getByRole("button", { name: "Close sources" }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(scout).toBeVisible();
+
+  // Back closes Sources only; Scout's conversation stays open
+  await link.click();
+  await expect(panel).toBeVisible();
+  await page.goBack();
+  await expect(panel).toHaveCount(0);
+  await expect(scout).toBeVisible();
+});
+
 // ── Profile page delete confirmation ─────────────────────────────
 
 test("profile page renders without crash (requires backend)", async ({ page }) => {

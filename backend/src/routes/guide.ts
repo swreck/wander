@@ -98,6 +98,8 @@ router.get("/items/:tripId", async (req: AuthRequest, res) => {
   const items = await prisma.guideItem.findMany({
     where: { tripId, ...(date ? { date: new Date(`${date}T00:00:00Z`) } : {}) },
     orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }],
+    // Her cells travel with Scout's answers ("Sources"), not with every screen's download (103 KB, not 222)
+    omit: { cells: true },
   });
   res.json(items);
 });
@@ -123,6 +125,17 @@ router.get("/pictures/:tripId", async (req: AuthRequest, res) => {
       };
     }),
   })));
+});
+
+// ── A fresh link to one picture — "See the picture" under a Scout answer's Sources ──
+router.get("/picture-link/:tripId/:sha", async (req: AuthRequest, res) => {
+  const tripId = req.params.tripId as string;
+  const sha = req.params.sha as string;
+  if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
+  const img = await prisma.guideImage.findUnique({ where: { tripId_sha256: { tripId, sha256: sha } }, select: { sha256: true } });
+  if (!img) { res.status(404).json({ error: "That picture isn't in the Guide Wander has now." }); return; }
+  const token = jwt.sign({ picture: `${tripId}:${sha}` }, PICTURE_SECRET, { expiresIn: "10m" });
+  res.json({ url: `/api/guide/picture/${tripId}/${sha}?t=${token}` });
 });
 
 export default router;
