@@ -178,6 +178,11 @@ router.post("/commit", async (req: AuthRequest, res) => {
         status: "active",
       },
     });
+    // The person who imported it plans it, the same as POST /api/trips: trips are private to their people
+    // (Sep 28), so without this the importer got "not found" for the trip they had just made
+    if (req.user?.travelerId) {
+      await prisma.tripMember.create({ data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner" } });
+    }
 
     // Create cities and collect mapping for later use
     // Deduplicate by name — merge date ranges for duplicate city entries

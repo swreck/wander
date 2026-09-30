@@ -26,6 +26,8 @@ import {
   leaveForAirport, isPlanningNote, isFragment, partyOf, myNight, leavingOn, stayMapsQuery,
   checkoutBeforeFirst, checkinAfterLanding, leadItem, withCheckoutWho, minutesToClock, lateLeaveWords,
   ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, saidAgain, currentUnownedLine, unwrapSearchLink,
+  landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
+  nowMinutesOn, zonedMoment,
 } from "../lib/guideDisplay";
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
@@ -59,14 +61,19 @@ function placeOf(label: string): string | null {
   const words = name.split(/\s+/);
   return words.length <= 3 && words.every((w) => /^[A-Z]/.test(w)) && !name.includes("/") ? name : null;
 }
-/** Where a line of her plan is on a map: her own link, else a search for the place her words name */
-function planMapHref(b: GuideItem): string | null {
+/**
+ * Where a line of her plan is on a map: her own link, else a search for the place her words name. "The hotel"
+ * is that night's stay (hotel: its Maps search), and no link when Wander can't tell which (round 11: "Strict
+ * Formalwear Prep at the Hotel" searched Maps for any hotel in Tokyo, not the Imperial)
+ */
+function planMapHref(b: GuideItem, hotel: string | null = null): string | null {
   // A line with choices ("Lunch") isn't a place — each choice is (round 6: "Test lunch, Kyoto")
   if (choicesOf(b).length) return null;
   // Leaving a place isn't going there — no map of the hotel you're standing in
   if (/^\s*(leave|depart)\b/i.test(b.title)) return null;
   if (b.link) return unwrapSearchLink(b.link);
   const p = placeOf(b.title);
+  if (p && /^(?:the\s+|our\s+)?(?:hotel|ryokan|room|hotel room|lobby|residence)$/i.test(p)) return hotel ? mapsLink(hotel) : null;
   return p ? mapsLink(`${p}, ${areaOf(b)}Japan`) : null;
 }
 /**
@@ -97,11 +104,11 @@ const choiceMapHref = (c: { name: string }, line: GuideItem) => mapsLink(`${c.na
  * line for the day sits in its header, as hers, so the two never read as rival plans. Today, the line
  * she has you on now is marked and the ones behind you step back.
  */
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
   picked: Map<string, DayChoice>; onPick: (text: string, time: string | null, pickFor: string) => Promise<void>;
   onUndo: (c: DayChoice) => Promise<void>; tellName: string | null; onTell: (c: DayChoice) => void;
-  nowAt: number | null;
+  nowAt: number | null; hotel: string | null;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   // The choice just tapped says "Saving…" until the pick is back from the server (a switch takes two steps)
@@ -133,7 +140,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           const noteText = notes.join("\n").replace(/\s+(Experience|Transit|Note):/g, "\n$1:");
           const shortNote = noteText.length <= 90;
           // With choices, each choice gets its own Maps link; the line itself ("Lunch") isn't a place
-          const map = choices.length ? null : planMapHref(b);
+          const map = choices.length ? null : planMapHref(b, hotel);
           const time = planTime(b);
           const pickedHere = choices.map((c) => `${b.title}: ${c.split(" — ")[0]}`).filter((t) => picked.has(t));
           const isNow = current?.id === b.id;
@@ -271,7 +278,6 @@ function shortDate(date: string) {
 const ZONE_LABEL: Record<string, string> = { "America/Los_Angeles": "California time", "Asia/Tokyo": "Japan time" };
 
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-function nowMin() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 
 function inWords(mins: number) {
   if (mins <= 0) return "now";
@@ -349,7 +355,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const myStart = myParty
     ? items.filter((i) => i.date && i.forWhom === myParty && ["flight", "checkin"].includes(i.kind) && !isLanding(i)).map((i) => ymd(i.date)).sort()[0]
     : undefined;
-  const first = now && myStart && myStart > tripFirst ? myStart : tripFirst;
+  // …and from your first JAPAN date on the way: your flight's own date can be one you're still at home on in
+  // Japan's calendar (round 8: Now told Julie "Here's your first day" on Japan's Oct 13, the others' day)
+  let myJapanStart = myStart;
+  for (let k = 0; myJapanStart && k < 3 && homeOnJapanDate(items, me, myJapanStart, tripZone); k++) myJapanStart = addDays(myJapanStart, 1);
+  const first = now && myJapanStart && myJapanStart > tripFirst ? myJapanStart : tripFirst;
+  // The day you leave home, for "You leave tomorrow" (a home date, not the Japan date you arrive on)
+  const leaveDay = now && myStart && myStart > tripFirst ? myStart : first;
   // Both ends of the trip must be known before clamping — on a fresh load straight into Now, her items can
   // arrive before the trip's dates, and "after an empty last day" made the date blank (a crash)
   // A mangled day link (/day/now, a truncated paste) opens today rather than breaking the screen
@@ -408,7 +420,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const { dayItems, planningNotes, stopNotes, planBlocks, forecast } = useMemo(() => {
     const onDay = withCheckoutWho(items.filter((i) => (i.kind === "deadline" ? deadlineOnDate(i, date) : ["stop", "block", "weather"].includes(i.kind) ? false : ymd(i.date) === date) && !isFragment(i)), date, stays, items);
     return {
-      dayItems: sortDay(onDay.filter((i) => !isPlanningNote(i))),
+      dayItems: sortDay(onDay.filter((i) => !isPlanningNote(i)), tripZone),
       planningNotes: onDay.filter(isPlanningNote),
       // Larisa's summary in the heading of the stop this day belongs to ("tour Karatsu, day trip to Arita")
       stopNotes: items.filter((i) => i.kind === "stop" && (i.windowStart || ymd(i.date)) <= date && date <= ymd(i.date)),
@@ -417,20 +429,21 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       // Her forecast for the stay this day is in
       forecast: items.find((i) => i.kind === "weather" && (i.windowStart || ymd(i.date)) <= date && date <= ymd(i.date)) || null,
     };
-  }, [items, date, stays]);
+  }, [items, date, stays, tripZone]);
   // On a day with her detailed plan, her Itinerary tab's own untimed line for the day ("Kyoto day 2 - Viator
   // Tour?") goes in the plan's header as hers; everything else (bookings, deadlines, flights) follows the plan
   const { itineraryLines, otherItems } = useMemo(() => {
     if (!planBlocks.length) return { itineraryLines: [] as GuideItem[], otherItems: dayItems };
-    const lines = dayItems.filter((i) => !i.time && /itinerary/i.test(i.source) && ["plan", "tour", "note"].includes(i.kind));
+    // (never a "see above …" row — it points at her sheet's layout; round 9: Oct 25 led with "see above - 1/2 day")
+    const lines = dayItems.filter((i) => !i.time && /itinerary/i.test(i.source) && ["plan", "tour", "note"].includes(i.kind) && !/^see above\b/i.test(i.title));
     return { itineraryLines: lines, otherItems: dayItems.filter((i) => !lines.includes(i)) };
   }, [dayItems, planBlocks]);
   // What happens when, for "Next": the overview's lines and her detailed plan together
   // Next weighs her plan's times too — but never a line nobody's name is on while the group is split
   const timeline = useMemo(() => {
     const noOwner = ownerlessInSplit(planBlocks);
-    return sortDay([...dayItems, ...planBlocks.filter((b) => b.time && !noOwner.has(b.id) && !dayItems.some((o) => saidAgain(b, o)))]);
-  }, [dayItems, planBlocks]);
+    return sortDay([...dayItems, ...planBlocks.filter((b) => b.time && !noOwner.has(b.id) && !dayItems.some((o) => saidAgain(b, o)))], tripZone);
+  }, [dayItems, planBlocks, tripZone]);
 
   // What a pick of one of her choices is saved as ("Lunch: Omen") — such a plan belongs on her line, not
   // in "Added in Wander" too (round 7: lunch showed two or three times)
@@ -567,25 +580,33 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const herAirportPlan = planBlocks.some((b) => /haruka|airport|\bKIX\b|transfer/i.test(b.title));
   const leave = isToday && myFlight && !herAirportPlan ? leaveForAirport(myFlight, cityName) : null;
   const flightAt = myFlight?.time ? toMin(myFlight.time) : null;
+  // Right now, on the clock each time is on: Japan's for her Guide's lines, a flight's own for a flight from home.
+  // The phone's clock only matches when the phone is in Japan (round 11: at 1:00 AM in California, Julie's Now said
+  // "Next · in 14 hr — 3:00 PM · Land at Narita", a landing due two hours earlier)
+  const tripNow = nowMinutesOn(date, tripZone);
+  const nowFor = (i: { timeZone?: string | null }) => (i.timeZone && i.timeZone !== tripZone ? nowMinutesOn(date, i.timeZone) : tripNow);
+  const flightNow = myFlight ? nowFor(myFlight) : tripNow;
   // Where her plan puts you right now — a line with your name on it, or one for everybody outside a split
   const noOwner = ownerlessInSplit(planBlocks);
-  const currentBlock = isToday ? currentPlanLine(planBlocks, nowMin(), me) : undefined;
-  const currentUnowned = isToday && !currentBlock ? currentUnownedLine(planBlocks, nowMin()) : undefined;
+  const currentBlock = isToday ? currentPlanLine(planBlocks, tripNow, me) : undefined;
+  const currentUnowned = isToday && !currentBlock ? currentUnownedLine(planBlocks, tripNow) : undefined;
   const upcomingGuide = isToday
-    ? timeline.find((i) => i.time && !["deadline", "checkout", "checkin"].includes(i.kind) && isFor(i, me) && toMin(i.time) >= nowMin() && i !== currentBlock)
+    ? timeline.find((i) => i.time && !["deadline", "checkout", "checkin"].includes(i.kind) && isFor(i, me) && toMin(i.time) >= nowFor(i) && i !== currentBlock)
     : undefined;
   // A line nobody's name is on during a split, coming up before "Next" — said, never assigned (round 6:
   // "Next · in 2 hr 40 min: lunch" told Julie she was free while her Guide lists Maruni Toryo at 10:35)
   const unownedSoon = isToday
-    ? planBlocks.find((b) => b !== currentUnowned && noOwner.has(b.id) && b.time && toMin(b.time) >= nowMin() && (!upcomingGuide?.time || toMin(b.time) < toMin(upcomingGuide.time)))
+    ? planBlocks.find((b) => b !== currentUnowned && noOwner.has(b.id) && b.time && toMin(b.time) >= tripNow && (!upcomingGuide?.time || toMin(b.time) < toMin(upcomingGuide.time)))
     : undefined;
   const ownPlans = choices.filter((c) => !pickTexts.has(c.text));
   const upcomingChoice = isToday
-    ? ownPlans.filter((c) => c.time && toMin(c.time) >= nowMin()).sort((a, b) => a.time!.localeCompare(b.time!))[0]
+    ? ownPlans.filter((c) => c.time && toMin(c.time) >= tripNow).sort((a, b) => a.time!.localeCompare(b.time!))[0]
     : undefined;
   const nextIsChoice = !!upcomingChoice && (!upcomingGuide || upcomingChoice.time! < upcomingGuide.time!);
   const upcoming = now ? upcomingGuide : undefined;
   const myTonight = myNight(night, me);
+  // "The hotel" in her plan: tonight's one stay for you, or unknown
+  const tonightHotel = myTonight.stays.length === 1 ? stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)) : null;
   const tomorrowFirst = now && isToday && !upcomingGuide && !upcomingChoice && date < last
     ? leadItem(sortDay(items.filter((i) => ymd(i.date) === addDays(date, 1) && !["deadline", "stop", "weather", "block"].includes(i.kind) && isFor(i, me) && !isPlanningNote(i) && !isFragment(i))))
     : null;
@@ -629,15 +650,74 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               </p>
             )}
             {/* Now tab: before the trip, after it, or what's next today */}
+            {/* The morning you fly: your flight first, on your clock (round 11: Julie's Now opened on Wednesday's
+                Japan day with her noon SFO flight as its third card) */}
+            {beforeTrip && leaveDay === today && (() => {
+              const out = items.find((i) => i.kind === "flight" && !isLanding(i) && i.time && ymd(i.date) === today && isFor(i, me));
+              if (!out) return null;
+              const lands = (out.detail || "").match(/Lands at [^\n|]+/)?.[0]?.trim();
+              // Past its take-off time on its own clock: by the schedule, in the air (round 11: at 6 PM the card
+              // still read as a flight to catch, under "Should be in the air now" further down)
+              const gone = nowMinutesOn(today, out.timeZone || tripZone) >= toMin(out.time!);
+              return (
+                <div className="mb-3 rounded-xl bg-[#514636] text-white p-4">
+                  <p className="text-xs uppercase tracking-wide text-white/70">{gone ? "Today · your flight should be in the air" : "Today · your flight"}</p>
+                  <p className="text-lg leading-snug mt-1">{gone ? "Take-off was due at " : ""}{clock(out.time)} {out.timeZone ? ZONE_LABEL[out.timeZone] || "" : ""} · {out.title}</p>
+                  {lands && <p className="text-sm text-white/85 mt-1">{lands}</p>}
+                  {out.confirmation && <p className="text-sm text-white/80">Confirmation {out.confirmation}</p>}
+                  <p className="text-sm text-white/80 mt-1">{friendlySource(out.source)}</p>
+                </div>
+              );
+            })()}
             {beforeTrip && (
               <p className="text-sm text-[#6b5d4a] mb-3">
-                {first === tripFirst ? "The trip starts" : "You leave"} {(() => {
-                  const n = Math.round((new Date(`${first}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86400000);
-                  return n === 1 ? "tomorrow" : `in ${n} days`;
-                })()}. Here's {first === tripFirst ? "the first day" : "your first day"}.
+                {/* After your take-off time, by the schedule (round 11: "You leave today" sat under "should be in the air") */}
+                {first !== tripFirst && leaveDay === today && (() => {
+                  const out = items.find((i) => i.kind === "flight" && !isLanding(i) && i.time && ymd(i.date) === today && isFor(i, me));
+                  return !!out && nowMinutesOn(today, out.timeZone || tripZone) >= toMin(out.time!);
+                })() ? "You should be on your way" : <>{first === tripFirst ? "The trip starts" : "You leave"} {(() => {
+                  const n = Math.round((new Date(`${leaveDay}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86400000);
+                  return n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`;
+                })()}</>}. Here's {first === tripFirst ? "the first day" : leaveDay !== first ? "your first day in Japan" : "your first day"}.
               </p>
             )}
             {afterTrip && <p className="text-sm text-[#6b5d4a] mb-3">Welcome home. Here's the last day of the trip.</p>}
+            {/* Still at home on this Japan date: say so before anything else on it (round 8: Julie's "first day"
+                showed the others' 8 PM Tokyo dinner as if it might be hers) */}
+            {(() => {
+              const out = homeOnJapanDate(items, me, date, tripZone);
+              if (!out) return null;
+              // After its take-off time, said by the schedule (round 11: at 6 PM it still said "takes off … 12:00 PM")
+              const gone = nowMinutesOn(ymd(out.date), out.timeZone!) >= toMin(out.time!);
+              return (
+                <p className="text-sm text-[#3a3128] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2 mb-3">
+                  {gone
+                    ? <>On this Japan date you were still at home — your flight was due to take off {shortDate(ymd(out.date))}, {clock(out.time)} {ZONE_LABEL[out.timeZone!] || ""}. The rest of this day is the others' plan.</>
+                    : <>On this Japan date you're still at home — your flight takes off {shortDate(ymd(out.date))}, {clock(out.time)} {ZONE_LABEL[out.timeZone!] || ""}. The rest of this day is the others' plan.</>}
+                </p>
+              );
+            })()}
+            {/* The day your flight lands: say when, first (round 9: Julie's landing day opened on Ken & Larisa's
+                8:07 AM Mashiko train, and three testers asked "am I supposed to catch that?") */}
+            {(() => {
+              const party = partyOf(items, me);
+              const land = party ? dayItems.find((l) => isLanding(l) && l.forWhom === party && l.time) : undefined;
+              if (!land) return null;
+              const airport = land.title.replace(/^Land at /i, "").split(" · ")[0];
+              // Past its time, by the schedule only; and on a phone still on home time, that time on its clock too
+              // (round 11: at 1:00 AM in California, "You land … 3:00 PM Japan time today" read as still ahead)
+              const due = isToday && tripNow >= toMin(land.time!);
+              const yours = phoneIsElsewhere(tripZone)
+                ? ` (${zonedMoment(date, toMin(land.time!), tripZone).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "")} your time)`
+                : "";
+              return (
+                <p className="text-sm text-[#3a3128] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2 mb-3">
+                  {due
+                    ? <>Your flight was due to land at {airport} at {clock(land.time)} {ZONE_LABEL[tripZone] || ""}{yours} — that's the schedule. Anything earlier on this day is the others' plan.</>
+                    : <>You land at {airport} at {clock(land.time)} {ZONE_LABEL[tripZone] || ""}{yours}{isToday ? " today" : ""}. Anything earlier on this day is the others' plan.</>}
+                </p>
+              );
+            })()}
 
             {/* Larisa's summary for the whole stay, from its heading — up top only on the stay's first
                 day. On the other days (and on Now) it sits at the bottom, so "day trip to Mashiko" never
@@ -648,13 +728,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* Her forecast for this stay, in her numbers (the sheet gives no units) */}
             {forecast && <p className="text-sm text-[#6b5d4a] mb-3">{forecast.title.replace(/^Larisa's forecast:\s*/, "Larisa's expected weather: ")}</p>}
 
-            {leave && flightAt !== null && nowMin() < flightAt && (
-              <div className={`mb-3 rounded-xl p-4 text-white ${nowMin() > leave.minutes ? "bg-[#8a5a1a]" : "bg-[#514636]"}`}>
+            {leave && flightAt !== null && flightNow < flightAt && (
+              <div className={`mb-3 rounded-xl p-4 text-white ${flightNow > leave.minutes ? "bg-[#8a5a1a]" : "bg-[#514636]"}`}>
                 <p className="text-xs uppercase tracking-wide text-white/70">
-                  {nowMin() > leave.minutes ? `Flight ${inWords(flightAt - nowMin())}` : `Leave ${inWords(leave.minutes - nowMin())}`}
+                  {flightNow > leave.minutes ? `Flight ${inWords(flightAt - flightNow)}` : `Leave ${inWords(leave.minutes - flightNow)}`}
                 </p>
                 <p className="text-lg leading-snug mt-1">
-                  {nowMin() > leave.minutes ? lateLeaveWords(leave, myFlight!, nowMin()) : leave.text}
+                  {flightNow > leave.minutes ? lateLeaveWords(leave, myFlight!, flightNow) : leave.text}
                 </p>
                 <p className="text-sm text-white/85 mt-1">{clock(myFlight!.time)} Japan time · {myFlight!.title}</p>
                 {myFlight!.confirmation && <p className="text-sm text-white/80">Confirmation {myFlight!.confirmation}</p>}
@@ -687,7 +767,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               if (nextIsChoice && upcomingChoice) {
                 return (
                   <div className="mb-3 rounded-xl bg-[#514636] text-white p-4">
-                    <p className="text-xs uppercase tracking-wide text-white/70">Next · {inWords(toMin(upcomingChoice.time!) - nowMin())}</p>
+                    <p className="text-xs uppercase tracking-wide text-white/70">Next · {inWords(toMin(upcomingChoice.time!) - tripNow)}</p>
                     <p className="text-lg leading-snug mt-1">{clock(upcomingChoice.time)} · {upcomingChoice.text}</p>
                     <p className="text-sm text-white/80 mt-1">Added in Wander by {upcomingChoice.addedBy}</p>
                   </div>
@@ -699,10 +779,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               const opts = u.kind === "block" ? choicesOf(u) : [];
               const pick = opts.length ? choices.find((c) => opts.some((o) => c.text === `${u.title}: ${o.name}`)) : undefined;
               const pickOpt = pick ? opts.find((o) => pick.text === `${u.title}: ${o.name}`) : undefined;
-              const mapHref = pickOpt ? choiceMapHref(pickOpt, u) : u.kind === "block" ? planMapHref(u) : (mapsQueryFor(u) ? mapsLink(mapsQueryFor(u)!) : null);
+              const mapHref = pickOpt ? choiceMapHref(pickOpt, u) : u.kind === "block" ? planMapHref(u, tonightHotel) : (mapsQueryFor(u) ? mapsLink(mapsQueryFor(u)!) : null);
               return (
                 <div className="mb-3 rounded-xl bg-[#514636] text-white p-4">
-                  <p className="text-xs uppercase tracking-wide text-white/70">Next · {inWords(toMin(u.time!) - nowMin())}</p>
+                  <p className="text-xs uppercase tracking-wide text-white/70">Next · {inWords(toMin(u.time!) - nowFor(u))}</p>
                   <p className="text-lg leading-snug mt-1">{u.kind === "block" ? timeLabel(u) : clock(u.time)} · {itemTitle(u, stays, date)}{pickOpt ? ` — ${pickOpt.name}` : ""}</p>
                   {/* Whose is what: her plan lists the places; the pick was made in Wander (round 7: "added in
                       Wander by Ken" then "From Larisa's plan" read as if the pick were hers) */}
@@ -723,7 +803,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 </div>
               );
             })()}
-            {now && isToday && !upcomingGuide && !upcomingChoice && !(leave && flightAt !== null && nowMin() < flightAt) && (
+            {now && isToday && !upcomingGuide && !upcomingChoice && !(leave && flightAt !== null && flightNow < flightAt) && (
               <div className="mb-3 rounded-xl bg-white border border-[#e0d8cc] p-3">
                 {/* Nothing timed is left: where you're headed tonight (just landed? the hotel, with Maps) */}
                 {myTonight.away[0] ? (
@@ -737,10 +817,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     <a href={mapsLink(stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)))}
                       className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Find in Maps ↗</a>
                   </>
-                ) : myFlight && flightAt !== null && nowMin() >= flightAt ? (
+                ) : myFlight && flightAt !== null && flightNow >= flightAt ? (
                   // The flight has left: say so, and when it lands
                   <>
-                    <p className="text-[15px] text-[#3a3128]"><span className="text-[#6b5d4a]">In the air · </span>{myFlight.title}</p>
+                    <p className="text-[15px] text-[#3a3128]"><span className="text-[#6b5d4a]">Should be in the air · </span>{myFlight.title}</p>
                     {(myFlight.detail || "").match(/Lands at [^\n|]+/) && (
                       <p className="text-sm text-[#514636] mt-0.5">{(myFlight.detail || "").match(/Lands at [^\n|]+/)![0].trim()}</p>
                     )}
@@ -752,7 +832,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 {tomorrowFirst && (
                   <button onClick={() => navigate(`/day/${addDays(date, 1)}`)} className="w-full text-left min-h-[44px] text-sm text-[#3a3128]">
                     <span className="text-[#6b5d4a]">Tomorrow · </span>
-                    {tomorrowFirst.time ? `${timeLabel(tomorrowFirst)} · ` : ""}{itemTitle(tomorrowFirst, stays, addDays(date, 1))}
+                    {/* its clock named when the phone isn't on it (round 11: "6:30 PM · Yakiniku" on a California phone) */}
+                    {tomorrowFirst.time ? `${timeLabel(tomorrowFirst)}${tomorrowFirst.timeZone && tomorrowFirst.timeZone !== tripZone ? ` ${ZONE_LABEL[tomorrowFirst.timeZone] || ""}` : phoneIsElsewhere(tripZone) ? ` ${ZONE_LABEL[tripZone] || ""}` : ""} · ` : ""}{itemTitle(tomorrowFirst, stays, addDays(date, 1))}
                     {(() => {
                       // The night before flying: when to leave (Wander's estimate), same as Home says
                       if (tomorrowFirst.kind !== "flight" || isLanding(tomorrowFirst)) return null;
@@ -771,7 +852,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               const n = guided.indexOf(date) + 1;
               return (
                 <p className="text-sm text-[#3a3128] bg-[#eef3e8] rounded-xl px-4 py-3 mb-3">
-                  With Backroads today{n > 0 ? ` — day ${n} of ${guided.length}` : ""}. Their guides lead the day{dayItems.length ? "; here's what Larisa's Guide adds." : ", and Larisa's Guide has nothing else for it."}
+                  {/* "today" only on today (round 9: Oct 20, looked at on Oct 19, said "With Backroads today") */}
+                  With Backroads{isToday ? " today" : ""}{n > 0 ? ` — day ${n} of ${guided.length}` : ""}. Their guides lead the day{dayItems.length ? "; here's what Larisa's Guide adds." : ", and Larisa's Guide has nothing else for it."}
                 </p>
               );
             })()}
@@ -779,7 +861,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 hotel's cancellation paragraph); her Itinerary line for the day sits in its header, as hers */}
             {planBlocks.length > 0 && (
               <PlanSection
-                blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight}
+                blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel}
                 picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
                 onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}
                 onUndo={removeChoice}
@@ -789,7 +871,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   const [line, ...rest] = c.text.split(": ");
                   setNotice(await sendToGuideOwner(owner!, planMessage(owner!, { ...c, text: `we picked ${rest.join(": ")} for your "${line}" line` }, me)));
                 }}
-                nowAt={isToday ? nowMin() : null}
+                nowAt={isToday ? tripNow : null}
               />
             )}
             {planBlocks.length > 0 && otherItems.length > 0 && (
@@ -803,7 +885,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               )
             ) : (
               <ol className="space-y-2">
-                {otherItems.map((i) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} />)}
+                {otherItems.map((i) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} />)}
               </ol>
             )}
 
@@ -889,9 +971,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* Where everyone sleeps tonight */}
             {date !== last && (
               <section className="mt-6">
-                <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Tonight</h2>
+                {/* "Tonight" only on today's screen (round 11: Julie's Now showed Wednesday's hotel as "Tonight" on Tuesday) */}
+                <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">{isToday ? "Tonight" : `The night of ${shortDate(date)}`}</h2>
                 {night.stays.length === 0 && night.away.length === 0 ? (
-                  <p className="text-sm text-[#6b5d4a]">Larisa's Guide doesn't list a place to sleep tonight.</p>
+                  <p className="text-sm text-[#6b5d4a]">Larisa's Guide doesn't list a place to sleep {isToday ? "tonight" : "that night"}.</p>
                 ) : (
                   <>
                     {night.stays.length > 1 && new Set(night.stays.map((s) => s.who || "all")).size < night.stays.length && (
@@ -963,15 +1046,21 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 }
 
 /** One line of the Guide for this day. */
-function ItemCard({ i, date, today, tripZone, stays, me, highlight, day }: {
+function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner }: {
   i: GuideItem; date: string; today: string; tripZone: string; stays: TripGuideData["stays"]; me: string | null; highlight: boolean; day: GuideItem[];
+  /** The whole Guide: a landing says where its flight stands right now, by the schedule */
+  all?: GuideItem[];
+  /** Whose Guide it is ("Larisa") — never told to ask herself */
+  owner?: string | null;
 }) {
   // Checked out first on a morning with an earlier start: "Morning", and the hotel's own time below
   const earlyCheckout = checkoutBeforeFirst(i, day);
   const maybe = i.title.startsWith("Maybe:");
   const deadline = i.kind === "deadline";
   const over = deadline && deadlineOver(i, tripZone);
-  const zone = i.timeZone && i.timeZone !== tripZone ? ZONE_LABEL[i.timeZone] || i.timeZone : null;
+  // Whose clock a time is on: another zone's always; the trip's own when this phone is somewhere else (round 8:
+  // Julie in California read "3:00 PM" for a Narita landing with no zone)
+  const zone = i.timeZone && i.timeZone !== tripZone ? ZONE_LABEL[i.timeZone] || i.timeZone : phoneIsElsewhere(tripZone) ? ZONE_LABEL[tripZone] || null : null;
   const q = mapsQueryFor(i);
   const time = deadline ? deadlineTimeWords(i, tripZone) : null;
   // The detail already spells out the window; on the day itself, say it's open now
@@ -983,10 +1072,16 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day }: {
   const tone = over ? "bg-[#f4efe7] border-[#e0d8cc]" : deadline ? "bg-[#fff8ec] border-[#e8c98f]" : maybe ? "bg-white/60 border-dashed border-[#d6ccbc]" : "bg-white border-[#e0d8cc]";
   // Her quoted policy ("Worked out from: …") is the why, not the what — one tap away, not a wall of text
   const [showWhy, setShowWhy] = useState(false);
+  // Someone else's line: whose it is up top, and their long notes folded (round 11: Ken & Larisa's 12-line Mashiko
+  // train note filled Julie's Now, its "For Ken & Larisa" at the bottom, her own landing below the fold)
+  const [showTheirs, setShowTheirs] = useState(false);
+  const theirs = !!i.forWhom && !/^everyone$/i.test(i.forWhom) && !!me && !isFor(i, me);
   const differ = tabsDiffer(i);
+  // A landing says where its flight stands by the clock; that line replaces the booking's "Takes off from …"
+  const flightNow = all ? landingStatus(i, all, tripZone) : null;
   const allLines = (windowWords ? (i.detail || "").replace(/^Any day from [^\n]*\n?/, "") : (i.detail || "")).split("\n");
   const whyAt = allLines.findIndex((l) => l.startsWith("Worked out from:"));
-  const shown = allLines.filter((l, n) => l && !l.startsWith("Tabs differ: ") && (whyAt < 0 || n < whyAt));
+  const shown = allLines.filter((l, n) => l && !l.startsWith("Tabs differ: ") && !(flightNow && l.startsWith("Takes off from ")) && (whyAt < 0 || n < whyAt));
   const why = whyAt >= 0 ? allLines.slice(whyAt).join("\n") : "";
   // A to-do whose window closed: say plainly Wander can't know whether it was done
   const couldBeDone = over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title);
@@ -1007,12 +1102,14 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day }: {
         </div>
         <div className="flex-1 min-w-0">
           <p className={`text-[15px] leading-snug ${over ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
-            {deadline && <span className="font-medium">{over ? "Ended · " : "Deadline · "}</span>}{itemTitle(i, stays, date)}
+            {deadline && <span className="font-medium">{over ? "Passed · " : "Deadline · "}</span>}{landingTitle(i, me, itemTitle(i, stays, date))}
           </p>
+          {theirs && <p className="text-xs text-[#514636] mt-0.5">For {i.forWhom}</p>}
           {deadline && (over || windowWords || time) && (
             <p className="text-sm text-[#8a5a1a] mt-1">
               {over ? `Ended ${time || ""}`.trim() + "." : [windowWords, time].filter(Boolean).join(" · ")}
-              {couldBeDone && " Wander can't tell whether it was done — ask Larisa if you're not sure."}
+              {/* Never tell Larisa to ask Larisa (round 9) */}
+              {couldBeDone && (owner && me && owner.toLowerCase() !== me.toLowerCase() ? ` Wander can't tell whether it was done — ask ${owner} if you're not sure.` : " Wander can't tell whether it was done.")}
             </p>
           )}
           {differ.map((d) => <p key={d} className="text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">Her tabs differ — {d.replace(/^her /, "")}</p>)}
@@ -1034,12 +1131,19 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day }: {
           {/* Only a booked meal (a place or a confirmation) is missing a time; "Dinner on our own" isn't */}
           {i.kind === "meal" && !i.time && (i.confirmation || i.place) && <p className="text-sm text-[#6b5d4a] mt-1">No time in the Guide.</p>}
           {/* The window was just said above ("Any day through Wed, Oct 14") — not twice */}
-          {shown.length > 0 && <GuideText text={shown.join("\n")} className="text-sm text-[#6b5d4a] mt-1" />}
+          {shown.length > 0 && (theirs && shown.length > 2 && !showTheirs
+            ? <button onClick={() => setShowTheirs(true)} className="min-h-[44px] text-sm text-[#514636]">Their notes ({shown.length} lines) ›</button>
+            : <>
+                <GuideText text={shown.join("\n")} className="text-sm text-[#6b5d4a] mt-1" />
+                {theirs && shown.length > 2 && <button onClick={() => setShowTheirs(false)} className="min-h-[44px] text-sm text-[#514636]">Hide their notes ‹</button>}
+              </>)}
+          {flightNow && <p className="text-sm text-[#514636] mt-1">{flightNow}</p>}
+          {(() => { const inJapan = departureInTripZone(i, tripZone); return inJapan ? <p className="text-sm text-[#514636] mt-1">{inJapan}</p> : null; })()}
           {why && (showWhy
             ? <GuideText text={why} className="text-sm text-[#6b5d4a] mt-1" />
             : <button onClick={() => setShowWhy(true)} className="min-h-[44px] text-sm text-[#514636]">Why this date? ›</button>)}
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs">
-            {i.forWhom && <span className="text-[#514636]">{/^everyone$/i.test(i.forWhom) ? "Everyone" : isFor(i, me) ? `Yours · ${i.forWhom}` : `For ${i.forWhom}`}</span>}
+            {i.forWhom && !theirs && <span className="text-[#514636]">{/^everyone$/i.test(i.forWhom) ? "Everyone" : isFor(i, me) ? `Yours · ${i.forWhom}` : `For ${i.forWhom}`}</span>}
             {i.confirmation && !split && <span className="text-[#514636] [overflow-wrap:anywhere]">Confirmation {i.confirmation}</span>}
           </div>
           {q && (

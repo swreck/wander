@@ -8,7 +8,7 @@ import { useState, useEffect, Fragment } from "react";
 import { api } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { guideData, type TripGuideData } from "../lib/guideData";
-import { deadlineOver, deadlineTimeWords, deadlineWhen } from "../lib/guideDisplay";
+import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName } from "../lib/guideDisplay";
 
 interface PlanningAction {
   id: string;
@@ -225,7 +225,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
         </div>
         <button
           onClick={() => setAdding(!adding)}
-          className="text-sm text-[#514636] font-medium hover:text-[#3a3128] min-h-[44px] flex items-center"
+          className="text-sm text-[#514636] font-medium hover:text-[#3a3128] min-h-[44px] min-w-[44px] justify-end flex items-center"
         >
           {adding ? "Cancel" : "+ Add"}
         </button>
@@ -251,8 +251,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                     <button onClick={() => onNavigate?.(`/day/${(i.date || "").slice(0, 10)}#item-${i.id}`)}
                       className="w-full text-left bg-[#fff8ec] rounded-xl border border-[#e8c98f] p-3.5">
                       <div className="text-sm text-[#3a3128]"><span className="text-[#8a5a1a]">{deadlineWhen(i, todayYmd)}</span> · {i.title}</div>
-                      {(i.forWhom || time) && (
-                        <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : null, time].filter(Boolean).join(" · ")}</div>
+                      {/* Whose it is: the people it names, else whose name the booking is under (round 10) */}
+                      {(i.forWhom || time || bookedByName(i)) && (
+                        <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : bookedByName(i) ? `Booked under ${bookedByName(i)}` : null, time].filter(Boolean).join(" · ")}</div>
                       )}
                     </button>
                   </li>
@@ -312,7 +313,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       {!a.sheetRowRef && (
                         <button
                           onClick={() => handleToggleDone(a)}
-                          className="-m-2.5 p-2.5 shrink-0"
+                          className="-m-3 p-3 shrink-0"
                           aria-label={`Mark ${a.action} as done`}
                         >
                           <span className="block w-6 h-6 rounded-full border-2 border-[#c8bba8] hover:border-[#514636] transition-colors" />
@@ -429,14 +430,15 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
               value={newAction}
               onChange={(e) => setNewAction(e.target.value)}
               placeholder="What needs to happen?"
-              className="w-full text-sm px-3 py-2 rounded-lg border border-[#e0d8cc] focus:outline-none focus:ring-1 focus:ring-[#a89880]"
+              // 44pt tall, and 16px text so iPhone Safari doesn't zoom the page on tap (round 10)
+              className="w-full text-base min-h-[44px] px-3 py-2 rounded-lg border border-[#e0d8cc] focus:outline-none focus:ring-1 focus:ring-[#a89880]"
               autoFocus
             />
             <div className="flex gap-2">
               <select
                 value={newOwner}
                 onChange={(e) => setNewOwner(e.target.value)}
-                className="text-xs px-2 py-1.5 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128]"
+                className="text-base min-h-[44px] px-2 py-1.5 rounded-lg border border-[#e0d8cc] bg-white text-[#3a3128]"
               >
                 <option value="Both">Group</option>
                 <option value="Ken">Ken</option>
@@ -447,20 +449,20 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
               <input
                 value={newDue}
                 onChange={(e) => setNewDue(e.target.value)}
-                placeholder="Due (e.g. 4/15)"
-                className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-[#e0d8cc] focus:outline-none"
+                placeholder="By when? (like Oct 20)"
+                className="flex-1 min-w-0 text-base min-h-[44px] px-2 py-1.5 rounded-lg border border-[#e0d8cc] focus:outline-none"
               />
             </div>
             <input
               value={newNotes}
               onChange={(e) => setNewNotes(e.target.value)}
               placeholder="Notes (optional)"
-              className="w-full text-xs px-3 py-1.5 rounded-lg border border-[#e0d8cc] focus:outline-none"
+              className="w-full text-base min-h-[44px] px-3 py-1.5 rounded-lg border border-[#e0d8cc] focus:outline-none"
             />
             <button
               onClick={handleAdd}
               disabled={!newAction.trim()}
-              className="w-full py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium disabled:opacity-40"
+              className="w-full min-h-[44px] py-2.5 rounded-lg bg-[#514636] text-white text-sm font-medium disabled:opacity-40"
             >
               Add
             </button>
@@ -479,7 +481,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           <div>
             <button
               onClick={() => setShowDone(!showDone)}
-              className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
+              className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors min-h-[44px] min-w-[44px] pr-2"
             >
               {showDone ? "Hide" : `${done.length} done`}
             </button>
@@ -490,10 +492,12 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleToggleDone(a)}
-                        className="w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] shrink-0 flex items-center justify-center"
-                        title="Reopen"
+                        className="-m-3 p-3 shrink-0"
+                        title="Reopen" aria-label={`Reopen ${a.action}`}
                       >
-                        <span className="text-white text-[10px]">✓</span>
+                        <span className="w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] flex items-center justify-center">
+                          <span className="text-white text-[10px]">✓</span>
+                        </span>
                       </button>
                       <span className="text-sm text-[#6b5d4a] line-through">{a.action}</span>
                     </div>

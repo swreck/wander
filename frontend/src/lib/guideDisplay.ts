@@ -27,11 +27,11 @@ export const isLanding = (i: GuideItem) => i.kind === "flight" && /^Land at/i.te
  * plans, whatever the hotel's latest time), then everything with a time, then the rest.
  * A check-in time is only when the room opens ("from 2:00 PM"): it comes after the same people land.
  */
-export function sortDay(list: GuideItem[]): GuideItem[] {
+export function sortDay(list: GuideItem[], tripZone: string = "Asia/Tokyo"): GuideItem[] {
   const checkouts = list.filter((i) => i.kind === "checkout");
   const rest = list.filter((i) => i.kind !== "checkout");
   const at = (i: GuideItem) => {
-    const own = mins(i.time) ?? 0;
+    const own = tripClockMinutes(i, tripZone);
     if (i.kind !== "checkin") return own;
     const landed = rest.filter((l) => isLanding(l) && l.time && (!l.forWhom || !i.forWhom || l.forWhom === i.forWhom || l.forWhom === "Everyone"));
     const arrival = Math.max(-1, ...landed.map((l) => mins(l.time) ?? -1));
@@ -49,6 +49,18 @@ export function sortDay(list: GuideItem[]): GuideItem[] {
     ...rest.filter((i) => i.time).sort((a, b) => at(a) - at(b)),
     ...untimed.filter(evening),
   ];
+}
+
+/**
+ * A line's time as minutes into its date on the trip's clock, for putting a day in order. A time on another clock
+ * is converted (round 11: Julie's "12:00 PM California time" take-off — 4:00 AM Wednesday in Japan — was listed
+ * above Tuesday's 2:00 PM check-in and 8:00 PM dinner on Japan's Oct 13).
+ */
+export function tripClockMinutes(i: GuideItem, tripZone: string = "Asia/Tokyo"): number {
+  const own = mins(i.time) ?? 0;
+  if (!i.timeZone || i.timeZone === tripZone || !i.date) return own;
+  const date = ymd(i.date);
+  return Math.round((zonedMoment(date, own, i.timeZone).getTime() - zonedMoment(date, 0, tripZone).getTime()) / 60000);
 }
 
 /** An appointment that makes a day start (not a hotel's own check-in/out time or a deadline) */
@@ -169,7 +181,9 @@ function landingWords(l: GuideItem): string {
   const code = (l.title.match(/\b([A-Z]{3})\b/) || [])[1];
   const where = code ? AIRPORTS[code] || code : "the airport";
   const day = new Date(`${ymd(l.date)}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
-  return `lands at ${where}${l.time ? ` ${clock(l.time)}` : ""} ${day}`;
+  // After its time, by the schedule (round 11)
+  const past = !!l.date && !!l.time && Date.now() >= zonedMoment(ymd(l.date), mins(l.time) ?? 0, l.timeZone || "Asia/Tokyo").getTime();
+  return `${past ? "was due at" : "lands at"} ${where}${l.time ? ` ${clock(l.time)}` : ""} ${day}`;
 }
 
 /**
@@ -177,7 +191,8 @@ function landingWords(l: GuideItem): string {
  * that night (a booking for "Everyone" starts only when each couple's own booking does), and
  * anyone on an overnight flight ("Julie & Andy: on the flight — lands at Narita 3:00 PM Wed").
  */
-export function nightOf(date: string, stays: Stay[], items: GuideItem[]): Night {
+/** phoneClock: the date is the phone's own (Home's "Tonight"), not a Japan date (a day screen). */
+export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZone: string = "Asia/Tokyo", phoneClock = false): Night {
   const parties = partiesOf(items);
   const spans = new Map(parties.map((p) => [p, partySpan(items, p)]));
   const onTrip = (p: string) => {
@@ -197,7 +212,24 @@ export function nightOf(date: string, stays: Stay[], items: GuideItem[]): Night 
     if (!land) continue;
     const who = f.forWhom && !/^everyone$/i.test(f.forWhom) ? f.forWhom : "Everyone";
     flying.add(who);
-    away.push({ who, text: `On the flight — ${landingWords(land)}` });
+    // Taking off from another zone: when, in the trip's time (round 9: "Flying overnight" on Japan's Oct 13
+    // blurred that they leave home at 4:00 AM Japan time); otherwise "Flying overnight"
+    // A phone still where the flight leaves from already shows the take-off on its own clock: tonight is the
+    // plane, and the landing in both clocks (round 11: Julie's Home on the morning she flew said "Next · 12:00 PM
+    // California time" and then "Tonight · Take off Wed 4:00 AM Japan time" — two take-off times, one flight)
+    // (Home only: on a day screen the date is Japan's, and its night is still one at home — round 11)
+    const atOrigin = phoneClock && !!f.timeZone && f.timeZone !== tripZone && phoneZone() === f.timeZone;
+    if (atOrigin && land.time) {
+      const lands = zonedMoment(ymd(land.date), mins(land.time) ?? 0, land.timeZone || tripZone);
+      const yours = lands.toLocaleString("en-US", { timeZone: f.timeZone!, weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "");
+      away.push({ who, text: `On the plane — ${landingWords(land)} ${ZONE_WORDS[tripZone] || "local time"} (${yours} your time)` });
+      continue;
+    }
+    // (after that time, by the schedule — round 11: still "Take off …" below a card saying "Take-off was due …")
+    const takeOff = f.time && f.timeZone && f.timeZone !== tripZone
+      ? `${Date.now() >= zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).getTime() ? "Take-off was due" : "Take off"} ${zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" })} ${ZONE_WORDS[tripZone] || "local time"}`
+      : "Flying overnight";
+    away.push({ who, text: `${takeOff} — ${landingWords(land)}` });
   }
 
   const base = stays.filter((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= date && date < ymd(s.checkOutDate));
@@ -248,6 +280,97 @@ export function zonedMoment(date: string, minutes: number, zone: string): Date {
   return new Date(guess.getTime() - zoneOffsetMinutes(zone, guess) * 60000);
 }
 
+/**
+ * Right now, as minutes into `date` on `zone`'s clock — the same scale as her Guide's times for that date.
+ * Below 0 before the date starts there, past 1440 once it's over. On a phone in that zone on that date it is
+ * simply the phone's clock (round 11: Julie's phone at 1:00 AM in California read Japan's 3:00 PM landing as
+ * "Next · in 14 hr" — it had been due two hours earlier).
+ */
+export function nowMinutesOn(date: string, zone: string, at: Date = new Date()): number {
+  return Math.floor((at.getTime() - zonedMoment(date, 0, zone).getTime()) / 60000);
+}
+
+/**
+ * Where a landing's flight stands right now, by its schedule only — Wander can't see the real flight (round 8:
+ * at 9 AM Ken had to work out from "Takes off … Tue, Oct 13, 12:00 PM California time" that Julie & Andy were
+ * in the air, and at 6 PM Home had dropped the landing altogether). Null when there's nothing to add.
+ */
+export function landingStatus(landing: GuideItem, items: GuideItem[], tripZone: string, at: Date = new Date()): string | null {
+  if (!isLanding(landing) || !landing.date || !landing.time) return null;
+  const airport = landing.title.replace(/^Land at /i, "").split(" · ")[0];
+  const flight = items.find((f) => f.kind === "flight" && !isLanding(f) && f.date && f.time && f.forWhom === landing.forWhom
+    && (f.detail || "").includes(`Lands at ${airport}`));
+  const lands = zonedMoment(ymd(landing.date), mins(landing.time) ?? 0, landing.timeZone || tripZone);
+  const departs = flight ? zonedMoment(ymd(flight.date), mins(flight.time) ?? 0, flight.timeZone || tripZone) : null;
+  const zoneWord = ZONE_WORDS[tripZone] || "local time";
+  const here = (d: Date) => d.toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" });
+  // One line says the take-off (round 8: the card said "Takes off …" twice, in two zones, and read as two flights)
+  const origin = flight ? (flight.title.split(" · ").slice(1).join(" · ").split(" → ")[0] || "").trim() : "";
+  const from = origin ? ` from ${origin}` : "";
+  // The landing time on a phone still on home time names its clock, and adds the phone's (round 11: at 1:00 AM in
+  // California, "Was due to land at 3:00 PM" could be read as 3:00 PM California time, still ahead)
+  const landsAt = phoneIsElsewhere(tripZone)
+    ? `${clock(landing.time)} ${zoneWord} (${lands.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "")} your time)`
+    : clock(landing.time);
+  if (departs && at < departs) {
+    // Taking off in another zone: its own time, and the trip's ("Tue, Oct 13" reads as yesterday on a Wednesday phone)
+    if (!flight!.timeZone || flight!.timeZone === tripZone) return null;
+    const theirs = departs.toLocaleString("en-US", { timeZone: flight!.timeZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return `Takes off${from} ${theirs} ${ZONE_WORDS[flight!.timeZone] || ""} — that's ${here(departs)} ${zoneWord}`.replace(/\s+—/, " —");
+  }
+  if (at < lands) {
+    return departs
+      // (round 8: "due to take off … 4:00 AM" at 9 AM read as if take-off were still ahead)
+      ? `Should be in the air now — take-off${from} was ${here(departs)} ${zoneWord} by the schedule; due to land at ${landsAt}`
+      : `Due to land at ${landsAt}`;
+  }
+  if (at.getTime() < lands.getTime() + 12 * 3600_000) return `Was due to land at ${landsAt} — that's the schedule; a delay wouldn't show here`;
+  return null;
+}
+
+/** A landing, said as who lands ("Julie & Andy land at Narita (NRT) · United", "You land at …") — the stored
+ * "Land at …" read as an instruction to whoever was looking (round 8). Other lines are returned as they are. */
+export function landingTitle(i: GuideItem, me: string | null | undefined, title: string = i.title, tripZone: string = "Asia/Tokyo"): string {
+  if (!isLanding(i)) return title;
+  const rest = title.replace(/^Land at /i, "");
+  // Past its time, by the schedule (round 11: "You land at Narita" two hours after the landing was due)
+  const past = !!i.date && !!i.time && Date.now() >= zonedMoment(ymd(i.date), mins(i.time) ?? 0, i.timeZone || tripZone).getTime();
+  if (!i.forWhom || /^everyone$/i.test(i.forWhom)) return `${past ? "Landing was due" : "Landing"} at ${rest}`;
+  return `${me && hasName(i.forWhom, me) ? "You" : i.forWhom} ${past ? "were due to land" : "land"} at ${rest}`;
+}
+
+/** A take-off on another clock, said in the trip's: "That's Wed 4:00 AM Japan time" (round 8: on Japan's Oct 13
+ * page, "12:00 PM California time" sat among the day's Japan times as if it were noon there). */
+export function departureInTripZone(i: GuideItem, tripZone: string): string | null {
+  if (i.kind !== "flight" || isLanding(i) || !i.date || !i.time || !i.timeZone || i.timeZone === tripZone) return null;
+  const departs = zonedMoment(ymd(i.date), mins(i.time) ?? 0, i.timeZone);
+  // Its own words, with the date (round 9: "That's Wed 4:00 AM" under "Lands at … 3:00 PM" read as the landing);
+  // after that time, by the schedule (round 11: still "Takes off" hours after)
+  return `${Date.now() >= departs.getTime() ? "Take-off was due" : "Takes off"} ${departs.toLocaleString("en-US", { timeZone: tripZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${ZONE_WORDS[tripZone] || "local time"}`;
+}
+
+/**
+ * This person's flight out from home, when they are still at home on this Japan date — every Guide date is a
+ * Japan date, and before their flight takes off (in Japan's time) nothing on it is theirs but that flight
+ * (round 8: Julie's "first day", Japan's Oct 13, showed an 8 PM Tokyo dinner as if it might be hers).
+ */
+export function homeOnJapanDate(items: GuideItem[], me: string | null | undefined, date: string, tripZone: string): GuideItem | null {
+  const party = partyOf(items, me);
+  if (!party) return null;
+  const flight = items
+    .filter((f) => f.kind === "flight" && !isLanding(f) && f.date && f.time && f.forWhom === party && f.timeZone && f.timeZone !== tripZone)
+    .sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)))[0];
+  if (!flight) return null;
+  const departs = zonedMoment(ymd(flight.date), mins(flight.time) ?? 0, flight.timeZone!);
+  const departJapanDay = new Intl.DateTimeFormat("en-CA", { timeZone: tripZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(departs);
+  return date < departJapanDay ? flight : null;
+}
+
+/** The phone's own time zone ("America/Los_Angeles"), or null if the browser won't say. */
+function phoneZone(): string | null {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
+}
+
 /** The phone's own zone differs from the trip's (at home before the trip, or on the way). */
 export function phoneIsElsewhere(tripZone: string) {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone !== tripZone && zoneOffsetMinutes(Intl.DateTimeFormat().resolvedOptions().timeZone, new Date()) !== zoneOffsetMinutes(tripZone, new Date()); }
@@ -282,6 +405,8 @@ export function deadlineJustPassed(i: GuideItem, tripZone: string, now = new Dat
 }
 
 const ZONE_WORDS: Record<string, string> = { "America/Los_Angeles": "California time", "Asia/Tokyo": "Japan time" };
+/** "California time", "Japan time" — whose clock a time is on */
+export const zoneWords = (zone: string) => ZONE_WORDS[zone] || zone;
 
 /** True once a deadline has gone by — its stated time in the trip's zone, or the end of its day. */
 export function deadlineOver(i: GuideItem, tripZone: string, now = new Date()) {
@@ -365,6 +490,23 @@ export function lateLeaveWords(leave: LeaveBy, flight: GuideItem, now: number): 
 
 // ── Words in details ────────────────────────────────────────────
 
+/**
+ * The number to dial for a run of digits, when it has a phone number's shape — else null. Japanese numbers as
+ * written in Japan ("075-585-2420" → +81 75 585 2420), with the country code ("81-75-561-1459", "+81 75 354
+ * 0250"), any "+" number, and a US 3-3-4 number. Round 11 found four false or broken ones in her tabs: a hotel
+ * confirmation ("4375060342"), a postal code and street number ("104-0061 4-10-3"), a Kyoto number without its
+ * "+" (it dialed 81… as a local call), and a restaurant's number run into its street address.
+ */
+function telFor(written: string): string | null {
+  const digits = written.replace(/\D/g, "");
+  if (/^\d{3}-\d{4}\b/.test(written) || /^\d{4}-\d{2}-\d{2}$/.test(written)) return null; // postal code, date
+  if (written.startsWith("+")) return digits.length >= 10 && digits.length <= 15 ? `+${digits}` : null;
+  if (digits.startsWith("0")) return digits.length === 10 || digits.length === 11 ? `+81${digits.slice(1)}` : null;
+  if (digits.startsWith("81") && /[\s-]/.test(written)) return digits.length === 11 || digits.length === 12 ? `+${digits}` : null;
+  if (/^(1[\s-])?\d{3}[\s-]\d{3}[\s-]\d{4}$/.test(written)) return `+${digits.length === 10 ? "1" : ""}${digits}`;
+  return null;
+}
+
 /** Split a detail into text and phone numbers, so numbers can be tapped to call. */
 export function withPhoneLinks(text: string): { text: string; tel?: string }[] {
   const out: { text: string; tel?: string }[] = [];
@@ -372,13 +514,22 @@ export function withPhoneLinks(text: string): { text: string; tel?: string }[] {
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
-    const digits = m[1].replace(/[^\d+]/g, "");
-    if (digits.replace("+", "").length < 9 || /^\d{4}-\d{2}-\d{2}$/.test(m[1])) continue;
+    // A run can carry on past the number into what follows ("075-585-2420 321-2 Kiyomizu"): the longest
+    // leading part, whole groups only, that has a phone number's shape
+    const ends = [...m[1].matchAll(/\s+/g)].map((g) => g.index!).concat(m[1].length).reverse();
+    let written = "";
+    let tel: string | null = null;
+    for (const end of ends) {
+      written = m[1].slice(0, end);
+      if ((tel = telFor(written))) break;
+    }
+    // A fax, or a number labelled as a booking's ("[# 4375060342]", "Confirmation: …"), is never to be dialed
+    const before = text.slice(Math.max(0, m.index - 24), m.index);
+    if (!tel || /fax\W*$|(#|confirmation|conf\.)\s*(no\.?|number|#)?\s*:?\s*$|(booking|reservation)\s*(no\.?|number|#)\s*:?\s*$/i.test(before)) continue;
     if (m.index > last) out.push({ text: text.slice(last, m.index) });
-    // A Japanese number written for callers in Japan ("03-1234-5678") dials from anywhere as +81 3 1234 5678
-    const tel = digits.startsWith("+") ? digits : digits.startsWith("0") && digits.length >= 10 ? `+81${digits.slice(1)}` : digits;
-    out.push({ text: m[1], tel });
-    last = m.index + m[1].length;
+    out.push({ text: written, tel });
+    last = m.index + written.length;
+    re.lastIndex = last;
   }
   if (last < text.length) out.push({ text: text.slice(last) });
   return out;
@@ -440,8 +591,21 @@ export function tidyTitle(i: GuideItem): string {
 }
 
 /** A cell that means nothing on its own away from the sheet ("1 day") */
+/** Whose name a deadline's booking is under, as people say names ("Booked under Fong, Larisa" → "Larisa Fong") */
+export function bookedByName(i: GuideItem): string | null {
+  const m = (i.detail || "").match(/^Booked under ([^\n]+)/m)?.[1]?.trim();
+  if (!m) return null;
+  const parts = m.split(/\s*,\s*/);
+  return parts.length === 2 ? `${parts[1]} ${parts[0]}` : m;
+}
+
+/** A title that says nothing on its own: "2 nights", "1/2 day", "see above - 1/2 day" (round 10: a bare
+ * "1/2 day" on Home meant nothing). Home never shows one; a day screen keeps it when her note hangs on it. */
+export function isFragmentTitle(i: GuideItem) {
+  return ["plan", "note"].includes(i.kind) && /^\s*(see above\s*[-–]?\s*)?[\d/½]+\s*(day|days|nite|nites|night|nights)\s*$/i.test(i.title);
+}
 export function isFragment(i: GuideItem) {
-  return ["plan", "note"].includes(i.kind) && /^\s*\d+\s*(day|days|nite|nites|night|nights)\s*$/i.test(i.title);
+  return isFragmentTitle(i) && !(i.detail || "").trim();
 }
 
 /**
@@ -488,9 +652,15 @@ export function mapsQueryFor(i: GuideItem): string | null {
   if (i.kind === "meal") {
     const addr = (i.detail || "").match(/^Address: ([^\n]+)/m)?.[1];
     if (!addr) return null;
-    const segs = addr.split(" · ").map((s) => s.trim()).filter((s) => s && !/^\(/.test(s));
+    // A phone number is never the street (round 9: "<restaurant> · 075-000-0000 · 1-2 Some-cho…"
+    // searched Maps for the phone number)
+    // Nor is the name said again (round 11: "TAPAS MOLECULAR BAR [タパス モラキュラーバー · Mandarin Oriental" searched
+    // the name twice, with half a bracket, and left out the hotel it's in)
+    const name = i.title.split("\n")[0];
+    const segs = addr.split(" · ").map((s) => s.replace(/\s*[[(（【][^\])）】]*$/, "").trim())
+      .filter((s) => s && !/^\(/.test(s) && !/^(?:tel\.?\s*)?[+\d][\d\s\-().]{6,}$/i.test(s) && !s.toLowerCase().startsWith(name.toLowerCase()));
     const street = segs.find((s) => /\d/.test(s)) || segs[0];
-    return street ? `${i.title.split("\n")[0]}, ${street}` : null;
+    return street ? `${name}, ${street}` : null;
   }
   if (i.kind !== "meeting" && i.kind !== "tour") return null;
   // The place in her words: "Meet Backroads 8:30a Courtyard by Marriott Tokyo Station" → "Courtyard by Marriott Tokyo Station"
@@ -574,10 +744,40 @@ export function unwrapSearchLink(url: string): string {
     const u = new URL(url);
     if (/(^|\.)google\.[a-z.]+$/i.test(u.hostname) && u.pathname === "/search") {
       const q = u.searchParams.get("q") || "";
-      if (/^https?:\/\//i.test(q)) return q;
+      // Encoded twice in her cell (Gemini's links: "maps.apple.com/%253Fq%253DOchanomizu…"), one decode
+      // leaves "/%3Fq%3D…", which Maps can't read (round 9: "Find in Maps" was a dead link)
+      if (/^https?:\/\//i.test(q)) return /%3[fd]/i.test(q) ? safeDecode(q) : q;
     }
   } catch { /* not a URL */ }
   return url;
+}
+const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch { return s; } };
+
+/**
+ * Web addresses in her words, as short links named for their site ("michelin.com ↗") — a raw address ran to
+ * 395 characters, a dozen lines at large text, and couldn't be tapped (round 10). Her Google-wrapped map links
+ * are unwrapped to the place itself.
+ */
+export function withWebLinks(text: string): { text: string; url?: string }[] {
+  const parts: { text: string; url?: string }[] = [];
+  let at = 0;
+  // "www.robuchon.jp" in a pasted email signature is an address too (round 11: shown as plain text three times)
+  for (const m of text.matchAll(/https?:\/\/[^\s<>"']+|(?<![\w@./-])www\.[a-z0-9-]+(?:\.[a-z0-9-]+)+[^\s<>"']*/gi)) {
+    const raw = m[0].replace(/[.,;:)\]]+$/, "");
+    const start = m.index ?? 0;
+    if (start > at) parts.push({ text: text.slice(at, start) });
+    const url = unwrapSearchLink(/^www\./i.test(raw) ? `https://${raw}` : raw);
+    let site = "link";
+    try { site = new URL(url).hostname.replace(/^www\./, ""); } catch { /* keep "link" */ }
+    // A Google map or search says what opens (round 11: "google.com ↗" for her Ippudo map and her day's route)
+    if (/^google\.[a-z.]+$/.test(site)) {
+      site = /\/maps\/dir\//.test(url) ? "Google Maps route" : /\/maps\b|[?&]q=.*maps/.test(url) ? "Google Maps" : /\/search\b/.test(url) ? "Google search" : site;
+    }
+    parts.push({ text: `${site} ↗`, url });
+    at = start + raw.length;
+  }
+  if (at < text.length) parts.push({ text: text.slice(at) });
+  return parts;
 }
 
 /** Her words that differ between tabs, on the line itself ("Tabs differ: her Itinerary tab says …") */

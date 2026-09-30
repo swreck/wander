@@ -22,6 +22,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import useBackToClose from "../hooks/useBackToClose";
+import { LinkedText } from "./GuideText";
 
 interface SheetNote {
   id: string;
@@ -173,9 +174,11 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                       requestAnimationFrame(() => document.getElementById(`guide-tab-${tabName}`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
                     }}
                     aria-expanded={openTab === tabName}
-                    className="flex-1 min-w-0 min-h-[44px] text-left flex items-center justify-between gap-3"
+                    // A line of its own, links below (round 9: at large text the title shrank to a letter or two
+                    // per line beside "Open Japan rail route planner →", with "Read" printed over it)
+                    className="basis-full min-w-0 min-h-[44px] text-left flex items-center justify-between gap-3"
                   >
-                    <h3 className="text-sm font-medium text-[#3a3128] [overflow-wrap:anywhere]">{tabName}</h3>
+                    <h3 className="text-sm font-medium text-[#3a3128] [overflow-wrap:break-word] min-w-0">{tabName}</h3>
                     <span className="text-sm text-[#514636] shrink-0 inline-flex items-center min-h-[44px]">{openTab === tabName ? "Close ▴" : "Read ▾"}</span>
                   </button>
                   <div className="flex items-center gap-3">
@@ -210,7 +213,8 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                         </li>
                       ) : (
                         <li key={note.rowIndex} className="text-sm text-[#3a3128] leading-relaxed whitespace-pre-line [overflow-wrap:anywhere]">
-                          {note.text.replace(/[ \t]{3,}/g, "  ")}
+                          {/* Web addresses as short links you can tap, phone numbers to call (round 10) */}
+                          <LinkedText text={note.text.replace(/[ \t]{3,}/g, "  ")} />
                         </li>
                       ))}
                     </ul>

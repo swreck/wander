@@ -210,7 +210,12 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       worked("Which city Wander files this day under, from her Itinerary", nightHere ? [{ label: nightHere.name, cells: dedupeCells(stayCells(nightHere)) }] : []));
     for (const a of arrivals) {
       if (k < a.departJapanDay) {
-        say(out, `  - [WHERE: on this Japan date ${a.who} are NOT in Japan and NOT traveling — still at home; their flight takes off ${momentWords(a.departs, tripZoneForDays)}]`,
+        // This Japan date on their own clock, spelled out: with only "still at home" Scout still told Julie
+        // "Oct 13 is the day you're still flying" (Japan's Oct 13 ends at 8 AM on California's Oct 13, before she leaves)
+        const homeZone = a.flight.timeZone || tripZoneForDays;
+        const dayStarts = zonedMoment(k, 0, tripZoneForDays);
+        const dayEnds = new Date(dayStarts.getTime() + 24 * 3600_000);
+        say(out, `  - [WHERE: on this Japan date ${a.who} are NOT in Japan and NOT traveling — still at home the whole day. On their own clock this Japan date runs ${momentWords(dayStarts, homeZone)} to ${momentWords(dayEnds, homeZone)}, all before their flight takes off (${momentWords(a.departs, homeZone)} = ${momentWords(a.departs, tripZoneForDays)}). Nothing in Japan on this date can include them, and never call this date a day they fly or are flying]`,
           worked(`${a.who} are still at home on this Japan date — worked out from their flight's departure, ${momentWords(a.departs, tripZoneForDays)}`, [partOf(a.flight)]));
       }
     }
@@ -338,8 +343,20 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       parts.push(`on Japan's ${dayBeforeWords} and every Japan day before it, ${who} are NOT traveling — they are still at home; the flight takes off ${momentWords(departs, tripZone)}`);
     }
     if (opts.now) {
-      const status = opts.now < departs ? "hasn't left yet" : lands && opts.now < lands ? "IN THE AIR" : lands ? "has landed" : "has departed";
-      say(travelNow, `- ${who} — ${f.title}: ${status}`, worked(`Where ${f.title} stands right now, from its times and the time on the phone`, [partOf(f)]));
+      // Worked out from the timetable only — Wander has no live flight status, so after take-off time the
+      // words say what the schedule says, never that it happened ("Yes — their flight has landed" was said
+      // to Larisa at 5:30 PM on a flight due at 3:00 PM; a delay would have made it false)
+      const landWords = lands ? `${landPlace} ${momentWords(lands, landZone)}` : "";
+      const status = opts.now < departs
+        ? `hasn't left yet — scheduled to take off ${momentWords(departs, departZone)}`
+        : lands && opts.now < lands
+        ? `should be in the air by its schedule (took off ${momentWords(departs, departZone)} if on time; due to land at ${landWords}). Wander can't see the real flight, so say "should be in the air" and "due to land", never that it certainly took off`
+        : lands && opts.now.getTime() < lands.getTime() + 12 * 3600_000
+        ? `was due to land at ${landWords} by its schedule. Wander can't see whether it landed or was late, so say "was due to land at …" (or "should have landed by now"), never "has landed"`
+        : lands
+        ? `landed — it was due at ${landWords}, more than 12 hours ago`
+        : `was due to take off ${momentWords(departs, departZone)} by its schedule; Wander can't see the real flight`;
+      say(travelNow, `- ${who} — ${f.title}: ${status}`, worked(`Where ${f.title} should be right now by its schedule, from its times and the time on the phone (Wander can't see the real flight)`, [partOf(f)]));
     }
     say(windows, parts.join("; "), worked(`${f.title}'s departure and landing in both Japan and California time, worked out from her flight details`, [partOf(f)]));
   }
@@ -408,7 +425,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       lastTab = n.tabName;
     }
   }
-  if (travelNow.length) { say(live, "FLIGHTS — WHERE EACH STANDS RIGHT NOW:"); live.push(...travelNow); }
+  if (travelNow.length) { say(live, "FLIGHTS — WHERE EACH STANDS RIGHT NOW BY ITS SCHEDULE (worked out from the time on the phone; there is no live flight tracking):"); live.push(...travelNow); }
   const text = (lines: ContextLine[]) => lines.map((l) => l.text).join("\n");
   return { stable: text(out), live: text(live), stableLines: out, liveLines: live, copy: snapshot.sourceName.replace(/\.xlsx$/i, "") };
 }

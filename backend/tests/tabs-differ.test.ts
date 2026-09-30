@@ -11,6 +11,10 @@ describe("her pasted map links", () => {
     expect(unwrapSearchLink("https://www.google.com/search?q=https://maps.apple.com/%3Fq%3DFour%2BSeasons%2BHotel%2BKyoto"))
       .toBe("https://maps.apple.com/?q=Four+Seasons+Hotel+Kyoto");
   });
+  it("a link encoded twice (Gemini's, in her Day 2 tab) becomes a working Maps search (round 9)", () => {
+    expect(unwrapSearchLink("https://www.google.com/search?q=https://maps.apple.com/%253Fq%253DOchanomizu%252BOrigami%252BKaikan&utm_source=gemini"))
+      .toBe("https://maps.apple.com/?q=Ochanomizu+Origami+Kaikan");
+  });
   it("any other link is left as it is", () => {
     expect(unwrapSearchLink("https://maps.apple.com/?q=Montbell+Ginza")).toBe("https://maps.apple.com/?q=Montbell+Ginza");
     expect(unwrapSearchLink("https://www.google.com/search?q=ensou+shigaraki")).toBe("https://www.google.com/search?q=ensou+shigaraki");

@@ -1695,7 +1695,9 @@ describe("Chaos Simulations", () => {
 
     it("S50: Complete user journey — import, edit, plan, verify", async () => {
       const name = "Chaos: Complete Journey";
-
+      // Always next year: the import moves a trip dated in the past to start today, so fixed August
+      // 2026 dates broke this test once that August had passed
+      const Y = new Date().getUTCFullYear() + 1;
 
       // 1. Import a trip
       const importRes = await request(app)
@@ -1703,18 +1705,18 @@ describe("Chaos Simulations", () => {
         .set("Authorization", `Bearer ${aliceToken}`)
         .send({
           tripName: name,
-          startDate: "2026-08-01",
-          endDate: "2026-08-10",
+          startDate: `${Y}-08-01`,
+          endDate: `${Y}-08-10`,
           cities: [
-            { name: "Dubrovnik", arrivalDate: "2026-08-01", departureDate: "2026-08-04" },
-            { name: "Split", arrivalDate: "2026-08-05", departureDate: "2026-08-07" },
+            { name: "Dubrovnik", arrivalDate: `${Y}-08-01`, departureDate: `${Y}-08-04` },
+            { name: "Split", arrivalDate: `${Y}-08-05`, departureDate: `${Y}-08-07` },
           ],
           routeSegments: [
             { originCity: "Dubrovnik", destinationCity: "Split", transportMode: "ferry" },
           ],
           experiences: [
-            { cityName: "Dubrovnik", name: "City Walls Walk", dayDate: "2026-08-01" },
-            { cityName: "Split", name: "Diocletian Palace", dayDate: "2026-08-05" },
+            { cityName: "Dubrovnik", name: "City Walls Walk", dayDate: `${Y}-08-01` },
+            { cityName: "Split", name: "Diocletian Palace", dayDate: `${Y}-08-05` },
           ],
           accommodations: [
             { cityName: "Dubrovnik", name: "Hotel Excelsior" },
@@ -1724,7 +1726,7 @@ describe("Chaos Simulations", () => {
       const tripId = importRes.body.id;
 
       // 2. Add a third city for the gap days
-      await addCity(aliceToken, tripId, "Hvar", "2026-08-08", "2026-08-10");
+      await addCity(aliceToken, tripId, "Hvar", `${Y}-08-08`, `${Y}-08-10`);
 
       let days = await getDays(aliceToken, tripId);
       expect(days.length).toBe(10); // All days covered
@@ -1759,7 +1761,7 @@ describe("Chaos Simulations", () => {
           dayId: dubrovnikDays[2].id,
           name: "Sunset Dinner",
           type: "restaurant",
-          datetime: "2026-08-03T19:30:00Z",
+          datetime: `${Y}-08-03T19:30:00Z`,
         });
 
       // 7. Verify final state
@@ -7599,7 +7601,7 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
         .post(`/api/decisions/${decision.body.id}/vote`)
         .set("Authorization", `Bearer ${aliceToken}`)
         .send({ optionId: "nonexistent-experience-id" });
-      expect(res.status).toBeLessThan(500);
+      expect(res.status).toBe(400);
     });
 
     it("S307: Add option with non-existent experienceId to a decision", async () => {
