@@ -48,13 +48,14 @@ const STEPS = tab("Tix pick up — Alpha", [
 ]);
 
 describe("what Wander keeps out", () => {
-  it("drops card digits but keeps which card", () => {
-    expect(withoutFinancialDetails("Bring Larisa's physical Mastercard ending 1234.")).toBe("Bring Larisa's physical Mastercard ending ••••.");
-    expect(withoutFinancialDetails("card ending in 9876")).toBe("card ending in ••••");
+  it("keeps a card's last four digits, the standard safe way to say which card", () => {
+    expect(withoutFinancialDetails("Bring Larisa's physical Mastercard ending 1234.")).toBe("Bring Larisa's physical Mastercard ending 1234.");
+    expect(withoutFinancialDetails("card ending in 9876")).toBe("card ending in 9876");
   });
-  it("drops a whole card number and a transit card's full ID", () => {
-    expect(withoutFinancialDetails("Card 4111 1111 1111 1111 on file")).toBe("Card [card number left out by Wander] on file");
-    expect(withoutFinancialDetails("Suica JE80 1234 5678 9012 3456")).toContain("[card ID left out by Wander]");
+  it("cuts a whole card number to its last four, and leaves a transit card's full ID out", () => {
+    expect(withoutFinancialDetails("Card 4111 2222 3333 4444 on file")).toBe("Card [card ending 4444] on file");
+    expect(withoutFinancialDetails("4111222233334444")).toBe("[card ending 4444]");
+    expect(withoutFinancialDetails("Suica JE80 1234 5678 9012 3456")).toBe("Suica JE… [card ID left out by Wander]");
   });
   it("keeps reservation numbers, phone numbers, times and prices", () => {
     const s = "Reservation #12345 · 03-1111-2222 · 18:17 · ¥10,000 total · receipt ABC1234X";
