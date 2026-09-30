@@ -12,6 +12,7 @@ function PlanToIdeas() {
 import DayPage from "./pages/DayPage";
 import PeoplePage from "./pages/PeoplePage";
 import HistoryPage from "./pages/HistoryPage";
+import ChecklistPage from "./pages/ChecklistPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -312,6 +313,8 @@ function AppRoutes() {
       <Route path="/day/:date" element={<ProtectedRoute><DayPage /></ProtectedRoute>} />
       <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+      {/* A step-by-step checklist from another source (the Shin-Osaka ticket pickup, Ken's rail sheet) */}
+      <Route path="/checklist/:sourceId/:tab" element={<ProtectedRoute><ChecklistPage /></ProtectedRoute>} />
       <Route path="/capture-share" element={<ProtectedRoute><CaptureSharePage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

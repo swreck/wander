@@ -4195,13 +4195,29 @@ router.post("/", async (req: AuthRequest, res) => {
         guideCopy = parts.copy;
       } catch (e: any) { console.warn("[scout] guide context unavailable:", e.message); }
     }
+    // Other sources (Ken's rail sheet): each its own cited document, never merged into her Guide
+    let otherDocs: { title: string; lines: ContextLine[] }[] = [];
+    const otherFreshness: string[] = [];
+    if (tripId) {
+      try {
+        const { sourceViews, sourceDocuments } = await import("../services/sources/context.js");
+        const views = await sourceViews(tripId);
+        otherDocs = sourceDocuments(views).filter((d) => d.lines.length > 1);
+        const zone = typeof clientTime?.timeZone === "string" ? clientTime.timeZone : "Asia/Tokyo";
+        const when = (iso: string) => { try { return new Date(iso).toLocaleString("en-US", { timeZone: zone, weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return iso.slice(0, 16); } };
+        for (const v of views) {
+          if (!v.meta.readAt) { otherFreshness.push(`Wander hasn't been able to read ${v.meta.owner}'s ${v.meta.name} yet.`); continue; }
+          otherFreshness.push(`Wander last read ${v.meta.owner}'s ${v.meta.name} ${when(v.meta.readAt)} (the phone's own time) and checks it every few minutes${v.meta.lastError ? `; its latest read FAILED, so this copy may be out of date — say so if it matters` : ""}.`);
+        }
+      } catch (e: any) { console.warn("[scout] other sources unavailable:", e.message); }
+    }
 
     // Build system prompt with page context
     const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
 
 Wander is the family's window into Larisa's Guide — her trip spreadsheet, which is the plan. You know the Guide (the document at the start of the conversation), you know how Wander works (below), and you can look things up on the internet. You never change the plan. What time it is for the person asking, and what the Guide's deadlines and flights stand at right now, are in RIGHT NOW with their latest message.
 
-CITING (every answer): the Guide and the right-now statuses are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
+CITING (every answer): the Guide, the right-now statuses and Ken's rail sheet are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
 
 ANSWERING FROM THE GUIDE (most important):
 - For anything about this trip — where we sleep, what's on a day, times, bookings, confirmation numbers, deadlines, who's going, dinners — answer from LARISA'S GUIDE below first, and say it comes from Larisa's Guide.
@@ -4229,9 +4245,20 @@ ANSWERING FROM THE GUIDE (most important):
 - Words: dates like "Fri, Oct 16"; times like "6:00 PM" (never 24-hour, never "12:00" alone — say noon). Lead with the answer in a sentence or two; extras on one short line. Larisa's "Activities tab" is what Wander shows under Ideas.
 - Same-day plans: the text is the plan itself ("<place>, <who>") — never repeat the time in it when you pass a time.
 
+OTHER SOURCES (Ken's rail sheet — a separate document, when there is one):
+- Ken's rail sheet ("Japan 2026 — Rail Reservations") is his own sheet, written with AI help: train bookings (its "Rail Detail" tab) and step-by-step instructions for collecting the paper tickets at Shin-Osaka (its "Tix pick up — Shin-Osaka" tab). It is NOT Larisa's Guide. For trains, seats, reservation numbers and the ticket pickup, answer from it and say so ("Ken's rail sheet has…", "the rail sheet's pickup steps say…"); cite its lines like the Guide's. Never credit it to Larisa, and never credit her Guide with its facts.
+- Its words are its own: a "Status" of TRUE, a "?" or a "—", and "PENDING — …" in its readiness column are what it says — pass them on as its words ("the rail sheet marks it PENDING: collect at Shin-Osaka Oct 6"). Never upgrade them to "booked", "confirmed" or "done", and never downgrade them. A leg with no train, no reservation number and "No" under Reserve? has no booking in the sheet — say that.
+- Pickup: its checklist is in order and every step matters (the physical card, the 4-digit ID for each booking, six JR West pickups at the 5489 machines, the separate SmartEX train with each person's own IC card). When asked what to do or bring, give its steps in its order, in its words, completely — never shorten six pickups to "your tickets", never drop the IC-card check.
+- It shows card digits as "••••": Wander keeps card numbers out. Say "Larisa's physical Mastercard (the one used to book)" — never write "••••" or guess the digits.
+- Times in it are often 24-hour ("18:17", "13:55"); always say them as "6:17 PM", "1:55 PM" — the 12-hour form is given beside each.
+- Advice it doesn't give (that a local train needs no ticket in advance, how to buy one) is yours: label it as general knowledge, never as the sheet's.
+- Where it and Larisa's Guide disagree (a SOURCES DIFFER line, or anything you notice), say both, each with its source, and stop — never say which one counts. A booked train's seat and reservation are tied to that train.
+- How current it is: the RIGHT NOW part says when Wander last read it. If asked, say that; Ken's sheet may have changed in the last few minutes.
+
 HOW WANDER WORKS (for "how do I…" questions — describe these real screens only):
 - Home: today's plan from the Guide at the top (where Larisa's day plan has you now — "Now, in Larisa's plan" — what's next, tonight's hotel, tomorrow, deadlines coming up), then the trip calendar. Tap any day to open that day.
 - A day: everything the Guide says for that date in time order, where everyone sleeps that night, and where each line came from. The arrows at the top move to the day before or after. On days Larisa wrote a day tab for, "Larisa's plan for the day" follows: her lines in her order with her times, who each is for when the group splits, "Larisa's notes ›" and Maps. Where she lists choices for one time, each has "We're going here"; the pick shows "✓ The group's pick" for everyone (added in Wander — her sheet is unchanged), and the others offer "Switch to this".
+- A day's "Trains" part shows that date's legs from Ken's rail sheet (not Larisa's Guide): times, train, class, car and seats, reservation number, how many people, and the sheet's own status words; where it and the Guide disagree it says so. On the ticket-pickup day (Shin-Osaka, Oct 6), Ken's and Larisa's Home, Now and day screen lead with "Ticket pickup — Shin-Osaka", which opens every step in the sheet's order with a tick for each (ticks stay on that phone); anyone can open the steps from a train that needs its tickets collected. Now shows "Next train" with seats. A copy stays on the phone for no signal.
 - A day also has "+ Add a plan for this day": a same-day plan anyone can add ("Ken and Andy: <a museum> this afternoon"). It shows on that day for everyone, labelled as added in Wander. It never changes the Guide.
 - Ideas (bottom bar): the ideas from the Activities tab of Larisa's Guide, city by city (opens on today's city), with who marked each one. On each idea: "+ Note" (for everyone, or "Just for me"), "Add to a day", Maps, and Ask Scout. Notes and plans typed with no signal are saved on the phone and sent later.
 - Now (bottom bar): today, with where Larisa's day plan has you right now, what's next and how long until it (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
@@ -4345,7 +4372,7 @@ RULES:
     const HOUR = { type: "ephemeral" as const, ttl: "1h" as const };
     const GUIDE_TITLE = "Larisa's Guide (the plan, as Wander last read it)";
     const LIVE_TITLE = "Right now: her Guide's deadlines and flights";
-    const citedDocs: CitedDocument[] = [{ title: GUIDE_TITLE, lines: guideLines }, { title: LIVE_TITLE, lines: liveLines }];
+    const citedDocs: CitedDocument[] = [{ title: GUIDE_TITLE, lines: guideLines }, { title: LIVE_TITLE, lines: liveLines }, ...otherDocs];
     const asDocument = (title: string, lines: ContextLine[], cache: boolean): any => ({
       type: "document", title, citations: { enabled: true },
       source: { type: "content", content: lines.map((l) => ({ type: "text", text: l.text })) },
@@ -4355,6 +4382,7 @@ RULES:
       "RIGHT NOW (this question):",
       nowLine,
       liveLines.length ? `(What her Guide's deadlines and flights stand at right now is in the document "${LIVE_TITLE}".)` : "",
+      ...otherFreshness,
       "",
       "CURRENT CONTEXT:",
       `- Page: ${context?.page || "unknown"}`,
@@ -4375,10 +4403,18 @@ RULES:
     ];
     messages.push({ role: "user", content: latest });
     // The Guide opens the conversation — the same bytes for everyone, so it's read from the cache
-    if (guideContext && guideLines.length) {
+    // Other sources follow it, each cached on its own: a change to the rail sheet re-reads only that part
+    if ((guideContext && guideLines.length) || otherDocs.length) {
       const first = messages[0];
       const rest = typeof first.content === "string" ? [{ type: "text", text: first.content }] : (first.content as any[]);
-      messages[0] = { role: "user", content: [asDocument(GUIDE_TITLE, guideLines, true), ...rest] };
+      messages[0] = {
+        role: "user",
+        content: [
+          ...(guideContext && guideLines.length ? [asDocument(GUIDE_TITLE, guideLines, true)] : []),
+          ...otherDocs.map((d) => asDocument(d.title, d.lines, true)),
+          ...rest,
+        ],
+      };
     }
     // Every piece of the answer with its citations, and pages Scout fetched (their citations name them by title)
     const answerPieces: AnswerPiece[] = [];

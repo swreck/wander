@@ -21,7 +21,9 @@ export type SourceView =
   // A plan someone added in Wander — not in her Guide
   | { type: "added"; by: string; text: string }
   // A web page Scout read
-  | { type: "web"; title: string; url: string; quote: string };
+  | { type: "web"; title: string; url: string; quote: string }
+  // Another source Wander reads (Ken's rail sheet): its name, whose it is, how it was written, and its exact cells
+  | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: GuideCellWords[] };
 
 export interface ContextLine { text: string; src: SourceView | null }
 

@@ -115,7 +115,7 @@ export function excerptFor(text: string, said: string, max = 400): { text: strin
 }
 function trimmed(s: SourceView, said: string): SourceView {
   const cut = (cells: any[]) => cells.map((c) => (c.kind === "cell" && c.text.length > 300 ? { ...c, ...excerptFor(c.text, said) } : c));
-  if (s.type === "guide") return { ...s, cells: cut(s.cells) };
+  if (s.type === "guide" || s.type === "sheet") return { ...s, cells: cut(s.cells) };
   if (s.type === "wander") return { ...s, from: s.from.map((f) => ({ ...f, cells: cut(f.cells) })) };
   return s;
 }
@@ -164,7 +164,7 @@ export function answerSources(shown: string, pieces: AnswerPiece[], docs: CitedD
     .map(plain)
     .filter(Boolean);
   // "That's from Larisa's Guide." says where, not what — the list below says where better
-  const ATTRIBUTION = /^(that's|that is|this is|all of (that|this) is|both are|it's)\s+(all\s+)?(from|in|straight from)\s+(larisa's|her)\s+guide\.?$/i;
+  const ATTRIBUTION = /^(that's|that is|this is|all of (that|this) is|both are|it's)\s+(all\s+)?(from|in|straight from)\s+((larisa's|her)\s+guide|(ken's|the|your)\s+rail sheet)\.?$/i;
   for (const s of sentences) {
     if (s.split(/\s+/).length < 4 || !/[a-z]/i.test(s) || seen.has(s) || ATTRIBUTION.test(s)) continue;
     const touches = sourced.some((c) => s.includes(c) || c.includes(s) || s.includes(c.slice(0, 20)) || s.includes(c.slice(-20)));

@@ -19,6 +19,8 @@ import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
+import { sourcesData, railAudience, legIsFor, isBookedTrain, colOf, twelveHour, sourceWords, type OtherSource, type Checklist } from "../lib/sources";
+import { checklistTitle } from "./RailSheet";
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
@@ -143,6 +145,13 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const [choices, setChoices] = useState<DayChoice[]>([]);
   const [today, setToday] = useState(phoneToday());
   const [, setNow] = useState(nowMinutes());
+  // Other sources (Ken's rail sheet): the ticket pickup and today's trains
+  const [otherSources, setOtherSources] = useState<OtherSource[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    sourcesData(tripId).then((d) => { if (!cancelled) setOtherSources(d.sources); }).catch(() => { /* Home still shows her Guide */ });
+    return () => { cancelled = true; };
+  }, [tripId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,6 +233,24 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const cantTell = owner && me && owner.toLowerCase() !== me.toLowerCase()
     ? `Wander can't tell whether it was done — ask ${owner} if you're not sure.` : "Wander can't tell whether it was done.";
   const bookedBy = bookedByName;
+  // Ken's rail sheet: its pickup steps for the sheet owner's couple (their job), and each person's own trains
+  const rail = otherSources.map((s) => ({ s, ...railAudience(data.items, s.owner) }));
+  const pickups = rail.filter((x) => x.ownerParty && isFor({ forWhom: x.ownerParty }, me))
+    .flatMap((x) => x.s.checklists.filter((c) => c.date && c.date >= today).map((c) => ({ s: x.s, c: c as Checklist & { date: string } })));
+  const trainsOn = (date: string) => rail.flatMap((x) => x.s.rail
+    .filter((r) => r.date === date && isBookedTrain(r) && legIsFor(r, x.s, me, x.ownerParty, x.groupSize))
+    .map((r) => ({ s: x.s, r })));
+  const pickupLink = ({ s, c }: (typeof pickups)[number], lead: string) => {
+    // "for before you go" only while you're still home — on the day it's past
+    const before = today < myFirst ? c.steps.filter((x) => /^before travel/i.test(colOf(x.cols, /^step$/))).length : 0;
+    return (
+      <button key={`${s.id}-${c.tab}`} onClick={() => navigate(`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`)}
+        className="w-full text-left text-sm text-[#514636] min-h-[44px] py-1.5">
+        <span className="text-[#8a5a1a]">{lead}</span>{checklistTitle(c.tab)}: the steps{before ? ` — ${before === 1 ? "one is" : `${before} are`} for before you go` : ""} ›
+        <span className="block text-xs text-[#6b5d4a] mt-0.5">From {sourceWords(s)}</span>
+      </button>
+    );
+  };
   const f = freshness(data.status?.current?.importedAt);
   const freshLine = f && (
     <p className={`text-xs mt-3 ${f.old ? "text-[#8a5a1a]" : "text-[#6b5d4a]"}`}>
@@ -299,6 +326,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
             Right now in Japan ({japanNowWords}): {othersWhere(japanToday)} ›
           </button>
         )}
+        {/* The ticket pickup (Ken's rail sheet): two of its steps are for before you leave home */}
+        {pickups.length > 0 && <div className="mt-2 pt-2 border-t border-[#efe9df]">{pickups.map((p) => pickupLink(p, `${dayLabel(p.c.date)} · `))}</div>}
         {/* A passed one goes under its own heading, as during the trip (round 8: "Ended" sat under "coming up") */}
         <DeadlineList list={deadlinesAhead(today, 14).filter((i) => !deadlineOver(i, tz))} title="Deadlines coming up" />
         <DeadlineList list={deadlinesAhead(today, 14).filter((i) => deadlineOver(i, tz))} title="Just passed" />
@@ -418,6 +447,19 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         )}
         {itineraryLines.map((i) => (
           <p key={i.id} className="text-[13px] text-[#514636] mt-1">{i.kind === "note" ? "Her note for today" : "Her Itinerary line for today"}: “{i.title}”</p>
+        ))}
+        {/* Ken's rail sheet: today's pickup, then your trains still to come today, with seats */}
+        {pickups.filter((p) => p.c.date === today).map((p) => pickupLink(p, "Today · "))}
+        {pickups.filter((p) => p.c.date === addDays(today, 1)).map((p) => pickupLink(p, "Tomorrow · "))}
+        {trainsOn(today).filter(({ r }) => tripClockMinutes({ time: colOf(r.cols, /^depart/) } as GuideItem, tz) >= tripNow).map(({ s, r }) => (
+          <button key={`${s.id}-${r.row}`} onClick={() => navigate(`/day/${today}#trains`)} className="w-full text-left mt-1 min-h-[44px] text-sm text-[#3a3128]">
+            <span className="text-[#6b5d4a]">Train · </span>{twelveHour(colOf(r.cols, /^depart/))} {colOf(r.cols, /^train$/)} · {colOf(r.cols, /^route$/)}
+            <span className="block text-xs text-[#6b5d4a] mt-0.5 [overflow-wrap:anywhere]">{[colOf(r.cols, /^car/), `from ${sourceWords(s)}`].filter(Boolean).join(" · ")}</span>
+            {/* (round r1: Home led with the sheet's 1:30 PM while her Guide's day tab has 12:30–1:00) */}
+            {s.differs.filter((d) => d.date === today && d.row === r.row).map((d) => (
+              <span key={d.guideSource} className="block text-xs text-[#8a5a1a] mt-0.5">The sources differ — Larisa's Guide has {d.guideSays} for this train ›</span>
+            ))}
+          </button>
         ))}
         {checkouts.length > 0 && next && <ul className="mt-1">{checkouts.map((i) => <ItemLine key={i.id} i={i} me={me} stays={data.stays} date={today} day={dayWithPlan} onOpen={() => openDay(today, i.id)} />)}</ul>}
         {current && (
