@@ -304,7 +304,7 @@ export default function ProfilePage() {
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
+            className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors min-h-[44px] min-w-[44px] -my-2"
           >
             &larr; Back
           </button>
@@ -331,7 +331,7 @@ export default function ProfilePage() {
               <button
                 key={tag.key}
                 onClick={() => toggleInterest(tag.key)}
-                className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                className={`px-3 py-1.5 min-h-[44px] rounded-full text-sm transition-colors ${
                   interests[tag.key]
                     ? "bg-[#514636] text-white"
                     : "bg-[#f5f0ea] text-[#6b5d4a] hover:bg-[#ece5db]"
@@ -349,7 +349,7 @@ export default function ProfilePage() {
             <button
               onClick={savePreferences}
               disabled={savingPrefs}
-              className="px-4 py-1.5 rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors disabled:opacity-50"
+              className="px-4 py-1.5 min-h-[44px] min-w-[44px] rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors disabled:opacity-50"
             >
               {savingPrefs ? "Saving..." : "Save"}
             </button>
@@ -396,7 +396,7 @@ export default function ProfilePage() {
             {hasLockedDocs && !vaultToken && (
               <button
                 onClick={() => setShowVaultGate(true)}
-                className="text-xs px-2.5 py-1 rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
+                className="text-xs px-2.5 py-1 min-h-[44px] min-w-[44px] rounded-lg bg-[#514636] text-white hover:bg-[#3a3128] transition-colors"
               >
                 Unlock
               </button>
@@ -407,7 +407,7 @@ export default function ProfilePage() {
           </div>
           <p className="text-xs text-[#6b5d4a] mb-4 leading-relaxed">
             Passport, insurance, frequent flyer &mdash; anything useful during the trip.
-            Documents are shared with your travel group by default. Tap the lock to make any item private.
+            Your travel group can see your documents. When you add or edit one, tap &ldquo;Everyone in this trip&rdquo; to keep it to yourself.
           </p>
 
           <div className="space-y-4">
@@ -419,7 +419,7 @@ export default function ProfilePage() {
                   </h3>
                   <button
                     onClick={() => startAdd(section.value)}
-                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors"
+                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-end"
                   >
                     + Add
                   </button>
@@ -438,7 +438,7 @@ export default function ProfilePage() {
                           </span>
                           <button
                             onClick={() => setShowVaultGate(true)}
-                            className="text-xs text-[#514636] hover:text-[#3a3128] transition-colors"
+                            className="text-xs text-[#514636] hover:text-[#3a3128] transition-colors min-h-[44px] px-1"
                           >
                             Unlock to view
                           </button>
@@ -477,13 +477,13 @@ export default function ProfilePage() {
                                   <span className="text-xs text-[#6b5d4a]">Remove this from your trip?</span>
                                   <button
                                     onClick={() => handleDelete(doc.id)}
-                                    className="text-xs text-red-500 font-medium hover:text-red-700 transition-colors"
+                                    className="text-xs text-red-500 font-medium hover:text-red-700 transition-colors min-h-[44px] min-w-[44px] px-1"
                                   >
                                     Remove
                                   </button>
                                   <button
                                     onClick={() => setConfirmingDeleteId(null)}
-                                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors"
+                                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors min-h-[44px] min-w-[44px] px-1"
                                   >
                                     Keep
                                   </button>
@@ -492,13 +492,13 @@ export default function ProfilePage() {
                                 <>
                                   <button
                                     onClick={() => startEdit(doc)}
-                                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors"
+                                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors min-h-[44px] min-w-[44px] px-1"
                                   >
                                     Edit
                                   </button>
                                   <button
                                     onClick={() => setConfirmingDeleteId(doc.id)}
-                                    className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                                    className="text-xs text-red-400 hover:text-red-600 transition-colors min-h-[44px] min-w-[44px] px-1"
                                   >
                                     Remove
                                   </button>
@@ -602,7 +602,8 @@ function DocumentForm({
             type={field === "expiry" || field === "date" ? "date" : "text"}
             value={data[field] || ""}
             onChange={(e) => onChange({ ...data, [field]: e.target.value })}
-            className="w-full mt-0.5 px-2.5 py-1.5 rounded border border-[#e5ddd0] text-sm text-[#3a3128]
+            // 44pt tall, and 16px text so iPhone Safari doesn't zoom the page on tap (round 10)
+            className="w-full mt-0.5 px-2.5 py-1.5 min-h-[44px] rounded border border-[#e5ddd0] text-base text-[#3a3128]
                        bg-white focus:outline-none focus:ring-1 focus:ring-[#a89880]"
             placeholder={FIELD_LABELS[field] || field}
           />
@@ -611,7 +612,12 @@ function DocumentForm({
       <div className="flex items-center gap-2 pt-1">
         <button
           onClick={() => onPrivacyChange(!isPrivate)}
-          className={`text-xs px-2 py-1 rounded border transition-colors ${
+          // A switch VoiceOver can announce as on or off (round 11: it read as a plain label)
+          role="switch"
+          aria-checked={isPrivate}
+          aria-label="Keep this to myself"
+          // It decides who sees a passport number — a full-size target (round 10: it was 148×26)
+          className={`text-sm px-3 py-2 min-h-[44px] rounded border transition-colors ${
             isPrivate
               ? "border-[#514636] bg-[#514636] text-white"
               : "border-[#e5ddd0] text-[#6b5d4a] hover:bg-[#f5f0ea]"
@@ -620,19 +626,19 @@ function DocumentForm({
           {isPrivate ? "\u{1F512} Only me" : "\u{1F465} Everyone in this trip"}
         </button>
         <span className="text-xs text-[#6b5d4a] flex-1">
-          {isPrivate ? "Only you can see this" : "Visible to everyone in the trip"}
+          {isPrivate ? "Only you can see this — tap to share it with your travel group" : "Your travel group can see this — tap to keep it to yourself"}
         </span>
       </div>
       <div className="flex gap-2 pt-1">
         <button
           onClick={onSave}
-          className="flex-1 py-2 rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors"
+          className="flex-1 py-2 min-h-[44px] rounded-lg bg-[#514636] text-white text-sm font-medium hover:bg-[#3a3128] transition-colors"
         >
           {saveLabel}
         </button>
         <button
           onClick={onCancel}
-          className="py-2 px-4 rounded-lg border border-[#e5ddd0] text-sm text-[#6b5d4a] hover:bg-[#f5f0ea] transition-colors"
+          className="py-2 px-4 min-h-[44px] rounded-lg border border-[#e5ddd0] text-sm text-[#6b5d4a] hover:bg-[#f5f0ea] transition-colors"
         >
           Cancel
         </button>

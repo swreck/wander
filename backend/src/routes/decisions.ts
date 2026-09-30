@@ -3,6 +3,7 @@ import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { enrichExperience } from "../services/capture.js";
+import { setDecisionVotes, type VotePick } from "../services/decisionVotes.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -210,51 +211,15 @@ router.post("/:id/vote", async (req: AuthRequest, res) => {
     // rankings: [{ optionId, rank }] — full replacement of user's picks
     // optionId: legacy single-vote (converted to rank 1)
 
-    const decision = await prisma.decision.findUnique({
-      where: { id: decisionId },
-      select: { status: true },
-    });
-    if (!decision) { res.status(404).json({ error: "Decision not found" }); return; }
-    if (decision.status !== "open") { res.status(400).json({ error: "Decision is already resolved" }); return; }
-
-    // Delete existing votes for this user on this decision
-    await prisma.decisionVote.deleteMany({
-      where: { decisionId, userCode: req.user!.code },
-    });
-
-    if (rankings && Array.isArray(rankings)) {
-      // New ranked voting: [{optionId, rank}, ...]
-      const votes = [];
-      for (const r of rankings) {
-        if (!r.optionId || !r.rank || r.rank < 1 || r.rank > 3) continue;
-        const vote = await prisma.decisionVote.create({
-          data: {
-            decisionId,
-            optionId: r.optionId,
-            userCode: req.user!.code,
-            displayName: req.user!.displayName,
-            rank: r.rank,
-          },
-        });
-        votes.push(vote);
-      }
-      res.json(votes);
-    } else if (optionId) {
-      // Legacy single vote (rank 1)
-      const vote = await prisma.decisionVote.create({
-        data: {
-          decisionId,
-          optionId: optionId || null,
-          userCode: req.user!.code,
-          displayName: req.user!.displayName,
-          rank: 1,
-        },
-      });
-      res.json(vote);
-    } else {
-      // "Happy with any" — no votes, just cleared
-      res.json([]);
-    }
+    const voter = { code: req.user!.code, displayName: req.user!.displayName, travelerId: req.user!.travelerId || null };
+    const ranked = rankings && Array.isArray(rankings);
+    // Ranked picks (an empty list clears them); one pick; or nothing sent = "happy with any"
+    const picks: VotePick[] = ranked
+      ? rankings.filter((r: any) => r && typeof r.optionId === "string" && r.optionId).map((r: any) => ({ optionId: r.optionId, rank: Number(r.rank) }))
+      : [{ optionId: typeof optionId === "string" && optionId ? optionId : null, rank: 1 }];
+    const outcome = await setDecisionVotes(decisionId, voter, picks);
+    if (!outcome.ok) { res.status(outcome.status).json({ error: outcome.error }); return; }
+    res.json(ranked ? outcome.votes : outcome.votes[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

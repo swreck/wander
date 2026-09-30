@@ -3,7 +3,7 @@
  * plan for tomorrow afternoon.Yes — Tuesdays are fine." Pure text; no database, no Claude.
  */
 import { describe, it, expect } from "vitest";
-import { joinAnswerPieces, withoutNarration } from "../src/routes/chat.js";
+import { joinAnswerPieces, withoutNarration, withoutToolMarkup } from "../src/routes/chat.js";
 
 describe("joining Scout's answer pieces", () => {
   it("drops the before-search narration and puts a space between sentences", () => {
@@ -39,5 +39,19 @@ describe("joining Scout's answer pieces", () => {
   it("drops 'Let me look that up:' and 'I'll search for that.' at a sentence start", () => {
     expect(withoutNarration("Let me look that up: the Raku Museum closes Mondays.")).toBe("the Raku Museum closes Mondays.");
     expect(withoutNarration("The Guide doesn't say. I'll search for that. It opens at 10:00 AM.")).toBe("The Guide doesn't say. It opens at 10:00 AM.");
+  });
+});
+
+describe("tool markup written out as words (Sep 30 exam, H19)", () => {
+  it("an answer that is only markup leaves nothing to show, and says so", () => {
+    const leaked = `<invoke name="show_in_wander">\n<parameter name="date">2026-10-16</parameter>\n<parameter name="go">false</parameter>\n</invoke>`;
+    expect(withoutToolMarkup(leaked)).toEqual({ text: "", had: true });
+  });
+  it("keeps the words around markup and takes the markup out", () => {
+    const out = withoutToolMarkup(`Tonight 7:00 PM — take the Chiyoda Line from Hibiya.\n<invoke name="show_in_wander"><parameter name="go">false</parameter></invoke>`);
+    expect(out).toEqual({ text: "Tonight 7:00 PM — take the Chiyoda Line from Hibiya.", had: true });
+  });
+  it("leaves an ordinary answer alone", () => {
+    expect(withoutToolMarkup("Dinner is at 7:00 PM.")).toEqual({ text: "Dinner is at 7:00 PM.", had: false });
   });
 });

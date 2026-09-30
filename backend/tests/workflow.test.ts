@@ -48,6 +48,9 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
+// Always next year: the import moves a trip dated in the past to start today (fixed May 2026 dates had expired)
+const Y = new Date().getUTCFullYear() + 1;
+
 let kenToken: string;
 let sarahToken: string;
 
@@ -86,17 +89,17 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
         .set("Authorization", `Bearer ${kenToken}`)
         .send({
           tripName: "Japan 2026: Backroads + Free Days",
-          startDate: "2026-05-01",
-          endDate: "2026-05-22",
+          startDate: `${Y}-05-01`,
+          endDate: `${Y}-05-22`,
           cities: [
-            { name: "Tokyo", country: "Japan", arrivalDate: "2026-05-01", departureDate: "2026-05-04" },
-            { name: "Hakone", country: "Japan", arrivalDate: "2026-05-05", departureDate: "2026-05-06" },
-            { name: "Kyoto", country: "Japan", arrivalDate: "2026-05-07", departureDate: "2026-05-08" },
+            { name: "Tokyo", country: "Japan", arrivalDate: `${Y}-05-01`, departureDate: `${Y}-05-04` },
+            { name: "Hakone", country: "Japan", arrivalDate: `${Y}-05-05`, departureDate: `${Y}-05-06` },
+            { name: "Kyoto", country: "Japan", arrivalDate: `${Y}-05-07`, departureDate: `${Y}-05-08` },
           ],
           routeSegments: [
-            { originCity: "San Francisco", destinationCity: "Tokyo", transportMode: "flight", departureDate: "2026-04-30", notes: "JAL 001, 11h" },
-            { originCity: "Tokyo", destinationCity: "Hakone", transportMode: "train", departureDate: "2026-05-05", notes: "Romancecar" },
-            { originCity: "Hakone", destinationCity: "Kyoto", transportMode: "train", departureDate: "2026-05-07", notes: "Shinkansen via Odawara" },
+            { originCity: "San Francisco", destinationCity: "Tokyo", transportMode: "flight", departureDate: `${Y}-04-30`, notes: "JAL 001, 11h" },
+            { originCity: "Tokyo", destinationCity: "Hakone", transportMode: "train", departureDate: `${Y}-05-05`, notes: "Romancecar" },
+            { originCity: "Hakone", destinationCity: "Kyoto", transportMode: "train", departureDate: `${Y}-05-07`, notes: "Shinkansen via Odawara" },
           ],
           accommodations: [
             { cityName: "Tokyo", name: "Park Hyatt Tokyo", address: "3-7-1-2 Nishi Shinjuku" },
@@ -104,14 +107,14 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
             { cityName: "Kyoto", name: "Hoshinoya Kyoto", address: "Arashiyama" },
           ],
           experiences: [
-            { cityName: "Tokyo", name: "Tsukiji Outer Market", dayDate: "2026-05-01", description: "Fresh sushi breakfast", timeWindow: "morning" },
-            { cityName: "Tokyo", name: "Senso-ji Temple", dayDate: "2026-05-01", description: "Ancient temple in Asakusa", timeWindow: "afternoon" },
-            { cityName: "Tokyo", name: "Shibuya Crossing", dayDate: "2026-05-02", description: "World's busiest intersection" },
-            { cityName: "Tokyo", name: "Meiji Shrine", dayDate: "2026-05-02", description: "Peaceful forested shrine", timeWindow: "morning" },
-            { cityName: "Hakone", name: "Open-Air Museum", dayDate: "2026-05-05", description: "Sculpture garden with mountain views" },
-            { cityName: "Hakone", name: "Lake Ashi Cruise", dayDate: "2026-05-06", description: "Pirate ship cruise with Fuji views" },
-            { cityName: "Kyoto", name: "Fushimi Inari", dayDate: "2026-05-07", description: "Thousands of torii gates", timeWindow: "morning" },
-            { cityName: "Kyoto", name: "Kinkaku-ji", dayDate: "2026-05-08", description: "Golden Pavilion" },
+            { cityName: "Tokyo", name: "Tsukiji Outer Market", dayDate: `${Y}-05-01`, description: "Fresh sushi breakfast", timeWindow: "morning" },
+            { cityName: "Tokyo", name: "Senso-ji Temple", dayDate: `${Y}-05-01`, description: "Ancient temple in Asakusa", timeWindow: "afternoon" },
+            { cityName: "Tokyo", name: "Shibuya Crossing", dayDate: `${Y}-05-02`, description: "World's busiest intersection" },
+            { cityName: "Tokyo", name: "Meiji Shrine", dayDate: `${Y}-05-02`, description: "Peaceful forested shrine", timeWindow: "morning" },
+            { cityName: "Hakone", name: "Open-Air Museum", dayDate: `${Y}-05-05`, description: "Sculpture garden with mountain views" },
+            { cityName: "Hakone", name: "Lake Ashi Cruise", dayDate: `${Y}-05-06`, description: "Pirate ship cruise with Fuji views" },
+            { cityName: "Kyoto", name: "Fushimi Inari", dayDate: `${Y}-05-07`, description: "Thousands of torii gates", timeWindow: "morning" },
+            { cityName: "Kyoto", name: "Kinkaku-ji", dayDate: `${Y}-05-08`, description: "Golden Pavilion" },
             // Unassigned candidates for flexible days
             { cityName: "Tokyo", name: "TeamLab Borderless", dayDate: null, description: "Digital art museum" },
             { cityName: "Kyoto", name: "Arashiyama Bamboo Grove", dayDate: null, description: "Iconic bamboo forest path" },
@@ -173,8 +176,8 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
           tripId,
           name: "Nara",
           country: "Japan",
-          arrivalDate: "2026-05-09",
-          departureDate: "2026-05-09",
+          arrivalDate: `${Y}-05-09`,
+          departureDate: `${Y}-05-09`,
         });
       expect(res.status).toBe(201);
       cityMap["Nara"] = res.body.id;
@@ -188,8 +191,8 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
           tripId,
           name: "Osaka",
           country: "Japan",
-          arrivalDate: "2026-05-10",
-          departureDate: "2026-05-13",
+          arrivalDate: `${Y}-05-10`,
+          departureDate: `${Y}-05-13`,
         });
       expect(res.status).toBe(201);
       cityMap["Osaka"] = res.body.id;
@@ -203,8 +206,8 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
           tripId,
           name: "Kanazawa",
           country: "Japan",
-          arrivalDate: "2026-05-14",
-          departureDate: "2026-05-16",
+          arrivalDate: `${Y}-05-14`,
+          departureDate: `${Y}-05-16`,
         });
       expect(res.status).toBe(201);
       cityMap["Kanazawa"] = res.body.id;
@@ -220,11 +223,11 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
       // Find placeholder days (those assigned to Tokyo but after May 8)
       const placeholders = allDays.filter((d: any) => {
         const date = d.date.split("T")[0];
-        return date > "2026-05-08" && d.city.name === "Tokyo";
+        return date > `${Y}-05-08` && d.city.name === "Tokyo";
       });
 
       // Reassign some to Nara
-      const may9 = placeholders.find((d: any) => d.date.split("T")[0] === "2026-05-09");
+      const may9 = placeholders.find((d: any) => d.date.split("T")[0] === `${Y}-05-09`);
       if (may9) {
         const res = await request(app)
           .patch(`/api/days/${may9.id}`)
@@ -237,7 +240,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
       // Reassign May 10-13 to Osaka
       for (const d of placeholders) {
         const date = d.date.split("T")[0];
-        if (date >= "2026-05-10" && date <= "2026-05-13") {
+        if (date >= `${Y}-05-10` && date <= `${Y}-05-13`) {
           const res = await request(app)
             .patch(`/api/days/${d.id}`)
             .set("Authorization", `Bearer ${kenToken}`)
@@ -249,7 +252,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
       // Reassign May 14-16 to Kanazawa
       for (const d of placeholders) {
         const date = d.date.split("T")[0];
-        if (date >= "2026-05-14" && date <= "2026-05-16") {
+        if (date >= `${Y}-05-14` && date <= `${Y}-05-16`) {
           const res = await request(app)
             .patch(`/api/days/${d.id}`)
             .set("Authorization", `Bearer ${kenToken}`)
@@ -321,7 +324,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
           originCity: "Tokyo",
           destinationCity: "San Francisco",
           transportMode: "flight",
-          departureDate: "2026-05-22",
+          departureDate: `${Y}-05-22`,
           notes: "JAL 002, 9h",
         });
       expect(res.status).toBe(201);
@@ -403,8 +406,8 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
         .set("Authorization", `Bearer ${kenToken}`);
       allDays = daysRes.body;
 
-      const may10 = allDays.find((d: any) => d.date.split("T")[0] === "2026-05-10");
-      const may11 = allDays.find((d: any) => d.date.split("T")[0] === "2026-05-11");
+      const may10 = allDays.find((d: any) => d.date.split("T")[0] === `${Y}-05-10`);
+      const may11 = allDays.find((d: any) => d.date.split("T")[0] === `${Y}-05-11`);
 
       // Dotonbori -> May 10 evening
       let res = await request(app)
@@ -448,7 +451,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
       expect(res.body.dayId).toBeNull();
 
       // Re-promote to May 12
-      const may12 = allDays.find((d: any) => d.date.split("T")[0] === "2026-05-12");
+      const may12 = allDays.find((d: any) => d.date.split("T")[0] === `${Y}-05-12`);
       res = await request(app)
         .post(`/api/experiences/${osakaExpIds[0]}/promote`)
         .set("Authorization", `Bearer ${kenToken}`)
@@ -504,7 +507,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
     });
 
     it("Sarah adds a dinner reservation in Osaka", async () => {
-      const may10 = allDays.find((d: any) => d.date.split("T")[0] === "2026-05-10");
+      const may10 = allDays.find((d: any) => d.date.split("T")[0] === `${Y}-05-10`);
       const res = await request(app)
         .post("/api/reservations")
         .set("Authorization", `Bearer ${sarahToken}`)
@@ -513,7 +516,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
           dayId: may10.id,
           name: "Mizuno Okonomiyaki",
           type: "restaurant",
-          datetime: "2026-05-10T18:30:00+09:00",
+          datetime: `${Y}-05-10T18:30:00+09:00`,
           notes: "Counter seats, 30 min wait typical",
           latitude: 34.6685,
           longitude: 135.5013,
@@ -522,7 +525,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
     });
 
     it("Ken adds a morning activity in Kanazawa", async () => {
-      const may14 = allDays.find((d: any) => d.date.split("T")[0] === "2026-05-14");
+      const may14 = allDays.find((d: any) => d.date.split("T")[0] === `${Y}-05-14`);
       const res = await request(app)
         .post("/api/reservations")
         .set("Authorization", `Bearer ${kenToken}`)
@@ -531,7 +534,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
           dayId: may14.id,
           name: "Gold Leaf Workshop",
           type: "activity",
-          datetime: "2026-05-14T10:00:00+09:00",
+          datetime: `${Y}-05-14T10:00:00+09:00`,
           durationMinutes: 90,
           notes: "Kanazawa is famous for gold leaf",
         });
@@ -592,7 +595,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
           destLat: 34.6873,    // Osaka Castle
           destLng: 135.5262,
           mode: "walk",
-          anchorTime: "2026-05-11T09:00:00+09:00",
+          anchorTime: `${Y}-05-11T09:00:00+09:00`,
         });
       expect(res.status).toBe(200);
       expect(res.body.durationMinutes).toBeGreaterThan(0);
@@ -657,7 +660,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
   // ═══════════════════════════════════════════════════════════════════
   describe("Phase 9: Now screen data (day schedule view)", () => {
     it("day view returns complete schedule data", async () => {
-      const may10 = allDays.find((d: any) => d.date.split("T")[0] === "2026-05-10");
+      const may10 = allDays.find((d: any) => d.date.split("T")[0] === `${Y}-05-10`);
       const res = await request(app)
         .get(`/api/days/${may10.id}`)
         .set("Authorization", `Bearer ${kenToken}`);
@@ -675,7 +678,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
     });
 
     it("day with selected experiences includes ratings data", async () => {
-      const may11 = allDays.find((d: any) => d.date.split("T")[0] === "2026-05-11");
+      const may11 = allDays.find((d: any) => d.date.split("T")[0] === `${Y}-05-11`);
       const res = await request(app)
         .get(`/api/days/${may11.id}`)
         .set("Authorization", `Bearer ${kenToken}`);
@@ -692,7 +695,7 @@ describe("Real-World Workflow: 22-Day Japan Trip", () => {
   // ═══════════════════════════════════════════════════════════════════
   describe("Phase 10: Multi-user concurrent edits", () => {
     it("Sarah adds day notes while Ken works on experiences", async () => {
-      const may12 = allDays.find((d: any) => d.date.split("T")[0] === "2026-05-12");
+      const may12 = allDays.find((d: any) => d.date.split("T")[0] === `${Y}-05-12`);
 
       // Sarah sets day notes
       const noteRes = await request(app)

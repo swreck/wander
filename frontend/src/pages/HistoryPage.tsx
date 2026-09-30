@@ -137,7 +137,7 @@ export default function HistoryPage() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Look for a name or place"
           className="w-full px-4 py-2 rounded-lg border border-[#e0d8cc] bg-white
-                     text-[#3a3128] placeholder-[#c8bba8] text-sm mb-4
+                     text-[#3a3128] placeholder-[#c8bba8] text-base min-h-[44px] mb-4
                      focus:outline-none focus:ring-2 focus:ring-[#a89880]"
         />
 
@@ -165,7 +165,7 @@ export default function HistoryPage() {
                         <button
                           onClick={() => handleRestore(log)}
                           disabled={restoring === log.id}
-                          className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors disabled:opacity-50"
+                          className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors disabled:opacity-50 min-h-[44px] min-w-[44px] px-2"
                         >
                           {restoring === log.id ? "..." : "Bring back"}
                         </button>

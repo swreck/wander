@@ -10,6 +10,7 @@ import { findDuplicate } from "../services/dedup.js";
 import { enrichExperience } from "../services/capture.js";
 import { getCountryAdvisories, getPreTripSummary } from "../services/travelAdvisory.js";
 import { addDayChoice, removeDayChoice, listDayChoices, plainDay } from "../services/dayChoices.js";
+import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
@@ -1306,6 +1307,17 @@ export function withoutNarration(text: string): string {
     .replace(/\b[A-Za-z]{1,9}(?:…|\.\.\.)\s*(?:rather|sorry|I mean|make that|no)\b,?\s*/g, "")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
+}
+
+/**
+ * Tool markup written out as text instead of used as a tool (Sep 30 exam, H19: the whole answer to "how do
+ * we get to Une Immersion tonight?" was `<invoke name="show_in_wander"><parameter …>` — a traveler would
+ * have seen that). Returns the text without it, and whether any was there.
+ */
+const TOOL_MARKUP = /<(?:antml:)?function_calls>[\s\S]*?<\/(?:antml:)?function_calls>|<(?:antml:)?invoke\b[\s\S]*?<\/(?:antml:)?invoke>|<\/?(?:antml:)?(?:invoke|parameter|function_calls)\b[^>]*>/g;
+export function withoutToolMarkup(text: string): { text: string; had: boolean } {
+  const had = /<\/?(?:antml:)?(?:invoke|parameter|function_calls)\b/.test(text);
+  return { text: had ? text.replace(TOOL_MARKUP, "").replace(/\n{3,}/g, "\n\n").trim() : text, had };
 }
 
 export function withoutUnaskedDraft(reply: string, message: string, history: unknown, asker?: string | null): string {
@@ -3496,21 +3508,12 @@ export async function executeTool(
         select: { id: true, status: true, title: true },
       });
       if (!dec) return { result: { error: "Decision not found" } };
-      if (dec.status !== "open") return { result: { error: "Decision is already resolved" } };
 
-      // Clear existing votes and set as rank 1
-      await prisma.decisionVote.deleteMany({
-        where: { decisionId: input.decisionId, userCode: user.code },
-      });
-      await prisma.decisionVote.create({
-        data: {
-          decisionId: input.decisionId,
-          optionId: input.optionId || null,
-          userCode: user.code,
-          displayName: user.displayName,
-          rank: 1,
-        },
-      });
+      // Replaces this person's votes with one first choice (or "happy with any"), the same as the app
+      const voterRow = await prisma.traveler.findUnique({ where: { displayName: user.displayName }, select: { id: true } });
+      const outcome = await setDecisionVotes(input.decisionId, { code: user.code, displayName: user.displayName, travelerId: voterRow?.id || null },
+        [{ optionId: typeof input.optionId === "string" && input.optionId ? input.optionId : null, rank: 1 }]);
+      if (!outcome.ok) return { result: { error: outcome.error } };
 
       return {
         result: { voted: true, optionId: input.optionId || "happy with any" },
@@ -4215,7 +4218,8 @@ ANSWERING FROM THE GUIDE (most important):
 - When something has gone wrong (a missed train, a closed place, running late), lead with what they need to do now. Never reassure them with the other side of a conflict ("the Itinerary's 1:30 Haruka means you're still on plan"): a reserved seat, a booking or a meeting is tied to the one they missed.
 - Where someone is at a moment: only what the plan says for that time, said as the plan ("the plan has them at…"). Before saying anyone is traveling, work out their flight in the right zones (a noon California departure on Oct 13 is 4 AM Oct 14 in Japan — on Oct 13 in Japan they haven't left home). Choices in a block ("Choice: …") are all hers — list them; never pick one yourself. When the group has picked one, it appears as an ADDED IN WANDER line ("<her line>: <the place picked>") — say it's the group's pick, added in Wander, and still name her other choices if asked. When the overview and a day tab disagree (a time, a place, what the day is), say both with their tabs; never silently pick. And never reconcile them yourself: no "either way…", "both put you…", "so it's around…" — each version's consequences differ (a 1:30 train doesn't reach the airport at 2:00), and a detail that only one tab states (the Residence transfer at noon) belongs to that tab alone. Say what each tab says, then stop, or say which one to confirm with Larisa.
 - When the Guide is silent on something a traveler needs now — opening hours, whether a place is open today, how to get from A to B, today's weather, what a station exit is — look it up with web_search (and web_fetch to read the place's own page), and say where it came from ("the restaurant's site says…", "per Japan Guide…"). What you find online is never the plan; the Guide is. Never present a search result as certain when sources disagree. Never credit something you found online to Larisa ("she notes…", "her Guide says…") — only what is in her Guide is hers. Search first, then write the answer once: no "let me check", no restarting a sentence mid-way ("— sorry, …"), no saying the same thing before and after a search, and times from the web in the same words as the Guide's ("6:00 PM", never "18:00").
-- Never add what her sheet doesn't state — not a unit (her forecast numbers have no °F/°C in the sheet), not a reason, not a consequence. If you add general knowledge, label it as yours in the same sentence. When a day tab says a plan was matched to the date by Wander, say that it was.
+- A time you work out yourself (a departure plus a ride, "an hour before") is your own estimate: say so, and give the exact sum for each end of a range (a 1:30–2:00 train plus 75 minutes arrives about 2:45–3:15 — never a shifted or widened range).
+- Never add what her sheet doesn't state — not a unit (her forecast numbers have no °F/°C in the sheet), not a reason, not a consequence, not a vehicle (her "Residence transfer" is a transfer, not a van, car or taxi — say it her way). If you add general knowledge, label it as yours in the same sentence. When a day tab says a plan was matched to the date by Wander, say that it was.
 - Flight times always say whose clock: "6:35 PM Japan time", "12:00 PM California time".
 - Every date in the Guide is a Japan date. A person still at home lives on another calendar: Julie's "Oct 13" in California (the day she flies) is not the Guide's Oct 13 (when she is still at home). Before saying where someone is on a Guide date, read that date's WHERE line in DAY BY DAY; never map a Japan date onto their own calendar day.
 - A check-in time is when the room is ready, not when they arrive: when a party lands after it, say "rooms are ready from 2:00 PM; they'll check in after landing at 3:00 PM" — never "land at 3:00 and check in at 2:00".
@@ -4379,6 +4383,7 @@ RULES:
     // Every piece of the answer with its citations, and pages Scout fetched (their citations name them by title)
     const answerPieces: AnswerPiece[] = [];
     const fetchedPages: { url: string; title: string }[] = [];
+    let askedAgainForWords = false;
 
     for (let turn = 0; turn < 8; turn++) {
       const response = await anthropic.messages.create({
@@ -4401,13 +4406,23 @@ RULES:
       // With citations on, one stretch of text arrives in pieces (split where a citation starts or ends); pieces
       // side by side join as written, and stretches between tool calls join as before.
       const step = piecesOfStep(response.content as any[]);
-      answerPieces.push(...step.pieces);
+      // Tool markup written as words is never shown (see withoutToolMarkup), in the answer or its pieces
+      answerPieces.push(...step.pieces.filter((p: AnswerPiece) => !withoutToolMarkup(p.text).had));
       for (const b of response.content as any[]) {
         if (b?.type === "web_fetch_tool_result" && b.content?.url) fetchedPages.push({ url: b.content.url, title: b.content.content?.title || b.content.url });
       }
-      const textParts = joinAnswerPieces(step.groups);
+      const cleaned = withoutToolMarkup(joinAnswerPieces(step.groups));
+      const textParts = cleaned.text;
       if (textParts) {
         finalReply = finalReply ? `${finalReply}\n\n${textParts}` : textParts;
+      }
+      // Nothing readable left after the markup: ask once more, in plain words
+      if (cleaned.had && !finalReply && response.stop_reason !== "tool_use" && !askedAgainForWords) {
+        askedAgainForWords = true;
+        console.log("Scout wrote tool markup as its answer — asking again for plain words");
+        messages.push({ role: "assistant", content: [{ type: "text", text: "(My last reply came out as tool markup.)" }] });
+        messages.push({ role: "user", content: [{ type: "text", text: "Please answer the question in plain words. To open a screen, call the show_in_wander tool — don't write it out." }] });
+        continue;
       }
 
       // A long web search can pause the answer part-way; it's picked up where it stopped

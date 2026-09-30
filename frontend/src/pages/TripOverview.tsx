@@ -14,7 +14,6 @@ import { getContributorColor, getContributorInitial } from "../lib/travelerProfi
 import ContributorView from "../components/ContributorView";
 import ApprovalQueue from "../components/ApprovalQueue";
 import LearningsPanel from "../components/LearningsPanel";
-import { getTripPhase } from "../lib/tripPhase";
 import ActivityFeed from "../components/ActivityFeed";
 import SheetNotesCard from "../components/SheetNotesCard";
 import SyncAlert from "../components/SyncAlert";
@@ -426,12 +425,6 @@ export default function TripOverview() {
   const showSwitcherArrow = true;
   // The trip menu lists real trips — ones read from Larisa's Guide — not April's placeholder or test trips
   const menuTrips = allTrips.filter((t) => t.id === trip?.id || /^From Larisa's Guide/.test(t.tagline || ""));
-  const tripPhase = getTripPhase({
-    datesKnown: trip.datesKnown !== false,
-    startDate: trip.startDate,
-    endDate: trip.endDate,
-  });
-
   const selectedPerDay: Record<string, number> = {};
   const possiblePerCity: Record<string, number> = {};
   for (const exp of experiences) {
@@ -729,8 +722,9 @@ export default function TripOverview() {
         {/* In iPhone Safari with Face ID set up: the Home Screen icon (it signs in with Face ID) */}
         {faceIdHere && <AddToHomeScreen variant="card" />}
 
-        {/* Calendar / At-a-Glance toggle */}
-        {tripPhase !== "past" && (trip.datesKnown !== false ? (
+        {/* Calendar / At-a-Glance toggle — after the trip too: it's how anyone finds "that place on the 16th"
+            (round 9: Home after the trip had no calendar, and the Guide's note still said "the days above") */}
+        {(trip.datesKnown !== false ? (
           <HomeViewToggle
             days={days}
             cities={trip.cities}
@@ -1071,6 +1065,13 @@ function HomeViewToggle({
         accommodations={accommodations}
         decisions={decisions}
       />
+      {/* What the "B" means, said once (round 9: it had no legend on screen) */}
+      {backroadsDays.size > 0 && (
+        <p className="text-xs text-[#6b5d4a] -mt-2 mb-3 flex items-center gap-1.5">
+          <span className="font-bold text-white rounded-sm leading-none" style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }} aria-hidden>B</span>
+          with Backroads
+        </p>
+      )}
       {false && (
         <AtAGlanceView
           days={days}
@@ -1397,13 +1398,14 @@ function CalendarCluster({
                       <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
                     </>
                   )}
-                  {isBackroads && (
-                    <span className="absolute top-0.5 right-0.5 z-20 font-bold text-white rounded-sm leading-none"
-                      style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }}>B</span>
-                  )}
                   <div className="relative z-10 flex flex-col items-center">
-                    <div className="text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight">
+                    <div className="text-xs font-bold text-[#3a3128] bg-white/80 rounded px-1 leading-tight whitespace-nowrap">
                       {dayNum}
+                      {/* Beside the date, never over it (round 9: at large text the corner "B" covered the digit: "2B") */}
+                      {isBackroads && (
+                        <span className="ml-0.5 font-bold text-white rounded-sm leading-none align-middle"
+                          style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }} aria-hidden>B</span>
+                      )}
                     </div>
                     {/* A tile fits about six letters: known short forms, else a long name breaks between syllables with a hyphen */}
                     <div className="text-[11px] text-[#3a3128] font-medium leading-tight bg-white/80 rounded px-0.5 text-center mt-0.5 max-w-full" aria-hidden>

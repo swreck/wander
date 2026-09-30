@@ -18,11 +18,12 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
+import { guideOwnerOf } from "../lib/tellGuideOwner";
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
-  freshness, isPlanningNote, isFragment, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEnd, currentUnownedLine,
-  withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords,
+  freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEnd, currentUnownedLine,
+  withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords, landingStatus, checkinAfterLanding, zoneWords, landingTitle, bookedByName, nowMinutesOn, phoneIsElsewhere, tripClockMinutes, homeOnJapanDate,
 } from "../lib/guideDisplay";
 
 interface DayChoice { id: string; date: string; time: string | null; text: string; addedBy: string; fromGuideIdea?: boolean }
@@ -67,11 +68,14 @@ function whose(i: GuideItem, me: string | null | undefined) {
   return isFor(i, me) ? `Yours (${i.forWhom})` : `For ${i.forWhom}`;
 }
 
-function ItemLine({ i, me, stays, date, day, onOpen, picks }: {
+function ItemLine({ i, me, stays, date, day, onOpen, picks, all, tz }: {
   i: GuideItem; me?: string | null; stays: TripGuideData["stays"]; date: string; day?: GuideItem[];
   onOpen?: () => void; picks?: DayChoice[];
+  /** The whole Guide and the trip's zone: a landing then says where its flight stands, by the schedule */
+  all?: GuideItem[]; tz?: string;
 }) {
   const maybe = i.title.startsWith("Maybe:");
+  const flightNow = all && tz ? landingStatus(i, all, tz) : null;
   const other = i.forWhom && !isFor(i, me) ? i.forWhom : null;
   // A morning the Guide lists two places: each hotel's own time and code, never blended into one line
   const bothLeaving = i.kind === "checkout" ? leavingOn(stays, date) : [];
@@ -100,11 +104,21 @@ function ItemLine({ i, me, stays, date, day, onOpen, picks }: {
   const pick = opts.length ? picks?.find((c) => opts.some((o) => c.text === `${i.title}: ${o}`)) : undefined;
   const body = (
     <>
-      <span className="w-[4.75rem] shrink-0 text-right text-sm text-[#3a3128] tabular-nums">{timeLabel(i, day)}</span>
+      <span className="w-[4.75rem] shrink-0 text-right text-sm text-[#3a3128] tabular-nums">
+        {timeLabel(i, day)}
+        {/* A time on another clock says whose (round 8: Julie's Home showed "12:00 PM" for a San Francisco take-off) */}
+        {/* …and on a phone still on home time, so does a Japan time (round 11: "Tomorrow · 3:00 PM · Land at
+            Narita" read as Wednesday afternoon in California; it's 11:00 PM Tuesday there) */}
+        {tz && i.time && (i.timeZone && i.timeZone !== tz
+          ? <span className="block text-xs text-[#6b5d4a]">{zoneWords(i.timeZone)}</span>
+          : phoneIsElsewhere(tz) && <span className="block text-xs text-[#6b5d4a]">{zoneWords(tz)}</span>)}
+      </span>
       <span className={`flex-1 min-w-0 text-sm leading-snug ${maybe ? "italic text-[#6b5d4a]" : "text-[#3a3128]"}`}>
         {i.kind === "deadline" && <span className="font-medium">Deadline · </span>}
-        {itemTitle(i, stays, date)}{pick ? ` — ${pick.text.slice(i.title.length + 2)}` : ""}
+        {landingTitle(i, me, itemTitle(i, stays, date))}{pick ? ` — ${pick.text.slice(i.title.length + 2)}` : ""}
         {pick && <span className="block text-xs text-[#3f5a2a] mt-0.5">The group's pick · {pick.addedBy} picked it in Wander</span>}
+        {flightNow && <span className="block text-xs text-[#514636] mt-0.5">{flightNow}</span>}
+        {i.kind === "flight" && !isLanding(i) && (() => { const lands = (i.detail || "").match(/Lands at [^\n|]+/)?.[0]; return lands ? <span className="block text-xs text-[#514636] mt-0.5">{lands.trim()}</span> : null; })()}
         {opts.length > 0 && !pick && <span className="block text-xs text-[#8a5a1a] mt-0.5">{opts.length} places to choose from ›</span>}
         {i.kind !== "flight" && tabsDiffer(i).map((d) => <span key={d} className="block text-xs text-[#8a5a1a] mt-0.5">Her tabs differ — {d.replace(/^her /, "")}</span>)}
         {checkoutBeforeFirst(i, day) && <span className="block text-xs text-[#6b5d4a] mt-0.5">The hotel's check-out time is {clock(i.time)}</span>}
@@ -128,7 +142,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const [data, setData] = useState<TripGuideData | null>(null);
   const [choices, setChoices] = useState<DayChoice[]>([]);
   const [today, setToday] = useState(phoneToday());
-  const [now, setNow] = useState(nowMinutes());
+  const [, setNow] = useState(nowMinutes());
 
   useEffect(() => {
     let cancelled = false;
@@ -167,7 +181,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     // Your own first day: your first flight or check-in, when the Guide says whose they are
     const mine = party ? data.items.filter((i) => i.date && i.forWhom === party && ["flight", "checkin"].includes(i.kind) && !isLanding(i)) : [];
     const myFirst = mine.map((i) => ymd(i.date)).sort()[0] || first;
-    const on = (date: string) => sortDay(withCheckoutWho(data.items.filter((i) => ymd(i.date) === date && !["deadline", "stop", "weather", "block"].includes(i.kind) && !isPlanningNote(i) && !isFragment(i)), date, data.stays, data.items));
+    const on = (date: string) => sortDay(withCheckoutWho(data.items.filter((i) => ymd(i.date) === date && !["deadline", "stop", "weather", "block"].includes(i.kind) && !isPlanningNote(i) && !isFragmentTitle(i)), date, data.stays, data.items), tz);
     // Coming up — plus any that passed in the last day ("Passed"), so nobody wonders where one went
     const deadlinesAhead = (from: string, span: number) => data.items
       .filter((i) => i.kind === "deadline" && (!deadlineOver(i, tz) || deadlineJustPassed(i, tz)) &&
@@ -196,6 +210,20 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const japanNowWords = new Date().toLocaleString("en-US", { timeZone: tz, weekday: "short", hour: "numeric", minute: "2-digit" });
   const openDay = (date: string, itemId?: string) => navigate(`/day/${date}${itemId ? `#item-${itemId}` : ""}`);
   const cityOn = (date: string) => data.days.find((x) => ymd(x.date) === date)?.city?.name || null;
+  // Where the others are on a Japan date: on a moving day, the move itself (round 8: at 10 AM on the Nagoya →
+  // Tokyo day, Julie's Home said "the others are in Tokyo" while they were still in Nagoya or on the train) —
+  // the same "from → to" the day screen's header uses
+  const othersWhere = (date: string) => {
+    const leaving = data.stays.find((s) => ymd(s.checkOutDate) === date);
+    const from = leaving ? data.trip.cities?.find((c) => c.id === leaving.cityId)?.name : null;
+    const to = cityOn(date);
+    return from && to && from !== to ? `the others travel from ${from} to ${to} today` : `the others are in ${to || "Japan"}`;
+  };
+  // Whose Guide it is — she is never told to ask herself (round 9: "ask Larisa if you're not sure", to Larisa)
+  const owner = guideOwnerOf(data.trip.tagline);
+  const cantTell = owner && me && owner.toLowerCase() !== me.toLowerCase()
+    ? `Wander can't tell whether it was done — ask ${owner} if you're not sure.` : "Wander can't tell whether it was done.";
+  const bookedBy = bookedByName;
   const f = freshness(data.status?.current?.importedAt);
   const freshLine = f && (
     <p className={`text-xs mt-3 ${f.old ? "text-[#8a5a1a]" : "text-[#6b5d4a]"}`}>
@@ -215,11 +243,14 @@ export default function TripGlance({ tripId }: { tripId: string }) {
             <li key={i.id}>
               <button onClick={() => openDay(ymd(i.date), i.id)} className="w-full text-left py-1.5 min-h-[44px]">
                 <span className={`block text-sm ${passed ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>
-                  <span className="text-[#8a5a1a]">{passed ? "Ended" : deadlineWhen(i, today)}</span> · {i.title}
+                  {/* Under "Just passed" the heading says it once (round 9: "JUST PASSED / Passed · …") */}
+                  {passed && title === "Just passed" ? null : <><span className="text-[#8a5a1a]">{passed ? "Passed" : deadlineWhen(i, today)}</span> · </>}{i.title}
                 </span>
-                {(who || time) && <span className="block text-xs text-[#6b5d4a] mt-0.5">{[who, time].filter(Boolean).join(" · ")}</span>}
+                {/* Whose booking it is, when no one's name is on the line (round 9: Julie asked "do I have to call a
+                    restaurant in Tokyo?" about Larisa's Robuchon booking) */}
+                {(who || time || bookedBy(i)) && <span className="block text-xs text-[#6b5d4a] mt-0.5">{[who || (bookedBy(i) ? `Booked under ${bookedBy(i)}` : null), time].filter(Boolean).join(" · ")}</span>}
                 {passed && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title) && (
-                  <span className="block text-xs text-[#6b5d4a] mt-0.5">Wander can't tell whether it was done — ask Larisa if you're not sure.</span>
+                  <span className="block text-xs text-[#6b5d4a] mt-0.5">{cantTell}</span>
                 )}
               </button>
             </li>
@@ -256,7 +287,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         </h2>
         <button onClick={() => openDay(myFirst)} className="w-full text-left mt-1">
           <p className="text-base text-[#3a3128]">{dayLabel(myFirst)}</p>
-          {firstItems.length > 0 && <ul className="mt-1">{firstItems.slice(0, 2).map((i) => <ItemLine key={i.id} i={i} me={me} stays={data.stays} date={myFirst} />)}</ul>}
+          {firstItems.length > 0 && <ul className="mt-1">{firstItems.slice(0, 2).map((i) => <ItemLine key={i.id} i={i} me={me} stays={data.stays} date={myFirst} all={data.items} tz={tz} />)}</ul>}
           <span className="inline-flex items-center min-h-[44px] text-sm text-[#514636]">See the day ›</span>
         </button>
         {groupStarted && today < first && (
@@ -265,10 +296,12 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         {groupStarted && japanToday >= first && japanToday <= last && (
           // The others live on Japan's clock: when it's Wednesday evening here, it's already Thursday there
           <button onClick={() => openDay(japanToday)} className="w-full text-left text-sm text-[#514636] min-h-[44px]">
-            Right now in Japan ({japanNowWords}): the others are in {cityOn(japanToday) || "Japan"} ›
+            Right now in Japan ({japanNowWords}): {othersWhere(japanToday)} ›
           </button>
         )}
-        <DeadlineList list={deadlinesAhead(today, 14)} title="Deadlines coming up" />
+        {/* A passed one goes under its own heading, as during the trip (round 8: "Ended" sat under "coming up") */}
+        <DeadlineList list={deadlinesAhead(today, 14).filter((i) => !deadlineOver(i, tz))} title="Deadlines coming up" />
+        <DeadlineList list={deadlinesAhead(today, 14).filter((i) => deadlineOver(i, tz))} title="Just passed" />
         {freshLine}
       </section>
     );
@@ -283,50 +316,74 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const herAirportPlan = plan.all.some((b) => /haruka|airport|\bKIX\b|transfer/i.test(b.title));
   const leave = flight && !herAirportPlan ? leaveForAirport(flight, cityOn(today)) : null;
   const flightAt = flight ? toMin(flight.time) : -1;
-  const showLeave = !!leave && now < flightAt;
+  // Right now, on the clock each time is on: Japan's for her Guide's lines, a flight's own for a flight from home.
+  // The phone's clock only matches when the phone is in Japan (round 11: at 1:00 AM in California, Julie was told
+  // Narita's 3:00 PM landing was 14 hours away; it had been due two hours earlier)
+  const tripNow = nowMinutesOn(today, tz);
+  const nowFor = (i: { timeZone?: string | null }) => (i.timeZone && i.timeZone !== tz ? nowMinutesOn(today, i.timeZone) : tripNow);
+  const flightNow = flight ? nowFor(flight) : tripNow;
+  const showLeave = !!leave && flightNow < flightAt;
   const appointments = [...mineToday.filter((i) => i.time && !["checkout", "checkin"].includes(i.kind)), ...plan.timed.filter((b) => isFor(b, me))]
-    .sort((a, b) => a.time!.localeCompare(b.time!));
+    .sort((a, b) => tripClockMinutes(a, tz) - tripClockMinutes(b, tz));
   // Where her plan puts you right now ("MIHO Museum, until ~12:35 PM") — only a line with your name on it,
   // or one for everybody outside a split; never a guess
-  const current = currentPlanLine(plan.all, now, me);
+  const current = currentPlanLine(plan.all, tripNow, me);
   // Under way with no group named (Maruni Toryo, 10:35–11:35): said as now, its group left unsaid
-  const currentUnowned = !current ? currentUnownedLine(plan.all, now) : undefined;
-  const next = appointments.find((i) => toMin(i.time) >= now && i !== current);
+  const currentUnowned = !current ? currentUnownedLine(plan.all, tripNow) : undefined;
+  const next = appointments.find((i) => toMin(i.time) >= nowFor(i) && i !== current);
   const currentRough = !!current && (/^~/.test(current.timeText || "") || (current.detail || "").includes("Times are Larisa's estimate."));
   // Leaving a hotel this morning comes before whatever is next ("by noon" isn't after an 8:30 meeting)
   // A check-out whose time has gone by (noon, when it's 3pm) is done — it no longer leads the card
-  const checkedOut = plan.all.some((b) => b.time && /check\s*-?\s*out/i.test(b.title) && toMin(b.time) < now);
-  const checkouts = checkedOut ? [] : todays.filter((i) => i.kind === "checkout" && isFor(i, me) && (!i.time || toMin(i.time) >= now));
+  const checkedOut = plan.all.some((b) => b.time && /check\s*-?\s*out/i.test(b.title) && toMin(b.time) < tripNow);
+  const checkouts = checkedOut ? [] : todays.filter((i) => i.kind === "checkout" && isFor(i, me) && (!i.time || toMin(i.time) >= nowFor(i)));
   const dayWithPlan = [...todays, ...plan.all];
   // A line nobody's name is on during a split, before "Next": said, never assigned
-  const unownedSoon = plan.all.find((b) => b !== currentUnowned && plan.noOwner.has(b.id) && b.time && toMin(b.time) >= now && (!next?.time || toMin(b.time) < toMin(next.time)));
+  const unownedSoon = plan.all.find((b) => b !== currentUnowned && plan.noOwner.has(b.id) && b.time && toMin(b.time) >= tripNow && (!next?.time || toMin(b.time) < toMin(next.time)));
   // Her remaining plan lines for you, after "Next" (Home skipped her 5:00 return to the hotel)
-  const planRows = plan.timed.filter((b) => isFor(b, me) && b !== next && b !== current && toMin(b.time) > now);
+  const planRows = plan.timed.filter((b) => isFor(b, me) && b !== next && b !== current && toMin(b.time) > tripNow);
   // After the flight home has left: say so, and when it lands (the day's other lines are behind them)
-  const departed = !!flight && now >= flightAt;
+  const departed = !!flight && flightNow >= flightAt;
   const landsWords = departed ? ((flight!.detail || "").match(/Lands at [^\n|]+/)?.[0] || "").trim() : "";
   // On a day with her detailed plan, her Itinerary tab's own untimed line for the day is shown as hers, up top
-  const itineraryLines = plan.all.length ? todays.filter((i) => !i.time && /itinerary/i.test(i.source) && ["plan", "tour", "note"].includes(i.kind)) : [];
-  const rest = todays.filter((i) => !itineraryLines.includes(i) && i !== next && i.kind !== "checkout" && !(showLeave && i === flight) && (!i.time || toMin(i.time) >= now || i.kind === "checkin"));
+  // (a "see above …" row points at her sheet's layout, not at anything here — it's never the day's headline;
+  // round 9: Oct 25 led with "see above - 1/2 day")
+  const itineraryLines = plan.all.length ? todays.filter((i) => !i.time && /itinerary/i.test(i.source) && ["plan", "tour", "note"].includes(i.kind) && !/^see above\b/i.test(i.title)) : [];
+  // A landing stays all day (round 8: at 6 PM Home had dropped it, leaving "After landing · Check in" hanging)
+  const rest = todays.filter((i) => !itineraryLines.includes(i) && i !== next && i.kind !== "checkout" && !(showLeave && i === flight) && (!i.time || toMin(i.time) >= nowFor(i) || i.kind === "checkin" || isLanding(i)));
   // A pick among her choices shows on her plan's line, not again as its own row
   const inHerPlan = (g?: GuideItem) => !!g && g.kind !== "block" && plan.all.some((b) => saidAgain(b, g));
   const todayChoices = choices.filter((c) => c.date === today && !plan.all.some((b) => c.text.startsWith(`${b.title}: `)));
   // Plans added in Wander sit in the day's time order with the Guide's lines
   type Row = { key: string; time: string | null; guide?: GuideItem; choice?: DayChoice };
+  // A check-in that opens before the same people land sorts just after their landing (round 8: "After
+  // landing · Check in" sat above "3:00 PM Land at Narita")
+  const rowTime = (i: GuideItem) => {
+    if (!checkinAfterLanding(i, todays)) return i.time;
+    const landing = todays.find((l) => isLanding(l) && l.time && (!l.forWhom || !i.forWhom || l.forWhom === i.forWhom || /^everyone$/i.test(l.forWhom)));
+    return landing?.time ? `${landing.time}~` : i.time;
+  };
+  // The day's own untimed lines ("Day trip to Mashiko") lead, as on the day screen; then times; then untimed
+  // meals and deadlines (round 8: Ken's all-day Mashiko trip sat under Julie & Andy's 3 PM landing)
+  const rank = (r: Row) => (r.time ? 1 : r.guide && ["meal", "deadline"].includes(r.guide.kind) ? 2 : 0);
   const rows: Row[] = [
-    ...rest.map((i) => ({ key: i.id, time: i.time, guide: i })),
+    ...rest.map((i) => ({ key: i.id, time: rowTime(i), guide: i })),
     ...planRows.map((b) => ({ key: b.id, time: b.time, guide: b })),
     ...todayChoices.map((c) => ({ key: c.id, time: c.time, choice: c })),
-  ].sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time && b.time ? a.time.localeCompare(b.time) : 0)
+  ].sort((a, b) => rank(a) - rank(b) || (a.time && b.time ? a.time.localeCompare(b.time) : 0)
     || (inHerPlan((b as Row).guide) ? 1 : 0) - (inHerPlan((a as Row).guide) ? 1 : 0));
   // A line of her plan still waiting for a pick is always shown, never folded into "and N more" (round 7:
   // at 9:00 nothing on Home said lunch needed deciding)
   const undecided = (r: Row) => !!r.guide && r.guide.kind === "block" && /(^|\n)Choice: /.test(r.guide.detail || "")
     && !choices.some((c) => c.text.startsWith(`${r.guide!.title}: `));
   const shownRows = rows.filter((r, n) => n < 5 || undecided(r));
-  const night = today < last ? myNight(nightOf(today, data.stays, data.items), me) : null;
+  const night = today < last ? myNight(nightOf(today, data.stays, data.items, tz, true), me) : null;
   const tomorrow = addDays(today, 1);
-  const tomorrowItems = tomorrow <= last ? on(tomorrow).filter((i) => isFor(i, me)) : [];
+  // Whose clock a time is on, when it isn't the phone's (a take-off from home; Japan's, on a phone still at home)
+  const zoneTag = (i: GuideItem) => (!i.time ? "" : i.timeZone && i.timeZone !== tz ? ` ${zoneWords(i.timeZone)}` : phoneIsElsewhere(tz) ? ` ${zoneWords(tz)}` : "");
+  // A landing Tonight already gives ("On the plane — lands at Narita …") isn't said again as Tomorrow's (round 11:
+  // Julie's Home had her landing both tonight and tomorrow)
+  const landingSaidTonight = !!night?.away.some((a) => /^On the plane/.test(a.text));
+  const tomorrowItems = tomorrow <= last ? on(tomorrow).filter((i) => isFor(i, me) && !(landingSaidTonight && isLanding(i))) : [];
   const tomorrowFlight = tomorrowItems.find((i) => i.kind === "flight" && !isLanding(i) && i.time);
   const tomorrowLead = leadItem(tomorrowItems);
   const tomorrowLeave = tomorrowFlight && !planOn(tomorrow).all.some((b) => /haruka|airport|\bKIX\b|transfer/i.test(b.title)) ? leaveForAirport(tomorrowFlight, cityOn(tomorrow) || cityOn(today)) : null;
@@ -342,18 +399,19 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           <p className="text-sm text-[#3a3128] mt-1">With Backroads today — day {guidedDays.indexOf(today) + 1} of {guidedDays.length}. Their guides lead the day.</p>
         )}
         {showLeave && leave && (
-          <div className={`mt-2 rounded-lg px-3 py-2 ${now > leave.minutes ? "bg-[#8a5a1a] text-white" : "bg-[#514636] text-white"}`}>
+          <div className={`mt-2 rounded-lg px-3 py-2 ${flightNow > leave.minutes ? "bg-[#8a5a1a] text-white" : "bg-[#514636] text-white"}`}>
             <p className="text-base leading-snug">
-              {now > leave.minutes ? `Flight ${flightIn(flightAt - now)} — ${lateLeaveWords(leave, flight!, now).replace(/^Past the time to leave for [^—]+— /, "").replace(/^./, (c) => c.toLowerCase())}` : leave.text}
+              {flightNow > leave.minutes ? `Flight ${flightIn(flightAt - flightNow)} — ${lateLeaveWords(leave, flight!, flightNow).replace(/^Past the time to leave for [^—]+— /, "").replace(/^./, (c) => c.toLowerCase())}` : leave.text}
             </p>
             <p className="text-xs text-white/85 mt-0.5">{clock(flight!.time)} Japan time · {flight!.title}</p>
-            {now > leave.minutes && flight!.confirmation && <p className="text-xs text-white/85">Confirmation {flight!.confirmation}</p>}
+            {flightNow > leave.minutes && flight!.confirmation && <p className="text-xs text-white/85">Confirmation {flight!.confirmation}</p>}
             <p className="text-xs text-white/75 mt-1">{leave.why}</p>
           </div>
         )}
         {departed && (
           <div className="mt-2 rounded-lg bg-[#514636] text-white px-3 py-2">
-            <p className="text-base leading-snug">In the air · {flight!.title}</p>
+            {/* By the schedule — Wander can't see the real flight (round 9: "In the air" at the gate of a late flight) */}
+            <p className="text-base leading-snug">Should be in the air · {flight!.title}</p>
             {landsWords && <p className="text-sm text-white/85 mt-0.5">{landsWords}</p>}
             {today === last && <p className="text-sm text-white/85 mt-1">Safe travels home.</p>}
           </div>
@@ -384,16 +442,24 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         {next && !(showLeave && next === flight) ? (
           <div className="mt-2 rounded-lg bg-[#f6f1e8] px-3 py-2">
             <p className="text-xs text-[#6b5d4a]">Next</p>
-            <ul><ItemLine i={next} me={me} stays={data.stays} date={today} day={dayWithPlan} picks={choices} onOpen={() => openDay(today, next.id)} /></ul>
+            <ul><ItemLine i={next} me={me} stays={data.stays} date={today} day={dayWithPlan} picks={choices} all={data.items} tz={tz} onOpen={() => openDay(today, next.id)} /></ul>
           </div>
         ) : todays.length === 0 && todayChoices.length === 0 && plan.all.length === 0 && !guidedToday ? (
           <p className="text-sm text-[#6b5d4a] mt-2">Larisa's Guide has nothing set for today.</p>
         ) : null}
         {checkouts.length > 0 && !next && <ul className="mt-1">{checkouts.map((i) => <ItemLine key={i.id} i={i} me={me} stays={data.stays} date={today} day={dayWithPlan} onOpen={() => openDay(today, i.id)} />)}</ul>}
+        {/* Still at home on this Japan date: the rest of her day is the others' (round 11: Julie's Home listed
+            "Nagoya to Tokyo" and "Maybe: Mashiko" under her flight with no names; the day screen says this) */}
+        {rows.length > 0 && (() => {
+          const out = homeOnJapanDate(data.items, me, today, tz);
+          if (!out) return null;
+          const gone = nowMinutesOn(ymd(out.date), out.timeZone!) >= toMin(out.time);
+          return <p className="text-xs text-[#6b5d4a] mt-2 ml-[5.5rem]">The rest is the others' plan. {gone ? "You were still at home for this Japan date." : "On this Japan date you're still at home."}</p>;
+        })()}
         {rows.length > 0 && (
           <ul className="mt-1">
             {shownRows.map((r) => r.guide
-              ? <ItemLine key={r.key} i={r.guide} me={me} stays={data.stays} date={today} day={dayWithPlan} picks={choices} onOpen={() => openDay(today, r.guide!.id)} />
+              ? <ItemLine key={r.key} i={r.guide} me={me} stays={data.stays} date={today} day={dayWithPlan} picks={choices} all={data.items} tz={tz} onOpen={() => openDay(today, r.guide!.id)} />
               : (
                 <li key={r.key} className="flex gap-3 py-1.5">
                   <span className="w-[4.75rem] shrink-0 text-right text-sm text-[#3a3128] tabular-nums">{r.choice!.time ? clock(r.choice!.time) : ""}</span>
@@ -419,8 +485,10 @@ export default function TripGlance({ tripId }: { tripId: string }) {
                   <span className={`flex-1 min-w-0 text-sm leading-snug ${over ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>
                     {i.title}
                     <span className="block text-xs text-[#6b5d4a] mt-0.5 no-underline">
-                      {[whose(i, me), over ? `Ended ${time || "today"}` : i.windowStart ? deadlineWhen(i, today) : time].filter(Boolean).join(" · ")}
-                      {over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title) && ". Wander can't tell whether it was done — ask Larisa if you're not sure."}
+                      {/* Whose booking, when no one's name is on it (round 10: Andy, just landed, was told "Today is the
+                          last day" to reconfirm Larisa's dinner) */}
+                      {[whose(i, me) || (bookedBy(i) ? `Booked under ${bookedBy(i)}` : null), over ? `Ended ${time || "today"}` : i.windowStart ? deadlineWhen(i, today) : time].filter(Boolean).join(" · ")}
+                      {over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title) && `. ${cantTell}`}
                     </span>
                   </span>
                 </li>
@@ -455,10 +523,11 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           <span className="text-sm text-[#3a3128]">
             {tomorrowFlight
               // The night before a flight: the flight itself, and when to leave (Wander's estimate)
-              ? `${clock(tomorrowFlight.time)} · ${tomorrowFlight.title}${tomorrowLeave ? ` — leave about ${minutesToClock(tomorrowLeave.minutes)} (Wander's estimate)` : ""}`
+              ? `${clock(tomorrowFlight.time)}${zoneTag(tomorrowFlight)} · ${tomorrowFlight.title}${tomorrowLeave ? ` — leave about ${minutesToClock(tomorrowLeave.minutes)} (Wander's estimate)` : ""}`
               : tomorrowLead
               // Tomorrow's first appointment (8:30 meet Backroads), not the check-out listed ahead of it
-              ? `${tomorrowLead.time ? timeLabel(tomorrowLead, tomorrowItems) + " · " : ""}${itemTitle(tomorrowLead, data.stays, tomorrow)}`
+              // (two places booked for one time: say so, never name one — round 9: "8:00 PM · Cafe Ensou")
+              ? `${tomorrowLead.time ? timeLabel(tomorrowLead, on(tomorrow)) + (/\d/.test(timeLabel(tomorrowLead, on(tomorrow))) ? zoneTag(tomorrowLead) : "") + " · " : ""}${/tab lists \d+ places for this date and time/.test(tomorrowLead.detail || "") ? "her Guide lists two places" : itemTitle(tomorrowLead, data.stays, tomorrow)}`
               : (() => {
                   // No line in the Guide for tomorrow: say where you'll be, plainly
                   const d = data.days.find((x) => ymd(x.date) === tomorrow);

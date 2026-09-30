@@ -209,7 +209,12 @@ export function unwrapSearchLink(url: string): string {
     const u = new URL(url);
     if (/(^|\.)google\.[a-z.]+$/i.test(u.hostname) && u.pathname === "/search") {
       const q = u.searchParams.get("q") || "";
-      if (/^https?:\/\//i.test(q)) return q;
+      // Encoded twice in her cell (Gemini's links: "maps.apple.com/%253Fq%253D…"): one decode leaves
+      // "/%3Fq%3D…", which Maps can't read (round 9) — decode the inner address once more
+      if (/^https?:\/\//i.test(q)) {
+        if (!/%3[fd]/i.test(q)) return q;
+        try { return decodeURIComponent(q); } catch { return q; }
+      }
     }
   } catch { /* not a URL — keep as is */ }
   return url;
@@ -223,6 +228,77 @@ const clock12 = (t: string) => {
 const toMinutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 // "Dining Resos (row 30)" → "Dining Resos"; "Kyoto Thu, 1029 (Flight Home) · Day 5" → "Kyoto Thu, 1029 (Flight Home)"
 const tabOf = (source: string) => (/itinerary/i.test(source) ? "Itinerary" : source.split(/ · | \(row /)[0]);
+
+/**
+ * Whose a line is, from her own shorthand on the same date: "day 1 - JA Arrive (evening), KL day trip to
+ * Mashiko" names Ken & Larisa (her "K/L") for Mashiko that day, so the Mashiko day-trip line with no names on it
+ * is theirs — quoted as her words, never guessed (round 10: Julie's first day opened on it, unlabelled, and
+ * three testers asked "am I supposed to catch that 8:07 train?"). A couple's initials come from the trip's own
+ * couples ("Ken & Larisa" → KL, K/L, K&L). Only a distinctive place word counts, only one couple may claim it
+ * that day, and a line that already names people is never changed.
+ */
+const SHORTHAND_STOP = new Set(["arrive", "arrival", "evening", "morning", "afternoon", "travel", "train", "trip", "tour", "night", "dinner", "lunch", "hotel", "depart", "leave", "flight", "check", "free", "shopping"]);
+export function tagPartiesFromShorthand(items: Item[]): void {
+  const couples = Array.from(new Set(items.map((i) => i.forWhom).filter((w): w is string => !!w && / & /.test(w) && !/everyone/i.test(w))));
+  const byInitials = couples.map((c) => {
+    const [a, b] = c.split(/\s*&\s*/);
+    return a && b ? { couple: c, re: new RegExp(`(?:^|[\\s,(])${a[0]}\\s*[/&]?\\s*${b[0]}\\s+([^,;()\\n]+)`, "g") } : null;
+  }).filter(Boolean) as { couple: string; re: RegExp }[];
+  const byDate = new Map<string, Item[]>();
+  for (const i of items) if (i.date) byDate.set(i.date, [...(byDate.get(i.date) || []), i]);
+  for (const [, day] of byDate) {
+    // word → the couple her shorthand gives it to, and the words she wrote
+    const claims = new Map<string, { couple: string; said: string } | null>();
+    for (const line of day) {
+      for (const { couple, re } of byInitials) {
+        for (const m of line.title.matchAll(re)) {
+          // Two couples in one subject ("K/L, J/A depart Osaka") — it's everyone's, not this couple's
+          const before = line.title.slice(0, m.index ?? 0);
+          if (byInitials.some((o) => o.couple !== couple && new RegExp(`${o.couple.split(/\s*&\s*/).map((n) => n[0]).join("\\s*[/&]?\\s*")}\\s*(,|and|&)?\\s*$`, "i").test(before))) continue;
+          for (const w of m[1].toLowerCase().split(/[^a-z]+/).filter((x) => x.length >= 5 && !SHORTHAND_STOP.has(x))) {
+            const had = claims.get(w);
+            claims.set(w, had === undefined ? { couple, said: m[0].replace(/^[\s,(]+/, "").trim() } : had && had.couple === couple ? had : null);
+          }
+        }
+      }
+    }
+    for (const i of day) {
+      if (i.forWhom || !["plan", "tour", "note"].includes(i.kind)) continue;
+      const words = i.title.toLowerCase().split(/[^a-z]+/);
+      const hit = Array.from(claims.entries()).find(([w, c]) => c && words.includes(w) && !byInitials.some(({ re }) => { re.lastIndex = 0; return re.test(i.title); }));
+      if (!hit || !hit[1]) continue;
+      i.forWhom = hit[1].couple;
+      i.detail = [i.detail, `For ${hit[1].couple}: her Itinerary line this day says “${hit[1].said}”.`].filter(Boolean).join("\n");
+    }
+  }
+}
+
+/**
+ * Her note for a stay, from its heading: everything she wrote there except the city's name — the part in
+ * brackets and her working notes before or after it. Round 9: "Okayama (day trip to Bizen - 40 min JR
+ * train) - WHERE IS BIZEN TOUR STARTING" kept only the brackets, so her open question vanished and the tour
+ * looked settled. A stray bracket ("(tour Karatsu - coordinate pu for tour), day trip to Arita)") never cuts
+ * the note in half. A Backroads leg's "(Day 1-4)" is its day count, not a note. Null when there's none.
+ */
+export function stopNoteOf(sectionTitle: string): string | null {
+  const open = sectionTitle.indexOf("(");
+  const close = sectionTitle.lastIndexOf(")");
+  const inner = open >= 0 && close > open ? sectionTitle.slice(open + 1, close) : "";
+  if (/^\s*day\s*\d/i.test(inner)) return null;
+  let depth = 0;
+  const bracketed = Array.from(inner).filter((ch) => {
+    if (ch === "(") { depth++; return true; }
+    if (ch === ")") { if (depth === 0) return false; depth--; }
+    return true;
+  }).join("").replace(/\s{2,}/g, " ").trim();
+  // Before the brackets, after the city's name: "Hakata - NOT AN OVERNIGHT (travel through)"
+  const head = open >= 0 ? sectionTitle.slice(0, open) : sectionTitle;
+  const lead = /\s[-–]\s/.test(head) ? head.replace(/^.*?\s[-–]\s+/, "").replace(/\s{2,}/g, " ").trim() : "";
+  // After the brackets: "… 40 min JR train) - WHERE IS BIZEN TOUR STARTING"
+  const tail = close >= 0 ? sectionTitle.slice(close + 1).replace(/^[\s,;:–-]+/, "").replace(/\s{2,}/g, " ").trim() : "";
+  const note = [lead, bracketed, tail].filter(Boolean).join(" — ");
+  return note || null;
+}
 
 /**
  * Where her tabs disagree about the same thing, both lines say so — Wander never settles it. A line of
@@ -757,12 +833,13 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         hers.timeZone = depZone;
         hers.endTime = null;
       }
-      // Landing on a later day gets its own item on that day
+      // Landing on a later day gets its own item on that day. Its words hold at any moment: "Left SFO Tue,
+      // Oct 13" once had Scout say Julie & Andy were "having left" the evening before they flew
       if (nextDay && f.arriveDate) {
         const landTitle = `Land at ${airportName(f.arriveAirport)} · ${flightName}`;
         mergeInto(items, {
           date: f.arriveDate, time: f.arriveTime, endTime: null, kind: "flight", title: landTitle,
-          detail: f.departTime ? `Left ${airportName(f.departAirport)} ${plainWhen(f.departDate, f.departTime, depZone)}` : null,
+          detail: f.departTime ? `Takes off from ${airportName(f.departAirport)} ${plainWhen(f.departDate, f.departTime, depZone)}` : null,
           place: null, confirmation: f.confirmation, forWhom: who, sourceRef: `image:${image.sha256}`,
           source: `Screenshot in ${place.tab.name}`, city: null, timeZone: arrZone,
         }, (i) => i.kind === "flight" && i.date === f.arriveDate && i.title === landTitle && i.time === f.arriveTime);
@@ -1002,22 +1079,15 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     }
   }));
   markTabsDiffer(items);
+  tagPartiesFromShorthand(items);
 
   // A stop's heading carries Larisa's summary of it — "Karatsu (tour Karatsu, day trip to Arita)",
   // "Nagoya (bullet train 3.25 hrs; Tokoname day trip - 40 min by Meitetsu train)". Kept as a note for
   // every day of that stop (the heading doesn't say which day), shown under the day's title.
   const sections = new Map<string, { note: string; from: string; to: string; source: string; sourceRef: string; city: string }>();
   for (const s of itin.stays) {
-    // Everything between her first "(" and last ")" — a stray bracket ("(tour Karatsu - coordinate pu
-    // for tour), day trip to Arita)") used to cut the note in half
-    const inner = (s.sectionTitle.match(/\((.*)\)/) || [])[1];
-    let depth = 0;
-    const note = inner === undefined ? undefined : Array.from(inner).filter((ch) => {
-      if (ch === "(") { depth++; return true; }
-      if (ch === ")") { if (depth === 0) return false; depth--; }
-      return true;
-    }).join("").replace(/\s{2,}/g, " ").trim();
-    if (!note || /^day\s*\d/i.test(note) || !s.checkIn || !s.checkOut) continue;
+    const note = stopNoteOf(s.sectionTitle);
+    if (!note || !s.checkIn || !s.checkOut) continue;
     const lastNight = addDays(s.checkOut, -1);
     const had = sections.get(s.sectionTitle);
     sections.set(s.sectionTitle, had
