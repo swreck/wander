@@ -210,6 +210,7 @@ model GuideItem {
   sortOrder    Int       @default(0) @map("sort_order")
   windowStart  String?   @map("window_start")       // a deadline that can be done over several days: its first day, YYYY-MM-DD
   timeText     String?   @map("time_text")          // a day-plan block's time exactly as she wrote it ("~8:30–9:15", "Morning")
+  cells        Json?                                // her exact words at each source cell (or picture), recorded at import — Scout's "Sources"
 
   trip     Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
   snapshot GuideSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
@@ -743,6 +744,7 @@ model ChatMessage {
   role       String   // "user" | "assistant"
   content    String   @db.Text
   toolUse    Json?    @map("tool_use")
+  sources    Json?    // an answer's sources, recorded as Scout wrote it (citations) — never worked out afterwards
   createdAt  DateTime @default(now()) @map("created_at")
 
   trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)

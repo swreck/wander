@@ -2,6 +2,39 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-09-30 — Sources: Where Every Scout Answer Came From
+
+Ken: early on, people decide whether Scout is credible, so every answer needs a way to show its exact source. The requirement that matters most is that Scout records where each fact came from at the moment it answers, and never works a source out afterwards. A wrong source is worse than none.
+
+### Added
+- **"Sources" under each Scout answer** (a quiet link in Scout's conversation; nothing shows until it's tapped). It opens "Where this came from":
+  - **Her Guide:** each part of the answer that came from Larisa's Guide, with her tab, the cell and exactly what's in it ("Dining Resos · B22 — Tu, 10/27 @ 6:30p"). A long cell (a pasted email, a day's narrative) shows the lines that bear on the answer, marked "part of the cell".
+  - **Wander's notes:** Wander's own notes on a line ("The group is split at this time, and her line names no one") are listed apart, as "Wander's note, not her words".
+  - **Screenshots:** a fact from a screenshot in her Guide offers **See the picture**, which opens the screenshot itself.
+  - **Worked out by Wander:** something Wander calculated (a deadline still open right now, who is still at home on a Japan date, the leave-for-the-airport estimate) says so and lists the cells it came from.
+  - **Added in Wander:** a plan someone added in Wander is labelled with who added it, and as not in her Guide.
+  - **From the web:** the page's title and full address (tap to open) and the words quoted.
+  - **Unmatched times:** when a time Scout said isn't in the words it cited, the panel says so: "Scout worked it out, or got it wrong. Worth checking."
+  - **Scout's own words — no source:** whole sentences with no sourced part in them.
+  - **Which copy:** the panel names the copy of her Guide it came from, and notes that she may have changed it since.
+- **How it's recorded:**
+  - Scout reads the Guide as a document it cites line by line (Anthropic citations), and every line carries its source, recorded when the line is written. The API guarantees each citation points at text that's really there.
+  - Every Guide line records its exact cells at import: 165 of 165 on her Sep 29 copy, including the day-plan lines and her pasted emails.
+  - Each answer's sources are saved with it. The text Scout reads is unchanged byte for byte, except for where it sits.
+
+### Changed
+- **Web search is the basic version,** because the newer filtering search dropped the web citations. On the same question it was also slower: 34 s against 13 s.
+- Scout's instructions ask it to cite every fact it takes from the Guide.
+- **Measured on the same questions, old version against new:**
+  - answers from her Guide take about 22% longer (about 1.7 s on an 8 s answer);
+  - web answers are about twice as fast;
+  - cost per answer is about 10% more (about 6¢ against 5.5¢).
+- A false start corrected mid-sentence ("Tomorrow morning — Fri… rather, the Imperial…") is taken out before the answer is shown. It appeared in 1 of 4 tries on one question.
+
+Affects: backend/src/services/guide/{importSnapshot,scoutContext,sources,answerSources}.ts, backend/src/routes/{chat,guide}.ts, backend/prisma/schema.prisma (GuideItem.cells and ChatMessage.sources, both additive), frontend/src/components/{ChatBubble,ScoutSources}.tsx.
+
+SPEC UPDATE NEEDED: Scout's answers carry sources on request (Scout's section).
+
 ## 2026-09-29 — Larisa's Detailed Day Plans, Scout on the Web, and Her Sep 29 Copy
 
 Ken defined readiness as two halves: a screen anyone can use without a manual, and taking in Larisa's new Guide information quickly and faithfully. Larisa has started adding a tab per key day (time blocks, sometimes several choices for one block). Her Sep 29 copy ("Japan Oct 2026-2") has eight of them: Tokyo Day 1–3 (no dates in the tabs) and Kyoto Sun 10/25 – Thu 10/29 (dated).

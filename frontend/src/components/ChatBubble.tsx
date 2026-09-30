@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import useBackToClose from "../hooks/useBackToClose";
 import { sendToGuideOwner } from "../lib/tellGuideOwner";
 import { withPhoneLinks } from "../lib/guideDisplay";
+import ScoutSources, { hasSources, type AnswerSources } from "./ScoutSources";
 
 /** Phone numbers in an answer can be tapped to call */
 let phoneKey = 0;
@@ -69,6 +70,8 @@ interface ChatMessage {
   quiet?: boolean;
   actions?: string[];
   places?: PlaceCard[];
+  /** Where each part of the answer came from, recorded as Scout answered — shown only on request */
+  sources?: AnswerSources;
 }
 
 /** "back", "ok take me back", "got it, go back please" — done on the phone at once, no trip to Scout */
@@ -140,6 +143,10 @@ const CHAT_TIMEOUT_MS = 45000; // 45 seconds
 
 export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatBubbleProps) {
   const [open, setOpen] = useState(false);
+  // The answer whose "Sources" are open, if any
+  const [sourcesOf, setSourcesOf] = useState<AnswerSources | null>(null);
+  // (Back closes the Sources panel: ScoutSources holds that step itself. A second useBackToClose here, idle until
+  // Sources opened, still kept every test page from closing for a minute — Sep 30.)
   // The phone's Back steps Scout down to its bar (or closes it when there's no conversation yet)
   useBackToClose(open, () => minimizeRef.current());
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
@@ -457,7 +464,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const headline = (goTo?.headline || shows?.find((s) => s.headline)?.headline || "").trim() || undefined;
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data.reply, actions: data.actions, places: data.places, shows, headline, at: new Date().toISOString() },
+        { role: "assistant", text: data.reply, actions: data.actions, places: data.places, shows, headline, at: new Date().toISOString(),
+          ...(hasSources(data.sources) ? { sources: data.sources } : {}) },
       ]);
       // "Show me…": Scout moves the screen there (its answer stays in the conversation)
       // Never pull the screen out from under someone already typing the next question — the button stays
@@ -727,6 +735,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
   return (
     <>
+      {sourcesOf && <ScoutSources sources={sourcesOf} tripId={context.tripId} onClose={() => setSourcesOf(null)} />}
       {/* The page behind: lightly dimmed at half height (still readable), tap it to make Scout small */}
       <div
         className={`fixed inset-0 z-[60] sm:hidden ${size === "full" || keyboardUp ? "bg-black/20" : "bg-black/10"}`}
@@ -890,6 +899,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                       </p>
                     ))}
                   </div>
+                )}
+                {/* Where the answer came from — a quiet link; nothing shows unless it's tapped */}
+                {msg.role === "assistant" && hasSources(msg.sources) && (
+                  <button onClick={() => setSourcesOf(msg.sources!)}
+                    className="-mb-1.5 min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
+                    Sources
+                  </button>
                 )}
               </div>
             </div>
