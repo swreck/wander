@@ -2,6 +2,27 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-09-30 — Ken's Rail Sheet, Beside Her Guide
+
+### Added
+- **Wander reads a second source: Ken's rail sheet** ("Japan 2026 — Rail Reservations", his own Google Sheet, written with AI help). Read-only — Wander's robot can only view it, and nothing in Wander writes to it. Wander reads it again every 10 minutes and keeps a new copy only when something changed; if a read fails it keeps the last good copy and says so. It is never merged into Larisa's Guide.
+- **Trains on each day screen** ("Trains"): each leg from its "Rail Detail" tab — times, train, class, car and seats, reservation number, how many people, the sheet's own status words ("PENDING — JR West paper tickets: collect at Shin-Osaka Oct 6", "marks this leg “?”"), its notes, and "From Ken's rail sheet, written with AI help — Rail Detail tab, row 6". A leg with no booking says so. Where a note says whose it is ("Ken + Larisa only") that shows up top.
+- **The Shin-Osaka ticket pickup, step by step** (its "Tix pick up — Shin-Osaka" tab): a page with every step in the sheet's order and words, numbered sub-steps on their own lines, and a tick for each that stays on that phone. Ken's and Larisa's Home show it before the trip (with the steps for before you go), the day before, and on the day; their Now and Oct 6 screen lead with "Today · Ticket pickup — Shin-Osaka". Anyone can open it from a train whose tickets need collecting. It opens with no signal once it has been seen.
+- **Now: "Next train · in 2 hr 57 min"** with seats and reservation number, and **Home: "Train · 6:17 PM NOZOMI 77 …"** — only a person's own trains: a leg with seats for the whole group is everyone's; fewer seats are the sheet owner's couple (Ken & Larisa). Julie and Andy never get Ken & Larisa's trains as theirs.
+- **"The sources differ"**, worked out by rule, never settled: on Oct 29 the rail sheet has HARUKA 31 leaving 1:30 PM while her Kyoto day tab has "Board reserved HARUKA" 12:30–1:00 PM — both are shown. A window that holds the time ("ideally around 4:45–5:00 PM" and a 4:58 train) or "leave 6:15 or later" is agreement, not a difference.
+- **Scout reads the rail sheet** as its own cited document: it names it ("Ken's rail sheet has…"), never credits it to Larisa, passes its status words on as its words, gives the pickup steps completely and in order, says both sides where it and the Guide differ, and says when Wander last read it. Sources under an answer show "Ken's rail sheet, written with AI help — not Larisa's Guide" with the tab, cell and exact words.
+- **No card digits, ever:** "a physical Mastercard ending 1234" is stored and shown as "ending ••••" (Wander captures no financial information); whole card numbers and full transit-card IDs are left out the same way.
+- **After a fresh tester (rail round):** a status that names a day already past ("collect at Shin-Osaka Oct 6", seen on Oct 14) now reads "The rail sheet still said, when Wander read it …: “…” Wander can't tell whether that has been done since."; the Trains heading says when Wander last read the sheet; on the day, "The sources differ" is said at the top of Home's train line and the day screen, before either source's "Next"; Now's next-train card carries the sheet's own warning ("PENDING — SmartEX: verify … IC cards"); the pickup page has jump-to-step buttons and, on the day, folds the steps for before you left home, so "2 — decision" is near the top; the sheet's 24-hour times read "17:00 (5:00 PM)"; the pickup link on others' days says whose job it is; "the others' plan" is said only when someone else has lines that day.
+- **Ready for more sources:** a source is a row (name, whose, how it was written, what it covers). Tabs are recognized by their header row, not by which sheet they're in — if these two tabs move into Larisa's Guide, Wander reads them the same way (then only as fresh as her latest copy). Any other tab still reaches Scout row by row, cited by cell.
+
+### Tests
+- New `backend/tests/other-sources.test.ts` (18, invented data): the card-digit filter, tabs recognized by headers in any column order, "sources differ" (real difference, window, "or later", another leg's time), copies kept only on change, a failed read keeping the last good copy, members-only API with no way to write, and Scout's document with cells.
+- Scout rail exam (12 questions written from the sheet before the build): 11/12, then the one failure (24-hour times) fixed and 12/12.
+
+Affects: backend/prisma/schema.prisma (TripSource, SourceCopy), backend/src/services/sources/{filter,googleSheet,shapes,refresh,context}.ts (new), backend/src/routes/sources.ts (new), backend/src/index.ts, backend/src/routes/chat.ts, backend/src/services/guide/{sources,answerSources}.ts, backend/src/services/sheetsSync.ts (new key file), backend/scripts/add-rail-source.ts (new); frontend/src/lib/sources.ts, frontend/src/components/RailSheet.tsx, frontend/src/pages/ChecklistPage.tsx (new), frontend/src/pages/DayPage.tsx, frontend/src/components/{TripGlance,ScoutSources}.tsx, frontend/src/App.tsx.
+
+SPEC UPDATE NEEDED: a new source besides Larisa's Guide (sources, day screen "Trains", the checklist page, Home/Now train lines) — SPEC.md describes the Guide as Wander's only plan source.
+
 ## 2026-09-30 — A Flight That Hasn't Left Yet, and Votes That Stick
 
 ### Fixed

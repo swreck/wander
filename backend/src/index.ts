@@ -43,6 +43,8 @@ import travelAdvisoryRoutes from "./routes/travelAdvisory.js";
 import dedupRoutes from "./routes/dedup.js";
 import vaultRoutes from "./routes/vault.js";
 import sheetsSyncRoutes from "./routes/sheetsSync.js";
+import sourceRoutes from "./routes/sources.js";
+import { startSourceRefresher } from "./services/sources/refresh.js";
 import guideRoutes from "./routes/guide.js";
 import peopleRoutes from "./routes/people.js";
 import dayChoiceRoutes from "./routes/dayChoices.js";
@@ -155,6 +157,7 @@ app.use("/api/sheets-sync", sheetsSyncRoutes);
 app.use("/api/guide", guideRoutes);
 app.use("/api/people", peopleRoutes);
 app.use("/api/day-choices", dayChoiceRoutes);
+app.use("/api/sources", sourceRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
 app.use("/api", (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -182,4 +185,6 @@ export { app };
 app.listen(PORT, async () => {
   console.log(`Wander API running on port ${PORT}`);
   try { await seedTravelers(); } catch (e: any) { console.error("[seed] Error:", e.message); }
+  // Other sources (Ken's rail sheet): read again every few minutes, read-only
+  startSourceRefresher();
 });

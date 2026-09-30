@@ -114,7 +114,7 @@ export interface SpreadsheetData {
 // ── Auth ─────────────────────────────────────────────────────
 
 const CREDENTIALS_PATH = process.env.GOOGLE_SHEETS_CREDENTIALS_PATH
-  || "/Users/kenrosen/Documents/Projects/WanderDocumentationAndResources/actionmgr-e5d782f7349e.json";
+  || "/Users/kenrosen/Documents/Projects/WanderDocumentationAndResources/actionmgr-e202c35e7ae7.json";
 
 function getAuth() {
   let credentials: any;

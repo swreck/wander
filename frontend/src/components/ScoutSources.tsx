@@ -16,7 +16,8 @@ type SourceView =
   | { type: "guide"; label: string; cells: CellWords[]; wanderNotes?: string[] }
   | { type: "wander"; what: string; from: { label: string; cells: CellWords[] }[] }
   | { type: "added"; by: string; text: string }
-  | { type: "web"; title: string; url: string; quote: string };
+  | { type: "web"; title: string; url: string; quote: string }
+  | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: CellWords[] };
 
 export interface AnswerSources {
   copy: string | null;
@@ -103,6 +104,15 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
             {s.from.map((f, i) => <Cells key={i} cells={f.cells} tripId={tripId} />)}
           </div>
         )}
+      </div>
+    );
+  }
+  if (s.type === "sheet") {
+    // Another source (Ken's rail sheet): named, whose it is and how it was written — never passed off as her Guide
+    return (
+      <div>
+        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.owner}'s {s.source.toLowerCase()}{s.authorship ? `, ${s.authorship}` : ""} — not Larisa's Guide</p>
+        <Cells cells={s.cells} tripId={tripId} />
       </div>
     );
   }

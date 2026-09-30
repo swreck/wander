@@ -29,6 +29,8 @@ import {
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
   nowMinutesOn, zonedMoment,
 } from "../lib/guideDisplay";
+import { sourcesData, railAudience, legIsFor, type OtherSource } from "../lib/sources";
+import { TrainsForDay, ChecklistCard, NextTrain, DifferNote } from "../components/RailSheet";
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
 function planTime(b: GuideItem): string {
@@ -311,6 +313,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(null);
+  // Other sources (Ken's rail sheet): trains, the pickup checklist, where it and her Guide differ
+  const [otherSources, setOtherSources] = useState<OtherSource[]>([]);
   const scrolledFor = useRef<string | null>(null);
 
   // Load (and reload when the signal comes back, so a saved copy doesn't linger)
@@ -414,6 +418,14 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     window.addEventListener("wander:data-changed", load);
     return () => { cancelled = true; window.removeEventListener("wander:data-changed", load); };
   }, [tripId, date]);
+
+  // The rail sheet (a saved copy when there's no signal); nothing shows if the trip has no other source
+  useEffect(() => {
+    if (!tripId) return;
+    let cancelled = false;
+    sourcesData(tripId).then((d) => { if (!cancelled) setOtherSources(d.sources); }).catch(() => { /* the Guide still shows */ });
+    return () => { cancelled = true; };
+  }, [tripId]);
 
   // The day in the order it's lived (lib/guideDisplay.ts). Deadlines appear on every day of their
   // window; Larisa's budget and bookkeeping notes sit apart from the plan.
@@ -707,14 +719,17 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               // Past its time, by the schedule only; and on a phone still on home time, that time on its clock too
               // (round 11: at 1:00 AM in California, "You land … 3:00 PM Japan time today" read as still ahead)
               const due = isToday && tripNow >= toMin(land.time!);
+              // Only when the day has someone else's lines (round r1: Ken & Larisa's Oct 6 said "the others' plan" with
+              // no one else in Japan)
+              const others = dayItems.some((i) => i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me));
               const yours = phoneIsElsewhere(tripZone)
                 ? ` (${zonedMoment(date, toMin(land.time!), tripZone).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "")} your time)`
                 : "";
               return (
                 <p className="text-sm text-[#3a3128] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2 mb-3">
                   {due
-                    ? <>Your flight was due to land at {airport} at {clock(land.time)} {ZONE_LABEL[tripZone] || ""}{yours} — that's the schedule. Anything earlier on this day is the others' plan.</>
-                    : <>You land at {airport} at {clock(land.time)} {ZONE_LABEL[tripZone] || ""}{yours}{isToday ? " today" : ""}. Anything earlier on this day is the others' plan.</>}
+                    ? <>Your flight was due to land at {airport} at {clock(land.time)} {ZONE_LABEL[tripZone] || ""}{yours} — that's the schedule.{others ? " Anything earlier on this day is the others' plan." : ""}</>
+                    : <>You land at {airport} at {clock(land.time)} {ZONE_LABEL[tripZone] || ""}{yours}{isToday ? " today" : ""}.{others ? " Anything earlier on this day is the others' plan." : ""}</>}
                 </p>
               );
             })()}
@@ -728,6 +743,22 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* Her forecast for this stay, in her numbers (the sheet gives no units) */}
             {forecast && <p className="text-sm text-[#6b5d4a] mb-3">{forecast.title.replace(/^Larisa's forecast:\s*/, "Larisa's expected weather: ")}</p>}
 
+            {/* Ken's rail sheet: the pickup checklist on its day (Shin-Osaka, Oct 6), and on Now the next train */}
+            {/* (the pickup is the sheet owner's couple's job — anyone else reaches its steps from the day's trains) */}
+            {otherSources.flatMap((s) => {
+              const { ownerParty } = railAudience(items, s.owner);
+              if (!ownerParty || !isFor({ forWhom: ownerParty }, me)) return [];
+              return s.checklists.filter((c) => c.date === date).map((c) => <ChecklistCard key={`${s.id}-${c.tab}`} c={c} s={s} today={isToday} />);
+            })}
+            {now && isToday && (
+              <NextTrain sources={otherSources} date={date} nowMinutes={tripNow}
+                isMine={(r, s) => { const a = railAudience(items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); }} />
+            )}
+            {/* Today, where the rail sheet and her Guide disagree is said up top, before either's "Next" (round r1: at
+                12:10 on Oct 29 Now led with the Guide's 12:30 HARUKA and the difference was two screens down) */}
+            {isToday && otherSources.flatMap((s) => s.differs.filter((d) => d.date === date).map((d) => (
+              <DifferNote key={`${s.id}-${d.row}-${d.guideSource}`} d={d} className="mb-3" />
+            )))}
             {leave && flightAt !== null && flightNow < flightAt && (
               <div className={`mb-3 rounded-xl p-4 text-white ${flightNow > leave.minutes ? "bg-[#8a5a1a]" : "bg-[#514636]"}`}>
                 <p className="text-xs uppercase tracking-wide text-white/70">
@@ -967,6 +998,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               )}
               {notice && <p className="text-sm text-[#6b5d4a] mt-2" role="status">{notice}</p>}
             </section>
+
+            {/* The day's trains from Ken's rail sheet, apart from her Guide, with any disagreement said */}
+            <TrainsForDay sources={otherSources} date={date} today={today}
+              pickupBy={(s) => { const { ownerParty } = railAudience(items, s.owner); return ownerParty && !isFor({ forWhom: ownerParty }, me) ? ownerParty : null; }} />
 
             {/* Where everyone sleeps tonight */}
             {date !== last && (
