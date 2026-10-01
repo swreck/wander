@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
-import { queuedBodies } from "../lib/offlineStore";
+import { queuedBodies, phonePerson } from "../lib/offlineStore";
 import { useAuth } from "../contexts/AuthContext";
 import type { Experience, Trip } from "../lib/types";
 import { guideData, type TripGuideData } from "../lib/guideData";
@@ -29,7 +29,8 @@ function phoneToday() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-const copyKey = (tripId: string) => `wander:ideas-copy:${tripId}`;
+// (per person as well as per trip: a phone can be handed to someone else — private notes and picks are in it)
+const copyKey = (tripId: string) => `wander:ideas-copy:${tripId}:${phonePerson()}`;
 
 /** Where an idea sits in Larisa's Activities tab (the importer keeps her row); Wander additions after hers */
 const sheetRow = (e: Experience) => (e.sheetRowRef ? Number((e as { priorityOrder?: number }).priorityOrder ?? 5000) : 10000);
@@ -117,7 +118,8 @@ export default function IdeasPage() {
   useEffect(() => {
     if (!cityId) return;
     let cancelled = false;
-    const key = `wander:ideas-notes:${cityId}`;
+    // (this person's copy: on a phone handed from Ken to Andy, Ken's private note showed on Andy's screen — k2)
+    const key = `wander:ideas-notes:${cityId}:${phonePerson()}`;
     // Notes saved with no signal are still waiting on this phone — even after Wander was closed and
     // opened again — so they show, marked "waiting for signal", instead of looking lost
     const me = user?.displayName || "You";
@@ -196,7 +198,7 @@ export default function IdeasPage() {
 
   return (
     <div className="min-h-[100dvh] bg-[#faf8f5] pb-32">
-      <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] pt-[max(env(safe-area-inset-top),8px)]">
+      <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] top-bar">
         <div className="px-4 pb-1">
           <h1 className="text-lg font-medium text-[#3a3128]">Ideas{city ? ` · ${city.name}` : ""}</h1>
           <p className="text-xs text-[#6b5d4a]">From the Activities tab of {voiceFor(user?.displayName).guide}</p>

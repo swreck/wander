@@ -17,6 +17,7 @@ import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import GuidePage from "./pages/GuidePage";
+import NotesPage from "./pages/NotesPage";
 import JoinPage from "./pages/JoinPage";
 import CityBoard from "./pages/CityBoard";
 import TripStoryPage from "./pages/TripStoryPage";
@@ -33,6 +34,7 @@ import BottomNav from "./components/BottomNav";
 import UpdatePrompt from "./components/UpdatePrompt";
 import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { api } from "./lib/api";
+import { notePath } from "./lib/cameFrom";
 
 function ShortcutHelp() {
   const [show, setShow] = useState(false);
@@ -272,7 +274,7 @@ function SyncNotifier() {
     const onQueued = (e: Event) => {
       // Notes and day plans say "waiting for signal" right where they were saved — no second message
       const path = String((e as CustomEvent).detail?.path || "");
-      if (/^\/(experience-notes|day-choices)/.test(path)) return;
+      if (/^\/(experience-notes|day-choices|trip-notes)/.test(path)) return;
       showToast("Saved on this phone — I'll send it when you have signal", "info");
     };
     const onSynced = (e: Event) => {
@@ -297,6 +299,9 @@ function SyncNotifier() {
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+  // Each screen as it opens, so a back button can say where it goes (lib/cameFrom)
+  const { pathname } = useLocation();
+  useEffect(() => { notePath(pathname); }, [pathname]);
 
   if (loading) return null;
 
@@ -312,6 +317,7 @@ function AppRoutes() {
       <Route path="/now" element={<ProtectedRoute><DayPage now /></ProtectedRoute>} />
       <Route path="/day/:date" element={<ProtectedRoute><DayPage /></ProtectedRoute>} />
       <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
+      <Route path="/notes" element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
       {/* A step-by-step checklist from another source (the Shin-Osaka ticket pickup, Ken's rail sheet) */}
       <Route path="/checklist/:sourceId/:tab" element={<ProtectedRoute><ChecklistPage /></ProtectedRoute>} />

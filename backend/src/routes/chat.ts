@@ -1,6 +1,7 @@
 import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
+import { noteMatches, sharedWords } from "../services/tripNotes/view.js";
 import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, parseAccessCodes, type AuthRequest } from "../middleware/auth.js";
@@ -848,6 +849,19 @@ const tools: Anthropic.Tool[] = [
       type: "object" as const,
       properties: { tripId: { type: "string" }, choiceId: { type: "string" } },
       required: ["tripId", "choiceId"],
+    },
+  },
+  {
+    name: "get_my_notes",
+    description: "Read the asker's own trip notes (the Notes tab) and any notes others chose to share with the trip — never anyone's private notes. Use when someone asks about what they (or the group) wrote: 'what did I say about the potter?', 'my notes from Kyoto'. Optional search words and a day.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        query: { type: "string", description: "Words to look for, e.g. 'potter' (optional)" },
+        date: { type: "string", description: "A trip day, YYYY-MM-DD (optional)" },
+      },
+      required: ["tripId"],
     },
   },
   {
@@ -3387,6 +3401,31 @@ export async function executeTool(
 
     // To-dos on the Actions screen (Sep 30 2026 — the same rules as the screen: anything can be ticked off; only a
     // to-do added in Wander can be taken out, never one from Larisa's Guide)
+    // Trip notes (Oct 1 2026): the asker's own, and those shared with the trip — never another person's private note
+    case "get_my_notes": {
+      const me = (user as any).travelerId as string | undefined;
+      if (!me) return { result: { error: "Notes are kept per person — this sign-in has no person." } };
+      if (!(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: input.tripId, travelerId: me } } }))) {
+        return { result: { error: "That trip isn't one of yours." } };
+      }
+      const q = String(input.query || "").trim().slice(0, 200);
+      const all = await prisma.tripNote.findMany({
+        where: {
+          tripId: input.tripId,
+          OR: [{ travelerId: me }, { visibility: "trip" }],
+          ...(input.date && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? { dayDate: input.date } : {}),
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      // (the same rule as the Notes screens: someone else's note is only its words as they read now — services/tripNotes/view)
+      const notes = all.filter((n) => !q || noteMatches(n, me, q)).slice(0, 60);
+      return { result: {
+        notes: notes.map((n) => n.travelerId === me
+          ? { by: "you", day: n.dayDate, city: n.city, shared: n.visibility === "trip", words: n.tidied || n.text, ...(n.text !== n.original ? { asFirstSaved: n.original } : {}) }
+          : { by: n.authorName, day: n.dayDate, city: n.city, shared: true, words: sharedWords(n) }),
+        rule: "Quote their words exactly when you use them; say whose note it is; never add to or summarize away what they wrote unless asked to summarize.",
+      } };
+    }
     case "get_todos": {
       const todos = await prisma.planningAction.findMany({ where: { tripId: input.tripId }, orderBy: { createdAt: "asc" } });
       // Her Actions tab's "Both" is Andy and Larisa (its two status columns); "Both" added in Wander is everyone
@@ -4278,6 +4317,25 @@ router.post("/", async (req: AuthRequest, res) => {
       } catch (e: any) { console.warn("[scout] other sources unavailable:", e.message); }
     }
 
+    // The trip notes this person may see — their own, and others' shared with the trip (the same rule as the Notes
+    // screen: someone else's note is only its words as they read now). Listed with each question so Scout knows they're
+    // there: asked what Larisa wrote about lunch by the river, Scout answered from the Guide alone and said "that's all
+    // she wrote" — her shared note was never looked at (Scout notes exam N5, Oct 1 2026)
+    let notesLine = "";
+    if (tripId && req.user?.travelerId) {
+      try {
+        const me = req.user.travelerId;
+        const ns = await prisma.tripNote.findMany({ where: { tripId, OR: [{ travelerId: me }, { visibility: "trip" }] }, orderBy: { createdAt: "desc" }, take: 15 });
+        if (ns.length) {
+          notesLine = `TRIP NOTES this person can see (the Notes tab: their own, and others' shared with the trip — quote exactly and say whose; get_my_notes has every word): ` +
+            ns.map((n) => {
+              const words = n.travelerId === me ? n.tidied || n.text : sharedWords(n);
+              return `${n.travelerId === me ? "theirs" : `${n.authorName}'s, shared`}${n.dayDate ? ` (${n.dayDate}${n.city ? `, ${n.city}` : ""})` : ""}: "${words.slice(0, 160)}${words.length > 160 ? "…" : ""}"`;
+            }).join(" · ");
+        }
+      } catch (e: any) { console.warn("[scout] notes unavailable:", e.message); }
+    }
+
     // Build system prompt with page context
     const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
 
@@ -4390,6 +4448,7 @@ RULES:
 46d. Showing things: you can move Wander's screen with show_in_wander (it changes nothing). When someone asks to see, open, show or be taken to something — "show me our first day in Kyoto", "the day Andy and Julie arrive", "open tomorrow", "Tokyo ideas", "show me the deadlines" (that's Actions), "who's on the trip" (People) — work out the exact date or city from the Guide, call it with go=true, and reply in one short line that says what they're looking at ("Here's Wed, Oct 14 — Julie & Andy land at Narita at 3:00 PM."). Your panel steps down to a small bar while they look, so they can ask a follow-up; always pass a headline — the answer itself in a few words for that bar ("Oct 29 · still open: Shiraume or Four Seasons"). When you're talking about one line of that day (the Backroads meeting, a dinner), pass item with a few of its words so the screen scrolls to it. "Ideas I marked" / "Julie's ideas" → pass markedBy with that person's name (the asker's own name for "I"). "Take me back" / "go back" → target "back". When your answer is about one specific day, also call it with go=false so a button appears. If what they asked for doesn't exist in the plan (a city with no stay, a date outside the trip), say so in words first ("The trip ends Thu, Oct 29 — Nov 3 isn't part of it.") and offer the nearest real day as a button — never invent one, and never answer with only "tap below". Phrases like "been to by now" mean what the plan says up to today; say that you know the plan, not what they actually did. Everything you write before and after a tool call is shown together as one answer — so after a tool call, don't repeat yourself; add only what's new, or nothing.
 46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?", "do we need to reconfirm anything?", "where does the tour start?", "are we going to X?") gets an answer, not a draft — at most offer in words ("Want me to draft a note to Larisa?"). Never do this when the asker is Larisa herself.
 46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed — say both in one short line. Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Take back" under their own note in Ideas — someone else's note is theirs to take back.
+46e. Trip notes (the Notes tab): each person's own words, kept exactly — private unless they share a note with the trip. "What did I write about…", "my notes from Kyoto" → get_my_notes, and quote their words exactly, saying whose note it is. When someone asks what a person "wrote", "said" or "noted" about something, look in get_my_notes (their shared notes) AND the Guide, and give both — a shared note is something they wrote. Never say "that's all they wrote" unless you looked in both. You never see or mention anyone's private notes but the asker's. You don't write notes: when someone wants to note something down, tell them the Notes tab keeps every word exactly as they say or type it.
 46c. To-dos (the Actions screen): "remind us to…" / "add a to-do…" → add_todo (added in Wander; her Guide unchanged — say so in a few words). "We did it" / "that's done" → set_todo_done. "Take that off the list" → remove_todo, only for one added in Wander; one from Larisa's Guide stays until she takes it out of her sheet (it can still be ticked off). Use get_todos to find it. On screen: Actions → "+ Add", the tick beside each, and "Take out" on those added in Wander.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
 52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
@@ -4460,6 +4519,7 @@ RULES:
       nowLine,
       liveLines.length ? `(What her Guide's deadlines and flights stand at right now is in the document "${LIVE_TITLE}".)` : "",
       ...otherFreshness,
+      notesLine,
       "",
       "CURRENT CONTEXT:",
       `- Page: ${context?.page || "unknown"}`,

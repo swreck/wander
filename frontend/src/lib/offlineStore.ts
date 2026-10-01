@@ -61,11 +61,16 @@ export async function queueRequest(entry: QueuedRequest): Promise<void> {
     tx.onerror = () => reject(tx.error);
   });
 
-  // Request background sync if available
+  // Request background sync if available. `serviceWorker.ready` never settles when there's no service worker (a
+  // first visit, a private window, one that's blocked) — waited on, the save sat on "Saving…" for good (Oct 1 2026).
+  // The request is already kept, so wait a second at most; it's sent on the next open or when signal returns anyway.
   if ('serviceWorker' in navigator && 'SyncManager' in window) {
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000)),
+    ]);
     try {
-      await (reg as any).sync.register('wander-capture-sync');
+      if (reg) await (reg as any).sync.register('wander-capture-sync');
     } catch {
       // Background sync not supported or permission denied; queue remains
     }
@@ -90,7 +95,28 @@ export async function getQueueCount(): Promise<number> {
  * What's still waiting to send, for one kind of request ("/api/day-choices/<trip>") — so a plan or a
  * note saved with no signal still shows as waiting after Wander is closed and opened again.
  */
-export async function queuedBodies(urlPart: string, method = "POST"): Promise<Array<Record<string, unknown> & { _url: string; _at: number }>> {
+/** Whose sign-in a token is (the person's id inside it — read only to tell people apart on a shared phone; the server
+ *  is what checks it) */
+export function whoIs(token: string | null | undefined): string | null {
+  try {
+    const part = (token || "").replace(/^Bearer\s+/i, "").split(".")[1];
+    if (!part) return null;
+    const json = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+    return json.travelerId || json.code || null;
+  } catch { return null; }
+}
+
+/** The person signed in on this phone now, for naming what the phone keeps of theirs ("nobody" when signed out) */
+export const phonePerson = () => whoIs(localStorage.getItem("wander_token")) || "nobody";
+
+/** What's still waiting to send — only the signed-in person's own (on a phone handed from Ken to Andy, Ken's waiting
+ *  idea note showed on Andy's screen as Andy's; confirmation tester k2, Oct 1 2026) */
+export async function queuedBodies(urlPart: string, method = "POST"): Promise<Array<Record<string, unknown> & { _url: string; _at: number; _who: string | null }>> {
+  const me = whoIs(localStorage.getItem("wander_token"));
+  return (await queuedBodiesOfAnyone(urlPart, method)).filter((q) => !!me && q._who === me);
+}
+
+async function queuedBodiesOfAnyone(urlPart: string, method = "POST"): Promise<Array<Record<string, unknown> & { _url: string; _at: number; _who: string | null }>> {
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -102,9 +128,9 @@ export async function queuedBodies(urlPart: string, method = "POST"): Promise<Ar
     return all
       .filter((q) => q.method === method && q.url.includes(urlPart) && q.body)
       .map((q) => {
-        try { return { ...(JSON.parse(q.body as string) as Record<string, unknown>), _url: q.url, _at: q.timestamp }; } catch { return null; }
+        try { return { ...(JSON.parse(q.body as string) as Record<string, unknown>), _url: q.url, _at: q.timestamp, _who: whoIs(q.headers?.Authorization) }; } catch { return null; }
       })
-      .filter((x): x is Record<string, unknown> & { _url: string; _at: number } => !!x);
+      .filter((x): x is Record<string, unknown> & { _url: string; _at: number; _who: string | null } => !!x);
   } catch {
     return [];
   }
@@ -169,13 +195,13 @@ export async function replayQueue(): Promise<{ success: number; failed: number }
   let failed = 0;
 
   for (const { key, value } of entries) {
+    // A trip note leaves this phone only when the server has it (Oct 1 2026: a refused send was dropped, words and
+    // all), and always under the sign-in of the person who wrote it — on a phone handed to someone else, a note waiting
+    // for signal must never arrive as theirs (privacy tester, Oct 1). Sign-ins last a year; one refused waits.
+    const isNote = value.url.includes("/trip-notes");
     try {
-      const res = await fetch(value.url, {
-        method: value.method,
-        headers: value.headers,
-        body: value.body,
-      });
-      if (res.ok || res.status < 500) {
+      const res = await fetch(value.url, { method: value.method, headers: value.headers, body: value.body });
+      if (isNote ? res.ok : (res.ok || res.status < 500)) {
         const delTx = db.transaction(STORE_NAME, 'readwrite');
         delTx.objectStore(STORE_NAME).delete(key);
         success++;

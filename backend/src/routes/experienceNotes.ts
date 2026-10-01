@@ -41,6 +41,14 @@ router.post("/", async (req: AuthRequest, res) => {
     return;
   }
 
+  // The same words on the same idea from the same person within minutes is one note sent twice (the page and the
+  // phone's background helper can both resend a note kept with no signal — confirmation tester k2): the one kept
+  const recent = await prisma.experienceNote.findFirst({
+    where: { experienceId, travelerId: req.user.travelerId, content: content.trim(), createdAt: { gte: new Date(Date.now() - 10 * 60_000) } },
+    include: { traveler: { select: { displayName: true } } },
+  });
+  if (recent) { res.json(recent); return; }
+
   const note = await prisma.experienceNote.create({
     data: {
       experienceId,

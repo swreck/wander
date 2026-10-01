@@ -27,7 +27,7 @@ import {
   checkoutBeforeFirst, checkinAfterLanding, leadItem, withCheckoutWho, minutesToClock, lateLeaveWords,
   ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, saidAgain, currentUnownedLine, linksIn, besideHotel, voiceFor, tabLabel,
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
-  nowMinutesOn, zonedMoment, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
+  nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
 } from "../lib/guideDisplay";
 import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
@@ -162,6 +162,18 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     <section id="plan" className="mb-5 scroll-mt-24">
       <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{v.Owners} plan for the day</h2>
       <p className="text-[13px] text-[#6b5d4a] mt-0.5">From the {tabLabel(tab)} tab{heading ? ` — ${heading}` : ""}</p>
+      {/* Her whole route for the day, as she made it in Google Maps (charm item C4, Oct 1 2026) */}
+      {(() => {
+        const url = blocks.map((b) => (b.detail || "").match(/^Her whole route for the day: (\S+)$/m)?.[1]).find(Boolean);
+        return url ? (
+          <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="6" cy="19" r="2" /><circle cx="18" cy="5" r="2" /><path d="M6 17V9a4 4 0 0 1 4-4h6M18 7v8a4 4 0 0 1-4 4H8" />
+            </svg>
+            See {v.her} route for the day in Google Maps ↗
+          </a>
+        ) : null;
+      })()}
       {overview.map((o) => (
         <p key={o.id} className="text-[13px] text-[#514636] mt-1">In {v.her} Itinerary for today: “{o.title}”</p>
       ))}
@@ -177,7 +189,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           const estimate = lines.includes("Times are Larisa's estimate.");
           const differ = tabsDiffer(b);
           const picGroup = pictureGroupOf(b);
-          const notes = lines.filter((l) => !l.startsWith("Choice: ") && !l.startsWith("Tabs differ: ") && l !== "Times are Larisa's estimate." && !PICTURE_GROUP.test(l))
+          const notes = lines.filter((l) => !l.startsWith("Choice: ") && !l.startsWith("Tabs differ: ") && l !== "Times are Larisa's estimate." && !PICTURE_GROUP.test(l) && !l.startsWith("Her whole route for the day: "))
             .map((l) => (/^Where:/.test(l) ? v.say(l) : l));
           // Her "Transit: … Experience: …" on their own lines; a short note ("pending confirmation") in full
           const noteText = notes.join("\n").replace(/\s+(Experience|Transit|Note):/g, "\n$1:");
@@ -281,6 +293,10 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
   );
 }
 import PhraseCard from "../components/PhraseCard";
+import EveningQuestion from "../components/EveningQuestion";
+import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
+import CityArrival from "../components/CityArrival";
+import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
 import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwner";
 
@@ -307,6 +323,8 @@ function phoneToday() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+const weekdayOf = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
 
 function longDate(date: string) {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
@@ -753,7 +771,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   return (
     <div className="min-h-[100dvh] bg-[#faf8f5] pb-32">
       {/* Header: where you are, how to get back, and the neighbouring days */}
-      <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] px-2 pt-[max(env(safe-area-inset-top),8px)] pb-2">
+      <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] px-2 top-bar pb-2">
         <div className="flex items-center gap-1">
           {now ? (
             // Quick Japanese phrases, up here — floating over the day they covered its cards
@@ -762,21 +780,67 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             <button
               // Step back to where they came from (Home, Ideas), so Back afterwards doesn't reopen this day
               onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/", { replace: true }))}
-              aria-label="Back" className="min-h-[44px] min-w-[44px] px-2 text-[#514636] text-sm">‹ Back</button>
+              // Named for where it goes ("‹ Home", "‹ Notes"…), as iPhone back buttons are — the day buttons beside it
+              // name days, in their own bordered shape (map review rounds 4–6: a bare "Back" next to "‹ Sat" was
+              // ambiguous; with no arrow at all it read as a title)
+              aria-label={`Back to ${backWord(window.location.pathname, (window.history.state?.idx ?? 0) > 0)}`.replace("Back to Back", "Back")}
+              className="min-h-[44px] min-w-[44px] px-2 text-[#514636] text-sm whitespace-nowrap">‹ {backWord(window.location.pathname, (window.history.state?.idx ?? 0) > 0)}</button>
           )}
           <div className="flex-1 text-center min-w-0">
             <h1 className="text-base font-medium text-[#3a3128] leading-snug" aria-label={`${longDate(date)}${isToday ? ", today" : ""}`}>
-              {isToday ? shortDate(date) : titleDate(date)}{isToday && <span className="ml-2 text-xs font-normal text-white bg-[#514636] rounded-full px-2 py-0.5 align-middle">Today</span>}
+              {isToday ? shortDate(date) : titleDate(date)}
             </h1>
-            <p className="text-xs text-[#6b5d4a] leading-snug">{[route, day?.dayType === "guided" ? "With Backroads" : null].filter(Boolean).join(" · ")}</p>
+            {/* (Backroads is said once, in the day's own "With Backroads — day N of 8" note; "Today" sits here, not beside
+                the date — the bar was cramped on a small phone; map review, Oct 1 2026) */}
+            {/* the way there on a travel day ("Tokyo → Nikko"); on other days the city is in the band just below */}
+            {(isToday || route !== cityName) && (
+              <p className="text-xs text-[#6b5d4a] leading-snug">
+                {isToday && <span className="font-semibold text-white bg-[#514636] rounded-full px-1.5 py-px mr-1">Today</span>}{route !== cityName ? route : ""}
+              </p>
+            )}
           </div>
           {/* Day to day replaces (Back returns to where you came from); from Now it's a step, so Back returns to Now */}
+          {/* The neighbouring days by name ("‹ Thu", "Sat ›") — a bare "‹" beside "‹ Back" looked like the same
+              button (map review, Oct 1 2026) */}
           <button onClick={() => hasPrev && navigate(`/day/${addDays(date, -1)}`, { replace: !now })} disabled={!hasPrev}
-            aria-label="Previous day" className="min-h-[44px] min-w-[44px] text-lg text-[#514636] disabled:opacity-25">‹</button>
+            aria-label="Previous day" className="min-h-[44px] min-w-[44px] pl-1 text-sm text-[#514636] disabled:opacity-25 whitespace-nowrap">
+            <span className="inline-block rounded-full border border-[#c8bba8] bg-white px-3 py-1.5">‹ {weekdayOf(addDays(date, -1))}</span>
+          </button>
           <button onClick={() => hasNext && navigate(`/day/${addDays(date, 1)}`, { replace: !now })} disabled={!hasNext}
-            aria-label="Next day" className="min-h-[44px] min-w-[44px] text-lg text-[#514636] disabled:opacity-25">›</button>
+            aria-label="Next day" className="min-h-[44px] min-w-[44px] pl-1.5 pr-2 text-sm text-[#514636] disabled:opacity-25 whitespace-nowrap">
+            <span className="inline-block rounded-full border border-[#c8bba8] bg-white px-3 py-1.5">{weekdayOf(addDays(date, 1))} ›</span>
+          </button>
         </div>
       </header>
+
+      {/* The day in its city's color, the city's name large — the calendar's color, so a day feels like its place
+          (charm item C3, Oct 1 2026) */}
+      {cityName && (day || (first && date >= first && date <= last)) && (() => {
+        const cityId = day?.cityId || night.stays[0]?.stay.cityId || "";
+        const pastel = trip ? getCityPastel(trip.cities, cityId) : "#F2ECDE";
+        return (
+          <div className="pt-5 pb-4" style={{ backgroundColor: pastel, borderBottom: `3px solid ${cityAccent(pastel)}` }}>
+            {/* The first time a day in this city opens on this phone: the city's photo, for a moment (C2) */}
+            {(() => {
+              const c = trip?.cities.find((x) => x.id === cityId);
+              const away = !!c && (!c.country || c.country === tripCountryOf(trip!.cities));
+              // Only when you've arrived — the day opened is today or past. Looking ahead from home used up the photo
+              // (Julie, tester t1: Kyoto's photo on Oct 10 in California, then none on Oct 23 in Kyoto)
+              // …and while you're in that city — not a week later looking back (tester t4: a photo missed with no
+              // signal turned up when Karatsu's day was opened from Tokyo)
+              const cityDates = days.filter((d) => d.cityId === cityId).map((d) => ymd(d.date)).sort();
+              const inCityNow = cityDates.length > 0 && cityDates[0] <= today && today <= cityDates[cityDates.length - 1];
+              return away && date <= today && inCityNow ? <CityArrival cityId={cityId} cityName={cityName} dateWords={longDate(date)} /> : null;
+            })()}
+            {/* Just the city: the date and the way here ("Tokyo → Nikko") are in the bar above, and Backroads in the
+                day's note — said three times, they crowded the top of the screen (map review, Oct 1 2026) */}
+            {/* (the same column as the day below it — on an iPad the name sat 16 px left of it; tester t5) */}
+            <div className="max-w-xl mx-auto px-4">
+              <p className="text-[32px] leading-tight font-light tracking-wide text-[#3a3128]">{cityName}</p>
+            </div>
+          </div>
+        );
+      })()}
 
       <main className="px-4 pt-4 max-w-xl mx-auto">
         {!day && (!first || date < first || date > last) ? (
@@ -912,13 +976,50 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               <p key={`${s.id}-${q}`} className="text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mb-3">Still open in {v.her} Guide: “{q}”</p>
             )))}
             {/* Her forecast for this stay, in her numbers (the sheet gives no units) */}
-            {forecast && <p className="text-sm text-[#6b5d4a] mb-3">{forecast.title.replace(/^Larisa's forecast:\s*/, `The weather ${v.guide} expects: `)}</p>}
+            {forecast && (() => {
+              // A small picture of her forecast, from her words only (charm item C5, Oct 1 2026): rain she expects
+              // (any amount above zero, or rain in words) → a cloud with rain; otherwise sun and a cloud
+              const t = forecast.title;
+              const dry = /\brain\s*0(\.0+)?\s*(in|mm)?\s*(,|$)/i.test(t);
+              const rainy = /\brain\b/i.test(t) && !dry;
+              // (rain 0 in her words: a plain sun; nothing said about rain: sun and a cloud — tester t1)
+              return (
+                <p className="flex items-start gap-2 text-sm text-[#6b5d4a] mb-3">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-[-1px]" aria-hidden>
+                    {rainy ? (
+                      <>
+                        <path d="M7 15a4 4 0 0 1 .4-8A5 5 0 0 1 17 8a3.5 3.5 0 0 1 0 7H7z" stroke="#7a8aa0" fill="#e8eef5" />
+                        <path d="M9 18l-1 2M13 18l-1 2M17 18l-1 2" stroke="#7a8aa0" />
+                      </>
+                    ) : dry ? (
+                      <>
+                        <circle cx="12" cy="12" r="4.5" stroke="#c9a14a" fill="#f6e7bf" />
+                        <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" stroke="#c9a14a" />
+                      </>
+                    ) : (
+                      <>
+                        <circle cx="9" cy="9" r="3.5" stroke="#c9a14a" fill="#f6e7bf" />
+                        <path d="M9 2.5v1.5M9 14v1.5M2.5 9H4M14 9h1.5M4.4 4.4l1 1M12.6 12.6l1 1M4.4 13.6l1-1M12.6 5.4l1-1" stroke="#c9a14a" />
+                        <path d="M11 19a3.5 3.5 0 0 1 .3-7 4.5 4.5 0 0 1 8.4 1.6A3 3 0 0 1 19.5 19H11z" stroke="#9aa3ad" fill="#f4f6f8" />
+                      </>
+                    )}
+                  </svg>
+                  {/* her words, without the column names doubling them ("lows low 60s" → "low 60s", "rain little rain" →
+                      "little rain"; tester t1) */}
+                  <span>{t.replace(/^Larisa's forecast:\s*/, `The weather ${v.guide} expects: `)
+                    .replace(/\blows (low\b)/i, "$1").replace(/\bhighs (high\b)/i, "$1").replace(/\brain ((?:little|light|some|no|heavy) rain\b)/i, "$1")
+                    // "rain 0" → "no rain"; a range never breaks across lines ("72-" / "76" — tester k1)
+                    .replace(/\brain\s*0(\.0+)?\s*(in|mm)?\s*(?=,|$)/i, "no rain").replace(/(\d)-(\.?\d)/g, "$1‑$2")}</span>
+                </p>
+              );
+            })()}
 
             {/* A ticket this phone didn't tick at the pickup, on the morning it travels — first, with where it can still be
                 collected (delight audit) */}
             {now && isToday && (
               <TicketWarnings list={untickedTickets(otherSources, date, me, (s) => railAudience(items, s.owner).ownerParty,
-                (r, s) => { const a = railAudience(items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); })} />
+                (r, s) => { const a = railAudience(items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); },
+                (r) => tripClockMinutes({ time: colOf(r.cols, /^depart/).padStart(5, "0") } as GuideItem, tripZone) >= tripNow)} />
             )}
             {/* After landing, the leg with no booking that gets you to your first train (KIX → Shin-Osaka), as Now's next
                 thing — before the pickup, which is at its end (delight audit: Home and Now jumped from the landing to the
@@ -1072,6 +1173,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 </div>
               );
             })()}
+            {/* Scout's evening question — after 6 PM on a trip day, once (Oct 1 2026) */}
+            {now && isToday && <EveningQuestion tripId={tripId} className="mb-3" />}
             {/* The train, after her sooner Next */}
             {now && isToday && !trainFirst && (
               <NextTrain sources={otherSources} date={date} nowMinutes={tripNow} quiet
@@ -1091,16 +1194,21 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     <a href={mapsLink(stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)))}
                       className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Find in Maps ↗</a>
                   </>
-                ) : myFlight && flightAt !== null && flightNow >= flightAt ? (
-                  // The flight has left: say so, and when it lands
-                  <>
-                    <p className="text-[15px] text-[#3a3128]"><span className="text-[#6b5d4a]">Should be in the air · </span>{myFlight.title}</p>
-                    {(myFlight.detail || "").match(/Lands at [^\n|]+/) && (
-                      <p className="text-sm text-[#514636] mt-0.5">{(myFlight.detail || "").match(/Lands at [^\n|]+/)![0].trim()}</p>
-                    )}
-                    {date === last && <p className="text-sm text-[#514636] mt-1">Safe travels home.</p>}
-                  </>
-                ) : (
+                ) : myFlight && flightAt !== null && flightNow >= flightAt ? (() => {
+                  // The flight has left: say so, and when it lands — and once it should have landed, say that (at
+                  // 3 PM at home Now still said "Should be in the air" while Home said "Welcome home"; tester k1)
+                  const landsAt = scheduledLanding(myFlight.detail, date.slice(0, 4));
+                  const landed = !!landsAt && Date.now() > landsAt.getTime() + 30 * 60_000;
+                  return (
+                    <>
+                      <p className="text-[15px] text-[#3a3128]"><span className="text-[#6b5d4a]">{landed ? "Should have landed · " : "Should be in the air · "}</span>{myFlight.title}</p>
+                      {(myFlight.detail || "").match(/Lands at [^\n|]+/) && (
+                        <p className="text-sm text-[#514636] mt-0.5">{(myFlight.detail || "").match(/Lands at [^\n|]+/)![0].trim()}</p>
+                      )}
+                      {date === last && <p className="text-sm text-[#514636] mt-1">{landed ? "Welcome home." : "Safe travels home."}</p>}
+                    </>
+                  );
+                })() : (
                   <p className="text-sm text-[#6b5d4a]">Nothing more with a time today.</p>
                 )}
                 {tomorrowFirst && (
@@ -1125,7 +1233,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               const guided = days.filter((d) => d.dayType === "guided").map((d) => ymd(d.date)).sort();
               const n = guided.indexOf(date) + 1;
               return (
-                <p className="text-sm text-[#3a3128] bg-[#eef3e8] rounded-xl px-4 py-3 mb-3">
+                // (a neutral card: green, it blurred into a green city band above it — map review, Oct 1 2026)
+                <p className="text-sm text-[#3a3128] bg-white border border-[#e0d8cc] rounded-xl px-4 py-3 mb-3">
                   {/* "today" only on today (round 9: Oct 20, looked at on Oct 19, said "With Backroads today") */}
                   With Backroads{isToday ? " today" : ""}{n > 0 ? ` — day ${n} of ${guided.length}` : ""}. Their guides lead the day{dayItems.length ? `; here's what ${v.guide} adds.` : `, and ${v.guide} has nothing else for it.`}
                 </p>

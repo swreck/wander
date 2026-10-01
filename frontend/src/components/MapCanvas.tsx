@@ -66,24 +66,8 @@ export const THEME_LABELS: Record<string, string> = {
   other: "Experience",
 };
 
-// ── City pastel palette ─────────────────────────────────────────
-
-export const CITY_PASTELS = [
-  "#F2E0DE", // rose
-  "#DEE6F2", // sky
-  "#DEF2DE", // sage
-  "#F2ECDE", // warm
-  "#E6DEF2", // lavender
-  "#DEF2EC", // mint
-  "#F2DEE6", // blush
-  "#ECF2DE", // spring
-];
-
-export function getCityPastel(cities: { id: string }[], cityId: string): string {
-  const idx = cities.findIndex((c) => c.id === cityId);
-  if (idx === -1) return CITY_PASTELS[0];
-  return CITY_PASTELS[idx % CITY_PASTELS.length];
-}
+// ── City pastel palette (lives in lib/cityColors so pages without a map needn't load the map) ──
+export { CITY_PASTELS, getCityPastel, cityAccent } from "../lib/cityColors";
 
 function getThemeStyle(themes: string[]): ThemeStyle {
   for (const t of themes) {

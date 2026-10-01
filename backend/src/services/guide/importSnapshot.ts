@@ -1088,6 +1088,13 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       return null;
     };
     const plainDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+    // Her whole route for the day, when her tab has one ("Open Complete Day 3 Route on Google Maps") — kept with the
+    // day's first line so the day screen can open it (charm item C4, Oct 1 2026). Only for a tab with one day's plan:
+    // a route can't be told apart between two days.
+    const routeCell = reading.plans.length === 1
+      ? tab.cells.find((c) => /google\.[a-z.]+\/maps\/dir\/[^/?\s]+\/[^/?\s]+/i.test(c.link || c.text || ""))
+      : undefined;
+    const routeUrl = routeCell ? (routeCell.link || (routeCell.text.match(/https?:\/\/\S+/) || [])[0] || null) : null;
     for (const p of reading.plans) {
       const day = p.date || p.matchedDate!;
       const dayNo = (p.heading || "").match(/\bDay\s*(\d+)\b/i)?.[1];
@@ -1098,7 +1105,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       const matched = !p.date && p.matchedDate
         ? `Wander matched this plan to ${plainDate(day)}, since her tab's words don't give a date. ${(p.matchReason || "").trim().replace(/^./, (c) => c.toUpperCase()).replace(/([^.!?])$/, "$1.")}${picSays}`
         : null;
-      for (const b of p.blocks) {
+      for (const [bi, b] of p.blocks.entries()) {
         // Every block stays: her plan is shown whole, in her order (a duplicate check dropped "~8:00 Breakfast /
         // check out; leave luggage at Four Seasons" for looking like the check-out line). What it adds to the
         // Itinerary's own line for the same thing: a time the line didn't have ("Une Immersion" → 7:00 PM),
@@ -1146,6 +1153,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
             ...b.choices.map((c) => `Choice: ${c.name}${c.note ? ` — ${c.note}` : ""}`),
             roleStop(b.label) ? `Where: ${roleStop(b.label)!.name} — the stop her tab lists for this` : null,
             startDiffers,
+            bi === 0 && routeUrl ? `Her whole route for the day: ${routeUrl}` : null,
             b.notes,
             matched,
           ].filter(Boolean).join("\n") || null,

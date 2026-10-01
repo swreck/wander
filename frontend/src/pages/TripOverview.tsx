@@ -4,8 +4,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import CreateTrip from "../components/CreateTrip";
 import { useToast } from "../contexts/ToastContext";
-import { APIProvider, Map as GoogleMap, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
-import { getCityPastel, CITY_PASTELS } from "../components/MapCanvas";
+import { getCityPastel } from "../components/MapCanvas";
+import HomeTripMap from "../components/HomeTripMap";
+import { tripCountryOf, cityAccent } from "../lib/cityColors";
 import type { Trip, City, Day, Experience, ChangeLogEntry, Decision } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import useBackToClose from "../hooks/useBackToClose";
@@ -21,6 +22,7 @@ import ActionsPanel from "../components/ActionsPanel";
 import FaceIdSetup from "../components/FaceIdSetup";
 import { warmGuideData } from "../lib/guideData";
 import TripGlance from "../components/TripGlance";
+import EveningQuestion from "../components/EveningQuestion";
 import WelcomeOnce from "../components/WelcomeOnce";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
 import { voiceFor } from "../lib/guideDisplay";
@@ -305,6 +307,9 @@ export default function TripOverview() {
   // This correctly handles return visits (e.g., Kyoto Oct 5-7 then Kyoto Oct 20-23 = visits 2 and 8).
   // NOTE: useMemo must be called before any early returns to maintain hook order
   const cities = trip?.cities || [];
+  // The map is the trip's country — the city you fly from (San Francisco) would shrink Japan to a speck (Oct 1 2026)
+  const tripCountry = tripCountryOf(cities);
+  const inTripCountry = (c: City) => !tripCountry || !c.country || c.country === tripCountry;
   const cityMarkers = useMemo(() => {
     if (!cities.length || !days.length) return [];
     const sortedDays = [...days].sort((a, b) =>
@@ -315,8 +320,11 @@ export default function TripOverview() {
     const visits: { cityId: string; visitNumber: number }[] = [];
     let lastCityId: string | null = null;
     let visitCount = 0;
+    // (only cities the map shows are counted — numbers run 1, 2, 3… with no gaps for the city you fly from or one whose
+    // place isn't confirmed; Oct 1 2026)
+    const onMap = (id: string) => { const c = cities.find((x) => x.id === id); return !!c && !!c.latitude && !!c.longitude && !c.hidden && inTripCountry(c); };
     for (const day of sortedDays) {
-      if (day.cityId && day.cityId !== lastCityId) {
+      if (day.cityId && day.cityId !== lastCityId && onMap(day.cityId)) {
         visitCount++;
         visits.push({ cityId: day.cityId, visitNumber: visitCount });
         lastCityId = day.cityId;
@@ -327,7 +335,7 @@ export default function TripOverview() {
     const cityMap = new Map<string, { city: City; visitNumbers: number[] }>();
     for (const { cityId, visitNumber } of visits) {
       const city = cities.find((c) => c.id === cityId);
-      if (!city || !city.latitude || !city.longitude || city.hidden) continue;
+      if (!city || !city.latitude || !city.longitude || city.hidden || !inTripCountry(city)) continue;
       const existing = cityMap.get(cityId);
       if (existing) {
         existing.visitNumbers.push(visitNumber);
@@ -448,7 +456,8 @@ export default function TripOverview() {
     }
   }
 
-  const locatedCities = cities.filter((c) => c.latitude && c.longitude && c.arrivalDate && !c.hidden);
+  // The cities the Home map shows: located, in the trip's country (not the city you fly from), not hidden
+  const mapCities = cities.filter((c) => c.latitude && c.longitude && !c.hidden && inTripCountry(c));
   const hasMap = API_KEY && cityMarkers.length > 0;
 
   return (
@@ -482,68 +491,12 @@ export default function TripOverview() {
 
       {/* Hero map */}
       {hasMap && (
-        <div className="relative">
-          <div className="h-[40vh] min-h-[280px]">
-            <APIProvider apiKey={API_KEY}>
-              <GoogleMap
-                defaultCenter={{ lat: locatedCities[0].latitude!, lng: locatedCities[0].longitude! }}
-                defaultZoom={6}
-                mapId="wander-overview"
-                gestureHandling="cooperative"
-                disableDefaultUI={true}
-                zoomControl={false}
-                mapTypeControl={false}
-                streetViewControl={false}
-                fullscreenControl={false}
-                style={{ width: "100%", height: "100%" }}
-              >
-                <OverviewFitter cities={locatedCities} />
-                <RoutePolyline cities={locatedCities} />
-                {cityMarkers.map(({ city, visitNumbers }) => {
-                  const firstIdx = visitNumbers[0] - 1;
-                  const pastel = CITY_PASTELS[firstIdx % CITY_PASTELS.length];
-                  const label = visitNumbers.length > 1
-                    ? visitNumbers.join(" · ")
-                    : String(visitNumbers[0]);
-                  const isMultiVisit = visitNumbers.length > 1;
-                  return (
-                    <AdvancedMarker
-                      key={city.id}
-                      position={{ lat: city.latitude!, lng: city.longitude! }}
-                      onClick={() => navigate(`/plan?city=${city.id}`)}
-                      title={city.name}
-                    >
-                      <div className="flex flex-col items-center">
-                        <div
-                          className="flex items-center justify-center shadow"
-                          style={{
-                            minWidth: 20,
-                            height: 20,
-                            padding: isMultiVisit ? "0 5px" : undefined,
-                            borderRadius: isMultiVisit ? 10 : "50%",
-                            backgroundColor: pastel,
-                            borderWidth: 2,
-                            borderColor: "white",
-                            borderStyle: "solid",
-                            boxShadow: `0 1px 4px rgba(0,0,0,0.25), 0 0 0 1px ${pastel}`,
-                          }}
-                        >
-                          <span className="text-[9px] font-bold text-[#3a3128]">
-                            {label}
-                          </span>
-                        </div>
-                        <div className="mt-0.5 px-1 py-0 rounded bg-white/90 shadow-sm">
-                          <span className="text-[9px] font-medium text-[#3a3128]">{city.name}</span>
-                        </div>
-                      </div>
-                    </AdvancedMarker>
-                  );
-                })}
-              </GoogleMap>
-            </APIProvider>
-          </div>
-          {/* Trip name overlay on map */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#faf8f5] to-transparent pt-12 pb-4 px-4">
+        <div>
+          {/* The trip's cities in order; a tap opens a city's first day (charm item C1) */}
+          <HomeTripMap tripId={trip.id} cities={mapCities} allCities={cities} days={days}
+            onOpenDay={(d) => navigate(`/day/${d}`)} />
+          {/* The trip's name, below the map — over it, it hid the map's lower part and Google's logo and credit */}
+          <div className="px-4 pt-3">
             <div className="max-w-2xl mx-auto">
               <button
                 onClick={() => showSwitcherArrow && setShowTripSwitcher(true)}
@@ -557,7 +510,10 @@ export default function TripOverview() {
                 )}
               </button>
               {trip.tagline && (
-                <p className="text-sm text-[#6b5d4a] italic">{trip.tagline}</p>
+                // Where it comes from, to the person looking — without her copy's file name, which repeated the
+                // trip's name just above it (map review, Oct 1 2026)
+                <p className="text-sm text-[#6b5d4a] italic">{/^From Larisa's Guide/.test(trip.tagline)
+                  ? (voiceFor(user?.displayName).mine ? "From your Guide" : "From Larisa's Guide") : trip.tagline}</p>
               )}
               <p className="text-sm text-[#6b5d4a] mt-1">
                 {/* Just the trip's dates: the Today card says where each person is in it (Julie's trip
@@ -568,6 +524,17 @@ export default function TripOverview() {
                   <span>{days.length} days planned · Dates TBD</span>
                 )}
               </p>
+              {/* A stop the map can't show, said plainly — Shirakabeso was simply missing while the calendar showed it
+                  (tester t2) */}
+              {cities.filter((c) => !c.hidden && inTripCountry(c) && (!c.latitude || !c.longitude) && days.some((d) => d.cityId === c.id)).map((c) => {
+                const ds = days.filter((d) => d.cityId === c.id).map((d) => d.date.slice(0, 10)).sort();
+                const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+                return (
+                  <p key={c.id} className="text-xs text-[#6b5d4a] mt-1">
+                    {c.name} ({fmt(ds[0])}{ds.length > 1 ? `–${fmt(ds[ds.length - 1]).replace(/^[A-Za-z]+ /, "")}` : ""}) isn't on the map — Wander doesn't know exactly where it is yet.
+                  </p>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -707,6 +674,8 @@ export default function TripOverview() {
           </p>
         )}
         <WelcomeOnce owner={guideOwnerOf(trip.tagline)} />
+        {/* Scout's evening question — after 6 PM on a trip day, once (Oct 1 2026) */}
+        <EveningQuestion tripId={trip?.id} className="mb-3" />
         <TripGlance tripId={trip.id} />
 
         {/* Face ID offer right under Today — it only shows until it's set up or dismissed. Above Today it
@@ -790,61 +759,6 @@ export default function TripOverview() {
   );
 }
 
-// ── Map helpers (inner components, need useMap) ─────────────────
-
-function OverviewFitter({ cities }: { cities: City[] }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map) return;
-    const located = cities.filter((c) => c.latitude && c.longitude);
-    if (located.length === 0) return;
-
-    if (located.length === 1) {
-      map.panTo({ lat: located[0].latitude!, lng: located[0].longitude! });
-      map.setZoom(11);
-      return;
-    }
-
-    const bounds = new google.maps.LatLngBounds();
-    for (const c of located) {
-      bounds.extend({ lat: c.latitude!, lng: c.longitude! });
-    }
-    map.fitBounds(bounds, 50);
-  }, [map, cities]);
-
-  return null;
-}
-
-function RoutePolyline({ cities }: { cities: City[] }) {
-  const map = useMap();
-  const polylineRef = useRef<google.maps.Polyline | null>(null);
-
-  useEffect(() => {
-    if (!map) return;
-    if (polylineRef.current) polylineRef.current.setMap(null);
-
-    const path = cities
-      .filter((c) => c.latitude && c.longitude)
-      .map((c) => ({ lat: c.latitude!, lng: c.longitude! }));
-
-    if (path.length < 2) return;
-
-    const polyline = new google.maps.Polyline({
-      path,
-      strokeColor: "#a89880",
-      strokeOpacity: 0.5,
-      strokeWeight: 2,
-      geodesic: true,
-      map,
-    });
-    polylineRef.current = polyline;
-
-    return () => { polyline.setMap(null); };
-  }, [map, cities]);
-
-  return null;
-}
 
 // ── Dateless trip view (city cards instead of calendar) ──────────
 
@@ -1361,11 +1275,8 @@ function CalendarCluster({
                 ? `https://maps.googleapis.com/maps/api/staticmap?center=${city.latitude},${city.longitude}&zoom=13&size=120x120&scale=2&maptype=roadmap&style=feature:all|element:labels.text|visibility:off&style=feature:all|saturation:-50&key=${API_KEY}`
                 : null;
 
-              // Darker accent for dots (darken the pastel)
-              const dotColor = cityColor.replace(/F2|DE|EC|E6/g, (m: string) => {
-                const map: Record<string, string> = { F2: "C0", DE: "A8", EC: "B8", E6: "B0" };
-                return map[m] || m;
-              });
+              // Darker accent for dots (the shared rule — this copy turned the rose city's dots green)
+              const dotColor = cityAccent(cityColor);
 
               const dayKey = new Date(day.date).toISOString().slice(0, 10);
               const isToday = dayKey === phoneTodayKey;

@@ -174,7 +174,7 @@ export default function PeoplePage() {
 
   return (
     <div className="min-h-[100dvh] bg-[#faf8f5] pb-28">
-      <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] px-2 pt-[max(env(safe-area-inset-top),8px)] pb-2 flex items-center">
+      <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] px-2 top-bar pb-2 flex items-center">
         <button onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"))} aria-label="Back" className="min-h-[44px] min-w-[44px] px-2 text-[#514636] text-sm">‹ Back</button>
         <h1 className="flex-1 text-center text-base font-medium text-[#3a3128] pr-11">People on this trip</h1>
       </header>
