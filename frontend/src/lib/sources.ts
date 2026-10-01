@@ -203,8 +203,10 @@ export function beforeTravelSteps(sourceId: string, c: Checklist): { row: number
  * (delight audit: the warning sat three screens down, said "before boarding" for a ticket that "cannot be collected at
  * Utsunomiya", and Ken's second phone warned about a ticket the first had ticked).
  */
+/** `stillAhead`: a train that has already left is no longer warned about (tester t4: at 9 PM on Oct 29, in the air,
+ *  Home led with the 1:30 PM HARUKA's ticket) */
 export function untickedTickets(sources: OtherSource[], date: string, me: string | null | undefined,
-  partyOf: (s: OtherSource) => string | null, isMine: (r: RailRow, s: OtherSource) => boolean) {
+  partyOf: (s: OtherSource) => string | null, isMine: (r: RailRow, s: OtherSource) => boolean, stillAhead?: (r: RailRow) => boolean) {
   const out: { s: OtherSource; r: RailRow; where: string[]; others: string | null }[] = [];
   if (!me) return out;
   for (const s of sources) {
@@ -214,7 +216,7 @@ export function untickedTickets(sources: OtherSource[], date: string, me: string
     const pickup = s.checklists.find((c) => c.date && c.date < date);
     if (!pickup) continue;
     const progress = pickupProgress(s.id, pickup);
-    for (const r of s.rail.filter((x) => x.date === date && isBookedTrain(x) && isMine(x, s))) {
+    for (const r of s.rail.filter((x) => x.date === date && isBookedTrain(x) && isMine(x, s) && (!stillAhead || stillAhead(x)))) {
       const resv = colOf(r.cols, /^reservation/);
       if (!resv || progress.tickedFor(resv) !== false) continue;
       const text = `${colOf(r.cols, /^ticket/)}. ${colOf(r.cols, /^notes$/)}`;

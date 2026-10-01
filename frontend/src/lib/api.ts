@@ -8,6 +8,8 @@ const QUEUEABLE_PATHS = [
   "/days", "/cities", "/route-segments", "/captures",
   // Notes and same-day plans typed with no signal are kept on the phone and sent later
   "/experience-notes", "/day-choices",
+  // Trip notes (Oct 1 2026): every word, kept on the phone until the server says it has them
+  "/trip-notes",
 ];
 
 function isQueueable(path: string, method: string): boolean {

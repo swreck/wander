@@ -123,8 +123,43 @@ model Trip {
   dayChoices        DayChoice[]
   // Other sources Wander reads besides her Guide (Sep 30 2026: Ken's rail sheet)
   sources           TripSource[]
+  // Trip notes (Oct 1 2026): each person's own words, kept exactly
+  tripNotes         TripNote[]
 
   @@map("trips")
+}
+
+// ── Trip notes (Oct 1 2026) ───────────────────────────────────
+// Ken: "capturing in a durable fashion" — a trip-notes app he tried once kept only "themes" of what he said. Every
+// word written or said is kept exactly: `original` is never changed after it's saved; an edit changes `text` only;
+// "Tidy my dictation" puts a cleaned copy in `tidied`, never instead. Private to the writer unless shared with the
+// trip. A summary (later) is built from these words, never instead of them.
+model TripNote {
+  id         String    @id @default(cuid())
+  tripId     String    @map("trip_id")
+  travelerId String    @map("traveler_id")
+  authorName String    @map("author_name")             // who wrote it, as named then
+  clientId   String    @map("client_id")               // the phone's own id for this note: a resend is the same note
+  original   String                                     // every word, as first saved — never changed
+  text       String                                     // the words now (the same as original unless edited)
+  tidied     String?                                    // "Tidy my dictation": the cleaned copy (null when off/not done)
+  tidyStatus String?   @map("tidy_status")             // "pending" | "done" | "kept-original" | "failed"
+  source     String    @default("typed")                // "typed" | "voice" | "evening" (Scout's evening question)
+  visibility String    @default("private")              // "private" (only the writer) | "trip" (everyone on the trip)
+  storyUse   Boolean?  @map("story_use")               // others' stories may use what it says about places; null = the writer's setting
+  dayDate    String?   @map("day_date")                // the trip day it's about, "2026-10-14"
+  city       String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  editedAt   DateTime? @map("edited_at")
+
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@unique([travelerId, clientId])
+  @@index([tripId, travelerId])
+  @@index([tripId, visibility])
+  @@map("trip_notes")
 }
 
 // ── Other sources (Sep 30 2026) ───────────────────────────────
@@ -619,6 +654,7 @@ model Traveler {
   reviewedApprovals   ApprovalRequest[]   @relation("ApprovalReviewer")
   loginEvents         LoginEvent[]
   dayChoices          DayChoice[]
+  tripNotes           TripNote[]
 
   @@map("travelers")
 }

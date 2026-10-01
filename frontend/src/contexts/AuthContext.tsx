@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { signInWithPasskey, markSignedInWith } from "../lib/passkeys";
+import { whoIs } from "../lib/offlineStore";
 
 interface User {
   code: string;
@@ -63,9 +64,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem("wander_me", JSON.stringify(user)); } catch { /* storage unavailable */ }
   }, [user]);
 
+  // The phone's saved copies of what Wander read belong to the person signed in — when someone else signs in (or the
+  // person signs out) they go. On a phone handed to someone else they showed the last person's things with no signal
+  // (privacy testers, Oct 1 2026: after sign-out, and after "Switch to Andy"). Pictures and the app itself stay.
+  function forgetPhoneCopies() {
+    if (typeof caches !== "undefined") {
+      caches.keys().then((names) => Promise.all(names.filter((n) => n.startsWith("wander-api") || n.startsWith("wander-days")).map((n) => caches.delete(n)))).catch(() => { /* nothing kept */ });
+    }
+  }
+  function keepToken(token: string) {
+    const before = whoIs(localStorage.getItem("wander_token"));
+    if (before && before !== whoIs(token)) forgetPhoneCopies();
+    localStorage.setItem("wander_token", token);
+  }
+
   async function login(code: string) {
     const res = await api.post<{ token: string; displayName: string; travelerId?: string; role?: string }>("/auth/login", { code });
-    localStorage.setItem("wander_token", res.token);
+    keepToken(res.token);
     localStorage.setItem("wander_user", res.displayName);
     setUser({ code, displayName: res.displayName, travelerId: res.travelerId, role: res.role });
     markSignedInWith("name");
@@ -76,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loginWithPasskey() {
     const res = await signInWithPasskey();
     localStorage.removeItem("wander_me");
-    localStorage.setItem("wander_token", res.token);
+    keepToken(res.token);
     localStorage.setItem("wander_user", res.displayName);
     setUser({ code: res.displayName, displayName: res.displayName, travelerId: res.travelerId, role: res.role });
     markSignedInWith("passkey");
@@ -84,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function loginWithToken(token: string, displayName: string) {
-    localStorage.setItem("wander_token", token);
+    keepToken(token);
     localStorage.setItem("wander_user", displayName);
     // Forget the saved copy of whoever was signed in before, so a weak signal can't bring them back
     localStorage.removeItem("wander_me");
@@ -101,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("wander_token");
     localStorage.removeItem("wander_user");
     localStorage.removeItem("wander_me");
+    forgetPhoneCopies();
     setUser(null);
   }
 

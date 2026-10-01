@@ -120,7 +120,9 @@ registerRoute(
 // Everything else Wander reads. Never the live-update stream, sign-in or Scout: a stream never
 // ends, so trying to keep a copy held its connection open for good — after a few opens the
 // browser ran out of connections and Wander went blank. Those go straight to the network.
-const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat'];
+// (trip notes too: this copy is the phone's, not the person's — on a phone handed to someone else, a saved copy of one
+// person's notes showed to the next with no signal. The Notes screen keeps its own copy, per person. Oct 1 2026)
+const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat', '/api/trip-notes'];
 registerRoute(
   ({ url, request }) =>
     url.pathname.startsWith('/api/') && request.method === 'GET' &&
@@ -170,7 +172,8 @@ async function replayOfflineQueue() {
         headers: entry.headers,
         body: entry.body,
       });
-      if (res.ok || res.status < 500) {
+      // A trip note leaves the phone only when the server has it, under its writer's own sign-in (Oct 1 2026)
+      if (entry.url.includes('/trip-notes') ? res.ok : (res.ok || res.status < 500)) {
         // Success or client error (don't retry client errors)
         const delTx = db.transaction('queue', 'readwrite');
         delTx.objectStore('queue').delete(key);

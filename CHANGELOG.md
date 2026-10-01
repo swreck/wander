@@ -2,6 +2,107 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-01 — Charm Comes Back, and Trip Notes
+
+Ken: Wander had become "an attractive database front end with AI support"; it started beautiful. Seven approved
+additions bring the places back without touching what Wander and Scout know.
+
+### Added
+- **The trip on a map, on Home** (Home, top; `components/HomeTripMap.tsx`). Numbered markers in visit order in each
+  city's calendar color, names beside them, gently arced legs with one arrow each; "start" and "end" on the first and
+  last stops; tapping a marker opens that city's first day. Shaped by seven rounds of fresh design review on iPhone SE,
+  15, Pro Max and iPad screenshots (Ken: "the first time, names and icons were too big and covered what made the map
+  useful"):
+  - Google's own place names are off (a calm parchment-and-water style); the only words are Wander's.
+  - Stops that follow each other and sit closer than a fingertip share one marker split in halves ("2 | 3"), each half
+    in its city's color, each leg meeting its own half; tapping it opens a sheet to choose. Stops that don't follow
+    each other are nudged apart instead.
+  - Names go where they cover no marker, name, arrow or line, inside the map and clear of Google's logo and credit.
+  - Legs arc around stops they don't make; a leg travelled back bows the other way. Lines and arrows are drawn at the
+    same size on every phone (Google stretches its drawing 0.7–1.4× between zoom levels; measured and corrected).
+  - The map is as tall as what's drawn needs, centered on it, with the trip's name below it (over it, it hid the
+    map's foot and Google's credit).
+  - During the trip: today's city dark with its name in a dark chip; places and legs already behind you go quiet.
+  San Francisco (where the trip starts) is left off. Cities were given their locations from Google
+  (`scripts/locate-cities.ts`); Shirakabeso has none until Ken confirms which place it is, so it isn't on the map.
+- **Arriving in a city** (Day screen, full screen, ~2 seconds). The first time a day in a new city opens on a phone: a
+  photo of that city's best-known sight with the city's name, the date, the sight's name and the photographer's credit.
+  Once per city per phone; a tap puts it away; never with no signal or if the photo is slow; never for San Francisco.
+  The photo comes through Wander's server (`/api/city-photo`), so no Google key reaches the phone. The sight is the
+  most-reviewed tourist attraction within 12 km of the city, never a mall, shop, theme park or hotel.
+- **Each day in its city's color** (Day screen, below the header). A band in the city's calendar color with the city's
+  name large. The top bar above it: a back button that names where it goes ("‹ Home", "‹ Now", "‹ Notes"), the date,
+  the way there on travel days ("Tokyo → Nikko"), "Today" on today, and the neighbouring days by name as bordered
+  buttons ("‹ Sat", "Mon ›") — a bare "‹" beside "‹ Back" read as the same button. "With Backroads" is said once, in
+  the day's own note (now a neutral card).
+- **"See your route for the day in Google Maps"** (Day screen, top of the day's plan). When her tab has a Google Maps
+  route for the day (Tokyo Days 2 and 3), one button opens it. Larisa sees "your route", others "her route".
+- **A weather picture** beside her forecast (Day screen): a rain cloud when she expects any rain, otherwise sun and cloud.
+- **Welcome home** (Home, after the trip). While the flight home is in the air: "Should be in the air", when it lands,
+  "Safe travels home." After: "Welcome home, Ken." with the trip's days and places, a way into the trip notes, and the
+  last day.
+- **Trip notes** (new Notes tab in the bottom bar, between Now and Actions). Write or talk; every word is kept exactly
+  and read back with its count ("Saved — 142 words, every one kept"). Private unless shared with the trip, per note;
+  "Send a copy" to anyone (e.g. family at home); change a note and the words as first saved are kept one tap away;
+  search; "Export mine" as a text file; a half-written note survives closing Wander; with no signal a note is kept on
+  the phone, listed as waiting, and sent once when signal returns. Asked once, after a first note: may others' trip
+  stories use what you say about places (never personal notes)?
+- **Settings → Notes**: "Tidy my dictation" (off by default; tidies filler and punctuation only, keeps the original
+  with a "Tidied — show exactly what was said" link, and keeps the original whenever a tidy changes more than a
+  few words) and the trip-stories choice, both visible and changeable.
+- **Scout's evening question** (Home and Now, after 6 PM on a trip day): "Anything worth remembering from today?" opens
+  Notes for that day. "Not tonight" puts it away; it isn't asked once a note about today is written.
+- Scout can read your notes and others' shared notes (`get_my_notes`); it never writes them.
+
+### Fixed (round 14: five fresh testers on the new things, then a confirmation round)
+- **Notes privacy** (a dedicated privacy tester; the server's checks held — every way in was refused — but the app had
+  holes):
+  - Each new note starts as "Just me" (the switch stayed on "Share with the trip", and the next note went to everyone).
+  - Someone else sees only a shared note's words as they read now — never the words as first saved or a dictation
+    before tidying, on screen, in search, in Scout (`services/tripNotes/view.ts`, the one rule for all three).
+  - A phone handed to someone else: notes copies and drafts are kept per person; signing out clears the phone's saved
+    copies of what Wander read; a note waiting for signal is shown only to its writer and sent under the writer's own
+    sign-in; trip notes are never in the phone-wide offline copy.
+  - The trip-stories question and its Settings switch say plainly that it covers what notes say about places, even
+    notes kept to yourself, and never anything personal; an answer is acknowledged.
+- **Notes**: closing Wander mid-save and saving again no longer makes two notes (the same words keep their id); a
+  draft keeps its day; a note saved with no signal keeps the time it was written; a fast double tap saves once; search
+  marks the words found (and says when they're only in the words as first saved); long notes fold to a few lines;
+  "Tidy my dictation" tidies spoken notes only and says when a note was left as said; day headings open the day;
+  messages after an offline save don't stack or linger; 44-pt switches.
+- **Arrival photo**: only on arriving — for a day that's today or past, while you're in that city (looking ahead from
+  home, or back at a city already left, used it up or showed it a week late); a tap in its first moment doesn't skip it.
+- **Map**: tapping today's city opens today; the dark marker is "today's stop" (it said "you're here" to someone still
+  at home); Back and Escape close the city chooser; a "Whole trip" button after a pinch or drag; names can be tapped and
+  aren't selectable text; a line names any stop that isn't on the map (Shirakabeso).
+- **Welcome home** counts each person's own trip (Andy's starts in Tokyo on Oct 14), switches on after the flight
+  home lands (it said "Should be in the air" at home for hours), and offers to write notes when there are none.
+- **Oct 29 evening**: no ticket warning for a train that has already left.
+- **Day screen**: her forecast reads "low 60s, high 70s, little rain" (the column names doubled her words); a plain sun
+  when she says rain 0; the rose city's edge and calendar dots were green (an uneven color rule — now one rule for all);
+  on an iPad the city name lines up with the day.
+- **Confirmation round (k1, k2)**: idea notes get the same per-person treatment on a handed phone (copies per person;
+  the waiting list shows only your own — one rule in `queuedBodies`); signing in as someone else clears the phone's
+  saved copies, as signing out does; the same idea note sent twice is kept once; a note written offline or in the
+  first seconds keeps its day; after a save the next note is about today; Now says "Should have landed" after landing
+  (one landing rule, `scheduledLanding`, for Home and Now); a note that reached Wander though its reply didn't leaves
+  the waiting list; words changed by hand are never tidied; "rain 0" reads "no rain"; no evening question on the
+  flight-home evening; today's city in the map's chooser says "today".
+- **Scout and notes**: Scout sees, with each question, the notes the asker may see (their own and those shared with
+  the trip — the same rule as the Notes screen), so "what did Larisa write about…" includes her shared notes as well
+  as her Guide. Exam (5 questions, real Scout): own words quoted exactly, nothing private or edited-out ever reaches
+  anyone else, shared notes found and attributed, "nothing from you yesterday" when there's nothing.
+- **No empty band under the iPhone's status bar.** In the Home Screen app, the page and each screen's top bar both
+  left room for the status bar, so Day, Now, Notes, Ideas, People and Settings opened with ~59 pt of blank space at the
+  top (found with Chrome's safe-area emulation; it predates this release). One shared rule (`.top-bar` in index.css)
+  now lets the bar step up into that room; scrolled, it still covers the status bar's area.
+- **A save kept for later no longer sits on "Saving…" forever.** With no signal, a save (a note, a same-day plan) was
+  kept on the phone but the screen kept waiting for the app's background helper, which never answers when there isn't
+  one (first visit, private window). It now waits a second at most.
+
+SPEC impact: Home (map), Day screen (arrival photo, city band, route button, weather picture), new Notes tab and
+Settings section, Scout tools. SPEC UPDATE NEEDED.
+
 ## 2026-10-01 — Round 13: The Last Sweep Before the Trip
 
 Five fresh testers (Julie on a small phone, Andy, Larisa auditing all 25 days against her Guide line by line, Ken through

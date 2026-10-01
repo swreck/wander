@@ -49,6 +49,8 @@ import guideRoutes from "./routes/guide.js";
 import peopleRoutes from "./routes/people.js";
 import dayChoiceRoutes from "./routes/dayChoices.js";
 import { bodyTripGuard } from "./middleware/tripGuard.js";
+import tripNoteRoutes from "./routes/tripNotes.js";
+import cityPhotoRoutes from "./routes/cityPhoto.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -160,6 +162,8 @@ app.use("/api/sheets-sync", sheetsSyncRoutes);
 app.use("/api/guide", guideRoutes);
 app.use("/api/people", peopleRoutes);
 app.use("/api/day-choices", dayChoiceRoutes);
+app.use("/api/trip-notes", tripNoteRoutes);
+app.use("/api/city-photo", cityPhotoRoutes);
 app.use("/api/sources", sourceRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces

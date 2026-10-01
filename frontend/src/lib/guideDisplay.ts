@@ -280,6 +280,16 @@ export function zonedMoment(date: string, minutes: number, zone: string): Date {
   return new Date(guess.getTime() - zoneOffsetMinutes(zone, guess) * 60000);
 }
 
+/** When a flight lands by its schedule, from its "Lands at San Francisco (SFO) Thu, Oct 29, 12:30 PM California time"
+ *  line; null when it doesn't say. One rule for Home and Now — they disagreed after landing (testers t4, k1) */
+export function scheduledLanding(detail: string | null | undefined, year: string): Date | null {
+  const m = (detail || "").match(/Lands at [^\n|]*?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w* (\d{1,2}), (\d{1,2}):(\d{2}) ?([AP]M) (California|Japan) time/i);
+  if (!m) return null;
+  const month = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[1].slice(0, 3)) / 3 + 1;
+  const h = (Number(m[3]) % 12) + (/p/i.test(m[5]) ? 12 : 0);
+  return zonedMoment(`${year}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`, h * 60 + Number(m[4]), /california/i.test(m[6]) ? "America/Los_Angeles" : "Asia/Tokyo");
+}
+
 /**
  * Right now, as minutes into `date` on `zone`'s clock — the same scale as her Guide's times for that date.
  * Below 0 before the date starts there, past 1440 once it's over. On a phone in that zone on that date it is
