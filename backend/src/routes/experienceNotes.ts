@@ -3,9 +3,14 @@ import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { logChange } from "../services/changeLog.js";
 import { getUserRole } from "../middleware/role.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("cityId", itemMemberParam(tripOf.city));
+router.param("id", itemMemberParam(tripOf.experienceNote));
 
 // Trips are private to their people: notes are read and written only by someone on the trip
 async function onTrip(req: AuthRequest, tripId: string) {

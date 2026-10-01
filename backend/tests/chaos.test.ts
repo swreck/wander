@@ -9771,10 +9771,12 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
     // ── Reaction toggle: on then off then on ─────────────────────────
 
     it("S420: Toggle reaction three times", async () => {
-      const { token } = await getTokenWithTraveler("S420User");
+      const { token, travelerId } = await getTokenWithTraveler("S420User");
       const tripId = await createTrip(aliceToken, "S420 Trip", "2026-12-01", "2026-12-05", [
         { name: "City", country: "X" },
       ]);
+      // On the trip — reacting to another trip's ideas is refused since Oct 1 2026 (item-privacy.test.ts)
+      await prisma.tripMember.create({ data: { tripId, travelerId, role: "traveler" } });
       const cities = await request(app).get(`/api/cities/trip/${tripId}`)
         .set("Authorization", `Bearer ${aliceToken}`);
       const expId = await addExp(aliceToken, tripId, cities.body[0].id, "Liked Place");

@@ -1,21 +1,31 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
+import { useAuth } from "../contexts/AuthContext";
+import { voiceFor } from "../lib/guideDisplay";
 
-const sections = [
+// Each paragraph that speaks of Larisa has her own version, written as sentences — to Larisa it's "your Guide"
+// (round 13: swapping her name for "you" by rule produced "Ask you or Ken" and "your Guide is the plan." mid-text)
+const sectionsFor = (mine: boolean, meName: string) => [
   {
     id: "quick-start",
     title: "Quick Start",
-    body: `Wander shows Larisa's Guide — her trip spreadsheet — on your phone, arranged by day.
+    body: `${mine ? "Wander shows your Guide — your trip spreadsheet — on your phone, arranged by day." : "Wander shows Larisa's Guide — her trip spreadsheet — on your phone, arranged by day."}
 
 **Home** opens on what matters now: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.
 
-Along the bottom: **Ideas** (Larisa's ideas, city by city), **Now** (today, with what's next), **Actions** (deadlines and to-dos), and **Scout** — ask it anything about the trip.`,
+Along the bottom: **Ideas** (${mine ? "your" : "Larisa's"} ideas, city by city), **Now** (today, with what's next), **Actions** (deadlines and to-dos), and **Scout** — ask it anything about the trip.`,
   },
   {
     id: "getting-in",
     title: "Getting In",
-    body: `The first time, point your iPhone's camera at the code Ken or Larisa shows you (or open the link they sent). In Safari, tap Share, then **Add to Home Screen** — Wander gets its own icon. Open it, then tap **Set up Face ID**. After that, just look at your phone.
+    body: mine
+      ? `Someone new points their iPhone's camera at the code you or Ken show them (or opens the link you sent). In Safari, they tap Share, then **Add to Home Screen** — Wander gets its own icon. They open it, then tap **Set up Face ID**. After that, they just look at their phone.
+
+A new phone of your own? Make a new invite from **Settings → People on this trip**, or ask Ken to. Once Face ID is set up, an old link stops working, so an old message can't be used by anyone else.
+
+Letting someone in: **People on this trip → + Add someone**. Type their name, pick the trip, and show them the code.`
+      : `The first time, point your iPhone's camera at the code Ken or Larisa shows you (or open the link they sent). In Safari, tap Share, then **Add to Home Screen** — Wander gets its own icon. Open it, then tap **Set up Face ID**. After that, just look at your phone.
 
 New phone? Ask Ken or Larisa — they make a new invite from **Settings → People on this trip**. Once you've set up Face ID, your old link stops working, so an old message can't be used by anyone else.
 
@@ -24,7 +34,15 @@ Letting someone in (Ken and Larisa): **People on this trip → + Add someone**. 
   {
     id: "getting-around",
     title: "A Day",
-    body: `A day shows everything Larisa's Guide says for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, deadlines, and where everyone sleeps that night. Each line says where in the Guide it came from, and the bottom says when Wander last read the Guide.
+    body: mine
+      ? `A day shows everything your Guide says for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, deadlines, and where everyone sleeps that night. Each line says where in your Guide it came from, and the bottom says when Wander last read it.
+
+When you wrote a detailed plan for the day, **Your plan for the day** comes next, in your order and with your times. When the group splits up, each line says who it's for. Where you list a few places for one time, anyone can tap **We're going here** on the one they choose. Everyone sees it as the group's pick, and your Guide stays as you wrote it.
+
+The arrows at the top move a day at a time. **‹ Back** goes back where you came from.
+
+**+ Add a plan for this day** puts a plan of your own on it — "Ken and Andy: Musée Tomo at 3." Everyone sees it, marked as added in Wander, and your Guide doesn't change.`
+      : `A day shows everything Larisa's Guide says for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, deadlines, and where everyone sleeps that night. Each line says where in the Guide it came from, and the bottom says when Wander last read the Guide.
 
 When Larisa wrote a detailed plan for the day, **Larisa's plan for the day** comes next, in her order and with her times. When the group splits up, each line says who it's for. Where she lists a few places for one time, tap **We're going here** on the one you choose. Everyone sees it as the group's pick, and her Guide stays as she wrote it.
 
@@ -35,7 +53,7 @@ The arrows at the top move a day at a time. **‹ Back** goes back where you cam
   {
     id: "travel-days",
     title: "Now",
-    body: `The **Now** tab is today: where Larisa's plan has you right now, what's next, and how long until it. Tap a place for directions in Maps. Quick Japanese phrases are there too.
+    body: `The **Now** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Tap a place for directions in Maps. Quick Japanese phrases are there too.
 
 Before the trip, Now shows the first day. After it, the last.`,
   },
@@ -54,16 +72,22 @@ You can type, tap a question, or tap the microphone and talk. Tap it again when 
   {
     id: "the-guide",
     title: "Where the Plan Lives",
-    body: `Larisa's Guide is the plan. Wander reads a copy of it and never changes it. Where the Guide still has an open question — two hotels for one night, a "maybe" day trip — Wander shows it as open.
+    body: mine
+      ? `Your Guide is the plan. Wander reads a copy of it and never changes it. Where your Guide still has an open question — two hotels for one night, a "maybe" day trip — Wander shows it as open.
+
+If you've changed something lately, Wander may not have read your latest version yet. The bottom of each day says when it last did.
+
+Trains come from a second place: Ken's rail sheet, which he keeps with AI help. A day's "Trains" part shows its bookings — seats, reservation numbers and its own notes — and the ticket pickup at Shin-Osaka has its own step-by-step page. Wander reads that sheet every few minutes and never changes it. Where it and your Guide disagree, Wander shows both.`
+      : `Larisa's Guide is the plan. Wander reads a copy of it and never changes it. Where the Guide still has an open question — two hotels for one night, a "maybe" day trip — Wander shows it as open.
 
 If something in Wander looks different from what Larisa told you, trust Larisa. Wander may not have read her latest version yet.
 
-Trains come from a second place: Ken's rail sheet, which he keeps with AI help. A day's "Trains" part shows its bookings — seats, reservation numbers and its own notes — and the ticket pickup at Shin-Osaka has its own step-by-step page. Wander reads that sheet every few minutes and never changes it. Where it and Larisa's Guide disagree, Wander shows both.`,
+Trains come from a second place: ${/^ken$/i.test(meName) ? "your rail sheet, which you keep" : "Ken's rail sheet, which he keeps"} with AI help. A day's "Trains" part shows its bookings — seats, reservation numbers and its own notes — and the ticket pickup at Shin-Osaka has its own step-by-step page. Wander reads that sheet every few minutes and never changes it. Where it and Larisa's Guide disagree, Wander shows both.`,
   },
   {
     id: "notes",
     title: "Ideas and Your Own Notes",
-    body: `**Ideas** shows the ideas in Larisa's Activities tab, starting with the city you're in, with who marked each one. On any idea: **+ Note** (for everyone, or just for you), **Add to a day**, Maps, and Ask Scout. Larisa's Guide stays as it is.`,
+    body: `**Ideas** shows the ideas in ${mine ? "your" : "Larisa's"} Activities tab, starting with the city you're in, with who marked each one. On any idea: **+ Note** (for everyone, or just for you), **Add to a day**, Maps, and Ask Scout. ${mine ? "Your" : "Larisa's"} Guide stays as it is.`,
   },
   {
     id: "no-signal",
@@ -108,6 +132,9 @@ export default function GuidePage() {
   const location = useLocation();
   const scrolledRef = useRef(false);
   useKeyboardShortcuts();
+  // To Larisa herself: "your Guide", "your ideas" (round 13: her own Help page said "Larisa's Guide — her trip spreadsheet")
+  const me = useAuth().user?.displayName || null;
+  const sections = sectionsFor(voiceFor(me).mine, me || "");
 
   useEffect(() => {
     if (scrolledRef.current) return;

@@ -66,6 +66,33 @@ export async function tripMemberParam(req: AuthRequest, res: Response, next: Nex
 }
 
 /**
+ * For router.param("id", itemMemberParam(lookup)): a route naming one item (an experience, a day, a reservation…) is
+ * for the people on that item's trip (Oct 1 2026: these routes checked sign-in only, so anyone signed in to Wander
+ * could change another trip's items by id). `lookup` finds the item's trip; an item that doesn't exist passes on so
+ * the route answers its own "not found". A sign-in by code without a traveler isn't limited, as in tripMemberParam.
+ */
+export function itemMemberParam(lookup: (id: string) => Promise<string | null | undefined>,
+  refuse: { status: number; error: string } = { status: 403, error: "That isn't on one of your trips." }) {
+  return async (req: AuthRequest, res: Response, next: NextFunction, id: string) => {
+    const travelerId = req.user?.travelerId;
+    if (!travelerId) { next(); return; }
+    let tripId: string | null | undefined;
+    try { tripId = await lookup(id); } catch { tripId = null; }
+    if (tripId && !(await getUserRole(travelerId, tripId))) {
+      res.status(refuse.status).json({ error: refuse.error });
+      return;
+    }
+    next();
+  };
+}
+
+/** The trip of a body's tripId (or of the city/day/experience it names), for create routes: null when it's yours */
+export async function notYourTrip(travelerId: string | undefined, tripId: string | null | undefined): Promise<boolean> {
+  if (!travelerId || !tripId) return false;
+  return !(await getUserRole(travelerId, tripId));
+}
+
+/**
  * Middleware: require the caller to be a planner on the trip.
  */
 export function requirePlanner(tripIdParam = "id") {

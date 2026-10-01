@@ -8,8 +8,10 @@ import { useState, useEffect, Fragment } from "react";
 import { api } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { guideData, type TripGuideData } from "../lib/guideData";
-import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName, bookedWords, voiceFor } from "../lib/guideDisplay";
+import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName, bookedWords, voiceFor, isFreeCancel, FREE_CANCEL_WORDS, isFor } from "../lib/guideDisplay";
 import { useAuth } from "../contexts/AuthContext";
+import { sourcesData, railAudience, beforeTravelSteps, sourceWordsFor, type OtherSource } from "../lib/sources";
+import { checklistTitle } from "./RailSheet";
 
 interface PlanningAction {
   id: string;
@@ -109,6 +111,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
 
   useEffect(() => { loadActions(); }, [tripId]);
   useEffect(() => { guideData(tripId).then(setGuide).catch(() => { /* deadlines just don't show */ }); }, [tripId]);
+  // Ken's rail sheet: its steps for before you travel, for the people doing the pickup (round 13)
+  const [otherSources, setOtherSources] = useState<OtherSource[]>([]);
+  useEffect(() => { sourcesData(tripId).then((d) => setOtherSources(d.sources)).catch(() => { /* Actions still shows the Guide */ }); }, [tripId]);
 
   // Escape key closes the panel (standard overlay behavior)
   useEffect(() => {
@@ -286,6 +291,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       {(i.forWhom || time || bookedByName(i)) && (
                         <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : bookedWords(i, me), time].filter(Boolean).join(" · ")}</div>
                       )}
+                      {isFreeCancel(i) && <div className="text-xs text-[#6b5d4a] mt-0.5">{FREE_CANCEL_WORDS}</div>}
                     </button>
                   </li>
                 );
@@ -293,6 +299,37 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
             </ul>
           </div>
         )}
+
+        {/* ── Ken's rail sheet: before you travel (round 13: Actions looked empty of the card and IDs to pack) ── */}
+        {(() => {
+          const lists = otherSources.flatMap((s) => {
+            const a = guide ? railAudience(guide.items, s.owner) : null;
+            if (!a?.ownerParty || !isFor({ forWhom: a.ownerParty }, me)) return [];
+            return s.checklists.filter((c) => c.date && todayYmd < c.date)
+              .map((c) => ({ s, c, steps: beforeTravelSteps(s.id, c) })).filter((x) => x.steps.length);
+          });
+          if (!lists.length) return null;
+          return (
+            <div className="mb-6">
+              <div className="text-xs text-[#8a5a1a] uppercase tracking-wider font-medium mb-2">Before you travel</div>
+              {lists.map(({ s, c, steps }) => (
+                <button key={`${s.id}-${c.tab}`} onClick={() => onNavigate?.(`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`)}
+                  className="w-full text-left bg-white rounded-xl border border-[#e0d8cc] p-3.5 mb-2">
+                  <div className="text-sm text-[#3a3128]">{checklistTitle(c.tab)} — {steps.length === 1 ? "one step" : `${steps.length} steps`} for before you go ›</div>
+                  <ul className="mt-1.5 space-y-1">
+                    {steps.map((x) => (
+                      <li key={x.row} className="text-[13px] text-[#514636]">
+                        <span className={x.ticked ? "text-[#3d6b3a]" : "text-[#8a5a1a]"}>{x.ticked ? "✓ Ticked on this phone · " : ""}</span>
+                        {x.where.replace(/^Before travel;?\s*/i, "") || "Before travel"}: {x.what}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="text-xs text-[#6b5d4a] mt-1.5">From {sourceWordsFor(s, me)}</div>
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* ── Section 1: Needs your input ── */}
         {needsMyInput.length > 0 && (
@@ -397,8 +434,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               const isNA = s === "n/a" || s === "na";
                               return (
                                 <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
-                                  <span className="font-medium">{/^larisa$/i.test(me || "") ? "You" : "Larisa"}</span>
-                                  <span>{isDone ? "✓ done" : isProgress ? "working on it" : isNA ? "not needed" : a.larisaStatus}</span>
+                                  {/* (round 13: "You working on it") */}
+                                  <span className="font-medium">{/^larisa$/i.test(me || "") ? (isProgress ? "You're" : "You") : "Larisa"}</span>
+                                  <span>{isDone ? "✓ done" : isProgress ? (/^larisa$/i.test(me || "") ? "working on it" : "is working on it") : isNA ? "not needed" : a.larisaStatus}</span>
                                 </span>
                               );
                             })()}
@@ -409,8 +447,8 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               const isNA = s === "n/a" || s === "na";
                               return (
                                 <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
-                                  <span className="font-medium">{/^andy$/i.test(me || "") ? "You" : "Andy"}</span>
-                                  <span>{isDone ? "✓ done" : isProgress ? "working on it" : isNA ? "not needed" : a.andyStatus}</span>
+                                  <span className="font-medium">{/^andy$/i.test(me || "") ? (isProgress ? "You're" : "You") : "Andy"}</span>
+                                  <span>{isDone ? "✓ done" : isProgress ? (/^andy$/i.test(me || "") ? "working on it" : "is working on it") : isNA ? "not needed" : a.andyStatus}</span>
                                 </span>
                               );
                             })()}

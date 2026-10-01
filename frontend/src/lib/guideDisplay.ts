@@ -738,7 +738,16 @@ export function distinctWords(s: string): string[] {
     .split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !PLAN_WORDS.has(w) && !/^\d+$/.test(w))));
 }
 /** Two lines about the same thing: they share a word that names it ("Hassun" and "Hassun — Michelin 1★…") */
-export const sameThing = (a: string, b: string) => { const w = distinctWords(b); return distinctWords(a).some((x) => w.includes(x)); };
+// (and a name written as two words in one tab and one in another: "Team Lab Kyoto" / "TeamLab Biovortex Kyoto" — round 13:
+// Oct 27's Home listed both at 11:00 AM)
+const joinedPairs = (s: string) => {
+  const t = s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return t.slice(1).map((x, i) => t[i] + x).filter((w) => w.length > 5 && !PLAN_WORDS.has(w));
+};
+export const sameThing = (a: string, b: string) => {
+  const wa = distinctWords(a), wb = distinctWords(b);
+  return wa.some((x) => wb.includes(x)) || joinedPairs(a).some((x) => wb.includes(x)) || joinedPairs(b).some((x) => wa.includes(x));
+};
 
 /**
  * A line of her plan said again at the same time as another Guide line: it names the same thing
@@ -822,6 +831,36 @@ export function voiceFor(me: string | null | undefined, owner: string | null | u
       .replace(/\bHer (Guide|tab|tabs|Itinerary|plan|“)/g, "Your $1")
       .replace(/worth checking with [A-Z][a-z]+/g, "worth a second look"),
   };
+}
+
+/** A "tabs differ" note in words: "Her tabs differ — …", or "Her tab says two things — …" when both are in one tab
+ *  (round 13: Oct 25's stop list and booking picture are both in her Kyoto Sun tab) */
+export function differWordsFor(d: string, v: ReturnType<typeof voiceFor>): string {
+  const within = /^within this tab — /.test(d);
+  const rest = d.replace(/^within this tab — /, "").replace(/^her /, "").replace(/\bher\b/g, v.her);
+  return within ? `${v.Her} tab says two things — ${rest}` : `${v.Her} tabs differ — ${rest}`;
+}
+
+/** A free-cancellation window (not a reconfirmation): it asks nothing of anyone unless plans change (round 13: Julie read
+ *  "Free cancellation ends · Imperial Hotel · Yours" and wondered what she had to do) */
+export const isFreeCancel = (i: { title: string }) => /free cancel|cancel(lation)? free|last day to cancel/i.test(i.title) && !/reconfirm/i.test(i.title);
+export const FREE_CANCEL_WORDS = "Nothing to do unless plans change.";
+
+/** A confirmation that leads with whose it is reads as one name ("Ken & Larisa AbcXyz12" → "Larisa Abc…"):
+ *  "Ken & Larisa: AbcXyz12" (round 13; invented code) */
+export const confirmationWords = (c: string) => c.replace(/(^|[;·,]\s*)([A-Z][a-z]+ (?:&|and) [A-Z][a-z]+)\s+(?=[A-Za-z0-9-]{5,})/g, "$1$2: ");
+
+/** The group a picture in her tab lists a line under, when her table names no one ("You & Julie (morning)") — the
+ *  reader quotes it in the line's detail (round 13) */
+export const PICTURE_GROUP = /^A picture in her tab lists this under “([^”]+)”.*$/m;
+export const pictureGroupOf = (i: { detail?: string | null }) => (i.detail || "").match(PICTURE_GROUP)?.[1] || null;
+
+/** "Her Guide doesn't name the group for this line" — or, when a picture in her tab does, what's true: her table doesn't,
+ *  and the picture's own words (round 13: Wander said her Guide didn't name it; her Kyoto map lists "You & Julie") */
+export function noGroupWords(i: { detail?: string | null }, v: ReturnType<typeof voiceFor>): string {
+  const g = pictureGroupOf(i);
+  return g ? `${v.Her} plan's table doesn't name the group; a picture in ${v.her} tab lists it under “${g}”`
+    : `${v.Her} Guide doesn't name the group for this line`;
 }
 
 /** Her Itinerary note on a hotel's row — about that stay, not the day's line (round 12: Oct 27 was quoted as the Four

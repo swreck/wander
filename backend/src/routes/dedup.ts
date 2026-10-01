@@ -10,11 +10,15 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { tripMemberParam } from "../middleware/role.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 const prisma = new PrismaClient();
 
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("id", itemMemberParam(tripOf.dedup));
 // A route naming a trip is for that trip's own people (Sep 30 2026)
 router.param("tripId", tripMemberParam);
 // GET /api/dedup/trip/:tripId — pending suggestions for planners

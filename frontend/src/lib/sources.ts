@@ -160,6 +160,43 @@ export function pickupProgress(sourceId: string, c: Checklist): {
   };
 }
 
+/** What the rail sheet already has for a place her Guide asks someone about ("1 day to Mashiko-Julie interested?"):
+ *  "Ken's rail sheet has the “Mashiko day trip” on Oct 14 for 2 — “Ken + Larisa only”." Quoted beside the question,
+ *  which stays open (round 13: Julie was asked about Mashiko with nothing saying the booked day trip is for two) */
+export function railNoteFor(title: string, sources: OtherSource[], me: string | null | undefined): string | null {
+  const places = (title.match(/\b[A-Z][a-z]{3,}\b/g) || []).filter((w) => !/^(Julie|Andy|Ken|Larisa|Day|Trip|Tour)$/.test(w));
+  for (const s of sources) {
+    for (const place of places) {
+      const rows = s.rail.filter((r) => new RegExp(`\\b${place}\\b`, "i").test(colOf(r.cols, /^purpose$/)));
+      if (!rows.length) continue;
+      const purpose = colOf(rows[0].cols, /^purpose$/);
+      const dates = Array.from(new Set(rows.map((r) => r.date).filter(Boolean))) as string[];
+      const pax = Array.from(new Set(rows.map((r) => colOf(r.cols, /^pax$/)).filter(Boolean)));
+      const only = Array.from(new Set(rows.map((r) => colOf(r.cols, /^notes$/)).filter((n) => /\bonly\s*$/i.test(n.trim()))));
+      const when = dates.map((d) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })).join(", ");
+      const sw = sourceWordsFor(s, me);
+      // ("Ken's rail sheet, written with AI help, has …" — the aside closed with its comma)
+      return `${sw[0].toUpperCase()}${sw.slice(1)}${sw.includes(", ") ? "," : ""} has the “${purpose}”${when ? ` on ${when}` : ""}${pax.length === 1 ? ` for ${pax[0]}` : ""}${only.length ? ` — “${only[0].trim()}”` : ""}.`;
+    }
+  }
+  return null;
+}
+
+/** A checklist's "Before travel" steps — the sheet's own "When / where" words, the first sentence of what to do, and
+ *  whether this phone ticked it (round 13: Actions said nothing of packing the card and IDs; only Home's line led there) */
+export function beforeTravelSteps(sourceId: string, c: Checklist): { row: number; where: string; what: string; ticked: boolean }[] {
+  let ticks: Record<string, boolean> = {};
+  try { ticks = JSON.parse(localStorage.getItem(`wander:checklist-ticks:${sourceId}:${c.tab}`) || "{}"); } catch { /* unreadable */ }
+  return c.steps.filter((x) => /^before travel/i.test(colOf(x.cols, /^step$/))).map((x) => {
+    const what = colOf(x.cols, /^what to do$/);
+    // (a numbered list's first sentence is only its sub-step 1 — the sheet's "Confirm before leaving" says the point)
+    const confirm = colOf(x.cols, /^confirm/);
+    const gist = /^\s*1\.\s/.test(what) && /\b2\.\s/.test(what) && confirm ? confirm : what;
+    const first = (gist.match(/^([^.]+\.)/)?.[1] || gist).trim();
+    return { row: x.row, where: colOf(x.cols, /^when/), what: first, ticked: !!ticks[x.row] };
+  });
+}
+
 /**
  * Today's trains whose paper ticket this phone never ticked at an earlier pickup — on the phones of the couple who did
  * the pickup only. Each with the sheet's own words on where it can still be collected, and who else may have ticked it

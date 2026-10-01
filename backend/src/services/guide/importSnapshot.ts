@@ -16,6 +16,7 @@ import { interpretItinerary, parseStatedTimes, type ItineraryResult, type Interp
 import { readGuideImage, whoFromNames, roomFor, type ImageReading } from "./images.js";
 import { readGuideText, isBookingProse, tabTextHash, type TextReading } from "./textReader.js";
 import { readDayPlans, looksLikeDayPlan, dayPlanHash, verifyAgainstTab, type DayPlanReading } from "./dayPlanReader.js";
+import { pictureGroupFor, pictureStartFor } from "./pictureGroup.js";
 
 export interface ImportOptions {
   buffer: Buffer;
@@ -1122,14 +1123,29 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         const party = whoNames.length && whoNames.every((w) => /^you$/i.test(w) || groupNames.has(w.toLowerCase()))
           ? whoNames.map((w) => (/^you$/i.test(w) ? guideOwner : w)).join(" & ")
           : null;
+        // A line naming no one may be named in a picture in the tab — quoted, never assigned (round 13: her Kyoto map lists
+        // "You & Julie (morning)" over Maruni Toryo, while Wander said her Guide didn't name the group)
+        // (a picture pasted in several tabs counts in each — her one Kyoto map heads all five Kyoto day tabs)
+        const tabPictures = readings.filter((r) => placements.some((pl) => pl.sha256 === r.image.sha256 && pl.tab.name === tab.name))
+          .map((r) => r.image.transcription || "");
+        const picGroup = !party && !b.who ? pictureGroupFor(b.label, tabPictures, [...groupNames]) : null;
+        // A meeting point her stop list names, and a booking picture in the tab that says the tour starts somewhere else:
+        // both shown, never settled (round 13: Oct 25's e-bike tour — "Cycle Kyoto" vs "Kyoto's NORU bicycle shop")
+        const stop = roleStop(b.label);
+        const start = stop ? tabPictures.map(pictureStartFor).find((x) => x && !distinctWords(x.place).every((w) => stop.words.includes(w))) : null;
+        const startDiffers = stop && start
+          ? `Tabs differ: within this tab — her stop list has ${stop.name} for this; her booking picture says the tour starts at “${start.place}”${start.arrive ? ` — “${start.arrive}”` : ""}`
+          : null;
         items.push({
           date: day, time: b.start, endTime: b.end, timeText: b.timeText,
           kind: "block", title: b.label, forWhom: party,
           detail: [
             b.who && !party ? (/^for\b/i.test(b.who) ? b.who[0].toUpperCase() + b.who.slice(1) : `For ${b.who}`) : null,
+            picGroup ? `A picture in her tab lists this under “${picGroup.heading}”${picGroup.with.length ? `, with ${picGroup.with.join(" · ")}` : ""}.` : null,
             b.approx ? "Times are Larisa's estimate." : null,
             ...b.choices.map((c) => `Choice: ${c.name}${c.note ? ` — ${c.note}` : ""}`),
             roleStop(b.label) ? `Where: ${roleStop(b.label)!.name} — the stop her tab lists for this` : null,
+            startDiffers,
             b.notes,
             matched,
           ].filter(Boolean).join("\n") || null,
@@ -1156,9 +1172,18 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       ? { ...had, from: s.checkIn < had.from ? s.checkIn : had.from, to: lastNight > had.to ? lastNight : had.to }
       : { note, from: s.checkIn, to: lastNight, source: s.source.replace(/\s*·.*$/, "") + " (heading)", sourceRef: s.sourceRef, city: s.city });
   }
+  // Her travel notes on a section's heading row go with that section's stay; a section with no stay of its own ("Hakata
+  // - NOT AN OVERNIGHT (travel through)") goes with the next stay down her sheet, its heading said with it (round 13)
+  const rowOf = (ref: string) => Number(ref.match(/![A-Z]+(\d+)$/)?.[1] || 0);
+  const headTravel = new Map<string, string[]>();
+  for (const h of itin.sectionTravel || []) {
+    const own = itin.stays.some((s) => s.sectionTitle === h.title);
+    const target = own ? h.title : itin.stays.filter((s) => rowOf(s.sourceRef) > rowOf(h.ref)).sort((a, b) => rowOf(a.sourceRef) - rowOf(b.sourceRef))[0]?.sectionTitle;
+    if (target) headTravel.set(target, [...(headTravel.get(target) || []), own ? h.note : `${h.title} — ${h.note}`]);
+  }
   for (const [title, sec] of sections) {
     // Her travel notes on the stay's hotel rows ("Nagoya -> Tokoname (~40 min) via Meitetsu") go with it
-    const travel = Array.from(new Set(itin.stays.filter((s) => s.sectionTitle === title && s.travelNote).map((s) => s.travelNote!)));
+    const travel = Array.from(new Set([...(headTravel.get(title) || []), ...itin.stays.filter((s) => s.sectionTitle === title && s.travelNote).map((s) => s.travelNote!)]));
     items.push({
       date: sec.to, windowStart: sec.from, time: null, endTime: null, kind: "stop", title: sec.note,
       detail: travel.length ? travel.map((t) => `Larisa's travel note: ${t}`).join("\n") : null,

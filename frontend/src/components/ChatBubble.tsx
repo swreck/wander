@@ -498,7 +498,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const isTimeout = err?.name === "AbortError";
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
       const errorMsg = offline
-        ? "No signal right now, so I can't answer. Today's plan from Larisa's Guide is still on the Now tab."
+        ? `No signal right now, so I can't answer. Today's plan from ${/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still on the Now tab.`
         : isTimeout
         ? "That took over 45 seconds — the connection might be slow. Want me to try again?"
         : "I couldn't get an answer just now. Want me to try again?";
@@ -826,9 +826,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             <div className="text-center text-[#6b5d4a] text-sm py-8">
               <p>I'm Scout, your travel companion.</p>
               {/* What it actually knows (round 12 delight audit: "I know your whole trip" overclaimed) */}
-              <p className="mt-1">I've read Larisa's Guide and Ken's rail sheet, and I can look things up online. Ask me anything about the trip.</p>
+              {/* Said to whoever holds the phone (round 13: Ken read "Ken's rail sheet", Larisa "Larisa's Guide") */}
+              <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
-              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from Larisa's Guide is still on the Now tab.</p>}
+              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still on the Now tab.</p>}
               {/* Tap one to ask it */}
               <div className="mt-4 flex flex-col items-start gap-1.5">
                 {["What's the plan today?", "Where are we sleeping tonight?", "Is there anything I need to do soon?", "What time do we need to leave?"].map((q) => (
