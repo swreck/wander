@@ -244,7 +244,12 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
         i.kind === "checkout" && i.time && earliestOther && earliestOther < i.time
           ? `[${clockOf(toMin(i.time))} is the hotel's LATEST check-out, not when they check out: this day's plan already has a line at ${clockOf(toMin(earliestOther))}. Never list check-out as a ${clockOf(toMin(i.time))} step after that line; say "the hotel's check-out is by ${clockOf(toMin(i.time))}", and if a plan line says when she has them checking out, give that line's time as hers]`
           : null,
-        noOwner.has(i.id) ? "[WHOSE: NOT STATED — the group is split at this time and this line names no one. Never say or imply which group it belongs to, and never list it as part of anyone's track or plan; say her tab doesn't say whose it is]" : null,
+        noOwner.has(i.id)
+          // (round 13: her Kyoto map picture lists this under "You & Julie (morning)" — say both, in her words)
+          ? (/^A picture in her tab lists this under “([^”]+)”/m.test(i.detail || "")
+            ? `[WHOSE: her table doesn't name the group for this line, but a picture in her tab lists it under “${(i.detail || "").match(/^A picture in her tab lists this under “([^”]+)”/m)![1]}”. Say both, in those words — her table names no one; her picture lists it under that heading. Never turn the picture's words into a fact about who goes beyond what it says (its "You" is whoever she made the map for — don't name them)]`
+            : "[WHOSE: NOT STATED — the group is split at this time and this line names no one. Never say or imply which group it belongs to, and never list it as part of anyone's track or plan; say her tab doesn't say whose it is]")
+          : null,
         i.confirmation ? `Confirmation ${i.confirmation}` : null,
         openCheckout,
         i.kind === "weather" ? `[her forecast for every day ${i.windowStart || k} through ${k}]` : i.kind === "stop" ? `[Wander's screens call this "Larisa's note for the ${d.city.name} stay" — it's her heading for the whole stay, ${i.windowStart} through ${k}; it doesn't say which day. Her other notes (on hotel rows, in the Notes column) are separate notes — quote each exactly and never add to them]` : i.windowStart ? `[can be done any day from ${i.windowStart} through ${k}]` : null,
@@ -408,6 +413,28 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     }
   }
 
+  // Her own words on getting from an airport to each stay, ahead of the tab-by-tab text: that text is cut at its budget
+  // in tab-name order, and her hotel-options tab came after the cut (round 13: Scout told Julie at Narita the Guide
+  // named no way to the Imperial; her notes name the Airport Limousine Bus and the Narita Express — as Home quotes them)
+  const TRANSPORT = /\b(limousine|airport bus|narita express|n'?ex|skyliner|keisei|haruka|airport train|shuttle|taxi from (the )?airport|from (the )?airport)\b/i;
+  const ways: string[] = [];
+  for (const hotel of Array.from(new Set(stays.map((s) => s.name)))) {
+    const word = hotel.split(/\s+/).find((w) => w.length > 3 && !/^(hotel|the|ryokan|resort|inn|tokyo|kyoto|osaka)$/i.test(w));
+    if (!word) continue;
+    const has = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    for (const n of notes) {
+      if (n.rowIndex >= 100000 || !has.test(n.text) || !TRANSPORT.test(n.text)) continue;
+      for (const s of n.text.split(/(?<=[.!?])\s+|\s+·\s+|\n+/).filter((x) => TRANSPORT.test(x))) {
+        const quote = s.replace(/^[^\p{L}\p{N}“"(]+/u, "").trim();
+        const line = `- ${hotel}: “${quote}” (her ${n.tabName} tab)`;
+        if (quote && !ways.includes(line) && ways.length < 12) {
+          ways.push(line);
+          if (ways.length === 1) say(out, "\nHER OWN NOTES ON GETTING FROM AN AIRPORT TO A STAY (quoted from her tabs — say these, with the tab, before anything from your own knowledge):");
+          say(out, line, { type: "guide", label: `Her ${n.tabName} tab`, cells: wordsAt([`${n.tabName}!${n.rowIndex}`], tabs) });
+        }
+      }
+    }
+  }
   if (notes.length) {
     say(out, "\nTHE GUIDE'S OTHER TABS (Larisa's own text, including pasted emails and picture summaries):");
     let budget = 30000;

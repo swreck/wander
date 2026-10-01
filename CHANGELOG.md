@@ -37,6 +37,13 @@ confirmation testers re-checked each fix.
   notes on Larisa's phone) is now "Notes from your Guide ›".
 - To the person holding the phone: Help, Scout's first screen and Wander's own notes say "your Guide" to Larisa and "your
   rail sheet" to Ken.
+- **Scout quotes her own notes for getting from the airport to a stay** (her hotel-options tab fell past the cut of tab
+  text Scout reads, so it told Julie at Narita the Guide named no way to the Imperial): now "the hotel has Airport
+  Limousine Bus service… the Narita Express runs direct in as little as 53 minutes" with its tab, before its own estimates.
+- Scout says what her Kyoto map picture says about Oct 28's unnamed lines ("lists it under “You & Julie (morning)”")
+  instead of "her tab doesn't say whose", and calls the rail sheet "Ken's rail sheet" to everyone but Ken.
+- Scout exams: a new harder exam (7 questions written from her Guide and the rail sheet) 7/7; rail exam 12/12; earlier
+  failures were grading rules, corrected (honest answers had been marked wrong).
 - "Free cancellation ends" adds "Nothing to do unless plans change."; a confirmation that starts with names reads "Ken & Larisa: <code>" (it read as part of a name);
   the same place written two ways ("Team Lab" / "TeamLab") counts once; "You're working on it"; the pickup chip "1" says
   where it is; the No-signal notice no longer covers the last line; Profile has "‹ Back" while it loads; an idea's link
