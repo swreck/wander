@@ -49,7 +49,7 @@ _"What time is dinner, and what should I wear?"_
 _"Any deadlines this week?"_
 _"How long to Kansai airport from here?"_
 
-You can type, tap a question, or tap the microphone and talk.`,
+You can type, tap a question, or tap the microphone and talk. Tap it again when you're done, and your words wait in the box until you send them.`,
   },
   {
     id: "the-guide",

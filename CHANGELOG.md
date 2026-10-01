@@ -2,6 +2,32 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-01 — Demo Prep: Talking to Scout
+
+Found by Ken on his iPhone while preparing to demo, and by a production walk-through as Ken on today's date.
+
+### Changed
+- **Wander's microphone works like the iPhone keyboard's.** Tap to start, tap to stop; everything heard waits in the
+  box for a glance and Send. It no longer sends on stopping (Ken's choice: a misheard question shouldn't go straight to
+  Scout). Words already typed stay, and the spoken words follow them. You can dictate the next question while Scout is
+  still answering. (Scout's panel, the mic beside the box; the Guide page and guide.html say "tap it again when you're
+  done".)
+- **Times the sheet writes 10:00–12:59** gain only "AM"/"PM" ("Nagoya 10:36 AM → Tokyo 12:15 PM"), not a repeat of the
+  same digits ("10:36 (10:36 AM)"). Others keep their 12-hour version beside them ("18:17 (6:17 PM)"). (Pickup page,
+  Trains, rail-sheet notes.)
+- Scout says "your rail sheet" to Ken, and "Ken's rail sheet" to everyone else.
+
+### Fixed
+- **One question, asked once.** Tapping Send while the mic still listened sent the question, then the mic sent it again
+  as it stopped. The second copy came back "I couldn't get an answer just now", and the retry said "As above —". Now
+  Send stops the mic, late words don't refill the box, and only one question can be on its way at a time.
+- **Dictating a long question, the box kept the newest words out of sight.** Past its tallest, it now scrolls to the
+  latest words, however they arrive (the iPhone's own dictation, Wander's mic, typing).
+- **A bold heading ran into its first sentence** in Scout's answers ("**From your rail sheet**You'll need…"). It now
+  starts its own line.
+
+SPEC.md sections impacted: Scout (chat) input. No SPEC UPDATE NEEDED — SPEC doesn't describe the voice button's behavior.
+
 ## 2026-09-30 — The Delight Audit
 
 A six-person panel (Larisa, Ken on the pickup day, Julie opening it for the first time, Andy who hates apps, a product
