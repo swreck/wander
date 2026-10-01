@@ -48,6 +48,7 @@ import { startSourceRefresher } from "./services/sources/refresh.js";
 import guideRoutes from "./routes/guide.js";
 import peopleRoutes from "./routes/people.js";
 import dayChoiceRoutes from "./routes/dayChoices.js";
+import { bodyTripGuard } from "./middleware/tripGuard.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -118,6 +119,8 @@ app.get("/api/manifest.json", (req, res) => {
     ],
   });
 });
+// Everything below: a trip, city, day, experience or decision named in a request is the caller's own (Oct 1 2026)
+app.use("/api", bodyTripGuard);
 app.use("/api/trips", tripRoutes);
 app.use("/api/cities", cityRoutes);
 app.use("/api/days", dayRoutes);

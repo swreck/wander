@@ -5,9 +5,13 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { enrichExperience } from "../services/capture.js";
 import { setDecisionVotes, type VotePick } from "../services/decisionVotes.js";
 import { tripMemberParam } from "../middleware/role.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("id", itemMemberParam(tripOf.decision));
 // A route naming a trip is for that trip's own people (Sep 30 2026)
 router.param("tripId", tripMemberParam);
 // List open decisions for a trip

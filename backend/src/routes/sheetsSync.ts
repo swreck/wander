@@ -17,9 +17,13 @@ import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { getUserRole } from "../middleware/role.js";
 import { logChange } from "../services/changeLog.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("id", itemMemberParam(tripOf.planningAction));
 // Every route that names a trip (status, conflicts, actions, notes) is for that trip's own people only
 router.param("tripId", async (req: AuthRequest, res, next, tripId: string) => {
   if (req.user?.travelerId && !(await getUserRole(req.user.travelerId, tripId))) {

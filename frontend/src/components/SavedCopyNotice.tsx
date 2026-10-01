@@ -39,7 +39,17 @@ export default function SavedCopyNotice() {
     };
   }, []);
 
-  if (!offline || scoutDocked) return null;
+  // Room under the page for the notice, so the last line can scroll clear of it (round 13: on a small phone it covered
+  // Home's "Tonight" line)
+  const showing = offline && !scoutDocked;
+  useEffect(() => {
+    if (!showing) return;
+    const before = document.body.style.paddingBottom;
+    document.body.style.paddingBottom = "48px";
+    return () => { document.body.style.paddingBottom = before; };
+  }, [showing]);
+
+  if (!showing) return null;
   return (
     <div
       role="status"

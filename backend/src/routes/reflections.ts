@@ -8,9 +8,14 @@ import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { tripMemberParam } from "../middleware/role.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("dayId", itemMemberParam(tripOf.day));
+router.param("id", itemMemberParam(tripOf.reflection));
 // A route naming a trip is for that trip's own people (Sep 30 2026)
 router.param("tripId", tripMemberParam);
 // Save or update a reflection for a day

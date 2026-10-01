@@ -2,9 +2,14 @@ import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("dayId", itemMemberParam(tripOf.day));
+router.param("cityId", itemMemberParam(tripOf.city));
 
 const anthropic = new Anthropic();
 

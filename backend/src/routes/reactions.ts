@@ -1,9 +1,13 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("cityId", itemMemberParam(tripOf.city));
 
 // Toggle a reaction on an experience (add if not present, remove if already there)
 router.post("/", async (req: AuthRequest, res) => {

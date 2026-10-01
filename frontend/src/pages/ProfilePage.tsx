@@ -289,8 +289,11 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-[#faf8f5] flex items-center justify-center text-[#6b5d4a]">
-        Finding your profile...
+      // A way back while it loads (round 13: "Finding your profile..." with nothing to tap)
+      <div className="min-h-[100dvh] bg-[#faf8f5] text-[#6b5d4a]">
+        <button onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"))}
+          className="min-h-[44px] min-w-[44px] px-4 text-sm text-[#514636]" style={{ marginTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>‹ Back</button>
+        <p className="text-center mt-[30vh]">Finding your profile…</p>
       </div>
     );
   }

@@ -474,6 +474,14 @@ router.post("/join/:token", async (req, res) => {
 // Returns a single traveler with preferences
 router.get("/travelers/:id", requireAuth, async (req: AuthRequest, res) => {
   const id = req.params.id as string;
+  // Yourself, or someone on one of your trips (Oct 1 2026: anyone signed in could read anyone's preferences)
+  const me = req.user?.travelerId;
+  if (me && me !== id) {
+    const shared = await prisma.tripMember.findFirst({
+      where: { travelerId: id, trip: { tripMembers: { some: { travelerId: me } } } }, select: { tripId: true },
+    });
+    if (!shared) { res.status(404).json({ error: "Traveler not found" }); return; }
+  }
   const traveler = await prisma.traveler.findUnique({
     where: { id },
     select: { id: true, displayName: true, preferences: true, createdAt: true },

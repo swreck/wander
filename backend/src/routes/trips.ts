@@ -5,9 +5,17 @@ import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { getUserRole } from "../middleware/role.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+// (opening a trip that isn't yours is "not found", as GET /:id always said — it doesn't confirm the trip exists; its
+// other routes answer "not yours", as /:id/members always did)
+const openTripGuard = itemMemberParam(tripOf.trip, { status: 404, error: "Trip not found" });
+const tripGuard = itemMemberParam(tripOf.trip, { status: 403, error: "Not a member of this trip" });
+router.param("id", (req, res, next, id) => (req.method === "GET" && /^\/[^/]+\/?$/.test(req.path) ? openTripGuard : tripGuard)(req, res, next, id));
 
 // Each person sees only the trips they're on. Two trips can have two different groups: someone
 // invited to one never sees the other. (Signed in without a person — the old shared access code —

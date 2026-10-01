@@ -6,6 +6,17 @@ import { getUserRole } from "../middleware/role.js";
 const router = Router();
 router.use(requireAuth);
 
+// Changing or removing a learning: the people on its trip, or — tied to no trip — whoever wrote it (Oct 1 2026)
+router.param("id", async (req: AuthRequest, res, next, id: string) => {
+  const travelerId = req.user?.travelerId;
+  if (!travelerId) { next(); return; }
+  const learning = await prisma.learning.findUnique({ where: { id }, select: { tripId: true, travelerId: true } }).catch(() => null);
+  if (!learning) { next(); return; }
+  const allowed = learning.tripId ? !!(await getUserRole(travelerId, learning.tripId)) : learning.travelerId === travelerId;
+  if (!allowed) { res.status(403).json({ error: "That isn't on one of your trips." }); return; }
+  next();
+});
+
 // ── GET / ─────────────────────────────────────────────────────
 // List learnings. Planner-only. Optionally filter by tripId.
 router.get("/", async (req: AuthRequest, res) => {
@@ -23,10 +34,13 @@ router.get("/", async (req: AuthRequest, res) => {
     }
   }
 
+  // Only learnings from the caller's own trips, and ones tied to no trip (Oct 1 2026: every trip's were listed)
   const where: any = {};
-  if (tripId) {
-    where.OR = [{ tripId: tripId as string }, { tripId: null }];
-  }
+  const mine = req.user?.travelerId
+    ? (await prisma.tripMember.findMany({ where: { travelerId: req.user.travelerId }, select: { tripId: true } })).map((m) => m.tripId)
+    : null;
+  const tripIds = mine ? (tripId ? mine.filter((t) => t === tripId) : mine) : (tripId ? [tripId as string] : null);
+  if (tripIds) where.OR = [{ tripId: { in: tripIds } }, { tripId: null }];
 
   const learnings = await prisma.learning.findMany({
     where,

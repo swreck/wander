@@ -2,6 +2,49 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-01 — Round 13: The Last Sweep Before the Trip
+
+Five fresh testers (Julie on a small phone, Andy, Larisa auditing all 25 days against her Guide line by line, Ken through
+the Oct 6 travel day, a product designer on every screen) found no blockers and twelve majors; all were fixed, and two
+confirmation testers re-checked each fix.
+
+### Fixed
+- **A trip's items are for its own people.** Routes that name one item (an experience, day, reservation, stay, train leg,
+  decision, phrase, to-do, a history entry to undo, a learning) checked sign-in only; anyone signed in could read, change or
+  delete another trip's things, or create things on it by naming its trip, city or day. Now each is refused unless you're on
+  that trip, and a traveler's profile is visible only to people sharing a trip. (Server only; nothing changes on screen.)
+- **Wander no longer says her Guide doesn't name a group when her picture does.** Oct 28: her table names no one for Maruni
+  Toryo and the potter visit; her Kyoto map lists them under "You & Julie (morning)". Now: "Her plan's table doesn't name
+  the group; a picture in her tab lists it under “You & Julie (morning)”" (Now, Home, the day; Scout sees it too).
+- **Oct 25's e-bike tour shows both places** her tab gives: her stop list's Cycle Kyoto and her Viator booking picture's
+  "Kyoto's NORU bicycle shop" with "Must arrive 15 minutes prior to departure" — as a difference, not settled.
+- **Her travel notes on heading rows are shown** (they were read onto no screen): "Okayama -> Bizen (~40 min local train)"
+  on the Okayama stay, and "Hakata - NOT AN OVERNIGHT (travel through)" with PT1/PT2 on the Karatsu stay, under her stay
+  notes on the day screen.
+- **Home leads with her Itinerary's line for the day on every day** (Oct 23 led with a 7 PM dinner above "day 6 - hike,
+  train to kyoto"), saying whose it is when it's someone else's ("— For Ken & Larisa").
+- **A booking always shows on Home** (Oct 16's Une Immersion was under "and 2 more"); "and N more ›" opens the day at the
+  first line Home left out.
+- **Oct 29: Home's train line says "arrives 2:50 PM"**, and her "~2:00–2:30 Arrive KIX" says it was timed for the train in
+  her tab and the booked train arrives 2:50 PM.
+- **The day screen is one timeline on travel days**: booked trains sit among the timed lines at their times (and still in
+  Trains below); lines with no time say so ("The lines above have no time in Larisa's Guide; by the clock:").
+- **The morning you fly, the pickup line still says "2 are for before you go"**; Actions lists the rail sheet's
+  "Before you travel" steps for the people doing the pickup.
+- **Julie's Mashiko question says what the rail sheet already has**: "Ken's rail sheet has the “Mashiko day trip” on Oct 14
+  for 2 — “Ken + Larisa only”." The question stays open.
+- **Now's Next card shows her transit and dress notes** for the next line of her plan; "Your notes ›" (which read as private
+  notes on Larisa's phone) is now "Notes from your Guide ›".
+- To the person holding the phone: Help, Scout's first screen and Wander's own notes say "your Guide" to Larisa and "your
+  rail sheet" to Ken.
+- "Free cancellation ends" adds "Nothing to do unless plans change."; a confirmation that starts with names reads "Ken & Larisa: <code>" (it read as part of a name);
+  the same place written two ways ("Team Lab" / "TeamLab") counts once; "You're working on it"; the pickup chip "1" says
+  where it is; the No-signal notice no longer covers the last line; Profile has "‹ Back" while it loads; an idea's link
+  says what it opens.
+
+SPEC.md sections impacted: Day view (timeline, trains), Home (Today card, Next), Now (Next card), Actions, privacy/access.
+SPEC UPDATE NEEDED — the day screen now interleaves booked trains with her lines; access is per trip for every item.
+
 ## 2026-10-01 — Demo Prep: Talking to Scout
 
 Found by Ken on his iPhone while preparing to demo, and by a production walk-through as Ken on today's date.

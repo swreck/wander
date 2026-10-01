@@ -2,9 +2,13 @@ import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { logChange } from "../services/changeLog.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("changeLogId", itemMemberParam(tripOf.changeLog));
 
 // ── POST /:changeLogId ────────────────────────────────────────
 // Restore a deleted entity from its ChangeLog previousState

@@ -16,7 +16,7 @@ import { queuedBodies } from "../lib/offlineStore";
 import { useAuth } from "../contexts/AuthContext";
 import type { Experience, Trip } from "../lib/types";
 import { guideData, type TripGuideData } from "../lib/guideData";
-import { mapsLink, voiceFor } from "../lib/guideDisplay";
+import { mapsLink, voiceFor, linkLabel } from "../lib/guideDisplay";
 
 interface Note { id: string; experienceId: string; content: string; visibility?: string; traveler: { displayName: string }; createdAt: string; _pending?: boolean }
 interface DayChoice { id: string; date: string; text: string; experienceId: string | null; addedBy: string }
@@ -413,10 +413,10 @@ function IdeaCard({ exp, cityName, notes, me, tripId, days, today, choices, onNo
 
       {!writing && !picking && (
         <div className="flex flex-wrap items-center gap-x-4 mt-1">
-          <button onClick={() => setWriting(true)} className="min-h-[44px] text-sm text-[#514636]">+ Note</button>
+          <button onClick={() => setWriting(true)} className="min-h-[44px] min-w-[44px] text-sm text-[#514636]">+ Note</button>
           {orderedDays.length > 0 && <button onClick={() => setPicking(true)} className="min-h-[44px] text-sm text-[#514636]">Add to a day</button>}
           <a href={mapsLink(`${exp.name}, ${cityName}`)} className="min-h-[44px] inline-flex items-center text-sm text-[#514636]">Maps ↗</a>
-          {exp.sourceUrl && <a href={exp.sourceUrl} target="_blank" rel="noreferrer" className="min-h-[44px] inline-flex items-center text-sm text-[#514636]">Link ↗</a>}
+          {exp.sourceUrl && <a href={exp.sourceUrl} target="_blank" rel="noreferrer" className="min-h-[44px] min-w-[44px] inline-flex items-center text-sm text-[#514636]">{linkLabel(exp.sourceUrl)} ↗</a>}
           <button onClick={() => window.dispatchEvent(new CustomEvent("wander-open-chat", { detail: { prefill: `Tell me about ${exp.name} in ${cityName}` } }))}
             className="min-h-[44px] text-sm text-[#514636]">Ask Scout</button>
         </div>

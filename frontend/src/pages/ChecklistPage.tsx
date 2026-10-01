@@ -135,8 +135,10 @@ export default function ChecklistPage() {
         <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mt-3">Jump to a step</p>
         <nav aria-label="Jump to a step" className="flex gap-2 mt-1 -mx-4 px-4 pb-1 overflow-x-auto [scrollbar-width:none] w-[calc(100%+2rem)] max-w-[100vw] min-w-0">
           {steps.map((x, i) => {
-            const label = colOf(x.cols, /^step$/);
-            const twin = steps.filter((y) => colOf(y.cols, /^step$/) === label);
+            const own = colOf(x.cols, /^step$/);
+            // A step the sheet numbers only ("1") says where it is too (round 13: a chip "1" was step 3 of 15)
+            const label = /^\d+$/.test(own.trim()) ? `${own.trim()} · ${colOf(x.cols, /^when/).split(/[;,.]/)[0].split(/\s+/).slice(0, 3).join(" ")}`.replace(/ · $/, "") : own;
+            const twin = steps.filter((y) => colOf(y.cols, /^step$/) === own);
             return (
               <button key={x.row} onClick={() => document.getElementById(`step-${x.row}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
                 // (relative: its hidden spoken label stays inside it — it escaped the row and made the page 1,400 points wide)

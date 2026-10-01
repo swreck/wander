@@ -4,9 +4,13 @@ import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { tripMemberParam } from "../middleware/role.js";
+import { itemMemberParam } from "../middleware/role.js";
+import { tripOf } from "../middleware/tripGuard.js";
 
 const router = Router();
 router.use(requireAuth);
+// A route naming one item is for the people on that item's trip (Oct 1 2026)
+router.param("id", itemMemberParam(tripOf.city));
 // A route naming a trip is for that trip's own people (Sep 30 2026)
 router.param("tripId", tripMemberParam);
 router.get("/trip/:tripId", async (req, res) => {

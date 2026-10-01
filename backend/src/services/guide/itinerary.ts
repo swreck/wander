@@ -68,6 +68,9 @@ export interface ItineraryResult {
   lastDate: string | null;
   skippedSections: { title: string; reason: string; rows: number[] }[];
   warnings: string[];
+  /** Travel notes on a section's heading row ("Hakata - NOT AN OVERNIGHT (travel through)" · "PT1: Okayama -> Hakata…"),
+   *  in her order — a heading row is otherwise skipped, and these were read onto no screen (round 13) */
+  sectionTravel?: { title: string; note: string; ref: string }[];
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -237,6 +240,9 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
       const skip = /\bskip\b/i.test(title);
       section = { title, city: cityFromSection(title.split(/\s*-\s*skip/i)[0]), skip, skipReason: skip ? title : "", rows: [] };
       if (!skip && !result.cityOrder.includes(section.city)) result.cityOrder.push(section.city);
+      // Her travel note on the heading row itself
+      const headTravel = cellIn(row, roles.get("total"));
+      if (!skip && headTravel?.text.trim()) (result.sectionTravel ||= []).push({ title, note: headTravel.text.trim(), ref: ref(headTravel.a1) });
       lastDate = null;
       continue;
     }
@@ -306,6 +312,12 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
     const t2 = cellIn(row, roles.get("time2")) || cellIn(row, roles.get("arrive"));
     const total = textIn(row, roles.get("total")) || textIn(row, roles.get("flightTime"));
     const isLeg = !!(from && to);
+    // A row with only her travel note ("PT2: Hakata -> Karatsu…" under the Hakata heading) goes with its section's
+    // heading notes — it made nothing at all before (round 13)
+    const travelOnly = textIn(row, roles.get("total"));
+    if (!hotel && !isLeg && !desc && travelOnly) {
+      (result.sectionTravel ||= []).push({ title: section.title, note: travelOnly, ref: ref(cellIn(row, roles.get("total"))!.a1) });
+    }
     if (isLeg && itemDate) {
       const startTime = t1?.kind === "time" ? t1.time! : parseStatedTimes(t1?.text || "").start;
       const endTime = t2?.kind === "time" ? t2.time! : parseStatedTimes(t2?.text || "").start;
