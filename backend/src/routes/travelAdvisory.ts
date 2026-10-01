@@ -2,10 +2,12 @@ import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { getCountryAdvisories, getPreTripSummary } from "../services/travelAdvisory.js";
+import { tripMemberParam } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
-
+// A route naming a trip is for that trip's own people (Sep 30 2026)
+router.param("tripId", tripMemberParam);
 // GET /travel-advisory/trip/:tripId
 // Returns advisories for all countries in the trip
 router.get("/trip/:tripId", async (req: AuthRequest, res) => {

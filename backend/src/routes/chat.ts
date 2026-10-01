@@ -851,6 +851,35 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_todos",
+    description: "List the trip's to-dos on the Actions screen: those from the Actions tab of Larisa's Guide and those added in Wander, with who each is for and whether it's done.",
+    input_schema: { type: "object" as const, properties: { tripId: { type: "string" } }, required: ["tripId"] },
+  },
+  {
+    name: "add_todo",
+    description: "Add a to-do on the Actions screen ('remind us to get yen'), for everyone or one person, with an optional by-when. It's added in Wander — Larisa's Guide is not changed.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" }, action: { type: "string", description: "What needs doing" },
+        owner: { type: "string", description: "Who it's for: a first name, or 'Both' for everyone (default)" },
+        dueDate: { type: "string", description: "By when, in plain words ('Oct 20') — optional" },
+        notes: { type: "string" },
+      },
+      required: ["tripId", "action"],
+    },
+  },
+  {
+    name: "set_todo_done",
+    description: "Tick a to-do off, or open it again (done: false). Works for any to-do on the Actions screen; ticking one from Larisa's Guide marks it done in Wander only.",
+    input_schema: { type: "object" as const, properties: { tripId: { type: "string" }, todoId: { type: "string" }, done: { type: "boolean" } }, required: ["tripId", "todoId", "done"] },
+  },
+  {
+    name: "remove_todo",
+    description: "Take out a to-do that was added in Wander. Never one from Larisa's Guide — that goes when she takes it out of her sheet. Find the id with get_todos.",
+    input_schema: { type: "object" as const, properties: { tripId: { type: "string" }, todoId: { type: "string" } }, required: ["tripId", "todoId"] },
+  },
+  {
     name: "get_same_day_plans",
     description: "List the same-day plans people added in Wander, for one date or the whole trip.",
     input_schema: {
@@ -3316,6 +3345,8 @@ export async function executeTool(
       if (!note) return { result: { error: mine.length ? "None of your notes there match those words." : `You haven't written a note on ${exp.name}. (Only your own notes can be taken back.)` } };
       await prisma.experienceNote.delete({ where: { id: note.id } });
       if (note.visibility === "group") {
+        // Its words leave the history too, as when it's taken back on screen
+        await prisma.changeLog.updateMany({ where: { entityId: note.id, actionType: "note_added" }, data: { description: `noted on ${exp.name} (since taken back)`, newState: undefined } }).catch(() => {});
         logChange({
           tripId: exp.tripId, user: user as any, actionType: "note_removed", entityType: "experience_note", entityId: note.id,
           entityName: exp.name, description: `took back a note on ${exp.name}`, previousState: { experienceId: exp.id, content: note.content },
@@ -3352,6 +3383,41 @@ export async function executeTool(
 
     case "get_same_day_plans": {
       return { result: { choices: await listDayChoices(input.tripId, input.date || undefined) } };
+    }
+
+    // To-dos on the Actions screen (Sep 30 2026 — the same rules as the screen: anything can be ticked off; only a
+    // to-do added in Wander can be taken out, never one from Larisa's Guide)
+    case "get_todos": {
+      const todos = await prisma.planningAction.findMany({ where: { tripId: input.tripId }, orderBy: { createdAt: "asc" } });
+      // Her Actions tab's "Both" is Andy and Larisa (its two status columns); "Both" added in Wander is everyone
+      const forWhom = (t: { owner: string; sheetRowRef: string | null }) =>
+        t.owner === "Both" ? (t.sheetRowRef ? "Andy & Larisa" : "everyone") : ({ LF: "Larisa", KR: "Ken", AB: "Andy" } as Record<string, string>)[t.owner] || t.owner;
+      return { result: { todos: todos.map((t) => ({ id: t.id, action: t.action, for: forWhom(t), by: t.dueDate, done: t.status === "done", andyStatus: t.andyStatus, larisaStatus: t.larisaStatus, notes: t.notes, from: t.sheetRowRef ? "Larisa's Guide" : t.createdBy ? `added in Wander by ${t.createdBy}` : "added in Wander" })) } };
+    }
+    case "add_todo": {
+      if (!String(input.action || "").trim()) return { result: { error: "What needs doing?" } };
+      const created = await prisma.planningAction.create({
+        data: { tripId: input.tripId, action: String(input.action).trim(), owner: String(input.owner || "Both").trim(), dueDate: input.dueDate?.trim() || null, notes: input.notes?.trim() || null, status: "open", createdBy: user.displayName },
+      });
+      logChange({ tripId: input.tripId, user: user as any, actionType: "action_added", entityType: "planning_action", entityId: created.id, entityName: created.action, description: `added a to-do: "${created.action}"` }).catch(() => {});
+      return { result: { added: true, todo: created }, actionDescription: `To-do added: ${created.action}` };
+    }
+    case "set_todo_done": {
+      const t = await prisma.planningAction.findFirst({ where: { id: input.todoId, tripId: input.tripId } });
+      if (!t) return { result: { error: "That to-do isn't on this trip." } };
+      const updated = await prisma.planningAction.update({ where: { id: t.id }, data: { status: input.done ? "done" : "open" } });
+      logChange({ tripId: input.tripId, user: user as any, actionType: input.done ? "action_done" : "action_reopened", entityType: "planning_action", entityId: t.id, entityName: t.action, description: input.done ? `ticked off "${t.action}"` : `marked "${t.action}" not done` }).catch(() => {});
+      return { result: { updated: true, todo: updated }, actionDescription: `${input.done ? "Done" : "Open again"}: ${t.action}` };
+    }
+    case "remove_todo": {
+      const t = await prisma.planningAction.findFirst({ where: { id: input.todoId, tripId: input.tripId } });
+      if (!t) return { result: { error: "That to-do isn't on this trip." } };
+      if (t.sheetRowRef) return { result: { error: "That to-do is from Larisa's Guide — it goes when she takes it out of her sheet." } };
+      // Only whoever added it, as on the Actions screen
+      if (t.createdBy && t.createdBy !== user.displayName) return { result: { error: `That's ${t.createdBy}'s to-do — only ${t.createdBy} can take it out.` } };
+      await prisma.planningAction.delete({ where: { id: t.id } });
+      logChange({ tripId: input.tripId, user: user as any, actionType: "action_removed", entityType: "planning_action", entityId: t.id, entityName: t.action, description: `took out the to-do "${t.action}"`, previousState: t }).catch(() => {});
+      return { result: { removed: true }, actionDescription: `To-do taken out: ${t.action}` };
     }
 
     case "bulk_update_days": {
@@ -4314,6 +4380,7 @@ RULES:
 46d. Showing things: you can move Wander's screen with show_in_wander (it changes nothing). When someone asks to see, open, show or be taken to something — "show me our first day in Kyoto", "the day Andy and Julie arrive", "open tomorrow", "Tokyo ideas", "show me the deadlines" (that's Actions), "who's on the trip" (People) — work out the exact date or city from the Guide, call it with go=true, and reply in one short line that says what they're looking at ("Here's Wed, Oct 14 — Julie & Andy land at Narita at 3:00 PM."). Your panel steps down to a small bar while they look, so they can ask a follow-up; always pass a headline — the answer itself in a few words for that bar ("Oct 29 · still open: Shiraume or Four Seasons"). When you're talking about one line of that day (the Backroads meeting, a dinner), pass item with a few of its words so the screen scrolls to it. "Ideas I marked" / "Julie's ideas" → pass markedBy with that person's name (the asker's own name for "I"). "Take me back" / "go back" → target "back". When your answer is about one specific day, also call it with go=false so a button appears. If what they asked for doesn't exist in the plan (a city with no stay, a date outside the trip), say so in words first ("The trip ends Thu, Oct 29 — Nov 3 isn't part of it.") and offer the nearest real day as a button — never invent one, and never answer with only "tap below". Phrases like "been to by now" mean what the plan says up to today; say that you know the plan, not what they actually did. Everything you write before and after a tool call is shown together as one answer — so after a tool call, don't repeat yourself; add only what's new, or nothing.
 46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?", "do we need to reconfirm anything?", "where does the tour start?", "are we going to X?") gets an answer, not a draft — at most offer in words ("Want me to draft a note to Larisa?"). Never do this when the asker is Larisa herself.
 46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed — say both in one short line. Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Take back" under their own note in Ideas — someone else's note is theirs to take back.
+46c. To-dos (the Actions screen): "remind us to…" / "add a to-do…" → add_todo (added in Wander; her Guide unchanged — say so in a few words). "We did it" / "that's done" → set_todo_done. "Take that off the list" → remove_todo, only for one added in Wander; one from Larisa's Guide stays until she takes it out of her sheet (it can still be ticked off). Use get_todos to find it. On screen: Actions → "+ Add", the tick beside each, and "Take out" on those added in Wander.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
 52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
 54. Use create_day_choice when someone says "some of us might want to do X while others do Y", "we could split up", or "there are two options for the afternoon". This creates a Decision tied to a specific day so everyone can vote on what they want to do.

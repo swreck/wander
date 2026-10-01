@@ -836,6 +836,8 @@ model PlanningAction {
   larisaStatus String?  @map("larisa_status")
   statusNotes  String?  @map("status_notes")
   sheetRowRef  String?  @map("sheet_row_ref")
+  // Who added it in Wander (display name); only they can take it out. Null for her Guide's and older ones.
+  createdBy    String?  @map("created_by")
   createdAt    DateTime @default(now()) @map("created_at")
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)

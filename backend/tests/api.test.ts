@@ -1,6 +1,10 @@
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
+import { takeTurnsWithActiveTrip } from "./active-trip-lock.js";
+
+// Switches the active trip: takes turns with the other files that do
+takeTurnsWithActiveTrip();
 
 // Set test env vars before importing app
 process.env.ACCESS_CODES = "TEST1:TestUser,TEST2:TestUser2";

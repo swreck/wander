@@ -459,7 +459,6 @@ export default function TripOverview() {
               trips={menuTrips}
               currentTripId={trip.id}
               onSwitch={handleSwitchTrip}
-              onNewTrip={() => { setShowTripSwitcher(false); setShowCreate(true); }}
               onRename={(id, newName) => {
                 setAllTrips(prev => prev.map(t => t.id === id ? { ...t, name: newName } : t));
                 if (trip && trip.id === id) setTrip({ ...trip, name: newName });
@@ -920,12 +919,11 @@ function DatelessTripView({
 
 
 function TripSwitcherList({
-  trips, currentTripId, onSwitch, onNewTrip, onRename,
+  trips, currentTripId, onSwitch, onRename,
 }: {
   trips: Trip[];
   currentTripId: string;
   onSwitch: (id: string) => void;
-  onNewTrip: () => void;
   onRename: (id: string, newName: string) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -957,7 +955,6 @@ function TripSwitcherList({
       <div className="px-4 pt-2 max-h-[50vh] overflow-y-auto">
         {sorted.map((t) => {
           const isCurrent = t.id === currentTripId;
-          const syncAt = (t as any).sheetSyncConfig?.lastSyncAt;
 
           return (
             <div
@@ -998,7 +995,8 @@ function TripSwitcherList({
                     {t.startDate && t.endDate && (
                       <span>{new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} – {new Date(t.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
                     )}
-                    {syncAt && <><span>·</span><span>Guide read {new Date(syncAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></>}
+                    {/* (no "Guide read …" here: it was an old sync setting's time, a different moment from the copy
+                        Wander reads — Home says that one; round 12 found three different dates) */}
                   </div>
                 </div>
                 {/* No delete button: removing a trip wipes every day, place, and its history,
@@ -1008,17 +1006,8 @@ function TripSwitcherList({
           );
         })}
       </div>
-      {/* New trip — only for someone who plans a trip; a guest only wants the trip they were let into */}
-      {sorted.some((t) => (t as any).myRole === "planner") && (
-        <div className="px-4 pt-3 pb-2">
-          <button
-            onClick={onNewTrip}
-            className="w-full min-h-[44px] rounded-lg border border-dashed border-[#c8bba8] text-sm text-[#6b5d4a] hover:bg-[#faf8f5] transition-colors"
-          >
-            + Plan a new trip
-          </button>
-        </div>
-      )}
+      {/* No "+ Plan a new trip" here: a trip comes from Larisa's Guide now, and that button opened the old PDF-import
+          screen with no way back but a reload (round 12). */}
     </>
   );
 }

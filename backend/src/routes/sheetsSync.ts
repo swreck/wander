@@ -15,9 +15,19 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { getUserRole } from "../middleware/role.js";
+import { logChange } from "../services/changeLog.js";
 
 const router = Router();
 router.use(requireAuth);
+// Every route that names a trip (status, conflicts, actions, notes) is for that trip's own people only
+router.param("tripId", async (req: AuthRequest, res, next, tripId: string) => {
+  if (req.user?.travelerId && !(await getUserRole(req.user.travelerId, tripId))) {
+    res.status(403).json({ error: "That trip isn't one of yours." });
+    return;
+  }
+  next();
+});
 
 // ── GET /status — Current sync status ────────────────────────
 router.get("/status/:tripId", async (req: AuthRequest, res) => {
@@ -94,11 +104,21 @@ router.get("/notes/:tripId", async (req: AuthRequest, res) => {
     // Include tabGids from sync config for deep-linked sheet URLs
     const config = await prisma.sheetSyncConfig.findUnique({ where: { tripId } });
     const tabGids = (config?.tabMappings as any)?.tabGids || {};
-    res.json({ notes, byTab, tabGids });
+    // Her sheet's own tab order, from the copy Wander read (the list was A–Z: "Kyoto Tue, 1027…" among the K's)
+    const snap = await prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { tabs: true } });
+    const tabOrder = (((snap?.tabs as any[]) || []).slice().sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).map((t) => t.name as string));
+    res.json({ notes, byTab, tabGids, tabOrder });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Only the trip's own people touch its to-dos (Sep 30 2026: these routes checked sign-in only, so anyone signed in
+// could change or delete another trip's to-dos). Sign-ins by code without a traveler aren't limited, as in trips.ts.
+async function onTrip(req: AuthRequest, tripId: string) {
+  if (!req.user?.travelerId) return true;
+  return !!(await getUserRole(req.user.travelerId, tripId));
+}
 
 // ── POST /actions — Create a new planning action ─────────────
 router.post("/actions", async (req: AuthRequest, res) => {
@@ -108,6 +128,7 @@ router.post("/actions", async (req: AuthRequest, res) => {
       res.status(400).json({ error: "tripId and action are required" });
       return;
     }
+    if (!(await onTrip(req, tripId))) { res.status(403).json({ error: "That trip isn't one of yours." }); return; }
 
     const created = await prisma.planningAction.create({
       data: {
@@ -117,9 +138,12 @@ router.post("/actions", async (req: AuthRequest, res) => {
         dueDate: dueDate?.trim() || null,
         notes: notes?.trim() || null,
         status: "open",
+        createdBy: req.user!.displayName,
       },
     });
 
+    // In History, like Scout's (round 12: a to-do added on screen left no trace; one added through Scout did)
+    logChange({ tripId, user: req.user!, actionType: "action_added", entityType: "planning_action", entityId: created.id, entityName: created.action, description: `added a to-do: "${created.action}"` }).catch(() => {});
     res.status(201).json(created);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -130,6 +154,9 @@ router.post("/actions", async (req: AuthRequest, res) => {
 router.patch("/actions/:id", async (req: AuthRequest, res) => {
   try {
     const { action, owner, dueDate, notes, status } = req.body;
+    const existing = await prisma.planningAction.findUnique({ where: { id: req.params.id as string }, select: { tripId: true } });
+    if (!existing) { res.status(404).json({ error: "That to-do isn't there any more." }); return; }
+    if (!(await onTrip(req, existing.tripId))) { res.status(403).json({ error: "That trip isn't one of yours." }); return; }
 
     const updated = await prisma.planningAction.update({
       where: { id: req.params.id as string },
@@ -142,6 +169,9 @@ router.patch("/actions/:id", async (req: AuthRequest, res) => {
       },
     });
 
+    if (status !== undefined) {
+      logChange({ tripId: updated.tripId, user: req.user!, actionType: status === "done" ? "action_done" : "action_reopened", entityType: "planning_action", entityId: updated.id, entityName: updated.action, description: status === "done" ? `ticked off "${updated.action}"` : `marked "${updated.action}" not done` }).catch(() => {});
+    }
     res.json(updated);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -149,13 +179,23 @@ router.patch("/actions/:id", async (req: AuthRequest, res) => {
 });
 
 // ── DELETE /actions/:id — Remove an action ───────────────────
+// Only one added in Wander: a to-do from Larisa's Guide stays until she changes her sheet (Wander is downstream)
 router.delete("/actions/:id", async (req: AuthRequest, res) => {
   try {
-    await prisma.planningAction.delete({
+    const existing = await prisma.planningAction.findUnique({ where: { id: req.params.id as string }, select: { tripId: true, sheetRowRef: true, createdBy: true } });
+    if (!existing) { res.status(404).json({ error: "That to-do isn't there any more." }); return; }
+    if (!(await onTrip(req, existing.tripId))) { res.status(403).json({ error: "That trip isn't one of yours." }); return; }
+    if (existing.sheetRowRef) { res.status(403).json({ error: "That to-do is from Larisa's Guide — it goes when she takes it out of her sheet." }); return; }
+    // Only whoever added it takes it out, like a note or a plan (round 12: Ken was offered "Take out" on Larisa's)
+    if (existing.createdBy && existing.createdBy !== req.user!.displayName) { res.status(403).json({ error: `That's ${existing.createdBy}'s to-do — only ${existing.createdBy} can take it out.` }); return; }
+    const gone = await prisma.planningAction.delete({
       where: { id: req.params.id as string },
     });
+    logChange({ tripId: gone.tripId, user: req.user!, actionType: "action_removed", entityType: "planning_action", entityId: gone.id, entityName: gone.action, description: `took out the to-do "${gone.action}"`, previousState: gone }).catch(() => {});
     res.json({ deleted: true });
   } catch (err: any) {
+    // Two quick taps: the second finds it already gone — that's the result asked for, not an error (round 12)
+    if (err?.code === "P2025") { res.json({ deleted: true }); return; }
     res.status(500).json({ error: err.message });
   }
 });

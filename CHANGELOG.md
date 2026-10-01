@@ -2,6 +2,82 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-09-30 — Loose Ends Before Release
+
+### Fixed
+- **Actions:** Cancel clears what you typed (it came back when you opened the form again); a to-do's note box is 16px (no iPhone zoom) with full-size Cancel and Save; tags read "For everyone" / "For Larisa" instead of "Group" / "LF"; statuses read "working on it" and "not needed" instead of "in progress" and "n/a"; "7 done ›" and "Hide the done ones" are larger.
+- **"As Wander last read it on Sep 30"** is the same on every phone — Japan's date, said as such on a phone elsewhere (Julie's California phone said Sep 29, Ken's Sep 30).
+- **The day screen says her name the way people say it**, first name first, as Home does (it said it surname first).
+- **Profile documents:** the "who can see this" button is read aloud as it reads on screen, followed by what a tap does; field labels are tied to their boxes (a screen reader now names each box) and larger; "+ Add" is larger.
+- **A train line on Home opens the day at its trains** (it opened at the top).
+- **Pickup steps:** "The station map and where these steps come from ›" near the top (its steps say "the station map link below"; it was at the very end).
+- **After a whole-product sweep (round 12: Larisa, Julie, Andy and a designer, four fresh testers):**
+  - **Oct 17's two Robuchon restaurants are flagged.** Her day tab books "Gastronomy “Joël Robuchon”" (jackets required) and her Dining Resos booking is "LeTable de Joel Robuchon - 1F" (ties not necessary), both at 6:00 PM; both lines now say "Her tabs differ". Takes effect on the next read of her Guide.
+  - **"Sources differ" says which of her tabs differs** — "the rail sheet has HARUKA 31 leaving 1:30 PM, and so does her Itinerary tab (“1:30-2:00p”); her “Kyoto Thu, 1029…” tab has 12:30 PM–1:00 PM" — instead of "Larisa's Guide has 12:30". Her day plan's HARUKA card on Now says the rail sheet has that train at another time, so two countdowns don't read as two trains; the flight card no longer carries the HARUKA note.
+  - **A deadline says whose to-do it is:** "Larisa's to do (booked under …)" with her full name to everyone else, "Booked under your name" to Larisa (Julie read the Robuchon reconfirmation as hers).
+  - **A question her Guide asks you** ("1 day to Mashiko-Julie interested?") says "A question for you in Larisa's Guide — tell her your answer."
+  - **Landing, with nothing in her Guide about getting to the hotel:** "Her Guide doesn't say how to get from Narita to Imperial Hotel. Scout can look up the ways to go."
+  - **One map for a place her tabs put in two areas** (Yazawa: Ginza in her day tab, Yaesu in the booking): only the booking's address has a Maps link; the "tabs differ" note says both.
+  - **Maps for a day-trip place** searches the town her tab names ("Maruni Toryo, Shigaraki, Kyoto"), not only its city.
+  - **Home doesn't jump:** it holds the Today card's place while loading, so the calendar isn't pushed down under a tapping thumb; a flight always shows on Home's Today card (the flight home was under "and 1 more").
+  - **The rail sheet's "?" legs say their open question right there** (Oct 23: "Confirm whether Backroads supplies the train tickets…").
+  - **Documents:** the profile says what's true — passport, visa and insurance details open with Face ID and no one else ever sees them (the group sees only that you have one); the switch's hint says the same for those.
+  - **A "just for me" note stays private.** Home's Recent activity read every note on an idea, so Larisa's private note showed on Ken's phone (and group notes showed twice). It now comes only from the history, which never holds a private note; taking a group note back takes its words out of the history too (on screen and through Scout).
+  - **Each trip's data is for its own people.** Sixteen kinds of trip data (the history, days, decisions, stays, bookings, documents' list and more) and the activity feed were served to anyone signed in; every route that names a trip now checks the person is on it.
+  - **Maps for her day plan:** a line that is one of her bookings uses the booking's own address (Oct 26's Hassun, in Gion, was searched in Arashiyama); a tab's town is added only when her Itinerary line for the day names it (Shigaraki on Oct 28).
+  - **A plan added in Wander that comes first is Home's "Next"**, as on Now; her Guide's next line stays in the list below it.
+  - **A to-do done in her Guide can't be un-done here** ("done in Larisa's Guide"); one ticked in Wander can be marked not done.
+  - **Her open question for a stay shows up top on the day it's about** ("Still open in her Guide: “WHERE IS BIZEN TOUR STARTING”" on Oct 7), in her words.
+  - **"The rest of this day is the others' plan"** only when someone else has lines that day (Oct 5 had none).
+  - **"Larisa's Guide, tab by tab" is in her sheet's order**, not A–Z.
+  - **Documents open with your PIN or Face ID** — the profile and Help now both say so. A tick with no signal says "No signal — that tick didn't save. Try again when you're back online."
+  - **No more trap behind "+ Plan a new trip"** — it opened the old PDF-import screen with no way back but a reload; trips come from Larisa's Guide, so the button is gone.
+  - **Home's Today card in time order with the trains:** your trains from Ken's rail sheet sit in the day's list by time (the 6:17 PM train was above the 2:50 PM landing), always shown; her short untimed Itinerary bits share one line ("Her Itinerary for today: “Rikuro Cheesecake” · “Shinkansen”"); a meal her Guide says isn't booked says "No reservation".
+  - **After the pickup day, the rail sheet's old "PENDING — collect … Oct 6"** no longer leads Now's next-train card (the day's train list still has it, said as possibly out of date), and the pickup link stops repeating on later days.
+  - **The pickup page starts with the steps:** its jump buttons are one row you swipe sideways under "Jump to a step", and the tick count matches the steps shown.
+  - **Her pictures open in "tab by tab"** ("See the picture ›") — the Tokyo subway map, the booking screenshots.
+  - **Scout with no signal says so:** the question buttons and Send wait, and the box says "No signal — Scout can answer once you're back online".
+  - **Recent activity leaves out what was added and taken back** (History keeps both).
+  - **People on this trip:** how many phones use Face ID shows only on your own row.
+  - **Actions:** "Still to do" instead of "Coming up" (a to-do with no date isn't coming up); a stored "null" date isn't shown as one. **Help** explains Ken's rail sheet. **Profile:** "What Scout has picked up from you" instead of "Your Learnings".
+  - **Before the others have landed, Julie's "Right now in Japan" says where they really are** — "Ken & Larisa haven't left home yet — they're due to land at Kansai (KIX) Tue 2:50 PM Japan time", or "should be in the air…" — never the calendar's city ("the others are in Okayama" while they were still home).
+  - **A question in her Guide is only "for you" when it really is** — not on Ken & Larisa's Mashiko card quoting "if Julie isn't interested"; someone else's untimed line comes after your own on Home; her open question for a stay shows only on days whose lines are yours ("ASK KENJI…" no longer leads Julie's landing day), and is quoted whole ("…FINISH 3:45-4p AT TRAIN", no stray letter from the next line).
+  - **"How to get from Narita"** counts only your own trains in the rail sheet (Ken & Larisa's Mashiko trains hid Julie's line).
+  - **The pickup page never slides sideways** on a small phone (its jump row pushed the page 173 points wide).
+  - **The same "last read" everywhere:** Settings shows her Guide's copy and Ken's rail sheet with their read times in Japan time ("Where Wander's plan comes from"); the trip picker's old "Guide read …" (an older, different time) is gone.
+  - **Small things:** Home's "Opening today…" is a full screen tall, so the calendar never moves in view; a day-trip town's Maps search is "Maruni Toryo, Shigaraki, Japan" (Shigaraki isn't in Kyoto); Scout's no-signal words fit the box and the microphone waits too; the notice about someone else's change goes by itself after 8 seconds.
+  - **An old rail-sheet status after its day says whose job it was:** "Collecting these tickets was part of Ken & Larisa's Shin-Osaka ticket pickup on Tue, Oct 6. The rail sheet still said, when Wander read it …: “PENDING — …” — Wander can't see whether that's been done since." (Andy, 20 minutes before his HARUKA, read the old words as "nobody knows if your ticket exists".)
+  - **Home's Today card starts with her open question about today** ("Still open in her Guide: “WHERE IS BIZEN TOUR STARTING”" on Oct 7).
+  - **History records to-dos** added, ticked off, marked not done and taken out on the Actions screen (only Scout's were recorded).
+  - **Someone taking back their own addition doesn't pop a notice** over everyone's screen (screens still update); "Add a note" and Help's "Go to the trip" are full-size.
+  - **To-dos added in Wander can be taken out** ("Take out", then "Take this out?"); one from Larisa's Guide can't. The to-do routes now check the person is on the trip (they checked sign-in only — anyone signed in could read or change another trip's to-dos). Scout can list, add, tick off and take out to-dos by the same rules (get_todos, add_todo, set_todo_done, remove_todo).
+- **Home's deadlines with a window** add their time and clock ("Any day through Wed, Oct 14, by the end of the day in Japan (Wed 7:59 AM your time)").
+- **After the second confirmation round (four fresh testers: Julie, Ken, Larisa, Andy):**
+  - **Between landing and arriving** (Home, "Right now in Japan", on Julie's and Andy's phones at home): "Ken & Larisa landed at Kansai (KIX) at 2:50 PM, by the schedule, and are on their way to Okayama — due there about 7:05 PM", timed by their own trains in Ken's rail sheet. It said "the others are in Okayama" from the moment they landed.
+  - **Now on the day you fly** counts to your own flight: "You leave today" on the morning Ken & Larisa fly (it said "You leave tomorrow", counting to their first Japan day, and disagreed with Home all week).
+  - **The train you're on stays in view** between leaving and arriving: Home says "On the train now, by the schedule · NOZOMI 77 · Shin-Osaka → Okayama, arriving 7:05 PM" with the seats, and Now's top card "On this train now, by the schedule · arriving 7:05 PM" (both dropped it the minute it left). Home no longer lists the "Next" train a second time below it.
+  - **Oct 29 at 12:10, Now says the HARUKA difference once**: the rail card, the note under it naming each source, and one line on her plan's HARUKA line — her ~12:30 boarding is no longer a second dark "Next" card. Times already written "12:30 PM" stay that way.
+  - **To-dos say who added them and only they can take one out** ("added by you" / "added by Larisa"; Scout follows the same rule). A done one you added can be taken out without un-ticking it. Her Actions tab's "Both" reads "For Andy & Larisa" (her two status columns; it said "For everyone"). *New field: who added a to-do.*
+  - **The Four Seasons deadline says whose it is** — "Ken's to do (booked under …)", from the "Dear …" greeting of the hotel's email in her tab (read only when the tab holds one booking). Needs a fresh read of her Guide.
+  - **A link cell with two addresses is two links** (Oct 27's "Michelin page" joined a Michelin address and a Google search into one dead link); a Google search is labelled "Google search"; a card with her own map link has no second Maps link.
+  - **Stay headings use her dates, check-in to check-out**: "Larisa's note for the Okayama stay, Oct 6–8" (it counted nights, "Oct 6–7").
+  - **Wander's own map links in "Larisa's Guide, tab by tab" say they're Wander's** ("Wander's link: live map of Tokyo"); the fixed Tokyo → Kyoto "rail route planner" (none of this trip's trains) is gone.
+  - **Scout with no signal:** the box says "No signal right now" on one line (it was cut off), the microphone is faded like Send, and the welcome says why the questions are greyed.
+  - **The floating "No signal — showing what this phone saved …" wraps inside the screen** (at large text it ran off both edges).
+  - **Small things:** the rail sheet's read time says "Japan time" on every phone; the pickup page's morning times read "08:07 (8:07 AM)"; "Refresh at the Imperial Hotel" searches the hotel itself (not "Ginza"); her Itinerary's short lines read "In her Itinerary for today: “…”" (a room type read as "Her note"); the Profile's privacy sentence reads the right way round; "By when? Oct 20" fits; the add-a-plan example names no one; History no longer quotes notes taken back before Sep 30 (a one-time rewrite).
+  - SPEC UPDATE NEEDED (§ on Actions: who can take out a to-do; § on Home's "Right now in Japan").
+- **After the third confirmation round (four fresh testers; no blockers):**
+  - **Her Tokyo day plans no longer say her tab gives no date when her own picture does.** "Wander matched this plan to Thu, Oct 15, since her tab's words don't give a date. … A picture in her tab labels Day 1 Tue, Oct 13 — a different date; worth checking with Larisa." (Day 2 and 3 point to the map in her “Tokyo Day 1 Ginza” tab.) Her sources' disagreement is said, never settled silently. Needs a fresh read of her Guide.
+  - **A room description beside a hotel in her Itinerary isn't the day's line**: Oct 27 opened with "In her Itinerary for today: “Two-Bedroom Heritage Garden Residence”"; it's now listed on the day screen as "Beside Four Seasons in her Itinerary", and her real line (Team Lab) shows. Only room descriptions — the Backroads meeting on the Ritz-Carlton's row is untouched. Needs a fresh read.
+  - **The pickup page's "last read" is in Japan time** like everywhere else (a California phone showed Sep 30 there and Oct 1 elsewhere).
+  - **Every two-digit rail-sheet time gets its 12-hour words** ("Okayama 10:26 (10:26 AM)").
+  - **Oct 29's flight card no longer repeats her HARUKA travel note** when her HARUKA line already quotes it whole.
+  - **Ideas shows the notes this phone last saw at once**, then the fresh copy (on a reload, every note looked deleted for a moment).
+  - **A ticked to-do keeps "added by …"**; Home's bundled Itinerary line reads "In her Itinerary for today".
+- **After the fourth confirmation (one fresh tester across all four people; J1–J8 all passed):**
+  - **On a train, arriving is what's next.** On the 1:30 PM HARUKA, Home and Now said "On this train now … arriving 2:50 PM" and, under it, "Next · in 15 min · ~2:00–2:30 Arrive KIX" — her arrival for her own 12:30 departure. While you're on a rail-sheet train, her lines timed before its arrival aren't "Next" or listed on Home (the day screen still has her whole plan).
+  - **A train's disagreement goes once the train has.** "The sources differ — HARUKA 31 leaving 1:30 PM…" stopped leading Now at 4 PM at the airport — it shows until every time it names has passed. The flight's Next card on Now no longer carries the train's "Her tabs differ" (the day screen and Home already didn't).
+
 ## 2026-09-30 — Ken's Rail Sheet, Beside Her Guide
 
 ### Added

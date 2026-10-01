@@ -43,7 +43,9 @@ export default function SavedCopyNotice() {
   return (
     <div
       role="status"
-      className="fixed left-1/2 -translate-x-1/2 z-[54] pointer-events-none rounded-full bg-[#514636] text-white shadow px-3 py-1.5 text-xs whitespace-nowrap"
+      // Wraps inside the screen with a margin (round 12: kept to one line, large text ran it off both edges —
+      // "gnal — showing what this phone saved Thu, Oct 1, 7:5")
+      className="fixed left-1/2 -translate-x-1/2 z-[54] pointer-events-none rounded-2xl bg-[#514636] text-white shadow px-3 py-1.5 text-xs text-center w-max max-w-[calc(100vw-2rem)]"
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 60px + var(--scout-dock, 0px))" }}
     >
       No signal — showing what this phone saved{when(savedAt)}

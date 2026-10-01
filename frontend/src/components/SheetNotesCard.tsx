@@ -31,9 +31,49 @@ interface SheetNote {
   text: string;
 }
 
+// Her pictures, by tab, with short-lived links (GET /guide/pictures) — fetched once, when a picture is first asked for
+type TabPictures = { tab: string; pictures: { anchor: string; url: string }[] }[];
+let picturesLoad: { tripId: string; p: Promise<TabPictures> } | null = null;
+function picturesOf(tripId: string): Promise<TabPictures> {
+  if (!picturesLoad || picturesLoad.tripId !== tripId) {
+    const p = api.get<TabPictures>(`/guide/pictures/${tripId}`).catch(() => { picturesLoad = null; return [] as TabPictures; });
+    picturesLoad = { tripId, p };
+  }
+  return picturesLoad.p;
+}
+
+/** The nth picture she pasted in a tab, opened on request (links last ten minutes, so each opening asks afresh) */
+function TabPicture({ tripId, tab, nth }: { tripId: string; tab: string; nth: number }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "opening" | "shown" | "missing">("idle");
+  const open = async () => {
+    setState("opening");
+    picturesLoad = null; // a fresh link
+    const all = await picturesOf(tripId);
+    const pic = all.find((t) => t.tab === tab)?.pictures[nth];
+    if (!pic) { setState("missing"); return; }
+    setUrl(pic.url);
+    setState("shown");
+  };
+  if (state === "shown" && url) {
+    return (
+      <span className="block mt-2">
+        <img src={url} alt={`A picture Larisa pasted in her ${tab} tab`} className="block max-w-full h-auto rounded border border-[#e0d8cc]" onError={() => setState("missing")} />
+        <button onClick={() => setState("idle")} className="min-h-[44px] text-sm text-[#514636]">Hide the picture ‹</button>
+      </span>
+    );
+  }
+  return (
+    <button onClick={open} disabled={state === "opening"} className="block min-h-[44px] text-sm text-[#514636] underline underline-offset-2 disabled:opacity-60">
+      {state === "opening" ? "Opening the picture…" : state === "missing" ? "Wander can't open this picture right now — try again with signal ›" : "See the picture ›"}
+    </button>
+  );
+}
+
 interface NotesResponse {
   notes: SheetNote[];
   byTab: Record<string, { rowIndex: number; text: string }[]>;
+  tabOrder?: string[];
   tabGids?: Record<string, number>;
 }
 
@@ -49,10 +89,14 @@ interface SyncStatus {
 function interactiveReplacement(tabName: string): { label: string; url: string } | null {
   const lower = tabName.toLowerCase();
 
+  // Each label says it's Wander's, never hers — these sit under "as she wrote them" (round 12: Larisa read "Open
+  // live map of Japan" as a line of her tab). No route planner: a fixed Tokyo → Kyoto search matched none of
+  // this trip's trains.
+
   // Tokyo Metro / subway map → Google's transit layer centered on Tokyo
   if (lower.includes("metro") || lower.includes("subway")) {
     return {
-      label: "Open live Tokyo transit map",
+      label: "Wander's link: live Tokyo transit map",
       url: "https://www.google.com/maps/@35.6812,139.7671,13z/data=!5m1!1e3",
     };
   }
@@ -60,23 +104,15 @@ function interactiveReplacement(tabName: string): { label: string; url: string }
   // Map of Tokyo → Google Maps zoomed on central Tokyo
   if (lower.includes("map") && lower.includes("tokyo")) {
     return {
-      label: "Open live map of Tokyo",
+      label: "Wander's link: live map of Tokyo",
       url: "https://www.google.com/maps/place/Tokyo,+Japan/@35.6762,139.6503,11z",
     };
   }
 
-  // Bullet train / shinkansen — use Google directions to show the route
-  if (lower.includes("bullet") || lower.includes("shinkansen")) {
+  // Map of Japan (generic, not her bullet-train map) → Google Maps Japan overview
+  if (lower.includes("map") && lower.includes("japan") && !lower.includes("bullet") && !lower.includes("shinkansen")) {
     return {
-      label: "Open Japan rail route planner",
-      url: "https://www.google.com/maps/dir/Tokyo+Station/Kyoto+Station/data=!4m2!4m1!3e3",
-    };
-  }
-
-  // Map of Japan (generic) → Google Maps Japan overview
-  if (lower.includes("map") && lower.includes("japan")) {
-    return {
-      label: "Open live map of Japan",
+      label: "Wander's link: live map of Japan",
       url: "https://www.google.com/maps/place/Japan/@36.2048,138.2529,6z",
     };
   }
@@ -88,6 +124,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
   const [byTab, setByTab] = useState<Record<string, { rowIndex: number; text: string }[]>>({});
   const [spreadsheetId, setSpreadsheetId] = useState<string | null>(null);
   const [tabGids, setTabGids] = useState<Record<string, number>>({});
+  const [tabOrder, setTabOrder] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(false);
   // One tab open at a time — a list of Larisa's tabs, not one endless page
   const [openTab, setOpenTab] = useState<string | null>(null);
@@ -105,6 +142,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
       .then(res => {
         setByTab(res?.byTab || {});
         if (res?.tabGids) setTabGids(res.tabGids);
+        if (res?.tabOrder) setTabOrder(res.tabOrder);
       })
       .catch(() => {});
     api.get<SyncStatus>(`/sheets-sync/status/${tripId}`)
@@ -112,7 +150,9 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
       .catch(() => {});
   }, [tripId]);
 
-  const tabNames = Object.keys(byTab).sort();
+  // In her sheet's order (a tab Wander doesn't know the place of goes last, A–Z)
+  const place = (t: string) => { const n = tabOrder.indexOf(t); return n < 0 ? 9999 : n; };
+  const tabNames = Object.keys(byTab).sort((a, b) => place(a) - place(b) || a.localeCompare(b));
   if (tabNames.length === 0) return null;
 
   // A visual-only tab is one with a single sentinel row (rowIndex -1, empty text).
@@ -124,7 +164,8 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
   // A tab with nothing readable (a lone "A" left from a heading) isn't worth opening
   const hasWords = (rows: { text: string }[]) => rows.some((r) => r.text.replace(/\s+/g, "").length > 2);
   const textTabs = tabNames.filter(t => !isVisualOnly(byTab[t]) && hasWords(byTab[t]));
-  const visualTabs = tabNames.filter(t => isVisualOnly(byTab[t]));
+  // (her "Archives" tab holds nothing to show — it was a leftover-looking card; round 12)
+  const visualTabs = tabNames.filter(t => isVisualOnly(byTab[t]) && !/^archives?$/i.test(t.trim()));
 
 
   function openSheetTab(tabName?: string) {
@@ -149,7 +190,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
         <h2 className="text-sm font-medium text-[#514636]">
           Larisa's Guide, tab by tab
           <span className="block text-[#6b5d4a] font-normal text-xs mt-0.5">
-            Her other tabs, as she wrote them. Where she pasted a picture, Wander describes it and says so. The Itinerary is the days above; Activities are in Ideas; Actions are in Actions.
+            Her other tabs, as she wrote them, in her order. Where she pasted a picture, Wander describes it and shows it when you tap. The Itinerary is the days above; Activities are in Ideas; Actions are in Actions.
           </span>
         </h2>
         <span className="text-sm text-[#6b5d4a]">{expanded ? "\u25B4" : "\u25BE"}</span>
@@ -205,11 +246,13 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                 {openTab === tabName && (
                   <>
                     <ul className="space-y-1.5 mt-1">
-                      {byTab[tabName].map(note => note.text.startsWith("Picture") ? (
-                        // Wander's words about a picture she pasted — never passed off as hers
+                      {byTab[tabName].map((note, n) => note.text.startsWith("Picture") ? (
+                        // Wander's words about a picture she pasted — never passed off as hers — and the picture itself
+                        // one tap away (round 12: "you can't see the subway map")
                         <li key={note.rowIndex} className="text-sm text-[#514636] leading-relaxed whitespace-pre-line [overflow-wrap:anywhere] bg-[#f6f1e8] rounded-lg px-3 py-2">
                           <span className="block text-xs text-[#6b5d4a] mb-0.5">A picture Larisa pasted — Wander's description</span>
-                          {note.text.replace(/^Picture:\s*/, "").replace(/^Picture \(not read yet\)$/, "Not described yet — open it in the Guide to see it.")}
+                          {note.text.replace(/^Picture:\s*/, "").replace(/^Picture \(not read yet\)$/, "Not described yet.")}
+                          <TabPicture tripId={tripId} tab={tabName} nth={byTab[tabName].slice(0, n).filter((x) => x.text.startsWith("Picture")).length} />
                         </li>
                       ) : (
                         <li key={note.rowIndex} className="text-sm text-[#3a3128] leading-relaxed whitespace-pre-line [overflow-wrap:anywhere]">
@@ -237,6 +280,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                   return (
                     <li key={tabName}>
                       <span className="text-xs text-[#6b5d4a]">{tabName}</span>
+                      <TabPicture tripId={tripId} tab={tabName} nth={0} />
                       <div className="flex items-center gap-3 mt-1">
                         {interactive && (
                           <button
@@ -260,8 +304,8 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                   );
                 })}
               </ul>
-              <p className="text-xs text-[#6b5d4a] italic mt-2">
-                Some of Larisa's maps and photos are in the Guide — we've added interactive versions where we could.
+              <p className="text-[13px] text-[#6b5d4a] mt-2">
+                Tabs where Larisa pasted only a picture. Tap to see it; a live map sits beside the ones that have one.
               </p>
             </div>
           )}

@@ -8,7 +8,8 @@ import { useState, useEffect, Fragment } from "react";
 import { api } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { guideData, type TripGuideData } from "../lib/guideData";
-import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName } from "../lib/guideDisplay";
+import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName, bookedWords } from "../lib/guideDisplay";
+import { useAuth } from "../contexts/AuthContext";
 
 interface PlanningAction {
   id: string;
@@ -21,6 +22,7 @@ interface PlanningAction {
   larisaStatus?: string | null;
   statusNotes?: string | null;
   sheetRowRef: string | null;
+  createdBy?: string | null;
 }
 
 interface Decision {
@@ -43,7 +45,7 @@ interface Props {
 
 /** "2026-04-15" or "4/15" → a date (the trip's year for "4/15"); null for "TBD" or anything else. */
 function parseDue(due: string | null): Date | null {
-  if (!due) return null;
+  if (!due || due === "null") return null;
   const iso = due.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
   const md = due.match(/^(\d{1,2})\/(\d{1,2})$/);
@@ -64,10 +66,13 @@ function dueWords(due: string): string {
 
 export default function ActionsPanel({ tripId, onClose, decisions, userCode, onNavigate, syncSourceName }: Props) {
   const { showToast } = useToast();
+  // Who is looking — a deadline says whose to-do it is ("Larisa's to do …")
+  const me = useAuth().user?.displayName || null;
   const [actions, setActions] = useState<PlanningAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
   // Add form
   const [newAction, setNewAction] = useState("");
@@ -131,13 +136,38 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
     }
   }
 
+  // A to-do added in Wander can be taken out again (round 12: a tester's couldn't — there was no way to)
+  async function handleRemove(id: string) {
+    try {
+      await api.delete(`/sheets-sync/actions/${id}`);
+      setConfirmRemoveId(null);
+      loadActions();
+    } catch {
+      showToast("That didn't come out — try again?", "error");
+    }
+  }
+
+  // Only whoever added it in Wander can take it out, open or done (round 12: Ken was offered "Take out" on
+  // Larisa's; a ticked one of your own had to be un-ticked first). Older ones, from before Wander noted who, anyone.
+  const canTakeOut = (a: PlanningAction) => !a.sheetRowRef && (!a.createdBy || a.createdBy === me);
+  const whoAdded = (a: PlanningAction) => a.sheetRowRef ? "in Larisa's Guide" : !a.createdBy ? "added in Wander" : a.createdBy === me ? "added by you" : `added by ${a.createdBy}`;
+  const takeOut = (a: PlanningAction) => !canTakeOut(a) ? null : confirmRemoveId === a.id ? (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-[#3a3128]">Take this out?</span>
+      <button onClick={() => handleRemove(a.id)} className="min-h-[44px] px-2 text-sm text-red-600 font-medium">Take out</button>
+      <button onClick={() => setConfirmRemoveId(null)} className="min-h-[44px] px-2 text-sm text-[#6b5d4a]">Keep</button>
+    </span>
+  ) : (
+    <button onClick={() => setConfirmRemoveId(a.id)} className="min-h-[44px] px-2 text-sm text-[#6b5d4a] underline underline-offset-2">Take out</button>
+  );
+
   async function handleToggleDone(action: PlanningAction) {
     const newStatus = action.status === "done" ? "open" : "done";
     try {
       await api.patch(`/sheets-sync/actions/${action.id}`, { status: newStatus });
       loadActions();
     } catch {
-      showToast("Couldn't update", "error");
+      showToast(navigator.onLine ? "That tick didn't stick — try again?" : "No signal — that tick didn't save. Try again when you're back online.", "error");
     }
   }
 
@@ -224,7 +254,8 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           </div>
         </div>
         <button
-          onClick={() => setAdding(!adding)}
+          // Cancel clears what was typed, as on every other form (a tester's draft came back after Cancel)
+          onClick={() => { if (adding) { setNewAction(""); setNewOwner("Both"); setNewDue(""); setNewNotes(""); } setAdding(!adding); }}
           className="text-sm text-[#514636] font-medium hover:text-[#3a3128] min-h-[44px] min-w-[44px] justify-end flex items-center"
         >
           {adding ? "Cancel" : "+ Add"}
@@ -253,7 +284,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       <div className="text-sm text-[#3a3128]"><span className="text-[#8a5a1a]">{deadlineWhen(i, todayYmd)}</span> · {i.title}</div>
                       {/* Whose it is: the people it names, else whose name the booking is under (round 10) */}
                       {(i.forWhom || time || bookedByName(i)) && (
-                        <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : bookedByName(i) ? `Booked under ${bookedByName(i)}` : null, time].filter(Boolean).join(" · ")}</div>
+                        <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : bookedWords(i, me), time].filter(Boolean).join(" · ")}</div>
                       )}
                     </button>
                   </li>
@@ -296,7 +327,8 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
         {open.length > 0 && (
           <div className="mb-6">
             <div className="text-xs text-[#6b5d4a] uppercase tracking-wider font-medium mb-2">
-              {upcoming.length > 0 ? "Coming up" : "Earlier to-dos in the Guide"}
+              {/* (not "Coming up": a to-do with no date — her April "Activities", TBD — isn't coming up; round 12) */}
+              {upcoming.length > 0 ? "Still to do" : "Earlier to-dos in the Guide"}
             </div>
             <div className="space-y-2">
               {open.map((a, idx) => {
@@ -333,12 +365,16 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                         </div>
                         <div className="text-xs text-[#6b5d4a] mt-1 flex items-center gap-2 flex-wrap">
                           <span className="px-1.5 py-0.5 rounded bg-[#f0ece5] text-[#6b5d4a] font-medium">
-                            {a.owner === "Both" ? "Group" : a.owner === "LF" ? "Larisa" : a.owner === "KR" ? "Ken" : a.owner}
+                            {/* Her Actions tab's "Both" is Andy and Larisa — its two status columns (her "LF" rows mark
+                                Andy's "N/A"); round 12: Larisa read "For everyone" on her and Andy's planning to-dos.
+                                "Both" on a to-do added in Wander is the form's "Group". */}
+                            {a.owner === "Both" ? (a.sheetRowRef ? "For Andy & Larisa" : "For everyone") : `For ${a.owner === "LF" ? "Larisa" : a.owner === "KR" ? "Ken" : a.owner === "AB" ? "Andy" : a.owner}`}
                           </span>
-                          {a.dueDate && a.dueDate !== "TBD" && (
+                          {a.dueDate && a.dueDate !== "TBD" && a.dueDate !== "null" && (
                             <span>{isPastDue(a.dueDate, todayStart) ? "was aiming for " : "by "}{dueWords(a.dueDate)}</span>
                           )}
-                          <span className="text-xs text-[#6b5d4a]">{a.sheetRowRef ? "in Larisa's Guide" : "added in Wander"}</span>
+                          <span className="text-xs text-[#6b5d4a]">{whoAdded(a)}</span>
+                          {takeOut(a)}
                         </div>
 
                         {/* Per-person status pills from Larisa's Actions tab.
@@ -346,7 +382,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                             check for DONE, amber dot for In Progress, grey for N/A, and
                             the raw text for anything else (Larisa's vocabulary evolves). */}
                         {(a.andyStatus || a.larisaStatus) && (
-                          <div className="text-[11px] mt-1 flex items-center gap-2 flex-wrap">
+                          <div className="text-[13px] mt-1 flex items-center gap-2 flex-wrap">
                             {a.larisaStatus && (() => {
                               const s = a.larisaStatus.toLowerCase();
                               const isDone = s === "done";
@@ -355,7 +391,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               return (
                                 <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
                                   <span className="font-medium">Larisa</span>
-                                  <span>{isDone ? "✓ done" : isProgress ? "· in progress" : isNA ? "n/a" : a.larisaStatus}</span>
+                                  <span>{isDone ? "✓ done" : isProgress ? "working on it" : isNA ? "not needed" : a.larisaStatus}</span>
                                 </span>
                               );
                             })()}
@@ -367,7 +403,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               return (
                                 <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
                                   <span className="font-medium">Andy</span>
-                                  <span>{isDone ? "✓ done" : isProgress ? "· in progress" : isNA ? "n/a" : a.andyStatus}</span>
+                                  <span>{isDone ? "✓ done" : isProgress ? "working on it" : isNA ? "not needed" : a.andyStatus}</span>
                                 </span>
                               );
                             })()}
@@ -389,13 +425,13 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               value={editNotes}
                               onChange={(e) => setEditNotes(e.target.value)}
                               rows={2}
-                              className="w-full text-sm px-3 py-2 rounded-lg border border-[#e0d8cc] focus:outline-none focus:ring-1 focus:ring-[#a89880] resize-none"
+                              className="w-full text-base px-3 py-2 rounded-lg border border-[#e0d8cc] focus:outline-none focus:ring-1 focus:ring-[#a89880] resize-none"
                               autoFocus
                               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveNotes(a.id); } if (e.key === "Escape") setEditingId(null); }}
                             />
                             <div className="flex justify-end gap-2 mt-1.5">
-                              <button onClick={() => setEditingId(null)} className="text-xs text-[#6b5d4a]">Cancel</button>
-                              <button onClick={() => handleSaveNotes(a.id)} className="text-xs text-white bg-[#514636] px-3 py-1 rounded-lg font-medium">Save</button>
+                              <button onClick={() => setEditingId(null)} className="min-h-[44px] px-3 text-sm text-[#6b5d4a]">Cancel</button>
+                              <button onClick={() => handleSaveNotes(a.id)} className="min-h-[44px] px-4 text-sm text-white bg-[#514636] rounded-lg font-medium">Save</button>
                             </div>
                           </div>
                         ) : a.notes ? (
@@ -407,7 +443,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                           </p>
                         ) : a.sheetRowRef ? null : (
                           <button
-                            className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] mt-2 transition-colors"
+                            className="text-sm text-[#514636] mt-1 min-h-[44px] transition-colors"
                             onClick={() => { setEditingId(a.id); setEditNotes(""); }}
                           >
                             Add a note
@@ -449,7 +485,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
               <input
                 value={newDue}
                 onChange={(e) => setNewDue(e.target.value)}
-                placeholder="By when? (like Oct 20)"
+                placeholder="By when? Oct 20"
                 className="flex-1 min-w-0 text-base min-h-[44px] px-2 py-1.5 rounded-lg border border-[#e0d8cc] focus:outline-none"
               />
             </div>
@@ -481,27 +517,40 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           <div>
             <button
               onClick={() => setShowDone(!showDone)}
-              className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors min-h-[44px] min-w-[44px] pr-2"
+              className="text-sm text-[#6b5d4a] hover:text-[#514636] transition-colors min-h-[44px] min-w-[44px] pr-2"
             >
-              {showDone ? "Hide" : `${done.length} done`}
+              {showDone ? "Hide the done ones" : `${done.length} done ›`}
             </button>
             {showDone && (
               <div className="mt-2 space-y-1.5">
                 {done.map((a) => (
                   <div key={a.id} className="bg-white/50 rounded-lg border border-[#f0ece5] px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggleDone(a)}
-                        className="-m-3 p-3 shrink-0"
-                        title="Reopen" aria-label={`Reopen ${a.action}`}
-                      >
-                        <span className="w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] flex items-center justify-center">
+                      {/* Done in her Guide (its Larisa/Andy column says DONE): that's hers to change, not a tick to undo
+                          here (round 12: anyone could make her "Flights" look not done). Ticked in Wander: can reopen. */}
+                      {a.sheetRowRef && [a.larisaStatus, a.andyStatus].some((s) => (s || "").toLowerCase() === "done") ? (
+                        <span className="w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] flex items-center justify-center shrink-0" aria-hidden>
                           <span className="text-white text-[10px]">✓</span>
                         </span>
-                      </button>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleDone(a)}
+                          className="-m-3 p-3 shrink-0"
+                          title="Not done after all" aria-label={`Mark ${a.action} as not done`}
+                        >
+                          <span className="w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] flex items-center justify-center">
+                            <span className="text-white text-[10px]">✓</span>
+                          </span>
+                        </button>
+                      )}
                       <span className="text-sm text-[#6b5d4a] line-through">{a.action}</span>
+                      {a.sheetRowRef && [a.larisaStatus, a.andyStatus].some((s) => (s || "").toLowerCase() === "done") && (
+                        <span className="text-xs text-[#6b5d4a]">done in Larisa's Guide</span>
+                      )}
+                      {!a.sheetRowRef && <span className="text-xs text-[#6b5d4a]">{whoAdded(a)}</span>}
+                      {canTakeOut(a) && <span className="ml-auto text-xs">{takeOut(a)}</span>}
                     </div>
-                    {a.notes && <p className="text-[11px] text-[#6b5d4a] ml-7 mt-0.5">{a.notes}</p>}
+                    {a.notes && <p className="text-[13px] text-[#6b5d4a] ml-7 mt-0.5">{a.notes}</p>}
                   </div>
                 ))}
               </div>

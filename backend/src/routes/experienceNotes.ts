@@ -129,6 +129,11 @@ router.delete("/:id", async (req: AuthRequest, res) => {
   if (note.visibility === "group") {
     const experience = await prisma.experience.findUnique({ where: { id: note.experienceId }, select: { tripId: true, name: true } });
     if (experience) {
+      // Taken back means its words go too: the earlier "noted on …: “…”" line keeps only that a note was there
+      await prisma.changeLog.updateMany({
+        where: { entityId: note.id, actionType: "note_added" },
+        data: { description: `noted on ${experience.name} (since taken back)`, newState: undefined },
+      }).catch(() => {});
       logChange({
         tripId: experience.tripId, user: req.user!, actionType: "note_removed", entityType: "experience_note", entityId: note.id,
         entityName: experience.name, description: `took back a note on ${experience.name}`,

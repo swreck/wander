@@ -56,7 +56,9 @@ You can type, tap a question, or tap the microphone and talk.`,
     title: "Where the Plan Lives",
     body: `Larisa's Guide is the plan. Wander reads a copy of it and never changes it. Where the Guide still has an open question — two hotels for one night, a "maybe" day trip — Wander shows it as open.
 
-If something in Wander looks different from what Larisa told you, trust Larisa. Wander may not have read her latest version yet.`,
+If something in Wander looks different from what Larisa told you, trust Larisa. Wander may not have read her latest version yet.
+
+Trains come from a second place: Ken's rail sheet, which he keeps with AI help. A day's "Trains" part shows its bookings — seats, reservation numbers and its own notes — and the ticket pickup at Shin-Osaka has its own step-by-step page. Wander reads that sheet every few minutes and never changes it. Where it and Larisa's Guide disagree, Wander shows both.`,
   },
   {
     id: "notes",
@@ -71,7 +73,7 @@ If something in Wander looks different from what Larisa told you, trust Larisa. 
   {
     id: "travel-info",
     title: "Your Travel Info",
-    body: `Tap your name at the top of Home for your Profile. Passport, visa and insurance details go in your vault, which opens with Face ID. Scout never reads those out.`,
+    body: `Tap your name at the top of Home for your Profile. Passport, visa and insurance details go in your vault, which opens with a PIN you choose (or Face ID). No one else sees those details, and Scout never reads them out.`,
   },
   {
     id: "feedback",
@@ -166,7 +168,7 @@ export default function GuidePage() {
         <div className="mt-8 text-center">
           <button
             onClick={() => navigate("/")}
-            className="px-6 py-2.5 bg-[#514636] text-white rounded-xl text-sm font-medium hover:bg-[#3a3128] transition-colors"
+            className="px-6 py-2.5 min-h-[44px] bg-[#514636] text-white rounded-xl text-sm font-medium hover:bg-[#3a3128] transition-colors"
           >
             Go to the trip
           </button>

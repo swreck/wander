@@ -4,10 +4,12 @@ import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { enrichExperience } from "../services/capture.js";
 import { setDecisionVotes, type VotePick } from "../services/decisionVotes.js";
+import { tripMemberParam } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
-
+// A route naming a trip is for that trip's own people (Sep 30 2026)
+router.param("tripId", tripMemberParam);
 // List open decisions for a trip
 router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   try {

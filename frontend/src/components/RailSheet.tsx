@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { colOf, twelveHour, sourceWords, isBookedTrain, withTwelveHour, readWords, dateInText, type OtherSource, type RailRow, type Checklist, type RailDiffer } from "../lib/sources";
+import { colOf, twelveHour, sourceWords, isBookedTrain, withTwelveHour, readWords, dateInText, differWords, type OtherSource, type RailRow, type Checklist, type RailDiffer } from "../lib/sources";
 import GuideText from "./GuideText";
 
 /**
@@ -13,20 +13,27 @@ import GuideText from "./GuideText";
  * Oct 14) it's still its words, but Wander says it can't tell what happened since (rail round: Andy read an old PENDING
  * as "the tickets were never collected"). The same wording everywhere a status shows — the day's list and Now's card.
  */
-function StatusWords({ readiness, s, today, className }: { readiness: string; s: OtherSource; today: string; className: string }) {
+function StatusWords({ readiness, s, today, className, pickupBy }: { readiness: string; s: OtherSource; today: string; className: string; pickupBy?: string | null }) {
   const day = dateInText(readiness, Number(today.slice(0, 4)));
   const stale = !!day && day < today;
+  // After its day, whose job it was comes first, then the sheet's old words — so an old "PENDING" reads as a pickup
+  // someone else was doing, not as "nobody knows if your ticket exists" (round 12: Andy, 20 minutes before the HARUKA)
+  const pickup = s.checklists.find((c) => c.date && c.date === day);
+  const who = pickup ? (pickupBy ? `${pickupBy}'s` : "your") : null;
   return (
     <p className={`${className} [overflow-wrap:anywhere]`}>
-      {stale ? <>The rail sheet {s.readAt ? `still said, when Wander read it ${readWords(s.readAt)}` : "says"}: “{withTwelveHour(readiness)}” Wander can't tell whether that has been done since.</> : withTwelveHour(readiness)}
+      {stale
+        ? <>{who ? `Collecting these tickets was part of ${who} ${checklistTitle(pickup!.tab).replace(/^Ticket pickup — /, "")} ticket pickup on ${shortWhen(day!)}. ` : ""}The rail sheet {s.readAt ? `still said, when Wander read it ${readWords(s.readAt)}` : "says"}: “{withTwelveHour(readiness)}” — Wander can't see whether that's been done since.</>
+        : withTwelveHour(readiness)}
     </p>
   );
 }
+const shortWhen = (ymd: string) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
 /** "Tix pick up — Shin-Osaka" → "Ticket pickup — Shin-Osaka" (its tab name stays in the source line) */
 export const checklistTitle = (tab: string) => tab.replace(/^tix\s*pick\s*-?\s*up/i, "Ticket pickup");
 
-function Leg({ r, s, today }: { r: RailRow; s: OtherSource; today: string }) {
+function Leg({ r, s, today, pickupBy }: { r: RailRow; s: OtherSource; today: string; pickupBy?: string | null }) {
   const [open, setOpen] = useState(false);
   const train = colOf(r.cols, /^train$/);
   const depart = colOf(r.cols, /^depart/);
@@ -66,10 +73,12 @@ function Leg({ r, s, today }: { r: RailRow; s: OtherSource; today: string }) {
           {(booked || /^\d+$/.test(pax)) && <p className="text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">{[booked ? cls : "", booked ? seat : "", /^\d+$/.test(pax) ? `${pax} ${pax === "1" ? "person" : "people"}` : ""].filter((x) => x && x !== "—").join(" · ")}</p>}
           {resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}
           {!booked && !resv && <p className="text-sm text-[#6b5d4a]">No booking for this leg in the rail sheet.</p>}
-          {status === "?" && <p className="text-sm text-[#8a5a1a] mt-0.5">The rail sheet marks this leg “?”.</p>}
-          {readiness && <StatusWords readiness={readiness} s={s} today={today} className={`text-sm mt-1 ${stale ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`} />}
+          {/* A "?" leg: the question is the point — its notes say what's open, shown right here (round 12: Oct 23's
+              "who has the train tickets?" was behind a tap) */}
+          {status === "?" && <p className="text-sm text-[#8a5a1a] mt-0.5">The rail sheet marks this leg “?”{notes ? `: ${withTwelveHour(notes)}` : "."}</p>}
+          {readiness && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} className={`text-sm mt-1 ${stale ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`} />}
           {ticket && <p className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]">{withTwelveHour(ticket)}</p>}
-          {notes && (open
+          {notes && status !== "?" && (open
             ? <><GuideText text={withTwelveHour(notes)} className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]" />
                 <button onClick={() => setOpen(false)} className="min-h-[44px] text-sm text-[#514636]">Hide the sheet's notes ‹</button></>
             : notes.length <= 90
@@ -87,13 +96,15 @@ function Leg({ r, s, today }: { r: RailRow; s: OtherSource; today: string }) {
 export function DifferNote({ d, className = "" }: { d: RailDiffer; className?: string }) {
   return (
     <p className={`text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 ${className}`}>
-      The sources differ — the rail sheet has {d.railSays}; Larisa's Guide, in her “{d.guideSource.split(" · ")[0]}” tab, has {withTwelveHour(d.guideSays)}. Worth checking which is right.
+      The sources differ — {differWords(d)}. Worth checking which is right.
     </p>
   );
 }
 
-export function TrainsForDay({ sources, date, today, pickupBy }: {
+export function TrainsForDay({ sources, date, today, pickupBy, differsShownAbove = false }: {
   sources: OtherSource[]; date: string; today: string;
+  /** today's screen already says it at the top — not again here (round 12: four times on Oct 29's Now) */
+  differsShownAbove?: boolean;
   /** whose job the pickup is ("Ken & Larisa"), said to everyone else */
   pickupBy: (s: OtherSource) => string | null;
 }) {
@@ -107,12 +118,13 @@ export function TrainsForDay({ sources, date, today, pickupBy }: {
           <p className="text-[13px] text-[#6b5d4a] mt-0.5">
             From {sourceWords(s)} — not Larisa's Guide.{s.readAt ? ` Wander last read it ${readWords(s.readAt)}.` : ""}{s.lastError ? " Its latest read didn't work, so this may be out of date." : ""}
           </p>
-          {differs.map((d) => <DifferNote key={`${d.row}-${d.guideSource}`} d={d} className="mt-2" />)}
+          {!differsShownAbove && differs.map((d) => <DifferNote key={`${d.row}-${d.guideSource}`} d={d} className="mt-2" />)}
           <ol className="mt-2 bg-white rounded-xl border border-[#e0d8cc] px-3 divide-y divide-[#f0ebe3]">
-            {legs.map((r) => <Leg key={`${r.tab}-${r.row}`} r={r} s={s} today={today} />)}
+            {legs.map((r) => <Leg key={`${r.tab}-${r.row}`} r={r} s={s} today={today} pickupBy={pickupBy(s)} />)}
           </ol>
           {/* Paper tickets to collect: the steps are one tap away from any of their trains */}
-          {legs.some((r) => /collect|pick ?up/i.test(`${colOf(r.cols, /readiness/)} ${colOf(r.cols, /^ticket/)}`)) && s.checklists.map((c) => (
+          {/* (until the pickup's own day — after it, the link repeated on every later day) */}
+          {legs.some((r) => /collect|pick ?up/i.test(`${colOf(r.cols, /readiness/)} ${colOf(r.cols, /^ticket/)}`)) && s.checklists.filter((c) => !c.date || today <= c.date).map((c) => (
             <Link key={c.tab} to={`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`}
               className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
               {checklistTitle(c.tab)}{pickupBy(s) ? ` (${pickupBy(s)}'s job)` : ""}: the steps ›
@@ -143,24 +155,33 @@ export function ChecklistCard({ c, s, today }: { c: Checklist; s: OtherSource; t
 export function NextTrain({ sources, date, nowMinutes, isMine }: {
   sources: OtherSource[]; date: string; nowMinutes: number; isMine: (r: RailRow, s: OtherSource) => boolean;
 }) {
+  const minutesOf = (t: string) => t ? Number(t.slice(0, -3)) * 60 + Number(t.slice(-2)) : null;
   for (const s of sources) {
-    const next = s.rail
+    const legs = s.rail
       .filter((r) => r.date === date && isBookedTrain(r) && isMine(r, s))
-      .map((r) => ({ r, at: Number(colOf(r.cols, /^depart/).slice(0, -3)) * 60 + Number(colOf(r.cols, /^depart/).slice(-2)) }))
-      .filter((x) => x.at >= nowMinutes)
-      .sort((a, b) => a.at - b.at)[0];
+      .map((r) => ({ r, at: minutesOf(colOf(r.cols, /^depart/))!, arrive: minutesOf(colOf(r.cols, /^arrive/)) }));
+    // The train you're on, between its times — its seats and arrival stay up top (round 12: at 6:19 PM the NOZOMI 77
+    // left the top of Now two minutes after boarding)
+    const riding = legs.find((x) => x.at < nowMinutes && x.arrive !== null && x.arrive > x.at && nowMinutes < x.arrive);
+    const next = riding || legs.filter((x) => x.at >= nowMinutes).sort((a, b) => a.at - b.at)[0];
     if (!next) continue;
     const mins = next.at - nowMinutes;
     const inWords = mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins / 60)} hr${mins % 60 ? ` ${mins % 60} min` : ""}`;
     const c = next.r.cols;
     return (
       <a href="#trains" className="block mb-3 rounded-xl bg-[#514636] text-white p-4">
-        <p className="text-xs uppercase tracking-wide text-white/70">Next train · {inWords}</p>
+        <p className="text-xs uppercase tracking-wide text-white/70">
+          {riding ? `On this train now, by the schedule · arriving ${twelveHour(colOf(c, /^arrive/))}` : `Next train · ${inWords}`}
+        </p>
         <p className="text-lg leading-snug mt-1">{twelveHour(colOf(c, /^depart/))} · {colOf(c, /^train$/)} · {colOf(c, /^route$/)}</p>
         <p className="text-sm text-white/85 mt-1 [overflow-wrap:anywhere]">{[colOf(c, /^class$/), colOf(c, /^car/)].filter(Boolean).join(" · ")}</p>
         {colOf(c, /^reservation/) && <p className="text-sm text-white/80">Reservation #{colOf(c, /^reservation/)}</p>}
         {/* Its own warning for this train ("PENDING — SmartEX: verify … IC cards …"), on the card itself (round r1) */}
-        {colOf(c, /readiness/) && <StatusWords readiness={colOf(c, /readiness/)} s={s} today={date} className="text-sm text-[#f3d9a8] mt-1" />}
+        {/* Its warning only while it's current — an old "collect … Oct 6" on Oct 14's card led Now, after Ken had already
+            ridden on those tickets (round 12); the day's train list still has it, said as possibly out of date */}
+        {colOf(c, /readiness/) && !((d) => !!d && d < date)(dateInText(colOf(c, /readiness/), Number(date.slice(0, 4)))) && (
+          <StatusWords readiness={colOf(c, /readiness/)} s={s} today={date} className="text-sm text-[#f3d9a8] mt-1" />
+        )}
         <p className="text-sm text-white/80 mt-1">From {sourceWords(s)}</p>
       </a>
     );

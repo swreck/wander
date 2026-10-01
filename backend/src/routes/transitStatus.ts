@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import prisma from "../services/db.js";
+import { tripMemberParam } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
-
+// A route naming a trip is for that trip's own people (Sep 30 2026)
+router.param("tripId", tripMemberParam);
 // Cache disruption data for 5 minutes
 let cachedDisruptions: any[] = [];
 let cacheTimestamp = 0;

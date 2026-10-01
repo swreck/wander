@@ -134,8 +134,13 @@ export default function IdeasPage() {
       }
       return out;
     };
+    // The notes this phone last saw show at once, then the fresh copy replaces them (round 12: on a reload the notes
+    // arrived a moment after the ideas, and for that moment every note looked deleted)
+    let fresh = false;
+    try { const raw = localStorage.getItem(key); if (raw) { const seen = JSON.parse(raw); withWaiting(seen).then((m) => { if (!cancelled && !fresh) setNotes(m); }); } } catch { /* unreadable */ }
     api.get<Record<string, Note[]>>(`/experience-notes/city/${cityId}`)
       .then(async (n) => {
+        fresh = true;
         try { localStorage.setItem(key, JSON.stringify(n)); } catch { /* full */ }
         const merged = await withWaiting(n);
         if (!cancelled) setNotes(merged);

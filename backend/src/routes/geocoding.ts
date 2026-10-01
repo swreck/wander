@@ -3,10 +3,12 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { geocodeExperience, confirmLocation, searchPlace, nearbyPlaces } from "../services/geocoding.js";
 import { logChange } from "../services/changeLog.js";
 import prisma from "../services/db.js";
+import { tripMemberParam } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
-
+// A route naming a trip is for that trip's own people (Sep 30 2026)
+router.param("tripId", tripMemberParam);
 // Trigger geocoding for an experience
 router.post("/experience/:id", async (req, res) => {
   const result = await geocodeExperience(req.params.id as string);

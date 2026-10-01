@@ -328,6 +328,20 @@ export function markTabsDiffer(items: Item[]): void {
           note(o, `Tabs differ: her ${tabOf(b.source)} tab puts it in ${area}; this address is her ${tabOf(o.source)} tab's.`);
         }
       }
+      // The same time and the same name, but each names a different restaurant: her day tab's "DINNER RESERVATION –
+      // Gastronomy "Joël Robuchon" (Ebisu)" vs the booking "LeTable de Joel Robuchon - 1F" (round 12 — one building,
+      // two restaurants, two dress codes; nothing flagged it). A place in brackets is the rule above's business.
+      if (o.kind === "meal" && o.time === b.time) {
+        const nameWords = (s: string) => new Set(distinctWords(s.split("\n")[0].replace(/^[A-Z][A-Z &-]+\s+[–-]\s+/, "").replace(/\([^)]*\)/g, "")));
+        const bw = nameWords(b.title), ow = nameWords(o.title);
+        const shared = [...bw].some((w) => ow.has(w));
+        const onlyB = [...bw].filter((w) => !ow.has(w)), onlyO = [...ow].filter((w) => !bw.has(w));
+        if (shared && onlyB.length && onlyO.length) {
+          note(b, `Tabs differ: her ${tabOf(o.source)} tab's booking at this time is "${o.title.split("\n")[0]}".`);
+          note(o, `Tabs differ: her ${tabOf(b.source)} tab has ${blockSaid}.`);
+          continue;
+        }
+      }
       // Another tab's line for the same thing, at another time
       const oWords = distinctWords(o.title);
       if (o.time && words.some((w) => oWords.includes(w)) && Math.abs(toMinutes(o.time) - toMinutes(b.time)) >= 30) {
@@ -937,9 +951,12 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     };
     // Whose name the booking is under, from her pasted confirmation ("お名前：Sato, Hana") — so a
     // deadline answers "is this on me?"
+    // A hotel's email names its guest only in the greeting ("Dear Hana Sato," — round 12: the Four Seasons
+    // deadline said no one's name, so Julie asked "is that on me?"); trusted only when the tab holds one booking
+    const dear = reading.bookings.length === 1 ? text.match(/^\s*Dear\s+(?:(?:Mr|Ms|Mrs|Dr)\.?\s+)?([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){1,2})\s*,?\s*$/m)?.[1] : null;
     const bookedUnder = (b: { quote?: string | null }) => {
       const m = (b.quote || "").match(/(?:お名前|予約者名|Guest name|Booked under|Name)\s*[:：]\s*([^\n]{2,40})/i);
-      return m ? `Booked under ${m[1].trim()}` : null;
+      return m ? `Booked under ${m[1].trim()}` : dear ? `Booked under ${dear}` : null;
     };
     for (const b of reading.bookings) {
       if (!b.date) continue;
@@ -1031,10 +1048,32 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       const best = stops.filter((s) => s.words.every((w) => own.includes(w))).sort((a, b) => b.words.length - a.words.length)[0];
       return best ? best.link : null;
     };
+    // A picture she pasted in the same tab can date its days ("Day 1 – Tue, Oct 13" on her Tokyo route map) — said beside
+    // Wander's match when it differs, never silently overruled (round 12: "since the tab doesn't give a date" while her
+    // own map in that tab said Oct 13 for the plan Wander put on Oct 15)
+    // (its own pictures first, then its sibling day tabs' — her four-panel Tokyo map sits in "Tokyo Day 1 Ginza" and
+    // labels all three Tokyo days)
+    const family = tab.name.match(/^(.*?\bDay)\s*\d/i)?.[1]?.toLowerCase();
+    const pictureTabs = readings.filter((r) => r.place.tab.name === tab.name || (family && r.place.tab.name.toLowerCase().startsWith(family)))
+      .sort((a, b) => Number(b.place.tab.name === tab.name) - Number(a.place.tab.name === tab.name));
+    const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const pictureDateOf = (dayNo: string, year: string) => {
+      for (const r of pictureTabs) {
+        const m = JSON.stringify(r.reading).match(new RegExp(`Day\\s*${dayNo}\\s*[–—:-]\\s*(?:[A-Z][a-z]{2,8},?\\s*)?(${MONTHS.join("|")})[a-z]*\\.?\\s*(\\d{1,2})\\b`, "i"));
+        if (m) return { date: `${year}-${String(MONTHS.indexOf(m[1].toLowerCase()) + 1).padStart(2, "0")}-${String(Number(m[2])).padStart(2, "0")}`, tab: r.place.tab.name };
+      }
+      return null;
+    };
+    const plainDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     for (const p of reading.plans) {
       const day = p.date || p.matchedDate!;
+      const dayNo = (p.heading || "").match(/\bDay\s*(\d+)\b/i)?.[1];
+      const pic = !p.date && p.matchedDate && dayNo ? pictureDateOf(dayNo, day.slice(0, 4)) : null;
+      const picSays = pic && pic.date !== day
+        ? ` A picture in her ${pic.tab === tab.name ? "tab" : `“${pic.tab}” tab`} labels Day ${dayNo} ${plainDate(pic.date)} — a different date; worth checking with Larisa.`
+        : "";
       const matched = !p.date && p.matchedDate
-        ? `Wander matched this plan to ${new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}, since the tab doesn't give a date. ${(p.matchReason || "").trim().replace(/^./, (c) => c.toUpperCase()).replace(/([^.!?])$/, "$1.")}`
+        ? `Wander matched this plan to ${plainDate(day)}, since her tab's words don't give a date. ${(p.matchReason || "").trim().replace(/^./, (c) => c.toUpperCase()).replace(/([^.!?])$/, "$1.")}${picSays}`
         : null;
       for (const b of p.blocks) {
         // Every block stays: her plan is shown whole, in her order (a duplicate check dropped "~8:00 Breakfast /

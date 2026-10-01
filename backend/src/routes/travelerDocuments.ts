@@ -3,10 +3,12 @@ import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { verifyVaultToken } from "./vault.js";
+import { tripMemberParam } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
-
+// A route naming a trip is for that trip's own people (Sep 30 2026)
+router.param("tripId", tripMemberParam);
 // Sensitive document types that require vault unlock to view details
 const SENSITIVE_TYPES = ["passport", "visa", "insurance"];
 

@@ -52,6 +52,20 @@ export function requireMember(tripIdParam = "id") {
 }
 
 /**
+ * For router.param("tripId", tripMemberParam): any route naming a trip is for that trip's own people (Sep 30 2026:
+ * seventeen route files served a trip's history, days, decisions and more to anyone signed in, though trips are
+ * private since Sep 28). A sign-in by code without a traveler isn't limited, as in trips.ts.
+ */
+export async function tripMemberParam(req: AuthRequest, res: Response, next: NextFunction, tripId: string) {
+  const travelerId = req.user?.travelerId;
+  if (travelerId && !(await getUserRole(travelerId, tripId))) {
+    res.status(403).json({ error: "That trip isn't one of yours." });
+    return;
+  }
+  next();
+}
+
+/**
  * Middleware: require the caller to be a planner on the trip.
  */
 export function requirePlanner(tripIdParam = "id") {

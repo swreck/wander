@@ -407,7 +407,7 @@ export default function ProfilePage() {
           </div>
           <p className="text-xs text-[#6b5d4a] mb-4 leading-relaxed">
             Passport, insurance, frequent flyer &mdash; anything useful during the trip.
-            Your travel group can see your documents. When you add or edit one, tap &ldquo;Everyone in this trip&rdquo; to keep it to yourself.
+            Passport, visa and insurance details stay locked until you open them with your documents PIN or Face ID, and no one else ever sees them &mdash; your group sees only that you have one. Your travel group can see anything else here, unless you switch it to &ldquo;Only me&rdquo; when you add or edit it.
           </p>
 
           <div className="space-y-4">
@@ -419,7 +419,7 @@ export default function ProfilePage() {
                   </h3>
                   <button
                     onClick={() => startAdd(section.value)}
-                    className="text-xs text-[#6b5d4a] hover:text-[#514636] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-end"
+                    className="text-sm text-[#514636] hover:text-[#3a3128] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-end"
                   >
                     + Add
                   </button>
@@ -453,6 +453,7 @@ export default function ProfilePage() {
                           onSave={() => handleUpdate(doc.id)}
                           onCancel={() => { setEditingId(null); setFormData({}); }}
                           saveLabel="Update"
+                          sensitive={["passport", "visa", "insurance"].includes(section.value)}
                         />
                       ) : (
                         <div>
@@ -524,6 +525,7 @@ export default function ProfilePage() {
                       onSave={handleSave}
                       onCancel={() => { setAddingType(null); setFormData({}); }}
                       saveLabel="Save"
+                      sensitive={["passport", "visa", "insurance"].includes(section.value)}
                     />
                   </div>
                 )}
@@ -539,16 +541,16 @@ export default function ProfilePage() {
         {/* ── Section 3: Your Learnings (Planners only) ───────── */}
         {isPlanner && (
           <section className="rounded-xl border border-[#e5ddd0] bg-white p-5">
-            <h2 className="text-sm font-medium text-[#6b5d4a] mb-1">Your Learnings</h2>
-            <p className="text-xs text-[#6b5d4a] mb-4">
-              Things you've picked up along the way &mdash; from conversations, research, and experience.
+            <h2 className="text-sm font-medium text-[#6b5d4a] mb-1">What Scout has picked up from you</h2>
+            <p className="text-[13px] text-[#6b5d4a] mb-4">
+              Things you've told Scout along the way, so it remembers how you like to travel.
             </p>
 
             {learningsLoading ? (
-              <p className="text-sm text-[#6b5d4a]">Finding your learnings...</p>
+              <p className="text-sm text-[#6b5d4a]">Looking…</p>
             ) : learnings.length === 0 ? (
               <p className="text-sm text-[#6b5d4a]">
-                No learnings yet. As you use Scout, insights will show up here.
+                Nothing yet. As you talk with Scout, what it picks up shows here.
               </p>
             ) : (
               <div className="space-y-3">
@@ -582,11 +584,13 @@ export default function ProfilePage() {
 // ── Document Form (preserved from original) ────────────────────
 
 function DocumentForm({
-  fields, data, isPrivate, onChange, onPrivacyChange, onSave, onCancel, saveLabel,
+  fields, data, isPrivate, onChange, onPrivacyChange, onSave, onCancel, saveLabel, sensitive = false,
 }: {
   fields: string[];
   data: Record<string, string>;
   isPrivate: boolean;
+  /** A passport, visa or insurance: its details are never shown to anyone else (backend travelerDocuments.ts) */
+  sensitive?: boolean;
   onChange: (d: Record<string, string>) => void;
   onPrivacyChange: (p: boolean) => void;
   onSave: () => void;
@@ -597,8 +601,9 @@ function DocumentForm({
     <div className="space-y-2">
       {fields.map((field) => (
         <div key={field}>
-          <label className="text-xs text-[#6b5d4a]">{FIELD_LABELS[field] || field}</label>
+          <label htmlFor={`doc-field-${field}`} className="text-[13px] text-[#6b5d4a]">{FIELD_LABELS[field] || field}</label>
           <input
+            id={`doc-field-${field}`}
             type={field === "expiry" || field === "date" ? "date" : "text"}
             value={data[field] || ""}
             onChange={(e) => onChange({ ...data, [field]: e.target.value })}
@@ -613,9 +618,9 @@ function DocumentForm({
         <button
           onClick={() => onPrivacyChange(!isPrivate)}
           // A switch VoiceOver can announce as on or off (round 11: it read as a plain label)
-          role="switch"
-          aria-checked={isPrivate}
-          aria-label="Keep this to myself"
+          // Spoken as it reads ("Everyone in this trip") and then the hint beside it, which says what a tap does — a
+          // spoken name that differs from the words on screen confuses VoiceOver users (round 11)
+          aria-describedby="doc-privacy-hint"
           // It decides who sees a passport number — a full-size target (round 10: it was 148×26)
           className={`text-sm px-3 py-2 min-h-[44px] rounded border transition-colors ${
             isPrivate
@@ -625,8 +630,10 @@ function DocumentForm({
         >
           {isPrivate ? "\u{1F512} Only me" : "\u{1F465} Everyone in this trip"}
         </button>
-        <span className="text-xs text-[#6b5d4a] flex-1">
-          {isPrivate ? "Only you can see this — tap to share it with your travel group" : "Your travel group can see this — tap to keep it to yourself"}
+        <span id="doc-privacy-hint" className="text-[13px] text-[#6b5d4a] flex-1">
+          {sensitive
+            ? (isPrivate ? "Only you know you have this — tap to let your group see that you have one" : "Your group sees only that you have one, never its details — tap to hide even that")
+            : (isPrivate ? "Only you can see this — tap to share it with your travel group" : "Your travel group can see this — tap to keep it to yourself")}
         </span>
       </div>
       <div className="flex gap-2 pt-1">

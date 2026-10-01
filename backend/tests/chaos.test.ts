@@ -22,6 +22,10 @@
 import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { takeTurnsWithActiveTrip } from "./active-trip-lock.js";
+
+// Switches the active trip: takes turns with the other files that do
+takeTurnsWithActiveTrip();
 
 process.env.ACCESS_CODES = "CHAOS1:Alice,CHAOS2:Bob";
 process.env.JWT_SECRET = "test-secret-chaos";
@@ -6182,6 +6186,11 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
 
       // Get a token with travelerId (vault routes require it)
       const { token: aliceVaultToken, travelerId } = await getTokenWithTraveler("Alice", tripId);
+      // She's on the trip whose documents she reads (a trip's data is for its own people — Sep 30 2026)
+      await prisma.tripMember.upsert({
+        where: { tripId_travelerId: { tripId, travelerId } },
+        create: { tripId, travelerId, role: "planner" }, update: {},
+      });
 
       // Clear any existing PIN from previous tests
       await prisma.traveler.update({
