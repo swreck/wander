@@ -15,6 +15,10 @@ import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
+import { takeTurnsWithActiveTrip } from "./active-trip-lock.js";
+
+// Switches the active trip: takes turns with the other files that do
+takeTurnsWithActiveTrip();
 
 process.env.ACCESS_CODES = "PEOPLE1:PLPlanner";
 process.env.JWT_SECRET = "test-secret-people";

@@ -146,7 +146,7 @@ export default function ExperienceNotes({ experienceId, notes, onNotesChanged }:
       ) : (
         <button
           onClick={() => setDrafting(true)}
-          className="text-xs text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors"
+          className="text-sm text-[#514636] min-h-[44px] transition-colors"
         >
           {sorted.length > 0 ? "Add a note" : "Add a note about this"}
         </button>

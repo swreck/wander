@@ -20,7 +20,23 @@ export interface Cited { text: string; a1: string }
 export interface RailRow { tab: string; row: number; date: string | null; cols: Record<string, Cited> }
 export interface ChecklistStep { tab: string; row: number; cols: Record<string, Cited> }
 export interface Checklist { tab: string; steps: ChecklistStep[]; date: string | null }
-export interface RailDiffer { date: string; row: number; tab: string; train: string; railSays: string; guideSays: string; guideSource: string }
+export interface RailDiffer {
+  date: string; row: number; tab: string; train: string; railSays: string; guideSays: string; guideSource: string;
+  /** Her other lines for the same leg that agree with the rail sheet */
+  agree?: { source: string; says: string }[];
+}
+
+/** "her Itinerary tab", "her “Kyoto Thu, 1029 (Flight Home))” tab" */
+export const herTab = (source: string) => {
+  const tab = source.split(" · ")[0].split(" + ")[0].trim();
+  return /^itinerary$/i.test(tab) ? "her Itinerary tab" : `her “${tab}” tab`;
+};
+
+/** "the rail sheet has HARUKA 31 leaving 1:30 PM, and so does her Itinerary tab (“1:30-2:00p”); her “Kyoto …” tab has 12:30 PM–1:00 PM" */
+export function differWords(d: RailDiffer): string {
+  const agree = (d.agree || []).map((a) => `${herTab(a.source)} (“${withTwelveHour(a.says)}”)`);
+  return `the rail sheet has ${d.railSays}${agree.length ? `, and so does ${agree.join(" and ")}` : ""}; ${herTab(d.guideSource)} has ${withTwelveHour(d.guideSays)}`;
+}
 
 export interface OtherSource {
   id: string;
@@ -85,12 +101,18 @@ export function twelveHour(t: string): string {
 
 /** The sheet's own words with a 12-hour time beside each 24-hour one: "by about 17:00 (5:00 PM)" */
 export function withTwelveHour(s: string): string {
-  return s.replace(/\b(1[3-9]|2[0-3]):([0-5]\d)\b(?!\s*\()/g, (m) => `${m} (${twelveHour(m)})`);
+  // (and a morning written the 24-hour way, "08:07" — round 12: the pickup page kept "08:07" and "12:09" as they were)
+  // (never one already said with AM/PM — "12:30 PM" became "12:30 (12:30 PM) PM")
+  // (every two-digit hour — "Okayama 10:26" stayed bare while "08:07" got its words)
+  return s.replace(/\b(0\d|1\d|2[0-3]):([0-5]\d)\b(?!\s*(?:\(|[AaPp]\.?[Mm]?\b))/g, (m) => `${m} (${twelveHour(m)})`);
 }
 
-/** "Wed, Oct 1, 2:46 AM" — when Wander last read a source, on this phone's clock */
-export function readWords(iso: string | null): string | null {
-  return iso ? new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+/** "Wed, Oct 1, 2:46 AM Japan time" — when Wander last read a source, on the trip's clock and saying so, as her
+ *  Guide's read date is (round 12: a California phone showed "Wed, Sep 30, 1:55 PM" beside the Guide's "Oct 1") */
+export function readWords(iso: string | null, zone = "Asia/Tokyo"): string | null {
+  if (!iso) return null;
+  const when = new Date(iso).toLocaleString("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `${when} ${zone === "Asia/Tokyo" ? "Japan time" : zone}`;
 }
 
 /** "Oct 6" in a status line, as YYYY-MM-DD in the given year */

@@ -59,6 +59,21 @@ describe("tabs differ", () => {
     expect(meal.detail).not.toContain("Tabs differ");
   });
 
+  it("marks two restaurants of one name booked for the same time (Robuchon: Gastronomy in her day tab, La Table in the booking)", () => {
+    const block = line({ date: "2030-01-17", kind: "block", time: "18:00", title: "DINNER RESERVATION – Gastronomy \"Joël Robuchon\" (Ebisu)", source: "Tokyo Day 3 · Omotesando" });
+    const meal = line({ date: "2030-01-17", kind: "meal", time: "18:00", title: "LeTable de Joel Robuchon - 1F", source: "Dining Resos (row 9)" });
+    markTabsDiffer([block, meal] as any);
+    expect(block.detail).toContain("Tabs differ: her Dining Resos tab's booking at this time is \"LeTable de Joel Robuchon - 1F\"");
+    expect(meal.detail).toContain("Tabs differ: her Tokyo Day 3 tab has \"DINNER RESERVATION – Gastronomy");
+  });
+
+  it("the same restaurant named with its area isn't two restaurants (Yakiniku Yazawa Tokyo (Ginza))", () => {
+    const block = line({ date: "2030-01-15", kind: "block", time: "18:30", title: "DINNER RESERVATION – Yakiniku Yazawa Tokyo (Ginza)", source: "Tokyo Day 1 Ginza · Day 1" });
+    const meal = line({ date: "2030-01-15", kind: "meal", time: "18:30", title: "Yakiniku Yazawa Tokyo", source: "Dining Resos (row 5)" });
+    markTabsDiffer([block, meal] as any);
+    expect(block.detail || "").not.toContain("booking at this time is");
+  });
+
   it("never compares a plan line with a hotel's check-out time", () => {
     const block = line({ kind: "block", time: "18:45", title: "Return Four Seasons", source: "Kyoto Wed · Day 4" });
     const checkout = line({ kind: "checkout", time: "12:00", title: "Check out · Four Seasons Hotel Kyoto" });
@@ -99,7 +114,8 @@ describe("tabs differ", () => {
     const m2 = line({ date: "2030-01-17", kind: "meal", time: "18:00", title: "LeTable de Joel Robuchon - 1F", source: "Dining Resos (row 11)", detail: "Address: Château Restaurant Joël Robuchon · Yebisu Garden Place 1-13-1" });
     markTabsDiffer([b1, m1, b2, m2] as any);
     expect(b1.detail).toBeNull();
-    expect(b2.detail).toBeNull();
+    // (Ebisu is in "Yebisu": no neighbourhood note. The two Robuchon restaurants are a different note — round 12)
+    expect(b2.detail || "").not.toContain("puts it in");
   });
 
   it("saying it twice adds one note, not two", () => {

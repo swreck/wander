@@ -2,10 +2,12 @@ import { Router } from "express";
 import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { tripMemberParam } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
-
+// A route naming a trip is for that trip's own people (Sep 30 2026)
+router.param("tripId", tripMemberParam);
 // List experiences for a trip (optionally filter by city, state, day)
 router.get("/trip/:tripId", async (req, res) => {
   const { cityId, state, dayId } = req.query as Record<string, string | undefined>;

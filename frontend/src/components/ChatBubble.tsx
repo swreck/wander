@@ -800,13 +800,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             <div className="text-center text-[#6b5d4a] text-sm py-8">
               <p>I'm Scout, your travel companion.</p>
               <p className="mt-1">I know your whole trip — ask me anything about it.</p>
+              {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
+              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from Larisa's Guide is still on the Now tab.</p>}
               {/* Tap one to ask it */}
               <div className="mt-4 flex flex-col items-start gap-1.5">
                 {["What's the plan today?", "Where are we sleeping tonight?", "Any deadlines coming up?", "What time do we need to leave?"].map((q) => (
                   <button
                     key={q}
                     onClick={() => sendMessage(q, true)}
-                    disabled={sending}
+                    // (no signal: Scout can't answer — round 12: these looked ready with the phone offline)
+                    disabled={sending || !online}
                     className="min-h-[44px] px-3 rounded-full border border-[#e0d8cc] bg-white text-sm text-[#514636] text-left disabled:opacity-50"
                   >
                     {q}
@@ -974,7 +977,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               onBeforeInput={handleBeforeInput}
               enterKeyHint="send"
               // Stays open while Scout answers: the next question can be typed now (Send waits for the answer)
-              placeholder={sending ? "Scout is answering — type your next question" : "Ask about the trip…"}
+              // Short enough for one line on a 375pt phone (round 12: "…back online" was cut off); the line above
+              // the box says Scout answers once the signal is back
+              placeholder={!online ? "No signal right now" : sending ? "Your next question…" : "Ask about the trip…"}
               aria-label="Ask Scout about the trip"
               rows={1}
               className="flex-1 min-h-[44px] bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-[16px] text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50 resize-none"
@@ -983,7 +988,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               <button
                 onClick={toggleVoice}
                 type="button"
-                className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors ${
+                disabled={!online}
+                className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-30 ${
                   listening
                     ? "bg-red-500 text-white animate-pulse"
                     : "bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e0d8cc]"
@@ -1000,7 +1006,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             )}
             <button
               type="submit"
-              disabled={sending || !input.trim()}
+              disabled={sending || !input.trim() || !online}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-30"
               style={{ backgroundColor: "#514636", color: "#faf8f5" }}
               aria-label="Send message"

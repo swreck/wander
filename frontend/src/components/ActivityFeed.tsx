@@ -65,7 +65,7 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
     <div className="mb-4">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full text-left"
+        className="w-full text-left min-h-[44px] flex items-end"
       >
         <h3 className="text-xs font-medium uppercase tracking-wider text-[#6b5d4a] mb-2">
           Recent activity

@@ -66,8 +66,13 @@ export default function useTripSync(
             return;
           }
           if (data.type === "change" && data.userCode !== userCode) {
-            setPendingChanges((n) => n + 1);
-            setLatestAction(changeWords(data.displayName || "Someone", data.description, 70));
+            // Someone taking back their own addition isn't news to pop up over your screen (round 12: "Julie took
+            // … off …" over Home) — the screens still catch up quietly below
+            const takeBack = /^(took |took back|marked .* not done)/i.test(data.description || "");
+            if (!takeBack) {
+              setPendingChanges((n) => n + 1);
+              setLatestAction(changeWords(data.displayName || "Someone", data.description, 70));
+            }
             // Open screens catch up at once; the notice stays to say what changed. Round 7: after Ken
             // switched lunch, Larisa's open Now card kept the old place and its Maps link until she
             // tapped the notice. A wrong "where" is worse than a screen that updates while you look.

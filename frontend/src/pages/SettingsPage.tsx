@@ -5,6 +5,7 @@ import { useToast } from "../contexts/ToastContext";
 import { api } from "../lib/api";
 import FaceIdSetup from "../components/FaceIdSetup";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
+import { sourcesData, type OtherSource } from "../lib/sources";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -98,24 +99,21 @@ export default function SettingsPage() {
 // Wander is downstream of Larisa's sheet: it reads the Guide and never changes it.
 // There are deliberately no sync, push, or interval controls here.
 
-interface SyncStatus {
-  configured: boolean;
-  lastSyncAt?: string;
-}
+interface GuideStatus { current: { sourceName: string; importedAt: string } | null }
+
+/** "Oct 1, 2:48 AM Japan time" — the same words on every phone (round 12: three screens gave three different dates) */
+const japanWhen = (iso: string) => `${new Date(iso).toLocaleString("en-US", { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} Japan time`;
 
 function SheetSyncSection() {
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [syncSourceName, setSyncSourceName] = useState<string | null>(null);
+  // The copy of her Guide Wander actually reads (not the old sync setting, whose time was a different moment)
+  const [guide, setGuide] = useState<GuideStatus["current"]>(null);
+  const [others, setOthers] = useState<OtherSource[]>([]);
 
   useEffect(() => {
     const lastTrip = localStorage.getItem("wander:last-trip-id");
     const loadTrip = (id: string) => {
-      api.get<SyncStatus>(`/sheets-sync/status/${id}`).then(setStatus).catch(() => {});
-      // Fetch trip tagline to get dynamic sync source name
-      api.get<any>(`/trips/${id}`).then(t => {
-        const match = t?.tagline?.match(/^Synced with (.+?)(?:\s*·.*)?$/);
-        if (match) setSyncSourceName(match[1]);
-      }).catch(() => {});
+      api.get<GuideStatus>(`/guide/status/${id}`).then((s) => setGuide(s?.current || null)).catch(() => {});
+      sourcesData(id).then((d) => setOthers(d.sources)).catch(() => {});
     };
     if (lastTrip) {
       loadTrip(lastTrip);
@@ -129,26 +127,31 @@ function SheetSyncSection() {
     }
   }, []);
 
-  if (!status?.configured) return null;
-
-  const lastRead = status.lastSyncAt
-    ? new Date(status.lastSyncAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : null;
+  if (!guide && !others.length) return null;
 
   return (
     <section className="border-t border-[#e0d8cc] pt-6">
-      <h2 className="text-sm font-medium text-[#3a3128] mb-1">{syncSourceName || "Larisa's Japan Guide"}</h2>
-      <p className="text-xs text-[#6b5d4a] mb-3">
-        Wander reads from Larisa's Guide and never changes it.
+      <h2 className="text-sm font-medium text-[#3a3128] mb-1">Where Wander's plan comes from</h2>
+      <p className="text-[13px] text-[#6b5d4a] mb-3">
+        Wander reads these and never changes them.
       </p>
-      {lastRead && (
-        <div className="bg-white rounded-lg border border-[#e0d8cc] p-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[#6b5d4a]">Last read</span>
-            <span className="text-[#3a3128] font-medium">{lastRead}</span>
+      <div className="bg-white rounded-lg border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
+        {guide && (
+          <div className="p-3 text-[13px]">
+            <p className="text-[#3a3128] font-medium">Larisa's Guide</p>
+            <p className="text-[#6b5d4a] mt-0.5">The copy “{guide.sourceName.replace(/\.xlsx$/i, "")}”, read {japanWhen(guide.importedAt)}. Larisa may have changed things since.</p>
           </div>
-        </div>
-      )}
+        )}
+        {others.map((s) => (
+          <div key={s.id} className="p-3 text-[13px]">
+            <p className="text-[#3a3128] font-medium">{s.owner}'s {s.name.toLowerCase()}</p>
+            <p className="text-[#6b5d4a] mt-0.5">
+              {s.authorship ? `${s.authorship[0].toUpperCase()}${s.authorship.slice(1)}. ` : ""}Read every few minutes{s.readAt ? ` — last ${japanWhen(s.readAt)}` : ""}.
+              {s.lastError ? " Its latest read didn't work, so Wander is showing the copy before that." : ""}
+            </p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

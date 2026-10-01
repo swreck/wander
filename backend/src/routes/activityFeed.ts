@@ -7,7 +7,8 @@
 
 import { Router } from "express";
 import prisma from "../services/db.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { getUserRole } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -20,8 +21,13 @@ interface FeedItem {
   createdAt: string;
 }
 
-router.get("/trip/:tripId", async (req, res) => {
+router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;
+  // A trip's activity is for its own people (it checked sign-in only)
+  if (req.user?.travelerId && !(await getUserRole(req.user.travelerId, tripId))) {
+    res.status(403).json({ error: "That trip isn't one of yours." });
+    return;
+  }
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
   // Get recent changes
@@ -34,8 +40,13 @@ router.get("/trip/:tripId", async (req, res) => {
       userDisplayName: true,
       description: true,
       createdAt: true,
+      entityId: true,
+      actionType: true,
     },
   });
+  // Something added and then taken back isn't news: neither half shows here (History keeps both) — round 12: a plan
+  // added and taken off posted "Ken took 'w4 test …' off Tue, Oct 6" to everyone's Home
+  const takenBack = new Set(changes.filter((c) => c.entityId && /(_removed|_deleted|taken_back)$/.test(c.actionType || "")).map((c) => c.entityId));
 
   // Get recent reactions (last 50)
   const reactions = await prisma.experienceReaction.findMany({
@@ -48,21 +59,15 @@ router.get("/trip/:tripId", async (req, res) => {
     },
   });
 
-  // Get recent notes (last 50)
-  const notes = await prisma.experienceNote.findMany({
-    where: { experience: { tripId } },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    include: {
-      traveler: { select: { displayName: true } },
-      experience: { select: { name: true } },
-    },
-  });
+  // Notes on ideas come in through the change history above — group notes only. Reading the notes themselves here
+  // showed "just for me" notes to everyone, and every group note twice (round 12 blocker: Larisa's private note
+  // "Buy the gold washi for Mom" appeared on Ken's Home).
 
   // Merge into feed
   const feed: FeedItem[] = [];
 
   for (const c of changes) {
+    if (c.entityId && takenBack.has(c.entityId)) continue;
     feed.push({
       id: c.id,
       type: "change",
@@ -79,16 +84,6 @@ router.get("/trip/:tripId", async (req, res) => {
       userDisplayName: r.traveler.displayName,
       description: `reacted ${r.emoji} to ${r.experience.name}`,
       createdAt: r.createdAt.toISOString(),
-    });
-  }
-
-  for (const n of notes) {
-    feed.push({
-      id: n.id,
-      type: "note",
-      userDisplayName: n.traveler.displayName,
-      description: `noted on ${n.experience.name}: "${n.content.length > 60 ? n.content.slice(0, 57) + "..." : n.content}"`,
-      createdAt: n.createdAt.toISOString(),
     });
   }
 

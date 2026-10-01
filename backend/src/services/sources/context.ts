@@ -21,7 +21,11 @@ export interface SourceView2 {
   differs: RailDiffer[];
 }
 
-export interface RailDiffer { date: string; row: number; tab: string; train: string; railSays: string; guideSays: string; guideSource: string }
+export interface RailDiffer {
+  date: string; row: number; tab: string; train: string; railSays: string; guideSays: string; guideSource: string;
+  /** Her other lines for the same leg that agree with the rail sheet (which tab, and what it says) */
+  agree: { source: string; says: string }[];
+}
 
 type GuideLine = { date: Date | null; time: string | null; endTime?: string | null; kind: string; title: string; detail: string | null; source: string };
 // Wander's own notes in a Guide line's detail (the same list scoutContext.ts keeps apart from her words)
@@ -64,6 +68,11 @@ export function railDiffers(rows: RailRow[], guide: GuideLine[]): RailDiffer[] {
     const train = col(r.cols, /^train$/)?.text || "";
     const family = (train.match(TRAIN_FAMILIES) || [])[1]?.toLowerCase();
     const ends = endpoints(col(r.cols, /^route$/)?.text || "");
+    // Her lines that agree with it — said too, so a difference names only the tab that differs (round 12: "Larisa's
+    // Guide has 12:30–1:00" read as all of her Guide, when her Itinerary's "1:30-2:00p" agrees with the booking)
+    const agreeing: { source: string; says: string }[] = [];
+    const rowOut: RailDiffer[] = [];
+    const agree = (g: GuideLine, says: string) => { if (!agreeing.some((x) => x.source === g.source)) agreeing.push({ source: g.source, says }); };
     for (const g of guide) {
       if (!g.date || g.date.toISOString().slice(0, 10) !== r.date) continue;
       // Her words only: Wander's own notes on a line (a "Tabs differ" quoting another tab) aren't this line's
@@ -79,7 +88,7 @@ export function railDiffers(rows: RailRow[], guide: GuideLine[]): RailDiffer[] {
       if (g.time && ["train", "travel", "block"].includes(g.kind)) {
         const a = minutesOf(Number(g.time.slice(0, 2)), Number(g.time.slice(3, 5)));
         const b = g.endTime ? minutesOf(Number(g.endTime.slice(0, 2)), Number(g.endTime.slice(3, 5))) : a;
-        if (dep >= a && dep <= b) continue;
+        if (dep >= a && dep <= b) { agree(g, g.endTime ? `${twelveHour(g.time)}–${twelveHour(g.endTime)}` : twelveHour(g.time)); continue; }
         near.push({ said: g.endTime ? `${twelveHour(g.time)}–${twelveHour(g.endTime)}` : twelveHour(g.time), min: a, bare: false });
       }
       const aboutThisLeg = (at: number, len: number) => {
@@ -87,18 +96,18 @@ export function railDiffers(rows: RailRow[], guide: GuideLine[]): RailDiffer[] {
         return (family && around.includes(family)) || ends.some((e) => around.includes(e));
       };
       // A window her line gives that includes the departure: they agree
-      let inWindow = false;
+      let inWindow = "";
       const windows: [number, number][] = [];
       for (const m of text.matchAll(TIME_RANGE)) {
         if (!aboutThisLeg(m.index ?? 0, m[0].length)) continue;
         const ap = m[6] || m[3];
         const a = minutesOf(Number(m[1]), Number(m[2]), m[3] || ap), b = minutesOf(Number(m[4]), Number(m[5]), ap);
         windows.push([m.index ?? 0, (m.index ?? 0) + m[0].length]);
-        if ((dep >= a && dep <= b) || (!ap && dep % 720 >= a % 720 && dep % 720 <= b % 720)) inWindow = true;
+        if ((dep >= a && dep <= b) || (!ap && dep % 720 >= a % 720 && dep % 720 <= b % 720)) inWindow = m[0].trim();
         else near.push({ said: m[0].trim(), min: a, bare: !ap });
       }
-      if (inWindow) continue;
-      let atOrAfter = false;
+      if (inWindow) { agree(g, inWindow); continue; }
+      let atOrAfter = "";
       for (const m of text.matchAll(TIME_WORDS)) {
         const at = m.index ?? 0;
         if (windows.some(([s, e]) => at >= s && at < e) || !aboutThisLeg(at, m[0].length)) continue;
@@ -106,17 +115,20 @@ export function railDiffers(rows: RailRow[], guide: GuideLine[]): RailDiffer[] {
         if (otherLegs.some((o) => sameTime(min, o, !m[3]))) continue;
         // "leave 6:15 or later", "6:15p+", "after 10:30": the earliest time, not the time (Oct 6: a 6:17 train agrees)
         const earliest = /^\s*(or later|or after|\+|and later)/i.test(text.slice(at + m[0].length)) || /\b(after|from|no earlier than)\s*$/i.test(text.slice(Math.max(0, at - 20), at));
-        if (earliest && (dep >= min || (!m[3] && dep % 720 >= min % 720))) { atOrAfter = true; continue; }
+        if (earliest && (dep >= min || (!m[3] && dep % 720 >= min % 720))) { atOrAfter = `${m[0].trim()} or later`; continue; }
         near.push({ said: m[0].trim(), min, bare: !m[3] });
       }
-      if (atOrAfter && !near.length) continue;
-      if (!near.length || near.some((n) => sameTime(n.min, dep, n.bare))) continue;
-      out.push({
+      if (atOrAfter && !near.length) { agree(g, atOrAfter); continue; }
+      if (!near.length) continue;
+      const same = near.find((n) => sameTime(n.min, dep, n.bare));
+      if (same) { agree(g, same.said); continue; }
+      rowOut.push({
         date: r.date, row: r.row, tab: r.tab, train: train || (col(r.cols, /^route$/)?.text ?? ""),
         railSays: `${train ? `${train} ` : ""}leaving ${twelveHour(`${depart[1]}:${depart[2]}`)}`,
-        guideSays: near.map((n) => n.said).join(" / "), guideSource: g.source,
+        guideSays: near.map((n) => n.said).join(" / "), guideSource: g.source, agree: [],
       });
     }
+    for (const d of rowOut) out.push({ ...d, agree: agreeing.filter((a) => a.source !== d.guideSource) });
   }
   return out;
 }
@@ -161,7 +173,8 @@ const cellsOf = (tab: string, cols: Record<string, Cited>) => Object.values(cols
 const TIME_HEADS = /^(depart|arrive)/;
 /** An afternoon time written 24-hour inside a sentence ("Hakata 10:36 → Nagoya 13:55") gets its 12-hour words beside it
  * (Scout copied "13:55" from the pickup tab's summaries; every Wander time is "1:55 PM") */
-const withTwelveHour = (s: string) => s.replace(/\b(1[3-9]|2[0-3]):([0-5]\d)\b(?!\s*\()/g, (m) => `${m} (${twelveHour(m)})`);
+// (and a morning written with its leading zero, "08:07", as the pickup page now shows it)
+const withTwelveHour = (s: string) => s.replace(/\b(0\d|1\d|2[0-3]):([0-5]\d)\b(?!\s*(?:\(|[AaPp]\.?[Mm]?\b))/g, (m) => `${m} (${twelveHour(m)})`);
 
 /** "Head: value" for each column, in the tab's order, times in 12-hour words with the sheet's own beside them */
 function rowWords(cols: Record<string, Cited>) {
@@ -204,7 +217,7 @@ export function sourceDocuments(views: SourceView2[]): { title: string; lines: C
     }
     for (const d of v.differs) {
       lines.push({
-        text: `SOURCES DIFFER on ${d.date}: ${m.name} (${d.tab} tab, row ${d.row}) has ${d.railSays}; Larisa's Guide (${d.guideSource}) has ${d.guideSays}. Say both; never pick one.`,
+        text: `SOURCES DIFFER on ${d.date}: ${m.name} (${d.tab} tab, row ${d.row}) has ${d.railSays}; Larisa's Guide (${d.guideSource}) has ${d.guideSays}.${d.agree.length ? ` Her other tab${d.agree.length > 1 ? "s" : ""} agree${d.agree.length > 1 ? "" : "s"} with ${m.name}: ${d.agree.map((a) => `${a.source.split(" · ")[0]} ("${a.says}")`).join("; ")}.` : ""} Say which tab says what; never pick one.`,
         src: { type: "wander", what: `Wander compared ${m.name} with Larisa's Guide for ${d.date}`, from: [] },
       });
     }

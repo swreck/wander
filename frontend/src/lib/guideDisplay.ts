@@ -591,12 +591,37 @@ export function tidyTitle(i: GuideItem): string {
 }
 
 /** A cell that means nothing on its own away from the sheet ("1 day") */
-/** Whose name a deadline's booking is under, as people say names ("Booked under Fong, Larisa" → "Larisa Fong") */
+/** Whose name a deadline's booking is under, as people say names ("Booked under Sato, Hana" → "Hana Sato") */
 export function bookedByName(i: GuideItem): string | null {
   const m = (i.detail || "").match(/^Booked under ([^\n]+)/m)?.[1]?.trim();
   if (!m) return null;
   const parts = m.split(/\s*,\s*/);
   return parts.length === 2 ? `${parts[1]} ${parts[0]}` : m;
+}
+
+/**
+ * Whose to-do a booking's deadline is, said to the person looking: "Larisa's to do (booked under Hana Sato)" to Julie,
+ * "Booked under your name" to Larisa (round 12: Julie read "Reconfirm the Robuchon dinner … Today is the last day" as
+ * hers). Null when the Guide names no one.
+ */
+export function bookedWords(i: GuideItem, me: string | null | undefined): string | null {
+  const name = bookedByName(i);
+  if (!name) return null;
+  const first = name.split(/\s+/)[0];
+  if (me && first.toLowerCase() === me.trim().toLowerCase()) return "Booked under your name";
+  return `${first}'s to do (booked under ${name})`;
+}
+
+/** A question her Guide asks of the person looking ("1 day to Mashiko-Julie interested?", "X, if Julie isn't interested") */
+export function askedOf(i: GuideItem, me: string | null | undefined): boolean {
+  if (!me) return false;
+  // Not on a line for someone else, and never from Wander's own notes quoting her (round 12: Ken & Larisa's Mashiko card
+  // said "A question for you" to Julie because its "Still open in the Guide: … if Julie isn't interested" quoted her)
+  if (i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me)) return false;
+  const who = me.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const own = (i.detail || "").split("\n").filter((l) => !/^(Still open in the Guide|Tabs differ:|For [^:]+: her |Wander matched|Worked out from:)/.test(l)).join("\n");
+  const text = `${i.title}\n${own}`;
+  return new RegExp(`\\b${who}\\b[^.\\n]{0,20}\\binterested\\?|\\bif ${who} (isn't|is not|wants?)\\b`, "i").test(text);
 }
 
 /** A title that says nothing on its own: "2 nights", "1/2 day", "see above - 1/2 day" (round 10: a bare
@@ -681,6 +706,7 @@ export function linkLabel(url: string): string {
   if (/tablecheck|pocket-concierge|omakase|opentable|resy|booking|reserv/i.test(url)) return "Booking page";
   if (/maps\.(apple|google)|google\.[a-z.]+\/maps|goo\.gl\/maps|maps\.app/i.test(url)) return "Map";
   if (/tabelog/i.test(url)) return "Tabelog page";
+  if (/(^|\/\/|\.)google\.[a-z.]+\/search/i.test(url)) return "Google search";
   return "Website";
 }
 
@@ -753,6 +779,17 @@ export function unwrapSearchLink(url: string): string {
 }
 const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch { return s; } };
 
+/** Her Itinerary note on a hotel's row — about that stay, not the day's line (round 12: Oct 27 was quoted as the Four
+ *  Seasons room type). Listed with the day, never quoted as "In her Itinerary for today". */
+export const besideHotel = (i: GuideItem) => /^Beside .+ in her Itinerary$/m.test(i.detail || "");
+
+/** Every address in her link cell, each ready to open — a cell can hold two on separate lines (round 12: Oct 27's
+ *  "Michelin page" joined a Michelin address and a Google search into one dead link) */
+export function linksIn(link: string | null | undefined): string[] {
+  const urls = (link || "").split(/\s+/).filter((u) => /^https?:\/\/\S+$/i.test(u)).map(unwrapSearchLink);
+  return [...new Set(urls)];
+}
+
 /**
  * Web addresses in her words, as short links named for their site ("michelin.com ↗") — a raw address ran to
  * 395 characters, a dozen lines at large text, and couldn't be tapped (round 10). Her Google-wrapped map links
@@ -822,10 +859,37 @@ export function minutesToClock(mins: number) {
 }
 
 /** "Larisa's Guide, as Wander read it Sep 29" — flagged when it's more than a week old. */
-export function freshness(importedAt: string | undefined | null, now = new Date()) {
+/** The same words on every phone: the date in the trip's zone, said as Japan's when the phone is elsewhere
+ *  (Julie's phone in California said "Sep 29" while Ken's in Tokyo said "Sep 30" — one read, two dates) */
+export function freshness(importedAt: string | undefined | null, now = new Date(), tripZone = "Asia/Tokyo") {
   if (!importedAt) return null;
   const read = new Date(importedAt);
   const days = Math.floor((now.getTime() - read.getTime()) / 86400000);
-  const when = read.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return { text: `Larisa's Guide, as Wander last read it on ${when}`, old: days > 7, days };
+  const when = read.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tripZone });
+  const zone = phoneIsElsewhere(tripZone) ? ` (${ZONE_WORDS[tripZone] ? `${ZONE_WORDS[tripZone].replace(/ time$/, "")}'s date` : "the trip's date"})` : "";
+  return { text: `Larisa's Guide, as Wander last read it on ${when}${zone}`, old: days > 7, days };
+}
+
+/** Her open questions in a note: a phrase she wrote in capitals ("WHERE IS BIZEN TOUR STARTING", "ASK KENJI TO …") or a
+ *  part ending in "?" — each in her own words */
+export function openQuestionsIn(text: string): string[] {
+  const out = new Set<string>();
+  // (words on one line only, a time like "3:45-4p" kept whole — round 12: "…STARTING L" took the next line's "L",
+  // and "FINISH 3:45-4p AT TRAIN" stopped at "3:45-4")
+  for (const m of text.matchAll(/\b[A-Z][A-Z0-9']+(?:[ \t]+[A-Z0-9][A-Z0-9'&:-]*(?:[ap](?![a-z]))?)+(?![A-Za-z])/g)) {
+    if (m[0].split(/[ \t]+/).length >= 3 && /\b(WHERE|WHEN|WHO|WHAT|ASK|CONFIRM|CHECK|TBD|HOW)\b/.test(m[0])) out.add(m[0].trim());
+  }
+  for (const part of text.split(/\n| — | - |; /)) if (/\?\s*$/.test(part.trim()) && part.trim().length > 3) out.add(part.trim());
+  return [...out];
+}
+
+
+/**
+ * Her open questions for a stay on a date, only where that day's lines that are yours mention what it's about
+ * ("WHERE IS BIZEN TOUR STARTING" on Oct 7 — not Ken & Larisa's Kenji question on Julie's landing day)
+ */
+export function openQuestionsOn(items: GuideItem[], date: string, me: string | null | undefined): string[] {
+  const stops = items.filter((i) => i.kind === "stop" && (i.windowStart || ymd(i.date)) <= date && date <= ymd(i.date));
+  const mine = distinctWords(items.filter((x) => ymd(x.date) === date && x.kind !== "stop" && isFor(x, me)).map((x) => `${x.title} ${x.detail || ""}`).join(" "));
+  return [...new Set(stops.flatMap((s) => openQuestionsIn(`${s.title}\n${s.detail || ""}`)).filter((q) => distinctWords(q).some((w) => mine.includes(w))))];
 }

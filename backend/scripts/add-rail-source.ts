@@ -37,7 +37,7 @@ if (process.argv.includes("--show")) {
     for (const c of v.checklists) console.log(`  checklist "${c.tab}" for ${c.date}: ${c.steps.length} steps`);
     console.log(`  other tabs: ${v.otherTabs.map((t) => t.name).join(", ") || "none"}`);
     console.log(`  sources differ: ${v.differs.length}`);
-    for (const d of v.differs) console.log(`    ${d.date} ${d.train}: rail ${d.railSays} | Guide (${d.guideSource}) ${d.guideSays}`);
+    for (const d of v.differs) console.log(`    ${d.date} ${d.train}: rail ${d.railSays} | Guide (${d.guideSource}) ${d.guideSays}${d.agree.length ? ` | agreeing: ${d.agree.map((a) => `${a.source.split(" · ")[0]} "${a.says}"`).join("; ")}` : ""}`);
   }
 }
 await prisma.$disconnect();

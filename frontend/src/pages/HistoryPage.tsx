@@ -14,7 +14,9 @@ function canRestore(log: ChangeLogEntry): boolean {
   const entity = log.entityType?.toLowerCase() || "";
   return (
     RESTORABLE_ACTIONS.some(a => action.includes(a)) &&
-    RESTORABLE_ENTITIES.some(e => entity.includes(e))
+    // The kind exactly — "experience_note" isn't an "experience": a taken-back note is its author's choice, and
+    // "Bring back" on one failed with "Cannot restore entity type" (round 12)
+    RESTORABLE_ENTITIES.includes(entity)
   );
 }
 
@@ -153,14 +155,17 @@ export default function HistoryPage() {
                   key={log.id}
                   className="px-4 py-3 bg-white rounded-lg border border-[#f0ece5]"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  {/* Wraps: at large text the time and "Bring back" go under the words, not beside them (round 12: one
+                      word per line, the time cut to "Oct 1, 7:", and the page slid sideways) */}
+                  <div className="flex flex-wrap items-start justify-between gap-x-2 min-w-0">
+                    <div className="flex-1 min-w-[12rem] [overflow-wrap:anywhere]">
                       <span className="text-sm font-medium text-[#3a3128]">
                         {log.userDisplayName}
                       </span>
                       <span className="text-sm text-[#6b5d4a] ml-1">{changeRest(log.userDisplayName, log.description)}</span>
                     </div>
-                    <div className="flex items-center gap-2 ml-2 shrink-0">
+                    <div className="flex items-center gap-2 ml-auto">
+
                       {restorable && (
                         <button
                           onClick={() => handleRestore(log)}

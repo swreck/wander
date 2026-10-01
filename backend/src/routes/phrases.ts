@@ -1,10 +1,12 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { tripMemberParam } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
-
+// A route naming a trip is for that trip's own people (Sep 30 2026)
+router.param("tripId", tripMemberParam);
 // GET /trip/:tripId — list all phrases for a trip (ordered by creation)
 router.get("/trip/:tripId", async (req, res) => {
   const phrases = await prisma.tripPhrase.findMany({

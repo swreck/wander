@@ -20,6 +20,12 @@ export default function SyncIndicator() {
   const { pendingChanges, latestAction, dismiss } = useTripSync(tripId, user?.code);
   // While Scout's bar is showing, the news waits (it stays until tapped) — one floating layer at a time
   const scoutDocked = useScoutDocked();
+  // It goes by itself after a few seconds — it sat over the Actions list for 30s and blocked a tap (round 12)
+  useEffect(() => {
+    if (pendingChanges === 0) return;
+    const t = setTimeout(dismiss, 8000);
+    return () => clearTimeout(t);
+  }, [pendingChanges, latestAction, dismiss]);
 
   if (!user || location.pathname === "/login" || location.pathname.startsWith("/join") || pendingChanges === 0 || scoutDocked) return null;
 

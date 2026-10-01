@@ -12,6 +12,10 @@
 import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
+import { takeTurnsWithActiveTrip } from "./active-trip-lock.js";
+
+// Switches the active trip: takes turns with the other files that do
+takeTurnsWithActiveTrip();
 
 process.env.ACCESS_CODES = "V2A:Ken,V2B:Larisa,V2C:Andy";
 process.env.JWT_SECRET = "test-secret-v2";

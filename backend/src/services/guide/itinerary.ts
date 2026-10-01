@@ -367,8 +367,15 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
       result.items.push({
         date: itemDate, time: stated.start, endTime: stated.end,
         kind: /\bmeet\b/i.test(note) && stated.start ? "meeting" : "note",
-        // Which row the note sat on is bookkeeping — the source line keeps it, travelers don't need it
-        title: stated.start ? withoutStatedTime(note) : note, detail: null, place: null, confirmation: null,
+        // Which row the note sat on is bookkeeping — the source line keeps it, travelers don't need it. On a hotel's
+        // row, which hotel it sits beside is said (round 12: the Four Seasons room type, "Two-Bedroom Heritage Garden
+        // Residence", was quoted as Oct 27's itinerary above her real line for the day)
+        title: stated.start ? withoutStatedTime(note) : note,
+        // Only a room's description — never a meeting or a day's note that happens to share the row ("Meet Backroads
+        // 8:30a…" sits on the Ritz-Carlton's row and is the day's first event)
+        detail: hotel && date && !stated.start && /\b(bedroom|residence|suite|room|king|queen|twin|double|villa|tatami|ocean view|garden view)\b/i.test(note)
+          ? `Beside ${hotel.replace(/\s*\(\s*\d{1,2}\/\d{1,2}\s*[-–]\s*\d{1,2}\/\d{1,2}\s*\)/, "").trim()} in her Itinerary` : null,
+        place: null, confirmation: null,
         said: stated.start ? note : undefined,
         sourceRef: ref(noteCell!.a1), source: readable("Notes", r), city,
       });

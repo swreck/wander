@@ -124,10 +124,12 @@ describe("Scout's note tools", () => {
   });
 
   it("an empty note or a made-up idea saves nothing", async () => {
-    const before = await prisma.experienceNote.count();
+    // Counted by this file's authors only — other test files write notes at the same time
+    const mine = { travelerId: { in: NAMES.map((n) => people[n].travelerId) } };
+    const before = await prisma.experienceNote.count({ where: mine });
     expect((await executeTool("add_idea_note", { tripId, experienceId: ideaId, content: "   " }, as("NAFriend"))).result.error).toBeTruthy();
     expect((await executeTool("add_idea_note", { tripId, experienceId: "nope", content: "x" }, as("NAFriend"))).result.error).toBeTruthy();
-    expect(await prisma.experienceNote.count()).toBe(before);
+    expect(await prisma.experienceNote.count({ where: mine })).toBe(before);
   });
 
   it("an idea on someone else's trip is refused, even if Scout names that trip", async () => {

@@ -3,10 +3,12 @@ import prisma from "../services/db.js";
 import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
+import { tripMemberParam } from "../middleware/role.js";
 
 const router = Router();
 router.use(requireAuth);
-
+// A route naming a trip is for that trip's own people (Sep 30 2026)
+router.param("tripId", tripMemberParam);
 router.get("/trip/:tripId", async (req, res) => {
   const cities = await prisma.city.findMany({
     where: { tripId: req.params.tripId as string, hidden: false },

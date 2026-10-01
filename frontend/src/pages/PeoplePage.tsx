@@ -28,7 +28,8 @@ type MyTrip = Trip & { myRole?: string | null };
 interface Invite { name: string; tripName: string; url: string; isMe?: boolean; note?: string | null }
 
 function statusLine(p: Person) {
-  if (p.status === "face-id") return p.faceIdPhones > 1 ? `Uses Face ID on ${p.faceIdPhones} phones` : "Uses Face ID";
+  // How many phones only on your own row — someone else's count is theirs, and read oddly ("on 9 phones", round 12)
+  if (p.status === "face-id") return p.isMe && p.faceIdPhones > 1 ? `You use Face ID on ${p.faceIdPhones} phones` : "Uses Face ID";
   if (p.status === "link") return "Has opened Wander · Face ID not set up yet";
   return "Invited · hasn't opened their link yet";
 }
