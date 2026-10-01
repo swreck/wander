@@ -55,13 +55,19 @@ export default function UpdatePrompt() {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-[#514636] text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-3 text-sm">
-      <span>A new version is available</span>
+    // Below the iPhone's status bar and Dynamic Island, inside the screen's width, with a full-size button (Ken, Oct 1:
+    // "unreadable … cut off by the dynamic island" — it sat at 16 px from the top, under the island)
+    <div
+      className="fixed left-1/2 -translate-x-1/2 z-[200] bg-[#514636] text-white pl-4 pr-2 py-2 rounded-xl shadow-lg flex items-center gap-3 text-sm w-max max-w-[calc(100vw-2rem)]"
+      style={{ top: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+      role="status"
+    >
+      <span>A newer Wander is ready</span>
       <button
         onClick={handleUpdate}
-        className="px-3 py-1 bg-white/20 rounded-lg hover:bg-white/30 transition-colors font-medium"
+        className="min-h-[44px] px-4 bg-white/20 rounded-lg hover:bg-white/30 transition-colors font-medium"
       >
-        Refresh
+        Update now
       </button>
     </div>
   );

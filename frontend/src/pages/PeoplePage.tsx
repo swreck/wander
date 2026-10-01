@@ -231,12 +231,16 @@ export default function PeoplePage() {
                   {addError && <p className="text-sm text-[#8a3a2a] mt-2" role="alert">{addError}</p>}
                   {sameName && (
                     <div className="mt-3 rounded-lg bg-[#f6f1e8] p-3" role="alert">
+                      {/* Already on this trip: a new phone. Only in Wander: adding them to this trip (Ken, adding Julie and
+                          Andy, was asked about "Julie's new phone") */}
                       <p className="text-sm text-[#3a3128]">
-                        {sameName.name} is already {sameName.onTrip ? `on ${sameName.tripName}` : "in Wander"}. Is this for {sameName.name}'s new phone?
+                        {sameName.onTrip
+                          ? `${sameName.name} is already on ${sameName.tripName}. Is this for ${sameName.name}'s new phone?`
+                          : `${sameName.name} already uses Wander but isn't on ${sameName.tripName} yet. Add ${sameName.name} to this trip?`}
                       </p>
                       <div className="flex flex-wrap gap-2 mt-2">
                         <button onClick={() => addSomeone(true)} disabled={addBusy} className="min-h-[44px] px-3 rounded-lg bg-[#514636] text-white text-sm disabled:opacity-40">
-                          Yes, {sameName.name}'s new phone
+                          {sameName.onTrip ? `Yes, ${sameName.name}'s new phone` : `Yes, add ${sameName.name}`}
                         </button>
                         <button
                           onClick={() => {
