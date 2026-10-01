@@ -43,8 +43,16 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
 
 const INK = "#514636";
 const MARKER = 22;        // a marker's size, in points
-const TOUCH = 44;         // two markers closer than a fingertip become one
+const TOUCH = 44;         // two markers closer than a fingertip are nudged apart
+// Stops one after the other share a marker when theirs would overlap (or the trip doubles back through them, below); a
+// fingertip apart otherwise they're nudged instead
+// (merged at 44, Tokyo and Nikko — 41 pt apart on an iPhone 15 — made "5 | 6", and the leg back to Kyoto had to cross
+// the only place for its name; 45 pt apart on a Pro Max they were two markers and clean; fresh review, Oct 1)
+const MERGE = 30;
 const SEGMENT = 20;       // one stop's part of a shared marker
+const ARROW_AT = [0.5, 0.42, 0.58, 0.35, 0.65]; // where along a leg its arrow may sit, the middle first
+const BOWS = [0.14, -0.14, 0.28, -0.28, 0.42, -0.42, 0.56, -0.56]; // how deep a leg may arc, the gentlest first
+const STUB = 20;        // how strongly a leg leaving a shared marker heads straight up or down before it bends away
 const GOOGLE_STRIP = 28;  // Google's logo and data credit along the map's foot — never covered
 
 type Stop = { city: City; visits: number[]; firstDay: string | null; lastDay: string | null };
@@ -158,9 +166,10 @@ function Fit({ stops, again }: { stops: Stop[]; again: number }) {
 /** `k`: how much Google stretches what's drawn on the map between whole zoom levels (0.71–1.41×) — the lines and arrows
  *  are drawn that much thinner or thicker, so they look the same on every phone (they were twice as heavy on an iPhone
  *  SE as on an iPhone 15 — round 5) */
-type Leg = { path: google.maps.LatLngLiteral[]; done: boolean; k: number };
+type Leg = { path: google.maps.LatLngLiteral[]; done: boolean; k: number; at: number | null };
 
-/** The way the trip goes: a gentle arc from marker to marker, one clear arrow in the middle of each; legs already
+/** The way the trip goes: a gentle arc from marker to marker, one clear arrow about the middle of each (`at`: how far
+ *  along — moved off a name if it would sit on one; none on a leg too short to hold one); legs already
  *  travelled fade. (Straight lines ran through markers they didn't stop at, and a leg travelled back again laid its
  *  arrow on the other's — map review rounds 2–3.) */
 function Route({ legs }: { legs: Leg[] }) {
@@ -169,11 +178,12 @@ function Route({ legs }: { legs: Leg[] }) {
     if (!map) return;
     const lines = legs.map((leg) => new google.maps.Polyline({
       path: leg.path, map, clickable: false, zIndex: 0,
-      strokeColor: "#8a7a63", strokeOpacity: leg.done ? 0.3 : 0.75, strokeWeight: 2.5 / leg.k,
-      icons: [
+      // (travelled legs a shade stronger than at first — the leg into Tokyo nearly vanished over the land; fresh review)
+      strokeColor: "#8a7a63", strokeOpacity: leg.done ? 0.4 : 0.75, strokeWeight: 2.5 / leg.k,
+      icons: leg.at === null ? [] : [
         // a pale edge, so the arrow reads against the line and the land
-        { offset: "50%", icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 3 / leg.k, strokeColor: "#faf8f5", strokeWeight: 2 / leg.k, strokeOpacity: leg.done ? 0.4 : 1, fillOpacity: 0 } },
-        { offset: "50%", icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6 / leg.k, strokeColor: "#6f604c", strokeWeight: 1 / leg.k, strokeOpacity: leg.done ? 0.35 : 1, fillColor: "#6f604c", fillOpacity: leg.done ? 0.35 : 1 } },
+        { offset: `${(leg.at ?? 0) * 100}%`, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 3 / leg.k, strokeColor: "#faf8f5", strokeWeight: 2 / leg.k, strokeOpacity: leg.done ? 0.4 : 1, fillOpacity: 0 } },
+        { offset: `${(leg.at ?? 0) * 100}%`, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6 / leg.k, strokeColor: "#6f604c", strokeWeight: 1 / leg.k, strokeOpacity: leg.done ? 0.35 : 1, fillColor: "#6f604c", fillOpacity: leg.done ? 0.35 : 1 } },
       ],
     }));
     return () => lines.forEach((l) => l.setMap(null));
@@ -187,6 +197,21 @@ function Route({ legs }: { legs: Leg[] }) {
  * 7, made a "4 · 7" that hid where the trip ends). Each name goes on a side inside the map that covers no marker, no
  * name and — if it can — no part of the route. A tap opens the city's first day; a shared marker asks which.
  */
+// Wander's own type (index.css) — inside the map Google's Roboto took over, unlike every other screen, and the names were
+// measured in one font and drawn in another
+const APP_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+// (a hidden span in that type — a canvas can't use the system font by name and measured a wider one)
+let measuring: HTMLSpanElement | undefined;
+const measurer = () => {
+  if (!measuring) {
+    measuring = document.createElement("span");
+    measuring.setAttribute("aria-hidden", "true");
+    measuring.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;white-space:pre;font-size:11px;font-family:${APP_FONT}`;
+    document.body.appendChild(measuring);
+  }
+  return measuring;
+};
+
 function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, onWholeTrip }: {
   stops: Stop[]; order: string[]; allCities: City[]; today: string; onOpenDay: (date: string) => void; onHeight: (h: number) => void;
   again: number; onWholeTrip: () => void;
@@ -207,14 +232,28 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
   }, [map]);
 
   // 1. The markers, and the route between them in the trip's order
-  const { groups, route } = useMemo(() => {
-    if (!view) return { groups: [] as Group[], route: [] as { pts: { x: number; y: number }[]; arrive: Stop }[] };
+  const { groups, route, routeCost } = useMemo(() => {
+    if (!view) return { groups: [] as Group[], route: [] as { pts: { x: number; y: number }[]; arrive: Stop; tries: { x: number; y: number }[][]; at: number | null }[], routeCost: () => 0 };
     const z = view.zoom;
     const groups: Group[] = [];
     for (const s of [...stops].sort((a, b) => a.visits[0] - b.visits[0])) {
       const p = pixel(s.city.latitude!, s.city.longitude!, z);
       const follows = (g: Group) => g.stops.some((o) => o.visits.some((v) => s.visits.some((w) => Math.abs(v - w) === 1)));
-      const near = groups.find((g) => follows(g) && Math.hypot(p.x - g.x, p.y - g.y) < TOUCH);
+      // …or, a fingertip apart, when the trip doubles back through them: in from one side and straight on to the next
+      // stop on that same side (on an iPad Karatsu and Hakata as two markers made a narrow V with an arrow squeezed
+      // between them; Tokyo → Nikko turns a corner instead, and stays two markers — fresh review, Oct 1)
+      const at = (o: Stop) => pixel(o.city.latitude!, o.city.longitude!, z);
+      const doublesBack = (g: Group) => g.stops.some((o) => o.visits.some((v) => {
+        const before = stops.find((x) => x.visits.includes(v - 1));
+        if (!before || !s.visits.includes(v + 1)) return false;
+        const a = at(o), b = at(before);
+        const d = Math.abs(Math.atan2(b.y - a.y, b.x - a.x) - Math.atan2(p.y - a.y, p.x - a.x)) % (2 * Math.PI);
+        return Math.min(d, 2 * Math.PI - d) < Math.PI / 3;
+      }));
+      const near = groups.find((g) => {
+        const d = Math.hypot(p.x - g.x, p.y - g.y);
+        return follows(g) && (d < MERGE || (d < TOUCH && doublesBack(g)));
+      });
       if (near) {
         near.stops.push(s);
         const pts = near.stops.map((o) => pixel(o.city.latitude!, o.city.longitude!, z));
@@ -261,150 +300,392 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     const edge = (g: Group, x: number, towardY: number) => ({ x, y: shared(g) ? g.y + (towardY < g.y ? -1 : 1) * (MARKER / 2) : g.y });
     // Each leg a gentle arc, bowing to the left of the way it goes — so a leg travelled back again bows the other way —
     // or, if that passes over a marker it doesn't stop at, the other way or deeper
-    const drawn: { x: number; y: number }[][] = [];
-    const usedEdges = new Map<Group, Set<"top" | "bottom">>();
-    const route = hops.slice(1).map(({ g: bg, arrive, arriveV }, i) => {
+    type Pt = { x: number; y: number };
+    const legArcs = hops.slice(1).map(({ g: bg, arrive, arriveV }, i) => {
       const ag = hops[i].g;
       const a0 = { x: halfX(ag, hops[i].departV), y: ag.y }, b0 = { x: halfX(bg, arriveV), y: bg.y };
       const dx = b0.x - a0.x, dy = b0.y - a0.y, len = Math.hypot(dx, dy) || 1;
       const nx = dy / len, ny = -dx / len, mx = (a0.x + b0.x) / 2, my = (a0.y + b0.y) / 2;
-      const arc = (k: number) => {
+      const arc = (k: number, stub: number, slant = false) => {
         // (in proportion to the leg — a fixed cap left long iPad legs almost straight, and two legs out of one marker
         // ran together)
         const bow = Math.sign(k) * Math.min(180, Math.max(10, Math.abs(k) * len));
         const cx = mx + nx * bow, cy = my + ny * bow;
         // the ends on the edge the arc comes in from (its curve heads toward the control point)
         const a = edge(ag, a0.x, cy), b = edge(bg, b0.x, cy);
-        return Array.from({ length: 25 }, (_, t) => { const u = t / 24; return { x: (1 - u) ** 2 * a.x + 2 * (1 - u) * u * cx + u ** 2 * b.x, y: (1 - u) ** 2 * a.y + 2 * (1 - u) * u * cy + u ** 2 * b.y }; });
+        // …and with `stub`, at a shared marker it leaves that edge heading straight out (or, `slant`, out and toward
+        // where it's going), then bends into the arc — so it can climb off the marker rather than run along its border,
+        // or leave room beside it for its name; used only when it does (as the rule, straight out made elbows on a
+        // phone; fresh review, Oct 1)
+        // (the arc as a cubic: the plain curve's own handles, except a shared end's when it heads out)
+        const handle = (g: Group, p: Pt) => {
+          if (!shared(g) || !stub) return { x: p.x + (2 / 3) * (cx - p.x), y: p.y + (2 / 3) * (cy - p.y) };
+          const out = Math.sign(p.y - g.y), side = slant ? Math.sign(cx - p.x) * 0.7 : 0;
+          return { x: p.x + side * stub, y: p.y + out * (slant ? 0.7 : 1) * stub };
+        };
+        const h1 = handle(ag, a), h2 = handle(bg, b);
+        return Array.from({ length: 33 }, (_, t) => {
+          const u = t / 32, v = 1 - u;
+          return { x: v ** 3 * a.x + 3 * v * v * u * h1.x + 3 * v * u * u * h2.x + u ** 3 * b.x, y: v ** 3 * a.y + 3 * v * v * u * h1.y + 3 * v * u * u * h2.y + u ** 3 * b.y };
+        });
       };
-      const clearance = (pts: { x: number; y: number }[]) => Math.min(Infinity, ...groups.filter((o) => o !== ag && o !== bg).map((o) => Math.min(...pts.map((p) => Math.hypot(p.x - o.x, p.y - o.y))) - (o.stops.length * SEGMENT) / 2));
-      // how much of this arc runs alongside a leg already drawn (on an iPad the leg into Karatsu and the leg out of
-      // Hakata, both toward Okayama's side, ran together as one doubled line — map review round 7)
-      // (measured to the drawn line itself, not its sample points — on a long iPad leg those are 40 px apart)
-      const toSeg = (p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) => {
-        const vx = b.x - a.x, vy = b.y - a.y, l2 = vx * vx + vy * vy || 1;
-        const t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / l2));
-        return Math.hypot(p.x - (a.x + t * vx), p.y - (a.y + t * vy));
-      };
-      const alongside = (pts: { x: number; y: number }[]) => {
-        let n = 0;
-        for (let i = 1; i < pts.length; i++) for (let k = 1; k <= 4; k++) {
-          const p = { x: pts[i - 1].x + ((pts[i].x - pts[i - 1].x) * k) / 4, y: pts[i - 1].y + ((pts[i].y - pts[i - 1].y) * k) / 4 };
-          // (right by the markers it joins, legs are close by nature — that doesn't count)
-          if (Math.hypot(p.x - ag.x, p.y - ag.y) < 30 || Math.hypot(p.x - bg.x, p.y - bg.y) < 30) continue;
-          if (drawn.some((leg) => leg.some((q, j) => j > 0 && toSeg(p, leg[j - 1], q) < 8))) n++;
-        }
-        return n;
-      };
-      // A shared marker's legs use different edges (one in at the top, one out at the bottom) wherever an arc allows —
-      // on an iPad both legs met "2 | 3" at the top and you couldn't tell which city each belonged to (round 8)
-      const edgeAt = (g: Group, p: { y: number }) => (p.y < g.y ? "top" : "bottom");
-      const sameEdge = (p: { x: number; y: number }[]) =>
-        (shared(ag) && usedEdges.get(ag)?.has(edgeAt(ag, p[0])) ? 1 : 0) + (shared(bg) && usedEdges.get(bg)?.has(edgeAt(bg, p[p.length - 1])) ? 1 : 0);
-      const tries = [0.14, -0.14, 0.28, -0.28, 0.42, -0.42].map(arc);
-      const score = (p: { x: number; y: number }[], i: number) => (clearance(p) >= 8 ? 0 : 1000) + alongside(p) * 20 + sameEdge(p) * 300 + i;
-      const pts = tries.reduce((best, p, i) => (score(p, i) < score(best, tries.indexOf(best)) ? p : best));
-      drawn.push(pts);
-      for (const [g, p] of [[ag, pts[0]], [bg, pts[pts.length - 1]]] as const) {
-        if (!usedEdges.has(g)) usedEdges.set(g, new Set());
-        usedEdges.get(g)!.add(edgeAt(g, p));
-      }
-      return { pts, arrive };
+      // the gentlest first; then each again leaving a shared marker on a slant (straight out made hooks and elbows)
+      // (to 0.56: at 0.42 the leg out of Hakata on an iPhone 15 couldn't dip far enough to clear "Karatsu · Hakata")
+      const bows = BOWS;
+      return { ag, bg, arrive, tries: [...bows.map((k) => arc(k, 0)), ...bows.map((k) => arc(k, STUB * 1.4, true))] };
     });
-    return { groups, route };
+    const clearance = (pts: Pt[], ag: Group, bg: Group) => Math.min(Infinity, ...groups.filter((o) => o !== ag && o !== bg).map((o) => Math.min(...pts.map((p) => Math.hypot(p.x - o.x, p.y - o.y))) - (o.stops.length * SEGMENT) / 2));
+    // how much of an arc runs alongside the legs before it (on an iPad the leg into Karatsu and the leg out of Hakata,
+    // both toward Okayama's side, ran together as one doubled line — map review round 7)
+    // (measured to the drawn line itself, not its sample points — on a long iPad leg those are 40 px apart)
+    const toSeg = (p: Pt, a: Pt, b: Pt) => {
+      const vx = b.x - a.x, vy = b.y - a.y, l2 = vx * vx + vy * vy || 1;
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / l2));
+      return Math.hypot(p.x - (a.x + t * vx), p.y - (a.y + t * vy));
+    };
+    const alongside = (pts: Pt[], ag: Group, bg: Group, before: Pt[][]) => {
+      let n = 0;
+      for (let i = 1; i < pts.length; i++) for (let k = 1; k <= 4; k++) {
+        const p = { x: pts[i - 1].x + ((pts[i].x - pts[i - 1].x) * k) / 4, y: pts[i - 1].y + ((pts[i].y - pts[i - 1].y) * k) / 4 };
+        // (right by the markers it joins, legs are close by nature — that doesn't count)
+        if (Math.hypot(p.x - ag.x, p.y - ag.y) < 30 || Math.hypot(p.x - bg.x, p.y - bg.y) < 30) continue;
+        if (before.some((leg) => leg.some((q, j) => j > 0 && toSeg(p, leg[j - 1], q) < 8))) n++;
+      }
+      return n;
+    };
+    // A shared marker's legs use different edges (one in at the top, one out at the bottom) wherever an arc allows —
+    // on an iPad both legs met "2 | 3" at the top and you couldn't tell which city each belonged to (round 8)
+    const edgeAt = (g: Group, p: { y: number }) => (p.y < g.y ? "top" : "bottom");
+    // …and leaves it, rather than running along its border (the leg out of Nikko ran just above the whole of "5 | 6" and
+    // looked misattached — fresh review, Oct 1)
+    const hugs = (pts: Pt[], g: Group) => {
+      if (!shared(g)) return false;
+      const end = Math.hypot(pts[0].x - g.x, pts[0].y - g.y) < Math.hypot(pts[pts.length - 1].x - g.x, pts[pts.length - 1].y - g.y) ? pts[0] : pts[pts.length - 1];
+      return pts.some((p, i) => [p, i ? { x: (p.x + pts[i - 1].x) / 2, y: (p.y + pts[i - 1].y) / 2 } : p].some((q) =>
+        Math.hypot(q.x - end.x, q.y - end.y) > 10 && Math.abs(q.x - g.x) < widthOf(g) / 2 + 5 && Math.abs(q.y - g.y) < MARKER / 2 + 5));
+    };
+    // How far a whole set of arcs (one per leg) is from these rules — 0 when it keeps them all; used here to choose
+    // each leg in turn, and by the names (2.) to judge trying another arc
+    // …and where two legs cross, away from the markers where legs meet anyway (with Karatsu and Hakata apart on an iPad,
+    // the leg to Nagoya swung north and crossed the leg back to Kyoto; fresh review, Oct 1)
+    const crossings = (p: Pt[], q: Pt[]) => {
+      const turn = (a: Pt, b: Pt, c: Pt) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+      const atMarker = (a: Pt) => groups.some((g) => Math.hypot(a.x - g.x, a.y - g.y) < 20);
+      let n = 0;
+      for (let i = 1; i < p.length; i++) for (let j = 1; j < q.length; j++) {
+        const a = p[i - 1], b = p[i], c = q[j - 1], d = q[j];
+        if (turn(a, b, c) !== turn(a, b, d) && turn(c, d, a) !== turn(c, d, b) && !atMarker(a)) n++;
+      }
+      return n;
+    };
+    // …and where a leg arrives at a marker and the next leaves it, at clearly different angles (on an iPad the leg into
+    // Karatsu and the leg out to Hakata met it at one point, a narrow V that read as one line hooking back; fresh review)
+    const heading = (pts: Pt[], g: Group, fromEnd: boolean) => {
+      const seq = fromEnd ? [...pts].reverse() : pts;
+      // (measured well out from the marker, where the eye reads the V — 22 pt out, a 22° V passed as 35° — but on a
+      // short leg no further than 40% along it, or it only measures the straight line to the next marker)
+      const out = Math.min(34, 0.4 * Math.hypot(seq[seq.length - 1].x - g.x, seq[seq.length - 1].y - g.y));
+      const p = seq.find((q) => Math.hypot(q.x - g.x, q.y - g.y) >= out) ?? seq[seq.length - 1];
+      return Math.atan2(p.y - g.y, p.x - g.x);
+    };
+    const narrow = (into: Pt[], out: Pt[], g: Group) => {
+      if (shared(g)) return false;
+      const d = Math.abs(heading(into, g, true) - heading(out, g, false)) % (2 * Math.PI);
+      return Math.min(d, 2 * Math.PI - d) < (40 * Math.PI) / 180;
+    };
+    // …and inside the map, clear of Google's logo and credit — above or below allowed while the map can still grow to
+    // take it in, as for names (a deep arc out of Hakata ran into Google's credit; fresh review, Oct 1)
+    const room = Math.max(0, Math.round(window.innerHeight * 0.4) - view.h) / 2;
+    const outside = (pts: Pt[]) => pts.some((p) => p.x < view.x0 + 4 || p.x > view.x0 + view.w - 4
+      || p.y < view.y0 + 4 - room || p.y > view.y0 + view.h - GOOGLE_STRIP - 4 + room);
+    // …and meets a split marker's top or bottom squarely: steep for its last stretch, without curling in at the end (the
+    // leg from Okayama grazed the top of "2" on the phones and hooked into it on a Pro Max; fresh review, Oct 1)
+    const askew = (pts: Pt[], g: Group, atEnd: boolean) => {
+      if (!shared(g)) return false;
+      const seq = atEnd ? [...pts].reverse() : pts, end = seq[0];
+      const dir = (r: number) => {
+        const p = seq.find((q) => Math.hypot(q.x - end.x, q.y - end.y) >= r) ?? seq[seq.length - 1];
+        return Math.atan2(Math.abs(p.y - end.y), Math.abs(p.x - end.x) || 1e-6);
+      };
+      const near = dir(5), far = dir(16);
+      return near < Math.PI / 6 || far < Math.PI / 6 || Math.abs(near - far) > (35 * Math.PI) / 180;
+    };
+    const routeCost = (all: Pt[][]) => {
+      let cost = 0;
+      const edges = new Map<Group, string[]>();
+      all.forEach((pts, i) => {
+        const { ag, bg } = legArcs[i];
+        if (outside(pts)) cost += 300;
+        if (askew(pts, ag, false)) cost += 300;
+        if (askew(pts, bg, true)) cost += 300;
+        for (const before of all.slice(0, i)) cost += crossings(pts, before) * 300;
+        if (i > 0 && legArcs[i - 1].bg === ag && narrow(all[i - 1], pts, ag)) cost += 300;
+        cost += (clearance(pts, ag, bg) >= 8 ? 0 : 1000) + alongside(pts, ag, bg, all.slice(0, i)) * 20 + ((hugs(pts, ag) ? 300 : 0) + (hugs(pts, bg) ? 300 : 0));
+        for (const [g, p] of [[ag, pts[0]], [bg, pts[pts.length - 1]]] as const) {
+          if (!shared(g)) continue;
+          const seen = edges.get(g) ?? [];
+          if (seen.includes(edgeAt(g, p))) cost += 300;
+          edges.set(g, [...seen, edgeAt(g, p)]);
+        }
+      });
+      return cost;
+    };
+    const chosen: Pt[][] = [];
+    for (const leg of legArcs) {
+      const costs = leg.tries.map((p, i) => routeCost([...chosen, p]) + i);
+      chosen.push(leg.tries[costs.indexOf(Math.min(...costs))]);
+    }
+    // Chosen in order, an early leg can corner a later one (on an iPad the leg back to Kyoto had nowhere but across the
+    // leg to Nagoya): when a rule is still broken, each leg is tried again with all the others in place
+    const gentle = (all: Pt[][]) => all.reduce((t, p, i) => t + legArcs[i].tries.indexOf(p), 0);
+    let worst = routeCost(chosen) + gentle(chosen);
+    for (let pass = 0; pass < 3 && routeCost(chosen) > 0; pass++) {
+      let better = false;
+      legArcs.forEach((leg, i) => leg.tries.forEach((p) => {
+        const all = chosen.map((q, j) => (j === i ? p : q));
+        const c = routeCost(all) + gentle(all);
+        if (c < worst) { chosen[i] = p; worst = c; better = true; }
+      }));
+      if (!better) break;
+    }
+    // …and, if still, two legs at once (to clear that crossing the leg into Karatsu had to bow north while the one out
+    // of Hakata bowed south — either alone made things worse)
+    if (routeCost(chosen) > 0) {
+      for (let i = 0; i < legArcs.length; i++) for (let j = i + 1; j <= i + 2 && j < legArcs.length; j++)
+        for (const p of legArcs[i].tries.slice(0, BOWS.length)) for (const q of legArcs[j].tries.slice(0, BOWS.length)) {
+          const all = chosen.map((r, k) => (k === i ? p : k === j ? q : r));
+          const c = routeCost(all) + gentle(all);
+          if (c < worst) { chosen[i] = p; chosen[j] = q; worst = c; }
+        }
+    }
+    // A leg with too little line showing between its markers to hold an arrow has none — the numbers say which way
+    // (the narrow V at Karatsu on an iPad, where an arrow sat wedged, is kept away by the angle rule above)
+    const shown = (pts: Pt[], ag: Group, bg: Group) =>
+      pts.slice(1).reduce((t, p, i) => t + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0) - (shared(ag) ? 0 : MARKER / 2) - (shared(bg) ? 0 : MARKER / 2);
+    const route = legArcs.map((leg, i) => ({ pts: chosen[i], arrive: leg.arrive, tries: leg.tries, at: shown(chosen[i], leg.ag, leg.bg) < 16 ? null : 0.5 as number | null }));
+    return { groups, route, routeCost };
   }, [stops, order, view]);
 
   // "start" and "end" beside the first and last stop's names (a ring marked the start; the end had to be worked out)
   const lastVisit = Math.max(0, ...stops.flatMap((s) => s.visits));
   const tagOf = useCallback((s: Stop) => (s.visits.includes(1) ? "start" : s.visits.includes(lastVisit) ? "end" : ""), [lastVisit]);
+  // A name's width, measured in its own type (estimated from its letters, "Karatsu · Hakata" came out 20 pt longer than
+  // drawn, and the name was judged to sit on an arrow past its end — fresh review, Oct 1)
   const nameWidth = useCallback((g: Group) => {
-    const text = g.stops.map((s) => `${s.city.name}${tagOf(s) ? ` ${tagOf(s)}` : ""}`).join(" · ");
-    return text.length * 6.4 + 14;
-  }, [tagOf]);
+    const span = measurer();
+    const width = (text: string, weight: number) => {
+      span.style.fontWeight = String(weight);
+      span.textContent = text;
+      return span.getBoundingClientRect().width;
+    };
+    // (as drawn below: names medium, today's semibold in a chip, " · " and "start"/"end" regular; 6 px each side)
+    const each = g.stops.map((s) => {
+      const here = !!s.firstDay && !!s.lastDay && s.firstDay <= today && today <= s.lastDay;
+      return width(s.city.name, here ? 600 : 500) + (here ? 4 : 0) + (tagOf(s) ? width(` ${tagOf(s)}`, 400) : 0);
+    });
+    // `one`: on one line, "Tokyo · Nikko"; `stacked`: a shared marker's names one above the other
+    return { one: each.reduce((t, w) => t + w, 0) + (each.length - 1) * width(" · ", 400) + 12 + 2, stacked: Math.max(...each) + 12 + 2 };
+  }, [tagOf, today]);
 
   // 2. Each name on a free side
-  const placed = useMemo(() => {
-    if (!view) return [];
+  const { placed, drawnRoute } = useMemo(() => {
+    if (!view) return { placed: [], drawnRoute: route };
     type Box = { x1: number; y1: number; x2: number; y2: number };
     const hit = (a: Box, b: Box) => a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
     // (inside the map, and clear of Google's logo and credit along its foot, which must show)
-    const inside = (b: Box) => b.x1 >= view.x0 + 4 && b.x2 <= view.x0 + view.w - 4 && b.y1 >= view.y0 + 4 && b.y2 <= view.y0 + view.h - GOOGLE_STRIP;
-    const half = (g: Group) => (g.stops.reduce((t, s) => t + s.visits.length, 0) * SEGMENT + 3) / 2;
-    const taken: Box[] = groups.map((g) => ({ x1: g.x - half(g) - 2, y1: g.y - MARKER / 2 - 2, x2: g.x + half(g) + 2, y2: g.y + MARKER / 2 + 2 }));
-    // the route as points every few px, to keep names off it
-    const line: { x: number; y: number }[] = [];
-    for (const { pts } of route) for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 3));
-      for (let k = 0; k <= n; k++) line.push({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n });
-    }
-    // (with 4 px of room around a name — a line 1 pt from a name read as resting on it; round 9)
-    const lineIn = (b: Box) => line.filter((p) => p.x > b.x1 - 4 && p.x < b.x2 + 4 && p.y > b.y1 - 4 && p.y < b.y2 + 4).length;
-    // each leg's arrow sits halfway along it
-    const arrows: Box[] = route.map(({ pts }) => { const m = pts[Math.floor(pts.length / 2)]; return { x1: m.x - 9, y1: m.y - 9, x2: m.x + 9, y2: m.y + 9 }; });
-    // Twelve places a name can go; each scored — outside the map or on a marker or name: never if avoidable; on an
-    // arrow: hardly ever; on the line: as little as can be (names sat on the line and hid arrows — map review round 4)
-    const spotsFor = (g: Group) => {
-      const w = nameWidth(g), h = 18, gx = half(g) + 3, gy = MARKER / 2 + 3;
-      type Spot = { box: Box; h: "left" | "right" | "center"; hd: number; v: "top" | "bottom" | "middle"; vd: number };
-      const spots: Spot[] = [
-        { box: { x1: g.x + gx, y1: g.y - h / 2, x2: g.x + gx + w, y2: g.y + h / 2 }, h: "left", hd: gx, v: "middle", vd: 0 },
-        { box: { x1: g.x - gx - w, y1: g.y - h / 2, x2: g.x - gx, y2: g.y + h / 2 }, h: "right", hd: gx, v: "middle", vd: 0 },
-        { box: { x1: g.x - w / 2, y1: g.y + gy, x2: g.x + w / 2, y2: g.y + gy + h }, h: "center", hd: 0, v: "top", vd: gy },
-        { box: { x1: g.x - w / 2, y1: g.y - gy - h, x2: g.x + w / 2, y2: g.y - gy }, h: "center", hd: 0, v: "bottom", vd: gy },
-        // beside the marker, raised or lowered a little — still touching its side (round 7: corner spots floated)
-        { box: { x1: g.x + gx, y1: g.y + 4 - h, x2: g.x + gx + w, y2: g.y + 4 }, h: "left", hd: gx, v: "bottom", vd: -4 },
-        { box: { x1: g.x + gx, y1: g.y - 4, x2: g.x + gx + w, y2: g.y - 4 + h }, h: "left", hd: gx, v: "top", vd: -4 },
-        { box: { x1: g.x - gx - w, y1: g.y + 4 - h, x2: g.x - gx, y2: g.y + 4 }, h: "right", hd: gx, v: "bottom", vd: -4 },
-        { box: { x1: g.x - gx - w, y1: g.y - 4, x2: g.x - gx, y2: g.y - 4 + h }, h: "right", hd: gx, v: "top", vd: -4 },
-        // above or below, shifted to one side but still over the marker's own width (a corner spot left "Kyoto end"
-        // hanging between 7 and 1 — round 9): a last resort
-        { box: { x1: g.x - 6, y1: g.y + gy, x2: g.x - 6 + w, y2: g.y + gy + h }, h: "left", hd: -6, v: "top", vd: gy },
-        { box: { x1: g.x + 6 - w, y1: g.y + gy, x2: g.x + 6, y2: g.y + gy + h }, h: "right", hd: -6, v: "top", vd: gy },
-        { box: { x1: g.x - 6, y1: g.y - gy - h, x2: g.x - 6 + w, y2: g.y - gy }, h: "left", hd: -6, v: "bottom", vd: gy },
-        { box: { x1: g.x + 6 - w, y1: g.y - gy - h, x2: g.x + 6, y2: g.y - gy }, h: "right", hd: -6, v: "bottom", vd: gy },
-      ];
-      // …and tight to its own marker: never nearer another marker than its own ("Kyoto end" sat between 7 and 1 and
-      // could be read as either — round 5); a side spot over a corner one when they're otherwise equal
-      // (measured from the name's nearest edge — from its middle, a long name touching its own marker could count as
-      // "nearer" another, and "Kyoto end" was pushed onto a line; map review round 8)
-      const toBox = (b: Box, x: number, y: number) => Math.hypot(Math.max(b.x1 - x, 0, x - b.x2), Math.max(b.y1 - y, 0, y - b.y2));
-      const nearer = (s: Spot) => groups.some((o) => o !== g && toBox(s.box, o.x, o.y) < toBox(s.box, g.x, g.y));
-      const score = (s: Spot) => (inside(s.box) ? 0 : 10000) + taken.filter((t) => hit(s.box, t)).length * 1000
-        // (a name on a line hides where the trip goes — weighed almost as heavily as an arrow; round 6: a leg ran under
-        // "Kyoto end" and the trip seemed to pass through Kyoto)
-        + (nearer(s) ? 300 : 0) + arrows.filter((a) => hit(s.box, a)).length * 200 + lineIn(s.box) * 60
-        + (s.hd < 0 ? 120 : s.vd < 0 ? 2 : 0);
-      return { spots, score, gx };
+    // (above or below counts as inside while the map can still grow to take it in — the fit below makes it as tall as its
+    // names; on production's iPhone 15 the map sat at its 200 px least, the place under "Karatsu · Hakata" was in
+    // Google's strip, and the name went onto the leg out of Hakata instead)
+    const grow = Math.max(0, Math.round(window.innerHeight * 0.4) - view.h) / 2;
+    const inside = (b: Box) => b.x1 >= view.x0 + 4 && b.x2 <= view.x0 + view.w - 4 && b.y1 >= view.y0 + 4 - grow && b.y2 <= view.y0 + view.h - GOOGLE_STRIP + grow;
+    // a marker's half-width and half-height, with the ring round the start before the trip ("Okayama start" touched
+    // the ring — fresh review, Oct 1)
+    const started = stops.some((s) => s.firstDay && s.firstDay <= today);
+    const ring = (g: Group) => (!started && g.stops.some((s) => s.visits.includes(1)) ? 3.5 : 0);
+    const half = (g: Group) => (g.stops.reduce((t, s) => t + s.visits.length, 0) * SEGMENT + 3) / 2 + ring(g);
+    const tall = (g: Group) => MARKER / 2 + ring(g);
+    // names kept a little apart from one another, not just off each other ("Okayama start" and "Karatsu · Hakata"
+    // read as one block 3 pt apart)
+    const roomy = (b: Box): Box => ({ x1: b.x1 - 3, y1: b.y1 - 3, x2: b.x2 + 3, y2: b.y2 + 3 });
+    // where a leg's arrow sits: `at` of the way along the line's length, where Google draws it (not along the curve's
+    // formula, which on a lopsided arc is somewhere else; on production an arrow sat against a name the check thought
+    // was clear)
+    const arrowBox = (pts: { x: number; y: number }[], at: number): Box => {
+      const seg = pts.slice(1).map((p, i) => Math.hypot(p.x - pts[i].x, p.y - pts[i].y));
+      let left = seg.reduce((a, b) => a + b, 0) * at, i = 0;
+      while (i < seg.length - 1 && left > seg[i]) { left -= seg[i]; i++; }
+      const f = seg[i] ? left / seg[i] : 0;
+      const m = { x: pts[i].x + (pts[i + 1].x - pts[i].x) * f, y: pts[i].y + (pts[i + 1].y - pts[i].y) * f };
+      // (with 2 pt more room than the arrow itself — an arrow 2 pt from "Karatsu · Hakata" read as touching it)
+      return { x1: m.x - 13, y1: m.y - 13, x2: m.x + 13, y2: m.y + 13 };
     };
-    // The name with the fewest good places goes first (Okayama's name, placed first, took the one place "Kyoto end"
-    // had, which then sat at a corner nearer Nagoya — round 7)
-    const goodCount = (g: Group) => { const { spots, score } = spotsFor(g); return spots.filter((s) => score(s) < 100).length; };
-    const byNeed = [...groups].sort((a, b) => goodCount(a) - goodCount(b));
-    const chosen = new Map<Group, { group: Group; spot: ReturnType<typeof spotsFor>["spots"][number]; gap: number }>();
-    const markerBoxes = taken.slice();
-    for (const g of byNeed) {
-      const { spots, score, gx } = spotsFor(g);
-      const best = spots.reduce((b, s) => (score(s) < score(b) ? s : b));
-      taken.push(best.box);
-      chosen.set(g, { group: g, spot: best, gap: gx });
-    }
-    // Then each name is tried again with the others where they are, until none moves (a name placed early can step
-    // aside for one that has nowhere else to go)
-    for (let pass = 0; pass < 4; pass++) {
-      let moved = false;
+    // (each name measured once — measuring asks the page to lay itself out)
+    const sizes = new Map(groups.map((g) => [g, nameWidth(g)]));
+    // every name placed with the legs drawn as `rt`; `total` is how badly the names sit (0: every one clear)
+    // (`movable`: each arrow can still slide along its leg, so it's only in a name's way if it would be wherever it went)
+    const nameAll = (rt: typeof route, movable = false) => {
+      const arrowSpots = rt.filter(({ at }) => at !== null).map(({ pts, at }) => (movable ? ARROW_AT : [at!]).map((a) => arrowBox(pts, a)));
+      const arrowHits = (b: Box) => arrowSpots.filter((spots) => spots.every((a) => hit(b, a))).length;
+      const taken: Box[] = groups.map((g) => ({ x1: g.x - half(g) - 2, y1: g.y - tall(g) - 2, x2: g.x + half(g) + 2, y2: g.y + tall(g) + 2 }));
+      // the route as points every few px, to keep names off it
+      const line: { x: number; y: number }[] = [];
+      for (const { pts } of rt) for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 3));
+        for (let k = 0; k <= n; k++) line.push({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n });
+      }
+      // (filed by area, so a name looks only at the points near it — scanning them all for every place and every arc
+      // tried made the map take half a second to settle)
+      const CELL = 24;
+      const cells = new Map<string, { x: number; y: number }[]>();
+      for (const p of line) {
+        const key = `${Math.floor(p.x / CELL)},${Math.floor(p.y / CELL)}`;
+        cells.get(key)?.push(p) ?? cells.set(key, [p]);
+      }
+      // (with 4 px of room around a name — a line 1 pt from a name read as resting on it; round 9)
+      // (graded: under a name or touching it counts in full, close by only a little — counted alike, a line hidden
+      // under "Kyoto end" weighed no more than one passing 5 pt away; fresh review, Oct 1)
+      const lineIn = (b: Box) => {
+        let n = 0;
+        for (let cx = Math.floor((b.x1 - 6) / CELL); cx <= Math.floor((b.x2 + 6) / CELL); cx++)
+          for (let cy = Math.floor((b.y1 - 6) / CELL); cy <= Math.floor((b.y2 + 6) / CELL); cy++)
+            for (const p of cells.get(`${cx},${cy}`) ?? []) {
+              if (!(p.x > b.x1 - 6 && p.x < b.x2 + 6 && p.y > b.y1 - 6 && p.y < b.y2 + 6)) continue;
+              // (close by only a twentieth: weighed higher, a line grazing a corner of "Karatsu · Hakata" was kept
+              // rather than a place 4 pt from another line)
+              // (and touching weighs three times: "Nagoya" 1 pt from a leg was kept as the least bad)
+              n += p.x > b.x1 - 3 && p.x < b.x2 + 3 && p.y > b.y1 - 3 && p.y < b.y2 + 3 ? 3 : 0.05;
+            }
+        return n;
+      };
+      // Twelve places a name can go; each scored — outside the map or on a marker or name: never if avoidable; on an
+      // arrow: hardly ever; on the line: as little as can be (names sat on the line and hid arrows — map review round 4)
+      const spotsFor = (g: Group) => {
+        const gx = half(g) + 3, gy = tall(g) + 3;
+        type Spot = { box: Box; h: "left" | "right" | "center"; hd: number; v: "top" | "bottom" | "middle"; vd: number; stacked: boolean };
+        const at = (w: number, h: number, stacked: boolean): Spot[] => [
+          { box: { x1: g.x + gx, y1: g.y - h / 2, x2: g.x + gx + w, y2: g.y + h / 2 }, h: "left", hd: gx, v: "middle", vd: 0 },
+          { box: { x1: g.x - gx - w, y1: g.y - h / 2, x2: g.x - gx, y2: g.y + h / 2 }, h: "right", hd: gx, v: "middle", vd: 0 },
+          { box: { x1: g.x - w / 2, y1: g.y + gy, x2: g.x + w / 2, y2: g.y + gy + h }, h: "center", hd: 0, v: "top", vd: gy },
+          { box: { x1: g.x - w / 2, y1: g.y - gy - h, x2: g.x + w / 2, y2: g.y - gy }, h: "center", hd: 0, v: "bottom", vd: gy },
+          // beside the marker, raised or lowered a little — still touching its side (round 7: corner spots floated)
+          { box: { x1: g.x + gx, y1: g.y + 4 - h, x2: g.x + gx + w, y2: g.y + 4 }, h: "left", hd: gx, v: "bottom", vd: -4 },
+          { box: { x1: g.x + gx, y1: g.y - 4, x2: g.x + gx + w, y2: g.y - 4 + h }, h: "left", hd: gx, v: "top", vd: -4 },
+          { box: { x1: g.x - gx - w, y1: g.y + 4 - h, x2: g.x - gx, y2: g.y + 4 }, h: "right", hd: gx, v: "bottom", vd: -4 },
+          { box: { x1: g.x - gx - w, y1: g.y - 4, x2: g.x - gx, y2: g.y - 4 + h }, h: "right", hd: gx, v: "top", vd: -4 },
+          // above or below, shifted to one side but still over the marker's own width (a corner spot left "Kyoto end"
+          // hanging between 7 and 1 — round 9): a last resort
+          { box: { x1: g.x - 6, y1: g.y + gy, x2: g.x - 6 + w, y2: g.y + gy + h }, h: "left", hd: -6, v: "top", vd: gy },
+          { box: { x1: g.x + 6 - w, y1: g.y + gy, x2: g.x + 6, y2: g.y + gy + h }, h: "right", hd: -6, v: "top", vd: gy },
+          { box: { x1: g.x - 6, y1: g.y - gy - h, x2: g.x - 6 + w, y2: g.y - gy }, h: "left", hd: -6, v: "bottom", vd: gy },
+          { box: { x1: g.x + 6 - w, y1: g.y - gy - h, x2: g.x + 6, y2: g.y - gy }, h: "right", hd: -6, v: "bottom", vd: gy },
+          // …or hanging from the marker's middle, a few points further from a leg coming in at its corner ("Nagoya" sat
+          // 1 pt from the leg arriving at 4 from below left; fresh review, Oct 1)
+          { box: { x1: g.x, y1: g.y + gy, x2: g.x + w, y2: g.y + gy + h }, h: "left", hd: 0, v: "top", vd: gy },
+          { box: { x1: g.x - w, y1: g.y + gy, x2: g.x, y2: g.y + gy + h }, h: "right", hd: 0, v: "top", vd: gy },
+          { box: { x1: g.x, y1: g.y - gy - h, x2: g.x + w, y2: g.y - gy }, h: "left", hd: 0, v: "bottom", vd: gy },
+          { box: { x1: g.x - w, y1: g.y - gy - h, x2: g.x, y2: g.y - gy }, h: "right", hd: 0, v: "bottom", vd: gy },
+        ].map((s) => ({ ...s, stacked } as Spot));
+        // A shared marker's names may also stand one above the other — on a phone "Tokyo · Nikko" on one line was longer
+        // than the room beside its marker, and every place for it lay on a line (fresh review, Oct 1); only where that
+        // keeps them clear, since one line reads more easily
+        const size = sizes.get(g)!;
+        // (stacked only beside the marker, where the names read top to bottom as its halves read left to right — under
+        // one half, "Tokyo" sat beneath the 6 and read as stop 6; fresh review, Oct 1)
+        const spots = [...at(size.one, 18, false), ...(g.stops.length > 1 ? at(size.stacked, 34, true).slice(0, 2) : [])];
+        // …and tight to its own marker: never nearer another marker than its own ("Kyoto end" sat between 7 and 1 and
+        // could be read as either — round 5); a side spot over a corner one when they're otherwise equal
+        // (measured from the name's nearest edge — from its middle, a long name touching its own marker could count as
+        // "nearer" another, and "Kyoto end" was pushed onto a line; map review round 8)
+        // (and to each marker's edge, as the eye sees it — to its middle, a wide "5 | 6" counted as further from its own
+        // name than Nagoya's marker was, and the name was kept from the clear place beside it; fresh review, Oct 1)
+        const apart = (b: Box, o: Group) => Math.hypot(Math.max(b.x1 - (o.x + half(o)), 0, o.x - half(o) - b.x2), Math.max(b.y1 - (o.y + tall(o)), 0, o.y - tall(o) - b.y2));
+        const nearer = (s: Spot) => groups.some((o) => o !== g && apart(s.box, o) < apart(s.box, g));
+        // (and not hanging over another marker close by — "Kyoto end" on an iPhone SE sat 15 pt above 1 and could be
+        // read as its name; fresh review, Oct 1)
+        const hovers = (s: Spot) => groups.some((o) => o !== g && apart(s.box, o) < 18);
+        const score = (s: Spot) => (inside(s.box) ? 0 : 10000) + taken.filter((t) => hit(s.box, t)).length * 1000
+          // (a name on a line hides where the trip goes — weighed almost as heavily as an arrow; round 6: a leg ran under
+          // "Kyoto end" and the trip seemed to pass through Kyoto)
+          + (nearer(s) ? 300 : hovers(s) ? 100 : 0) + arrowHits(s.box) * 200 + lineIn(s.box) * 60
+          + (s.hd < 0 ? 120 : s.hd === 0 && s.h !== "center" ? 60 : s.vd < 0 ? 2 : 0) + (s.stacked ? 150 : 0);
+        return { spots, score, gx };
+      };
+      // The name with the fewest good places goes first (Okayama's name, placed first, took the one place "Kyoto end"
+      // had, which then sat at a corner nearer Nagoya — round 7)
+      const goodCount = (g: Group) => { const { spots, score } = spotsFor(g); return spots.filter((s) => score(s) < 100).length; };
+      const byNeed = [...groups].sort((a, b) => goodCount(a) - goodCount(b));
+      const chosen = new Map<Group, { group: Group; spot: ReturnType<typeof spotsFor>["spots"][number]; gap: number }>();
+      const markerBoxes = taken.slice();
       for (const g of byNeed) {
-        taken.length = 0;
-        taken.push(...markerBoxes, ...byNeed.filter((o) => o !== g).map((o) => chosen.get(o)!.spot.box));
         const { spots, score, gx } = spotsFor(g);
         const best = spots.reduce((b, s) => (score(s) < score(b) ? s : b));
-        if (best.box.x1 !== chosen.get(g)!.spot.box.x1 || best.box.y1 !== chosen.get(g)!.spot.box.y1) {
-          if (score(best) < score(chosen.get(g)!.spot)) { chosen.set(g, { group: g, spot: best, gap: gx }); moved = true; }
+        taken.push(roomy(best.box));
+        chosen.set(g, { group: g, spot: best, gap: gx });
+      }
+      // Then each name is tried again with the others where they are, until none moves (a name placed early can step
+      // aside for one that has nowhere else to go)
+      for (let pass = 0; pass < 4; pass++) {
+        let moved = false;
+        for (const g of byNeed) {
+          taken.length = 0;
+          taken.push(...markerBoxes, ...byNeed.filter((o) => o !== g).map((o) => roomy(chosen.get(o)!.spot.box)));
+          const { spots, score, gx } = spotsFor(g);
+          const best = spots.reduce((b, s) => (score(s) < score(b) ? s : b));
+          if (best.box.x1 !== chosen.get(g)!.spot.box.x1 || best.box.y1 !== chosen.get(g)!.spot.box.y1) {
+            if (score(best) < score(chosen.get(g)!.spot)) { chosen.set(g, { group: g, spot: best, gap: gx }); moved = true; }
+          }
+        }
+        if (!moved) break;
+      }
+      let total = 0;
+      const crowded: Box[] = [];
+      for (const g of byNeed) {
+        taken.length = 0;
+        taken.push(...markerBoxes, ...byNeed.filter((o) => o !== g).map((o) => roomy(chosen.get(o)!.spot.box)));
+        const s = spotsFor(g).score(chosen.get(g)!.spot);
+        total += s;
+        // (any touch: a line on an arrow, under a name or touching it — a line grazing the corner of "Karatsu · Hakata"
+        // stayed under an earlier, higher bar and was never looked at again; fresh review, Oct 1)
+        if (s >= 60) crowded.push(chosen.get(g)!.spot.box);
+      }
+      return { labels: groups.map((g) => chosen.get(g)!), total, crowded };
+    };
+    // The legs and the names together: when a name has no clear place, a leg passing it may take another of its arcs,
+    // judged on the whole picture — the route's own rules and every name (on the phones the leg out of Hakata climbed
+    // through the place beside "Karatsu · Hakata" and left from under it, so either place lay on the line — fresh
+    // review, Oct 1)
+    // (the route's rules are a limit, not a trade: an arc that crosses a marker, shares a marker's edge or runs along
+    // another leg is never taken to help a name — weighed against the names, the legs ran over 1, 7 and 4)
+    const ruleCost = routeCost(route.map((l) => l.pts));
+    // (names first, the arrows free to move; then each arrow at the first place along its leg that's clear of every
+    // name — the middle when it can — and the whole judged as drawn)
+    const judge = (rt: typeof route) => {
+      const names = nameAll(rt, true).labels.map((l) => l.spot.box);
+      const fixed = rt.map((leg) => ({ ...leg, at: leg.at === null ? null : ARROW_AT.find((at) => !names.some((b) => hit(b, arrowBox(leg.pts, at)))) ?? 0.5 }));
+      const r = nameAll(fixed);
+      // (and a little for each step away from the gentlest arc, more for leaving on a slant — weighed only against the
+      // names, the legs took hooks and wide swings for the smallest gain; fresh review, Oct 1)
+      const shape = rt.reduce((t, leg, i) => { const k = route[i].tries.indexOf(leg.pts); return t + (k % BOWS.length) * 6 + (k >= BOWS.length ? 40 : 0); }, 0);
+      return { rt: fixed, ...r, cost: r.total + shape };
+    };
+    let best = judge(route);
+    for (let pass = 0; pass < 3 && best.crowded.length; pass++) {
+      let better = false;
+      // (every leg, not only those passing the crowded names: a leg well clear of a name can still be what fills the
+      // one place it has)
+      for (let i = 0; i < route.length; i++) {
+        for (const pts of route[i].tries) {
+          if (pts === best.rt[i].pts) continue;
+          const rt = best.rt.map((leg, j) => (j === i ? { ...leg, pts } : leg));
+          if (routeCost(rt.map((l) => l.pts)) > ruleCost) continue;
+          const r = judge(rt);
+          if (r.cost < best.cost - 30) { best = r; better = true; }
         }
       }
-      if (!moved) break;
+      if (!better) break;
     }
-    return groups.map((g) => chosen.get(g)!);
-  }, [groups, route, view, nameWidth]);
+    return { placed: best.labels, drawnRoute: best.rt };
+  }, [groups, route, routeCost, view, nameWidth, stops, today]);
 
   // 3. The map fitted to what's drawn: as tall as the markers and names need (plus a margin), centered on them. A few
   // steps at most — each resize redraws, and the names may move.
@@ -422,7 +703,9 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       return;
     }
     if (fits.current >= 4) { settled.current = { zoom: view.zoom, cx: cxNow, cy: cyNow }; return; }
-    const boxes = [...placed.map((p) => p.spot.box), ...placed.map(({ group: g }) => ({ x1: g.x - 14, y1: g.y - 14, x2: g.x + 14, y2: g.y + 14 }))];
+    // (the lines too: a leg arcing below the names ran into Google's credit)
+    const boxes = [...placed.map((p) => p.spot.box), ...placed.map(({ group: g }) => ({ x1: g.x - 14, y1: g.y - 14, x2: g.x + 14, y2: g.y + 14 })),
+      ...drawnRoute.flatMap(({ pts }) => pts.map((p) => ({ x1: p.x - 3, y1: p.y - 3, x2: p.x + 3, y2: p.y + 3 })))];
     const top = Math.min(...boxes.map((b) => b.y1)), bottom = Math.max(...boxes.map((b) => b.y2));
     const left = Math.min(...boxes.map((b) => b.x1)), right = Math.max(...boxes.map((b) => b.x2));
     const want = Math.round(Math.min(window.innerHeight * 0.4, Math.max(200, bottom - top + 16 + GOOGLE_STRIP)));
@@ -434,7 +717,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     fits.current++;
     onHeight(want);
     map.setCenter(place(cx, cy, view.zoom));
-  }, [map, view, placed, onHeight]);
+  }, [map, view, placed, drawnRoute, onHeight]);
 
   // During the trip: today's city dark, the ones already visited quieter; before it, the start ringed
   const tripStarted = stops.some((s) => s.firstDay && s.firstDay <= today);
@@ -442,19 +725,22 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     s.firstDay && s.lastDay && s.firstDay <= today && today <= s.lastDay ? "here" as const
       : tripStarted && s.lastDay && s.lastDay < today ? "past" as const : "ahead" as const;
   // a leg is travelled once its stop has been reached
-  const legs = useMemo(() => route.map(({ pts, arrive }) => ({
+  const legs = useMemo(() => drawnRoute.map(({ pts, arrive, at }) => ({
+    // (Google sets an arrow's tip at its place and draws its body behind it, so it's moved on by half its length, about
+    // 4.5 pt, to sit centred where it was judged — on Tokyo → Nikko its base sat against Tokyo's marker; fresh review)
+    at: at === null ? null : Math.min(1, at + 4.5 / Math.max(1, pts.slice(1).reduce((t, p, i) => t + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0))),
     path: pts.map((p) => place(p.x, p.y, view!.zoom)),
     done: !!arrive.firstDay && arrive.firstDay <= today,
     // (Google draws at the nearest whole zoom and stretches the picture: measured Oct 1 — iPhone SE 1.41×, iPhone 15
     // 0.73×, iPad 0.86×)
     k: 2 ** (view!.zoom - Math.round(view!.zoom)),
-  })), [route, view, today]);
+  })), [drawnRoute, view, today]);
 
   return (
     <>
       <Route legs={legs} />
       {moved && map && createPortal(
-        <button type="button" onClick={onWholeTrip}
+        <button type="button" onClick={onWholeTrip} style={{ fontFamily: APP_FONT }}
           className="absolute top-2 right-2 z-10 min-h-[44px] px-3 rounded-full bg-white/95 border border-[#e0d8cc] shadow text-sm text-[#514636]">
           Whole trip
         </button>,
@@ -462,6 +748,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       )}
       {placed.map(({ group, spot, gap }) => {
         const anyHere = group.stops.some((s) => stateOf(s) === "here");
+        const soloHere = group.stops.length === 1 && anyHere;
         const isStart = group.stops.some((s) => s.visits.includes(1)) && !tripStarted;
         // A city opens on today when the trip is there today, otherwise on its first day (tapping Tokyo on Oct 16 opened
         // Oct 13 — a glance showed the wrong day's plan; tester t2)
@@ -472,7 +759,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
           <Overlay key={group.stops.map((s) => s.city.id).join("+")} lat={group.lat} lng={group.lng} z={anyHere ? 3 : 2}>
             <button type="button" onClick={open} aria-label={label} title={group.stops.map((s) => s.city.name).join(" · ")}
               className="relative flex items-center justify-center select-none [-webkit-touch-callout:none]"
-              style={{ width: Math.max(TOUCH, gap * 2), height: TOUCH, transform: "translate(-50%, -50%)" }}>
+              style={{ width: Math.max(TOUCH, gap * 2), height: TOUCH, transform: "translate(-50%, -50%)", fontFamily: APP_FONT }}>
               {/* the marker: one segment per stop, in its city's color and state */}
               <span className="flex rounded-full overflow-hidden"
                 style={{ border: `1.5px solid ${anyHere || isStart ? INK : "#8a7a63"}`, boxShadow: isStart ? `0 0 0 2px white, 0 0 0 3.5px ${INK}` : "0 1px 3px rgba(58,49,40,0.3)" }}>
@@ -492,7 +779,11 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
               </span>
               <span aria-hidden
                 // (part of the button: tapping a city's name opens it too — tester t1)
-                className="absolute whitespace-nowrap rounded px-1.5 text-[11px] leading-[18px] bg-[#faf8f5]/90 shadow-[0_0_0_0.5px_rgba(58,49,40,0.15)]"
+                // (today's city alone in its name: the whole name dark — a dark chip inside a pale one looked like a slip;
+                // fresh review)
+                className={`absolute whitespace-nowrap rounded px-1.5 text-[11px] ${soloHere ? "bg-[#514636]" : "bg-[#faf8f5]/90"} shadow-[0_0_0_0.5px_rgba(58,49,40,0.15)] ${spot.stacked
+                  // (stacked: each name on its own line, set toward the marker)
+                  ? `leading-[16px] py-px ${spot.h === "right" ? "text-right" : spot.h === "center" ? "text-center" : "text-left"}` : "leading-[18px]"}`}
                 style={{
                   ...(spot.h === "left" ? { left: `calc(50% + ${spot.hd}px)` } : spot.h === "right" ? { right: `calc(50% + ${spot.hd}px)` } : { left: "50%" }),
                   ...(spot.v === "top" ? { top: `calc(50% + ${spot.vd}px)` } : spot.v === "bottom" ? { bottom: `calc(50% + ${spot.vd}px)` } : { top: "50%" }),
@@ -502,13 +793,14 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
                   const st = stateOf(s);
                   const end = tagOf(s);
                   return (
-                    <span key={s.city.id}>{i > 0 && <span className="text-[#8a7d6a]"> · </span>}
+                    <span key={s.city.id} className={spot.stacked ? "block" : undefined}>{i > 0 && !spot.stacked && <span className="text-[#8a7d6a]"> · </span>}
                       {/* today's city: a dark chip, so "where are we now" doesn't rest on half a marker (round 4) */}
-                      <span className={st === "here" ? "font-semibold text-white bg-[#514636] rounded px-1 -mx-0.5"
+                      <span className={soloHere ? "font-semibold text-white" : st === "here" ? "font-semibold text-white bg-[#514636] rounded px-1 -mx-0.5"
                         // (only places already visited go quiet — "Nikko", still ahead, looked visited; round 7)
                         : st === "past" ? "text-[#8a7d6a]" : "font-medium text-[#3a3128]"}>{s.city.name}</span>
                       {/* (the secondary text color — lighter, "start"/"end" were hard for older eyes; round 8) */}
-                      {end && <span className="text-[#6b5d4a]"> {end}</span>}
+                      {/* (…and as quiet as its name once visited — "start" stayed darker than a faded "Okayama"; fresh review) */}
+                      {end && <span className={st === "past" ? "text-[#a39886]" : "text-[#6b5d4a]"}> {end}</span>}
                     </span>
                   );
                 })}

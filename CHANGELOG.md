@@ -2,6 +2,42 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-01 — The Home Map, Checked Against Production
+
+On production's own city locations the deployed map had a name sitting on a line on the iPhone 15 ("Karatsu ·
+Hakata" over the leg to Nagoya). Eight rounds of fresh design review on iPhone SE, 15, Pro Max and iPad followed; each
+finding was fixed where it started, and round 8 passed on all four. Home screen, map at the top
+(`components/HomeTripMap.tsx`).
+
+### Changed
+- Two stops in a row share a split marker when their markers would overlap, or when they're a fingertip apart and
+  the trip doubles back through them (Karatsu and Hakata: in from the east, then straight back east). Otherwise
+  they're two markers, nudged apart a little. On an iPhone 15 Tokyo and Nikko were "5 | 6", and the leg back to
+  Kyoto had to cross the only place for their name; now they're separate on every screen. On an iPad Karatsu and
+  Hakata were separate, with an arrow squeezed into a narrow V between them; now they share "2 | 3" everywhere.
+- A leg lands on a split marker's top or bottom at a steady angle (it grazed the top of "2" on the phones, and
+  hooked into it on a Pro Max).
+- The map grows to keep every line clear of Google's logo and credit, not just the names and markers.
+- During the trip, today's city stands alone in one dark name label (a dark chip inside a pale label looked like
+  a slip); in a shared label it's still a dark chip beside the other name.
+- A name keeps clear of a marker that isn't its own ("Kyoto end" hung 15 pt above marker 1 on an iPhone SE).
+- Names and marker numbers use Wander's own type (the iPhone's system font) instead of Google's Roboto.
+- Legs and names are chosen together. A leg may take another of its arcs to leave a name a clear place, but never one
+  that crosses a marker, runs along another leg or a marker's border, crosses another leg, or meets a marker in a
+  narrow V with the next leg. A leg leaving a split marker may set off on a slant to climb clear of it.
+- An arrow slides along its leg (a little before or after the middle) when it would sit on a name, and is centered
+  where it's drawn (Google draws an arrow behind its tip). A leg too short to hold an arrow has none.
+- A split marker's names may stand one above the other beside it when one line doesn't fit.
+- Legs already travelled are a shade stronger; "start" fades with its city once visited.
+
+### Fixed
+- Names were placed using a guess at their width (from their letter count) and judged against arrows that weren't
+  where Google draws them; both are now measured.
+- "Okayama start" could touch the ring around marker 1; names keep a few points from one another.
+- The map could keep a name on a line rather than grow a little taller to give it a clear place below.
+
+No SPEC change: the map's purpose and what it shows are unchanged.
+
 ## 2026-10-01 — Charm Comes Back, and Trip Notes
 
 Ken: Wander had become "an attractive database front end with AI support"; it started beautiful. Seven approved
