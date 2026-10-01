@@ -128,6 +128,72 @@ export function sourceWords(s: Pick<OtherSource, "owner" | "name" | "authorship"
   return `${s.owner}'s ${s.name.toLowerCase()}${s.authorship ? `, ${s.authorship}` : ""}`;
 }
 
+/** How far the pickup steps are ticked on this phone: steps to do only (not its "Source" rows or its notes like "If
+ *  help is needed") — the same count the pickup page shows, for Home's and Now's pickup cards (delight audit) */
+export function pickupProgress(sourceId: string, c: Checklist): {
+  done: number; of: number;
+  /** In tickets — the six JR West pickups — the one count every screen uses (delight audit: the page said "6 of 11",
+   *  Home "6 of 13") */
+  tickets: { done: number; of: number; next: string | null; missing: string[] };
+  /** Any station step ticked: the pickup has started (the airport train is behind you) */
+  started: boolean;
+  /** Whether this phone ticked the pickup step for a reservation number */
+  tickedFor: (resv: string) => boolean | null;
+} {
+  const doable = c.steps.filter((x) => !/^(source|if help is needed|not part of)/i.test(colOf(x.cols, /^step$/)));
+  let ticks: Record<string, boolean> = {};
+  try { ticks = JSON.parse(localStorage.getItem(`wander:checklist-ticks:${sourceId}:${c.tab}`) || "{}"); } catch { /* unreadable */ }
+  const tickets = c.steps.filter((x) => /^JR West \d/i.test(colOf(x.cols, /^step$/)));
+  const missing = tickets.filter((x) => !ticks[x.row]).map((x) => colOf(x.cols, /^step$/));
+  return {
+    done: doable.filter((x) => ticks[x.row]).length, of: doable.length,
+    tickets: { done: tickets.length - missing.length, of: tickets.length, next: missing[0] || null, missing },
+    started: doable.some((x) => ticks[x.row] && !/^before travel/i.test(colOf(x.cols, /^step$/))),
+    tickedFor: (resv: string) => {
+      const step = tickets.find((x) => new RegExp(`#\\s*${resv.replace(/[^0-9A-Za-z]/g, "")}\\b`).test(colOf(x.cols, /^what to do$/)));
+      return step ? !!ticks[step.row] : null;
+    },
+  };
+}
+
+/**
+ * Today's trains whose paper ticket this phone never ticked at an earlier pickup — on the phones of the couple who did
+ * the pickup only. Each with the sheet's own words on where it can still be collected, and who else may have ticked it
+ * (delight audit: the warning sat three screens down, said "before boarding" for a ticket that "cannot be collected at
+ * Utsunomiya", and Ken's second phone warned about a ticket the first had ticked).
+ */
+export function untickedTickets(sources: OtherSource[], date: string, me: string | null | undefined,
+  partyOf: (s: OtherSource) => string | null, isMine: (r: RailRow, s: OtherSource) => boolean) {
+  const out: { s: OtherSource; r: RailRow; where: string[]; others: string | null }[] = [];
+  if (!me) return out;
+  for (const s of sources) {
+    const party = partyOf(s);
+    const names = (party || "").split(/\s*(?:&|and|,)\s*/i).map((n) => n.trim()).filter(Boolean);
+    if (!names.some((n) => n.toLowerCase() === me.trim().toLowerCase())) continue;
+    const pickup = s.checklists.find((c) => c.date && c.date < date);
+    if (!pickup) continue;
+    const progress = pickupProgress(s.id, pickup);
+    for (const r of s.rail.filter((x) => x.date === date && isBookedTrain(x) && isMine(x, s))) {
+      const resv = colOf(r.cols, /^reservation/);
+      if (!resv || progress.tickedFor(resv) !== false) continue;
+      const text = `${colOf(r.cols, /^ticket/)}. ${colOf(r.cols, /^notes$/)}`;
+      // Where it can still be had, first ("cannot be collected at Utsunomiya", "Tokyo Station's JR East Travel Service
+      // Center"); then the general pickup words
+      const score = (x: string) => (/cannot|travel service|tokyo station|ticket office|before .* boarding|or\b/i.test(x) ? 0 : 1);
+      const where = text.split(/(?<=[.;])\s+/).map((x) => x.trim().replace(/[;.]$/, ".")).filter((x) => x.length > 3 && /collect|pick ?up|cannot|travel service|ticket office|machine|5489/i.test(x))
+        .sort((a, b) => score(a) - score(b));
+      out.push({ s, r, where: where.slice(0, 2), others: names.filter((n) => n.toLowerCase() !== me.trim().toLowerCase()).join(" & ") || null });
+    }
+  }
+  return out;
+}
+
+/** The same, to the person looking: "your rail sheet" to Ken himself (delight audit: "From Ken's rail sheet" on Ken's
+ *  own phone read as Wander not knowing who he is) */
+export function sourceWordsFor(s: Pick<OtherSource, "owner" | "name" | "authorship">, me: string | null | undefined): string {
+  return me && s.owner.toLowerCase() === me.trim().toLowerCase() ? `your ${s.name.toLowerCase()}` : sourceWords(s);
+}
+
 /** A leg is a booked train when the sheet gives it a train and a departure (not "Local train · No") */
 export const isBookedTrain = (r: RailRow) => !!colOf(r.cols, /^train$/) && /^\d{1,2}:\d{2}$/.test(colOf(r.cols, /^depart/));
 

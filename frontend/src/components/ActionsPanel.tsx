@@ -8,7 +8,7 @@ import { useState, useEffect, Fragment } from "react";
 import { api } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { guideData, type TripGuideData } from "../lib/guideData";
-import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName, bookedWords } from "../lib/guideDisplay";
+import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName, bookedWords, voiceFor } from "../lib/guideDisplay";
 import { useAuth } from "../contexts/AuthContext";
 
 interface PlanningAction {
@@ -64,7 +64,7 @@ function dueWords(due: string): string {
   return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : due;
 }
 
-export default function ActionsPanel({ tripId, onClose, decisions, userCode, onNavigate, syncSourceName }: Props) {
+export default function ActionsPanel({ tripId, onClose, decisions, userCode, onNavigate }: Props) {
   const { showToast } = useToast();
   // Who is looking — a deadline says whose to-do it is ("Larisa's to do …")
   const me = useAuth().user?.displayName || null;
@@ -150,7 +150,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   // Only whoever added it in Wander can take it out, open or done (round 12: Ken was offered "Take out" on
   // Larisa's; a ticked one of your own had to be un-ticked first). Older ones, from before Wander noted who, anyone.
   const canTakeOut = (a: PlanningAction) => !a.sheetRowRef && (!a.createdBy || a.createdBy === me);
-  const whoAdded = (a: PlanningAction) => a.sheetRowRef ? "in Larisa's Guide" : !a.createdBy ? "added in Wander" : a.createdBy === me ? "added by you" : `added by ${a.createdBy}`;
+  const whoAdded = (a: PlanningAction) => a.sheetRowRef ? `in ${voiceFor(me).guide}` : !a.createdBy ? "added in Wander" : a.createdBy === me ? "added by you" : `added by ${a.createdBy}`;
   const takeOut = (a: PlanningAction) => !canTakeOut(a) ? null : confirmRemoveId === a.id ? (
     <span className="inline-flex items-center gap-1">
       <span className="text-[#3a3128]">Take this out?</span>
@@ -250,7 +250,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           </button>
           <div>
             <h1 className="text-lg font-medium text-[#3a3128]">Actions</h1>
-            <span className="text-xs text-[#6b5d4a]">Deadlines and to-dos from {syncSourceName ? "Larisa's Guide" : "Larisa's Guide"}</span>
+            <span className="text-xs text-[#6b5d4a]">Deadlines and to-dos from {voiceFor(me).guide}</span>
           </div>
         </div>
         <button
@@ -368,7 +368,14 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                             {/* Her Actions tab's "Both" is Andy and Larisa — its two status columns (her "LF" rows mark
                                 Andy's "N/A"); round 12: Larisa read "For everyone" on her and Andy's planning to-dos.
                                 "Both" on a to-do added in Wander is the form's "Group". */}
-                            {a.owner === "Both" ? (a.sheetRowRef ? "For Andy & Larisa" : "For everyone") : `For ${a.owner === "LF" ? "Larisa" : a.owner === "KR" ? "Ken" : a.owner === "AB" ? "Andy" : a.owner}`}
+                            {/* "you" for the person looking (delight audit: "For Andy & Larisa" above "You · working on it") */}
+                            {(() => {
+                              const who = a.owner === "Both" ? (a.sheetRowRef ? ["Andy", "Larisa"] : null) : [a.owner === "LF" ? "Larisa" : a.owner === "KR" ? "Ken" : a.owner === "AB" ? "Andy" : a.owner];
+                              if (!who) return "For everyone";
+                              const named = who.map((n) => (me && n.toLowerCase() === me.toLowerCase() ? "you" : n));
+                              const ordered = named.includes("you") && named.length > 1 ? ["you", ...named.filter((n) => n !== "you")] : named;
+                              return `For ${ordered.join(" & ")}`;
+                            })()}
                           </span>
                           {a.dueDate && a.dueDate !== "TBD" && a.dueDate !== "null" && (
                             <span>{isPastDue(a.dueDate, todayStart) ? "was aiming for " : "by "}{dueWords(a.dueDate)}</span>
@@ -390,7 +397,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               const isNA = s === "n/a" || s === "na";
                               return (
                                 <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
-                                  <span className="font-medium">Larisa</span>
+                                  <span className="font-medium">{/^larisa$/i.test(me || "") ? "You" : "Larisa"}</span>
                                   <span>{isDone ? "✓ done" : isProgress ? "working on it" : isNA ? "not needed" : a.larisaStatus}</span>
                                 </span>
                               );
@@ -402,7 +409,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               const isNA = s === "n/a" || s === "na";
                               return (
                                 <span className={`inline-flex items-center gap-1 ${isDone ? "text-green-700" : isProgress ? "text-amber-600" : isNA ? "text-[#6b5d4a]" : "text-[#6b5d4a]"}`}>
-                                  <span className="font-medium">Andy</span>
+                                  <span className="font-medium">{/^andy$/i.test(me || "") ? "You" : "Andy"}</span>
                                   <span>{isDone ? "✓ done" : isProgress ? "working on it" : isNA ? "not needed" : a.andyStatus}</span>
                                 </span>
                               );
@@ -545,7 +552,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       )}
                       <span className="text-sm text-[#6b5d4a] line-through">{a.action}</span>
                       {a.sheetRowRef && [a.larisaStatus, a.andyStatus].some((s) => (s || "").toLowerCase() === "done") && (
-                        <span className="text-xs text-[#6b5d4a]">done in Larisa's Guide</span>
+                        <span className="text-xs text-[#6b5d4a]">done in {voiceFor(me).guide}</span>
                       )}
                       {!a.sheetRowRef && <span className="text-xs text-[#6b5d4a]">{whoAdded(a)}</span>}
                       {canTakeOut(a) && <span className="ml-auto text-xs">{takeOut(a)}</span>}

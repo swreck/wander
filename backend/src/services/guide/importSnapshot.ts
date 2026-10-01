@@ -1035,9 +1035,21 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     // place). A plan line naming that place gets her link — a search built from the line's words once sent
     // "Café ENSOU lunch, Kyoto" for a café in Shigaraki.
     const stops = Array.from(rowsOf(tab).values()).flat()
-      .filter((c) => c.link && (c.text.match(/stop\s*\d/gi) || []).length === 1)
+      // One stop per cell (its link is that stop's), or a cell listing several, one per line ("• Stop 3: Cycle Kyoto
+      // (E-bike meeting point)") — those lines carry names, never a link (the cell's one link isn't each stop's)
+      .flatMap((c) => {
+        const n = (c.text.match(/stop\s*\d/gi) || []).length;
+        if (n === 1) return [{ text: c.text, link: c.link ?? null }];
+        return n > 1 ? c.text.split("\n").filter((l) => /stop\s*\d/i.test(l)).map((l) => ({ text: l, link: null as string | null })) : [];
+      })
       // A stop's name can wrap inside its cell ("Stop 4: Gallery & Cafe ⏎ ENSOU (Woodland lunch stop)")
-      .map((c) => ({ link: unwrapSearchLink(c.link!), words: distinctWords((c.text.replace(/\s+/g, " ").match(/stop\s*\d+[a-z]?\s*:\s*([^(]+)/i) || [])[1] || "") }))
+      .map((c) => {
+        const flat = c.text.replace(/\s+/g, " ");
+        const name = ((flat.match(/stop\s*\d+[a-z]?\s*:\s*([^(]+)/i) || [])[1] || "").trim();
+        // What the stop is for, in her brackets ("Cycle Kyoto (E-bike meeting point)")
+        const role = ((flat.match(/stop\s*\d+[a-z]?\s*:\s*[^(]+\(([^)]+)\)/i) || [])[1] || "").trim();
+        return { link: c.link ? unwrapSearchLink(c.link) : null, name, words: distinctWords(name), roleWords: distinctWords(role) };
+      })
       .filter((s) => s.words.length);
     // Every distinctive word of her stop's name must be in the line ("Gallery & Cafe ENSOU" → "Café ENSOU
     // lunch"); a shared neighborhood alone ("Montbell Ginza" vs "Ginza Premium Retail Walk") is no match.
@@ -1045,8 +1057,18 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     const stopLink = (label: string) => {
       if (/^\s*(leave|depart)\b/i.test(label)) return null;
       const own = distinctWords(label);
-      const best = stops.filter((s) => s.words.every((w) => own.includes(w))).sort((a, b) => b.words.length - a.words.length)[0];
-      return best ? best.link : null;
+      const best = stops.filter((s) => s.link && s.words.every((w) => own.includes(w))).sort((a, b) => b.words.length - a.words.length)[0];
+      return best ? best.link : roleStop(label)?.link || null;
+    };
+    // A line that names a stop by what it's for, not its name ("Taxi to e-bike meeting point" → her "Stop 3: Cycle
+    // Kyoto (E-bike meeting point)") — the stop's name is said with it (round 12: Andy at noon on Oct 25 couldn't find
+    // where the e-bike tour met; no screen named Cycle Kyoto)
+    const roleStop = (label: string) => {
+      if (/^\s*(leave|depart)\b/i.test(label)) return null;
+      const own = distinctWords(label);
+      if (stops.some((s) => s.words.every((w) => own.includes(w)))) return null;
+      const hits = stops.filter((s) => s.roleWords.length >= 2 && s.roleWords.every((w) => own.includes(w)));
+      return hits.length === 1 ? hits[0] : null;
     };
     // A picture she pasted in the same tab can date its days ("Day 1 – Tue, Oct 13" on her Tokyo route map) — said beside
     // Wander's match when it differs, never silently overruled (round 12: "since the tab doesn't give a date" while her
@@ -1107,6 +1129,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
             b.who && !party ? (/^for\b/i.test(b.who) ? b.who[0].toUpperCase() + b.who.slice(1) : `For ${b.who}`) : null,
             b.approx ? "Times are Larisa's estimate." : null,
             ...b.choices.map((c) => `Choice: ${c.name}${c.note ? ` — ${c.note}` : ""}`),
+            roleStop(b.label) ? `Where: ${roleStop(b.label)!.name} — the stop her tab lists for this` : null,
             b.notes,
             matched,
           ].filter(Boolean).join("\n") || null,

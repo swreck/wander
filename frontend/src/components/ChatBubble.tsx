@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, type ReactNode } from "react"
 import { flushSync } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 import useBackToClose from "../hooks/useBackToClose";
 import { sendToGuideOwner } from "../lib/tellGuideOwner";
 import { withPhoneLinks } from "../lib/guideDisplay";
@@ -142,6 +143,7 @@ function clearMessages() {
 const CHAT_TIMEOUT_MS = 45000; // 45 seconds
 
 export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatBubbleProps) {
+  const user = useAuth().user;
   const [open, setOpen] = useState(false);
   // The answer whose "Sources" are open, if any
   const [sourcesOf, setSourcesOf] = useState<AnswerSources | null>(null);
@@ -629,6 +631,21 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
   }
 
+  // A screen can hand Scout a question ("How do I get from Narita to the Imperial Hotel?") — it opens and asks it; with
+  // no signal it opens with the question ready to send (delight audit: "Scout can look up the ways to go" wasn't tappable)
+  useEffect(() => {
+    const ask = (e: Event) => {
+      const q = String((e as CustomEvent).detail?.question || "").trim();
+      if (!q) return;
+      setSize("half");
+      setOpen(true);
+      if (navigator.onLine) sendMessage(q, true);
+      else setInput(q);
+    };
+    window.addEventListener("wander:ask-scout", ask);
+    return () => window.removeEventListener("wander:ask-scout", ask);
+  }, [sendMessage]);
+
   if (!open) {
     // Scout stepped aside: a bar above the tabs keeps the conversation going ("I got it — now take me
     // back"). Its words on top; ↩ Back, a place to ask, the microphone and ✕ below.
@@ -799,12 +816,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {messages.length === 0 && (
             <div className="text-center text-[#6b5d4a] text-sm py-8">
               <p>I'm Scout, your travel companion.</p>
-              <p className="mt-1">I know your whole trip — ask me anything about it.</p>
+              {/* What it actually knows (round 12 delight audit: "I know your whole trip" overclaimed) */}
+              <p className="mt-1">I've read Larisa's Guide and Ken's rail sheet, and I can look things up online. Ask me anything about the trip.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
               {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from Larisa's Guide is still on the Now tab.</p>}
               {/* Tap one to ask it */}
               <div className="mt-4 flex flex-col items-start gap-1.5">
-                {["What's the plan today?", "Where are we sleeping tonight?", "Any deadlines coming up?", "What time do we need to leave?"].map((q) => (
+                {["What's the plan today?", "Where are we sleeping tonight?", "Is there anything I need to do soon?", "What time do we need to leave?"].map((q) => (
                   <button
                     key={q}
                     onClick={() => sendMessage(q, true)}
@@ -821,7 +839,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {messages.map((msg, i) => (
             <div key={i} data-msg={msg.role} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-base leading-relaxed ${
+                // Scout's answers use the panel's width, so a short answer fits without scrolling (round 12 delight audit)
+                className={`${msg.role === "user" ? "max-w-[85%]" : "w-full"} rounded-2xl px-3.5 py-2 text-base leading-relaxed ${
                   msg.role === "user"
                     ? "bg-[#514636] text-[#faf8f5]"
                     : "bg-[#f0ebe3] text-[#3a3128]"
@@ -916,7 +935,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {sending && (
             <div className="flex justify-start" data-thinking role="status" aria-busy="true">
               <div className="bg-[#f0ebe3] rounded-2xl px-3.5 py-2 text-sm text-[#514636]">
-                Looking in Larisa's Guide
+                {/* (to Larisa it's her own Guide — round 12 delight audit) */}
+                {/^larisa$/i.test(user?.displayName || "") ? "Looking in your Guide" : "Looking in Larisa's Guide"}
                 <span className="inline-flex gap-0.5 ml-0.5" aria-hidden>
                   <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
                   <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>

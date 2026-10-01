@@ -23,6 +23,8 @@ import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import useBackToClose from "../hooks/useBackToClose";
 import { LinkedText } from "./GuideText";
+import { useAuth } from "../contexts/AuthContext";
+import { tabLabel, voiceFor } from "../lib/guideDisplay";
 
 interface SheetNote {
   id: string;
@@ -121,6 +123,8 @@ function interactiveReplacement(tabName: string): { label: string; url: string }
 }
 
 export default function SheetNotesCard({ tripId }: { tripId: string }) {
+  // To Larisa herself: "Your Guide, tab by tab" (delight audit)
+  const v = voiceFor(useAuth().user?.displayName);
   const [byTab, setByTab] = useState<Record<string, { rowIndex: number; text: string }[]>>({});
   const [spreadsheetId, setSpreadsheetId] = useState<string | null>(null);
   const [tabGids, setTabGids] = useState<Record<string, number>>({});
@@ -188,9 +192,11 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
         className="w-full text-left flex items-center justify-between min-h-[44px] py-2 mb-1"
       >
         <h2 className="text-sm font-medium text-[#514636]">
-          Larisa's Guide, tab by tab
+          {v.mine ? "Your Guide" : "Larisa's Guide"}, tab by tab
           <span className="block text-[#6b5d4a] font-normal text-xs mt-0.5">
-            Her other tabs, as she wrote them, in her order. Where she pasted a picture, Wander describes it and shows it when you tap. The Itinerary is the days above; Activities are in Ideas; Actions are in Actions.
+            {v.mine
+              ? "Your other tabs, as you wrote them, in your order. Where you pasted a picture, Wander describes it and shows it when tapped. The Itinerary is the days above; Activities are in Ideas; Actions are in Actions."
+              : "Her other tabs, as she wrote them, in her order. Where she pasted a picture, Wander describes it and shows it when you tap. The Itinerary is the days above; Activities are in Ideas; Actions are in Actions."}
           </span>
         </h2>
         <span className="text-sm text-[#6b5d4a]">{expanded ? "\u25B4" : "\u25BE"}</span>
@@ -219,7 +225,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                     // per line beside "Open Japan rail route planner →", with "Read" printed over it)
                     className="basis-full min-w-0 min-h-[44px] text-left flex items-center justify-between gap-3"
                   >
-                    <h3 className="text-sm font-medium text-[#3a3128] [overflow-wrap:break-word] min-w-0">{tabName}</h3>
+                    <h3 className="text-sm font-medium text-[#3a3128] [overflow-wrap:break-word] min-w-0">{tabLabel(tabName)}</h3>
                     <span className="text-sm text-[#514636] shrink-0 inline-flex items-center min-h-[44px]">{openTab === tabName ? "Close ▴" : "Read ▾"}</span>
                   </button>
                   <div className="flex items-center gap-3">
@@ -250,7 +256,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                         // Wander's words about a picture she pasted — never passed off as hers — and the picture itself
                         // one tap away (round 12: "you can't see the subway map")
                         <li key={note.rowIndex} className="text-sm text-[#514636] leading-relaxed whitespace-pre-line [overflow-wrap:anywhere] bg-[#f6f1e8] rounded-lg px-3 py-2">
-                          <span className="block text-xs text-[#6b5d4a] mb-0.5">A picture Larisa pasted — Wander's description</span>
+                          <span className="block text-xs text-[#6b5d4a] mb-0.5">{v.mine ? "A picture you pasted" : "A picture Larisa pasted"} — Wander's description</span>
                           {note.text.replace(/^Picture:\s*/, "").replace(/^Picture \(not read yet\)$/, "Not described yet.")}
                           <TabPicture tripId={tripId} tab={tabName} nth={byTab[tabName].slice(0, n).filter((x) => x.text.startsWith("Picture")).length} />
                         </li>
@@ -261,7 +267,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                         </li>
                       ))}
                     </ul>
-                    <button onClick={() => closeTab(tabName)} className="mt-2 min-h-[44px] text-sm text-[#514636]">Close {tabName} ▴</button>
+                    <button onClick={() => closeTab(tabName)} className="mt-2 min-h-[44px] text-sm text-[#514636]">Close {tabLabel(tabName)} ▴</button>
                   </>
                 )}
               </div>
@@ -279,7 +285,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                   const interactive = interactiveReplacement(tabName);
                   return (
                     <li key={tabName}>
-                      <span className="text-xs text-[#6b5d4a]">{tabName}</span>
+                      <span className="text-xs text-[#6b5d4a]">{tabLabel(tabName)}</span>
                       <TabPicture tripId={tripId} tab={tabName} nth={0} />
                       <div className="flex items-center gap-3 mt-1">
                         {interactive && (

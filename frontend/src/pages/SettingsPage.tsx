@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import FaceIdSetup from "../components/FaceIdSetup";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
 import { sourcesData, type OtherSource } from "../lib/sources";
+import { voiceFor } from "../lib/guideDisplay";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -23,11 +24,7 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-2 py-1 flex items-center gap-1"
         style={{ paddingTop: "max(env(safe-area-inset-top), 4px)" }}>
-        <button onClick={() => navigate(-1)} aria-label="Back" className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#514636]">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
+        <button onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"))} aria-label="Back" className="min-h-[44px] min-w-[44px] px-2 text-sm text-[#514636]">‹ Back</button>
         <h1 className="text-lg font-medium text-[#3a3128]">Settings</h1>
       </div>
 
@@ -105,6 +102,9 @@ interface GuideStatus { current: { sourceName: string; importedAt: string } | nu
 const japanWhen = (iso: string) => `${new Date(iso).toLocaleString("en-US", { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} Japan time`;
 
 function SheetSyncSection() {
+  // To Larisa: "Your Guide"; to Ken: "Your rail sheet" (delight audit)
+  const me = useAuth().user?.displayName ?? null;
+  const v = voiceFor(me);
   // The copy of her Guide Wander actually reads (not the old sync setting, whose time was a different moment)
   const [guide, setGuide] = useState<GuideStatus["current"]>(null);
   const [others, setOthers] = useState<OtherSource[]>([]);
@@ -138,13 +138,14 @@ function SheetSyncSection() {
       <div className="bg-white rounded-lg border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
         {guide && (
           <div className="p-3 text-[13px]">
-            <p className="text-[#3a3128] font-medium">Larisa's Guide</p>
-            <p className="text-[#6b5d4a] mt-0.5">The copy “{guide.sourceName.replace(/\.xlsx$/i, "")}”, read {japanWhen(guide.importedAt)}. Larisa may have changed things since.</p>
+            <p className="text-[#3a3128] font-medium">{v.mine ? "Your Guide" : "Larisa's Guide"}</p>
+            {/* When it was read, not its file name (delight audit: "Japan Oct 2026-2" meant nothing to anyone) */}
+            <p className="text-[#6b5d4a] mt-0.5">Wander's copy, read {japanWhen(guide.importedAt)}.{v.mine ? " Changes you've made since then aren't in it yet." : " Larisa may have changed things since."}</p>
           </div>
         )}
         {others.map((s) => (
           <div key={s.id} className="p-3 text-[13px]">
-            <p className="text-[#3a3128] font-medium">{s.owner}'s {s.name.toLowerCase()}</p>
+            <p className="text-[#3a3128] font-medium">{me && s.owner.toLowerCase() === me.toLowerCase() ? `Your ${s.name.toLowerCase()}` : `${s.owner}'s ${s.name.toLowerCase()}`}</p>
             <p className="text-[#6b5d4a] mt-0.5">
               {s.authorship ? `${s.authorship[0].toUpperCase()}${s.authorship.slice(1)}. ` : ""}Read every few minutes{s.readAt ? ` — last ${japanWhen(s.readAt)}` : ""}.
               {s.lastError ? " Its latest read didn't work, so Wander is showing the copy before that." : ""}

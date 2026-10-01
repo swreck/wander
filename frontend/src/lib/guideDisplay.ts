@@ -613,8 +613,11 @@ export function bookedWords(i: GuideItem, me: string | null | undefined): string
 }
 
 /** A question her Guide asks of the person looking ("1 day to Mashiko-Julie interested?", "X, if Julie isn't interested") */
-export function askedOf(i: GuideItem, me: string | null | undefined): boolean {
+export function askedOf(i: GuideItem, me: string | null | undefined, today?: string): boolean {
   if (!me) return false;
+  // Only while it's still ahead — on or after its day the question is moot (delight audit: "1 day to Shigaraki - Julie
+  // interested?" 30 minutes before the van left)
+  if (today && i.date && ymd(i.date) <= today) return false;
   // Not on a line for someone else, and never from Wander's own notes quoting her (round 12: Ken & Larisa's Mashiko card
   // said "A question for you" to Julie because its "Still open in the Guide: … if Julie isn't interested" quoted her)
   if (i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me)) return false;
@@ -654,17 +657,29 @@ export function itemTitle(i: GuideItem, stays: Stay[], date: string) {
  * Where a line came from, in words a traveler uses:
  * "Itinerary · Description (row 45) + Itinerary · Notes (row 47)" → "Larisa's Guide, Itinerary tab".
  */
-export function friendlySource(source: string) {
+/**
+ * Her tab's name as people can read it. The saved copy of her sheet cuts every tab name at 31 letters (the file
+ * format's limit, not hers): "Tokyo Day 2 Kappabashi & Akihab". A cut name ends at its last whole word, with "…", so
+ * it reads as shortened rather than broken (delight audit: Larisa read her own clipped names as Wander's mistake).
+ */
+export function tabLabel(name: string): string {
+  const n = name.trim();
+  if (n.length < 31) return n;
+  const whole = n.replace(/\s*\S*$/, "").replace(/[\s&,\-–(+]+$/, "");
+  return whole.length >= 10 ? `${whole}…` : n;
+}
+
+export function friendlySource(source: string, me?: string | null) {
   const parts = source.split(" + ").map((p) => {
     const shot = p.match(/^Screenshot in (.+)$/i);
-    if (shot) return `a screenshot in the ${shot[1]} tab`;
+    if (shot) return `a screenshot in the ${tabLabel(shot[1])} tab`;
     // Text read from a tab (often a pasted email, but not always): name the tab, claim nothing more
     const pasted = p.match(/^(.+?) \(pasted text\)$/i);
-    if (pasted) return `the ${pasted[1]} tab`;
+    if (pasted) return `the ${tabLabel(pasted[1])} tab`;
     const tab = p.replace(/\s*\(row \d+\)/gi, "").split(" · ")[0].trim();
-    return `the ${tab} tab`;
+    return `the ${tabLabel(tab)} tab`;
   });
-  return `From Larisa's Guide — ${Array.from(new Set(parts)).join(" and ")}`;
+  return `From ${voiceFor(me).guide} — ${Array.from(new Set(parts)).join(" and ")}`;
 }
 
 /**
@@ -778,6 +793,36 @@ export function unwrapSearchLink(url: string): string {
   return url;
 }
 const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch { return s; } };
+
+/**
+ * How Wander speaks of the Guide and its owner to the person looking: to Larisa herself it's "your Guide", "Your tabs
+ * differ"; to everyone else "Larisa's Guide", "Her tabs differ" (delight audit: on Larisa's own phone Wander said
+ * "Larisa's notes ›", "worth checking with Larisa" — "Wander doesn't know who I am").
+ */
+export function voiceFor(me: string | null | undefined, owner: string | null | undefined = "Larisa") {
+  const name = owner || "Larisa";
+  const mine = !!me && me.trim().toLowerCase() === name.toLowerCase();
+  return {
+    mine,
+    /** "Larisa's Guide" / "your Guide" */
+    guide: mine ? "your Guide" : `${name}'s Guide`,
+    /** "her" / "your" (her plan, her tabs) */
+    her: mine ? "your" : "her",
+    Her: mine ? "Your" : "Her",
+    /** "Larisa's" / "your" (Larisa's plan, Larisa's note) */
+    owners: mine ? "your" : `${name}'s`,
+    Owners: mine ? "Your" : `${name}'s`,
+    /** "worth checking with Larisa" / "worth a second look" */
+    checkWith: mine ? "worth a second look" : `worth checking with ${name}`,
+    /** Words Wander wrote about her Guide ("the stop her tab lists", "her Itinerary tab agrees", "Larisa's Guide"),
+     *  said to her as "your …" — her own cell text is never touched, only these phrasings */
+    say: (text: string) => !mine ? text : text
+      .replace(new RegExp(`\\b${name}'s (Guide|plan|note|notes|tab|tabs|Itinerary|Activities tab|estimate)\\b`, "g"), "your $1")
+      .replace(/\bher (Guide|tab's|tab|tabs|Itinerary|Activities tab|Dining Resos|day tab|plan|estimate|other tabs|“)/g, "your $1")
+      .replace(/\bHer (Guide|tab|tabs|Itinerary|plan|“)/g, "Your $1")
+      .replace(/worth checking with [A-Z][a-z]+/g, "worth a second look"),
+  };
+}
 
 /** Her Itinerary note on a hotel's row — about that stay, not the day's line (round 12: Oct 27 was quoted as the Four
  *  Seasons room type). Listed with the day, never quoted as "In her Itinerary for today". */

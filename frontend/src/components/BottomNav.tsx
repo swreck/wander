@@ -123,7 +123,8 @@ export default function BottomNav({ pendingChanges }: Props) {
                   navigate(tab.path);
                 }
               }}
-              className={`flex flex-col items-center justify-center gap-0.5 min-w-[64px] min-h-[48px] px-3 py-1 rounded-lg transition-colors relative ${tab.path === "__actions__" && actionsNeedAttention ? "text-amber-600" : ""}
+              // The five tabs share the width — at Safari's larger zoom, 64-point tabs pushed "Scout" off a small phone
+              className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 min-h-[48px] px-1 py-1 rounded-lg transition-colors relative ${tab.path === "__actions__" && actionsNeedAttention ? "text-amber-600" : ""}
                 ${isActive ? "text-[#514636]" : "text-[#7a6b55] hover:text-[#6b5d4a]"}`}
             >
               {tab.icon}

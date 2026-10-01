@@ -303,10 +303,11 @@ export default function ProfilePage() {
       <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e5ddd0] px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
-            className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors min-h-[44px] min-w-[44px] -my-2"
+            onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"))}
+            aria-label="Back"
+            className="text-sm text-[#514636] min-h-[44px] min-w-[44px] -my-2"
           >
-            &larr; Back
+            ‹ Back
           </button>
           <h1 className="text-lg font-medium text-[#3a3128]">{user?.displayName}</h1>
         </div>
