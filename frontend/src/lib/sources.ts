@@ -104,7 +104,11 @@ export function withTwelveHour(s: string): string {
   // (and a morning written the 24-hour way, "08:07" — round 12: the pickup page kept "08:07" and "12:09" as they were)
   // (never one already said with AM/PM — "12:30 PM" became "12:30 (12:30 PM) PM")
   // (every two-digit hour — "Okayama 10:26" stayed bare while "08:07" got its words)
-  return s.replace(/\b(0\d|1\d|2[0-3]):([0-5]\d)\b(?!\s*(?:\(|[AaPp]\.?[Mm]?\b))/g, (m) => `${m} (${twelveHour(m)})`);
+  // (same digits either way, "10:36" or "12:15", only gain the AM/PM — the demo walk read "10:36 (10:36 AM)")
+  return s.replace(/\b(0\d|1\d|2[0-3]):([0-5]\d)\b(?!\s*(?:\(|[AaPp]\.?[Mm]?\b))/g, (m) => {
+    const t = twelveHour(m);
+    return t.startsWith(`${m} `) ? t : `${m} (${t})`;
+  });
 }
 
 /** "Wed, Oct 1, 2:46 AM Japan time" — when Wander last read a source, on the trip's clock and saying so, as her

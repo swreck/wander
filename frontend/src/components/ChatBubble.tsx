@@ -18,7 +18,9 @@ function phones(text: string): ReactNode[] {
 
 /** Lightweight inline markdown: **bold**, *italic*, and `- ` list items */
 function renderMarkdown(text: string): ReactNode {
-  const lines = text.split("\n");
+  // A bold heading at a line's start that runs straight into its text ("**In your carry-on**Larisa's…" — the break is
+  // lost where cited pieces join) gets its own line (Ken's demo, Oct 1)
+  const lines = text.replace(/(^|\n)(\*\*[^*\n]+\*\*)(?=[^\s:.,;—-])/g, "$1$2\n").split("\n");
   return lines.map((line, li) => {
     // List items
     const isList = /^[-•]\s/.test(line.trim());
@@ -294,6 +296,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+  // Whether the voice button's words still go into the box (not once the question has been sent)
+  const voiceLiveRef = useRef(false);
+  // One question at a time, known the instant it's sent (the `sending` state a callback holds can be from before)
+  const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Persist messages to localStorage
@@ -393,7 +399,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // retryText: resend a question already on screen. asNew: a tapped example question — show it as theirs.
   const sendMessage = useCallback(async (retryText?: string, asNew = false) => {
     const text = retryText || input.trim();
-    if (!text || sending) return;
+    if (!text || sending || sendingRef.current) return;
+    // Sent while the voice button still listens: stop it, and late words don't refill the box (Ken, Oct 1: one
+    // dictated question reached Scout twice, a second apart — Send, then the mic's own send as it stopped)
+    if (recognitionRef.current) {
+      voiceLiveRef.current = false;
+      try { recognitionRef.current.stop(); } catch { /* already stopped */ }
+      setListening(false);
+    }
 
     // "Take me back" needs no thinking: step back at once (only when there's somewhere in Wander to go)
     if (!retryText && JUST_BACK.test(text) && (returnTo || historyIdx() > 0)) {
@@ -416,6 +429,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       if (inputRef.current) inputRef.current.style.height = "auto";
       setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString() }]);
     }
+    sendingRef.current = true;
     setSending(true);
     setFailed(false);
     setLastFailedText("");
@@ -492,6 +506,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setFailed(true);
       setLastFailedText(text);
     } finally {
+      sendingRef.current = false;
       setSending(false);
       abortRef.current = null;
     }
@@ -526,10 +541,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const maxH = panel ? panel.clientHeight * 0.4 : 200;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, maxH) + "px";
+    // Past its tallest, it scrolls inside — and the newest words stay in view while typing or dictating
+    el.style.overflowY = el.scrollHeight > maxH ? "auto" : "hidden";
+    if (el.selectionStart === el.value.length) el.scrollTop = el.scrollHeight;
   }, []);
-
-  // Track final transcript for auto-send
-  const voiceTranscriptRef = useRef("");
+  // Whatever fills the box — typing, the iPhone's own dictation, Wander's voice button, a question handed over — it
+  // resizes and shows the latest words (Ken, Oct 1: dictating his first question, the box didn't scroll)
+  useEffect(() => { autoResize(); }, [input, autoResize]);
 
   const toggleVoice = useCallback(() => {
     if (listening) {
@@ -537,7 +555,6 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setListening(false);
       return;
     }
-
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Voice input isn't supported in this browser. Try Safari or Chrome.");
@@ -548,38 +565,30 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
-    voiceTranscriptRef.current = "";
+    // Words already typed stay; what's said follows them
+    const typed = (inputRef.current?.value ?? "").trim();
+    voiceLiveRef.current = true;
 
     recognition.onresult = (event: any) => {
+      // (already sent: late words don't refill the box)
+      if (!voiceLiveRef.current) return;
       const transcript = Array.from(event.results)
         .map((r: any) => r[0].transcript)
         .join("");
-      setInput(transcript);
-      // Track final results as they come in
-      const finals = Array.from(event.results)
-        .filter((r: any) => r.isFinal)
-        .map((r: any) => r[0].transcript)
-        .join("");
-      if (finals) {
-        voiceTranscriptRef.current = finals;
-      }
+      setInput(typed ? `${typed} ${transcript.trimStart()}` : transcript);
     };
 
     recognition.onend = () => {
       setListening(false);
-      // Auto-send the final transcript
-      const finalText = (voiceTranscriptRef.current || (document.querySelector<HTMLTextAreaElement>(".chat-voice-input")?.value ?? "")).trim();
-      if (finalText) {
-        setTimeout(() => {
-          setInput("");
-          setMessages((prev) => [...prev, { role: "user", text: finalText, at: new Date().toISOString() }]);
-          sendMessage(finalText);
-        }, 100);
-      }
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
+      // Tap to start, tap to stop, as the iPhone keyboard's mic: everything heard stays in the box for a glance
+      // and Send (Ken, Oct 1 — a misheard question shouldn't go straight to Scout)
+      voiceLiveRef.current = false;
     };
 
     recognition.onerror = (event: any) => {
       setListening(false);
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
       if (event.error === "not-allowed") {
         alert("Microphone access was denied. Check your browser settings to allow it.");
       }
@@ -592,7 +601,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     } catch {
       setListening(false);
     }
-  }, [listening, sendMessage]);
+  }, [listening]);
 
   const hasSpeechRecognition = typeof window !== "undefined" &&
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
