@@ -8,13 +8,16 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Trip } from "../lib/types";
-import { sourcesData, colOf, sourceWords, withTwelveHour, readWords, type OtherSource, type Checklist } from "../lib/sources";
+import { sourcesData, colOf, sourceWordsFor, withTwelveHour, twelveHour, readWords, pickupProgress, type OtherSource, type Checklist } from "../lib/sources";
+import { useAuth } from "../contexts/AuthContext";
+import { voiceFor } from "../lib/guideDisplay";
 import { checklistTitle } from "../components/RailSheet";
 import GuideText from "../components/GuideText";
 
 const tickKey = (sourceId: string, tab: string) => `wander:checklist-ticks:${sourceId}:${tab}`;
 
 export default function ChecklistPage() {
+  const me = useAuth().user?.displayName ?? null;
   const navigate = useNavigate();
   const { sourceId = "", tab = "" } = useParams();
   const [state, setState] = useState<"loading" | "ready" | "missing" | "unreachable">("loading");
@@ -23,6 +26,18 @@ export default function ChecklistPage() {
   const [ticks, setTicks] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem(tickKey(sourceId, tab)) || "{}"); } catch { return {}; }
   });
+  // A ticked step folds to one line; a tap opens it again (delight audit: ticked cards stayed full height, 4,600 px)
+  const [openDone, setOpenDone] = useState<Record<number, boolean>>({});
+  // Opens at the step you're on: the first one not yet ticked, once any are (delight audit: at the machine, Ken scrolled
+  // past the source paragraph, thirteen chips and the done HARUKA step to reach the machine's buttons)
+  useEffect(() => {
+    if (state !== "ready") return;
+    const t = setTimeout(() => {
+      if (!document.querySelector("li[data-ticked='1']")) return;
+      document.querySelector("li[data-ticked='0']")?.scrollIntoView({ block: "start" });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +68,7 @@ export default function ChecklistPage() {
   };
 
   const header = (
-    <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))} className="min-h-[44px] pr-3 text-sm text-[#514636]">&larr; Back</button>
+    <button onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"))} aria-label="Back" className="min-h-[44px] min-w-[44px] pr-3 text-sm text-[#514636]">‹ Back</button>
   );
 
   if (state !== "ready" || !found) {
@@ -81,7 +96,14 @@ export default function ChecklistPage() {
   const foldBefore = !!c.date && phoneDay >= c.date && before.length > 0 && !showBefore;
   const steps = foldBefore ? allSteps.filter((x) => !before.includes(x)) : allSteps;
   const refs = c.steps.filter((x) => /^source$/i.test(colOf(x.cols, /^step$/)));
-  const done = steps.filter((x) => ticks[x.row]).length;
+  // "If help is needed" and "Not part of pickup" are notes, not steps to do — no tick, not counted (delight audit: the
+  // count could never reach the end)
+  const isNote = (x: (typeof steps)[number]) => /^(if help is needed|not part of)/i.test(colOf(x.cols, /^step$/));
+  const doable = steps.filter((x) => !isNote(x));
+  const done = doable.filter((x) => ticks[x.row]).length;
+  // A reservation step's journey, as its title, in 12-hour times only ("Oct 8 NOZOMI 9, Okayama 10:26 AM → Hakata 12:09 PM")
+  const journeyOf = (confirm: string) => confirm.split(";")[0].replace(/\b(\d{1,2}):(\d{2})\b/g, (m) => twelveHour(m)).replace(/\.$/, "");
+  const isReservation = (what: string) => /^reservation\s*#/i.test(what.trim());
   // In Japan time, as everywhere else (round 12: a California phone read "Wed, Sep 30, 1:55 PM" here and "Thu, Oct 1, 5:55 AM
   // Japan time" on the day screen)
   const read = readWords(s.readAt);
@@ -92,12 +114,19 @@ export default function ChecklistPage() {
         {header}
         <h1 className="text-2xl font-light text-[#3a3128] mt-2">{checklistTitle(c.tab)}</h1>
         <p className="text-sm text-[#6b5d4a] mt-1">
-          From {sourceWords(s)} — its “{c.tab}” tab, in its order and its words. Not Larisa's Guide.
+          From {sourceWordsFor(s, me)} — its “{c.tab}” tab, in its order and its words. Not {voiceFor(me).guide}.
           {read ? ` Wander last read it ${read}.` : ""}
           {s.lastError ? " Its latest read didn't work, so this may be out of date." : ""}
         </p>
         {saved && <p className="text-sm text-[#6b5d4a] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2 mt-3" role="status">No signal — showing what this phone saved.</p>}
-        <p className="text-sm text-[#514636] mt-3">{done ? `${done} of ${steps.length} ticked on this phone.` : "Tick each step as you go. Ticks stay on this phone only."}</p>
+        {/* The same count Home and Now show — in tickets (delight audit: "6 of 11" here, "6 of 13" on Home) */}
+        <p className="text-sm text-[#514636] mt-3">{(() => {
+          if (!done) return "Tick each step as you go. Ticks stay on this phone only.";
+          const p = pickupProgress(s.id, c);
+          return p.tickets.of
+            ? `${p.tickets.done} of ${p.tickets.of} tickets ticked on this phone${p.tickets.next ? ` — next: ${p.tickets.next}` : "."}`
+            : `${done} of ${doable.length} ticked on this phone.`;
+        })()}</p>
 
         {/* Straight to any step — the decision about the 6:17 train can't wait behind the others */}
         {/* A scroll, not an address change: the app returned to the top on a #step address, and each jump added a
@@ -139,19 +168,38 @@ export default function ChecklistPage() {
             const ready = colOf(x.cols, /^have ready$/);
             const confirm = colOf(x.cols, /^confirm/);
             const on = !!ticks[x.row];
+            const note = isNote(x);
+            const resv = isReservation(what) && !!confirm;
+            const folded = on && !openDone[x.row];
             return (
-              <li key={x.row} id={`step-${x.row}`} className={`scroll-mt-4 rounded-xl border p-3 ${on ? "bg-[#f3f7ef] border-[#cfe0c2]" : "bg-white border-[#e0d8cc]"}`}>
+              <li key={x.row} id={`step-${x.row}`} data-ticked={note ? undefined : on ? "1" : "0"}
+                className={`scroll-mt-4 rounded-xl border p-3 ${on ? "bg-[#f3f7ef] border-[#cfe0c2]" : note ? "bg-[#faf8f5] border-[#e0d8cc]" : "bg-white border-[#e0d8cc]"}`}>
                 <div className="flex items-start gap-3">
-                  <button onClick={() => toggle(x.row)} role="checkbox" aria-checked={on} aria-label={`${step}: ${on ? "ticked" : "not ticked"}`}
-                    className={`shrink-0 w-11 h-11 rounded-full border-2 flex items-center justify-center text-lg ${on ? "border-[#3f5a2a] bg-[#3f5a2a] text-white" : "border-[#c8bba8] text-transparent"}`}>✓</button>
+                  {note ? <span className="shrink-0 w-11" aria-hidden /> : (
+                    <button onClick={() => toggle(x.row)} role="checkbox" aria-checked={on} aria-label={`${step}: ${on ? "ticked" : "not ticked"}`}
+                      className={`shrink-0 w-11 h-11 rounded-full border-2 flex items-center justify-center text-lg ${on ? "border-[#3f5a2a] bg-[#3f5a2a] text-white" : "border-[#c8bba8] text-transparent"}`}>✓</button>
+                  )}
                   <div className="flex-1 min-w-0">
-                    {/* (its "When / where" often repeats the step's name: "Before travel · Before travel; …") */}
-                    <p className="text-[15px] font-medium text-[#3a3128]">{step}{when ? <span className="font-normal text-[#6b5d4a]"> · {withTwelveHour(when.replace(new RegExp(`^${step.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[;:,]?\\s*`, "i"), "") || when)}</span> : null}</p>
-                    {/* Its numbered sub-steps ("1. … 2. …") each on their own line — same words, easier at a machine */}
-                    {what && <GuideText text={withTwelveHour(what).replace(/\s+(?=\d{1,2}\.\s)/g, "\n")} className="text-sm text-[#3a3128] mt-1" />}
-                    {ready && <GuideText text={`Have ready: ${withTwelveHour(ready)}`} className="text-sm text-[#514636] mt-1.5" />}
-                    {confirm && <GuideText text={`Before you move on: ${withTwelveHour(confirm)}`} className="text-sm text-[#8a5a1a] mt-1.5" />}
-                    <p className="text-xs text-[#6b5d4a] mt-1">{c.tab} tab, row {x.row}</p>
+                    {/* (its "When / where" often repeats the step's name: "Before travel · Before travel; …"); a reservation is
+                        titled by its journey, so six "Collect at Shin-Osaka" cards can be told apart */}
+                    <p className="text-[15px] font-medium text-[#3a3128]">
+                      {step}{resv
+                        ? <span className="font-normal text-[#3a3128]"> · {journeyOf(confirm)}</span>
+                        : when ? <span className="font-normal text-[#6b5d4a]"> · {withTwelveHour(when.replace(new RegExp(`^${step.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[;:,]?\\s*`, "i"), "") || when)}</span> : null}
+                    </p>
+                    {folded ? (
+                      <button onClick={() => setOpenDone((o) => ({ ...o, [x.row]: true }))} className="min-h-[44px] text-sm text-[#3f5a2a]">Done · show this step again ›</button>
+                    ) : (
+                      <>
+                        {/* Its numbered sub-steps ("1. … 2. …") each on their own line — same words, easier at a machine */}
+                        {what && (resv
+                          ? <p className="text-sm text-[#3a3128] mt-1"><span className="font-semibold">{what.split(";")[0].trim()}</span>{what.includes(";") ? ` · ${what.split(";").slice(1).join(";").trim()}` : ""}</p>
+                          : <GuideText text={withTwelveHour(what).replace(/\s+(?=\d{1,2}\.\s)/g, "\n")} className="text-sm text-[#3a3128] mt-1" />)}
+                        {ready && <GuideText text={`Have ready: ${withTwelveHour(ready)}`} className="text-sm text-[#514636] mt-1.5" />}
+                        {confirm && <GuideText text={`${resv ? "The ticket should say" : "Before you move on"}: ${withTwelveHour(confirm)}`} className="text-sm text-[#8a5a1a] mt-1.5" />}
+                        <p className="text-xs text-[#6b5d4a] mt-1">Its “{c.tab}” tab</p>
+                      </>
+                    )}
                   </div>
                 </div>
               </li>

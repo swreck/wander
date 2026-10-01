@@ -21,6 +21,9 @@ import ActionsPanel from "../components/ActionsPanel";
 import FaceIdSetup from "../components/FaceIdSetup";
 import { warmGuideData } from "../lib/guideData";
 import TripGlance from "../components/TripGlance";
+import WelcomeOnce from "../components/WelcomeOnce";
+import { guideOwnerOf } from "../lib/tellGuideOwner";
+import { voiceFor } from "../lib/guideDisplay";
 import { changeRest } from "../lib/changeWords";
 import AddToHomeScreen from "../components/AddToHomeScreen";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
@@ -270,6 +273,15 @@ export default function TripOverview() {
 
   function formatDate(d: string) {
     return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  }
+  /** "Oct 5–29, 2026" (or "Oct 25 – Nov 2, 2026" across months) */
+  function shortRange(a: string, b: string) {
+    const o = { timeZone: "UTC" } as const;
+    const s = new Date(a), e = new Date(b);
+    const sm = s.toLocaleDateString("en-US", { month: "short", ...o }), em = e.toLocaleDateString("en-US", { month: "short", ...o });
+    return sm === em
+      ? `${sm} ${s.getUTCDate()}–${e.getUTCDate()}, ${e.getUTCFullYear()}`
+      : `${sm} ${s.getUTCDate()} – ${em} ${e.getUTCDate()}, ${e.getUTCFullYear()}`;
   }
 
   function nights(arrival: string | null, departure: string | null): number {
@@ -562,34 +574,24 @@ export default function TripOverview() {
       )}
 
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-36">{/* room at the bottom so nothing ends under the tab bar or Scout's bubble */}
-        {/* Header — only when there's no map */}
-        {!hasMap && (
-          <div className="mb-8">
+        {/* Header and controls in one row, so Today starts near the top (delight audit: the trip's name, its source and
+            its dates took a third of a small screen before Today; the designer and Andy both flagged it) */}
+        <div className="flex items-center gap-1 mb-3">
+          {!hasMap && (
             <button
               onClick={() => showSwitcherArrow && setShowTripSwitcher(true)}
-              className="text-left group min-h-[44px]"
+              className="text-left group min-h-[44px] mr-auto min-w-0"
             >
-              <h1 className="text-2xl font-light text-[#3a3128] inline">
-                {trip.name}
-              </h1>
+              <h1 className="text-lg font-normal text-[#3a3128] inline">{trip.name}</h1>
               {showSwitcherArrow && (
-                <span className="ml-2 text-[#6b5d4a] group-hover:text-[#514636] transition-colors text-base">&#9662;</span>
+                <span className="ml-1 text-[#6b5d4a] group-hover:text-[#514636] transition-colors text-sm">&#9662;</span>
               )}
+              <span className="block text-xs text-[#6b5d4a]">
+                {trip.startDate && trip.endDate ? shortRange(trip.startDate, trip.endDate) : `${days.length} days planned · Dates TBD`}
+              </span>
             </button>
-            {trip.tagline && (
-              <p className="text-sm text-[#6b5d4a] mt-0.5 italic">{trip.tagline}</p>
-            )}
-            <p className="text-sm text-[#6b5d4a] mt-1">
-              {trip.startDate && trip.endDate
-                ? `${formatDate(trip.startDate)} — ${formatDate(trip.endDate)}`
-                : `${days.length} days planned · Dates TBD`
-              }
-            </p>
-          </div>
-        )}
-
-        {/* Identity bar — min 44px tap targets for mobile */}
-        <div className="flex items-center justify-end gap-1 mb-4">
+          )}
+          {hasMap && <span className="mr-auto" />}
           <button
             onClick={() => navigate("/guide")}
             className="text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
@@ -623,16 +625,7 @@ export default function TripOverview() {
           )}
           
           <button onClick={() => navigate("/profile")} className="text-sm text-[#6b5d4a] hover:text-[#514636] transition-colors underline decoration-dotted underline-offset-2 px-1 py-2.5 min-h-[44px] min-w-[44px] justify-center flex items-center">{user?.displayName}</button>
-          <button
-            onClick={() => setShowActions(true)}
-            className="text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center"
-            aria-label="Actions"
-            title="What's happening"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-            </svg>
-          </button>
+          {/* (no ☑ here — the Actions tab below opens the same list; delight audit: an unlabelled second way in) */}
         </div>
 
         {/* Edit trip form */}
@@ -713,6 +706,7 @@ export default function TripOverview() {
             No signal — showing what this phone saved {savedAtWords(unreachableSince)}.
           </p>
         )}
+        <WelcomeOnce owner={guideOwnerOf(trip.tagline)} />
         <TripGlance tripId={trip.id} />
 
         {/* Face ID offer right under Today — it only shows until it's set up or dismissed. Above Today it
@@ -926,6 +920,7 @@ function TripSwitcherList({
   onSwitch: (id: string) => void;
   onRename: (id: string, newName: string) => void;
 }) {
+  const { user } = useAuth();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const savingRef = useRef(false);
@@ -987,7 +982,9 @@ function TripSwitcherList({
                   )}
                   {/* Tagline — shows the sync source so planners can tell trips apart */}
                   {t.tagline && (
-                    <p className="text-[11px] text-[#6b5d4a] italic truncate mt-0.5">{t.tagline}</p>
+                    // Where it comes from, to the person looking — without her copy's file name (delight audit)
+                    <p className="text-[11px] text-[#6b5d4a] italic truncate mt-0.5">{/^From Larisa's Guide/.test(t.tagline)
+                      ? (voiceFor(user?.displayName).mine ? "From your Guide" : "From Larisa's Guide") : t.tagline}</p>
                   )}
                   {/* Metadata line — smaller, muted */}
                   {/* The trip's own dates, and how fresh Wander's copy of the Guide is */}

@@ -16,7 +16,7 @@ import { queuedBodies } from "../lib/offlineStore";
 import { useAuth } from "../contexts/AuthContext";
 import type { Experience, Trip } from "../lib/types";
 import { guideData, type TripGuideData } from "../lib/guideData";
-import { mapsLink } from "../lib/guideDisplay";
+import { mapsLink, voiceFor } from "../lib/guideDisplay";
 
 interface Note { id: string; experienceId: string; content: string; visibility?: string; traveler: { displayName: string }; createdAt: string; _pending?: boolean }
 interface DayChoice { id: string; date: string; text: string; experienceId: string | null; addedBy: string }
@@ -199,7 +199,7 @@ export default function IdeasPage() {
       <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] pt-[max(env(safe-area-inset-top),8px)]">
         <div className="px-4 pb-1">
           <h1 className="text-lg font-medium text-[#3a3128]">Ideas{city ? ` · ${city.name}` : ""}</h1>
-          <p className="text-xs text-[#6b5d4a]">From the Activities tab of Larisa's Guide</p>
+          <p className="text-xs text-[#6b5d4a]">From the Activities tab of {voiceFor(user?.displayName).guide}</p>
         </div>
         {/* Cities */}
         <div className="flex gap-2 overflow-x-auto px-4 pb-2 pt-1" role="tablist" aria-label="City">
@@ -334,9 +334,10 @@ function IdeaCard({ exp, cityName, notes, me, tripId, days, today, choices, onNo
       </div>
       {exp.description && <p className="text-sm text-[#6b5d4a] mt-1 whitespace-pre-line">{exp.description}</p>}
       <p className="text-xs text-[#514636] mt-1.5">
-        {marked.length > 0 ? `Marked by ${marked.join(", ")}` : "Nobody has marked this yet"}
+        {/* "you", not your own name (delight audit: "Marked by Larisa" on Larisa's phone, sixteen times) */}
+        {marked.length > 0 ? `Marked by ${marked.map((n) => (me && n.replace(/\s*\(maybe\)$/i, "").toLowerCase() === me.toLowerCase() ? n.replace(/^[^(]+?(?=\s*\(|$)/, "you") : n)).join(", ")}` : "Nobody has marked this yet"}
         {removedFromGuide
-          ? " · no longer in Larisa's Guide — kept here for the notes on it"
+          ? ` · no longer in ${voiceFor(me).guide} — kept here for the notes on it`
           : !fromGuide && ` · added in Wander by ${exp.createdBy}`}
       </p>
       {choices.length > 0 && (
@@ -387,7 +388,7 @@ function IdeaCard({ exp, cityName, notes, me, tripId, days, today, choices, onNo
             <input type="checkbox" checked={justMe} onChange={(e) => setJustMe(e.target.checked)} className="w-5 h-5" />
             Just for me
           </label>
-          <p className="text-xs text-[#6b5d4a]">{justMe ? "Only you will see this note." : "Everyone on the trip sees this."} Larisa's Guide stays as it is.</p>
+          <p className="text-xs text-[#6b5d4a]">{justMe ? "Only you will see this note." : "Everyone on the trip sees this."} {voiceFor(me).mine ? "Your Guide" : "Larisa's Guide"} stays as it is.</p>
           <div className="flex gap-2 mt-1">
             <button onClick={saveNote} disabled={!text.trim() || saving} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm disabled:opacity-40">{saving ? "Saving…" : "Save note"}</button>
             <button onClick={() => { setWriting(false); setText(""); }} className="min-h-[44px] px-4 text-sm text-[#514636]">Cancel</button>

@@ -119,17 +119,19 @@ export default function HistoryPage() {
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
+          {/* One back control on every screen (delight audit: seven variants) */}
           <button
-            onClick={() => navigate("/")}
-            className="min-h-[44px] pr-3 text-sm text-[#514636]"
+            onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"))}
+            aria-label="Back"
+            className="min-h-[44px] min-w-[44px] pr-3 text-sm text-[#514636]"
           >
-            &larr; Home
+            ‹ Back
           </button>
         </div>
 
         <h1 className="text-2xl font-light text-[#3a3128]">What's changed in Wander</h1>
         <p className="text-sm text-[#6b5d4a] mb-4">
-          Notes, plans and additions people made here{total > 0 ? ` (${total})` : ""}. Changes to Larisa's Guide happen in her sheet.
+          Notes, plans and additions people made here{total > 0 ? ` (${total})` : ""}. {/^larisa$/i.test(user?.displayName || "") ? "Changes to your Guide happen in your sheet." : "Changes to Larisa's Guide happen in her sheet."}
         </p>
 
         {/* Search */}
@@ -160,7 +162,7 @@ export default function HistoryPage() {
                   <div className="flex flex-wrap items-start justify-between gap-x-2 min-w-0">
                     <div className="flex-1 min-w-[12rem] [overflow-wrap:anywhere]">
                       <span className="text-sm font-medium text-[#3a3128]">
-                        {log.userDisplayName}
+                        {user?.displayName && log.userDisplayName === user.displayName ? "You" : log.userDisplayName}
                       </span>
                       <span className="text-sm text-[#6b5d4a] ml-1">{changeRest(log.userDisplayName, log.description)}</span>
                     </div>

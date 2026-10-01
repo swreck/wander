@@ -126,10 +126,11 @@ export default function GuidePage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <button
-            onClick={() => navigate("/")}
-            className="min-h-[44px] px-1 text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors"
+            onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"))}
+            aria-label="Back"
+            className="min-h-[44px] min-w-[44px] px-1 text-sm text-[#514636]"
           >
-            &larr; Home
+            ‹ Back
           </button>
         </div>
 

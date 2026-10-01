@@ -2,6 +2,101 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-09-30 — The Delight Audit
+
+A six-person panel (Larisa, Ken on the pickup day, Julie opening it for the first time, Andy who hates apps, a product
+designer, and Scout's voice) lived real moments of the trip and wrote down every moment of confusion, annoyance, "meh"
+or giving up. What changed:
+
+### Changed
+- **Wander speaks to the person holding the phone.** To Larisa: "your Guide", "Your plan for the day", "Your tabs
+  differ", "Your note for the Tokyo stay", "Your Guide, tab by tab" — never "Larisa's notes" or "worth checking with
+  Larisa" to Larisa herself. To Ken: "your rail sheet". Everyone else still reads "Larisa's Guide". (Home, Now, the day
+  screen, the pickup page, her tabs, Trains.)
+- **Now and Home show the next thing by the clock.** Just landed: "Next · After landing · KIX → Shin-Osaka · Airport
+  train — No booking needed — Buy after immigration/bags", then the pickup, then the 6:17 PM train ("Then" on Home). The
+  train card follows her plan when her next line is sooner (11:30 on Oct 29: the Residence transfer in 30 min, then the
+  1:30 PM HARUKA). The landing note leaves Now 90 minutes after landing; the pickup card leaves Now once its train has
+  gone.
+- **The pickup page opens at the step you're on**, folds ticked steps to one line ("Done · show this step again ›"),
+  titles each reservation by its journey ("JR West 1 · Oct 8 NOZOMI 9, Okayama 10:26 AM → Hakata 12:09 PM") with the
+  reservation number in bold and "The ticket should say:", and counts only steps to do (its help and "not part of
+  pickup" rows are notes). Home's and Now's pickup cards show "4 of 11 steps ticked on this phone".
+- **Julie isn't handed jobs that aren't hers.** A free-cancellation window that has closed leaves Home ("Free
+  cancellation has ended. Nothing to do — it stays booked." on the day); a passed to-do shows only to whoever it
+  belonged to. "A question for you" shows only while it's still ahead, with "Tell Larisa your answer ›" (a message
+  already started).
+- **At the airport:** "Her Guide doesn't say how to get from Narita to Imperial Hotel." now has "Ask Scout the ways to go
+  ›" (opens Scout and asks) and "Directions in Maps ↗".
+- **Someone else's trains fold to one line** on your day ("Ken & Larisa's trains today (4) ›").
+- **After its day, a train's old status is one calm line**: "Paper tickets: Ken & Larisa were to collect these at
+  Shin-Osaka on Tue, Oct 6." — the rail sheet's words one tap away. Its "PENDING — SmartEX…" warning goes once you're
+  aboard.
+- **Her matched-date note is one quiet line**: "Wander placed this plan on this day; a picture in the tab dates it
+  differently ›" (the reasoning on a tap) instead of five amber lines above her stops.
+- **Oct 29's Home** says the HARUKA difference once (her plan's line points to the train row below).
+- **Home's header is one row** ("Japan 2026 ▾ · Oct 5–29, 2026" with the controls), so Today starts near the top; the
+  unlabelled ☑ (a second way into Actions) is gone. A one-time welcome on first open: "Hi Julie. This is Larisa's plan
+  for the trip, day by day, on your phone. There's nothing you need to do — it's here when you want it."
+- **One back control everywhere**: "‹ Back" (goes back, or Home) on History, Help, Profile, Settings and the pickup page.
+- **Her tab names read whole**: the saved copy cuts tab names at 31 letters ("Kappabashi & Akihab"); they now end at the
+  last whole word with "…".
+- **Oct 25: "Taxi to e-bike meeting point" says where** — "Where: Cycle Kyoto — the stop her tab lists for this", with
+  Maps (her stop list was one cell with several stops). Needs a fresh read of her Guide.
+- **Small things:** "The weather Larisa's Guide expects" (it read as her forecast); map and web links no longer run
+  together; Scout's panel: answers use its full width, the waiting line says "Looking in your Guide" to Larisa, the
+  greeting says what Scout has actually read, the deadline chip is "Is there anything I need to do soon?".
+- **Scout** speaks to the person asking ("your Guide" to Larisa, "your Suica" to Ken), answers the question in its first
+  sentence, keeps in-the-moment answers short, never repeats a paragraph, uses no spreadsheet words, says when the rail
+  sheet hasn't verified something (the Suica/PASMO seat designations), checks a step's own conditions (the right
+  machine) before its fallback, and points to the pickup page.
+- Not changed: the panel's 130%-text findings come from enlarging only some text in a test browser; Wander has no text
+  size setting, and Safari's zoom scales everything together.
+- **After the second pass (four fresh panel members):**
+  - **Arrival day has one "Next" at a time.** Just landed: one dark card, "Next · after landing · HARUKA · KIX →
+    Shin-Osaka — Buy after immigration/bags", with "Then · Ticket pickup: the steps ›" and "Then · 6:17 PM NOZOMI 77"
+    inside it (three cards each looked like what to do next). It gives way once a pickup step is ticked or 90 minutes
+    after landing; the pickup card leads until 20 minutes before the train; then the train leads. Before landing, the
+    landing is next.
+  - **One count for the pickup, in tickets**: "4 of 6 tickets ticked on this phone — next: JR West 5" on the page, Home
+    and Now (they said "6 of 11" and "6 of 13"). After Oct 6, on the pickup couple's phones, each train says whether its
+    ticket's step was ticked here — "Paper ticket: not ticked on this phone at the Shin-Osaka pickup on Tue, Oct 6 —
+    check you have it before boarding." (an unticked ticket read the same as a collected one).
+  - **Oct 29 says the HARUKA difference once per screen, in one line under the train**: "Her “Kyoto Thu, 1029 …” tab says
+    12:30 PM–1:00 PM; this booking and her Itinerary tab say 1:30 PM." Home shows the train once (her 12:30 line isn't
+    Next); the old pickup instructions aren't shown after the pickup day.
+  - **The "your" change is finished**: Ideas ("Marked by you"), Actions ("You · working on it", "your Guide"), History
+    ("You added …"), her tabs ("A picture you pasted"), Settings (no file name: "Wander's copy, read …"), plans she adds
+    ("Added by you · not in your Guide"), and Wander's own notes ("the stop your tab lists"). Ken's Settings: "Your rail
+    sheet". Help, written for everyone, still explains Larisa's Guide.
+  - **Oct 28, split day**: Now and Home lead with "Next in your plan · 10:35–11:35 · Maruni Toryo — Your Guide doesn't name
+    the group for this line; Ken & Andy are at MIHO Museum then.", then "Then · Café ENSOU lunch" (Next had skipped to
+    lunch, with Maruni Toryo an amber aside). The day screen's note is a small grey "No group named here".
+  - **Home at Narita**: "Getting from Narita to Imperial Hotel: her Guide doesn't say." with "Ask Scout the ways to go ›"
+    ("Scout can answer once you have signal" offline) and "Directions in Maps ↗".
+  - **The tab bar's five tabs share the width** ("Scout" was cut to "Sc" at Safari's larger zoom). "… interested?"
+    questions don't headline their own day. The welcome says "There's nothing to set up" (Ken has tickets to collect).
+  - **Scout** never claims more than the sources show ("the only HARUKA booking in the rail sheet is the 1:30 PM" — not
+    "the 12:30 isn't a booking").
+- **After the third pass (two fresh panel members; no wrong time, place, booking or person found):**
+  - **"Her Guide doesn't say" is only said when none of her tabs does.** At Narita, Home and Now quote her own hotel
+    notes — “Airport access is good: the hotel has Airport Limousine Bus service from the main entrance … the Narita
+    Express runs direct in as little as 53 minutes.” (her “Tokyo Areas & Hotel Options” tab) — beside "Ask Scout" and
+    "Directions in Maps". (It said her Guide didn't say; an honesty failure.)
+  - **A ticket this phone didn't tick at the pickup is said at the top of Home and Now on the morning it travels**, with
+    the rail sheet's own words on where it can still be had: "Paper ticket for the 4:58 PM YAMABIKO 146: not ticked on
+    this phone at the pickup. If it's ticked on Larisa's phone, you're set. If not, the rail sheet says: “Pick up before
+    Oct 14 boarding at … Shin-Osaka …, or Tokyo Station's JR East Travel Service Center. Tickets cannot be collected at
+    Utsunomiya.”" On the pickup evening, Home names what wasn't ticked ("Not ticked on this phone at the pickup: JR West
+    5, JR West 6 ›") instead of the pickup link.
+  - **Now shows one strong card at a time**: a second card (the train after her Next; the train under the pickup; "Then"
+    on the split day) is a step quieter. Her lines that fall during the next booked train's ride ("Arrive KIX") aren't
+    offered as Next.
+  - **The last third-person lines on Larisa's phone**: Home's "Added in Wander by you", History's subtitle, the trip
+    picker ("From your Guide", no file name), Actions ("For you & Andy"). Home's split-day line says who's elsewhere
+    ("Ken & Andy are at MIHO Museum then"), and "… interested?" questions leave Home's list on their own day.
+- SPEC UPDATE NEEDED (§ Now: what's next by the clock; § Home header; § to-dos and deadlines shown by whose they are).
+
 ## 2026-09-30 — Loose Ends Before Release
 
 ### Fixed
