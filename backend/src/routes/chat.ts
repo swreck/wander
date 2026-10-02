@@ -4142,12 +4142,20 @@ export async function executeTool(
 
 router.post("/", async (req: AuthRequest, res) => {
   try {
-    const { message, context, history, clientTime } = req.body;
+    const { message, context, history, clientTime, image } = req.body;
 
     if (!message) {
       res.status(400).json({ error: "message is required" });
       return;
     }
+    // A photo with the question (Oct 2: a menu, a sign, a ticket — read and translated): one picture, as the phone
+    // shrank it. Never kept — only "(with a photo)" goes into the saved conversation.
+    const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const photo = image && typeof image === "object" && PHOTO_TYPES.includes(image.mediaType) && typeof image.data === "string"
+      && /^[A-Za-z0-9+/=]+$/.test(image.data.slice(0, 200)) && image.data.length < 7_000_000
+      ? { mediaType: image.mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: image.data as string }
+      : null;
+    if (image && !photo) { res.status(400).json({ error: "That photo couldn't be read — try another, or a smaller one." }); return; }
 
     const user = req.user!;
 
@@ -4350,6 +4358,7 @@ TALKING WITH THEM (every answer):
 - Wander already shows the rail sheet's pickup steps on their own page (from a day's Trains, "Ticket pickup — Shin-Osaka: the steps ›") — point them there instead of offering to pull the steps up.
 
 CITING (every answer): the Guide, the right-now statuses and Ken's rail sheet are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
+PHOTOS: when a photo comes with the question (a menu, a sign, a ticket, a screen), read it carefully. Translate Japanese (or any other language) into plain English when that's what they need — line by line for a menu or sign, with the Japanese kept beside each line when they might show it to someone. Say what you read from the photo as from the photo ("Your photo shows…"), never as the Guide; when the photo and her Guide meet (a ticket's train and the rail sheet, a restaurant's name and her booking), say both and whether they match. Words you can't make out: say so — never guess a time, a price, a platform or an ingredient. Food and allergies (Andy is allergic to alliums — onion, garlic, leek, chive): point out what the photo shows that may contain them, give the Japanese words to show a server (玉ねぎ・ねぎ・にんにく), and say plainly that a menu photo can't prove what's in a dish — confirm with the staff. A photo isn't kept: if they ask about it again later without sending it, say to send it again.
 WHERE IN HER SHEET: when someone asks where something is in Larisa's sheet ("which tab has…", "where did I put…", "where does it say…"), answer with the tab, named as she named it, and her words there, cited. Then say in one short sentence that "Sources" under this answer opens that spot in her sheet. If her Guide has it in more than one tab, name each, and cite each. Say where you found it — never that it's the only place or that no other tab has it: her pictures and long tabs can hold more than your copy shows. If it isn't in the copy you have, say so; never guess a tab.
 
 ANSWERING FROM THE GUIDE (most important):
@@ -4484,9 +4493,9 @@ RULES:
       } catch { /* no saved history — answer this question on its own */ }
     }
     // Append tripId hint to the user message so the model can't miss it
-    const augmentedMessage = tripId
+    const augmentedMessage = `${photo ? "[They sent the photo above with this question.]\n" : ""}${tripId
       ? `${message}\n\n[System: The active trip ID is ${tripId}. Use it for any tool calls. Do not ask the user for it.]`
-      : message;
+      : message}`;
     const actions: string[] = [];
     const placeCards: any[] = [];
     // Screens Scout opened or offered ("Open Wed, Oct 14 · Tokyo")
@@ -4537,6 +4546,7 @@ RULES:
     const latest: any[] = [
       ...(liveLines.length ? [asDocument(LIVE_TITLE, liveLines, false)] : []),
       { type: "text", text: liveTail },
+      ...(photo ? [{ type: "image", source: { type: "base64", media_type: photo.mediaType, data: photo.data } }] : []),
       { type: "text", text: augmentedMessage },
     ];
     messages.push({ role: "user", content: latest });
@@ -4660,7 +4670,9 @@ RULES:
     // Where the answer came from — its citations as Scout wrote them, each resolved to the source recorded
     // with the line it points at; the parts with none are Scout's own words. Shown only when someone taps
     // "Sources" under the answer.
-    const sources = finalReply ? answerSources(finalReply, answerPieces, citedDocs, guideCopy, fetchedPages) : null;
+    const sources0 = finalReply ? answerSources(finalReply, answerPieces, citedDocs, guideCopy, fetchedPages) : null;
+    // (what Scout read from a photo has no Guide source — the Sources panel says the photo is where it came from)
+    const sources = sources0 && photo ? { ...sources0, photo: true } : sources0;
     const hasSources = !!sources && (sources.claims.length > 0 || sources.ownWords.length > 0);
 
     // Opus 5 list price: $5/M input, $25/M output, one-hour cache writes 2x input ($10/M), cache reads 0.1x,
@@ -4672,7 +4684,7 @@ RULES:
     if (tripId && req.user?.travelerId && finalReply) {
       prisma.chatMessage.createMany({
         data: [
-          { tripId, travelerId: req.user.travelerId, role: "user", content: message },
+          { tripId, travelerId: req.user.travelerId, role: "user", content: photo ? `${message} (with a photo)` : message },
           { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply, ...(hasSources ? { sources: sources as any } : {}) },
         ],
       }).catch(() => { /* non-critical — don't fail the response */ });

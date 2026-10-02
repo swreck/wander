@@ -45,6 +45,27 @@ No SPEC change.
   answer read in full (the Omotesando answer now quotes their email, and its whisky-bar extra is in that email).
 - Not yet deployed (waiting for Ken's go): it changes what every Scout answer starts from.
 
+## 2026-10-02 — Scout Reads Your Photos, and Translates
+
+Ken, from the car: "Can Scout accept and process images? Can it include translate?" It couldn't — a picture pasted into
+Scout's box was dropped.
+
+### Added
+- **A photo with your question** (Scout: the camera button beside the mic, or paste a picture into the box). Take one
+  or choose one; it shows above the box with ✕ until sent; your question shows it; a photo with no words asks "What
+  does this say?". Shrunk on the phone first (longest side 1568 px) so it goes quickly on hotel wifi. Never kept — the
+  saved conversation says "(with a photo)" only.
+- **Scout reads and translates it**: a menu or sign line by line with the Japanese beside the English; says what came
+  from the photo, never passing it off as the Guide; checks it against her Guide and Ken's rail sheet when they meet
+  (a ticket against the booking); says what it can't make out instead of guessing. For Andy's allium allergy it points
+  out what may contain onion, scallion or garlic, gives the Japanese to show a server, and says a menu photo can't
+  prove what's in a dish — confirm with the staff. Sources: "Read from your photo, or Scout's own words — not from
+  the Guide".
+- Tested end to end with real photos: a Japanese menu (Andy, at dinner) and a train ticket pasted in (Ken, at
+  Shin-Osaka — Scout caught that the test ticket's car and seats didn't match his booking).
+
+SPEC UPDATE NEEDED: Scout (photos).
+
 ## 2026-10-02 — Her Oct 2 Revision ("Japan Oct 2026-3"): a Day Planned Twice, and Her Exact Place
 
 Larisa's latest download changed one tab: "Tokyo Day 2" gained a revised day plan (A46 — Akihabara moved to midday,

@@ -28,6 +28,8 @@ export interface AnswerSources {
   // matched: Scout quoted these words without pointing to them; Wander found the one line holding them, word for word
   claims: { said: string; sources: SourceView[]; unmatchedTimes?: string[]; matched?: boolean }[];
   ownWords: string[];
+  /** a photo came with the question: what Scout read from it has no Guide source */
+  photo?: boolean;
 }
 
 export function hasSources(s: AnswerSources | undefined | null): s is AnswerSources {
@@ -263,7 +265,7 @@ export default function ScoutSources({ sources, tripId, onClose }: { sources: An
           ))}
           {sources.ownWords.length > 0 && (
             <section>
-              <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">Scout's own words — no source</p>
+              <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{sources.photo ? "Read from your photo, or Scout's own words — not from the Guide" : "Scout's own words — no source"}</p>
               <ul className="space-y-1.5">
                 {sources.ownWords.map((w, i) => <li key={i} className="text-sm text-[#3a3128]">“{w}”</li>)}
               </ul>
