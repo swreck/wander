@@ -45,6 +45,53 @@ No SPEC change.
   answer read in full (the Omotesando answer now quotes their email, and its whisky-bar extra is in that email).
 - Not yet deployed (waiting for Ken's go): it changes what every Scout answer starts from.
 
+## 2026-10-02 — Scout Finds the Exact Spot in Her Sheet; Notes by Place
+
+Ken: "if Larisa wanted to check something in her spreadsheet, asking Scout would be the fastest way to find the exact
+spot." Not deployed yet.
+
+### Added
+- **"Open at this spot in your sheet ↗"** (Scout → "Sources" under an answer). Under each tab's cells, one button opens
+  her Google Sheet at that tab and those cells (Larisa: "your sheet"; others: "Larisa's sheet"; Ken's rail sheet the
+  same way). Wander never opens her sheet itself — the phone does, and Google decides who may see it. Her sheet's
+  address and tab ids live in the database, not the public code (recorded with `scripts/set-sheet-link.ts`; every
+  import keeps them). A tab Wander has no id for opens her sheet and says "then the '…' tab, cells A57:B57". Today 11
+  of her 26 tabs have ids (from April); the 15 newer ones need theirs.
+- **Each line of a day opens its spot in her sheet** (Day screen). The source line under a line ("From your Guide —
+  the Itinerary tab, Y66 ↗") is the link; her plan's "From the … tab" too. Where her tabs disagree, both spots, one
+  tap each ("In your sheet: Itinerary Q67 ↗ · Kyoto Thu, 1029 (Flight Home)) B57 ↗") — the reviewer's top reason to open
+  the sheet instead was settling exactly that. A tab with no id yet shows its cells in words and "Open your sheet ↗".
+  The Guide page's tab-by-tab "Open in the Guide →" uses the same address (it never showed before).
+- **Scout answers "where in my sheet is…"**: the tab as she named it, her words there, cited, and a line that
+  Sources opens that spot. It never says something is "the only place" — her pictures can hold more than its copy.
+- **Notes: what a note is about** (Notes → "About"). A place on the trip, "Backroads", or "Japan overall" — one tap on
+  the phone's own list. A new note starts at where you are once you've landed (Larisa on Oct 26: "Kyoto — where you
+  are"); before you land, at home, or after the trip, "Japan overall" (Julie on Oct 10). "Change" on your own note can
+  move it to another place; its words stay exactly as saved.
+- **Notes: whose, and in what order** (Notes, under the search box). "Everyone's / Mine / Others'" and "Newest first /
+  Trip order". Trip order reads the trip as it happened: Japan overall first, then each place in the order the trip
+  reaches it ("KYOTO · OCT 23–29", Backroads in its week), each place's notes in the order written. Each note says who
+  wrote it (others' first), where, the day (one tap to that day) and when. The choices stay on the phone. The export
+  file leads with the place too.
+
+### Fixed
+- **Sources point at the cell her words are in.** Graded Scout's saved answers against her downloaded Guide: every cell
+  shown held its words (84/84), but some answers' words were in a cell the source left out — a stay's dates beside its
+  hotel, the second row of a merged line (her Itinerary note on the flight row), the ninth cell of a row (the
+  Imperial's airport words), her city heading one row above. Each line's cells are now completed from her rows: the
+  cells whose words are in the line, her times in their own cells ("8:30a" for 08:30), a passage the line quotes when
+  exactly one cell holds it, "the stop her tab lists", and the tab's picture. Checked across all 551 Guide lines.
+- **An exact quote Scout forgot to point to** now gets its line — shown as "Scout quoted these words without pointing
+  to them — Wander found them here, word for word", never as Scout's own citation. Only a 15+ character quote found
+  in lines that share one source; anything less stays "Scout's own words".
+- **Scout says when her tabs disagree, even if you asked about only one part** ("back together at Café ENSOU lunch,
+  1:00–2:30 PM — though her Dining Resos tab lists Cafe Ensou at 8:00 PM").
+- **The Sources panel speaks to Larisa** as "Your Guide… You may have changed it since".
+- A formula with no saved answer in her download was read as "[object Object]"; it now has no words to show.
+
+SPEC UPDATE NEEDED: Notes (what a note is about is a place, not a day; whose/order views); Scout Sources (open in her
+sheet).
+
 ## 2026-10-02 (overnight) — Through Larisa's, Julie's and Andy's Eyes
 
 Five fresh testers walked the test copy as Larisa (planner, and in Kyoto), Julie (first time), Andy (Backroads

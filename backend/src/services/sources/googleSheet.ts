@@ -25,7 +25,7 @@ export interface SheetRead { title: string; tabs: GuideTab[]; contentHash: strin
 export async function readGoogleSheet(spreadsheetId: string): Promise<SheetRead> {
   const auth = new google.auth.GoogleAuth({ credentials: credentials(), scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"] });
   const sheets = google.sheets({ version: "v4", auth });
-  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "properties(title),sheets.properties(title,index)" });
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "properties(title),sheets.properties(title,index,sheetId)" });
   const title = meta.data.properties?.title || "";
   const tabs: GuideTab[] = [];
   for (const s of meta.data.sheets || []) {
@@ -38,7 +38,8 @@ export async function readGoogleSheet(spreadsheetId: string): Promise<SheetRead>
       const text = withoutFinancialDetails(String(v ?? "")).trim();
       if (text) cells.push({ a1: `${columnLetter(ci + 1)}${ri + 1}`, r: ri + 1, c: ci + 1, text, kind: "text" });
     }));
-    tabs.push({ name, index: s.properties?.index ?? tabs.length, cells, merged: [], images: [] });
+    // (its tab id, so a source can open the exact spot in the sheet — sheetLink.ts)
+    tabs.push({ name, index: s.properties?.index ?? tabs.length, cells, merged: [], images: [], gid: s.properties?.sheetId ?? undefined });
   }
   const contentHash = crypto.createHash("sha256").update(JSON.stringify({ title, tabs })).digest("hex");
   return { title, tabs, contentHash };

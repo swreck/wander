@@ -113,7 +113,7 @@ export type GuideCellWords =
   | { kind: "picture"; tab: string; anchor: string; sha256: string }
   | { kind: "tab"; tab: string };  // her tab, where Wander couldn't pin the one cell — said so, never guessed
 
-const flatWords = (s: string) => norm(s).replace(/[‐-―]/g, "-").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+export const flatWords = (s: string) => norm(s).replace(/[‐-―]/g, "-").replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
 
 /**
  * The cell in her tab holding a line's own words — the smallest cell containing all of them (a stop list and a
@@ -1450,10 +1450,13 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         tagline: `From Larisa's Guide · ${opts.sourceName.replace(/\.xlsx$/i, "").replace(/(?:-\d| \(\d+\)| copy(?: \d+)?)$/i, "")}`,
       },
     });
+    // (her sheet's address and tab ids, kept across imports — sheetLink.ts)
+    const kept = ((await tx.sheetSyncConfig.findUnique({ where: { tripId }, select: { tabMappings: true } }))?.tabMappings as any)?.sheetLink;
+    const tabMappings = { source: "snapshot", sourceName: opts.sourceName, ...(kept ? { sheetLink: kept } : {}) };
     await tx.sheetSyncConfig.upsert({
       where: { tripId },
-      create: { tripId, spreadsheetId: "", lastSyncAt: new Date(), lastSyncStatus: "success", tabMappings: { source: "snapshot", sourceName: opts.sourceName } },
-      update: { lastSyncAt: new Date(), lastSyncStatus: "success", tabMappings: { source: "snapshot", sourceName: opts.sourceName } },
+      create: { tripId, spreadsheetId: "", lastSyncAt: new Date(), lastSyncStatus: "success", tabMappings },
+      update: { lastSyncAt: new Date(), lastSyncStatus: "success", tabMappings },
     });
 
     // What changed since the last version

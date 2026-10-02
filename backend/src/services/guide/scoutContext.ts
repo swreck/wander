@@ -7,7 +7,7 @@
  */
 
 import prisma from "../db.js";
-import { tabsOfCopy, wordsAt, cellsOfItem, ideaRef, type ContextLine, type SourceView, type SourcePart } from "./sources.js";
+import { tabsOfCopy, wordsAt, cellsOfItem, ideaRef, completeCells, type ContextLine, type SourceView, type SourcePart } from "./sources.js";
 
 const ymd = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
 const weekday = (date: string) =>
@@ -98,8 +98,13 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   // Every line carries its source (sources.ts). A heading or an instruction to Scout has none.
   const out: ContextLine[] = [];
   const live: ContextLine[] = [];
-  const say = (to: ContextLine[], text: string, src: SourceView | null = null) => { to.push({ text, src }); };
   const tabs = await tabsOfCopy(snapshot.id);
+  // (each line's cells completed from her rows — the cells its words are actually in; sources.ts completeCells)
+  const say = (to: ContextLine[], text: string, src: SourceView | null = null) => {
+    if (src?.type === "guide") src = { ...src, cells: completeCells(text, src.cells, tabs, src.label) };
+    else if (src?.type === "wander") src = { ...src, from: src.from.map((f) => ({ ...f, cells: completeCells(text, f.cells, tabs, f.label) })) };
+    to.push({ text, src });
+  };
   const partOf = (i: (typeof items)[number]): SourcePart => ({ label: i.source, cells: cellsOfItem(i, tabs) });
   const worked = (what: string, from: SourcePart[]): SourceView => ({ type: "wander", what, from });
   // Wander's own notes in a line's detail — listed apart from her words

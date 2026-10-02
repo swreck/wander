@@ -10,6 +10,8 @@ import type { Trip, Day, Accommodation } from "./types";
 
 export interface GuideItem {
   id: string;
+  /** where the line is in her sheet: each tab and its cells (backend sources.ts spotsOf) — for "Open this spot" */
+  spots?: { tab: string; a1s: string[] }[];
   date: string | null;
   time: string | null;
   endTime: string | null;

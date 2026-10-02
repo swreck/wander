@@ -79,11 +79,6 @@ interface NotesResponse {
   tabGids?: Record<string, number>;
 }
 
-interface SyncStatus {
-  configured: boolean;
-  spreadsheetId?: string;
-}
-
 // Interactive replacements for common visual tabs. Each entry returns a user-facing
 // label and a URL that gives planners a LIVE version of what Larisa pasted as a static
 // image. The goal is "value-add front end": Larisa shows a subway diagram, Wander shows
@@ -149,8 +144,13 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
         if (res?.tabOrder) setTabOrder(res.tabOrder);
       })
       .catch(() => {});
-    api.get<SyncStatus>(`/sheets-sync/status/${tripId}`)
-      .then(res => { if (res?.configured && res.spreadsheetId) setSpreadsheetId(res.spreadsheetId); })
+    // Her sheet's address and tab ids — the same ones Scout's Sources open (backend sheetLink.ts). The April sync
+    // record's empty address hid this link on every tab (round 16)
+    api.get<{ link: { url: string; tabs: Record<string, number> } | null }>(`/guide/sheet-link/${tripId}`)
+      .then(res => {
+        const m = res?.link?.url.match(/\/spreadsheets\/d\/([\w-]+)\//);
+        if (m) { setSpreadsheetId(m[1]); setTabGids((old) => ({ ...old, ...res!.link!.tabs })); }
+      })
       .catch(() => {});
   }, [tripId]);
 
@@ -176,7 +176,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
     if (!spreadsheetId) return;
     const gid = tabName ? tabGids[tabName] : undefined;
     const url = gid != null
-      ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${gid}`
+      ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?gid=${gid}#gid=${gid}`
       : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
     window.open(url, "_blank", "noopener,noreferrer");
   }

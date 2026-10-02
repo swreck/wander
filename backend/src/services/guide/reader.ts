@@ -38,6 +38,8 @@ export interface GuideTab {
   cells: GuideCell[];   // non-empty cells, row-major
   merged: string[];     // e.g. ["C46:J46"]
   images: GuideImagePlacement[];
+  /** the tab's id in a Google Sheet Wander reads directly (Ken's rail sheet); a downloaded copy has none */
+  gid?: number;
 }
 
 export interface GuideImageFile {
@@ -85,6 +87,9 @@ function cellToGuideCell(cell: ExcelJS.Cell, r: number, c: number): GuideCell | 
   // Formula cells: use the computed result
   if (typeof v === "object" && v !== null && "result" in (v as any)) v = (v as any).result;
   if (v === null || v === undefined || v === "") return null;
+  // A formula the download kept no answer for (her Itinerary's shared "R44+V44+AA44" totals) has no words to show —
+  // it was read as "[object Object]" (round 15: a source could have quoted that)
+  if (typeof v === "object" && ("formula" in (v as any) || "sharedFormula" in (v as any))) return null;
 
   if (v instanceof Date) return { ...base, ...describeDate(v) };
   if (typeof v === "number") return { ...base, kind: "number", text: String(v) };

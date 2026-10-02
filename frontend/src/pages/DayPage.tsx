@@ -32,6 +32,7 @@ import {
 } from "../lib/guideDisplay";
 import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings } from "../components/RailSheet";
+import SheetSpots from "../components/SheetSpots";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
@@ -174,11 +175,13 @@ const choiceMapHref = (c: { name: string }, line: GuideItem) => mapsLink(`${c.na
  * line for the day sits in its header, as hers, so the two never read as rival plans. Today, the line
  * she has you on now is marked and the ones behind you step back.
  */
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
   picked: Map<string, DayChoice>; onPick: (text: string, time: string | null, pickFor: string) => Promise<void>;
   onUndo: (c: DayChoice) => Promise<void>; tellName: string | null; onTell: (c: DayChoice) => void;
   nowAt: number | null; hotel: string | null; bookings: GuideItem[];
+  /** for "Open this spot in her sheet" */
+  tripId?: string | null;
 }) {
   const v = voiceFor(me, tellName);
   // Her Itinerary line(s) for the day, for a Maps search's town (areaOf)
@@ -200,7 +203,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   return (
     <section id="plan" className="mb-5 scroll-mt-24">
       <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{v.Owners} plan for the day</h2>
-      <p className="text-[13px] text-[#6b5d4a] mt-0.5">From the {tabLabel(tab)} tab{heading ? ` — ${heading}` : ""}</p>
+      {/* (the tab's plan table, opened in her sheet — round 16) */}
+      <SheetSpots tripId={tripId} wholeTable label={`From the ${tabLabel(tab)} tab${heading ? ` — ${heading}` : ""}`} className="mt-0.5"
+        spots={[{ tab: blocks[0].spots?.[0]?.tab || tab, a1s: blocks.flatMap((b) => b.spots?.find((x) => x.tab === (blocks[0].spots?.[0]?.tab || tab))?.a1s || []) }]} />
       {/* Her whole route for the day, as she made it in Google Maps (charm item C4, Oct 1 2026) */}
       {(() => {
         const url = blocks.map((b) => (b.detail || "").match(/^Her whole route for the day: (\S+)$/m)?.[1]).find(Boolean);
@@ -259,6 +264,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
                 {picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">{noOwner.has(b.id) ? "No group named in this line — a" : "A"} picture in {v.her} tab lists it under “{picGroup}”{pictureYou(picGroup, v)}</p>}
                 {differ.map((d) => <p key={d} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{differWordsFor(d, v)}</p>)}
+                {/* her tabs disagree: each tab's spot, one tap each, to settle it in her own layout (round 16) */}
+                {differ.length > 0 && (b.spots?.length || 0) > 1 && <SheetSpots tripId={tripId} spots={b.spots} />}
                 {(() => {
                   const dress = bookingDress(b, bookings);
                   return dress ? <p className={`text-[13px] rounded-md px-2 py-1 mt-1 ${dress.stricter ? "text-[#8a5a1a] bg-[#fff8ec]" : "text-[#514636] bg-[#f6f1e8]"}`}>
@@ -1311,6 +1318,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 hotel's cancellation paragraph); her Itinerary line for the day sits in its header, as hers */}
             {planBlocks.length > 0 && (
               <PlanSection
+                tripId={tripId}
                 blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel} bookings={dayItems.filter((m) => m.kind === "meal")}
                 picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
                 onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}
@@ -1339,7 +1347,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // One timeline (round 13: Oct 6 read "Osaka → Okayama… Rikuro Cheesecake… Shinkansen" above the 2:50 PM
                   // landing, and the booked 6:17 PM NOZOMI 77 sat at the bottom under Trains): your booked trains join the
                   // timed lines at their times — each opens its full card in Trains — and lines her Guide gives no time say so
-                  const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} />;
+                  const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />;
                   // (not under "Also in her Guide for today" on a day with her detailed plan — a rail-sheet train isn't hers)
                   const trains = planBlocks.length ? [] : otherSources.flatMap((s) => {
                     const a = railAudience(items, s.owner);
@@ -1545,7 +1553,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 }
 
 /** One line of the Guide for this day. */
-function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources }: {
+function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId }: {
   i: GuideItem; date: string; today: string; tripZone: string; stays: TripGuideData["stays"]; me: string | null; highlight: boolean; day: GuideItem[];
   /** The whole Guide: a landing says where its flight stands right now, by the schedule */
   all?: GuideItem[];
@@ -1553,6 +1561,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   owner?: string | null;
   /** Ken's rail sheet and any other source: what it already has for a place her Guide asks you about */
   sources?: OtherSource[];
+  /** for "Open this spot in her sheet" */
+  tripId?: string | null;
 }) {
   // To Larisa herself: "your Guide", "Your tabs differ", "Your travel note" (delight audit)
   const v = voiceFor(me, owner);
@@ -1697,7 +1707,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
               ))}
             </div>
           )}
-          <p className="text-xs text-[#6b5d4a] mt-1">{friendlySource(i.source, me)}</p>
+          {/* (its source line opens that spot in her sheet; where her tabs disagree, each tab's spot — round 16) */}
+          <SheetSpots tripId={tripId} spots={i.spots} label={friendlySource(i.source, me)} className="mt-1" />
         </div>
       </div>
     </li>

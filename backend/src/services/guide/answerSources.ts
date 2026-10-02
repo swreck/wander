@@ -1,7 +1,8 @@
 /**
  * An answer's sources, from the citations Scout wrote as it answered (Anthropic citations: each cited piece
  * of the answer points at lines of the Guide document or at a web page). Every pointer resolves to the
- * source recorded with that line when the line was written (sources.ts) — nothing is matched up afterwards.
+ * source recorded with that line when the line was written (sources.ts) — nothing is matched up afterwards,
+ * except an exact quote of her words Scout left uncited, which is labelled as Wander's match (quotedLine).
  * Parts of the answer with no citation are Scout's own words, and are listed as that. (Ken, Sep 30 2026.)
  */
 import type { ContextLine, SourceView } from "./sources.js";
@@ -12,6 +13,8 @@ export interface Claim {
   // A time in what Scout said that isn't in the words it cited: Scout worked it out, or got it wrong —
   // shown as that, never vouched for
   unmatchedTimes?: string[];
+  // Scout quoted these words without citing them; Wander found the one line holding them, word for word (quotedLine)
+  matched?: boolean;
 }
 
 export interface AnswerSources {
@@ -168,7 +171,30 @@ export function answerSources(shown: string, pieces: AnswerPiece[], docs: CitedD
   for (const s of sentences) {
     if (s.split(/\s+/).length < 4 || !/[a-z]/i.test(s) || seen.has(s) || ATTRIBUTION.test(s)) continue;
     const touches = sourced.some((c) => s.includes(c) || c.includes(s) || s.includes(c.slice(0, 20)) || s.includes(c.slice(-20)));
-    if (!touches) { seen.add(s); ownWords.push(s); }
+    if (!touches) {
+      seen.add(s);
+      const found = quotedLine(s, docs);
+      if (found) claims.push({ said: s, sources: [trimmed(found, s)], matched: true });
+      else ownWords.push(s);
+    }
   }
   return { copy, claims, ownWords };
+}
+
+/**
+ * A sentence Scout left uncited that quotes her words exactly — "08:00 · Depart Four Seasons by private van" — and the
+ * one line of the documents holding those words, word for word (round 15: asked where something is in her sheet,
+ * Scout quoted the right line but didn't point to it, so Sources couldn't open the spot). Only an exact quote of 15+
+ * characters found in lines that all share one source; anything less stays Scout's own words. Shown as matched by
+ * Wander, never as Scout's citation.
+ */
+export function quotedLine(sentence: string, docs: CitedDocument[]): SourceView | null {
+  const flat = (t: string) => t.toLowerCase().replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, " ").trim();
+  for (const m of sentence.matchAll(/(?:^|[\s:(\[—-])[“"]([^”"\n]{15,}?)[”"](?=[\s.,;:)\]—-]|$)/g)) {
+    const q = flat(m[1]);
+    const lines = docs.flatMap((d) => d.lines).filter((l) => l.src && flat(l.text).includes(q));
+    const kinds = new Set(lines.map((l) => JSON.stringify(l.src)));
+    if (lines.length && kinds.size === 1) return lines[0].src!;
+  }
+  return null;
 }

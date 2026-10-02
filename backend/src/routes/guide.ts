@@ -17,6 +17,8 @@ import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { getUserRole } from "../middleware/role.js";
 import { importGuideSnapshot } from "../services/guide/importSnapshot.js";
+import { sheetLinkOf, otherSheetLinks } from "../services/guide/sheetLink.js";
+import { tabsOfCopy, cellsOfItem, completeCells, spotsOf } from "../services/guide/sources.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -98,10 +100,13 @@ router.get("/items/:tripId", async (req: AuthRequest, res) => {
   const items = await prisma.guideItem.findMany({
     where: { tripId, ...(date ? { date: new Date(`${date}T00:00:00Z`) } : {}) },
     orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }],
-    // Her cells travel with Scout's answers ("Sources"), not with every screen's download (103 KB, not 222)
-    omit: { cells: true },
   });
-  res.json(items);
+  // Her cells' words travel with Scout's answers ("Sources"), not with every screen's download (103 KB, not 222) —
+  // only where each line is in her sheet: its tabs and cell addresses, so a day screen can open that spot (round 16:
+  // settling "your tabs differ" was a reason to open the sheet instead). Completed as Scout's lines are (sources.ts).
+  const snap = await prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true } });
+  const tabs = snap ? await tabsOfCopy(snap.id) : [];
+  res.json(items.map(({ cells, ...i }) => ({ ...i, spots: spotsOf(completeCells(`${i.title}\n${i.detail || ""}`, cellsOfItem({ cells, sourceRef: i.sourceRef }, tabs), tabs, i.source)) })));
 });
 
 // ── Pictures, with short-lived links ──
@@ -136,6 +141,15 @@ router.get("/picture-link/:tripId/:sha", async (req: AuthRequest, res) => {
   if (!img) { res.status(404).json({ error: "That picture isn't in the Guide Wander has now." }); return; }
   const token = jwt.sign({ picture: `${tripId}:${sha}` }, PICTURE_SECRET, { expiresIn: "10m" });
   res.json({ url: `/api/guide/picture/${tripId}/${sha}?t=${token}` });
+});
+
+// ── Her sheet's address and tab ids — "Open at this spot in her sheet" under a Scout answer's Sources ──
+// (null when Wander has none; the phone opens it, Google decides who may see it — Wander never reaches it)
+router.get("/sheet-link/:tripId", async (req: AuthRequest, res) => {
+  const tripId = req.params.tripId as string;
+  if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
+  const [link, others] = await Promise.all([sheetLinkOf(tripId), otherSheetLinks(tripId)]);
+  res.json({ link, others });
 });
 
 export default router;

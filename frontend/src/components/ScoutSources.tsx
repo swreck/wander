@@ -4,8 +4,11 @@
  * are listed as Scout's own words. All of it was recorded as Scout answered (backend answerSources.ts); this
  * screen only shows it. Opened only when someone asks. (Ken, Sep 30 2026: a wrong source is worse than none.)
  */
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
+import { voiceFor } from "../lib/guideDisplay";
+import { sheetLinks, rangeOf, type SheetLink, type SheetLinks } from "../lib/sheetLinks";
 
 type CellWords =
   | { kind: "cell"; tab: string; a1: string; text: string; part?: boolean }
@@ -21,7 +24,8 @@ type SourceView =
 
 export interface AnswerSources {
   copy: string | null;
-  claims: { said: string; sources: SourceView[]; unmatchedTimes?: string[] }[];
+  // matched: Scout quoted these words without pointing to them; Wander found the one line holding them, word for word
+  claims: { said: string; sources: SourceView[]; unmatchedTimes?: string[]; matched?: boolean }[];
   ownWords: string[];
 }
 
@@ -29,9 +33,36 @@ export function hasSources(s: AnswerSources | undefined | null): s is AnswerSour
   return !!s && ((s.claims?.length || 0) > 0 || (s.ownWords?.length || 0) > 0);
 }
 
-/** Her cells, as she'd find them in her sheet: the tab, the cell, and exactly what's in it */
+/** Which sheet the cells below are in, and how to say it to this person ("your sheet", "Larisa's sheet") */
+const SheetOf = createContext<{ link: SheetLink | null; whose: string } | null>(null);
+
+/** "Open at this spot in her sheet ↗" — the exact tab and cells when Wander knows the tab's id; otherwise her sheet,
+ *  with the tab and cell said in words (Ken, Oct 2: asking Scout should be the fastest way to find the exact spot) */
+function OpenSpot({ tab, a1s }: { tab: string; a1s: string[] }) {
+  const sheet = useContext(SheetOf);
+  if (!sheet?.link) return null;
+  const gid = sheet.link.tabs[tab];
+  const range = a1s.length ? rangeOf(a1s) : "";
+  const href = gid === undefined ? sheet.link.url : `${sheet.link.url}?gid=${gid}#gid=${gid}${range ? `&range=${range}` : ""}`;
+  return (
+    <p className="text-sm">
+      <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-[#514636] underline underline-offset-2">
+        {gid === undefined ? `Open ${sheet.whose} ↗` : `Open at this spot in ${sheet.whose} ↗`}
+      </a>
+      {gid === undefined && <span className="text-[13px] text-[#6b5d4a]"> — then the “{tab}” tab{range ? `, ${range.includes(":") ? "cells" : "cell"} ${range}` : ""}</span>}
+    </p>
+  );
+}
+
+/** Her cells, as she'd find them in her sheet: the tab, the cell, and exactly what's in it — then a way to open
+ *  that spot in her sheet, once per tab */
 function Cells({ cells, tripId }: { cells: CellWords[]; tripId?: string }) {
+  // (her own words to Larisa: "your … tab")
+  const v = voiceFor(useAuth().user?.displayName);
   if (!cells.length) return <p className="text-sm text-[#6b5d4a]">Wander couldn't point to the one cell for this.</p>;
+  // (after the last of a tab's cells: one way in for all of them)
+  const lastOfTab = (i: number) => !cells.slice(i + 1).some((c) => c.tab === cells[i].tab);
+  const spotsIn = (tab: string) => cells.flatMap((c) => (c.tab !== tab ? [] : c.kind === "cell" ? [c.a1] : c.kind === "picture" && c.anchor ? [c.anchor] : []));
   return (
     <ul className="space-y-1.5">
       {cells.map((c, i) => (
@@ -44,8 +75,9 @@ function Cells({ cells, tripId }: { cells: CellWords[]; tripId?: string }) {
           ) : c.kind === "picture" ? (
             <Picture tab={c.tab} anchor={c.anchor} sha256={c.sha256} tripId={tripId} />
           ) : (
-            <p className="text-sm text-[#3a3128]">Her {c.tab} tab <span className="text-[#6b5d4a]">(Wander couldn't pin the exact cell)</span></p>
+            <p className="text-sm text-[#3a3128]">{v.Her} {c.tab} tab <span className="text-[#6b5d4a]">(Wander couldn't pin the exact cell)</span></p>
           )}
+          {lastOfTab(i) && <OpenSpot tab={c.tab} a1s={spotsIn(c.tab)} />}
         </li>
       ))}
     </ul>
@@ -54,12 +86,13 @@ function Cells({ cells, tripId }: { cells: CellWords[]; tripId?: string }) {
 
 /** A screenshot she pasted into the Guide — opened on request */
 function Picture({ tab, anchor, sha256, tripId }: { tab: string; anchor: string; sha256: string; tripId?: string }) {
+  const v = voiceFor(useAuth().user?.displayName);
   const [url, setUrl] = useState<string | null>(null);
   // "Opening…" lasts until the picture has actually arrived (a screenshot can be half a megabyte on hotel wifi)
   const [state, setState] = useState<"idle" | "opening" | "shown" | "failed">("idle");
   return (
     <div>
-      <p className="text-[13px] text-[#6b5d4a]">A picture in her {tab} tab{anchor ? ` (at ${anchor})` : ""}</p>
+      <p className="text-[13px] text-[#6b5d4a]">A picture in {v.her} {tab} tab{anchor ? ` (at ${anchor})` : ""}</p>
       {state !== "shown" && (
         <button
           disabled={!tripId || state === "opening"}
@@ -74,19 +107,36 @@ function Picture({ tab, anchor, sha256, tripId }: { tab: string; anchor: string;
         </button>
       )}
       {url && state !== "failed" && (
-        <img src={url} alt={`The picture in her ${tab} tab`} onLoad={() => setState("shown")} onError={() => { setUrl(null); setState("failed"); }}
+        <img src={url} alt={`The picture in ${v.her} ${tab} tab`} onLoad={() => setState("shown")} onError={() => { setUrl(null); setState("failed"); }}
           className={state === "shown" ? "mt-1 w-full rounded-md border border-[#e0d8cc]" : "hidden"} />
       )}
     </div>
   );
 }
 
+const LinksOf = createContext<SheetLinks | null>(null);
+/** Her Guide's own sheet — "your sheet" on Larisa's phone */
+function HerSheet({ children }: { children: React.ReactNode }) {
+  const links = useContext(LinksOf);
+  const me = useAuth().user?.displayName?.trim().toLowerCase();
+  return <SheetOf.Provider value={{ link: links?.link ?? null, whose: me === "larisa" ? "your sheet" : "Larisa's sheet" }}>{children}</SheetOf.Provider>;
+}
+/** Another sheet Wander reads (Ken's rail sheet) — "your rail sheet" on Ken's phone */
+function OtherSheet({ name, owner, children }: { name: string; owner: string; children: React.ReactNode }) {
+  const links = useContext(LinksOf);
+  const me = useAuth().user?.displayName?.trim().toLowerCase();
+  const whose = me === owner.trim().toLowerCase() ? `your ${name.toLowerCase()}` : `${owner}'s ${name.toLowerCase()}`;
+  return <SheetOf.Provider value={{ link: links?.others?.[name] ?? null, whose }}>{children}</SheetOf.Provider>;
+}
+
 function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
+  const v = voiceFor(useAuth().user?.displayName);
+  const guide = v.mine ? "your Guide" : "Larisa's Guide";
   if (s.type === "guide") {
     return (
       <div>
-        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">Larisa's Guide</p>
-        <Cells cells={s.cells} tripId={tripId} />
+        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{v.mine ? "Your Guide" : "Larisa's Guide"}</p>
+        <HerSheet><Cells cells={s.cells} tripId={tripId} /></HerSheet>
         {s.wanderNotes?.map((n) => (
           <p key={n} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1.5">Wander's note, not her words: {n}</p>
         ))}
@@ -100,8 +150,8 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
         <p className="text-sm text-[#3a3128]">{s.what}.</p>
         {s.from.length > 0 && (
           <div className="mt-1.5 pl-2 border-l-2 border-[#e0d8cc] space-y-2">
-            <p className="text-[13px] text-[#6b5d4a]">From her Guide:</p>
-            {s.from.map((f, i) => <Cells key={i} cells={f.cells} tripId={tripId} />)}
+            <p className="text-[13px] text-[#6b5d4a]">From {v.her} Guide:</p>
+            <HerSheet>{s.from.map((f, i) => <Cells key={i} cells={f.cells} tripId={tripId} />)}</HerSheet>
           </div>
         )}
       </div>
@@ -111,8 +161,8 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
     // Another source (Ken's rail sheet): named, whose it is and how it was written — never passed off as her Guide
     return (
       <div>
-        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.owner}'s {s.source.toLowerCase()}{s.authorship ? `, ${s.authorship}` : ""} — not Larisa's Guide</p>
-        <Cells cells={s.cells} tripId={tripId} />
+        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.owner}'s {s.source.toLowerCase()}{s.authorship ? `, ${s.authorship}` : ""} — not {guide}</p>
+        <OtherSheet name={s.source} owner={s.owner}><Cells cells={s.cells} tripId={tripId} /></OtherSheet>
       </div>
     );
   }
@@ -120,13 +170,13 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
     return (
       <div>
         <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">Added in Wander by {s.by}</p>
-        <p className="text-sm text-[#3a3128]">“{s.text}” <span className="text-[#6b5d4a]">— not in Larisa's Guide</span></p>
+        <p className="text-sm text-[#3a3128]">“{s.text}” <span className="text-[#6b5d4a]">— not in {guide}</span></p>
       </div>
     );
   }
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">From the web — not Larisa's Guide</p>
+      <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">From the web — not {guide}</p>
       <a href={s.url} target="_blank" rel="noreferrer" className="block min-h-[44px] py-1 text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
         {s.title}
         <span className="block text-[13px] text-[#6b5d4a] no-underline">{s.url}</span>
@@ -166,7 +216,16 @@ function useBackClosesPanel(onClose: () => void) {
 
 export default function ScoutSources({ sources, tripId, onClose }: { sources: AnswerSources; tripId?: string; onClose: () => void }) {
   useBackClosesPanel(onClose);
+  const [links, setLinks] = useState<SheetLinks | null>(null);
+  const v = voiceFor(useAuth().user?.displayName);
+  useEffect(() => {
+    if (!tripId) return;
+    let live = true;
+    sheetLinks(tripId).then((l) => { if (live) setLinks(l); });
+    return () => { live = false; };
+  }, [tripId]);
   return (
+    <LinksOf.Provider value={links}>
     <div className="fixed inset-0 z-[70] bg-black/30 flex items-end sm:items-center justify-center" onClick={onClose} role="presentation">
       <div
         role="dialog" aria-modal="true" aria-label="Where this answer came from"
@@ -180,11 +239,12 @@ export default function ScoutSources({ sources, tripId, onClose }: { sources: An
         </div>
         <div className="overflow-y-auto overscroll-contain px-4 py-3 space-y-4">
           {sources.copy && (
-            <p className="text-[13px] text-[#6b5d4a]">Her Guide as Wander last read it — the copy called “{sources.copy}”. She may have changed it since.</p>
+            <p className="text-[13px] text-[#6b5d4a]">{v.Her} Guide as Wander last read it — the copy called “{sources.copy}”. {v.mine ? "You" : "She"} may have changed it since.</p>
           )}
           {sources.claims.map((c, i) => (
             <section key={i} className="space-y-2">
               <p className="text-[15px] text-[#3a3128] italic">“{c.said}”</p>
+              {c.matched && <p className="text-[13px] text-[#6b5d4a]">Scout quoted these words without pointing to them — Wander found them here, word for word.</p>}
               {c.unmatchedTimes && (
                 <p className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1">
                   {c.unmatchedTimes.join(" and ")} {c.unmatchedTimes.length === 1 ? "isn't" : "aren't"} in the words below — Scout worked {c.unmatchedTimes.length === 1 ? "it" : "them"} out, or got {c.unmatchedTimes.length === 1 ? "it" : "them"} wrong. Worth checking.
@@ -206,5 +266,6 @@ export default function ScoutSources({ sources, tripId, onClose }: { sources: An
         </div>
       </div>
     </div>
+    </LinksOf.Provider>
   );
 }

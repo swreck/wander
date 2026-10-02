@@ -157,6 +157,22 @@ describe("private unless shared", () => {
     const future = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: cid(), text: "From the future", writtenAt: "2099-01-01T00:00:00Z" });
     expect(Math.abs(new Date(future.body.note.createdAt).getTime() - Date.now())).toBeLessThan(60_000);
   });
+  it("what a note is about — a place, Backroads, Japan overall — can be changed by its writer only, words untouched (Ken, Oct 2)", async () => {
+    const n = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: cid(), text: "The cedar avenue at dusk", dayDate: "2026-10-19", city: "Nikko", visibility: "trip" });
+    expect(n.body.note.city).toBe("Nikko");
+    const moved = await as(a).patch(`/api/trip-notes/${n.body.note.id}`, { city: "Backroads" });
+    expect(moved.body.note.city).toBe("Backroads");
+    expect(moved.body.note.text).toBe("The cedar avenue at dusk");
+    expect(moved.body.note.editedAt).toBeNull();
+    expect((await as(b).patch(`/api/trip-notes/${n.body.note.id}`, { city: "Kyoto" })).status).toBe(403);
+    expect((await prisma.tripNote.findUnique({ where: { id: n.body.note.id } }))?.city).toBe("Backroads");
+    const overall = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: cid(), text: "Before we go: pack the good walking shoes", city: "Japan overall" });
+    const out = (await as(a).get(`/api/trip-notes/trip/${tripId}/export`)).text;
+    expect(out).toContain("## Backroads · Mon, Oct 19");
+    expect(out).toContain("## Japan overall\n");
+    await as(a).del(`/api/trip-notes/${n.body.note.id}`);
+    await as(a).del(`/api/trip-notes/${overall.body.note.id}`);
+  });
   it("the writer can share it, take it back, and remove it", async () => {
     expect((await as(a).patch(`/api/trip-notes/${privateId}`, { visibility: "trip" })).body.note.visibility).toBe("trip");
     expect((await as(a).patch(`/api/trip-notes/${privateId}`, { visibility: "private" })).body.note.visibility).toBe("private");
