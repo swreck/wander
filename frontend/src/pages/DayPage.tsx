@@ -33,6 +33,7 @@ import {
 import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings } from "../components/RailSheet";
 import SheetSpots from "../components/SheetSpots";
+import SendOut, { dayText, bookingText } from "../components/SendOut";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
@@ -903,6 +904,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
           <p className="text-sm text-[#6b5d4a] mt-6 text-center">This date isn't part of the trip.</p>
         ) : (
           <>
+            {/* The day, in her words, to someone outside the four — Kimiko, a guide, a concierge (round 16) */}
+            {(planBlocks.length > 0 || dayItems.length > 0) && (
+              <div className="-mt-2 mb-1 flex justify-end">
+                <SendOut label="Send this day ›" title={`${longDate(date)} — ${cityName}`}
+                  text={() => dayText({ date, city: cityName, overview: itineraryLines, plan: planBlocks, others: otherItems.filter((o) => !planBlocks.some((b) => saidAgain(b, o))), sleep: night.stays.map((n) => n.stay.name), owner: owner || "Larisa" })} />
+              </div>
+            )}
             {data?.fromSavedCopy && (
               <p className="mb-3 text-sm text-[#6b5d4a] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2" role="status">
                 No signal — showing what this phone saved{data.savedAt ? ` ${new Date(data.savedAt).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}` : ""}.
@@ -1705,6 +1713,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
               {herLinks.map((u) => (
                 <a key={u} href={u} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] min-w-[44px] text-sm text-[#514636] underline underline-offset-2">{linkLabel(u)} ↗</a>
               ))}
+              {/* a booking, to a concierge or a friend: what, when, where, its confirmation (round 16) */}
+              {["meal", "checkin", "tour", "reservation"].includes(i.kind) && <SendOut label="Send ›" title={i.title} text={() => bookingText(i, date)} />}
             </div>
           )}
           {/* (its source line opens that spot in her sheet; where her tabs disagree, each tab's spot — round 16) */}

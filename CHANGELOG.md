@@ -69,6 +69,12 @@ sheet than Wander (ux-round16). Two of its top answers, built. Not deployed.
   around, double-tap to see it whole, Done or the phone's Back to close. Her five-panel Kyoto map (2048 px, shown 308
   points wide) is readable on a phone.
 
+- **Send this day, or a booking, to someone outside the four** (Day screen: "Send this day ›" at the top; "Send ›"
+  beside Maps on a booked meal, check-in or tour). The phone's share sheet, or a copy. A day goes as her plan in her
+  order with her times and whose each line is, her Itinerary line, where they sleep, and "— from Larisa's plan for the
+  trip" — no confirmation numbers, and a time her tabs dispute goes out marked "her tabs differ on this; check before
+  relying on it", never as fact. A booking goes as name, day and time, address and confirmation (for a concierge).
+
 No SPEC change beyond the new pages; SPEC UPDATE NEEDED: Home (two new entry points).
 
 ## 2026-10-02 — Scout Finds the Exact Spot in Her Sheet; Notes by Place
