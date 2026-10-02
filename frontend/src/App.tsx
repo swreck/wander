@@ -32,6 +32,7 @@ import CaptureFAB from "./components/CaptureFAB";
 import SyncIndicator from "./components/SyncIndicator";
 import SavedCopyNotice from "./components/SavedCopyNotice";
 import BottomNav from "./components/BottomNav";
+import ShowMeAround from "./components/ShowMeAround";
 import UpdatePrompt from "./components/UpdatePrompt";
 import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { api } from "./lib/api";
@@ -358,6 +359,8 @@ export default function App() {
               <SavedCopyNotice />
               <UpdatePrompt />
               <BottomNav />
+              {/* "Show me around" — only when asked for */}
+              <ShowMeAround />
             </CaptureProvider>
           </ToastProvider>
         </AuthProvider>

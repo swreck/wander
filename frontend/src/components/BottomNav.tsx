@@ -117,6 +117,7 @@ export default function BottomNav({ pendingChanges }: Props) {
           return (
             <button
               key={tab.path}
+              data-tour={tab.label}
               aria-current={isActive ? "page" : undefined}
               onClick={() => {
                 if (tab.path === "__scout__") {

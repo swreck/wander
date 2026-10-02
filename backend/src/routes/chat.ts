@@ -1399,7 +1399,7 @@ export async function executeTool(
   toolName: string,
   input: any,
   user: { code: string; displayName: string },
-): Promise<{ result: any; actionDescription?: string; placeCards?: any[]; navigate?: { path: string; label: string; go: boolean; headline?: string }; route?: { label: string; apple: string; google: string } }> {
+): Promise<{ result: any; actionDescription?: string; placeCards?: any[]; navigate?: { path: string; label: string; go: boolean; headline?: string }; route?: { label: string; apple: string; google: string; search?: string } }> {
   // Larisa's own items (her ideas, stops, hotels, days) come from her Guide; the next read of it
   // would silently undo any change Scout made to them, losing what the person meant. So Scout
   // doesn't change them — it adds a note or a same-day plan, which always survive.
@@ -3320,12 +3320,19 @@ export async function executeTool(
       const where = herPlace || `${dest}${town && !flat(dest).includes(flat(town)) ? `, ${town}` : ""}, Japan`;
       const way: "walk" | "train" | "taxi" = input.way === "train" || input.way === "taxi" ? input.way : "walk";
       const how = { walk: { verb: "Walk to", apple: "w", google: "walking" }, train: { verb: "Train to", apple: "r", google: "transit" }, taxi: { verb: "Taxi to", apple: "d", google: "driving" } }[way];
+      // Scout never lies: with nothing of hers to go on, the button only searches Maps for a name — it says so, and so
+      // does Scout (Ken, Oct 2: "This is travel and we could end up in the wrong place")
+      const searchOnly = !herPlace;
       return {
-        result: { ok: true, shown: `a button that opens ${way === "walk" ? "walking" : way === "train" ? "train and subway" : "driving (for a taxi)"} directions from where they are standing (Apple Maps, and Google Maps)` },
+        result: searchOnly
+          ? { ok: true, shown: `a button that opens directions, but her Guide has no address or map place for this, so Maps will only SEARCH for "${where}"`,
+              say: "Tell them plainly that her Guide has no address for this place, so the button searches Maps for the name — check that the place Maps finds is the right one before setting off. Don't call it her place." }
+          : { ok: true, shown: `a button that opens ${way === "walk" ? "walking" : way === "train" ? "train and subway" : "driving (for a taxi)"} directions from where they are standing to the place in her Guide (Apple Maps, and Google Maps)` },
         route: {
           label: `${how.verb} ${dest.split(",")[0]}`,
           apple: `https://maps.apple.com/?daddr=${encodeURIComponent(where)}&dirflg=${how.apple}`,
           google: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(where)}&travelmode=${how.google}`,
+          ...(searchOnly && { search: where.replace(/, Japan$/, "") }),
         },
       };
     }
@@ -4426,7 +4433,7 @@ TALKING WITH THEM (every answer):
 
 CITING (every answer): the Guide, the right-now statuses and Ken's rail sheet are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
 PHOTOS: when a photo comes with the question (a menu, a sign, a ticket, a screen), read it carefully. Translate Japanese (or any other language) into plain English when that's what they need — line by line for a menu or sign, with the Japanese kept beside each line when they might show it to someone. Say what you read from the photo as from the photo ("Your photo shows…"), never as the Guide; when the photo and her Guide meet (a ticket's train and the rail sheet, a restaurant's name and her booking), say both and whether they match. Words you can't make out: say so — never guess a time, a price, a platform or an ingredient. Food and allergies (Andy is allergic to alliums — onion, garlic, leek, chive): point out what the photo shows that may contain them, give the Japanese words to show a server (玉ねぎ・ねぎ・にんにく), and say plainly that a menu photo can't prove what's in a dish — confirm with the staff. A photo isn't kept: if they ask about it again later without sending it, say to send it again.
-GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing.
+GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing. When directions says her Guide has no address for the place, say so plainly and that the button only searches Maps for the name — never present a searched place as hers.
 WHERE IN HER SHEET: when someone asks where something is in Larisa's sheet ("which tab has…", "where did I put…", "where does it say…"), answer with the tab, named as she named it, and her words there, cited. Then say in one short sentence that "Sources" under this answer opens that spot in her sheet. If her Guide has it in more than one tab, name each, and cite each. Say where you found it — never that it's the only place or that no other tab has it: her pictures and long tabs can hold more than your copy shows. If it isn't in the copy you have, say so; never guess a tab.
 
 ANSWERING FROM THE GUIDE (most important):
@@ -4569,7 +4576,7 @@ RULES:
     // Screens Scout opened or offered ("Open Wed, Oct 14 · Tokyo")
     const shows: { path: string; label: string; go: boolean; headline?: string }[] = [];
     // Directions Scout offered ("Walk to Tokyodo Main Showroom", "Taxi to …")
-    const routes: { label: string; apple: string; google: string }[] = [];
+    const routes: { label: string; apple: string; google: string; search?: string }[] = [];
     let finalReply = "";
     // What this answer used, across every step, logged once at the end — real cost, not a guess
     const used = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0, searches: 0, steps: 0 };

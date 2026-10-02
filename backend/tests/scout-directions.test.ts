@@ -61,8 +61,18 @@ describe("her own place, best first", () => {
   it("the place her own map link names", async () => {
     expect(dest((await go("Electric Town", "Tokyo", "walk")).apple)).toBe("Akihabara Electric Town, Tokyo");
   });
-  it("nothing of hers: Scout's words and the town", async () => {
-    expect(dest((await go("Nowhere Cafe", "Kyoto", "walk")).apple)).toBe("Nowhere Cafe, Kyoto, Japan");
+  it("nothing of hers: Scout's words and the town — and the button and Scout both say it's only a search", async () => {
+    const r = await executeTool("directions", { tripId, place: "Nowhere Cafe", town: "Kyoto", way: "walk" }, user);
+    expect(dest(r.route!.apple)).toBe("Nowhere Cafe, Kyoto, Japan");
+    expect(r.route!.search).toBe("Nowhere Cafe, Kyoto");
+    expect(r.result.say).toMatch(/no address/);
+  });
+  it("her own place is not called a search", async () => {
+    for (const p of ["Pen Shop Main Showroom", "Dinner Bistro Sora", "Grand Hotel", "Electric Town"]) {
+      const r = await executeTool("directions", { tripId, place: p, town: "Tokyo", way: "walk" }, user);
+      expect(r.route!.search).toBeUndefined();
+      expect(r.result.say).toBeUndefined();
+    }
   });
 });
 

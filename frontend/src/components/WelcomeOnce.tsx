@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor } from "../lib/guideDisplay";
+import { showMeAround } from "./ShowMeAround";
 
 const KEY = "wander:welcome-seen";
 
@@ -24,7 +25,11 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
           // (nothing to set up — not "nothing to do": Ken has six tickets to collect; delight audit)
           : `This is ${owner || "Larisa"}'s plan for the trip, day by day, on your phone. There's nothing to set up — it's here when you want it.`}
       </p>
-      <button onClick={close} className="mt-2 min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm">Got it</button>
+      {/* A quick look at the buttons along the bottom, if they'd like one (Oct 2) — also in Settings */}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button onClick={() => { close(); showMeAround(); }} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm">Show me around</button>
+        <button onClick={close} className="min-h-[44px] px-4 rounded-lg border border-[#e0d8cc] text-sm text-[#514636]">Got it</button>
+      </div>
     </section>
   );
 }

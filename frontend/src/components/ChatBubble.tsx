@@ -7,6 +7,7 @@ import useBackToClose from "../hooks/useBackToClose";
 import { sendToGuideOwner } from "../lib/tellGuideOwner";
 import { withPhoneLinks } from "../lib/guideDisplay";
 import ScoutSources, { hasSources, type AnswerSources } from "./ScoutSources";
+import OnceTip, { useOnceTip } from "./OnceTip";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 
 /** Phone numbers in an answer can be tapped to call */
@@ -110,7 +111,7 @@ interface ChatMessage {
   /** A small copy of the photo sent with this question (the photo itself isn't kept) */
   photoThumb?: string;
   /** Directions Scout offered, from wherever the phone is ("Walk to Tokyodo Main Showroom", "Taxi to …") */
-  routes?: { label: string; apple: string; google: string }[];
+  routes?: { label: string; apple: string; google: string; search?: string }[];
 }
 
 /**
@@ -224,6 +225,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // The phone's Back steps Scout down to its bar (or closes it when there's no conversation yet)
   useBackToClose(open, () => minimizeRef.current());
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
+  // One-time tips, at the moment they help (Oct 2): the camera, for people already talking with Scout; Sources, under
+  // the first answer that has them. Using the thing puts its tip away too.
+  const [cameraTip, cameraTipDone] = useOnceTip("scout-camera");
+  const [sourcesTip, sourcesTipDone] = useOnceTip("scout-sources");
   const [input, setInput] = useState("");
   // the photo going with the next question, and one in flight (kept for "Try again")
   const [photo, setPhoto] = useState<Photo | null>(null);
@@ -605,10 +610,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // A photo chosen or pasted: shrunk on the phone, shown above the box until it's sent or taken off
   const takePhoto = useCallback(async (file: File | null | undefined) => {
     if (!file || !/^image\//.test(file.type || "image/")) return;
+    cameraTipDone();
     setPhotoState("reading");
     const p = await shrinkPhoto(file);
     if (p) { setPhoto(p); setPhotoState("idle"); inputRef.current?.focus(); } else setPhotoState("failed");
-  }, []);
+  }, [cameraTipDone]);
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const file = Array.from(e.clipboardData?.items || []).find((it) => it.kind === "file" && it.type.startsWith("image/"))?.getAsFile();
     if (file) { e.preventDefault(); takePhoto(file); }
@@ -915,7 +921,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               <p>I'm Scout, your travel companion.</p>
               {/* What it actually knows (round 12 delight audit: "I know your whole trip" overclaimed) */}
               {/* Said to whoever holds the phone (round 13: Ken read "Ken's rail sheet", Larisa "Larisa's Guide") */}
-              <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip.</p>
+              <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. You can send me a photo too, like a menu or a sign, and I'll read and translate it.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
               {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.</p>}
               {/* Tap one to ask it */}
@@ -1005,9 +1011,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                 {msg.routes && msg.routes.length > 0 && (
                   <div className="mt-2 flex flex-col items-start gap-1">
                     {msg.routes.map((w) => (
-                      <div key={w.apple} className="flex flex-wrap items-center gap-x-3">
-                        <a href={w.apple} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636]">{w.label} ↗</a>
-                        <a href={w.google} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Google Maps ↗</a>
+                      <div key={w.apple}>
+                        <div className="flex flex-wrap items-center gap-x-3">
+                          <a href={w.apple} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636]">{w.label} ↗</a>
+                          <a href={w.google} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Google Maps ↗</a>
+                        </div>
+                        {/* (her Guide gives no address for it: the map app only searches the name — said, never hidden) */}
+                        {w.search && <p className="text-[13px] text-[#8a5a1a] mt-0.5">{/^larisa$/i.test(user?.displayName || "") ? "Your" : "Larisa's"} Guide has no address for this, so Maps will search for “{w.search}”. Check it's the right one before you go.</p>}
                       </div>
                     ))}
                   </div>
@@ -1034,10 +1044,18 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                 )}
                 {/* Where the answer came from — a quiet link; nothing shows unless it's tapped */}
                 {msg.role === "assistant" && hasSources(msg.sources) && (
-                  <button onClick={() => setSourcesOf(msg.sources!)}
+                  <button onClick={() => { sourcesTipDone(); setSourcesOf(msg.sources!); }}
                     className="-mb-1.5 min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
                     Sources
                   </button>
+                )}
+                {/* (once, under the newest answer with Sources) */}
+                {sourcesTip && msg.role === "assistant" && hasSources(msg.sources) && i === messages.map((m) => m.role === "assistant" && hasSources(m.sources)).lastIndexOf(true) && (
+                  <OnceTip onClose={sourcesTipDone} className="mt-2">
+                    {/^larisa$/i.test(user?.displayName || "")
+                      ? "Tap Sources to see which tab and cells of your Guide this answer came from, and to open those cells in your spreadsheet."
+                      : "Tap Sources to see where in Larisa's Guide this answer came from: which tab, and her exact words."}
+                  </OnceTip>
                 )}
               </div>
             </div>
@@ -1105,6 +1123,12 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             <p role="status" className="text-[13px] text-[#6b5d4a] mb-2">
               I'm not hearing any words yet. Tap the red mic to stop, then try again — or type.
             </p>
+          )}
+          {/* (once, for someone already talking with Scout — a first-timer reads it in Scout's hello above) */}
+          {cameraTip && online && messages.length > 0 && !photo && photoState === "idle" && (
+            <OnceTip onClose={cameraTipDone} className="mb-2">
+              Tap the camera button to send Scout a photo of a menu, a sign or a ticket. Scout will read it and translate it.
+            </OnceTip>
           )}
           {/* the photo going with the next question (or why it couldn't be added) */}
           {(photo || photoState !== "idle") && (

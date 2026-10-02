@@ -2,6 +2,36 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 — Show Me Around, and Tips at the Moment They Help
+
+### Added
+- **"Show me around"** — six short steps, one for each button along the bottom (Home, Ideas, Next, Notes, Actions,
+  Scout). The screen dims, the button stays lit, and a sentence or two says what it's for, with Back, Next and Skip.
+  Only when asked: the first-time welcome card on Home now offers **Show me around** beside **Got it**; it's also in
+  Settings ("Show me around — a quick look at the six buttons along the bottom of the screen") and at the top of
+  How Wander works. Nothing starts on its own. To Larisa it says "your Activities tab", "your Guide".
+- **Two one-time tips in Scout**, each shown once and put away by ✕ or by using the thing: under the newest answer
+  that has Sources ("Tap Sources to see where in Larisa's Guide this answer came from…"), and above the box for
+  someone already talking with Scout ("Tap the camera button to send Scout a photo of a menu, a sign or a ticket…").
+  Scout's hello now says it reads photos too.
+
+### Changed
+- **Scout's directions say when they're only a search.** When her Guide has no pin or address for a place, the
+  button under Scout's answer says "Larisa's Guide has no address for this, so Maps will search for “Tokyo Tower”.
+  Check it's the right one before you go," and Scout says the place isn't in her Guide. Her own places never carry
+  the note.
+- How Wander works → Quick Start names Next and Notes (it still said Now, and left out Notes).
+
+### Removed
+- The old `frontend/public/guide.html` (a March help page nothing links to; a full reload of /guide on a preview
+  server showed it instead of How Wander works).
+
+Tested in the browser: Julie at 390 points and Larisa at 320 — each step lights the right button, the card never
+covers it and fits the screen, Back/Next/Skip/Done/Escape, gone after a reload, Settings and How Wander works start
+it; Scout's tips once each. `tests/scout-directions.test.ts` (11).
+
+SPEC UPDATE NEEDED: first-time help (Show me around, one-time tips).
+
 ## 2026-10-02 — What's Next, When, and How to Get There
 
 ### Added

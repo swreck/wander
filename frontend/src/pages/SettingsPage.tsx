@@ -7,6 +7,7 @@ import FaceIdSetup from "../components/FaceIdSetup";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
 import { sourcesData, type OtherSource } from "../lib/sources";
 import { voiceFor } from "../lib/guideDisplay";
+import { showMeAround } from "../components/ShowMeAround";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -56,6 +57,17 @@ export default function SettingsPage() {
             className="w-full min-h-[52px] flex items-center justify-between px-4 rounded-xl bg-white border border-[#e0d8cc] text-left"
           >
             <span className="text-sm font-medium text-[#3a3128]">How Wander works</span>
+            <span className="text-[#6b5d4a]" aria-hidden>›</span>
+          </button>
+          {/* The six buttons along the bottom, one at a time (Oct 2) */}
+          <button
+            onClick={showMeAround}
+            className="mt-2 w-full min-h-[52px] flex items-center justify-between px-4 rounded-xl bg-white border border-[#e0d8cc] text-left"
+          >
+            <span>
+              <span className="block text-sm font-medium text-[#3a3128]">Show me around</span>
+              <span className="block text-xs text-[#6b5d4a] mt-0.5">A quick look at the six buttons along the bottom of the screen</span>
+            </span>
             <span className="text-[#6b5d4a]" aria-hidden>›</span>
           </button>
         </section>
