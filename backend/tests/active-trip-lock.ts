@@ -15,7 +15,9 @@ export function takeTurnsWithActiveTrip() {
     client = new pg.Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();
     await client.query("SELECT pg_advisory_lock($1)", [KEY]);
-  }, 1_800_000);
+    // (an hour: 13 files take turns behind chaos.test.ts's ~25 minutes; at 30 the last two in line timed out on
+    // Oct 2 — both pass alone, 20/20)
+  }, 3_600_000);
   afterAll(async () => {
     if (!client) return;
     await client.query("SELECT pg_advisory_unlock($1)", [KEY]).catch(() => {});
