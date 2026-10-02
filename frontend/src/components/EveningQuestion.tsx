@@ -5,11 +5,15 @@
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { guideData } from "../lib/guideData";
+import { guideData, type GuideItem } from "../lib/guideData";
+import { isFor, isLanding } from "../lib/guideDisplay";
 import { savedCopy, tripToday } from "../lib/tripNotes";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function EveningQuestion({ tripId, className = "" }: { tripId: string | null | undefined; className?: string }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const me = user?.displayName || null;
   const [ask, setAsk] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,12 +30,20 @@ export default function EveningQuestion({ tripId, className = "" }: { tripId: st
       const wroteToday = (savedCopy(tripId)?.notes || []).some((n) => n.mine && n.dayDate === today);
       // (not on the last day — that evening is the flight home; it asked above "Should be in the air"; tester k1)
       const lastDay = [...tripDays].sort().pop();
-      setAsk(tripDays.includes(today) && today !== lastDay && hour >= 18 && !dismissed && !wroteToday ? today : null);
+      // …nor the evening you land (Julie's first night: it stood where the way to the hotel should be; round 15)
+      const mine = (g.items || []).filter((i: GuideItem) => i.date && String(i.date).slice(0, 10) === today && isFor(i, me));
+      const landedToday = mine.some(isLanding);
+      // …nor while tonight's plan still has something to come — it's for winding down (it asked ten minutes before the
+      // yakiniku dinner; round 15)
+      const nowMin = hour * 60 + Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, minute: "numeric" }).format(new Date()));
+      const stillAhead = mine.some((i: GuideItem) => ["block", "meal", "tour"].includes(i.kind) && i.time
+        && Number(i.time.slice(0, 2)) * 60 + Number(i.time.slice(3, 5)) > nowMin);
+      setAsk(tripDays.includes(today) && today !== lastDay && hour >= 18 && !dismissed && !wroteToday && !landedToday && !stillAhead ? today : null);
     }).catch(() => { /* no question without the trip */ });
     check();
     const every = setInterval(check, 5 * 60_000);
     return () => { alive = false; clearInterval(every); };
-  }, [tripId]);
+  }, [tripId, me]);
 
   if (!ask) return null;
   const putAway = () => { try { localStorage.setItem(`wander:evening-question:${ask}`, "done"); } catch { /* storage off */ } setAsk(null); };

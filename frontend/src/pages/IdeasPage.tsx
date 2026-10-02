@@ -33,6 +33,13 @@ function phoneToday() {
 const copyKey = (tripId: string) => `wander:ideas-copy:${tripId}:${phonePerson()}`;
 
 /** Where an idea sits in Larisa's Activities tab (the importer keeps her row); Wander additions after hers */
+// An idea's telling words, to find it in her day plans: "Opa - Onitsuka Tiger" → onitsuka, tiger; "Gion - Hanamikoji
+// Street" → gion, hanamikoji; "Tokyodo" → tokyodo. The first two before any "(" that aren't generic ("store",
+// "museum"…) or a city's name (cut at " - ", "Gion" alone matched her Gion matcha stop).
+const GENERIC = new Set(["store", "stores", "shop", "shops", "dept", "department", "museum", "flagship", "market", "street", "tour", "tours", "trip", "with", "and", "the", "concept", "potential", "suggestions", "shopping", "food", "day", "tokyo", "kyoto", "osaka"]);
+const wordsOf = (name: string) =>
+  (name.split("(")[0].toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length >= 4 && !GENERIC.has(w)).slice(0, 2)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 const sheetRow = (e: Experience) => (e.sheetRowRef ? Number((e as { priorityOrder?: number }).priorityOrder ?? 5000) : 10000);
 
 export default function IdeasPage() {
@@ -174,6 +181,23 @@ export default function IdeasPage() {
     // Larisa's order, as in her Activities tab
     .slice().sort((a, b) => sheetRow(a) - sheetRow(b));
   const cityDays = useMemo(() => (guide?.days || []).filter((d) => d.cityId === cityId).map((d) => ymd(d.date)).sort(), [guide, cityId]);
+  // The days her own plan already has each idea (Bamboo Forest said "Nobody has marked this yet" though it opens her
+  // Oct 26; Julie's two marks are both on her days — round 15)
+  const planDays = useMemo(() => {
+    const out = new Map<string, string[]>();
+    const days = new Set(cityDays);
+    // (her day tabs' lines, her Itinerary's line for each day, her bookings and tours — not "stop", her Itinerary's
+    // note on a whole stay, filed under one day:
+    // "day trip to Mashiko… ASK KENJI" sat on Oct 17 and Mashiko read as planned for that day)
+    const lines = (guide?.items || []).filter((it) => it.date && days.has(ymd(it.date)) && ["block", "meal", "plan", "tour"].includes(it.kind));
+    for (const exp of cityIdeas) {
+      const words = wordsOf(exp.name);
+      if (!words.length) continue;
+      const found = Array.from(new Set(lines.filter((it) => words.every((w) => new RegExp(`\\b${w}\\b`, "i").test(it.title))).map((it) => ymd(it.date!)))).sort();
+      if (found.length) out.set(exp.id, found);
+    }
+    return out;
+  }, [guide, cityIdeas, cityDays]);
   const eat = shown.filter((i) => (i.themes || []).includes("food"));
   const doing = shown.filter((i) => !(i.themes || []).includes("food"));
 
@@ -248,6 +272,7 @@ export default function IdeasPage() {
               {(list as Experience[]).map((exp) => (
                 <IdeaCard key={exp.id} exp={exp} cityName={city?.name || ""} notes={notes[exp.id] || []} me={user?.displayName || "You"}
                   tripId={tripId!} days={cityDays} today={today} choices={choices.filter((c) => c.experienceId === exp.id)}
+                  planned={planDays.get(exp.id) || []}
                   onNote={(n) => setNotes((prev) => ({ ...prev, [exp.id]: [...(prev[exp.id] || []), n] }))}
                   onRemoveNote={(id) => setNotes((prev) => ({ ...prev, [exp.id]: (prev[exp.id] || []).filter((x) => x.id !== id) }))}
                   onChoice={(c) => setChoices((prev) => [...prev, c])}
@@ -261,8 +286,8 @@ export default function IdeasPage() {
   );
 }
 
-function IdeaCard({ exp, cityName, notes, me, tripId, days, today, choices, onNote, onRemoveNote, onChoice, onOpenDay }: {
-  exp: Experience; cityName: string; notes: Note[]; me: string; tripId: string; days: string[]; today: string;
+function IdeaCard({ exp, cityName, notes, me, tripId, days, today, choices, planned, onNote, onRemoveNote, onChoice, onOpenDay }: {
+  exp: Experience; cityName: string; notes: Note[]; me: string; tripId: string; days: string[]; today: string; planned: string[];
   choices: DayChoice[]; onNote: (n: Note) => void; onRemoveNote: (id: string) => void; onChoice: (c: DayChoice) => void; onOpenDay: (date: string) => void;
 }) {
   const [writing, setWriting] = useState(false);
@@ -337,11 +362,23 @@ function IdeaCard({ exp, cityName, notes, me, tripId, days, today, choices, onNo
       {exp.description && <p className="text-sm text-[#6b5d4a] mt-1 whitespace-pre-line">{exp.description}</p>}
       <p className="text-xs text-[#514636] mt-1.5">
         {/* "you", not your own name (delight audit: "Marked by Larisa" on Larisa's phone, sixteen times) */}
-        {marked.length > 0 ? `Marked by ${marked.map((n) => (me && n.replace(/\s*\(maybe\)$/i, "").toLowerCase() === me.toLowerCase() ? n.replace(/^[^(]+?(?=\s*\(|$)/, "you") : n)).join(", ")}` : "Nobody has marked this yet"}
-        {removedFromGuide
-          ? ` · no longer in ${voiceFor(me).guide} — kept here for the notes on it`
-          : !fromGuide && ` · added in Wander by ${exp.createdBy}`}
+        {[
+          marked.length > 0
+            ? `Marked by ${marked.map((n) => (me && n.replace(/\s*\(maybe\)$/i, "").toLowerCase() === me.toLowerCase() ? n.replace(/^[^(]+?(?=\s*\(|$)/, "you") : n)).join(", ")}`
+            // (on her plan already: "nobody has marked this" read as nobody wanted it)
+            : planned.length ? null : "Nobody has marked this yet",
+          removedFromGuide ? `no longer in ${voiceFor(me).guide} — kept here for the notes on it` : !fromGuide ? `added in Wander by ${exp.createdBy}` : null,
+        ].filter(Boolean).join(" · ")}
       </p>
+      {planned.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {planned.map((d) => (
+            <button key={d} onClick={() => onOpenDay(d)} className="min-h-[44px] px-3 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-sm">
+              In {voiceFor(me).mine ? "your" : "Larisa's"} plan for {shortDay(d)} ›
+            </button>
+          ))}
+        </div>
+      )}
       {choices.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-2">
           {choices.map((c) => (

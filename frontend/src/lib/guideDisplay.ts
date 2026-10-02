@@ -772,10 +772,17 @@ export const saidAgain = (block: GuideItem, other: GuideItem) =>
 const hm = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 /** When a line of her plan ends: its own end, else when her next timed line starts, else half an hour on */
 export function planLineEnd(b: GuideItem, blocks: GuideItem[]): number {
+  return planLineEndSaid(b, blocks) ?? hm(b.time!) + 30;
+}
+/**
+ * The end her plan itself gives a line — its own, or her next timed line's start — or null. Only this is ever said
+ * on screen: the half hour above is Wander's guess for what's "now", and "until about 6:30 PM" after her "~6:00 PM
+ * Hana Soufflé … stroll" read as her plan (round 15).
+ */
+export function planLineEndSaid(b: GuideItem, blocks: GuideItem[]): number | null {
   if (b.endTime) return hm(b.endTime);
   const start = hm(b.time!);
-  const next = blocks.filter((x) => x.time && hm(x.time) > start).map((x) => hm(x.time!)).sort((a, c) => a - c)[0];
-  return next ?? start + 30;
+  return blocks.filter((x) => x.time && hm(x.time) > start).map((x) => hm(x.time!)).sort((a, c) => a - c)[0] ?? null;
 }
 /**
  * The line her plan has you on right now: your name on it, or nobody's outside a split — never a line

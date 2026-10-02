@@ -194,6 +194,12 @@ const PLAN_WORDS = new Set([...GENERIC_WORDS, "lunch", "dinner", "breakfast", "b
   "easy", "focused", "additional", "traditional", "private", "shower", "change", "rest", "split", "groups", "tour",
   "day", "trip", "then", "after", "before", "early", "late", "time", "flight", "train", "gallery", "cafe", "museum", "shop",
   "michelin", "star", "stars", "japanese", "style"]);
+/** A word and its plural read as one ("sweets" / "sweet") */
+export const stem = (w: string) => (w.length > 4 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w);
+/** Place words many stops share — never enough alone to say which stop a line means */
+const PLACE_WORDS = new Set(["temple", "shrine", "garden", "bridge", "building", "center", "centre", "pottery", "ceramic",
+  "restaurant", "house", "hotel", "residence", "village", "district", "avenue", "crossing", "flagship", "department",
+  "souvenir", "kitchen", "noodle", "festival", "viewpoint", "observatory", "station", "airport", "terminal"]);
 /** "Café ENSOU lunch" → ["ensou"]; "Board reserved HARUKA" → ["haruka"] */
 export function distinctWords(s: string): string[] {
   return Array.from(new Set(s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
@@ -1057,18 +1063,38 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     // Leaving a place isn't going there: "Leave Four Seasons" gets no map of the hotel you're standing in.
     const stopLink = (label: string) => {
       if (/^\s*(leave|depart)\b/i.test(label)) return null;
-      const own = distinctWords(label);
-      const best = stops.filter((s) => s.link && s.words.every((w) => own.includes(w))).sort((a, b) => b.words.length - a.words.length)[0];
-      return best ? best.link : roleStop(label)?.link || null;
+      const own = distinctWords(label).map(stem);
+      const best = stops.filter((s) => s.link && s.words.every((w) => own.includes(stem(w)))).sort((a, b) => b.words.length - a.words.length)[0];
+      return best ? best.link : nameWordStop(label)?.link || roleStop(label)?.link || null;
+    };
+    // A line naming a stop by its one telling word ("Arashiyama river / Togetsukyo" → her "Stop 3: Togetsukyo Bridge
+    // (Riverfront walk)") — a long word only that stop has, never a place word any stop could share ("bridge",
+    // "temple"); with every word required, the river walk had no map (round 15, Oct 26)
+    const nameWordStop = (label: string) => {
+      if (/^\s*(leave|depart)\b/i.test(label)) return null;
+      const own = distinctWords(label).map(stem);
+      // (nor the town the whole tab is about — "Kyoto Wed, 1028 Shigaraki": "Shigaraki" sent the Share Studio lines to
+      // the Shigaraki Ceramic Cultural Park, a different place)
+      const tabName = tab.name.toLowerCase();
+      const telling = (w: string) => w.length >= 7 && !PLACE_WORDS.has(stem(w)) && !tabName.includes(stem(w));
+      const hits = stops.filter((s) => s.link && s.words.some((w) => telling(w) && own.includes(stem(w))
+        && stops.filter((o) => o.words.some((x) => stem(x) === stem(w))).length === 1));
+      // (two can: "Arashiyama river / Togetsukyo" has Stop 1's "Arashiyama" too — the stop more of whose name the line
+      // says wins, Togetsukyo Bridge's half over Arashiyama Bamboo Grove's third; a tie is no answer)
+      const share = (s: (typeof stops)[number]) => s.words.filter((w) => own.includes(stem(w))).length / s.words.length;
+      const ranked = hits.sort((a, b) => share(b) - share(a));
+      return ranked.length && (ranked.length === 1 || share(ranked[0]) > share(ranked[1])) ? ranked[0] : null;
     };
     // A line that names a stop by what it's for, not its name ("Taxi to e-bike meeting point" → her "Stop 3: Cycle
     // Kyoto (E-bike meeting point)") — the stop's name is said with it (round 12: Andy at noon on Oct 25 couldn't find
     // where the e-bike tour met; no screen named Cycle Kyoto)
+    // (word stems: her "Traditional sweets/matcha" stop is the line "Traditional Kyoto sweet / matcha in Gion" — the
+    // plural kept Gion Tsujiri, and any map, off it; round 15, Oct 26)
     const roleStop = (label: string) => {
       if (/^\s*(leave|depart)\b/i.test(label)) return null;
-      const own = distinctWords(label);
-      if (stops.some((s) => s.words.every((w) => own.includes(w)))) return null;
-      const hits = stops.filter((s) => s.roleWords.length >= 2 && s.roleWords.every((w) => own.includes(w)));
+      const own = distinctWords(label).map(stem);
+      if (stops.some((s) => s.words.every((w) => own.includes(stem(w))))) return null;
+      const hits = stops.filter((s) => s.roleWords.length >= 2 && s.roleWords.every((w) => own.includes(stem(w))));
       return hits.length === 1 ? hits[0] : null;
     };
     // A picture she pasted in the same tab can date its days ("Day 1 – Tue, Oct 13" on her Tokyo route map) — said beside

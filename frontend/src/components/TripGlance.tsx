@@ -26,7 +26,7 @@ import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
-  freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEnd, currentUnownedLine,
+  freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEndSaid, currentUnownedLine,
   withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords, landingStatus, checkinAfterLanding, zoneWords, landingTitle, bookedByName, bookedWords, askedOf, nowMinutesOn, phoneIsElsewhere, tripClockMinutes, homeOnJapanDate, partiesOf, zonedMoment, scheduledLanding, openQuestionsOn, besideHotel, voiceFor, noGroupWords, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, sameThing, differWordsFor,
 } from "../lib/guideDisplay";
 
@@ -539,6 +539,10 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const checkedOut = plan.all.some((b) => b.time && /check\s*-?\s*out/i.test(b.title) && toMin(b.time) < tripNow);
   const checkouts = checkedOut ? [] : todays.filter((i) => i.kind === "checkout" && isFor(i, me) && (!i.time || toMin(i.time) >= nowFor(i)));
   const dayWithPlan = [...todays, ...plan.all];
+  // Before noon, with nothing under way: her untimed "Morning" line for you (shown above Next)
+  const morningNow = !current && !currentUnowned && tripNow < 12 * 60
+    ? plan.all.find((b) => !b.time && /^\s*(this\s+)?morning\b/i.test(b.timeText || "") && isFor(b, me) && !plan.noOwner.has(b.id))
+    : undefined;
   // A line nobody's name is on during a split, before "Next": said, never assigned
   const unownedSoon = plan.all.find((b) => b !== currentUnowned && plan.noOwner.has(b.id) && b.time && toMin(b.time) >= tripNow && (!next?.time || toMin(b.time) < toMin(next.time)));
   // Her remaining plan lines for you, after "Next" (Home skipped her 5:00 return to the hotel)
@@ -659,7 +663,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         {/* Just landed, and her Guide doesn't say how to reach tonight's hotel: say so with two ways to act, on Home too
             (delight audit: Julie opens Home at Narita, and only Now had it) */}
         {(() => {
-          if (!landedToday || tripNow < toMin(landedToday.time!) || tripNow > toMin(landedToday.time!) + 180) return null;
+          // (four hours, as on Now — Narita to the hotel can take that; round 15)
+          if (!landedToday || tripNow < toMin(landedToday.time!) || tripNow > toMin(landedToday.time!) + 240) return null;
           const hotel = night?.stays[0]?.stay;
           if (!hotel || myRail.length) return null;
           const saysHow = todays.some((x) => x !== landedToday && isFor(x, me) && x.kind !== "flight"
@@ -741,15 +746,22 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         {current && !railSaysIt(current) && (
           <button onClick={() => openDay(today, current.id)} className="w-full text-left mt-2 min-h-[44px] text-sm text-[#3a3128]">
             <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{current.title.replace(/^./, (c) => c.toUpperCase())}
-            <span className="text-[#6b5d4a]">{current.endTime ? `, until ${currentRough ? "about " : ""}${clock(current.endTime)}` : `, until about ${minutesToClock(planLineEnd(current, plan.all))}`}</span>
+            <span className="text-[#6b5d4a]">{current.endTime ? `, until ${currentRough ? "about " : ""}${clock(current.endTime)}` : planLineEndSaid(current, plan.all) !== null ? `, until about ${minutesToClock(planLineEndSaid(current, plan.all)!)}` : ""}</span>
             {tabsDiffer(current).map((d) => <span key={d} className="block text-xs text-[#8a5a1a] mt-0.5">{differWordsFor(d, v)}</span>)}
           </button>
         )}
         {currentUnowned && (
           <button onClick={() => openDay(today, currentUnowned.id)} className="w-full text-left mt-2 min-h-[44px] text-sm text-[#3a3128]">
             <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{currentUnowned.title.replace(/^./, (c) => c.toUpperCase())}
-            <span className="text-[#6b5d4a]">, until {currentUnowned.endTime ? clock(currentUnowned.endTime) : `about ${minutesToClock(planLineEnd(currentUnowned, plan.all))}`}</span>
+            <span className="text-[#6b5d4a]">{currentUnowned.endTime ? `, until ${clock(currentUnowned.endTime)}` : planLineEndSaid(currentUnowned, plan.all) !== null ? `, until about ${minutesToClock(planLineEndSaid(currentUnowned, plan.all)!)}` : ""}</span>
             <span className="block text-xs text-[#8a5a1a] mt-0.5">{v.Her} Guide doesn't say which group this is for.</span>
+          </button>
+        )}
+        {/* Her "Morning" line, this morning: what you're about to do, before the next clock time (round 15: at 8:30 AM on
+            Oct 25 Next was "11:30 Concludes…" and "Morning — Backroads: Fushimi Inari + Tofuku-ji" was nowhere on Home) */}
+        {morningNow && (
+          <button onClick={() => openDay(today, morningNow.id)} className="w-full text-left mt-2 min-h-[44px] text-sm text-[#3a3128]">
+            <span className="text-[#6b5d4a]">This morning, in {v.owners} plan · </span>{morningNow.title.replace(/^./, (c) => c.toUpperCase())}
           </button>
         )}
         {/* The next line of her plan, said as next — with no group claimed (delight audit: an amber aside under a Next

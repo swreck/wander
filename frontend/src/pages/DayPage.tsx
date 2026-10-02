@@ -25,7 +25,7 @@ import {
   nightOf, isFor, isLanding, deadlineOnDate, deadlineOver, deadlineTimeWords, deadlineWhen,
   leaveForAirport, isPlanningNote, isFragment, partyOf, myNight, leavingOn, stayMapsQuery,
   checkoutBeforeFirst, checkinAfterLanding, leadItem, withCheckoutWho, minutesToClock, lateLeaveWords,
-  ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, saidAgain, currentUnownedLine, linksIn, besideHotel, voiceFor, tabLabel,
+  ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, planLineEndSaid, saidAgain, currentUnownedLine, linksIn, besideHotel, voiceFor, tabLabel,
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
@@ -140,6 +140,21 @@ function placedRoute(url: string, area: string): string {
     return u.toString();
   } catch { return url; }
 }
+/**
+ * A line about dressing for the evening, beside the dress code in that evening's booking ("Strict Formalwear Prep" —
+ * "jackets required for men" — from her tab written for the upstairs restaurant; the booking, La Table 1F, says
+ * "jackets or collared shirts and ties are not necessary"). Round 15: at 5 PM Andy's Now said only the stricter one.
+ * `stricter`: her line asks more than the booking does.
+ */
+function bookingDress(b: GuideItem, bookings: GuideItem[] = []): { words: string; where: string; stricter: boolean } | null {
+  const line = `${b.title}\n${b.detail || ""}`;
+  if (!/\b(formal|formalwear|dress|attire|jackets?|change into)\b/i.test(line)) return null;
+  const booking = bookings.find((m) => /^Dress: /m.test(m.detail || ""));
+  if (!booking) return null;
+  const words = (booking.detail!.match(/^Dress: (.+)$/m) || [])[1].trim();
+  const stricter = /\b(strict|required|must)\b/i.test(line) && /\bor\b|not necessary|not required/i.test(words);
+  return { words, where: booking.title.replace(/\s*\(.*\)\s*$/, ""), stricter };
+}
 /** Her choices on a line: [{ name: "Omen", note: "udon near Ginkaku-ji" }] */
 function choicesOf(b: GuideItem): { name: string; note: string }[] {
   return (b.detail || "").split("\n").filter((l) => l.startsWith("Choice: ")).map((l) => {
@@ -244,6 +259,12 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
                 {picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">{noOwner.has(b.id) ? "No group named in this line — a" : "A"} picture in {v.her} tab lists it under “{picGroup}”</p>}
                 {differ.map((d) => <p key={d} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{differWordsFor(d, v)}</p>)}
+                {(() => {
+                  const dress = bookingDress(b, bookings);
+                  return dress ? <p className={`text-[13px] rounded-md px-2 py-1 mt-1 ${dress.stricter ? "text-[#8a5a1a] bg-[#fff8ec]" : "text-[#514636] bg-[#f6f1e8]"}`}>
+                    {dress.stricter ? `${v.Her} booking at ${dress.where} asks less: ` : `${v.Her} booking at ${dress.where}: `}“{dress.words}”
+                  </p> : null;
+                })()}
                 {choices.length > 0 && (
                   <ul className="mt-1.5 space-y-1">
                     {choices.map((c) => {
@@ -770,6 +791,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       && !(riding && i.kind !== "flight" && toMin(i.time) < riding.arr!)
       && !(nextRide && i.kind !== "flight" && toMin(i.time) > nextRide.dep! && toMin(i.time) <= nextRide.arr!))
     : undefined;
+  // Before noon, nothing under way: her untimed "Morning" line for you
+  const morningNow = isToday && !currentBlock && !currentUnowned && tripNow < 12 * 60
+    ? planBlocks.find((b) => !b.time && /^\s*(this\s+)?morning\b/i.test(b.timeText || "") && isFor(b, me) && !noOwner.has(b.id))
+    : undefined;
   // A line nobody's name is on during a split, coming up before "Next" — said, never assigned (round 6:
   // "Next · in 2 hr 40 min: lunch" told Julie she was free while her Guide lists Maruni Toryo at 10:35)
   const unownedSoon = isToday
@@ -936,8 +961,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               // Past its time, by the schedule only; and on a phone still on home time, that time on its clock too
               // (round 11: at 1:00 AM in California, "You land … 3:00 PM Japan time today" read as still ahead)
               const due = isToday && tripNow >= toMin(land.time!);
-              // On Now, the landing is past news an hour and a half later (delight audit: it led Now all evening)
-              if (now && due && tripNow > toMin(land.time!) + 90) return null;
+              // On Now, the landing is past news four hours later (delight audit: it led Now all evening) — not sooner:
+              // immigration, bags and the bus or train from Narita take hours, and at 90 minutes the way to the hotel went
+              // while Julie was still on her way (round 15)
+              if (now && due && tripNow > toMin(land.time!) + 240) return null;
               // Only when the day has someone else's lines (round r1: Ken & Larisa's Oct 6 said "the others' plan" with
               // no one else in Japan)
               const others = dayItems.some((i) => i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me));
@@ -1112,16 +1139,30 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               <button onClick={() => document.getElementById(`item-${currentBlock.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
                 className="block w-full text-left mb-2 min-h-[44px] text-[15px] text-[#3a3128]">
                 <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{currentBlock.title.replace(/^./, (c) => c.toUpperCase())}
-                <span className="text-[#6b5d4a]">{currentBlock.endTime ? `, until ${/^~/.test(currentBlock.timeText || "") || (currentBlock.detail || "").includes("Times are Larisa's estimate.") ? "about " : ""}${clock(currentBlock.endTime)}` : `, until about ${minutesToClock(planLineEnd(currentBlock, planBlocks))}`}</span>
+                <span className="text-[#6b5d4a]">{currentBlock.endTime ? `, until ${/^~/.test(currentBlock.timeText || "") || (currentBlock.detail || "").includes("Times are Larisa's estimate.") ? "about " : ""}${clock(currentBlock.endTime)}` : planLineEndSaid(currentBlock, planBlocks) !== null ? `, until about ${minutesToClock(planLineEndSaid(currentBlock, planBlocks)!)}` : ""}</span>
                 {tabsDiffer(currentBlock).map((d) => <span key={d} className="block text-sm text-[#8a5a1a] mt-0.5">{differWordsFor(d, v)}</span>)}
+                {(() => {
+                  const dress = bookingDress(currentBlock, dayItems.filter((m) => m.kind === "meal"));
+                  return dress ? <span className={`block text-sm mt-0.5 ${dress.stricter ? "text-[#8a5a1a]" : "text-[#514636]"}`}>
+                    {dress.stricter ? `${v.Her} booking at ${dress.where} asks less: ` : `${v.Her} booking at ${dress.where}: `}“{dress.words}”
+                  </span> : null;
+                })()}
               </button>
             )}
             {now && currentUnowned && (
               <p className="mb-2 text-[15px] text-[#3a3128]">
                 <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{currentUnowned.title.replace(/^./, (c) => c.toUpperCase())}
-                <span className="text-[#6b5d4a]">, until {currentUnowned.endTime ? clock(currentUnowned.endTime) : `about ${minutesToClock(planLineEnd(currentUnowned, planBlocks))}`}</span>
+                <span className="text-[#6b5d4a]">{currentUnowned.endTime ? `, until ${clock(currentUnowned.endTime)}` : planLineEndSaid(currentUnowned, planBlocks) !== null ? `, until about ${minutesToClock(planLineEndSaid(currentUnowned, planBlocks)!)}` : ""}</span>
                 <span className="block text-sm text-[#8a5a1a]">{v.Her} Guide doesn't say which group this is for.</span>
               </p>
+            )}
+            {/* Her "Morning" line, this morning, before the next clock time (round 15: at 8:30 AM on Oct 25 Now's Next was
+                "11:30 Concludes…"; "Morning — Backroads: Fushimi Inari + Tofuku-ji" was further down the plan) */}
+            {now && morningNow && (
+              <button onClick={() => document.getElementById(`item-${morningNow.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                className="block w-full text-left mb-2 min-h-[44px] text-[15px] text-[#3a3128]">
+                <span className="text-[#6b5d4a]">This morning, in {v.owners} plan · </span>{morningNow.title.replace(/^./, (c) => c.toUpperCase())}
+              </button>
             )}
             {/* During a split, a line nobody's name is on is never "yours" — but it isn't hidden either */}
             {/* …and when it comes first, it's what's next — shown as next, honestly, with who's elsewhere then (delight
@@ -1178,7 +1219,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   {/* What you need for it — her own transit and dress notes, here and not behind a tap (round 13: Oct 17's
                       "Strict Formalwear Prep" card hid "jackets required for men… Ginza Line straight back" behind "Your notes ›") */}
                   {u.kind === "block" && (() => {
-                    const own = (u.detail || "").split("\n").filter((l) => l && !/^(Choice: |Tabs differ: |Where: |Wander matched this plan|Times are )/.test(l) && !PICTURE_GROUP.test(l) && !/^For /.test(l))
+                    // (not her route's address — it's the day screen's route button; round 15: Now's Next card spelled out
+                    // "Her whole route for the day: https://www.google.com/maps/dir/…" in six lines of text)
+                    const own = (u.detail || "").split("\n").filter((l) => l && !/^(Choice: |Tabs differ: |Where: |Wander matched this plan|Times are |Her whole route for the day: )/.test(l) && !PICTURE_GROUP.test(l) && !/^For /.test(l))
                       .join("\n").replace(/\s+(Experience|Transit|Note):/g, "\n$1:").trim();
                     if (!own) return null;
                     // (cut at a sentence end where one comes late enough — "sneakers are not…" lost "permitted")

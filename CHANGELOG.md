@@ -45,6 +45,33 @@ No SPEC change.
   answer read in full (the Omotesando answer now quotes their email, and its whisky-bar extra is in that email).
 - Not yet deployed (waiting for Ken's go): it changes what every Scout answer starts from.
 
+## 2026-10-02 (overnight) — Through Larisa's, Julie's and Andy's Eyes
+
+Five fresh testers walked the test copy as Larisa (planner, and in Kyoto), Julie (first time), Andy (Backroads
+week) and a designer. Fixed (test copy; not deployed — waiting for Ken's go):
+
+### Fixed
+- **Her next stop has a map** (Day screen, Home, Now). A timed line that only says what it's for gets the stop her
+  tab lists for it, with her own Maps link: "Traditional Kyoto sweet / matcha in Gion" → Gion Tsujiri Main Shop (her
+  "sweets" vs the line's "sweet" kept them apart); "Arashiyama river / Togetsukyo" → Togetsukyo Bridge (a long name
+  word only one stop has; never a common place word, never the tab's own town). Checked against production line by
+  line: 6 lines gain her links, all right. Needs a production re-import after deploy.
+- **No end time Wander made up** (Home, Now). "Now, in your plan · Hana Soufflé … stroll, until about 6:30 PM" — her
+  Guide has no 6:30. Only an end her plan gives is said.
+- **"This morning" before the next clock time** (Home, Now). At 8:30 AM on Oct 25, Next was "11:30 Concludes…";
+  her "Morning — Backroads: Fushimi Inari + Tofuku-ji" now shows first, before noon.
+- **The dress code from the booking itself** (Day screen, Now). Beside "Strict Formalwear Prep… jackets required for
+  men" (her tab, written for the upstairs restaurant): "Her booking at LeTable de Joel Robuchon - 1F asks less: 'please
+  wear jackets or collared shirts and ties are not necessary'".
+- **No web address spelled out on Now** (the Next card showed her route link as six lines of text).
+- **Landing night** (Home, Now): Scout's evening question isn't asked the evening you land, nor while tonight's plan
+  still has something to come; the way from the airport to the hotel stays four hours after landing (was 90 min on
+  Now, three hours on Home — Julie, jet-lagged, was still on her way).
+- **Ideas say what's already on her days** (Ideas). "In your plan for Mon, Oct 26 ›" (or "Larisa's plan" for the
+  others) on each idea her days already have; "Nobody has marked this yet" no longer on an idea that's in the plan.
+
+No SPEC change.
+
 ## 2026-10-01 — The Home Map, Checked Against Production
 
 On production's own city locations the deployed map had a name sitting on a line on the iPhone 15 ("Karatsu ·
