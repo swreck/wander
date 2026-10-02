@@ -32,6 +32,19 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 
 No SPEC change.
 
+## 2026-10-02 (overnight) — Scout Reads All of Her Guide
+
+### Fixed
+- **Scout now has every one of Larisa's tabs** (Scout, everywhere). Its copy of her "other tabs" (pasted emails,
+  friends' recommendations, hotel notes, picture summaries) stopped at 30,000 characters — partway through her Kyoto
+  tabs — so 14 tabs never reached it, among them Mark & Steve's email, her Tokyo hotel notes, the extra text of her
+  Tokyo and Kyoto day tabs and the map summaries. Asked "what did Steve and Mark tell us about Omotesando?", Scout
+  said they hadn't mentioned it. Now all of her tabs fit; if a copy ever must be cut, Scout is told which tabs are
+  missing and never to say the Guide doesn't mention something that could be in them.
+  Verified: a new exam in Larisa's own words (10 questions written from her Guide) 9/10 before, 10/10 after, every
+  answer read in full (the Omotesando answer now quotes their email, and its whisky-bar extra is in that email).
+- Not yet deployed (waiting for Ken's go): it changes what every Scout answer starts from.
+
 ## 2026-10-01 — The Home Map, Checked Against Production
 
 On production's own city locations the deployed map had a name sitting on a line on the iPhone 15 ("Karatsu ·

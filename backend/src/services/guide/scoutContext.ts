@@ -437,11 +437,19 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   }
   if (notes.length) {
     say(out, "\nTHE GUIDE'S OTHER TABS (Larisa's own text, including pasted emails and picture summaries):");
-    let budget = 30000;
+    // (120,000 characters — all of her tabs. At 30,000 the list stopped partway through her Kyoto tabs, and Scout told
+    // Larisa that Mark & Steve said nothing about Omotesando — their email tab, which says plenty, was never in its
+    // copy. Scout exam L4, Oct 2.)
+    let budget = 120000;
     let lastTab = "";
-    for (const n of notes) {
+    for (const [i, n] of notes.entries()) {
       const line = `${n.tabName !== lastTab ? `\n[${n.tabName}]\n` : ""}${n.text}`;
-      if (budget - line.length < 0) { say(out, "\n(…more in the Guide's tabs; Larisa's sheet has the rest)"); break; }
+      if (budget - line.length < 0) {
+        // If it ever runs out: name what's missing, so a missing tab is never taken for "not in the Guide"
+        const left = [...new Set(notes.slice(i).map((x) => x.tabName))];
+        say(out, `\n(THIS COPY STOPS HERE. Not included: the rest of ${n.tabName}${left.length > 1 ? ` and these tabs: ${left.filter((t) => t !== n.tabName).join(", ")}` : ""}. Never say the Guide doesn't mention something that could be in them — say Wander's copy for Scout doesn't include them, and suggest looking in Larisa's sheet.)`);
+        break;
+      }
       // A text row is her row in that tab; a picture summary is Wander's reading of her picture
       const tab = tabs.find((t) => t.name === n.tabName);
       const picture = n.rowIndex >= 100000 ? tab?.images[n.rowIndex - 100000] : undefined;
