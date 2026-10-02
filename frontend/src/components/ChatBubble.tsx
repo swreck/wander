@@ -109,6 +109,8 @@ interface ChatMessage {
   sources?: AnswerSources;
   /** A small copy of the photo sent with this question (the photo itself isn't kept) */
   photoThumb?: string;
+  /** Directions Scout offered, from wherever the phone is ("Walk to Tokyodo Main Showroom", "Taxi to …") */
+  routes?: { label: string; apple: string; google: string }[];
 }
 
 /**
@@ -568,6 +570,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setMessages((prev) => [
         ...prev,
         { role: "assistant", text: data.reply, actions: data.actions, places: data.places, shows, headline, at: new Date().toISOString(),
+          ...(Array.isArray(data.routes) && data.routes.length ? { routes: data.routes } : {}),
           ...(hasSources(data.sources) ? { sources: data.sources } : {}) },
       ]);
       // "Show me…": Scout moves the screen there (its answer stays in the conversation)
@@ -585,7 +588,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const isTimeout = err?.name === "AbortError";
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
       const errorMsg = offline
-        ? `No signal right now, so I can't answer. Today's plan from ${/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still on the Now tab.`
+        ? `No signal right now, so I can't answer. Today's plan from ${/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.`
         : isTimeout
         ? "That took too long — over two minutes. Want me to try again?"
         : "I couldn't get an answer just now. Want me to try again?";
@@ -914,7 +917,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               {/* Said to whoever holds the phone (round 13: Ken read "Ken's rail sheet", Larisa "Larisa's Guide") */}
               <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
-              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still on the Now tab.</p>}
+              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.</p>}
               {/* Tap one to ask it */}
               <div className="mt-4 flex flex-col items-start gap-1.5">
                 {["What's the plan today?", "Where are we sleeping tonight?", "Is there anything I need to do soon?", "What time do we need to leave?"].map((q) => (
@@ -994,6 +997,17 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                             )}
                           </div>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* directions from where they're standing: Apple Maps, and Google Maps beside it (Oct 2) */}
+                {msg.routes && msg.routes.length > 0 && (
+                  <div className="mt-2 flex flex-col items-start gap-1">
+                    {msg.routes.map((w) => (
+                      <div key={w.apple} className="flex flex-wrap items-center gap-x-3">
+                        <a href={w.apple} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636]">{w.label} ↗</a>
+                        <a href={w.google} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Google Maps ↗</a>
                       </div>
                     ))}
                   </div>

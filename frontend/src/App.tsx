@@ -51,7 +51,7 @@ function ShortcutHelp() {
   const shortcuts = [
     ["1 or g h", "Trip Overview"],
     ["2 or g p", "Plan page"],
-    ["3 or g n", "Now page"],
+    ["3 or g n", "Next"],
     ["4 or g l", "History"],
     ["c", "Toggle capture (Plan)"],
     ["i", "Toggle import (Plan)"],
@@ -163,7 +163,7 @@ function ChatOverlay() {
   const pageName = {
     "/": "Trip Overview",
     "/ideas": "Ideas",
-    "/now": "Now",
+    "/now": "Next",
     "/history": "History",
   }[location.pathname] || "Unknown";
 

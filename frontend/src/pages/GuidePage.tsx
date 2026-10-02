@@ -52,10 +52,10 @@ The arrows at the top move a day at a time. **‹ Back** goes back where you cam
   },
   {
     id: "travel-days",
-    title: "Now",
-    body: `The **Now** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Tap a place for directions in Maps. Quick Japanese phrases are there too.
+    title: "Next",
+    body: `The **Next** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Under it, **Get there** opens Apple Maps from where you're standing — walking, by train, or a route to show a taxi driver. Quick Japanese phrases are there too.
 
-Before the trip, Now shows the first day. After it, the last.`,
+Before the trip, Next shows the first day. After it, the last.`,
   },
   {
     id: "chat",

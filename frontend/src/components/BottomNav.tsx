@@ -29,7 +29,8 @@ const tabs = [
   },
   {
     path: "/now",
-    label: "Now",
+    // "Next" (Oct 2, Ken): the question this tab answers — what's next, when, and how to get there
+    label: "Next",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />

@@ -2,6 +2,41 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 — What's Next, When, and How to Get There
+
+### Added
+- **"Get there from where you are": Walk, Train, Taxi** (Next tab, the dark "Next" card, under "Find in Maps").
+  Each opens Apple Maps with directions from wherever the phone is to the next stop — walking, trains and subway,
+  or a driving route a taxi driver can read. Nobody types an address into a map app. It goes to her own place:
+  Tokyodo opens on the pin of the Google Maps place she linked; dinner at Une Immersion on the address she wrote.
+  Not shown for a flight, or when the stop has no map place (her "Evening Prep" block).
+- **Scout gives directions** (Scout panel, buttons under the answer: "Walk to Tokyodo Main Showroom ↗" with
+  "Google Maps ↗" beside it). Asked how to get somewhere, the way to the next stop, walking, train or taxi
+  directions — or just "what's next?" on a trip day when the next stop is a real place — Scout names the stop and
+  its time, quotes her own route for that leg when she wrote one, and adds a button: the way they asked for,
+  otherwise the way her plan names (her Tokyodo leg is a train, then a 4-minute walk: Train and Walk), otherwise
+  Walk and Train both. Scout never writes turn-by-turn steps or travel times of its own. The destination is hers,
+  best first: the pin of a place she linked, the address she wrote, a hotel's booked address (the Imperial), the
+  place her map link names, and only then Scout's words and the town. It never sends you to a different place
+  of hers: "Ginza" isn't her "ART AQUARIUM MUSEUM GINZA", a town alone isn't any of her lines in it, and two of
+  her lines with different pins for one name give the plain name instead. New Scout tool: `directions`.
+  Tested by `backend/tests/scout-directions.test.ts` (10).
+
+### Changed
+- **The Now tab is now "Next"** (bottom bar) — the question it answers: what's next, when, and how to get there.
+  A screen opened from it says "‹ What's next" (a "‹ Next" read as going forward). Scout's offline message,
+  the Help page's section and Scout's own description of the screen say Next.
+
+Tested on the test copy with real Scout, on scheduled days: Larisa at 2 PM Oct 16 (Tokyodo at 3:30, her train
+route quoted, Walk and Train buttons on her pin); Ken at 6:20 PM ("taxi probably": dinner at 7:00, a Taxi
+button to 1-28-8 Hommachi); Ken in Kyoto at 1 PM Oct 26 ("what's next?": Nishiki Market, buttons without being
+asked, and the Four Seasons cancellation deadline, checked against her Guide); Julie at 4:40 PM (the Imperial by
+train, as her plan says). In the browser at 390 and 320 points: the Next card's row, 44-point buttons, Scout's
+Taxi button with Google Maps beside it.
+
+SPEC UPDATE NEEDED: the Now screen is now called Next and offers walking, train and taxi directions; Scout's
+tools include directions.
+
 ## 2026-10-02 — Ken's iPhone Check, First Pass
 
 ### Fixed
