@@ -23,7 +23,10 @@ export type SourceView =
   // A web page Scout read
   | { type: "web"; title: string; url: string; quote: string }
   // Another source Wander reads (Ken's rail sheet): its name, whose it is, how it was written, and its exact cells
-  | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: GuideCellWords[] };
+  | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: GuideCellWords[] }
+  // Her Apple Maps guide for a day (appleGuides.ts): her map, not her sheet; `worked` when the line is Wander's
+  // straight-line distances between its places
+  | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean };
 
 export interface ContextLine { text: string; src: SourceView | null }
 

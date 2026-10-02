@@ -2,6 +2,39 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 (evening) — Her Apple Maps Guides: One Tap to Her Map, and What's Close to What
+
+### Added
+- **"See her Apple Maps guide for the day ↗"** (day screen and the Next tab, under "See her route for the day in
+  Google Maps"; to Larisa "your"). Larisa made a map in Apple Maps for some days (so far Tokyo Days 1–3: Oct 15,
+  16, 17), apart from her sheet. The button opens her map as it is now — Wander never changes it.
+- **Scout knows what's on her maps, and what's close to what.** Each map's places and addresses, read from her
+  share links (view-only — Ken's OK: a share link can't change her guide), and Wander's straight-line distances
+  between them. Her map's places aren't in visiting order (Ken: "Scout might add value by saying what's close and
+  what isn't"): Scout says which are close together and which need a train or taxi — always as straight-line
+  distance ("about 250 m apart in a straight line"), never as a walking time, and never reordering her day (her
+  tab's order is the plan). Where her map and her tab differ — a stop on one and not the other, or a different
+  branch (her Day 3 tab's Onitsuka Tiger is the Shibuya flagship; her map pins Omotesando) — Scout says both and
+  suggests checking with Larisa. Sources shows "Her Apple Maps guide — not Larisa's Guide" with the places, when
+  Wander read it, and "Open her map ↗"; distances are marked as worked out by Wander.
+- **Walk / Train / Taxi uses her map's own location** for a place her sheet gives no pin or address for, by its
+  name (the Umeno Vase Shop) — never a different branch.
+- Her maps are kept by every new Guide copy (checked by re-importing her real copy), and each map's day follows
+  her day tab as the current copy dates it. A map is matched to its tab by name ("Tokyo 2026 - Day 2" → "Tokyo Day
+  2 Kappabashi…"); a map no tab matches isn't put on a day.
+- Tools: trip-data/session-tools/read-apple-guides.mjs (reads share links → trip-data/apple-guides.json, private),
+  backend/scripts/set-apple-guides.ts (records them for a trip; prints names and days only).
+  Tests: backend/tests/apple-guides.test.ts (6).
+
+Tested with real Scout, 5 questions: the Akihabara day's close and far stops (her own train words for each leg,
+straight-line distances, her order kept); "Yazawa — Ginza or Yaesu?" (both of her tabs, her map agreeing with
+Yaesu); "Onitsuka Tiger near Omotesando Hills?" (150 m on her map, the tab-vs-map store difference — first answer
+said "a couple of minutes on foot"; the rule now forbids turning a distance into minutes, and the re-ask was
+clean); Tokyodo to Umeno with Sources showing her map. Browser: the button on her three days and no others, for
+Andy and Larisa.
+
+SPEC UPDATE NEEDED: a second source of hers — Apple Maps guides — beside the Guide.
+
 ## 2026-10-02 (evening) — Getting In on an iPhone: Face ID First, Then the Home Screen
 
 ### Fixed

@@ -35,6 +35,7 @@ import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, Tic
 import SheetSpots from "../components/SheetSpots";
 import SendOut, { dayText, bookingText } from "../components/SendOut";
 import { directionsHref } from "../lib/directions";
+import { appleGuides, type GuidesByDay } from "../lib/appleGuides";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
@@ -177,13 +178,15 @@ const choiceMapHref = (c: { name: string }, line: GuideItem) => mapsLink(`${c.na
  * line for the day sits in its header, as hers, so the two never read as rival plans. Today, the line
  * she has you on now is marked and the ones behind you step back.
  */
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId, maps = [] }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
   picked: Map<string, DayChoice>; onPick: (text: string, time: string | null, pickFor: string) => Promise<void>;
   onUndo: (c: DayChoice) => Promise<void>; tellName: string | null; onTell: (c: DayChoice) => void;
   nowAt: number | null; hotel: string | null; bookings: GuideItem[];
   /** for "Open this spot in her sheet" */
   tripId?: string | null;
+  /** her Apple Maps guide(s) for this day */
+  maps?: { name: string; link: string }[];
 }) {
   const v = voiceFor(me, tellName);
   // Her Itinerary line(s) for the day, for a Maps search's town (areaOf)
@@ -222,6 +225,15 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           </a>
         ) : null;
       })()}
+      {/* Her Apple Maps guide for the day — a map she made in Apple Maps, opened as it is now (Oct 2) */}
+      {maps.map((m) => (
+        <a key={m.link} href={m.link} target="_blank" rel="noreferrer" className="flex w-fit items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636]">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" />
+          </svg>
+          See {v.her} Apple Maps guide for the day{maps.length > 1 ? ` (“${m.name}”)` : ""} ↗
+        </a>
+      ))}
       {overview.map((o) => (
         <p key={o.id} className="text-[13px] text-[#514636] mt-1">In {v.her} Itinerary for today: “{o.title}”</p>
       ))}
@@ -443,6 +455,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // Other sources (Ken's rail sheet): trains, the pickup checklist, where it and her Guide differ
   const [otherSources, setOtherSources] = useState<OtherSource[]>([]);
   const [notesByTab, setNotesByTab] = useState<NotesByTab>({});
+  const [mapsByDay, setMapsByDay] = useState<GuidesByDay>({});
   const scrolledFor = useRef<string | null>(null);
 
   // Load (and reload when the signal comes back, so a saved copy doesn't linger)
@@ -561,6 +574,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     if (!tripId) return;
     let cancelled = false;
     sheetNotes(tripId).then((n) => { if (!cancelled) setNotesByTab(n); });
+    return () => { cancelled = true; };
+  }, [tripId]);
+  // Her Apple Maps guides, by day (Oct 2)
+  useEffect(() => {
+    if (!tripId) return;
+    let cancelled = false;
+    appleGuides(tripId).then((g) => { if (!cancelled) setMapsByDay(g); });
     return () => { cancelled = true; };
   }, [tripId]);
 
@@ -1347,6 +1367,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {planBlocks.length > 0 && (
               <PlanSection
                 tripId={tripId}
+                maps={mapsByDay[date] || []}
                 blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel} bookings={dayItems.filter((m) => m.kind === "meal")}
                 picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
                 onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}

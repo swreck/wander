@@ -1509,9 +1509,11 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         tagline: `From Larisa's Guide · ${opts.sourceName.replace(/\.xlsx$/i, "").replace(/(?:-\d| \(\d+\)| copy(?: \d+)?)$/i, "")}`,
       },
     });
-    // (her sheet's address and tab ids, kept across imports — sheetLink.ts)
-    const kept = ((await tx.sheetSyncConfig.findUnique({ where: { tripId }, select: { tabMappings: true } }))?.tabMappings as any)?.sheetLink;
-    const tabMappings = { source: "snapshot", sourceName: opts.sourceName, ...(kept ? { sheetLink: kept } : {}) };
+    // (her sheet's address and tab ids — sheetLink.ts — and her Apple Maps guides — appleGuides.ts — kept across imports)
+    const priorMappings = (await tx.sheetSyncConfig.findUnique({ where: { tripId }, select: { tabMappings: true } }))?.tabMappings as any;
+    const kept = priorMappings?.sheetLink;
+    const keptMaps = Array.isArray(priorMappings?.appleGuides) ? priorMappings.appleGuides : null;
+    const tabMappings = { source: "snapshot", sourceName: opts.sourceName, ...(kept ? { sheetLink: kept } : {}), ...(keptMaps ? { appleGuides: keptMaps } : {}) };
     await tx.sheetSyncConfig.upsert({
       where: { tripId },
       create: { tripId, spreadsheetId: "", lastSyncAt: new Date(), lastSyncStatus: "success", tabMappings },

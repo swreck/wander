@@ -18,6 +18,7 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { getUserRole } from "../middleware/role.js";
 import { importGuideSnapshot } from "../services/guide/importSnapshot.js";
 import { sheetLinkOf, otherSheetLinks } from "../services/guide/sheetLink.js";
+import { guideLinksByDay } from "../services/guide/appleGuides.js";
 import { tabsOfCopy, cellsOfItem, completeCells, spotsOf } from "../services/guide/sources.js";
 import { withoutFinancialDetails } from "../services/sources/filter.js";
 
@@ -186,6 +187,13 @@ router.get("/sheet-link/:tripId", async (req: AuthRequest, res) => {
   if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
   const [link, others] = await Promise.all([sheetLinkOf(tripId), otherSheetLinks(tripId)]);
   res.json({ link, others });
+});
+
+// ── Her Apple Maps guides, by the day each is for — "Her Apple Maps guide for the day ↗" (appleGuides.ts) ──
+router.get("/apple-guides/:tripId", async (req: AuthRequest, res) => {
+  const tripId = req.params.tripId as string;
+  if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
+  res.json({ byDay: await guideLinksByDay(tripId) });
 });
 
 export default router;
