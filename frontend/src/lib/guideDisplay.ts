@@ -871,12 +871,15 @@ export const confirmationWords = (c: string) => c.replace(/(^|[;·,]\s*)([A-Z][a
  *  reader quotes it in the line's detail (round 13) */
 export const PICTURE_GROUP = /^A picture in her tab lists this under “([^”]+)”.*$/m;
 export const pictureGroupOf = (i: { detail?: string | null }) => (i.detail || "").match(PICTURE_GROUP)?.[1] || null;
+/** Her picture's "You" isn't the reader (round 15: on Andy's phone "lists it under “You & Julie”" read as Andy). Who it
+ *  is stays unnamed, as Scout is told (round 13) — said only that it isn't you. */
+export const pictureYou = (g: string, v: ReturnType<typeof voiceFor>) => (!v.mine && /\byou\b/i.test(g) ? " — that “you” is her map’s, not you" : "");
 
 /** "Her Guide doesn't name the group for this line" — or, when a picture in her tab does, what's true: her table doesn't,
  *  and the picture's own words (round 13: Wander said her Guide didn't name it; her Kyoto map lists "You & Julie") */
 export function noGroupWords(i: { detail?: string | null }, v: ReturnType<typeof voiceFor>): string {
   const g = pictureGroupOf(i);
-  return g ? `${v.Her} plan's table doesn't name the group; a picture in ${v.her} tab lists it under “${g}”`
+  return g ? `${v.Her} plan's table doesn't name the group; a picture in ${v.her} tab lists it under “${g}”${pictureYou(g, v)}`
     : `${v.Her} Guide doesn't name the group for this line`;
 }
 

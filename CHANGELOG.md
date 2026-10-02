@@ -69,6 +69,22 @@ week) and a designer. Fixed (test copy; not deployed — waiting for Ken's go):
   Now, three hours on Home — Julie, jet-lagged, was still on her way).
 - **Ideas say what's already on her days** (Ideas). "In your plan for Mon, Oct 26 ›" (or "Larisa's plan" for the
   others) on each idea her days already have; "Nobody has marked this yet" no longer on an idea that's in the plan.
+  An idea also counts as planned when her day line's own description names it (Julie's Nippon Made and Onitsuka
+  Tiger picks are inside "Ginza Premium Retail Walk" and "Shibuya Retail Flagships"), and a long word one letter off
+  still matches ("stationary" / "stationery").
+- **Split mornings on Home** (Home's Today card). When her table names no group for a line on a split day (Oct 28
+  Shigaraki), Home lists it with the same words the day screen uses ("Your plan's table doesn't name the group; a
+  picture in your tab lists it under 'You & Julie (morning)'"); before, Home skipped two hours of Larisa's morning.
+  Lines that name a subset say so ("Yours · Larisa & Julie"). On anyone else's phone, the picture's quote adds "that
+  'you' is her map's, not you" (Andy read it as himself); who it is stays unnamed, as Scout is told.
+- **"and N more" says where the gap is** (Home). When bookings that always show come after lines Home left out, the
+  link sits at the gap with its time — "and 9 more from 11:35 AM ›" above the 8 PM dinners — and opens the day at
+  that line.
+- **The car to the station always shows** (Home). On Oct 29 the noon hotel transfer to Kyoto Station was folded
+  under "and 2 more"; a line that takes you to a station or airport is never folded, like trains and flights.
+- **The departure-morning ticket box is calm** (Home, Day screen). "Worth a check: the paper ticket for the 1:30 PM
+  HARUKA 31 wasn't ticked on this phone at the Shin-Osaka pickup on Tue, Oct 6." It no longer quotes the rail sheet's
+  Oct 6 pickup instruction or its "allow a dedicated pickup block" on Oct 29 — only where a ticket can still be had.
 
 No SPEC change.
 

@@ -125,15 +125,20 @@ export function DifferNote({ d, className = "" }: { d: RailDiffer; className?: s
 export function TicketWarnings({ list, className = "mb-3" }: { list: ReturnType<typeof untickedTickets>; className?: string }) {
   return (
     <>
-      {list.map(({ s, r, where, others }) => (
-        <div key={`${s.id}-${r.row}`} className={`${className} rounded-xl bg-[#fff8ec] border border-[#e8c98f] p-3`}>
-          <p className="text-sm font-medium text-[#3a3128]">
-            Paper ticket for the {twelveHour(colOf(r.cols, /^depart/))} {colOf(r.cols, /^train$/)}: not ticked on this phone at the pickup.
-          </p>
-          {others && <p className="text-sm text-[#514636] mt-0.5">If it's ticked on {others.split(" & ").map((n) => `${n}'s`).join(" or ")} phone, you're set.</p>}
-          {where.length > 0 && <p className="text-sm text-[#514636] mt-1">If not, the rail sheet says: “{withTwelveHour(where.join(" "))}”</p>}
-        </div>
-      ))}
+      {/* Calm, and with the pickup's place and day (round 15: on departure morning it read to Larisa as "something's
+          wrong", and quoted an Oct 6 instruction on Oct 29) */}
+      {list.map(({ s, r, where, others, pickup }) => {
+        const place = checklistTitle(pickup.tab).replace(/^Ticket pickup — /, "");
+        return (
+          <div key={`${s.id}-${r.row}`} className={`${className} rounded-xl bg-[#fff8ec] border border-[#e8c98f] p-3`}>
+            <p className="text-sm font-medium text-[#3a3128]">
+              Worth a check: the paper ticket for the {twelveHour(colOf(r.cols, /^depart/))} {colOf(r.cols, /^train$/)} wasn't ticked on this phone at the {place} pickup{pickup.date ? ` on ${shortWhen(pickup.date)}` : ""}.
+            </p>
+            {others && <p className="text-sm text-[#514636] mt-0.5">If it's ticked on {others.split(" & ").map((n) => `${n}'s`).join(" or ")} phone, you're set.</p>}
+            {where.length > 0 && <p className="text-sm text-[#514636] mt-1">If you don't have it, the rail sheet says: “{withTwelveHour(where.join(" "))}”</p>}
+          </div>
+        );
+      })}
     </>
   );
 }

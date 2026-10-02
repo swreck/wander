@@ -207,7 +207,7 @@ export function beforeTravelSteps(sourceId: string, c: Checklist): { row: number
  *  Home led with the 1:30 PM HARUKA's ticket) */
 export function untickedTickets(sources: OtherSource[], date: string, me: string | null | undefined,
   partyOf: (s: OtherSource) => string | null, isMine: (r: RailRow, s: OtherSource) => boolean, stillAhead?: (r: RailRow) => boolean) {
-  const out: { s: OtherSource; r: RailRow; where: string[]; others: string | null }[] = [];
+  const out: { s: OtherSource; r: RailRow; where: string[]; others: string | null; pickup: Checklist }[] = [];
   if (!me) return out;
   for (const s of sources) {
     const party = partyOf(s);
@@ -223,9 +223,14 @@ export function untickedTickets(sources: OtherSource[], date: string, me: string
       // Where it can still be had, first ("cannot be collected at Utsunomiya", "Tokyo Station's JR East Travel Service
       // Center"); then the general pickup words
       const score = (x: string) => (/cannot|travel service|tokyo station|ticket office|before .* boarding|or\b/i.test(x) ? 0 : 1);
-      const where = text.split(/(?<=[.;])\s+/).map((x) => x.trim().replace(/[;.]$/, ".")).filter((x) => x.length > 3 && /collect|pick ?up|cannot|travel service|ticket office|machine|5489/i.test(x))
+      // A step tied to a day already past ("…at Shin-Osaka on Oct 6", read on Oct 29) is no longer something to do
+      // (round 15: it read to Larisa as an order three weeks late)
+      // (one that also says how — "Pick up at an e5489… machine (planned: Shin-Osaka Oct 6): English → …" — stays; advice
+      // for the pickup day itself, "allow a dedicated pickup block", goes)
+      const past = (x: string) => { const d = dateInText(x, Number(date.slice(0, 4))); return (!!d && d < date && !/machine|counter|office|English/i.test(x)) || /\ballow\b/i.test(x); };
+      const where = text.split(/(?<=[.;])\s+/).map((x) => x.trim().replace(/[;.]$/, ".")).filter((x) => x.length > 3 && /collect|pick ?up|cannot|travel service|ticket office|machine|5489/i.test(x) && !past(x))
         .sort((a, b) => score(a) - score(b));
-      out.push({ s, r, where: where.slice(0, 2), others: names.filter((n) => n.toLowerCase() !== me.trim().toLowerCase()).join(" & ") || null });
+      out.push({ s, r, where: where.slice(0, 2), others: names.filter((n) => n.toLowerCase() !== me.trim().toLowerCase()).join(" & ") || null, pickup });
     }
   }
   return out;
