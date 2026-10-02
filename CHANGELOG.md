@@ -64,6 +64,11 @@ sheet than Wander (ux-round16). Two of its top answers, built. Not deployed.
   disagreement between her tabs; flights and booked trains from Ken's rail sheet in one list; every date to keep in
   mind, not only the next two weeks. A table on a laptop, a list on a phone; every row opens its day.
 
+- **Her pictures, full screen** (Home → tab by tab → "See the picture", and Scout's Sources → "See the picture"). Tap
+  the picture or "See it full screen ›": it fills the phone on black; pinch or double-tap to zoom, drag to look
+  around, double-tap to see it whole, Done or the phone's Back to close. Her five-panel Kyoto map (2048 px, shown 308
+  points wide) is readable on a phone.
+
 No SPEC change beyond the new pages; SPEC UPDATE NEEDED: Home (two new entry points).
 
 ## 2026-10-02 — Scout Finds the Exact Spot in Her Sheet; Notes by Place

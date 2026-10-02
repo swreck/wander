@@ -26,6 +26,7 @@ import { LinkedText } from "./GuideText";
 import { useAuth } from "../contexts/AuthContext";
 import { tabLabel, voiceFor } from "../lib/guideDisplay";
 import FindInGuide from "./FindInGuide";
+import PictureViewer from "./PictureViewer";
 
 interface SheetNote {
   id: string;
@@ -49,6 +50,8 @@ function picturesOf(tripId: string): Promise<TabPictures> {
 function TabPicture({ tripId, tab, nth }: { tripId: string; tab: string; nth: number }) {
   const [url, setUrl] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "opening" | "shown" | "missing">("idle");
+  // full screen, to read a map she pasted (round 16)
+  const [full, setFull] = useState(false);
   const open = async () => {
     setState("opening");
     picturesLoad = null; // a fresh link
@@ -61,8 +64,14 @@ function TabPicture({ tripId, tab, nth }: { tripId: string; tab: string; nth: nu
   if (state === "shown" && url) {
     return (
       <span className="block mt-2">
-        <img src={url} alt={`A picture Larisa pasted in her ${tab} tab`} className="block max-w-full h-auto rounded border border-[#e0d8cc]" onError={() => setState("missing")} />
-        <button onClick={() => setState("idle")} className="min-h-[44px] text-sm text-[#514636]">Hide the picture ‹</button>
+        <button onClick={() => setFull(true)} className="block w-full" aria-label="See this picture full screen">
+          <img src={url} alt={`A picture Larisa pasted in her ${tab} tab`} className="block max-w-full h-auto rounded border border-[#e0d8cc]" onError={() => setState("missing")} />
+        </button>
+        <span className="flex flex-wrap gap-x-5">
+          <button onClick={() => setFull(true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See it full screen ›</button>
+          <button onClick={() => setState("idle")} className="min-h-[44px] text-sm text-[#514636]">Hide the picture ‹</button>
+        </span>
+        {full && <PictureViewer src={url} alt={`A picture Larisa pasted in her ${tab} tab`} onClose={() => setFull(false)} />}
       </span>
     );
   }

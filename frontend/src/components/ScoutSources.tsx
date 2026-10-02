@@ -8,6 +8,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor } from "../lib/guideDisplay";
+import PictureViewer from "./PictureViewer";
 import { sheetLinks, rangeOf, type SheetLink, type SheetLinks } from "../lib/sheetLinks";
 
 type CellWords =
@@ -90,6 +91,7 @@ function Picture({ tab, anchor, sha256, tripId }: { tab: string; anchor: string;
   const [url, setUrl] = useState<string | null>(null);
   // "Opening…" lasts until the picture has actually arrived (a screenshot can be half a megabyte on hotel wifi)
   const [state, setState] = useState<"idle" | "opening" | "shown" | "failed">("idle");
+  const [full, setFull] = useState(false);
   return (
     <div>
       <p className="text-[13px] text-[#6b5d4a]">A picture in {v.her} {tab} tab{anchor ? ` (at ${anchor})` : ""}</p>
@@ -107,9 +109,13 @@ function Picture({ tab, anchor, sha256, tripId }: { tab: string; anchor: string;
         </button>
       )}
       {url && state !== "failed" && (
-        <img src={url} alt={`The picture in ${v.her} ${tab} tab`} onLoad={() => setState("shown")} onError={() => { setUrl(null); setState("failed"); }}
-          className={state === "shown" ? "mt-1 w-full rounded-md border border-[#e0d8cc]" : "hidden"} />
+        <button onClick={() => state === "shown" && setFull(true)} className={state === "shown" ? "block w-full" : "hidden"} aria-label="See this picture full screen">
+          <img src={url} alt={`The picture in ${v.her} ${tab} tab`} onLoad={() => setState("shown")} onError={() => { setUrl(null); setState("failed"); }}
+            className="mt-1 w-full rounded-md border border-[#e0d8cc]" />
+        </button>
       )}
+      {url && state === "shown" && <button onClick={() => setFull(true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See it full screen ›</button>}
+      {full && url && <PictureViewer src={url} alt={`The picture in ${v.her} ${tab} tab`} onClose={() => setFull(false)} />}
     </div>
   );
 }
