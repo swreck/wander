@@ -37,6 +37,7 @@ import SendOut, { dayText, bookingText } from "../components/SendOut";
 import { directionsHref } from "../lib/directions";
 import { appleGuides, type GuidesByDay } from "../lib/appleGuides";
 import { guidePictures, type GuidePicture } from "../lib/guidePictures";
+import { daySummaries } from "../lib/daySummaries";
 import PictureViewer from "../components/PictureViewer";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 
@@ -492,6 +493,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const [notesByTab, setNotesByTab] = useState<NotesByTab>({});
   const [mapsByDay, setMapsByDay] = useState<GuidesByDay>({});
   const [pictures, setPictures] = useState<GuidePicture[]>([]);
+  const [summariesByDay, setDaySummaries] = useState<Record<string, string>>({});
   const scrolledFor = useRef<string | null>(null);
 
   // Load (and reload when the signal comes back, so a saved copy doesn't linger)
@@ -618,6 +620,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     let cancelled = false;
     appleGuides(tripId).then((g) => { if (!cancelled) setMapsByDay(g); });
     guidePictures(tripId).then((p) => { if (!cancelled) setPictures(p); });
+    daySummaries(tripId).then((s) => { if (!cancelled) setDaySummaries(s); });
     return () => { cancelled = true; };
   }, [tripId]);
 
@@ -1140,6 +1143,16 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 </p>
               );
             })()}
+
+            {/* The day in a few sentences — what kind of day, its shape, what anchors the evening (Oct 2, Ken). Wander's
+                words from her lines, said as Wander's; shown only while her day is what it was written from. Not on the
+                Next tab: there the next stop leads. */}
+            {!now && summariesByDay[date] && (
+              <section aria-label="This day in brief" className="mb-4">
+                <p className="text-[15px] leading-relaxed text-[#3a3128]">{summariesByDay[date]}</p>
+                <p className="text-xs text-[#6b5d4a] mt-1">Wander's summary of {v.owners} plan</p>
+              </section>
+            )}
 
             {/* A ticket this phone didn't tick at the pickup, on the morning it travels — first, with where it can still be
                 collected (delight audit) */}

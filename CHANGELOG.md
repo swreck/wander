@@ -2,6 +2,27 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 (night) — The Day in a Few Sentences
+
+### Added
+- **A short summary atop each day** (day screen, under the weather line, above her plan; not on the Next tab, where
+  the next stop leads). Two or three sentences: what kind of day it is, its shape, what anchors the evening — e.g.
+  Oct 28: "A full day out of Kyoto: the van leaves the Four Seasons at 8:00 AM for Shigaraki. The morning splits,
+  with Ken and Andy at the MIHO Museum and Larisa and Julie at a traditional ceramics stop…". Labelled "Wander's
+  summary of Larisa's plan" (to Larisa, "your plan").
+- Written from the same day Scout reads (her lines, the city, "with Backroads", who isn't in Japan yet) and her
+  pictures' words — only what they say; names the people actually there; says Backroads leads its days; states her
+  disagreements neutrally ("her tabs name two places"); times like 2:50 PM. Every day's summary was read against her
+  lines and corrected before publishing (the first drafts had a flight landing on the wrong day, "everyone" on days
+  Julie and Andy are still at home, and "open" evenings on Backroads days).
+- Shown only while the day is exactly what it was written from: a new Guide copy that changes a day hides its
+  summary until it's rewritten and read (procedure: guide-update/README.md). Kept on the phone for no signal.
+- backend/src/services/guide/daySummaries.ts, scripts/day-summaries.ts (--write for review, --publish),
+  GET /api/guide/day-summaries/:trip; tests/day-summaries.test.ts (4). 22 days (Oct 19, 20, 22 have no lines of
+  hers — the day screen already says Backroads leads).
+
+SPEC UPDATE NEEDED: day screen — Wander's summary of the day.
+
 ## 2026-10-02 (evening) — Every Word on Her Pictures
 
 Ken: "Everything earning a place in the spreadsheet is important… every word, image, and number" is data.
