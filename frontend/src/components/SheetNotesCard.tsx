@@ -25,6 +25,8 @@ import useBackToClose from "../hooks/useBackToClose";
 import { LinkedText } from "./GuideText";
 import { useAuth } from "../contexts/AuthContext";
 import { tabLabel, voiceFor } from "../lib/guideDisplay";
+import FindInGuide from "./FindInGuide";
+import PictureViewer from "./PictureViewer";
 
 interface SheetNote {
   id: string;
@@ -48,6 +50,8 @@ function picturesOf(tripId: string): Promise<TabPictures> {
 function TabPicture({ tripId, tab, nth }: { tripId: string; tab: string; nth: number }) {
   const [url, setUrl] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "opening" | "shown" | "missing">("idle");
+  // full screen, to read a map she pasted (round 16)
+  const [full, setFull] = useState(false);
   const open = async () => {
     setState("opening");
     picturesLoad = null; // a fresh link
@@ -60,8 +64,14 @@ function TabPicture({ tripId, tab, nth }: { tripId: string; tab: string; nth: nu
   if (state === "shown" && url) {
     return (
       <span className="block mt-2">
-        <img src={url} alt={`A picture Larisa pasted in her ${tab} tab`} className="block max-w-full h-auto rounded border border-[#e0d8cc]" onError={() => setState("missing")} />
-        <button onClick={() => setState("idle")} className="min-h-[44px] text-sm text-[#514636]">Hide the picture ‹</button>
+        <button onClick={() => setFull(true)} className="block w-full" aria-label="See this picture full screen">
+          <img src={url} alt={`A picture Larisa pasted in her ${tab} tab`} className="block max-w-full h-auto rounded border border-[#e0d8cc]" onError={() => setState("missing")} />
+        </button>
+        <span className="flex flex-wrap gap-x-5">
+          <button onClick={() => setFull(true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See it full screen ›</button>
+          <button onClick={() => setState("idle")} className="min-h-[44px] text-sm text-[#514636]">Hide the picture ‹</button>
+        </span>
+        {full && <PictureViewer src={url} alt={`A picture Larisa pasted in her ${tab} tab`} onClose={() => setFull(false)} />}
       </span>
     );
   }
@@ -77,11 +87,6 @@ interface NotesResponse {
   byTab: Record<string, { rowIndex: number; text: string }[]>;
   tabOrder?: string[];
   tabGids?: Record<string, number>;
-}
-
-interface SyncStatus {
-  configured: boolean;
-  spreadsheetId?: string;
 }
 
 // Interactive replacements for common visual tabs. Each entry returns a user-facing
@@ -149,8 +154,13 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
         if (res?.tabOrder) setTabOrder(res.tabOrder);
       })
       .catch(() => {});
-    api.get<SyncStatus>(`/sheets-sync/status/${tripId}`)
-      .then(res => { if (res?.configured && res.spreadsheetId) setSpreadsheetId(res.spreadsheetId); })
+    // Her sheet's address and tab ids — the same ones Scout's Sources open (backend sheetLink.ts). The April sync
+    // record's empty address hid this link on every tab (round 16)
+    api.get<{ link: { url: string; tabs: Record<string, number> } | null }>(`/guide/sheet-link/${tripId}`)
+      .then(res => {
+        const m = res?.link?.url.match(/\/spreadsheets\/d\/([\w-]+)\//);
+        if (m) { setSpreadsheetId(m[1]); setTabGids((old) => ({ ...old, ...res!.link!.tabs })); }
+      })
       .catch(() => {});
   }, [tripId]);
 
@@ -176,7 +186,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
     if (!spreadsheetId) return;
     const gid = tabName ? tabGids[tabName] : undefined;
     const url = gid != null
-      ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${gid}`
+      ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?gid=${gid}#gid=${gid}`
       : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
@@ -201,6 +211,9 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
         </h2>
         <span className="text-sm text-[#6b5d4a]">{expanded ? "\u25B4" : "\u25BE"}</span>
       </button>
+
+      {/* Find a word anywhere in her tabs \u2014 the cell, the day, and the spot in her sheet (round 16) */}
+      <FindInGuide tripId={tripId} />
 
       {expanded && (
         <div className="space-y-3">

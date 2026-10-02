@@ -71,22 +71,40 @@ const draftKey = (tripId: string) => `wander:note-draft:${tripId}:${person()}`;
 /** `sending`: the phone's id for it once Save was tapped — if Wander closed before the server answered, the words come
  *  back in the box, and saving them again (or finding the note already kept) is the same note, never a second one
  *  (tester t4: closed mid-save on a weak signal, saved again, two notes) */
-export type Draft = { text: string; day: string | null; sending?: string; spoken?: boolean };
+export type Draft = { text: string; day: string | null; sending?: string; spoken?: boolean; place?: string };
 export function readDraft(tripId: string): Draft {
   try {
     const raw = localStorage.getItem(draftKey(tripId)) || "";
     if (!raw) return { text: "", day: null };
     try {
       const j = JSON.parse(raw);
-      if (j && typeof j.text === "string") return { text: j.text, day: typeof j.day === "string" ? j.day : null, ...(typeof j.sending === "string" ? { sending: j.sending } : {}), ...(j.spoken ? { spoken: true } : {}) };
+      if (j && typeof j.text === "string") return { text: j.text, day: typeof j.day === "string" ? j.day : null, ...(typeof j.sending === "string" ? { sending: j.sending } : {}), ...(j.spoken ? { spoken: true } : {}), ...(typeof j.place === "string" ? { place: j.place } : {}) };
     } catch { /* an older plain draft */ }
     return { text: raw, day: null };
   } catch { return { text: "", day: null }; }
 }
-/** `spoken`: said, not typed — kept with the draft so a spoken note saved later is still tidied (tester k1) */
-export function keepDraft(tripId: string, text: string, day: string | null = null, sending?: string, spoken?: boolean) {
-  try { if (text) localStorage.setItem(draftKey(tripId), JSON.stringify({ text, day, ...(sending ? { sending } : {}), ...(spoken ? { spoken } : {}) })); else localStorage.removeItem(draftKey(tripId)); } catch { /* full */ }
+/** `spoken`: said, not typed — kept with the draft so a spoken note saved later is still tidied (tester k1);
+ *  `place`: what it's about ("Kyoto", "Backroads", "Japan overall"), when chosen */
+export function keepDraft(tripId: string, text: string, day: string | null = null, sending?: string, spoken?: boolean, place?: string | null) {
+  try { if (text) localStorage.setItem(draftKey(tripId), JSON.stringify({ text, day, ...(sending ? { sending } : {}), ...(spoken ? { spoken } : {}), ...(place ? { place } : {}) })); else localStorage.removeItem(draftKey(tripId)); } catch { /* full */ }
 }
+
+/** What a note is about: one of the trip's places, the Backroads week, or the trip as a whole (Ken, Oct 2). A note
+ *  saved before places existed, with no day, is about Japan overall. */
+export const JAPAN_OVERALL = "Japan overall";
+export const BACKROADS = "Backroads";
+export const placeOf = (n: { city: string | null }) => n.city || JAPAN_OVERALL;
+
+/** How this phone shows the notes: whose, and in what order (kept on the phone) */
+export type NotesView = { whose: "all" | "mine" | "others"; order: "newest" | "trip" };
+const viewKey = () => `wander:notes-view:${person()}`;
+export function readView(): NotesView {
+  try {
+    const j = JSON.parse(localStorage.getItem(viewKey()) || "{}");
+    return { whose: ["all", "mine", "others"].includes(j.whose) ? j.whose : "all", order: j.order === "trip" ? "trip" : "newest" };
+  } catch { return { whose: "all", order: "newest" }; }
+}
+export function keepView(v: NotesView) { try { localStorage.setItem(viewKey(), JSON.stringify(v)); } catch { /* private mode */ } }
 
 /** Every word of my notes, as text (for "Export all my notes") */
 export async function exportText(tripId: string): Promise<string> {

@@ -17,10 +17,13 @@ import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../li
 import { useAuth } from "../contexts/AuthContext";
 import {
   saveNote, waitingNotes, savedCopy, keepCopy, readDraft, keepDraft, exportText, tripToday, dayWords, sendCopy,
-  newClientId, wordCount, type TripNote, type NoteSettings, type SaveBody,
+  newClientId, wordCount, JAPAN_OVERALL, BACKROADS, placeOf, readView, keepView, type TripNote, type NoteSettings, type SaveBody, type NotesView,
 } from "../lib/tripNotes";
+import { isLanding, isFor } from "../lib/guideDisplay";
 
-type DayOption = { date: string; city: string | null };
+type DayOption = { date: string; city: string | null; guided: boolean };
+/** A place a note can be about, with the trip days it covers (for its order and its heading) */
+type PlaceOption = { name: string; first: string | null; last: string | null };
 type Result = { kind: "saved"; note: TripNote; sentWords: number } | { kind: "queued"; words: number } | { kind: "error"; message: string };
 
 export default function NotesPage() {
@@ -44,7 +47,10 @@ export default function NotesPage() {
   // The note being written
   const [text, setText] = useState("");
   const [day, setDay] = useState<string | null>(params.get("day"));
-  const [choosingDay, setChoosingDay] = useState(false);
+  // What it's about — chosen, or (null) the default: where you are once you're in Japan, else Japan overall
+  const [place, setPlace] = useState<string | null>(null);
+  // the day this person lands in Japan (Julie & Andy are home until Oct 14)
+  const [landsOn, setLandsOn] = useState<string | null>(null);
   const [shareWithTrip, setShareWithTrip] = useState(false);
   const [usedVoice, setUsedVoice] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,12 +73,15 @@ export default function NotesPage() {
   // The list
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: string; text: string; place?: string } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [line, setLine] = useState<Record<string, string>>({});
   const [exportLine, setExportLine] = useState<string | null>(null);
+  // whose notes, and in what order — Ken, Oct 2: "only me, all, only others; by entry date, by trip date"
+  const [view, setView] = useState<NotesView>(() => readView());
+  const changeView = (v: Partial<NotesView>) => setView((old) => { const next = { ...old, ...v }; keepView(next); return next; });
 
   const load = useCallback(async (id: string) => {
     const list = await api.get<TripNote[]>(`/trip-notes/trip/${id}`);
@@ -100,7 +109,10 @@ export default function NotesPage() {
     const loadDays = (tid: string) => {
       daysReady.current = guideData(tid).then((g) => {
         setZone(g?.trip.timeZone || "Asia/Tokyo");
-        setDays((g?.days || []).map((d: any) => ({ date: String(d.date).slice(0, 10), city: d.city?.name || null })).sort((a, b) => a.date.localeCompare(b.date)));
+        setDays((g?.days || []).map((d: any) => ({ date: String(d.date).slice(0, 10), city: d.city?.name || null, guided: d.dayType === "guided" })).sort((a, b) => a.date.localeCompare(b.date)));
+        // (your first landing in Japan, from her Guide's flights)
+        const lands = (g?.items || []).filter((i) => isLanding(i) && i.date && i.forWhom && isFor(i, me)).map((i) => String(i.date).slice(0, 10)).sort()[0];
+        setLandsOn(lands || null);
       }).catch(() => { /* no days: "No particular day" */ });
       return daysReady.current;
     };
@@ -136,12 +148,12 @@ export default function NotesPage() {
   useEffect(() => {
     if (tripId && !text) {
       const d = readDraft(tripId);
-      if (d.text) { setText(d.text); if (d.day) setDay(d.day); if (d.spoken) setUsedVoice(true); if (d.sending) pendingRef.current = { text: d.text, cid: d.sending }; }
+      if (d.text) { setText(d.text); if (d.day) setDay(d.day); if (d.place) setPlace(d.place); if (d.spoken) setUsedVoice(true); if (d.sending) pendingRef.current = { text: d.text, cid: d.sending }; }
     }
   }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (tripId) keepDraft(tripId, text, day, pendingRef.current?.text === text ? pendingRef.current.cid : undefined, usedVoice);
-  }, [tripId, text, day, usedVoice]);
+    if (tripId) keepDraft(tripId, text, day, pendingRef.current?.text === text ? pendingRef.current.cid : undefined, usedVoice, place);
+  }, [tripId, text, day, usedVoice, place]);
 
   daysRef.current = days;
   zoneRef.current = zone;
@@ -190,6 +202,22 @@ export default function NotesPage() {
 
   const cityOf = (d: string | null) => (d ? days.find((x) => x.date === d)?.city || null : null);
 
+  // The places a note can be about, in trip order: the trip as a whole, each town by its first day, and the
+  // Backroads week by its first day (Ken, Oct 2: Backroads as a choice of its own)
+  const places = useMemo<PlaceOption[]>(() => {
+    const spans = new Map<string, { first: string; last: string }>();
+    const note = (name: string, date: string) => { const s = spans.get(name); spans.set(name, s ? { first: s.first, last: date } : { first: date, last: date }); };
+    for (const d of days) { if (d.city) note(d.city, d.date); if (d.guided) note(BACKROADS, d.date); }
+    const list = Array.from(spans.entries()).map(([name, s]) => ({ name, ...s })).sort((a, b) => a.first.localeCompare(b.first) || (a.name === BACKROADS ? -1 : 1));
+    return [{ name: JAPAN_OVERALL, first: null, last: null }, ...list];
+  }, [days]);
+  // Where you are: once you've landed and it's a trip day, today's town; before that, after it, or at home, Japan overall
+  const inJapan = !!landsOn && today >= landsOn && days.some((d) => d.date === today);
+  const herePlace = (inJapan && cityOf(today)) || JAPAN_OVERALL;
+  // (a note started from a day — Scout's evening question — is about that day's town)
+  const dayPlace = params.get("day") ? cityOf(params.get("day")) : null;
+  const aboutPlace = place || dayPlace || herePlace;
+
   async function save() {
     // (a ref, not just state: a fast double tap read "not saving" twice and kept the same note twice — tester t4)
     if (!tripId || !text.trim() || saving || savingRef.current) return;
@@ -204,11 +232,12 @@ export default function NotesPage() {
       const t = tripToday(zoneRef.current);
       if (daysRef.current.some((d) => d.date === t)) { aboutDay = t; setDay(t); }
     }
-    const aboutCity = aboutDay ? daysRef.current.find((d) => d.date === aboutDay)?.city || null : null;
+    // What it's about, as chosen (or where you are); the day is the trip day it's written
+    const aboutCity = aboutPlace;
     // The same words sent again keep their id, so Wander keeps them once; noted with the draft before they go
     const cid = pendingRef.current?.text === text ? pendingRef.current.cid : newClientId();
     pendingRef.current = { text, cid };
-    keepDraft(tripId, text, aboutDay, cid, usedVoice);
+    keepDraft(tripId, text, aboutDay, cid, usedVoice, place);
     const body: SaveBody = {
       // (spoken first: "Tidy my dictation" tidies spoken notes, the evening question's included)
       clientId: cid, text, source: usedVoice ? "voice" : fromEvening ? "evening" : "typed",
@@ -239,6 +268,8 @@ export default function NotesPage() {
       const t = tripToday(zoneRef.current);
       setDay(daysRef.current.some((d) => d.date === t) ? t : null);
       noDayChosen.current = false;
+      // (the next note starts at where you are again)
+      setPlace(null);
       // Kept on the phone though there's signal (a slow reply): try again shortly, and the waiting list catches up
       if ("queued" in r && navigator.onLine !== false) setTimeout(() => { replayQueue().then(() => load(tripId)).catch(() => { /* next time */ }); }, 3000);
     } catch (err) {
@@ -259,13 +290,13 @@ export default function NotesPage() {
     } catch { /* asked again next time */ }
   }
 
-  async function changeNote(n: TripNote, change: { text?: string; visibility?: "private" | "trip" }) {
+  async function changeNote(n: TripNote, change: { text?: string; visibility?: "private" | "trip"; city?: string }) {
     setBusy(n.id);
     try {
       const r = await api.patch<{ note: TripNote }>(`/trip-notes/${n.id}`, change);
       setNotes((all) => { const next = all.map((x) => (x.id === n.id ? r.note : x)); if (tripId) keepCopy(tripId, next); return next; });
       setEditing(null);
-      setLine((l) => ({ ...l, [n.id]: change.visibility === "trip" ? "Shared with everyone on the trip" : change.visibility === "private" ? "Just you again" : "" }));
+      setLine((l) => ({ ...l, [n.id]: change.visibility === "trip" ? "Shared with everyone on the trip" : change.visibility === "private" ? "Just you again" : change.city && !change.text ? `Now about ${change.city}` : "" }));
     } catch {
       setLine((l) => ({ ...l, [n.id]: navigator.onLine === false ? "No signal — that change waits until there's a bar or two." : "That didn't change — try again?" }));
     } finally {
@@ -313,14 +344,27 @@ export default function NotesPage() {
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? notes.filter((n) => [n.text, n.original, n.tidied || ""].some((t) => t.toLowerCase().includes(q))) : notes;
-  }, [notes, query]);
-  // By day, newest day first; notes with no day last
-  const byDay = useMemo(() => {
-    const groups = new Map<string, TripNote[]>();
-    for (const n of shown) { const k = n.dayDate || ""; groups.set(k, [...(groups.get(k) || []), n]); }
-    return Array.from(groups.entries()).sort((a, b) => (a[0] === "" ? 1 : b[0] === "" ? -1 : b[0].localeCompare(a[0])));
-  }, [shown]);
+    const whose = notes.filter((n) => view.whose === "all" || (view.whose === "mine" ? n.mine : !n.mine));
+    return q ? whose.filter((n) => [n.text, n.original, n.tidied || ""].some((t) => t.toLowerCase().includes(q))) : whose;
+  }, [notes, query, view.whose]);
+  // Newest first: one list, the newest note on top. Trip order: Japan overall first, then each place in the order the
+  // trip reaches it, and within a place the notes in the order they were written — the trip read as it happened.
+  const groups = useMemo<{ place: string | null; list: TripNote[] }[]>(() => {
+    if (view.order === "newest") return [{ place: null, list: [...shown].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) }];
+    const by = new Map<string, TripNote[]>();
+    for (const n of shown) { const k = placeOf(n); by.set(k, [...(by.get(k) || []), n]); }
+    const rank = (name: string) => { const i = places.findIndex((p) => p.name === name); return i < 0 ? places.length : i; };
+    return Array.from(by.entries())
+      .sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]))
+      .map(([place, list]) => ({ place, list: list.sort((a, b) => (a.dayDate || "").localeCompare(b.dayDate || "") || a.createdAt.localeCompare(b.createdAt)) }));
+  }, [shown, view.order, places]);
+  const spanOf = (name: string) => {
+    const p = places.find((x) => x.name === name);
+    if (!p?.first || !p.last) return "";
+    const short = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    return p.first === p.last ? short(p.first) : `${short(p.first)}–${p.first.slice(5, 7) === p.last.slice(5, 7) ? Number(p.last.slice(8)) : short(p.last)}`;
+  };
+  const othersCount = notes.filter((n) => !n.mine).length;
 
   const myCount = notes.filter((n) => n.mine).length;
   const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -353,20 +397,16 @@ export default function NotesPage() {
                 ? <p className="text-[15px] text-[#3a3128]"><span className="text-[#6b5d4a]">Scout asks · </span>Anything worth remembering from today?</p>
                 : <p className="text-[13px] text-[#6b5d4a]">Every word you write or say is kept exactly as you put it. Only you see a note unless you share it.</p>}
 
-              <div className="flex items-center gap-2 mt-2 text-[13px] text-[#514636]">
+              {/* What it's about: where you are (once you're in Japan), the Backroads week, another place, or the trip as a
+                  whole — the phone's own list, one tap (Ken, Oct 2) */}
+              <label className="flex items-center gap-2 mt-2 text-[13px] text-[#514636]">
                 <span className="text-[#6b5d4a]">About</span>
-                {choosingDay ? (
-                  <select autoFocus value={day || ""} onChange={(e) => { setDay(e.target.value || null); noDayChosen.current = !e.target.value; setChoosingDay(false); }} onBlur={() => setChoosingDay(false)}
-                    className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2">
-                    <option value="">No particular day</option>
-                    {days.map((d) => <option key={d.date} value={d.date}>{dayWords(d.date)}{d.city ? ` · ${d.city}` : ""}</option>)}
-                  </select>
-                ) : (
-                  <button onClick={() => setChoosingDay(true)} className="min-h-[44px] underline underline-offset-2">
-                    {day ? `${dayWords(day)}${cityOf(day) ? ` · ${cityOf(day)}` : ""}` : "No particular day"} — change
-                  </button>
-                )}
-              </div>
+                <select value={aboutPlace} onChange={(e) => setPlace(e.target.value)} aria-label="What this note is about"
+                  className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2 text-[#3a3128]">
+                  {places.map((p) => <option key={p.name} value={p.name}>{p.name}{p.name === herePlace && inJapan ? " — where you are" : ""}</option>)}
+                  {!places.some((p) => p.name === aboutPlace) && <option value={aboutPlace}>{aboutPlace}</option>}
+                </select>
+              </label>
 
               <textarea ref={boxRef} value={text} onChange={(e) => { setText(e.target.value); if (result?.kind !== "error") setResult(null); }}
                 rows={4} placeholder={listening ? "Listening — tap Stop when you're done" : "What's worth remembering?"}
@@ -458,39 +498,75 @@ export default function NotesPage() {
               </div>
               {exportLine && <p className="text-sm text-[#6b5d4a] mt-1" role="status">{exportLine}</p>}
 
+              {notes.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <div role="radiogroup" aria-label="Whose notes" className="flex rounded-xl bg-[#f0ebe3] p-0.5">
+                    {([["all", "Everyone's"], ["mine", "Mine"], ["others", "Others'"]] as const).map(([k, label]) => (
+                      <button key={k} role="radio" aria-checked={view.whose === k} onClick={() => changeView({ whose: k })}
+                        className={`min-h-[44px] px-3 rounded-lg ${view.whose === k ? "bg-white text-[#3a3128] shadow-sm" : "text-[#6b5d4a]"}`}>{label}</button>
+                    ))}
+                  </div>
+                  <div role="radiogroup" aria-label="In what order" className="flex rounded-xl bg-[#f0ebe3] p-0.5">
+                    {([["newest", "Newest first"], ["trip", "Trip order"]] as const).map(([k, label]) => (
+                      <button key={k} role="radio" aria-checked={view.order === k} onClick={() => changeView({ order: k })}
+                        className={`min-h-[44px] px-3 rounded-lg ${view.order === k ? "bg-white text-[#3a3128] shadow-sm" : "text-[#6b5d4a]"}`}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {notes.length === 0 && waiting.length === 0 && (
                 <p className="text-sm text-[#6b5d4a] mt-4">Nothing here yet. A note can be a line or a page — the potter's hands, a smell at the market, what someone said at dinner.</p>
               )}
-              {notes.length > 0 && shown.length === 0 && <p className="text-sm text-[#6b5d4a] mt-4">No note has “{query.trim()}” in it.</p>}
+              {notes.length > 0 && shown.length === 0 && (
+                <p className="text-sm text-[#6b5d4a] mt-4">
+                  {query.trim() ? `No ${view.whose === "mine" ? "note of yours" : view.whose === "others" ? "shared note" : "note"} has “${query.trim()}” in it.`
+                    : view.whose === "mine" ? "You haven't written a note yet — the box above is yours."
+                    : othersCount === 0 ? "Nobody else has shared a note with the trip yet." : "Nothing here."}
+                </p>
+              )}
 
-              {byDay.map(([d, list]) => (
-                <div key={d || "none"} className="mt-5">
-                  <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">
-                    {d ? (
-                      // the day itself, one tap away (tester t4: no way from a note to its day)
-                      <button onClick={() => navigate(`/day/${d}`)} className="min-h-[44px] uppercase tracking-wide text-left">
-                        {dayWords(d)}{list[0]?.city ? ` · ${list[0].city}` : ""} ›
-                      </button>
-                    ) : "No particular day"}
-                  </h2>
+              {groups.map(({ place: g, list }) => (
+                <div key={g || "newest"} className={g ? "mt-5" : "mt-3"}>
+                  {g && (
+                    <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1 min-h-[24px]">
+                      {g}{spanOf(g) ? ` · ${spanOf(g)}` : ""}
+                    </h2>
+                  )}
                   <ul className="space-y-2">
                     {list.map((n) => {
                       const words = n.tidied || n.text;
                       const isEditing = editing?.id === n.id;
                       return (
                         <li key={n.id} className="bg-white rounded-xl border border-[#e0d8cc] p-3">
+                          {/* who, about where, which day (the day itself one tap away), when — the place left out under its own
+                              heading in trip order */}
                           <p className="text-xs text-[#6b5d4a]">
-                            {timeOf(n.createdAt)}{!n.mine && ` · ${n.authorName}`} · {n.visibility === "trip" ? "Shared with the trip" : "Just you"}
+                            {!n.mine && <span className="text-[#3a3128] font-medium">{n.authorName} · </span>}
+                            {view.order === "newest" && `${placeOf(n)} · `}
+                            {n.dayDate
+                              ? <button onClick={() => navigate(`/day/${n.dayDate}`)} className="underline underline-offset-2">{dayWords(n.dayDate)}</button>
+                              : new Date(n.createdAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                            {` · ${timeOf(n.createdAt)} · ${n.visibility === "trip" ? (n.mine ? "Shared with the trip" : "shared with the trip") : "Just you"}`}
                             {n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : ""}
                             {n.editedAt ? " · changed" : ""}
                           </p>
                           {isEditing ? (
                             <>
-                              <textarea value={editing.text} onChange={(e) => setEditing({ id: n.id, text: e.target.value })} rows={5} aria-label="Change the words"
+                              <textarea value={editing.text} onChange={(e) => setEditing({ ...editing, id: n.id, text: e.target.value })} rows={5} aria-label="Change the words"
                                 className="mt-1 w-full bg-[#f0ebe3] rounded-xl px-3 py-2 text-[16px] text-[#3a3128] outline-none resize-y" />
                               <p className="text-xs text-[#6b5d4a]">The words as first saved are kept too.</p>
+                              <label className="flex items-center gap-2 mt-1 text-[13px] text-[#514636]">
+                                <span className="text-[#6b5d4a]">About</span>
+                                <select value={editing.place ?? placeOf(n)} onChange={(e) => setEditing({ ...editing, place: e.target.value })} aria-label="What this note is about"
+                                  className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2 text-[#3a3128]">
+                                  {places.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                                  {!places.some((p) => p.name === placeOf(n)) && <option value={placeOf(n)}>{placeOf(n)}</option>}
+                                </select>
+                              </label>
                               <div className="flex gap-2 mt-1">
-                                <button onClick={() => changeNote(n, { text: editing.text })} disabled={!editing.text.trim() || busy === n.id} className="min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">Save the change</button>
+                                <button onClick={() => changeNote(n, { ...(editing.text !== n.text ? { text: editing.text } : {}), ...(editing.place && editing.place !== placeOf(n) ? { city: editing.place } : {}) })}
+                                  disabled={!editing.text.trim() || busy === n.id || (editing.text === n.text && (!editing.place || editing.place === placeOf(n)))} className="min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">Save the change</button>
                                 <button onClick={() => setEditing(null)} className="min-h-[44px] px-4 text-sm text-[#514636]">Cancel</button>
                               </div>
                             </>

@@ -124,7 +124,8 @@ router.get("/trip/:tripId/export", async (req: AuthRequest, res) => {
   let lastDay = "";
   for (const n of notes) {
     const day = n.dayDate || "";
-    const head = day ? `${dayWords(day)}${n.city ? ` · ${n.city}` : ""}` : "No day given";
+    // (the place first, as Notes shows it: "Kyoto · Wed, Oct 28", "Japan overall")
+    const head = `${n.city || "Japan overall"}${day ? ` · ${dayWords(day)}` : ""}`;
     if (head !== lastDay) { lines.push(`## ${head}`, ""); lastDay = head; }
     const when = n.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: zone });
     lines.push(`${when}${n.visibility === "trip" ? " · shared with the trip" : ""}${n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : ""}`);
@@ -149,7 +150,7 @@ router.param("id", ownNote);
 router.patch("/:id", async (req: AuthRequest, res) => {
   const me = req.user!.travelerId!;
   const id = req.params.id as string;
-  const { text, visibility, storyUse } = req.body || {};
+  const { text, visibility, storyUse, city } = req.body || {};
   const data: Record<string, unknown> = {};
   if (typeof text === "string") {
     if (!text.trim()) { res.status(400).json({ error: "A note can't be empty — to take it away, remove it." }); return; }
@@ -162,6 +163,8 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   }
   if (visibility === "private" || visibility === "trip") data.visibility = visibility;
   if (storyUse === null || typeof storyUse === "boolean") data.storyUse = storyUse;
+  // What it's about — a place on the trip, "Backroads" or "Japan overall" (Ken, Oct 2); the words stay as they are
+  if (typeof city === "string" && city.trim()) data.city = city.trim().slice(0, 80);
   const note = await prisma.tripNote.update({ where: { id }, data });
   // (words changed by hand are as the person wants them — never tidied; confirmation tester k2)
   res.json({ note: shape(note, me) });

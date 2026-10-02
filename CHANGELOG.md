@@ -32,6 +32,163 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 
 No SPEC change.
 
+## 2026-10-02 (overnight) — Scout Reads All of Her Guide
+
+### Fixed
+- **Scout now has every one of Larisa's tabs** (Scout, everywhere). Its copy of her "other tabs" (pasted emails,
+  friends' recommendations, hotel notes, picture summaries) stopped at 30,000 characters — partway through her Kyoto
+  tabs — so 14 tabs never reached it, among them Mark & Steve's email, her Tokyo hotel notes, the extra text of her
+  Tokyo and Kyoto day tabs and the map summaries. Asked "what did Steve and Mark tell us about Omotesando?", Scout
+  said they hadn't mentioned it. Now all of her tabs fit; if a copy ever must be cut, Scout is told which tabs are
+  missing and never to say the Guide doesn't mention something that could be in them.
+  Verified: a new exam in Larisa's own words (10 questions written from her Guide) 9/10 before, 10/10 after, every
+  answer read in full (the Omotesando answer now quotes their email, and its whisky-bar extra is in that email).
+- Not yet deployed (waiting for Ken's go): it changes what every Scout answer starts from.
+
+## 2026-10-02 — Her Oct 2 Revision ("Japan Oct 2026-3"): a Day Planned Twice, and Her Exact Place
+
+Larisa's latest download changed one tab: "Tokyo Day 2" gained a revised day plan (A46 — Akihabara moved to midday,
+lunch 1:45, Tokyodo 3:00, Umeno 4:05, prep 4:45) below the old one (A44, kept), and Tokyodo's exact Google Maps place
+(G39) beside its stop. Not deployed yet.
+
+### Changed
+- **A day her tab plans twice** (Day screen, Scout). Wander follows one version, the same way every time — the one she
+  added most recently (new since Wander's last copy; with no last copy, the one lower in the tab) — keeps that choice
+  on later re-imports while both stay as they were, and says so at the top of her plan for the day: "Your tab has 2
+  versions of this day's plan: Wander follows A46 (the one she added most recently); A44 has other times — worth a
+  second look which is current." Only that version is read into the day. Scout sees the earlier one marked as the
+  earlier version, so its times are never given as the plan.
+- **A map place she puts beside a stop is that stop's link** (Day screen, Now, Home): Tokyodo opens her exact Google
+  Maps place instead of a search for its name.
+
+### Verified
+- Import: accepted; 165 lines, 26 tabs, 26 pictures (all from cache); changes exactly the six Oct 16 times; a second
+  import of the same file changes nothing. Every Scout line's cells checked (484 of 552 fully in their cells, the rest
+  Wander's own words — as before). All 12 walk-throughs pass on the new data. Scout: 3 new questions on the revision,
+  3/3, each citing A46.
+
+## 2026-10-02 — Where the Sheet Won: Find a Word, the Whole Trip on One Page
+
+A fresh reviewer went through all 26 tabs of her Guide asking, for each section, when someone would rather open the
+sheet than Wander (ux-round16). Two of its top answers, built. Not deployed.
+
+### Added
+- **Find a word in your Guide** (Home → "Your Guide, tab by tab", the box at its top — no need to open the list).
+  Every tab searched on the phone, no accents needed ("osaka" finds "Shin-Ōsaka"); each find shows the tab and cell,
+  her words around it with the word marked, the day it belongs to ("Wed, Oct 28 ›" — a booking's email belongs to the
+  dinner, not its cancel-by date), and "Open this spot in your sheet ↗". Pictures are found by what Wander read in
+  them (their summaries — never a booking screenshot's ticket or traveler numbers); card numbers never show. After
+  the first search it works with no signal. A word she never wrote: "Nothing in your Guide says '…' — at least in the
+  copy Wander has."
+- **The whole trip on one page** (Home → "The whole trip on one page", under the calendar). Day by day (where, her
+  line for the day in her words, where you sleep, meals booked); where you sleep (dates and nights, whose, check-in
+  and check-out times, confirmation, free-to-cancel-until with whose); every meal in her Dining Resos tab, with any
+  disagreement between her tabs; flights and booked trains from Ken's rail sheet in one list; every date to keep in
+  mind, not only the next two weeks. A table on a laptop, a list on a phone; every row opens its day.
+
+- **Her pictures, full screen** (Home → tab by tab → "See the picture", and Scout's Sources → "See the picture"). Tap
+  the picture or "See it full screen ›": it fills the phone on black; pinch or double-tap to zoom, drag to look
+  around, double-tap to see it whole, Done or the phone's Back to close. Her five-panel Kyoto map (2048 px, shown 308
+  points wide) is readable on a phone.
+
+- **Send this day, or a booking, to someone outside the four** (Day screen: "Send this day ›" at the top; "Send ›"
+  beside Maps on a booked meal, check-in or tour). The phone's share sheet, or a copy. A day goes as her plan in her
+  order with her times and whose each line is, her Itinerary line, where they sleep, and "— from Larisa's plan for the
+  trip" — no confirmation numbers, and a time her tabs dispute goes out marked "her tabs differ on this; check before
+  relying on it", never as fact. A booking goes as name, day and time, address and confirmation (for a concierge).
+
+No SPEC change beyond the new pages; SPEC UPDATE NEEDED: Home (two new entry points).
+
+## 2026-10-02 — Scout Finds the Exact Spot in Her Sheet; Notes by Place
+
+Ken: "if Larisa wanted to check something in her spreadsheet, asking Scout would be the fastest way to find the exact
+spot." Not deployed yet.
+
+### Added
+- **"Open at this spot in your sheet ↗"** (Scout → "Sources" under an answer). Under each tab's cells, one button opens
+  her Google Sheet at that tab and those cells (Larisa: "your sheet"; others: "Larisa's sheet"; Ken's rail sheet the
+  same way). Wander never opens her sheet itself — the phone does, and Google decides who may see it. Her sheet's
+  address and tab ids live in the database, not the public code (recorded with `scripts/set-sheet-link.ts`; every
+  import keeps them). A tab Wander has no id for opens her sheet and says "then the '…' tab, cells A57:B57". Today 11
+  of her 26 tabs have ids (from April); the 15 newer ones need theirs.
+- **Each line of a day opens its spot in her sheet** (Day screen). The source line under a line ("From your Guide —
+  the Itinerary tab, Y66 ↗") is the link; her plan's "From the … tab" too. Where her tabs disagree, both spots, one
+  tap each ("In your sheet: Itinerary Q67 ↗ · Kyoto Thu, 1029 (Flight Home)) B57 ↗") — the reviewer's top reason to open
+  the sheet instead was settling exactly that. A tab with no id yet shows its cells in words and "Open your sheet ↗".
+  The Guide page's tab-by-tab "Open in the Guide →" uses the same address (it never showed before).
+- **Scout answers "where in my sheet is…"**: the tab as she named it, her words there, cited, and a line that
+  Sources opens that spot. It never says something is "the only place" — her pictures can hold more than its copy.
+- **Notes: what a note is about** (Notes → "About"). A place on the trip, "Backroads", or "Japan overall" — one tap on
+  the phone's own list. A new note starts at where you are once you've landed (Larisa on Oct 26: "Kyoto — where you
+  are"); before you land, at home, or after the trip, "Japan overall" (Julie on Oct 10). "Change" on your own note can
+  move it to another place; its words stay exactly as saved.
+- **Notes: whose, and in what order** (Notes, under the search box). "Everyone's / Mine / Others'" and "Newest first /
+  Trip order". Trip order reads the trip as it happened: Japan overall first, then each place in the order the trip
+  reaches it ("KYOTO · OCT 23–29", Backroads in its week), each place's notes in the order written. Each note says who
+  wrote it (others' first), where, the day (one tap to that day) and when. The choices stay on the phone. The export
+  file leads with the place too.
+
+### Fixed
+- **Sources point at the cell her words are in.** Graded Scout's saved answers against her downloaded Guide: every cell
+  shown held its words (84/84), but some answers' words were in a cell the source left out — a stay's dates beside its
+  hotel, the second row of a merged line (her Itinerary note on the flight row), the ninth cell of a row (the
+  Imperial's airport words), her city heading one row above. Each line's cells are now completed from her rows: the
+  cells whose words are in the line, her times in their own cells ("8:30a" for 08:30), a passage the line quotes when
+  exactly one cell holds it, "the stop her tab lists", and the tab's picture. Checked across all 551 Guide lines.
+- **An exact quote Scout forgot to point to** now gets its line — shown as "Scout quoted these words without pointing
+  to them — Wander found them here, word for word", never as Scout's own citation. Only a 15+ character quote found
+  in lines that share one source; anything less stays "Scout's own words".
+- **Scout says when her tabs disagree, even if you asked about only one part** ("back together at Café ENSOU lunch,
+  1:00–2:30 PM — though her Dining Resos tab lists Cafe Ensou at 8:00 PM").
+- **The Sources panel speaks to Larisa** as "Your Guide… You may have changed it since".
+- A formula with no saved answer in her download was read as "[object Object]"; it now has no words to show.
+
+SPEC UPDATE NEEDED: Notes (what a note is about is a place, not a day; whose/order views); Scout Sources (open in her
+sheet).
+
+## 2026-10-02 (overnight) — Through Larisa's, Julie's and Andy's Eyes
+
+Five fresh testers walked the test copy as Larisa (planner, and in Kyoto), Julie (first time), Andy (Backroads
+week) and a designer. Fixed (test copy; not deployed — waiting for Ken's go):
+
+### Fixed
+- **Her next stop has a map** (Day screen, Home, Now). A timed line that only says what it's for gets the stop her
+  tab lists for it, with her own Maps link: "Traditional Kyoto sweet / matcha in Gion" → Gion Tsujiri Main Shop (her
+  "sweets" vs the line's "sweet" kept them apart); "Arashiyama river / Togetsukyo" → Togetsukyo Bridge (a long name
+  word only one stop has; never a common place word, never the tab's own town). Checked against production line by
+  line: 6 lines gain her links, all right. Needs a production re-import after deploy.
+- **No end time Wander made up** (Home, Now). "Now, in your plan · Hana Soufflé … stroll, until about 6:30 PM" — her
+  Guide has no 6:30. Only an end her plan gives is said.
+- **"This morning" before the next clock time** (Home, Now). At 8:30 AM on Oct 25, Next was "11:30 Concludes…";
+  her "Morning — Backroads: Fushimi Inari + Tofuku-ji" now shows first, before noon.
+- **The dress code from the booking itself** (Day screen, Now). Beside "Strict Formalwear Prep… jackets required for
+  men" (her tab, written for the upstairs restaurant): "Her booking at LeTable de Joel Robuchon - 1F asks less: 'please
+  wear jackets or collared shirts and ties are not necessary'".
+- **No web address spelled out on Now** (the Next card showed her route link as six lines of text).
+- **Landing night** (Home, Now): Scout's evening question isn't asked the evening you land, nor while tonight's plan
+  still has something to come; the way from the airport to the hotel stays four hours after landing (was 90 min on
+  Now, three hours on Home — Julie, jet-lagged, was still on her way).
+- **Ideas say what's already on her days** (Ideas). "In your plan for Mon, Oct 26 ›" (or "Larisa's plan" for the
+  others) on each idea her days already have; "Nobody has marked this yet" no longer on an idea that's in the plan.
+  An idea also counts as planned when her day line's own description names it (Julie's Nippon Made and Onitsuka
+  Tiger picks are inside "Ginza Premium Retail Walk" and "Shibuya Retail Flagships"), and a long word one letter off
+  still matches ("stationary" / "stationery").
+- **Split mornings on Home** (Home's Today card). When her table names no group for a line on a split day (Oct 28
+  Shigaraki), Home lists it with the same words the day screen uses ("Your plan's table doesn't name the group; a
+  picture in your tab lists it under 'You & Julie (morning)'"); before, Home skipped two hours of Larisa's morning.
+  Lines that name a subset say so ("Yours · Larisa & Julie"). On anyone else's phone, the picture's quote adds "that
+  'you' is her map's, not you" (Andy read it as himself); who it is stays unnamed, as Scout is told.
+- **"and N more" says where the gap is** (Home). When bookings that always show come after lines Home left out, the
+  link sits at the gap with its time — "and 9 more from 11:35 AM ›" above the 8 PM dinners — and opens the day at
+  that line.
+- **The car to the station always shows** (Home). On Oct 29 the noon hotel transfer to Kyoto Station was folded
+  under "and 2 more"; a line that takes you to a station or airport is never folded, like trains and flights.
+- **The departure-morning ticket box is calm** (Home, Day screen). "Worth a check: the paper ticket for the 1:30 PM
+  HARUKA 31 wasn't ticked on this phone at the Shin-Osaka pickup on Tue, Oct 6." It no longer quotes the rail sheet's
+  Oct 6 pickup instruction or its "allow a dedicated pickup block" on Oct 29 — only where a ticket can still be had.
+
+No SPEC change.
+
 ## 2026-10-01 — The Home Map, Checked Against Production
 
 On production's own city locations the deployed map had a name sitting on a line on the iPhone 15 ("Karatsu ·
