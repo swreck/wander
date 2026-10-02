@@ -32,6 +32,7 @@ import CaptureFAB from "./components/CaptureFAB";
 import SyncIndicator from "./components/SyncIndicator";
 import SavedCopyNotice from "./components/SavedCopyNotice";
 import BottomNav from "./components/BottomNav";
+import ShowMeAround from "./components/ShowMeAround";
 import UpdatePrompt from "./components/UpdatePrompt";
 import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { api } from "./lib/api";
@@ -51,7 +52,7 @@ function ShortcutHelp() {
   const shortcuts = [
     ["1 or g h", "Trip Overview"],
     ["2 or g p", "Plan page"],
-    ["3 or g n", "Now page"],
+    ["3 or g n", "Next"],
     ["4 or g l", "History"],
     ["c", "Toggle capture (Plan)"],
     ["i", "Toggle import (Plan)"],
@@ -163,7 +164,7 @@ function ChatOverlay() {
   const pageName = {
     "/": "Trip Overview",
     "/ideas": "Ideas",
-    "/now": "Now",
+    "/now": "Next",
     "/history": "History",
   }[location.pathname] || "Unknown";
 
@@ -358,6 +359,8 @@ export default function App() {
               <SavedCopyNotice />
               <UpdatePrompt />
               <BottomNav />
+              {/* "Show me around" — only when asked for */}
+              <ShowMeAround />
             </CaptureProvider>
           </ToastProvider>
         </AuthProvider>

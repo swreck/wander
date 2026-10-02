@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor } from "../lib/guideDisplay";
+import { showMeAround } from "../components/ShowMeAround";
 
 // Each paragraph that speaks of Larisa has her own version, written as sentences — to Larisa it's "your Guide"
 // (round 13: swapping her name for "you" by rule produced "Ask you or Ken" and "your Guide is the plan." mid-text)
@@ -14,7 +15,7 @@ const sectionsFor = (mine: boolean, meName: string) => [
 
 **Home** opens on what matters now: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.
 
-Along the bottom: **Ideas** (${mine ? "your" : "Larisa's"} ideas, city by city), **Now** (today, with what's next), **Actions** (deadlines and to-dos), and **Scout** — ask it anything about the trip.`,
+Along the bottom: **Ideas** (${mine ? "your" : "Larisa's"} ideas, city by city), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Actions** (deadlines and to-dos), and **Scout** — ask it anything about the trip.`,
   },
   {
     id: "getting-in",
@@ -52,10 +53,10 @@ The arrows at the top move a day at a time. **‹ Back** goes back where you cam
   },
   {
     id: "travel-days",
-    title: "Now",
-    body: `The **Now** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Tap a place for directions in Maps. Quick Japanese phrases are there too.
+    title: "Next",
+    body: `The **Next** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Under it, **Get there** opens Apple Maps from where you're standing — walking, by train, or a route to show a taxi driver. Quick Japanese phrases are there too.
 
-Before the trip, Now shows the first day. After it, the last.`,
+Before the trip, Next shows the first day. After it, the last.`,
   },
   {
     id: "chat",
@@ -162,7 +163,11 @@ export default function GuidePage() {
         </div>
 
         <h1 className="text-2xl font-light text-[#3a3128] mb-1">Wander</h1>
-        <p className="text-sm text-[#6b5d4a] mb-8">Our trip, in one place</p>
+        <p className="text-sm text-[#6b5d4a] mb-4">Our trip, in one place</p>
+        {/* The short version: the buttons along the bottom, one at a time (Oct 2) */}
+        <button onClick={showMeAround} className="mb-8 min-h-[44px] px-4 rounded-lg border border-[#e0d8cc] bg-white text-sm text-[#514636]">
+          Show me around ›
+        </button>
 
         {/* Cards */}
         <div className="space-y-4">

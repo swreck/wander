@@ -2,6 +2,71 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 — Show Me Around, and Tips at the Moment They Help
+
+### Added
+- **"Show me around"** — six short steps, one for each button along the bottom (Home, Ideas, Next, Notes, Actions,
+  Scout). The screen dims, the button stays lit, and a sentence or two says what it's for, with Back, Next and Skip.
+  Only when asked: the first-time welcome card on Home now offers **Show me around** beside **Got it**; it's also in
+  Settings ("Show me around — a quick look at the six buttons along the bottom of the screen") and at the top of
+  How Wander works. Nothing starts on its own. To Larisa it says "your Activities tab", "your Guide".
+- **Two one-time tips in Scout**, each shown once and put away by ✕ or by using the thing: under the newest answer
+  that has Sources ("Tap Sources to see where in Larisa's Guide this answer came from…"), and above the box for
+  someone already talking with Scout ("Tap the camera button to send Scout a photo of a menu, a sign or a ticket…").
+  Scout's hello now says it reads photos too.
+
+### Changed
+- **Scout's directions say when they're only a search.** When her Guide has no pin or address for a place, the
+  button under Scout's answer says "Larisa's Guide has no address for this, so Maps will search for “Tokyo Tower”.
+  Check it's the right one before you go," and Scout says the place isn't in her Guide. Her own places never carry
+  the note.
+- How Wander works → Quick Start names Next and Notes (it still said Now, and left out Notes).
+
+### Removed
+- The old `frontend/public/guide.html` (a March help page nothing links to; a full reload of /guide on a preview
+  server showed it instead of How Wander works).
+
+Tested in the browser: Julie at 390 points and Larisa at 320 — each step lights the right button, the card never
+covers it and fits the screen, Back/Next/Skip/Done/Escape, gone after a reload, Settings and How Wander works start
+it; Scout's tips once each. `tests/scout-directions.test.ts` (11).
+
+SPEC UPDATE NEEDED: first-time help (Show me around, one-time tips).
+
+## 2026-10-02 — What's Next, When, and How to Get There
+
+### Added
+- **"Get there from where you are": Walk, Train, Taxi** (Next tab, the dark "Next" card, under "Find in Maps").
+  Each opens Apple Maps with directions from wherever the phone is to the next stop — walking, trains and subway,
+  or a driving route a taxi driver can read. Nobody types an address into a map app. It goes to her own place:
+  Tokyodo opens on the pin of the Google Maps place she linked; dinner at Une Immersion on the address she wrote.
+  Not shown for a flight, or when the stop has no map place (her "Evening Prep" block).
+- **Scout gives directions** (Scout panel, buttons under the answer: "Walk to Tokyodo Main Showroom ↗" with
+  "Google Maps ↗" beside it). Asked how to get somewhere, the way to the next stop, walking, train or taxi
+  directions — or just "what's next?" on a trip day when the next stop is a real place — Scout names the stop and
+  its time, quotes her own route for that leg when she wrote one, and adds a button: the way they asked for,
+  otherwise the way her plan names (her Tokyodo leg is a train, then a 4-minute walk: Train and Walk), otherwise
+  Walk and Train both. Scout never writes turn-by-turn steps or travel times of its own. The destination is hers,
+  best first: the pin of a place she linked, the address she wrote, a hotel's booked address (the Imperial), the
+  place her map link names, and only then Scout's words and the town. It never sends you to a different place
+  of hers: "Ginza" isn't her "ART AQUARIUM MUSEUM GINZA", a town alone isn't any of her lines in it, and two of
+  her lines with different pins for one name give the plain name instead. New Scout tool: `directions`.
+  Tested by `backend/tests/scout-directions.test.ts` (10).
+
+### Changed
+- **The Now tab is now "Next"** (bottom bar) — the question it answers: what's next, when, and how to get there.
+  A screen opened from it says "‹ What's next" (a "‹ Next" read as going forward). Scout's offline message,
+  the Help page's section and Scout's own description of the screen say Next.
+
+Tested on the test copy with real Scout, on scheduled days: Larisa at 2 PM Oct 16 (Tokyodo at 3:30, her train
+route quoted, Walk and Train buttons on her pin); Ken at 6:20 PM ("taxi probably": dinner at 7:00, a Taxi
+button to 1-28-8 Hommachi); Ken in Kyoto at 1 PM Oct 26 ("what's next?": Nishiki Market, buttons without being
+asked, and the Four Seasons cancellation deadline, checked against her Guide); Julie at 4:40 PM (the Imperial by
+train, as her plan says). In the browser at 390 and 320 points: the Next card's row, 44-point buttons, Scout's
+Taxi button with Google Maps beside it.
+
+SPEC UPDATE NEEDED: the Now screen is now called Next and offers walking, train and taxi directions; Scout's
+tools include directions.
+
 ## 2026-10-02 — Ken's iPhone Check, First Pass
 
 ### Fixed
@@ -45,11 +110,33 @@ No SPEC change.
   answer read in full (the Omotesando answer now quotes their email, and its whisky-bar extra is in that email).
 - Not yet deployed (waiting for Ken's go): it changes what every Scout answer starts from.
 
+## 2026-10-02 — Scout Reads Your Photos, and Translates
+
+Ken, from the car: "Can Scout accept and process images? Can it include translate?" It couldn't — a picture pasted into
+Scout's box was dropped.
+
+### Added
+- **A photo with your question** (Scout: the camera button beside the mic, or paste a picture into the box). Take one
+  or choose one; it shows above the box with ✕ until sent; your question shows it; a photo with no words asks "What
+  does this say?". Shrunk on the phone first (longest side 1568 px) so it goes quickly on hotel wifi. Never kept — the
+  saved conversation says "(with a photo)" only.
+- **Scout reads and translates it**: a menu or sign line by line with the Japanese beside the English; says what came
+  from the photo, never passing it off as the Guide; checks it against her Guide and Ken's rail sheet when they meet
+  (a ticket against the booking); says what it can't make out instead of guessing. For Andy's allium allergy it points
+  out what may contain onion, scallion or garlic, gives the Japanese to show a server, and says a menu photo can't
+  prove what's in a dish — confirm with the staff. Sources: "Read from your photo, or Scout's own words — not from
+  the Guide".
+- Tested end to end with real photos: a Japanese menu (Andy, at dinner) and a train ticket pasted in (Ken, at
+  Shin-Osaka — Scout caught that the test ticket's car and seats didn't match his booking).
+
+SPEC UPDATE NEEDED: Scout (photos).
+
 ## 2026-10-02 — Her Oct 2 Revision ("Japan Oct 2026-3"): a Day Planned Twice, and Her Exact Place
 
 Larisa's latest download changed one tab: "Tokyo Day 2" gained a revised day plan (A46 — Akihabara moved to midday,
 lunch 1:45, Tokyodo 3:00, Umeno 4:05, prep 4:45) below the old one (A44, kept), and Tokyodo's exact Google Maps place
-(G39) beside its stop. Not deployed yet.
+(G39) beside its stop. DEPLOYED Oct 2 (main 7097d50) with everything below from Oct 2, and her copy imported on
+production — the same result as on the test copy.
 
 ### Changed
 - **A day her tab plans twice** (Day screen, Scout). Wander follows one version, the same way every time — the one she

@@ -34,6 +34,7 @@ import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, 
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings } from "../components/RailSheet";
 import SheetSpots from "../components/SheetSpots";
 import SendOut, { dayText, bookingText } from "../components/SendOut";
+import { directionsHref } from "../lib/directions";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
@@ -1254,6 +1255,22 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     <a href={mapHref} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm underline underline-offset-2">
                       Find in Maps ↗
                     </a>
+                  )}
+                  {/* What's next, when, and how to get there — from where you're standing, in Apple Maps (Oct 2: Ken,
+                      "what's next, when, and how do I get there" — nobody types an address into a map app) */}
+                  {u.kind !== "flight" && directionsHref(mapHref) && (
+                    // (the words above, the three sharing the width: on a 320-pt phone "Taxi" wrapped alone beside them)
+                    <div className="mt-2">
+                      <p className="text-sm text-white/80">Get there from where you are</p>
+                      <div className="flex gap-2 mt-1">
+                        {(["walk", "train", "taxi"] as const).map((w) => (
+                          <a key={w} href={directionsHref(mapHref, w)!} target="_blank" rel="noreferrer"
+                            className="flex-1 inline-flex items-center justify-center min-h-[44px] px-2 rounded-lg bg-white/15 text-sm">
+                            {{ walk: "Walk", train: "Train", taxi: "Taxi" }[w]} ↗
+                          </a>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               );

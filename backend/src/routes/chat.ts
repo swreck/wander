@@ -798,6 +798,21 @@ const tools: Anthropic.Tool[] = [
       required: ["tripId", "target", "go"],
     },
   },
+  // ── Getting there (Oct 2: "what's next, and how do I get there?" — walking, train or taxi) ──────────────
+  {
+    name: "directions",
+    description: "Put a button under your answer that opens directions from wherever the person is standing to a place — Apple Maps, with Google Maps beside it — so nobody types an address into a map app. Use it whenever they ask how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day when the next stop is a real place. Pass the place as her Guide names it, its town, and the way: walk, train, or taxi. You can't see where they are; the map app starts from the phone's own location.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        place: { type: "string", description: "The destination as her Guide names it, e.g. 'Tokyodo Main Showroom (Yotsuya)', 'Gion Tsujiri Main Shop'" },
+        town: { type: "string", description: "The city it's in, e.g. 'Tokyo', 'Kyoto'" },
+        way: { type: "string", enum: ["walk", "train", "taxi"], description: "walk; train (trains, subway and buses); or taxi (a driving route — the map shows the driver where to go)" },
+      },
+      required: ["tripId", "place", "way"],
+    },
+  },
   // ── Notes on ideas (Wander's own; the Guide is never changed) ──────────────
   {
     name: "add_idea_note",
@@ -1384,7 +1399,7 @@ export async function executeTool(
   toolName: string,
   input: any,
   user: { code: string; displayName: string },
-): Promise<{ result: any; actionDescription?: string; placeCards?: any[]; navigate?: { path: string; label: string; go: boolean; headline?: string } }> {
+): Promise<{ result: any; actionDescription?: string; placeCards?: any[]; navigate?: { path: string; label: string; go: boolean; headline?: string }; route?: { label: string; apple: string; google: string; search?: string } }> {
   // Larisa's own items (her ideas, stops, hotels, days) come from her Guide; the next read of it
   // would silently undo any change Scout made to them, losing what the person meant. So Scout
   // doesn't change them — it adds a note or a same-day plan, which always survive.
@@ -3263,6 +3278,65 @@ export async function executeTool(
       };
     }
 
+    case "directions": {
+      const place = String(input.place || "").replace(/\s+/g, " ").trim();
+      if (!place) return { result: { error: "Which place? Name it as her Guide does." } };
+      const town = String(input.town || "").trim();
+      const tripId = String(input.tripId || "");
+      // her words, without a leading emoji, with "(Yotsuya)" read as part of the address
+      const dest = place.replace(/^[^\p{L}\p{N}]+/u, "").replace(/\s*\(([^)]*)\)\s*/g, ", $1").replace(/,\s*$/, "").trim();
+      // Her own place for it, best first: the pin of a Google Maps place she linked (Tokyodo), the address she wrote
+      // ("Address: UNE IMMERSION · 1-28-8 Hommachi, Shibuya-ku…"), the place her own map link names (Apple's ?q=) —
+      // and only then Scout's words and the town (Oct 2: the taxi to dinner searched "UNE IMMERSION, Tokyo")
+      const flat = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+      let herPlace: string | null = null;
+      const want = flat(dest.split(",")[0]);
+      // (a town alone — "Kyoto" — is no one place: her many Kyoto lines aren't looked through)
+      const towns = tripId ? (await prisma.city.findMany({ where: { tripId }, select: { name: true } })).map((c) => flat(c.name)) : [];
+      if (tripId && want.length >= 4 && want !== flat(town) && !towns.includes(want)) {
+        // (her line's own name is this place — "🍽️ DINNER RESERVATION: UNE IMMERSION (Shibuya/Hatsudai)" is Une Immersion;
+        // "ART AQUARIUM MUSEUM GINZA" isn't Ginza: Scout's words must be at least half of her name for it)
+        const words = (s: string) => s.split(" ").filter(Boolean).length;
+        const nameOf = (t: string) => flat(t.replace(/\([^)]*\)/g, " ").replace(/^[^:]*:\s*/, ""));
+        const named = (await prisma.guideItem.findMany({ where: { tripId }, select: { title: true, link: true, detail: true } }))
+          .filter((i) => { const n = nameOf(i.title); return n === want || (n.includes(want) && words(want) * 2 >= words(n)); });
+        // (only when her lines agree on one place: "Ginza" names many, and a button to the first would be wrong)
+        const one = (xs: (string | null | undefined)[]) => { const u = [...new Set(xs.filter(Boolean) as string[])]; return u.length === 1 ? u[0] : null; };
+        const pin = one(named.map((i) => { const m = i.link?.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/); return m ? `${m[1]},${m[2]}` : null; }));
+        const address = one(named.map((i) => (i.detail || "").match(/^Address:\s*(?:[^·\n]*·\s*)?([^\n]{8,})$/m)?.[1]?.trim()));
+        const linkWords = one(named.map((i) => {
+          try {
+            const u = new URL(i.link || "");
+            if (/(^|\.)maps\.apple\.com$/.test(u.hostname)) return u.searchParams.get("q");
+            if (/\/maps\/place\//.test(u.pathname)) return decodeURIComponent(u.pathname.split("/maps/place/")[1].split("/")[0].replace(/\+/g, " "));
+          } catch { /* not a link */ }
+          return null;
+        }));
+        // (a hotel's address from its booking — "back to the Imperial" — when no line of hers gives one)
+        const stay = pin || address ? null : one((await prisma.accommodation.findMany({ where: { tripId, address: { not: null } }, select: { name: true, address: true } }))
+          .filter((s) => flat(s.name).length >= 4 && (want.includes(flat(s.name)) || flat(s.name).includes(want))).map((s) => s.address));
+        herPlace = pin || address || stay || (linkWords ? `${linkWords}${town ? `, ${town}` : ""}` : null);
+      }
+      const where = herPlace || `${dest}${town && !flat(dest).includes(flat(town)) ? `, ${town}` : ""}, Japan`;
+      const way: "walk" | "train" | "taxi" = input.way === "train" || input.way === "taxi" ? input.way : "walk";
+      const how = { walk: { verb: "Walk to", apple: "w", google: "walking" }, train: { verb: "Train to", apple: "r", google: "transit" }, taxi: { verb: "Taxi to", apple: "d", google: "driving" } }[way];
+      // Scout never lies: with nothing of hers to go on, the button only searches Maps for a name — it says so, and so
+      // does Scout (Ken, Oct 2: "This is travel and we could end up in the wrong place")
+      const searchOnly = !herPlace;
+      return {
+        result: searchOnly
+          ? { ok: true, shown: `a button that opens directions, but her Guide has no address or map place for this, so Maps will only SEARCH for "${where}"`,
+              say: "Tell them plainly that her Guide has no address for this place, so the button searches Maps for the name — check that the place Maps finds is the right one before setting off. Don't call it her place." }
+          : { ok: true, shown: `a button that opens ${way === "walk" ? "walking" : way === "train" ? "train and subway" : "driving (for a taxi)"} directions from where they are standing to the place in her Guide (Apple Maps, and Google Maps)` },
+        route: {
+          label: `${how.verb} ${dest.split(",")[0]}`,
+          apple: `https://maps.apple.com/?daddr=${encodeURIComponent(where)}&dirflg=${how.apple}`,
+          google: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(where)}&travelmode=${how.google}`,
+          ...(searchOnly && { search: where.replace(/, Japan$/, "") }),
+        },
+      };
+    }
+
     case "show_in_wander": {
       const tripId = String(input.tripId || "");
       const go = input.go === true;
@@ -3270,7 +3344,7 @@ export async function executeTool(
       const headline = typeof input.headline === "string" ? input.headline.replace(/\s+/g, " ").trim().slice(0, 90) || undefined : undefined;
       const fixed: Record<string, [string, string]> = {
         back: ["back", "Back to where you were"],
-        now: ["/now", "Open Now"], actions: ["/?actions=1", "Open Actions"], people: ["/people", "Open People on this trip"],
+        now: ["/now", "See what's next"], actions: ["/?actions=1", "Open Actions"], people: ["/people", "Open People on this trip"],
         home: ["/", "Open Home"], history: ["/history", "Open What's changed"], help: ["/guide", "Open How Wander works"],
       };
       if (input.target === "day") {
@@ -4142,12 +4216,20 @@ export async function executeTool(
 
 router.post("/", async (req: AuthRequest, res) => {
   try {
-    const { message, context, history, clientTime } = req.body;
+    const { message, context, history, clientTime, image } = req.body;
 
     if (!message) {
       res.status(400).json({ error: "message is required" });
       return;
     }
+    // A photo with the question (Oct 2: a menu, a sign, a ticket — read and translated): one picture, as the phone
+    // shrank it. Never kept — only "(with a photo)" goes into the saved conversation.
+    const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const photo = image && typeof image === "object" && PHOTO_TYPES.includes(image.mediaType) && typeof image.data === "string"
+      && /^[A-Za-z0-9+/=]+$/.test(image.data.slice(0, 200)) && image.data.length < 7_000_000
+      ? { mediaType: image.mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: image.data as string }
+      : null;
+    if (image && !photo) { res.status(400).json({ error: "That photo couldn't be read — try another, or a smaller one." }); return; }
 
     const user = req.user!;
 
@@ -4350,6 +4432,8 @@ TALKING WITH THEM (every answer):
 - Wander already shows the rail sheet's pickup steps on their own page (from a day's Trains, "Ticket pickup — Shin-Osaka: the steps ›") — point them there instead of offering to pull the steps up.
 
 CITING (every answer): the Guide, the right-now statuses and Ken's rail sheet are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
+PHOTOS: when a photo comes with the question (a menu, a sign, a ticket, a screen), read it carefully. Translate Japanese (or any other language) into plain English when that's what they need — line by line for a menu or sign, with the Japanese kept beside each line when they might show it to someone. Say what you read from the photo as from the photo ("Your photo shows…"), never as the Guide; when the photo and her Guide meet (a ticket's train and the rail sheet, a restaurant's name and her booking), say both and whether they match. Words you can't make out: say so — never guess a time, a price, a platform or an ingredient. Food and allergies (Andy is allergic to alliums — onion, garlic, leek, chive): point out what the photo shows that may contain them, give the Japanese words to show a server (玉ねぎ・ねぎ・にんにく), and say plainly that a menu photo can't prove what's in a dish — confirm with the staff. A photo isn't kept: if they ask about it again later without sending it, say to send it again.
+GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing. When directions says her Guide has no address for the place, say so plainly and that the button only searches Maps for the name — never present a searched place as hers.
 WHERE IN HER SHEET: when someone asks where something is in Larisa's sheet ("which tab has…", "where did I put…", "where does it say…"), answer with the tab, named as she named it, and her words there, cited. Then say in one short sentence that "Sources" under this answer opens that spot in her sheet. If her Guide has it in more than one tab, name each, and cite each. Say where you found it — never that it's the only place or that no other tab has it: her pictures and long tabs can hold more than your copy shows. If it isn't in the copy you have, say so; never guess a tab.
 
 ANSWERING FROM THE GUIDE (most important):
@@ -4396,7 +4480,7 @@ HOW WANDER WORKS (for "how do I…" questions — describe these real screens on
 - A day's "Trains" part shows that date's legs from Ken's rail sheet (not Larisa's Guide): times, train, class, car and seats, reservation number, how many people, and the sheet's own status words; where it and the Guide disagree it says so. On the ticket-pickup day (Shin-Osaka, Oct 6), Ken's and Larisa's Home, Now and day screen lead with "Ticket pickup — Shin-Osaka", which opens every step in the sheet's order with a tick for each (ticks stay on that phone); anyone can open the steps from a train that needs its tickets collected. Now shows "Next train" with seats. A copy stays on the phone for no signal.
 - A day also has "+ Add a plan for this day": a same-day plan anyone can add ("Ken and Andy: <a museum> this afternoon"). It shows on that day for everyone, labelled as added in Wander. It never changes the Guide.
 - Ideas (bottom bar): the ideas from the Activities tab of Larisa's Guide, city by city (opens on today's city), with who marked each one. On each idea: "+ Note" (for everyone, or "Just for me"), "Add to a day", Maps, and Ask Scout. Notes and plans typed with no signal are saved on the phone and sent later.
-- Now (bottom bar): today, with where Larisa's day plan has you right now, what's next and how long until it (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
+- Next (bottom bar; it used to be called Now): today, with where Larisa's day plan has you right now, what's next and how long until it, and "Get there" buttons — walk, train or taxi — that open Apple Maps from where they're standing (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
 - Actions (bottom bar): the to-dos from the Actions tab of Larisa's Guide.
 - Scout: that's you — the chat bubble.
 - Settings → People on this trip: who's in; for the trip's planners, "+ Add someone" (name + trip → a QR code or a message) and "New phone? New link". Face ID is set up from Home or Settings. On an iPhone, Wander goes on the Home Screen from Safari: Share → Add to Home Screen.
@@ -4484,13 +4568,15 @@ RULES:
       } catch { /* no saved history — answer this question on its own */ }
     }
     // Append tripId hint to the user message so the model can't miss it
-    const augmentedMessage = tripId
+    const augmentedMessage = `${photo ? "[They sent the photo above with this question.]\n" : ""}${tripId
       ? `${message}\n\n[System: The active trip ID is ${tripId}. Use it for any tool calls. Do not ask the user for it.]`
-      : message;
+      : message}`;
     const actions: string[] = [];
     const placeCards: any[] = [];
     // Screens Scout opened or offered ("Open Wed, Oct 14 · Tokyo")
     const shows: { path: string; label: string; go: boolean; headline?: string }[] = [];
+    // Directions Scout offered ("Walk to Tokyodo Main Showroom", "Taxi to …")
+    const routes: { label: string; apple: string; google: string; search?: string }[] = [];
     let finalReply = "";
     // What this answer used, across every step, logged once at the end — real cost, not a guess
     const used = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0, searches: 0, steps: 0 };
@@ -4537,6 +4623,7 @@ RULES:
     const latest: any[] = [
       ...(liveLines.length ? [asDocument(LIVE_TITLE, liveLines, false)] : []),
       { type: "text", text: liveTail },
+      ...(photo ? [{ type: "image", source: { type: "base64", media_type: photo.mediaType, data: photo.data } }] : []),
       { type: "text", text: augmentedMessage },
     ];
     messages.push({ role: "user", content: latest });
@@ -4613,13 +4700,14 @@ RULES:
       // Process tool calls
       const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      let screenOnlyOk = toolUseBlocks.every((b) => (b as Anthropic.ToolUseBlock).name === "show_in_wander");
+      let screenOnlyOk = toolUseBlocks.every((b) => ["show_in_wander", "directions"].includes((b as Anthropic.ToolUseBlock).name));
 
       for (const block of toolUseBlocks) {
         const toolBlock = block as Anthropic.ToolUseBlock;
         console.log(`Chat tool call: ${toolBlock.name}`, JSON.stringify(toolBlock.input).slice(0, 200));
         try {
-          const { result, actionDescription, placeCards: cards, navigate } = await executeTool(toolBlock.name, toolBlock.input, user);
+          const { result, actionDescription, placeCards: cards, navigate, route } = await executeTool(toolBlock.name, toolBlock.input, user);
+          if (route && !routes.some((w) => w.apple === route.apple) && routes.length < 3) routes.push(route);
           if (actionDescription) actions.push(actionDescription);
           if (cards) placeCards.push(...cards);
           if (navigate && !shows.some((s) => s.path === navigate.path) && shows.length < 3) shows.push(navigate);
@@ -4660,7 +4748,9 @@ RULES:
     // Where the answer came from — its citations as Scout wrote them, each resolved to the source recorded
     // with the line it points at; the parts with none are Scout's own words. Shown only when someone taps
     // "Sources" under the answer.
-    const sources = finalReply ? answerSources(finalReply, answerPieces, citedDocs, guideCopy, fetchedPages) : null;
+    const sources0 = finalReply ? answerSources(finalReply, answerPieces, citedDocs, guideCopy, fetchedPages) : null;
+    // (what Scout read from a photo has no Guide source — the Sources panel says the photo is where it came from)
+    const sources = sources0 && photo ? { ...sources0, photo: true } : sources0;
     const hasSources = !!sources && (sources.claims.length > 0 || sources.ownWords.length > 0);
 
     // Opus 5 list price: $5/M input, $25/M output, one-hour cache writes 2x input ($10/M), cache reads 0.1x,
@@ -4672,7 +4762,7 @@ RULES:
     if (tripId && req.user?.travelerId && finalReply) {
       prisma.chatMessage.createMany({
         data: [
-          { tripId, travelerId: req.user.travelerId, role: "user", content: message },
+          { tripId, travelerId: req.user.travelerId, role: "user", content: photo ? `${message} (with a photo)` : message },
           { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply, ...(hasSources ? { sources: sources as any } : {}) },
         ],
       }).catch(() => { /* non-critical — don't fail the response */ });
@@ -4684,6 +4774,7 @@ RULES:
       hasActions: actions.length > 0,
       ...(placeCards.length > 0 && { places: placeCards }),
       ...(shows.length > 0 && { shows }),
+      ...(routes.length > 0 && { routes }),
       ...(hasSources && { sources }),
     });
   } catch (err: any) {

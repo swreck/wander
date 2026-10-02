@@ -7,6 +7,7 @@ import useBackToClose from "../hooks/useBackToClose";
 import { sendToGuideOwner } from "../lib/tellGuideOwner";
 import { withPhoneLinks } from "../lib/guideDisplay";
 import ScoutSources, { hasSources, type AnswerSources } from "./ScoutSources";
+import OnceTip, { useOnceTip } from "./OnceTip";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 
 /** Phone numbers in an answer can be tapped to call */
@@ -107,6 +108,40 @@ interface ChatMessage {
   places?: PlaceCard[];
   /** Where each part of the answer came from, recorded as Scout answered — shown only on request */
   sources?: AnswerSources;
+  /** A small copy of the photo sent with this question (the photo itself isn't kept) */
+  photoThumb?: string;
+  /** Directions Scout offered, from wherever the phone is ("Walk to Tokyodo Main Showroom", "Taxi to …") */
+  routes?: { label: string; apple: string; google: string; search?: string }[];
+}
+
+/**
+ * A photo for Scout (Oct 2: a menu, a sign, a ticket — read and translated): shrunk on the phone so it goes quickly on
+ * hotel wifi (longest side 1568 px, which is all Scout reads), plus a small copy for the conversation.
+ */
+type Photo = { data: string; thumb: string };
+async function shrinkPhoto(file: File): Promise<Photo | null> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+    const draw = (max: number, quality: number) => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.naturalWidth * k));
+      c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      const g = c.getContext("2d");
+      if (!g) return "";
+      g.fillStyle = "#fff";
+      g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", quality);
+    };
+    const full = draw(1568, 0.85), thumb = draw(160, 0.7);
+    return full && thumb ? { data: full.split(",")[1], thumb } : null;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 /** "back", "ok take me back", "got it, go back please" — done on the phone at once, no trip to Scout */
@@ -190,7 +225,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // The phone's Back steps Scout down to its bar (or closes it when there's no conversation yet)
   useBackToClose(open, () => minimizeRef.current());
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
+  // One-time tips, at the moment they help (Oct 2): the camera, for people already talking with Scout; Sources, under
+  // the first answer that has them. Using the thing puts its tip away too.
+  const [cameraTip, cameraTipDone] = useOnceTip("scout-camera");
+  const [sourcesTip, sourcesTipDone] = useOnceTip("scout-sources");
   const [input, setInput] = useState("");
+  // the photo going with the next question, and one in flight (kept for "Try again")
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [photoState, setPhotoState] = useState<"idle" | "reading" | "failed">("idle");
+  const retryPhotoRef = useRef<Photo | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [sending, setSending] = useState(false);
   const [listening, setListening] = useState(false);
   // A cut-off question from last time can be asked again with one tap
@@ -443,7 +487,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
   // retryText: resend a question already on screen. asNew: a tapped example question — show it as theirs.
   const sendMessage = useCallback(async (retryText?: string, asNew = false) => {
-    const text = retryText || input.trim();
+    const sendPhoto = retryText ? retryPhotoRef.current : photo;
+    // a photo sent with no words: what it says (Scout translates)
+    const text = retryText || input.trim() || (sendPhoto ? "What does this say?" : "");
     if (!text || sending || sendingRef.current) return;
     // Sent while the voice button still listens: stop it, and late words don't refill the box (Ken, Oct 1: one
     // dictated question reached Scout twice, a second apart — Send, then the mic's own send as it stopped)
@@ -454,7 +500,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
 
     // "Take me back" needs no thinking: step back at once (only when there's somewhere in Wander to go)
-    if (!retryText && JUST_BACK.test(text) && (returnTo || historyIdx() > 0)) {
+    if (!retryText && !sendPhoto && JUST_BACK.test(text) && (returnTo || historyIdx() > 0)) {
       setInput("");
       // (marked quiet: it's not something to show on the bar later)
       setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString() }, { role: "assistant", text: "Back where you were.", at: new Date().toISOString(), quiet: true }]);
@@ -462,7 +508,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       return;
     }
     // "home" is as quick as "back"
-    if (!retryText && /^\s*(?:go\s+|open\s+)?home\s*[.!]*\s*$/i.test(text) && window.location.pathname !== "/") {
+    if (!retryText && !sendPhoto && /^\s*(?:go\s+|open\s+)?home\s*[.!]*\s*$/i.test(text) && window.location.pathname !== "/") {
       setInput("");
       setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString() }, { role: "assistant", text: "Here's Home.", at: new Date().toISOString(), quiet: true }]);
       openScreenRef.current("/", "Home — today's plan up top");
@@ -472,8 +518,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     if (!retryText || asNew) {
       if (!retryText) setInput("");
       if (inputRef.current) inputRef.current.style.height = "auto";
-      setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString() }]);
+      setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString(), ...(sendPhoto ? { photoThumb: sendPhoto.thumb } : {}) }]);
     }
+    retryPhotoRef.current = sendPhoto;
+    if (!retryText) { setPhoto(null); setPhotoState("idle"); }
     sendingRef.current = true;
     setSending(true);
     setFailed(false);
@@ -511,7 +559,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const res = await fetch("/api/chat", {
         method: "POST",
         headers,
-        body: JSON.stringify({ message: text, context, history, clientTime }),
+        body: JSON.stringify({ message: text, context, history, clientTime, ...(sendPhoto ? { image: { mediaType: "image/jpeg", data: sendPhoto.data } } : {}) }),
         signal: controller.signal,
       });
 
@@ -519,6 +567,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
       if (!res.ok) throw new Error(`Request failed: ${res.status}`);
       const data = await res.json();
+      retryPhotoRef.current = null;
 
       const shows = data.shows as ChatMessage["shows"];
       const goTo = shows?.find((s) => s.go);
@@ -526,6 +575,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setMessages((prev) => [
         ...prev,
         { role: "assistant", text: data.reply, actions: data.actions, places: data.places, shows, headline, at: new Date().toISOString(),
+          ...(Array.isArray(data.routes) && data.routes.length ? { routes: data.routes } : {}),
           ...(hasSources(data.sources) ? { sources: data.sources } : {}) },
       ]);
       // "Show me…": Scout moves the screen there (its answer stays in the conversation)
@@ -543,7 +593,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const isTimeout = err?.name === "AbortError";
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
       const errorMsg = offline
-        ? `No signal right now, so I can't answer. Today's plan from ${/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still on the Now tab.`
+        ? `No signal right now, so I can't answer. Today's plan from ${/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.`
         : isTimeout
         ? "That took too long — over two minutes. Want me to try again?"
         : "I couldn't get an answer just now. Want me to try again?";
@@ -555,7 +605,20 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setSending(false);
       abortRef.current = null;
     }
-  }, [input, sending, context, onDataChanged, messages]);
+  }, [input, sending, context, onDataChanged, messages, photo]);
+
+  // A photo chosen or pasted: shrunk on the phone, shown above the box until it's sent or taken off
+  const takePhoto = useCallback(async (file: File | null | undefined) => {
+    if (!file || !/^image\//.test(file.type || "image/")) return;
+    cameraTipDone();
+    setPhotoState("reading");
+    const p = await shrinkPhoto(file);
+    if (p) { setPhoto(p); setPhotoState("idle"); inputRef.current?.focus(); } else setPhotoState("failed");
+  }, [cameraTipDone]);
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = Array.from(e.clipboardData?.items || []).find((it) => it.kind === "file" && it.type.startsWith("image/"))?.getAsFile();
+    if (file) { e.preventDefault(); takePhoto(file); }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -858,9 +921,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               <p>I'm Scout, your travel companion.</p>
               {/* What it actually knows (round 12 delight audit: "I know your whole trip" overclaimed) */}
               {/* Said to whoever holds the phone (round 13: Ken read "Ken's rail sheet", Larisa "Larisa's Guide") */}
-              <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip.</p>
+              <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. You can send me a photo too, like a menu or a sign, and I'll read and translate it.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
-              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still on the Now tab.</p>}
+              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.</p>}
               {/* Tap one to ask it */}
               <div className="mt-4 flex flex-col items-start gap-1.5">
                 {["What's the plan today?", "Where are we sleeping tonight?", "Is there anything I need to do soon?", "What time do we need to leave?"].map((q) => (
@@ -893,6 +956,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                   const body = draft ? msg.text.slice(0, draft.index).trimEnd() : msg.text;
                   return (
                     <>
+                      {msg.photoThumb && <img src={msg.photoThumb} alt="The photo sent with this question" className="mb-1.5 h-20 w-20 object-cover rounded-lg" />}
                       <div className="whitespace-pre-wrap">{renderMarkdown(body)}</div>
                       {draft && (
                         <div className="mt-2 rounded-xl bg-white border border-[#e0d8cc] p-3">
@@ -943,6 +1007,21 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                     ))}
                   </div>
                 )}
+                {/* directions from where they're standing: Apple Maps, and Google Maps beside it (Oct 2) */}
+                {msg.routes && msg.routes.length > 0 && (
+                  <div className="mt-2 flex flex-col items-start gap-1">
+                    {msg.routes.map((w) => (
+                      <div key={w.apple}>
+                        <div className="flex flex-wrap items-center gap-x-3">
+                          <a href={w.apple} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636]">{w.label} ↗</a>
+                          <a href={w.google} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Google Maps ↗</a>
+                        </div>
+                        {/* (her Guide gives no address for it: the map app only searches the name — said, never hidden) */}
+                        {w.search && <p className="text-[13px] text-[#8a5a1a] mt-0.5">{/^larisa$/i.test(user?.displayName || "") ? "Your" : "Larisa's"} Guide has no address for this, so Maps will search for “{w.search}”. Check it's the right one before you go.</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {msg.shows && msg.shows.some((s) => s.path !== "back") && (
                   <div className="mt-2 flex flex-col items-start gap-1.5">
                     {/* "Back" already happened when it was said — as a button later it would jump somewhere unexpected */}
@@ -965,10 +1044,18 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                 )}
                 {/* Where the answer came from — a quiet link; nothing shows unless it's tapped */}
                 {msg.role === "assistant" && hasSources(msg.sources) && (
-                  <button onClick={() => setSourcesOf(msg.sources!)}
+                  <button onClick={() => { sourcesTipDone(); setSourcesOf(msg.sources!); }}
                     className="-mb-1.5 min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
                     Sources
                   </button>
+                )}
+                {/* (once, under the newest answer with Sources) */}
+                {sourcesTip && msg.role === "assistant" && hasSources(msg.sources) && i === messages.map((m) => m.role === "assistant" && hasSources(m.sources)).lastIndexOf(true) && (
+                  <OnceTip onClose={sourcesTipDone} className="mt-2">
+                    {/^larisa$/i.test(user?.displayName || "")
+                      ? "Tap Sources to see which tab and cells of your Guide this answer came from, and to open those cells in your spreadsheet."
+                      : "Tap Sources to see where in Larisa's Guide this answer came from: which tab, and her exact words."}
+                  </OnceTip>
                 )}
               </div>
             </div>
@@ -1037,8 +1124,25 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               I'm not hearing any words yet. Tap the red mic to stop, then try again — or type.
             </p>
           )}
+          {/* (once, for someone already talking with Scout — a first-timer reads it in Scout's hello above) */}
+          {cameraTip && online && messages.length > 0 && !photo && photoState === "idle" && (
+            <OnceTip onClose={cameraTipDone} className="mb-2">
+              Tap the camera button to send Scout a photo of a menu, a sign or a ticket. Scout will read it and translate it.
+            </OnceTip>
+          )}
+          {/* the photo going with the next question (or why it couldn't be added) */}
+          {(photo || photoState !== "idle") && (
+            <div className="flex items-center gap-2 mb-2">
+              {photo && <img src={photo.thumb} alt="Your photo, ready to send" className="h-12 w-12 object-cover rounded-lg border border-[#e0d8cc]" />}
+              <p className="flex-1 text-[13px] text-[#6b5d4a]" role="status">
+                {photoState === "reading" ? "Getting the photo ready…" : photoState === "failed" ? "That photo couldn't be read — try another?" : "Photo added — ask about it, or just send to have it read and translated."}
+              </p>
+              {photo && <button type="button" onClick={() => { setPhoto(null); setPhotoState("idle"); }} className="min-h-[44px] min-w-[44px] text-sm text-[#514636]" aria-label="Take the photo off">✕</button>}
+            </div>
+          )}
           <div className="flex items-end gap-2">
             <textarea
+              onPaste={handlePaste}
               ref={inputRef}
               value={input}
               onChange={(e) => { setInput(e.target.value); autoResize(); }}
@@ -1048,11 +1152,25 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               // Stays open while Scout answers: the next question can be typed now (Send waits for the answer)
               // Short enough for one line on a 375pt phone (round 12: "…back online" was cut off); the line above
               // the box says Scout answers once the signal is back
-              placeholder={!online ? "No signal right now" : sending ? "Your next question…" : "Ask about the trip…"}
+              placeholder={!online ? "No signal right now" : sending ? "Your next question…" : photo ? "Ask about the photo…" : "Ask about the trip…"}
               aria-label="Ask Scout about the trip"
               rows={1}
               className="flex-1 min-h-[44px] bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-[16px] text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50 resize-none"
             />
+            {/* a photo for Scout: take one or choose one (the phone offers both) */}
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={!online || photoState === "reading"}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e0d8cc] transition-colors disabled:opacity-30"
+              aria-label="Add a photo"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
+              </svg>
+            </button>
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1}
+              onChange={(e) => { takePhoto(e.target.files?.[0]); e.target.value = ""; }} />
             {hasSpeechRecognition && (
               <button
                 // the cursor goes to the box as it starts listening (Ken, Oct 2)
@@ -1076,7 +1194,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             )}
             <button
               type="submit"
-              disabled={sending || !input.trim() || !online}
+              disabled={sending || (!input.trim() && !photo) || !online || photoState === "reading"}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-30"
               style={{ backgroundColor: "#514636", color: "#faf8f5" }}
               aria-label="Send message"
