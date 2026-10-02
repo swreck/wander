@@ -48,6 +48,8 @@ export interface ImportReport {
   pictures: { read: number; cached: number; failed: { tab: string; anchor: string; reason: string }[] };
   textReadings?: Record<string, TextReading>; // cached readings of prose tabs, by tab-text hash
   dayPlanReadings?: Record<string, DayPlanReading>; // cached readings of day-plan tabs, by tab-text hash
+  // a day planned twice in one tab: the cell Wander follows and the earlier one(s) (dayPlanVersions)
+  supersededPlans?: { tab: string; day: string; current: string; earlier: string[]; why?: string }[];
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -693,6 +695,47 @@ function isDayPlanTab(name: string, text: string): boolean {
   return looksLikeDayPlan(text);
 }
 
+/**
+ * Two whole plans for the same day in one tab (Oct 2: she added a revised "Day 2" — other times, Akihabara moved to
+ * midday — below the old one in A44, and kept the old). Wander follows one, the same way every time, and says so:
+ * the one new since Wander's last copy of her Guide; with no last copy to tell by, the one lower in her tab. Only that
+ * one is read into the day; the other stays in her tab, marked for Scout as the earlier version. A plan cell is one
+ * holding three or more time ranges under a "Day N" heading.
+ */
+export type PlanChoiceKept = { tab: string; day: string; current: string; earlier: string[]; why?: string };
+export function dayPlanVersions(tab: GuideTab, prevTab: GuideTab | undefined, prevChoices: PlanChoiceKept[] = []): { superseded: Set<string>; notes: Map<string, { note: string; current: string; earlier: string[]; why: string }> } {
+  const RANGE = /\b\d{1,2}(?::\d{2})?\s*(?:AM|PM)\s*[–—-]\s*\d{1,2}(?::\d{2})?\s*(?:AM|PM)/gi;
+  const dayNoOf = (t: string) => t.match(/\bDay\s*(\d+)\s*[:–—-]/i)?.[1];
+  const groups = new Map<string, GuideTab["cells"]>();
+  for (const c of tab.cells) {
+    const n = dayNoOf(c.text || "");
+    if (!n || (c.text.match(RANGE) || []).length < 3) continue;
+    groups.set(n, [...(groups.get(n) || []), c]);
+  }
+  const before = new Set((prevTab?.cells || []).map((c) => (c.text || "").trim()));
+  const superseded = new Set<string>();
+  const notes = new Map<string, { note: string; current: string; earlier: string[]; why: string }>();
+  for (const [n, cells] of groups) {
+    if (cells.length < 2) continue;
+    // The choice made when the new version first arrived, kept while both versions stay as they were — a re-import of
+    // the same file has nothing "new" to tell by, and the reason flipped to "lower in the tab" (Oct 2, second import)
+    const kept = prevChoices.find((k) => k.tab === tab.name && k.day === n && k.why);
+    const keptCell = kept && prevTab ? cells.find((c) => c.a1 === kept.current && prevTab.cells.some((p) => p.a1 === c.a1 && (p.text || "").trim() === (c.text || "").trim())) : undefined;
+    const sameSet = !!kept && kept.earlier.every((a1) => cells.some((c) => c.a1 === a1)) && cells.length === kept.earlier.length + 1;
+    const fresh = prevTab ? cells.filter((c) => !before.has((c.text || "").trim())) : [];
+    const current = keptCell && sameSet ? keptCell : fresh.length === 1 ? fresh[0] : [...cells].sort((a, b) => b.r - a.r || b.c - a.c)[0];
+    const earlier = cells.filter((c) => c !== current);
+    for (const c of earlier) superseded.add(c.a1);
+    // (what Wander knows: it wasn't in her last copy and the other was — not a date; an import date isn't hers)
+    const why = keptCell && sameSet ? kept!.why! : fresh.length === 1 ? "the one she added most recently" : "the one lower in the tab";
+    notes.set(n, {
+      current: current.a1, earlier: earlier.map((c) => c.a1), why,
+      note: `Her tab has ${cells.length} versions of this day's plan: Wander follows ${current.a1} (${why}); ${earlier.map((c) => c.a1).join(" and ")} ${earlier.length === 1 ? "has" : "have"} other times — worth checking with Larisa which is current.`,
+    });
+  }
+  return { superseded, notes };
+}
+
 // ── Validation ──────────────────────────────────────────────────
 
 function validate(read: GuideReadResult, itin: ItineraryResult | null, previous: any | null): string[] {
@@ -1022,11 +1065,20 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     const lines = items.filter((i) => i.date === d && ["plan", "note", "tour", "meal", "meeting", "travel", "train", "flight"].includes(i.kind)).slice(0, 5).map((i) => i.title);
     return `${d} (${new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })}) ${city}: ${lines.join(" | ")}`;
   }).join("\n");
+  // (a day planned twice in one tab: only the version Wander follows is read — dayPlanVersions)
+  const prevTabs = (((previous as any)?.tabs as GuideTab[] | undefined) || []);
+  const prevChoices = ((((previous as any)?.report as ImportReport | undefined)?.supersededPlans) || []) as PlanChoiceKept[];
+  report.supersededPlans = [];
   const planTabs = read.tabs
     .filter((t) => t.name !== itin.tabName && !/^actions$/i.test(t.name) && !/activities template/i.test(t.name))
-    .map((t) => ({ tab: t, text: Array.from(rowsOf(t).entries()).sort((a, b) => a[0] - b[0]).map(([, cs]) => cs.sort((a, b) => a.c - b.c).map((c) => c.text).join(" | ")).join("\n") }))
+    .map((t) => {
+      const versions = dayPlanVersions(t, prevTabs.find((p) => p.name === t.name), prevChoices);
+      const kept = versions.superseded.size ? { ...t, cells: t.cells.filter((c) => !versions.superseded.has(c.a1)) } : t;
+      for (const [n, v] of versions.notes) report.supersededPlans!.push({ tab: t.name, day: n, current: v.current, earlier: v.earlier, why: v.why });
+      return { tab: t, versions, text: Array.from(rowsOf(kept).entries()).sort((a, b) => a[0] - b[0]).map(([, cs]) => cs.sort((a, b) => a.c - b.c).map((c) => c.text).join(" | ")).join("\n") };
+    })
     .filter(({ tab, text }) => isDayPlanTab(tab.name, text));
-  await Promise.all(planTabs.map(async ({ tab, text }) => {
+  await Promise.all(planTabs.map(async ({ tab, text, versions }) => {
     const hash = dayPlanHash(text);
     let raw: DayPlanReading | null = cachedPlans[hash] || null;
     if (!raw && opts.readDayPlans !== false) {
@@ -1046,7 +1098,11 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       // (E-bike meeting point)") — those lines carry names, never a link (the cell's one link isn't each stop's)
       .flatMap((c) => {
         const n = (c.text.match(/stop\s*\d/gi) || []).length;
-        if (n === 1) return [{ text: c.text, link: c.link ?? null }];
+        // A map place she put beside the stop, in the same row, is that stop's link — over the stop's own search link
+        // (Oct 2: she added Tokyodo's exact Google Maps place in G39 beside "Stop 4: Tokyodo Main Showroom", whose own
+        // link was a search for the name)
+        const placeBeside = n === 1 ? tab.cells.find((x) => x.r === c.r && x.a1 !== c.a1 && x.link && /\/maps\/place\/|maps\.app\.goo\.gl|goo\.gl\/maps/i.test(x.link))?.link : undefined;
+        if (n === 1) return [{ text: c.text, link: placeBeside ?? c.link ?? null }];
         return n > 1 ? c.text.split("\n").filter((l) => /stop\s*\d/i.test(l)).map((l) => ({ text: l, link: null as string | null })) : [];
       })
       // A stop's name can wrap inside its cell ("Stop 4: Gallery & Cafe ⏎ ENSOU (Woodland lunch stop)")
@@ -1131,6 +1187,8 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       const matched = !p.date && p.matchedDate
         ? `Wander matched this plan to ${plainDate(day)}, since her tab's words don't give a date. ${(p.matchReason || "").trim().replace(/^./, (c) => c.toUpperCase()).replace(/([^.!?])$/, "$1.")}${picSays}`
         : null;
+      // (this day planned twice in her tab: which one Wander follows, said on the day — dayPlanVersions)
+      const twoVersions = dayNo ? versions.notes.get(dayNo)?.note || null : null;
       for (const [bi, b] of p.blocks.entries()) {
         // Every block stays: her plan is shown whole, in her order (a duplicate check dropped "~8:00 Breakfast /
         // check out; leave luggage at Four Seasons" for looking like the check-out line). What it adds to the
@@ -1180,6 +1238,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
             roleStop(b.label) ? `Where: ${roleStop(b.label)!.name} — the stop her tab lists for this` : null,
             startDiffers,
             bi === 0 && routeUrl ? `Her whole route for the day: ${routeUrl}` : null,
+            twoVersions,
             b.notes,
             matched,
           ].filter(Boolean).join("\n") || null,

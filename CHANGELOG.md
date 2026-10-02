@@ -45,6 +45,28 @@ No SPEC change.
   answer read in full (the Omotesando answer now quotes their email, and its whisky-bar extra is in that email).
 - Not yet deployed (waiting for Ken's go): it changes what every Scout answer starts from.
 
+## 2026-10-02 — Her Oct 2 Revision ("Japan Oct 2026-3"): a Day Planned Twice, and Her Exact Place
+
+Larisa's latest download changed one tab: "Tokyo Day 2" gained a revised day plan (A46 — Akihabara moved to midday,
+lunch 1:45, Tokyodo 3:00, Umeno 4:05, prep 4:45) below the old one (A44, kept), and Tokyodo's exact Google Maps place
+(G39) beside its stop. Not deployed yet.
+
+### Changed
+- **A day her tab plans twice** (Day screen, Scout). Wander follows one version, the same way every time — the one she
+  added most recently (new since Wander's last copy; with no last copy, the one lower in the tab) — keeps that choice
+  on later re-imports while both stay as they were, and says so at the top of her plan for the day: "Your tab has 2
+  versions of this day's plan: Wander follows A46 (the one she added most recently); A44 has other times — worth a
+  second look which is current." Only that version is read into the day. Scout sees the earlier one marked as the
+  earlier version, so its times are never given as the plan.
+- **A map place she puts beside a stop is that stop's link** (Day screen, Now, Home): Tokyodo opens her exact Google
+  Maps place instead of a search for its name.
+
+### Verified
+- Import: accepted; 165 lines, 26 tabs, 26 pictures (all from cache); changes exactly the six Oct 16 times; a second
+  import of the same file changes nothing. Every Scout line's cells checked (484 of 552 fully in their cells, the rest
+  Wander's own words — as before). All 12 walk-throughs pass on the new data. Scout: 3 new questions on the revision,
+  3/3, each citing A46.
+
 ## 2026-10-02 — Where the Sheet Won: Find a Word, the Whole Trip on One Page
 
 A fresh reviewer went through all 26 tabs of her Guide asking, for each section, when someone would rather open the

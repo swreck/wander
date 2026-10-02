@@ -197,6 +197,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   const heading = blocks[0].source.split(" · ").slice(1).join(" · ");
   // Wander's own match of an undated tab to this day — said once, as Wander's
   const matched = (blocks.map((b) => (b.detail || "").split("\n").find((l) => l.startsWith("Wander matched this plan"))).find(Boolean)) || null;
+  // Her tab plans this day twice: which one Wander follows, said once, up top (Oct 2 — her revised Day 2)
+  const twoVersions = (blocks.map((b) => (b.detail || "").split("\n").find((l) => /^Her tab has \d+ versions of this day's plan/.test(l))).find(Boolean)) || null;
   const noOwner = ownerlessInSplit(blocks);
   // When each line ends, and the line you're on now — the same rule Home and Now use (lib/guideDisplay.ts)
   const endOf = (b: GuideItem) => planLineEnd(b, blocks);
@@ -222,6 +224,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       {overview.map((o) => (
         <p key={o.id} className="text-[13px] text-[#514636] mt-1">In {v.her} Itinerary for today: “{o.title}”</p>
       ))}
+      {twoVersions && <p className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{v.say(twoVersions.replace(/^Her tab/, `${v.Her} tab`).replace("worth checking with Larisa", v.checkWith))}</p>}
       {matched && (whyOpen
         ? <p className="text-[13px] text-[#6b5d4a] mt-1">{v.say(matched)}</p>
         : <button onClick={() => setWhyOpen(true)} className="min-h-[44px] text-left text-[13px] text-[#6b5d4a]">
@@ -229,7 +232,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           </button>)}
       <ol className="mt-2 bg-white rounded-xl border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
         {blocks.map((b) => {
-          const lines = (b.detail || "").split("\n").filter((l) => l && !l.startsWith("Wander matched this plan"));
+          const lines = (b.detail || "").split("\n").filter((l) => l && !l.startsWith("Wander matched this plan") && !/^Her tab has \d+ versions of this day's plan/.test(l));
           const choices = lines.filter((l) => l.startsWith("Choice: ")).map((l) => l.slice(8));
           const estimate = lines.includes("Times are Larisa's estimate.");
           const differ = tabsDiffer(b);
@@ -1236,7 +1239,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   {u.kind === "block" && (() => {
                     // (not her route's address — it's the day screen's route button; round 15: Now's Next card spelled out
                     // "Her whole route for the day: https://www.google.com/maps/dir/…" in six lines of text)
-                    const own = (u.detail || "").split("\n").filter((l) => l && !/^(Choice: |Tabs differ: |Where: |Wander matched this plan|Times are |Her whole route for the day: )/.test(l) && !PICTURE_GROUP.test(l) && !/^For /.test(l))
+                    const own = (u.detail || "").split("\n").filter((l) => l && !/^(Choice: |Tabs differ: |Where: |Wander matched this plan|Times are |Her whole route for the day: |Her tab has \d+ versions of this day's plan)/.test(l) && !PICTURE_GROUP.test(l) && !/^For /.test(l))
                       .join("\n").replace(/\s+(Experience|Transit|Note):/g, "\n$1:").trim();
                     if (!own) return null;
                     // (cut at a sentence end where one comes late enough — "sneakers are not…" lost "permitted")

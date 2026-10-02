@@ -83,7 +83,7 @@ export interface GuideContextParts {
 export async function buildGuideContextParts(tripId: string, opts: { phoneZone?: string; now?: Date } = {}): Promise<GuideContextParts> {
   const [trip, snapshot, items, stays, days, ideas, notes] = await Promise.all([
     prisma.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true, endDate: true, timeZone: true } }),
-    prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true, sourceName: true, importedAt: true } }),
+    prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true, sourceName: true, importedAt: true, report: true } }),
     prisma.guideItem.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }] }),
     prisma.accommodation.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: { checkInDate: "asc" } }),
     prisma.day.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: { date: "asc" } }),
@@ -108,7 +108,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   const partOf = (i: (typeof items)[number]): SourcePart => ({ label: i.source, cells: cellsOfItem(i, tabs) });
   const worked = (what: string, from: SourcePart[]): SourceView => ({ type: "wander", what, from });
   // Wander's own notes in a line's detail — listed apart from her words
-  const WANDER_DETAIL = /^(Tabs differ:|Time from the |The .+ tab lists |Wander matched |Still open in the Guide|Worked out from:)/;
+  const WANDER_DETAIL = /^(Tabs differ:|Time from the |The .+ tab lists |Wander matched |Still open in the Guide|Worked out from:|Her tab has \d+ versions of this day's plan)/;
   say(out, `TRIP: ${trip.name}, ${ymd(trip.startDate)} to ${ymd(trip.endDate)}. Local time zone in Japan: ${trip.timeZone || "Asia/Tokyo"}.`,
     worked("The trip's dates, from the first and last days in her Guide", []));
   // Written out already in the phone's own time zone, as every Wander screen shows it
@@ -440,6 +440,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       }
     }
   }
+  const superseded = (((snapshot as any).report?.supersededPlans) || []) as { tab: string; day: string; current: string; earlier: string[] }[];
   if (notes.length) {
     say(out, "\nTHE GUIDE'S OTHER TABS (Larisa's own text, including pasted emails and picture summaries):");
     // (120,000 characters — all of her tabs. At 30,000 the list stopped partway through her Kyoto tabs, and Scout told
@@ -457,6 +458,10 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       }
       // A text row is her row in that tab; a picture summary is Wander's reading of her picture
       const tab = tabs.find((t) => t.name === n.tabName);
+      // An earlier version of a day her tab plans twice: still her words, marked so its times aren't taken for the plan
+      // (Oct 2: her old Day 2 in A44 kept above the revised one in A46 — dayPlanVersions)
+      const earlier = superseded.find((x) => x.tab === n.tabName && x.earlier.some((a1) => Number(a1.replace(/^[A-Z]+/, "")) === n.rowIndex));
+      if (earlier) say(out, `[AN EARLIER VERSION of her Day ${earlier.day} plan — her tab's newer one is in ${earlier.current}, and the DAY BY DAY lines follow it. Quote these times only as the earlier version.]`);
       const picture = n.rowIndex >= 100000 ? tab?.images[n.rowIndex - 100000] : undefined;
       say(out, line, picture
         ? worked(`Wander's reading of a picture in her ${n.tabName} tab`, [{ label: `A picture in her ${n.tabName} tab`, cells: [{ kind: "picture", tab: n.tabName, anchor: picture.anchor, sha256: picture.sha256 }] }])
