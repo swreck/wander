@@ -1,7 +1,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import AddToHomeScreen, { isIPhoneSafari, isHomeScreenApp } from "../components/AddToHomeScreen";
+import { isIPhoneSafari, isHomeScreenApp } from "../components/AddToHomeScreen";
 
 interface TripInfo {
   tripId: string;
@@ -30,9 +30,13 @@ export default function JoinPage() {
   const [cityPhoto] = useState<string | null>(null);
   const [retired, setRetired] = useState(false);
   const [retiredFor, setRetiredFor] = useState<string | null>(null);
-  // On an iPhone in Safari, the first step is putting Wander on the Home Screen; the icon then
-  // opens this same invite, signed in (see AddToHomeScreen). Inside the Home Screen app: just "Let's go".
-  const homeScreenFirst = isIPhoneSafari() && !isHomeScreenApp();
+  // On an iPhone in Safari: "Let's go" signs in here, Home then offers Face ID, and after it the Home Screen icon,
+  // which Face ID signs in (Oct 2: putting the icon on the Home Screen first opened it signed out, with no Face ID
+  // yet — Larisa's dead end). The line under the button says what comes next.
+  const settingUpHere = isIPhoneSafari() && !isHomeScreenApp();
+  const whatsNext = settingUpHere && (
+    <p className="text-sm text-[#6b5d4a] mt-3">Next, you'll set up Face ID, then put Wander on your Home Screen.</p>
+  );
   const [signingIn, setSigningIn] = useState(false);
   const [faceIdError, setFaceIdError] = useState("");
 
@@ -72,8 +76,8 @@ export default function JoinPage() {
       });
   }, [token]);
 
-  // The Home Screen icon starts at this invite. Once this phone is signed in as its person, opening
-  // the icon (or the link again from a message) goes straight to the trip — nothing to read or tap.
+  // Once this phone is signed in as the link's person, opening the link again (from a message, or the camera)
+  // goes straight to the trip — nothing to read or tap.
   const linkOwner = retiredFor || tripInfo?.expectedName || null;
   const ownLinkHere = !!(user && linkOwner && user.displayName.toLowerCase() === linkOwner.toLowerCase());
   useEffect(() => {
@@ -206,16 +210,14 @@ export default function JoinPage() {
             <p className="text-sm text-[#6b5d4a] mb-6">
               This opens {tripInfo.tripName}{tripInfo.dateRange ? ` (${tripInfo.dateRange})` : ""} on this phone.
             </p>
-            {homeScreenFirst && <div className="mb-4"><AddToHomeScreen inviteToken={token} variant="invite" /></div>}
             <button
               onClick={() => handleJoin()}
               disabled={joining}
-              className={homeScreenFirst
-                ? "min-h-[44px] px-6 rounded-xl border border-[#d6ccbc] text-[#514636] text-sm w-full disabled:opacity-60"
-                : "px-6 py-3 rounded-xl bg-[#514636] text-white text-base w-full disabled:opacity-60"}
+              className="px-6 py-3 rounded-xl bg-[#514636] text-white text-base w-full disabled:opacity-60"
             >
-              {joining ? "Opening..." : homeScreenFirst ? "Or just open it here in Safari" : "Let's go"}
+              {joining ? "Opening..." : "Let's go"}
             </button>
+            {whatsNext}
           </div>
         </div>
       );
@@ -260,16 +262,14 @@ export default function JoinPage() {
             </p>
           )}
 
-          {homeScreenFirst && <div className="mb-4"><AddToHomeScreen inviteToken={token} variant="invite" /></div>}
           <button
             onClick={() => handleJoin()}
             disabled={joining}
-            className={homeScreenFirst
-              ? "min-h-[44px] px-6 rounded-xl border border-[#d6ccbc] text-[#514636] text-sm w-full disabled:opacity-60"
-              : "px-6 py-3.5 rounded-xl bg-[#514636] text-white text-base font-medium w-full disabled:opacity-60 active:scale-95 transition-transform"}
+            className="px-6 py-3.5 rounded-xl bg-[#514636] text-white text-base font-medium w-full disabled:opacity-60 active:scale-95 transition-transform"
           >
-            {joining ? "Joining..." : homeScreenFirst ? "Or just open it here in Safari" : "Let's go"}
+            {joining ? "Joining..." : "Let's go"}
           </button>
+          {whatsNext}
 
           <p className="text-xs text-[#6b5d4a] mt-4">
             Larisa's Guide on your phone: every day of the trip, where you sleep, and Scout for questions

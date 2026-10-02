@@ -10,6 +10,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor, tabLabel } from "../lib/guideDisplay";
 import SheetSpots from "./SheetSpots";
+import { sheetLinks, type SheetLinks } from "../lib/sheetLinks";
 
 interface Words { tabs: { name: string; cells: [string, string][] }[]; pictures: { tab: string; anchor: string; text: string }[]; dayOf: Record<string, string> }
 const byTrip = new Map<string, Promise<Words>>();
@@ -67,6 +68,11 @@ export default function FindInGuide({ tripId }: { tripId: string }) {
     return out;
   }, [words, q]);
 
+  // Which finds' tabs Wander can't open directly (no tab id): their link opens the sheet on its first tab
+  const [links, setLinks] = useState<SheetLinks | null>(null);
+  useEffect(() => { if (finds.length && !links) sheetLinks(tripId).then(setLinks); }, [finds.length, links, tripId]);
+  const notDirect = !!links?.link && finds.slice(0, MAX).some((f) => !f.picture && links.link!.tabs[f.tab] === undefined);
+
   const her = v.mine ? "your" : "her";
   return (
     <div className="mb-2">
@@ -83,6 +89,11 @@ export default function FindInGuide({ tripId }: { tripId: string }) {
           {finds.length > 0 && (
             <>
               <p className="text-xs text-[#6b5d4a]">{finds.length === 1 ? "Found once" : `Found in ${finds.length} places`}{finds.length > MAX ? ` — the first ${MAX} below; another word narrows it` : ""}</p>
+              {/* Said once, not on every card: for a tab whose id Wander doesn't have, the sheet opens on its first tab
+                  (Ken, Oct 2: "it opened the sheet but not to the spot") */}
+              {notDirect && (
+                <p className="text-xs text-[#6b5d4a] mt-0.5">“Open {v.mine ? "your" : "Larisa's"} sheet” opens it on its first tab. Then go to the tab and cell named on the card.</p>
+              )}
               <ul className="mt-1 space-y-2">
                 {finds.slice(0, MAX).map((f) => (
                   <li key={f.key} className="bg-white rounded-lg border border-[#e0d8cc] px-3 py-2">

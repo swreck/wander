@@ -2,6 +2,36 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 (evening) — Getting In on an iPhone: Face ID First, Then the Home Screen
+
+### Fixed
+- **A new iPhone could end up at a sign-in with no way in.** Larisa's phone: the invite opened in Safari and said to
+  put Wander on the Home Screen first; the icon was meant to open her invite (Wander pointed the icon's start there),
+  but iPhone Safari didn't take that — the icon opened Wander signed out, where only Face ID signs in, and she had
+  no Face ID for Wander yet. A dead end. On her iPhone, setting up Face ID in Safari and then opening the icon signed
+  her in — a Face ID key made in Safari works in the Home Screen app. So that is now the way in:
+  - **The invite** (Safari): **Let's go** is the button again, with "Next, you'll set up Face ID, then put Wander on
+    your Home Screen." The Home Screen steps are no longer the first thing, and Wander no longer tries to point the
+    icon at the invite.
+  - **Home in iPhone Safari**: **Set up Face ID** is right under the welcome ("One thing to set up: Face ID, just
+    below."), above Today; once it's done, **Put Wander on your Home Screen**, whose last step is "Open Wander from
+    your Home Screen and tap Sign in with Face ID."
+  - **The sign-in screen inside the Home Screen app** says where setting up happens: "First time on this phone? Open
+    the link or code you were sent. It opens in Safari: tap Let's go, then Set up Face ID. After that, Face ID works
+    here too." (It used to say to open the link — which opens Safari, not the app: a circle.)
+  - The invite sheet (People → Show their invite), its message, How Wander works → Getting In, and Scout's own
+    instructions all describe the new order.
+  - The Face ID card says "Set up Face ID — then a glance opens Wander on this phone, here or from your Home Screen."
+- **Find a word says when "Open Larisa's sheet" can't land on the spot.** Wander knows the tab ids of 11 of her 26
+  tabs (none of her day tabs or Dining Resos); for the others her sheet opens on its first tab. Under "Found in N
+  places", once: "“Open Larisa's sheet” opens it on its first tab. Then go to the tab and cell named on the card."
+  (A spot Wander can open directly says "Open this spot in Larisa's sheet".)
+
+Tested: a new person from invite to Home Screen sign-in on an emulated iPhone (Safari, then the Home Screen app with
+its own storage and the Face ID key made in Safari): 15/15. Playwright 20/20, walk-throughs.
+
+No SPEC change (sign-in order is described in How Wander works).
+
 ## 2026-10-02 — Show Me Around, and Tips at the Moment They Help
 
 ### Added

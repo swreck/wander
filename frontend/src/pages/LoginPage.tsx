@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import { deviceSupportsPasskeys, isUserCancel, reportPasskeyProblem } from "../lib/passkeys";
+import { isHomeScreenApp } from "../components/AddToHomeScreen";
 
 interface TravelerOption {
   id: string;
@@ -26,6 +27,7 @@ export default function LoginPage() {
   const [nameLogin, setNameLogin] = useState(false);
   const [travelers, setTravelers] = useState<TravelerOption[]>([]);
   const [canUseFaceId, setCanUseFaceId] = useState(true);
+  const [inHomeScreenApp] = useState(isHomeScreenApp);
 
   useEffect(() => {
     deviceSupportsPasskeys().then(setCanUseFaceId);
@@ -51,7 +53,10 @@ export default function LoginPage() {
     } catch (err) {
       if (isUserCancel(err)) {
         // iPhones report "closed" and "no Wander Face ID on this phone" the same way — cover both
-        setError("Face ID didn't sign you in. If this phone hasn't used Wander before, open the link Ken or Larisa sent you.");
+        // (in the Home Screen app the steps are already on the screen, just above — not said twice)
+        setError(inHomeScreenApp
+          ? "Face ID didn't sign you in. If this phone hasn't used Wander before, set it up in Safari first, as above."
+          : "Face ID didn't sign you in. If this phone hasn't used Wander before, open the link Ken or Larisa sent you.");
       } else {
         reportPasskeyProblem("sign-in", err);
         // Wander's own messages are written for people; the phone's are not (they carry a code)
@@ -117,8 +122,11 @@ export default function LoginPage() {
           </p>
         )}
 
+        {/* (in the Home Screen app a link opens Safari, not here — so say where setting up happens; Oct 2, Larisa) */}
         <p className="text-sm text-white/70 mt-4 leading-relaxed">
-          First time on this phone? Open your personal Wander link, then set up Face ID.
+          {inHomeScreenApp
+            ? "First time on this phone? Open the link or code you were sent. It opens in Safari: tap Let's go, then Set up Face ID. After that, Face ID works here too."
+            : "First time on this phone? Open your personal Wander link, then set up Face ID."}
         </p>
 
         {nameLogin && travelers.length > 0 && (

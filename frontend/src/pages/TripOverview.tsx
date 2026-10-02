@@ -27,7 +27,7 @@ import WelcomeOnce from "../components/WelcomeOnce";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
 import { voiceFor } from "../lib/guideDisplay";
 import { changeRest } from "../lib/changeWords";
-import AddToHomeScreen from "../components/AddToHomeScreen";
+import AddToHomeScreen, { isIPhoneSafari, isHomeScreenApp } from "../components/AddToHomeScreen";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
@@ -348,6 +348,8 @@ export default function TripOverview() {
 
   // Face ID set up on this phone (now or before) → the Home Screen step can follow
   const [faceIdHere, setFaceIdHere] = useState(signedInWithPasskeyHere);
+  // In iPhone Safari (not the Home Screen app): where someone new sets up this phone
+  const [settingUpHere] = useState(() => isIPhoneSafari() && !isHomeScreenApp());
   useEffect(() => {
     const on = () => setFaceIdHere(true);
     window.addEventListener("wander:faceid-ready", on);
@@ -674,15 +676,18 @@ export default function TripOverview() {
           </p>
         )}
         <WelcomeOnce owner={guideOwnerOf(trip.tagline)} />
+        {/* Someone new, in iPhone Safari from their invite: Face ID first, then the Home Screen icon — at the top,
+            where it can't be missed (Oct 2: Larisa's icon, added first, opened signed out with no Face ID to use; a
+            Face ID key made here in Safari is the one the Home Screen app signs in with — proven on her iPhone) */}
+        {settingUpHere && <FaceIdSetup variant="card" />}
+        {settingUpHere && faceIdHere && <AddToHomeScreen variant="card" />}
         {/* Scout's evening question — after 6 PM on a trip day, once (Oct 1 2026) */}
         <EveningQuestion tripId={trip?.id} className="mb-3" />
         <TripGlance tripId={trip.id} />
 
-        {/* Face ID offer right under Today — it only shows until it's set up or dismissed. Above Today it
-            arrived a moment late and shoved the day's plan half a screen down (round 6). */}
-        <FaceIdSetup variant="card" />
-        {/* In iPhone Safari with Face ID set up: the Home Screen icon (it signs in with Face ID) */}
-        {faceIdHere && <AddToHomeScreen variant="card" />}
+        {/* Elsewhere, the Face ID offer sits right under Today — it only shows until it's set up or dismissed. Above
+            Today it arrived a moment late and shoved the day's plan half a screen down (round 6). */}
+        {!settingUpHere && <FaceIdSetup variant="card" />}
 
         {/* Calendar / At-a-Glance toggle — after the trip too: it's how anyone finds "that place on the 16th"
             (round 9: Home after the trip had no calendar, and the Guide's note still said "the days above") */}

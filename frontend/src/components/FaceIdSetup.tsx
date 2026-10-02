@@ -32,7 +32,8 @@ function readDismissed(): boolean {
 type Step = "offer" | "existing" | "replace";
 
 const STEP_TEXT: Record<Step, { title: string; body: string; button: string; busy: string }> = {
-  offer: { title: "Use Face ID next time?", body: "One glance opens Wander on this phone.", button: "Set up Face ID", busy: "Setting up…" },
+  // (it's the step that lets the Home Screen icon sign in — Oct 2)
+  offer: { title: "Set up Face ID", body: "Then a glance opens Wander on this phone, here or from your Home Screen.", button: "Set up Face ID", busy: "Setting up…" },
   existing: { title: "This phone already has Face ID for Wander", body: "Tap to check it still signs you in.", button: "Check Face ID", busy: "Checking…" },
   replace: { title: "That older Face ID doesn't work with Wander any more", body: "Tap to replace it with a fresh one.", button: "Replace it", busy: "Replacing…" },
 };
@@ -98,7 +99,7 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
     return (
       <div className="mb-4 p-4 bg-white rounded-xl border border-[#e0d8cc]" role="region" aria-label="Face ID sign-in">
         {justFinished ? (
-          <p className="text-sm text-[#3a3128]">Face ID is ready. Next time, just look at your phone.</p>
+          <p className="text-sm text-[#3a3128]">Face ID is ready. From now on, just look at your phone.</p>
         ) : (
           <>
             <p className="text-sm font-medium text-[#3a3128]">{text.title}</p>

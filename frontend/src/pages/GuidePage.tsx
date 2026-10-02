@@ -21,12 +21,12 @@ Along the bottom: **Ideas** (${mine ? "your" : "Larisa's"} ideas, city by city),
     id: "getting-in",
     title: "Getting In",
     body: mine
-      ? `Someone new points their iPhone's camera at the code you or Ken show them (or opens the link you sent). In Safari, they tap Share, then **Add to Home Screen** — Wander gets its own icon. They open it, then tap **Set up Face ID**. After that, they just look at their phone.
+      ? `Someone new points their iPhone's camera at the code you or Ken show them (or opens the link you sent). It opens in Safari: they tap **Let's go**, then **Set up Face ID** at the top of Home. Wander then shows them how to put it on the Home Screen (Share, then **Add to Home Screen**). From the icon, **Sign in with Face ID** opens it. After that, they just look at their phone.
 
 A new phone of your own? Make a new invite from **Settings → People on this trip**, or ask Ken to. Once Face ID is set up, an old link stops working, so an old message can't be used by anyone else.
 
 Letting someone in: **People on this trip → + Add someone**. Type their name, pick the trip, and show them the code.`
-      : `The first time, point your iPhone's camera at the code Ken or Larisa shows you (or open the link they sent). In Safari, tap Share, then **Add to Home Screen** — Wander gets its own icon. Open it, then tap **Set up Face ID**. After that, just look at your phone.
+      : `The first time, point your iPhone's camera at the code Ken or Larisa shows you (or open the link they sent). It opens in Safari: tap **Let's go**, then **Set up Face ID** at the top of Home. Wander then shows you how to put it on your Home Screen (Share, then **Add to Home Screen**). From the icon, tap **Sign in with Face ID**. After that, just look at your phone.
 
 New phone? Ask Ken or Larisa — they make a new invite from **Settings → People on this trip**. Once you've set up Face ID, your old link stops working, so an old message can't be used by anyone else.
 
