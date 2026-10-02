@@ -3,11 +3,13 @@
  * the Home Screen. Shown only in iPhone Safari (never inside the Home Screen app itself), as three
  * short steps with the Share symbol drawn the way Safari shows it.
  *
- * On an invite page it also points the web app's start at that invite, so the new icon opens
- * Wander signed in as that person (the Home Screen app keeps its own storage, apart from Safari).
+ * It comes after Face ID is set up in Safari: the Home Screen app keeps its own storage, apart from Safari, so
+ * the icon opens signed out — and Face ID, made here, signs in there (proven on Larisa's iPhone, Oct 2). The old
+ * way — pointing the icon's start at the invite — didn't take on her iPhone: the icon opened signed out with no
+ * Face ID yet, a dead end.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export function isIPhoneSafari() {
   if (typeof navigator === "undefined") return false;
@@ -29,37 +31,24 @@ const ShareSymbol = () => (
 
 const DISMISS = "wander:home-screen-card-dismissed";
 
-export default function AddToHomeScreen({ inviteToken, variant = "card" }: { inviteToken?: string; variant?: "invite" | "card" }) {
+export default function AddToHomeScreen({ variant = "card" }: { variant?: "card" }) {
   const [dismissed, setDismissed] = useState(() => {
     try { return variant === "card" && localStorage.getItem(DISMISS) === "1"; } catch { return false; }
   });
   const show = isIPhoneSafari() && !isHomeScreenApp() && !dismissed;
 
-  // On an invite page: the new icon should open this invite, not a signed-out Wander
-  useEffect(() => {
-    if (!inviteToken || !show) return;
-    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-    if (!link) return;
-    const before = link.href;
-    link.href = `/api/manifest.json?start=${encodeURIComponent(`/join/${inviteToken}`)}`;
-    return () => { link.href = before; };
-  }, [inviteToken, show]);
-
   if (!show) return null;
   return (
-    <div className={`rounded-xl border border-[#e0d8cc] bg-white p-4 text-left ${variant === "card" ? "mb-4" : ""}`}>
+    <div className="rounded-xl border border-[#e0d8cc] bg-white p-4 text-left mb-4">
       <p className="text-base font-medium text-[#3a3128]">Put Wander on your Home Screen</p>
       <ol className="mt-2 space-y-1.5 text-sm text-[#3a3128] list-decimal pl-5">
         <li>Tap Share <span className="text-[#514636]"><ShareSymbol /></span> at the bottom of Safari.</li>
         <li>Tap <span className="font-medium">Add to Home Screen</span> (scroll down if you don't see it), then <span className="font-medium">Add</span>.</li>
-        <li>Open Wander from your Home Screen{variant === "invite" ? " — it opens ready for you" : ""}.</li>
+        <li>Open Wander from your Home Screen and tap <span className="font-medium">Sign in with Face ID</span>.</li>
       </ol>
-      {variant === "card" && (
-        <div className="flex items-center gap-3 mt-2">
-          <p className="flex-1 text-xs text-[#6b5d4a]">Face ID signs you in there.</p>
-          <button onClick={() => { setDismissed(true); try { localStorage.setItem(DISMISS, "1"); } catch { /* private mode */ } }} className="min-h-[44px] px-2 text-sm text-[#514636]">Not now</button>
-        </div>
-      )}
+      <div className="flex justify-end mt-1">
+        <button onClick={() => { setDismissed(true); try { localStorage.setItem(DISMISS, "1"); } catch { /* private mode */ } }} className="min-h-[44px] px-2 text-sm text-[#514636]">Not now</button>
+      </div>
     </div>
   );
 }

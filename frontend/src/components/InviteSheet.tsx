@@ -26,7 +26,7 @@ export default function InviteSheet({ name, tripName, url, isMe, note, onClose }
 
   const message = isMe
     ? `My Wander link for ${tripName}. Open it on the new phone.`
-    : `Hi ${name} — here's your link to ${tripName} in Wander. Open it on your phone; it will show you how to put Wander on your Home Screen.`;
+    : `Hi ${name} — here's your link to ${tripName} in Wander. Open it on your iPhone, tap Let's go, then set up Face ID. Wander then shows you how to put it on your Home Screen.`;
 
   async function copy() {
     try {
@@ -68,7 +68,7 @@ export default function InviteSheet({ name, tripName, url, isMe, note, onClose }
           Point {isMe ? "the new phone's" : `${name}'s`} camera at this code and tap the Wander link that appears.
         </p>
         <p className="text-xs text-[#6b5d4a] mt-1">
-          Wander then shows how to put it on the Home Screen. Once {isMe ? "you set" : `${name} sets`} up Face ID, this link stops working.
+          {isMe ? "Then tap Let's go and set up Face ID" : `Then ${name} taps Let's go and sets up Face ID`}, and Wander shows how to put it on the Home Screen. Once Face ID is set up, this link stops working.
         </p>
         <div className="flex flex-col gap-2 mt-4">
           <button onClick={send} className="min-h-[48px] rounded-xl bg-[#514636] text-white text-base">Send as a message instead</button>
