@@ -131,7 +131,9 @@ function placedRoute(url: string, area: string): string {
     const stops = path.split("/").map((s) => {
       if (!s || s.startsWith("@") || s.startsWith("data=")) return s;
       const name = decodeURIComponent(s.replace(/\+/g, " "));
-      const placed = /japan|日本/i.test(name) ? name : town && name.toLowerCase().includes(town.toLowerCase()) ? `${name}, Japan` : `${name}, ${area}Japan`;
+      // (the town as a whole word — "Tokyodo Main Showroom" isn't a stop already in Tokyo)
+      const named = town && new RegExp(`\\b${town.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(name);
+      const placed = /japan|日本/i.test(name) ? name : named ? `${name}, Japan` : `${name}, ${area}Japan`;
       return encodeURIComponent(placed).replace(/%20/g, "+").replace(/%2C/g, ",");
     });
     u.pathname = `${before}/maps/dir/${stops.join("/")}`;
