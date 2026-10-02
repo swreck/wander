@@ -15,7 +15,7 @@ import { api } from "../lib/api";
 import { queuedBodies, phonePerson } from "../lib/offlineStore";
 import { useAuth } from "../contexts/AuthContext";
 import type { Experience, Trip } from "../lib/types";
-import { guideData, type TripGuideData } from "../lib/guideData";
+import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
 import { mapsLink, voiceFor, linkLabel } from "../lib/guideDisplay";
 
 interface Note { id: string; experienceId: string; content: string; visibility?: string; traveler: { displayName: string }; createdAt: string; _pending?: boolean }
@@ -40,6 +40,13 @@ const GENERIC = new Set(["store", "stores", "shop", "shops", "dept", "department
 const wordsOf = (name: string) =>
   (name.split("(")[0].toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length >= 4 && !GENERIC.has(w)).slice(0, 2)
     .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+/** The word in a text — a long one even with one letter off ("ITOYA stationary store" in Activities, "ITOYA
+ *  stationery store" in her Oct 15 plan) */
+function hasWord(text: string, w: string): boolean {
+  if (new RegExp(`\\b${w}\\b`, "i").test(text)) return true;
+  if (w.length < 8) return false;
+  return (text.toLowerCase().match(/[a-z0-9]+/g) || []).some((t) => t.length === w.length && [...t].filter((c, i) => c !== w[i]).length === 1);
+}
 const sheetRow = (e: Experience) => (e.sheetRowRef ? Number((e as { priorityOrder?: number }).priorityOrder ?? 5000) : 10000);
 
 export default function IdeasPage() {
@@ -193,7 +200,11 @@ export default function IdeasPage() {
     for (const exp of cityIdeas) {
       const words = wordsOf(exp.name);
       if (!words.length) continue;
-      const found = Array.from(new Set(lines.filter((it) => words.every((w) => new RegExp(`\\b${w}\\b`, "i").test(it.title))).map((it) => ymd(it.date!)))).sort();
+      // (her line's title, or what she wrote it's for — "Experience: … the multi-story ITOYA stationery store, Nippon
+      // Made & Yellow…" names Julie's pick inside Oct 15's "Ginza Premium Retail Walk"; never Wander's own lines, whose
+      // "…the Onitsuka Tiger flagship shopping day…" sits on every Oct 17 line)
+      const said = (it: GuideItem) => [it.title, ...(it.detail || "").split("\n").filter((l) => /^Experience:/.test(l))].join("\n");
+      const found = Array.from(new Set(lines.filter((it) => words.every((w) => hasWord(said(it), w))).map((it) => ymd(it.date!)))).sort();
       if (found.length) out.set(exp.id, found);
     }
     return out;
