@@ -17,6 +17,7 @@ import { readGuideImage, whoFromNames, roomFor, type ImageReading } from "./imag
 import { readGuideText, isBookingProse, tabTextHash, type TextReading } from "./textReader.js";
 import { readDayPlans, looksLikeDayPlan, dayPlanHash, verifyAgainstTab, type DayPlanReading } from "./dayPlanReader.js";
 import { pictureGroupFor, pictureStartFor } from "./pictureGroup.js";
+import { withoutFinancialDetails } from "../sources/filter.js";
 
 export interface ImportOptions {
   buffer: Buffer;
@@ -1485,6 +1486,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     const structured = new Set([itin.tabName, ...actions.slice(0, 1).map((a) => a.ref.split("|")[0]), ...ideas.slice(0, 1).map((i) => i.ref.split("|")[0])]);
     await tx.sheetNote.deleteMany({ where: { tripId } });
     const notes: { tripId: string; tabName: string; rowIndex: number; text: string }[] = [];
+    const pictureFirstTab = new Map<string, string>();
     for (const tab of read.tabs) {
       if (structured.has(tab.name)) continue;
       for (const [r, cells] of rowsOf(tab)) {
@@ -1494,7 +1496,17 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       tab.images.forEach((p, n) => {
         const img = images.find((i) => i.sha256 === p.sha256);
         const summary = (img?.facts as any)?.summary;
-        notes.push({ tripId, tabName: tab.name, rowIndex: 100000 + n, text: summary ? `Picture: ${summary}` : "Picture (not read yet)" });
+        // Everything Wander read in it, not just what it is (Ken, Oct 2: "every word, image, and number" in her sheet is
+        // data — her Kyoto map's "MIHO Museum (Ken & Andy)", van times and flight time were only "a five-panel
+        // illustrated itinerary map"). Card numbers masked, as in her cells. A picture she placed in several tabs is
+        // read out once; the others point to it.
+        const first = pictureFirstTab.get(p.sha256);
+        const words = img?.transcription?.trim() ? withoutFinancialDetails(img.transcription.trim()) : "";
+        if (!first) pictureFirstTab.set(p.sha256, tab.name);
+        const text = !summary ? "Picture (not read yet)"
+          : first ? `Picture: ${summary} (the same picture as in her ${first} tab — its words are there)`
+          : `Picture: ${summary}${words ? `\nIts words, as Wander read them:\n${words}` : ""}`;
+        notes.push({ tripId, tabName: tab.name, rowIndex: 100000 + n, text });
       });
       if (tab.cells.length === 0 && tab.images.length === 0) notes.push({ tripId, tabName: tab.name, rowIndex: -1, text: "" });
     }

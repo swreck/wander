@@ -113,17 +113,18 @@ router.get("/items/:tripId", async (req: AuthRequest, res) => {
 
 // ── Her words, every tab, for "Find in your Guide" (round 16: finding where she wrote a word was a reason to open the
 // sheet — its Find jumps to the cell). Searched on the phone, so it works with no signal once read. Each cell's words
-// (card numbers left out), what Wander read from each picture (its summary, never the whole transcription — a
-// booking screenshot carries ticket and traveler numbers), and the trip day a cell belongs to, when a line of a day
-// comes from it. ──
+// (card numbers left out), what Wander read from each picture (its summary and its words, card numbers masked), and
+// the trip day a cell belongs to, when a line of a day comes from it. ──
 router.get("/words/:tripId", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;
   if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
   const snap = await prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true } });
   if (!snap) { res.json({ tabs: [], pictures: [], dayOf: {} }); return; }
   const tabs = await tabsOfCopy(snap.id);
-  const images = await prisma.guideImage.findMany({ where: { tripId }, select: { sha256: true, facts: true } });
-  const summaryOf = new Map(images.map((i) => [i.sha256, String((i.facts as any)?.summary || "")]));
+  // (each picture's summary and all its words — Oct 2, Ken: everything in her sheet is data; card numbers masked as in
+  // her cells, which already hold her pasted booking emails in full)
+  const images = await prisma.guideImage.findMany({ where: { tripId }, select: { sha256: true, facts: true, transcription: true } });
+  const summaryOf = new Map(images.map((i) => [i.sha256, [String((i.facts as any)?.summary || ""), withoutFinancialDetails(i.transcription || "")].filter(Boolean).join("\n")]));
   const items = await prisma.guideItem.findMany({ where: { tripId, date: { not: null } }, select: { date: true, kind: true, title: true, detail: true, source: true, cells: true, sourceRef: true } });
   const dayOf: Record<string, string> = {};
   // The day a cell is lived: a booking's email belongs to the dinner (Oct 17), not to its cancel-by date (Oct 9) — a
@@ -141,7 +142,7 @@ router.get("/words/:tripId", async (req: AuthRequest, res) => {
   }
   res.json({
     tabs: tabs.map((t) => ({ name: t.name, cells: t.cells.filter((c) => c.text?.trim()).map((c) => [c.a1, withoutFinancialDetails(c.text)]) })),
-    pictures: tabs.flatMap((t) => t.images.map((p) => ({ tab: t.name, anchor: p.anchor, text: summaryOf.get(p.sha256) || "" }))).filter((p) => p.text),
+    pictures: tabs.flatMap((t) => t.images.map((p) => ({ tab: t.name, anchor: p.anchor, sha256: p.sha256, text: summaryOf.get(p.sha256) || "" }))).filter((p) => p.text),
     dayOf,
   });
 });
@@ -161,6 +162,8 @@ router.get("/pictures/:tripId", async (req: AuthRequest, res) => {
       const token = jwt.sign({ picture: `${tripId}:${p.sha256}` }, PICTURE_SECRET, { expiresIn: "10m" });
       return {
         anchor: p.anchor,
+        // (which picture — the day screen asks for a fresh link on a tap: "See her map from this tab", Oct 2)
+        sha256: p.sha256,
         url: `/api/guide/picture/${tripId}/${p.sha256}?t=${token}`,
         summary: (img?.facts as any)?.summary || null,
         read: img?.readStatus === "read",

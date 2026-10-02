@@ -2,6 +2,30 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 (evening) — Every Word on Her Pictures
+
+Ken: "Everything earning a place in the spreadsheet is important… every word, image, and number" is data.
+
+### Fixed
+- **Scout knows everything on her pictures, not just what they are.** Wander always read every word of the pictures
+  in her tabs, but gave Scout only a one-line summary — her illustrated Kyoto map was "a five-panel illustrated
+  itinerary map", while it says MIHO Museum is Ken & Andy's and the Oct 28 morning potters are Larisa & Julie's (her
+  tab names no one for those), the van's times, and the flight time. Scout now has each picture's full words (card
+  numbers masked, as in her cells); a picture she put in several tabs is read out once. A picture can be older than
+  her tab (her Tokyo map still has the earlier Day 2 times and dates the days Oct 13–15): Scout gives her plan first
+  and then says what the picture shows — "her map picture in that tab still shows Tokyodo at 2:15".
+- **Find a word searches every word on her pictures** (it searched only their summaries).
+
+### Added
+- **"See her map from this tab"** on a day whose tab holds a picture of hers (her Tokyo and Kyoto illustrated maps,
+  on each of those days): it opens full screen — pinch or double-tap to zoom, Done to close.
+
+Tested: real Scout — Julie's Shigaraki day (her map's split, the Dining Resos 8 PM disagreement said), Tokyodo's
+time on her newer plan with the picture's older time noted, the e-bike tour's end; browser 5/5;
+backend/tests/picture-words.test.ts.
+
+No SPEC change.
+
 ## 2026-10-02 (evening) — Her Apple Maps Guides: One Tap to Her Map, and What's Close to What
 
 ### Added

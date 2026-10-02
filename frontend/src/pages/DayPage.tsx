@@ -36,6 +36,8 @@ import SheetSpots from "../components/SheetSpots";
 import SendOut, { dayText, bookingText } from "../components/SendOut";
 import { directionsHref } from "../lib/directions";
 import { appleGuides, type GuidesByDay } from "../lib/appleGuides";
+import { guidePictures, type GuidePicture } from "../lib/guidePictures";
+import PictureViewer from "../components/PictureViewer";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
@@ -178,7 +180,33 @@ const choiceMapHref = (c: { name: string }, line: GuideItem) => mapsLink(`${c.na
  * line for the day sits in its header, as hers, so the two never read as rival plans. Today, the line
  * she has you on now is marked and the ones behind you step back.
  */
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId, maps = [] }: {
+/** One of her pictures, opened full screen on a tap (the picture is fetched only then) */
+function DayPicture({ tripId, picture, her, tab }: { tripId: string; picture: GuidePicture; her: string; tab: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "opening" | "failed">("idle");
+  const isMap = /\bmap\b/i.test(picture.summary);
+  return (
+    <>
+      <button
+        onClick={async () => {
+          setState("opening");
+          try { setUrl((await api.get<{ url: string }>(`/guide/picture-link/${tripId}/${picture.sha256}`)).url); setState("idle"); }
+          catch { setState("failed"); }
+        }}
+        disabled={state === "opening"}
+        className="flex w-fit items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636] disabled:opacity-60"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 17l-5-5-9 8" />
+        </svg>
+        {state === "opening" ? "Opening…" : state === "failed" ? "Couldn't open it — try again?" : isMap ? `See ${her} map from this tab` : `See ${her} picture from this tab`}
+      </button>
+      {url && <PictureViewer src={url} alt={`${picture.summary || `The picture in ${her} ${tab} tab`}`} onClose={() => setUrl(null)} />}
+    </>
+  );
+}
+
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId, maps = [], pictures = [] }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
   picked: Map<string, DayChoice>; onPick: (text: string, time: string | null, pickFor: string) => Promise<void>;
   onUndo: (c: DayChoice) => Promise<void>; tellName: string | null; onTell: (c: DayChoice) => void;
@@ -187,6 +215,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   tripId?: string | null;
   /** her Apple Maps guide(s) for this day */
   maps?: { name: string; link: string }[];
+  /** her pictures, every tab (this day's tab's are shown) */
+  pictures?: GuidePicture[];
 }) {
   const v = voiceFor(me, tellName);
   // Her Itinerary line(s) for the day, for a Maps search's town (areaOf)
@@ -225,6 +255,11 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           </a>
         ) : null;
       })()}
+      {/* Her pictures in this day's tab — her illustrated map of these days, full screen, pinch to zoom (Oct 2: they sat
+          at the top of her day tabs, out of sight in Wander) */}
+      {tripId && pictures.filter((p, i, all) => p.tab === tab && all.findIndex((q) => q.tab === tab && q.sha256 === p.sha256) === i).map((p) => (
+        <DayPicture key={p.sha256} tripId={tripId} picture={p} her={v.her} tab={tabLabel(tab)} />
+      ))}
       {/* Her Apple Maps guide for the day — a map she made in Apple Maps, opened as it is now (Oct 2) */}
       {maps.map((m) => (
         <a key={m.link} href={m.link} target="_blank" rel="noreferrer" className="flex w-fit items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636]">
@@ -456,6 +491,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const [otherSources, setOtherSources] = useState<OtherSource[]>([]);
   const [notesByTab, setNotesByTab] = useState<NotesByTab>({});
   const [mapsByDay, setMapsByDay] = useState<GuidesByDay>({});
+  const [pictures, setPictures] = useState<GuidePicture[]>([]);
   const scrolledFor = useRef<string | null>(null);
 
   // Load (and reload when the signal comes back, so a saved copy doesn't linger)
@@ -581,6 +617,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     if (!tripId) return;
     let cancelled = false;
     appleGuides(tripId).then((g) => { if (!cancelled) setMapsByDay(g); });
+    guidePictures(tripId).then((p) => { if (!cancelled) setPictures(p); });
     return () => { cancelled = true; };
   }, [tripId]);
 
@@ -1368,6 +1405,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               <PlanSection
                 tripId={tripId}
                 maps={mapsByDay[date] || []}
+                pictures={pictures}
                 blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel} bookings={dayItems.filter((m) => m.kind === "meal")}
                 picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
                 onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}
