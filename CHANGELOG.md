@@ -49,7 +49,8 @@ No SPEC change.
 
 Larisa's latest download changed one tab: "Tokyo Day 2" gained a revised day plan (A46 — Akihabara moved to midday,
 lunch 1:45, Tokyodo 3:00, Umeno 4:05, prep 4:45) below the old one (A44, kept), and Tokyodo's exact Google Maps place
-(G39) beside its stop. Not deployed yet.
+(G39) beside its stop. DEPLOYED Oct 2 (main 7097d50) with everything below from Oct 2, and her copy imported on
+production — the same result as on the test copy.
 
 ### Changed
 - **A day her tab plans twice** (Day screen, Scout). Wander follows one version, the same way every time — the one she
