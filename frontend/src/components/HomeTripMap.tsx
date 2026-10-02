@@ -864,7 +864,10 @@ function Overlay({ lat, lng, z, children }: { lat: number; lng: number; z: numbe
     if (!map) return;
     el.style.zIndex = String(z);
     class At extends google.maps.OverlayView {
-      onAdd() { this.getPanes()!.overlayMouseTarget.appendChild(el); google.maps.OverlayView.preventMapHitsAndGesturesFrom(el); }
+      // (touches on a marker or name reach the map too: kept from it, a pinch or two-finger drag starting on one did
+      // nothing, and on a small map covered by names the map seemed unsure whether two fingers were down — Ken's
+      // iPhone check, Oct 2. A tap still opens the marker's day.)
+      onAdd() { this.getPanes()!.overlayMouseTarget.appendChild(el); }
       draw() {
         const p = this.getProjection().fromLatLngToDivPixel(new google.maps.LatLng(lat, lng));
         if (p) { el.style.left = `${p.x}px`; el.style.top = `${p.y}px`; }

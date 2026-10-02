@@ -13,6 +13,7 @@ import { api } from "../lib/api";
 import type { Trip } from "../lib/types";
 import { guideData } from "../lib/guideData";
 import { replayQueue, dropQueued } from "../lib/offlineStore";
+import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { useAuth } from "../contexts/AuthContext";
 import {
   saveNote, waitingNotes, savedCopy, keepCopy, readDraft, keepDraft, exportText, tripToday, dayWords, sendCopy,
@@ -59,7 +60,8 @@ export default function NotesPage() {
   const [showSaved, setShowSaved] = useState(false);
   const [listening, setListening] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<VoiceHandlers | null>(null);
+  const [voiceQuiet, setVoiceQuiet] = useState(false);
   const voiceLiveRef = useRef(false);
 
   // The list
@@ -162,28 +164,29 @@ export default function NotesPage() {
   }, [text]);
 
   // Wander's microphone: tap to start, tap to stop; the words go into the box after anything typed
+  // (the app's one microphone, lib/voice.ts — shared with Scout, started on the tap itself)
   const toggleVoice = useCallback(() => {
-    if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    const rec = new SR();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = "en-US";
+    if (listening) { stopVoice(recognitionRef.current ?? undefined); setListening(false); return; }
     const typed = (boxRef.current?.value ?? "").replace(/\s+$/, "");
     voiceLiveRef.current = true;
-    rec.onresult = (e: any) => {
-      if (!voiceLiveRef.current) return;
-      const said = Array.from(e.results).map((r: any) => r[0].transcript).join("");
-      setText(typed ? `${typed} ${said.trimStart()}` : said);
-      setUsedVoice(true);
+    setVoiceQuiet(false);
+    const handlers: VoiceHandlers = {
+      onText: (said) => {
+        if (!voiceLiveRef.current) return;
+        setVoiceQuiet(false);
+        setText(typed ? `${typed} ${said.trimStart()}` : said);
+        setUsedVoice(true);
+      },
+      onEnd: () => { setListening(false); setVoiceQuiet(false); voiceLiveRef.current = false; if (recognitionRef.current === handlers) recognitionRef.current = null; },
+      onQuiet: () => { if (voiceLiveRef.current) setVoiceQuiet(true); },
     };
-    rec.onend = () => { setListening(false); voiceLiveRef.current = false; if (recognitionRef.current === rec) recognitionRef.current = null; };
-    rec.onerror = () => { setListening(false); if (recognitionRef.current === rec) recognitionRef.current = null; };
-    recognitionRef.current = rec;
-    try { rec.start(); setListening(true); setResult(null); } catch { setListening(false); }
+    recognitionRef.current = handlers;
+    if (startVoice(handlers)) { setListening(true); setResult(null); }
+    else { recognitionRef.current = null; voiceLiveRef.current = false; }
   }, [listening]);
-  const hasVoice = typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  // Leaving Notes hands the microphone back (it kept listening for a screen no longer there)
+  useEffect(() => () => { if (recognitionRef.current) stopVoice(recognitionRef.current); }, []);
+  const hasVoice = voiceSupported();
 
   const cityOf = (d: string | null) => (d ? days.find((x) => x.date === d)?.city || null : null);
 
@@ -192,7 +195,7 @@ export default function NotesPage() {
     if (!tripId || !text.trim() || saving || savingRef.current) return;
     savingRef.current = true;
     // Saving while the microphone listens: it stops, and late words don't come back into the box
-    if (recognitionRef.current) { voiceLiveRef.current = false; try { recognitionRef.current.stop(); } catch { /* stopped */ } setListening(false); }
+    if (recognitionRef.current) { voiceLiveRef.current = false; stopVoice(recognitionRef.current); setListening(false); }
     // A note about today unless another day (or no day) was chosen — the days a moment late, or from the phone's copy
     // with no signal, are waited for briefly rather than the note going without its day (k2)
     let aboutDay = day;
@@ -372,6 +375,7 @@ export default function NotesPage() {
                 autoFocus={fromEvening}
                 className="mt-1 w-full min-h-[120px] bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-[16px] leading-relaxed text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 resize-none" />
               {text.trim() && <p className="text-xs text-[#6b5d4a] mt-1">{wordCount(text)} word{wordCount(text) === 1 ? "" : "s"} · kept on this phone until you save</p>}
+              {listening && voiceQuiet && <p role="status" className="text-[13px] text-[#6b5d4a] mt-1">I'm not hearing any words yet. Tap Stop, then try again — or type.</p>}
 
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {hasVoice && (
@@ -396,7 +400,8 @@ export default function NotesPage() {
               {result?.kind === "saved" && (
                 <div className="mt-3 rounded-lg bg-[#f3f7ef] border border-[#cfe0c2] px-3 py-2" role="status">
                   <p className="text-sm text-[#3f5a2a]">
-                    Saved — {result.note.wordCount} word{result.note.wordCount === 1 ? "" : "s"}, every one kept{result.note.visibility === "trip" ? ", shared with the trip" : ", just for you"}.
+                    {/* ("spoken" said here too — on the note's own line below it went unseen; Ken, Oct 2) */}
+                    Saved — {result.note.wordCount} {result.note.source === "voice" ? "spoken " : ""}word{result.note.wordCount === 1 ? "" : "s"}, every one kept{result.note.visibility === "trip" ? ", shared with the trip" : ", just for you"}.
                     {result.note.wordCount !== result.sentWords && ` (This phone counted ${result.sentWords} — tap below and check the words.)`}
                   </p>
                   <button onClick={() => setShowSaved((s) => !s)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">{showSaved ? "Hide the saved words" : "Show the saved words"}</button>
@@ -413,8 +418,12 @@ export default function NotesPage() {
 
             {/* Asked once, after a first note: may others' trip stories use what this person says about places? */}
             {settings && settings.storyUse === null && myCount > 0 && (
-              <section className="mt-3 rounded-xl border border-[#e0d8cc] bg-white p-3">
-                <p className="text-sm text-[#3a3128]">One question, asked once: later, when someone on the trip asks Scout to write a story of the trip, may it use what your notes say about places — the food, the sights, how a place felt — even from notes you keep to yourself? Never anything personal about you or anyone else.</p>
+              // (its own card with a heading, apart from the Saved line — under it, the question read as more of the
+              // same and Ken answered it only after he went looking; Oct 2)
+              <section className="mt-4 rounded-xl border-2 border-[#e8c98f] bg-[#fff8ec] p-3" aria-labelledby="story-q">
+                <h2 id="story-q" className="text-sm font-semibold text-[#3a3128]">One question, asked once</h2>
+                <p className="text-sm text-[#3a3128] mt-1">If someone on the trip later asks Scout to write the story of the trip, may it use what your notes say about places — the food, the sights, how a place felt — even from notes you keep to yourself?</p>
+                <p className="text-sm text-[#6b5d4a] mt-1">Never anything personal about you or anyone else.</p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {/* (two equal choices — neither is the "right" answer; tester t1) */}
                   <button onClick={() => answerStoryUse(true)} className="min-h-[44px] px-4 rounded-xl bg-[#f0ebe3] text-[#514636] text-sm">Yes, what I say about places</button>

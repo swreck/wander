@@ -4557,11 +4557,14 @@ RULES:
     const answerPieces: AnswerPiece[] = [];
     const fetchedPages: { url: string; title: string }[] = [];
     let askedAgainForWords = false;
+    const startedAt = Date.now();
 
     for (let turn = 0; turn < 8; turn++) {
       const response = await anthropic.messages.create({
         model: "claude-opus-5",
-        max_tokens: 2048,
+        // (4,096: a full answer on one place across every source, or a table of eight days, ran past 2,048 and was cut
+        // off mid-row — Ken, Oct 2)
+        max_tokens: 4096,
         system,
         tools: offeredTools,
         messages,
@@ -4662,7 +4665,7 @@ RULES:
     // Opus 5 list price: $5/M input, $25/M output, one-hour cache writes 2x input ($10/M), cache reads 0.1x,
     // searches $10/1,000
     const dollars = (used.input * 5 + used.cacheWrite * 10 + used.cacheRead * 0.5 + used.output * 25) / 1e6 + used.searches * 0.01;
-    console.log(`Scout usage: steps=${used.steps} input=${used.input} cacheWrite=${used.cacheWrite} cacheRead=${used.cacheRead} output=${used.output} searches=${used.searches} ≈ $${dollars.toFixed(3)}`);
+    console.log(`Scout usage: steps=${used.steps} input=${used.input} cacheWrite=${used.cacheWrite} cacheRead=${used.cacheRead} output=${used.output} searches=${used.searches} seconds=${((Date.now() - startedAt) / 1000).toFixed(1)} ≈ $${dollars.toFixed(3)}`);
 
     // Persist conversation to DB
     if (tripId && req.user?.travelerId && finalReply) {
