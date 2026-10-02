@@ -7,6 +7,7 @@ import useBackToClose from "../hooks/useBackToClose";
 import { sendToGuideOwner } from "../lib/tellGuideOwner";
 import { withPhoneLinks } from "../lib/guideDisplay";
 import ScoutSources, { hasSources, type AnswerSources } from "./ScoutSources";
+import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 
 /** Phone numbers in an answer can be tapped to call */
 let phoneKey = 0;
@@ -16,37 +17,68 @@ function phones(text: string): ReactNode[] {
     : p.text);
 }
 
-/** Lightweight inline markdown: **bold**, *italic*, and `- ` list items */
+/** Inline **bold** and *italic* (a lone asterisk showed on screen as-is), with phone numbers to tap */
+function inline(content: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let remaining = content;
+  let key = 0;
+  while (remaining.length > 0) {
+    const m = remaining.match(/\*\*(.+?)\*\*|\*([^*\s](?:[^*]*[^*\s])?)\*/);
+    if (m && m.index !== undefined) {
+      if (m.index > 0) parts.push(...phones(remaining.slice(0, m.index)));
+      parts.push(m[1] !== undefined ? <strong key={key++}>{m[1]}</strong> : <em key={key++}>{m[2]}</em>);
+      remaining = remaining.slice(m.index + m[0].length);
+      continue;
+    }
+    parts.push(...phones(remaining));
+    break;
+  }
+  return parts;
+}
+
+const tableRow = (line: string) => /^\s*\|.*\|\s*$/.test(line);
+const tableRule = (line: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line);
+const cellsOf = (line: string) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+
+/** Lightweight markdown: **bold**, *italic*, `- ` list items, and tables */
 function renderMarkdown(text: string): ReactNode {
   // A bold heading at a line's start that runs straight into its text ("**In your carry-on**Larisa's…" — the break is
   // lost where cited pieces join) gets its own line (Ken's demo, Oct 1)
   const lines = text.replace(/(^|\n)(\*\*[^*\n]+\*\*)(?=[^\s:.,;—-])/g, "$1$2\n").split("\n");
-  return lines.map((line, li) => {
+  const out: ReactNode[] = [];
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    // A table: a header row, its rule, and rows — drawn as one, small enough for a phone (Ken, Oct 2: Scout's four
+    // biking days came out as rows of "|" and "---")
+    if (tableRow(line) && li + 1 < lines.length && tableRule(lines[li + 1])) {
+      const head = cellsOf(line);
+      const rows: string[][] = [];
+      let j = li + 2;
+      for (; j < lines.length && tableRow(lines[j]); j++) rows.push(cellsOf(lines[j]));
+      out.push(
+        <span key={`t${li}`} className="block my-1.5 overflow-x-auto whitespace-normal">
+          <table className="w-full border-collapse text-[13px] leading-snug">
+            <thead><tr>{head.map((h, k) => <th key={k} className="text-left font-semibold align-bottom px-1.5 py-1 border-b border-[#d8cfc0]">{inline(h)}</th>)}</tr></thead>
+            <tbody>{rows.map((r, ri) => (
+              <tr key={ri} className="border-b border-[#ebe4d8] last:border-0">
+                {head.map((_, k) => <td key={k} className="align-top px-1.5 py-1">{inline(r[k] ?? "")}</td>)}
+              </tr>
+            ))}</tbody>
+          </table>
+        </span>,
+      );
+      li = j - 1;
+      continue;
+    }
     // List items
     const isList = /^[-•]\s/.test(line.trim());
-    const content = isList ? line.trim().replace(/^[-•]\s/, "") : line;
-
-    // Parse inline **bold** and *italic* (a lone asterisk showed on screen as-is)
-    const parts: ReactNode[] = [];
-    let remaining = content;
-    let key = 0;
-    while (remaining.length > 0) {
-      const m = remaining.match(/\*\*(.+?)\*\*|\*([^*\s](?:[^*]*[^*\s])?)\*/);
-      if (m && m.index !== undefined) {
-        if (m.index > 0) parts.push(...phones(remaining.slice(0, m.index)));
-        parts.push(m[1] !== undefined ? <strong key={key++}>{m[1]}</strong> : <em key={key++}>{m[2]}</em>);
-        remaining = remaining.slice(m.index + m[0].length);
-        continue;
-      }
-      parts.push(...phones(remaining));
-      break;
-    }
-
     if (isList) {
-      return <div key={li} className="flex gap-1.5 mt-0.5"><span className="shrink-0">–</span><span>{parts}</span></div>;
+      out.push(<span key={li} className="flex gap-1.5 mt-0.5"><span className="shrink-0">–</span><span>{inline(line.trim().replace(/^[-•]\s/, ""))}</span></span>);
+      continue;
     }
-    return <span key={li}>{parts}{li < lines.length - 1 ? "\n" : ""}</span>;
-  });
+    out.push(<span key={li}>{inline(line)}{li < lines.length - 1 ? "\n" : ""}</span>);
+  }
+  return out;
 }
 
 interface PlaceCard {
@@ -119,7 +151,7 @@ function loadMessages(): ChatMessage[] {
     const msgs: ChatMessage[] = raw ? JSON.parse(raw) : [];
     // A question with no answer (the app closed mid-reply) says so, instead of just sitting there
     if (msgs.length && msgs[msgs.length - 1].role === "user") msgs.push({ role: "assistant", text: CUT_OFF, error: true });
-    for (const m of msgs) if (m.role === "assistant" && (m.text === CUT_OFF || /^(No signal right now|That took over 45 seconds|I couldn't get an answer just now)/.test(m.text))) m.error = true;
+    for (const m of msgs) if (m.role === "assistant" && (m.text === CUT_OFF || /^(No signal right now|That took over 45 seconds|That took too long|I couldn't get an answer just now)/.test(m.text))) m.error = true;
     return msgs;
   } catch { return []; }
 }
@@ -142,7 +174,11 @@ function clearMessages() {
   }
 }
 
-const CHAT_TIMEOUT_MS = 45000; // 45 seconds
+// Two and a half minutes: a long answer (a table of eight days, every source on a place) takes Scout over a minute to
+// write, and at 45 seconds the phone gave up on answers the server then finished (Ken, Oct 2 — measured: 2,048 words'
+// worth of answer, the old limit, written after the phone had stopped waiting)
+const CHAT_TIMEOUT_MS = 150000;
+const LONG_WAIT_MS = 20000; // when the waiting line says it's still working
 
 export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatBubbleProps) {
   const user = useAuth().user;
@@ -295,9 +331,18 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   minimizeRef.current = minimize;
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<any>(null);
+  // who holds the app's microphone for Scout, while it listens
+  const recognitionRef = useRef<VoiceHandlers | null>(null);
   // Whether the voice button's words still go into the box (not once the question has been sent)
   const voiceLiveRef = useRef(false);
+  const [voiceQuiet, setVoiceQuiet] = useState(false);
+  // a question still being answered after LONG_WAIT_MS
+  const [waitedLong, setWaitedLong] = useState(false);
+  useEffect(() => {
+    if (!sending) { setWaitedLong(false); return; }
+    const t = setTimeout(() => setWaitedLong(true), LONG_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [sending]);
   // One question at a time, known the instant it's sent (the `sending` state a callback holds can be from before)
   const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -404,7 +449,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     // dictated question reached Scout twice, a second apart — Send, then the mic's own send as it stopped)
     if (recognitionRef.current) {
       voiceLiveRef.current = false;
-      try { recognitionRef.current.stop(); } catch { /* already stopped */ }
+      stopVoice(recognitionRef.current);
       setListening(false);
     }
 
@@ -500,7 +545,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const errorMsg = offline
         ? `No signal right now, so I can't answer. Today's plan from ${/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still on the Now tab.`
         : isTimeout
-        ? "That took over 45 seconds — the connection might be slow. Want me to try again?"
+        ? "That took too long — over two minutes. Want me to try again?"
         : "I couldn't get an answer just now. Want me to try again?";
       setMessages((prev) => [...prev, { role: "assistant", text: errorMsg, error: true }]);
       setFailed(true);
@@ -549,62 +594,46 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // resizes and shows the latest words (Ken, Oct 1: dictating his first question, the box didn't scroll)
   useEffect(() => { autoResize(); }, [input, autoResize]);
 
+  // The app's one microphone (lib/voice.ts), started on the tap itself
   const toggleVoice = useCallback(() => {
     if (listening) {
-      recognitionRef.current?.stop();
+      stopVoice(recognitionRef.current ?? undefined);
       setListening(false);
       return;
     }
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Voice input isn't supported in this browser. Try Safari or Chrome.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
     // Words already typed stay; what's said follows them
     const typed = (inputRef.current?.value ?? "").trim();
     voiceLiveRef.current = true;
-
-    recognition.onresult = (event: any) => {
+    setVoiceQuiet(false);
+    const handlers: VoiceHandlers = {
       // (already sent: late words don't refill the box)
-      if (!voiceLiveRef.current) return;
-      const transcript = Array.from(event.results)
-        .map((r: any) => r[0].transcript)
-        .join("");
-      setInput(typed ? `${typed} ${transcript.trimStart()}` : transcript);
+      onText: (said) => {
+        if (!voiceLiveRef.current) return;
+        setVoiceQuiet(false);
+        setInput(typed ? `${typed} ${said.trimStart()}` : said);
+      },
+      // Tap to start, tap to stop, as the iPhone keyboard's mic: everything heard stays in the box for a glance and
+      // Send (Ken, Oct 1 — a misheard question shouldn't go straight to Scout)
+      onEnd: () => {
+        setListening(false);
+        setVoiceQuiet(false);
+        if (recognitionRef.current === handlers) recognitionRef.current = null;
+        voiceLiveRef.current = false;
+      },
+      onError: (error) => {
+        if (error === "not-allowed") alert("Wander can't use the microphone. In the iPhone's Settings, allow it for Wander, then try again.");
+      },
+      // listening, but no words coming (Ken, Oct 2: the mic was on and the box stayed empty, with nothing said)
+      onQuiet: () => { if (voiceLiveRef.current) setVoiceQuiet(true); },
     };
-
-    recognition.onend = () => {
-      setListening(false);
-      if (recognitionRef.current === recognition) recognitionRef.current = null;
-      // Tap to start, tap to stop, as the iPhone keyboard's mic: everything heard stays in the box for a glance
-      // and Send (Ken, Oct 1 — a misheard question shouldn't go straight to Scout)
-      voiceLiveRef.current = false;
-    };
-
-    recognition.onerror = (event: any) => {
-      setListening(false);
-      if (recognitionRef.current === recognition) recognitionRef.current = null;
-      if (event.error === "not-allowed") {
-        alert("Microphone access was denied. Check your browser settings to allow it.");
-      }
-    };
-
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-      setListening(true);
-    } catch {
-      setListening(false);
-    }
+    recognitionRef.current = handlers;
+    if (startVoice(handlers)) setListening(true);
+    else { recognitionRef.current = null; voiceLiveRef.current = false; }
   }, [listening]);
+  // A screen that goes hands the microphone back
+  useEffect(() => () => { if (recognitionRef.current) stopVoice(recognitionRef.current); }, []);
 
-  const hasSpeechRecognition = typeof window !== "undefined" &&
-    ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  const hasSpeechRecognition = voiceSupported();
 
   // Chat paste: no special handling — paste into chat just pastes as text.
   // Universal capture handles paste outside text fields.
@@ -693,7 +722,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               Ask Scout…
             </button>
             {hasSpeechRecognition && (
-              <button onClick={() => { openPanel("read"); setTimeout(toggleVoice, 250); }} className="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl" aria-label="Talk to Scout">
+              // (open, cursor in the box, listening — all inside the tap: started a quarter second later, an iPhone could
+              // turn the microphone on and never send a word back; Ken, Oct 2)
+              <button onClick={() => { openPanel("type"); toggleVoice(); }} className="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl" aria-label="Talk to Scout">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" />
                 </svg>
@@ -862,7 +893,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                   const body = draft ? msg.text.slice(0, draft.index).trimEnd() : msg.text;
                   return (
                     <>
-                      <p className="whitespace-pre-wrap">{renderMarkdown(body)}</p>
+                      <div className="whitespace-pre-wrap">{renderMarkdown(body)}</div>
                       {draft && (
                         <div className="mt-2 rounded-xl bg-white border border-[#e0d8cc] p-3">
                           <p className="text-xs text-[#6b5d4a]">Message for {draft[1]}</p>
@@ -945,8 +976,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {sending && (
             <div className="flex justify-start" data-thinking role="status" aria-busy="true">
               <div className="bg-[#f0ebe3] rounded-2xl px-3.5 py-2 text-sm text-[#514636]">
-                {/* (to Larisa it's her own Guide — round 12 delight audit) */}
-                {/^larisa$/i.test(user?.displayName || "") ? "Looking in your Guide" : "Looking in Larisa's Guide"}
+                {/* (to Larisa it's her own Guide — round 12 delight audit; and after a while it says it's still at it — a
+                    long answer can take a minute or more, and the old 45 seconds gave up on answers that came; Ken, Oct 2) */}
+                {waitedLong
+                  ? "Still working — a long answer takes a minute or two"
+                  : /^larisa$/i.test(user?.displayName || "") ? "Looking in your Guide" : "Looking in Larisa's Guide"}
                 <span className="inline-flex gap-0.5 ml-0.5" aria-hidden>
                   <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
                   <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
@@ -998,6 +1032,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
         {/* Input */}
         <form onSubmit={handleFormSubmit} className="px-3 pt-3 pb-[max(env(safe-area-inset-bottom),12px)] border-t border-[#e5ddd0]">
+          {listening && voiceQuiet && (
+            <p role="status" className="text-[13px] text-[#6b5d4a] mb-2">
+              I'm not hearing any words yet. Tap the red mic to stop, then try again — or type.
+            </p>
+          )}
           <div className="flex items-end gap-2">
             <textarea
               ref={inputRef}
@@ -1016,7 +1055,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             />
             {hasSpeechRecognition && (
               <button
-                onClick={toggleVoice}
+                // the cursor goes to the box as it starts listening (Ken, Oct 2)
+                onClick={() => { if (!listening) inputRef.current?.focus(); toggleVoice(); }}
                 type="button"
                 disabled={!online}
                 className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-30 ${

@@ -2,6 +2,36 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 — Ken's iPhone Check, First Pass
+
+### Fixed
+- **Her route for the day opens in Google Maps with every stop found** (Day screen, "See her route for the day in
+  Google Maps"). Her links name stops bare, and the Google Maps app looks a bare name up near the phone: from
+  California three of her Oct 16 stops weren't found and one landed in Amsterdam ("Can't seem to find that place").
+  Wander now adds the day's city and "Japan" to any stop that doesn't name them; her stops and order are unchanged.
+- **Talking to Scout puts the words in the box from any screen** (Scout's mic). Scout and Notes each made their own
+  speech recognizer, Notes kept listening after you left it, and the mic on Scout's bar started a quarter second
+  after the tap; on an iPhone the microphone came on and no words arrived. Now the app has one microphone
+  (`lib/voice.ts`), started on the tap itself, handed back when a screen goes; tapping the mic puts the cursor in
+  Scout's box; and after six seconds with no words, Scout or Notes says "I'm not hearing any words yet…".
+- **Pinching or dragging the Home map with two fingers works wherever the fingers land.** A gesture starting on a
+  city's name or marker went nowhere, so on a small map it seemed unsure whether two fingers were down. A tap on a
+  marker still opens its day; one finger still scrolls the page.
+- **Tables in Scout's answers are drawn as tables** (they came through as rows of "|" and "---").
+- **Scout waits for a long answer instead of giving up** (Scout panel). The phone stopped waiting at 45 seconds, but
+  a long answer (every source on one place, a table of eight days) takes Scout over a minute to write: the server
+  finished and saved answers the phone had already called "too slow" (measured Oct 2, 9:11 PM). The phone now waits
+  up to two and a half minutes; after 20 seconds the waiting line says "Still working — a long answer takes a minute
+  or two". Answers may run twice as long before being cut off (4,096 tokens; one stopped mid-table at 2,048).
+  The server logs how long each answer took.
+
+### Changed
+- Notes: the Saved line says "spoken" for a spoken note ("Saved — 8 spoken words, every one kept…").
+- Notes: the one-time trip-stories question is its own headed card ("One question, asked once"), apart from the
+  Saved line — it read as more of the same and was easy to pass by.
+
+No SPEC change.
+
 ## 2026-10-01 — The Home Map, Checked Against Production
 
 On production's own city locations the deployed map had a name sitting on a line on the iPhone 15 ("Karatsu ·

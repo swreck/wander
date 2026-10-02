@@ -116,6 +116,28 @@ function areaOf(b: GuideItem, dayWords = ""): string {
   // (the town alone: Shigaraki isn't in Kyoto's prefecture — "Shigaraki, Kyoto" could mislead a search)
   return town && town !== city && dayWords.toLowerCase().includes(town.toLowerCase()) ? `${town}, ` : `${city}, `;
 }
+/**
+ * Her route for the day with each stop's town added ("Umeno Vase Shop" → "Umeno Vase Shop, Tokyo, Japan"). Her link
+ * names stops bare, and the Google Maps app looks a bare name up near the phone: from California three of her Oct 16
+ * stops weren't found and one landed in Amsterdam ("Can't seem to find that place" — Ken's iPhone check, Oct 2). Her
+ * stops, order and everything else in the link stay as she made it.
+ */
+function placedRoute(url: string, area: string): string {
+  try {
+    const u = new URL(url);
+    const [before, path] = u.pathname.split("/maps/dir/");
+    if (path === undefined) return url;
+    const town = area.replace(/,\s*$/, "");
+    const stops = path.split("/").map((s) => {
+      if (!s || s.startsWith("@") || s.startsWith("data=")) return s;
+      const name = decodeURIComponent(s.replace(/\+/g, " "));
+      const placed = /japan|日本/i.test(name) ? name : town && name.toLowerCase().includes(town.toLowerCase()) ? `${name}, Japan` : `${name}, ${area}Japan`;
+      return encodeURIComponent(placed).replace(/%20/g, "+").replace(/%2C/g, ",");
+    });
+    u.pathname = `${before}/maps/dir/${stops.join("/")}`;
+    return u.toString();
+  } catch { return url; }
+}
 /** Her choices on a line: [{ name: "Omen", note: "udon near Ginkaku-ji" }] */
 function choicesOf(b: GuideItem): { name: string; note: string }[] {
   return (b.detail || "").split("\n").filter((l) => l.startsWith("Choice: ")).map((l) => {
@@ -166,7 +188,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       {(() => {
         const url = blocks.map((b) => (b.detail || "").match(/^Her whole route for the day: (\S+)$/m)?.[1]).find(Boolean);
         return url ? (
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636]">
+          <a href={placedRoute(url, areaOf(blocks[0], dayWords))} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <circle cx="6" cy="19" r="2" /><circle cx="18" cy="5" r="2" /><path d="M6 17V9a4 4 0 0 1 4-4h6M18 7v8a4 4 0 0 1-4 4H8" />
             </svg>
