@@ -13,6 +13,7 @@ import { getCountryAdvisories, getPreTripSummary } from "../services/travelAdvis
 import { addDayChoice, removeDayChoice, listDayChoices, plainDay } from "../services/dayChoices.js";
 import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
+import { appleGuidesOf } from "../services/guide/appleGuides.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
 const router = Router();
@@ -3312,10 +3313,15 @@ export async function executeTool(
           } catch { /* not a link */ }
           return null;
         }));
+        // (the place on her Apple Maps guide of that name — "UMENO VASE SHOP" — when her sheet gives no pin or address;
+        // the same name rule, and only one place: a different branch on her map is never swapped in)
+        const onMap = pin || address ? null : one((await appleGuidesOf(tripId)).flatMap((g) => g.places)
+          .filter((p) => p.name && p.lat != null && p.lng != null && (() => { const n = nameOf(p.name!); return n === want || (n.includes(want) && words(want) * 2 >= words(n)); })())
+          .map((p) => `${p.lat},${p.lng}`));
         // (a hotel's address from its booking — "back to the Imperial" — when no line of hers gives one)
-        const stay = pin || address ? null : one((await prisma.accommodation.findMany({ where: { tripId, address: { not: null } }, select: { name: true, address: true } }))
+        const stay = pin || address || onMap ? null : one((await prisma.accommodation.findMany({ where: { tripId, address: { not: null } }, select: { name: true, address: true } }))
           .filter((s) => flat(s.name).length >= 4 && (want.includes(flat(s.name)) || flat(s.name).includes(want))).map((s) => s.address));
-        herPlace = pin || address || stay || (linkWords ? `${linkWords}${town ? `, ${town}` : ""}` : null);
+        herPlace = pin || address || onMap || stay || (linkWords ? `${linkWords}${town ? `, ${town}` : ""}` : null);
       }
       const where = herPlace || `${dest}${town && !flat(dest).includes(flat(town)) ? `, ${town}` : ""}, Japan`;
       const way: "walk" | "train" | "taxi" = input.way === "train" || input.way === "taxi" ? input.way : "walk";
@@ -4434,6 +4440,7 @@ TALKING WITH THEM (every answer):
 CITING (every answer): the Guide, the right-now statuses and Ken's rail sheet are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
 PHOTOS: when a photo comes with the question (a menu, a sign, a ticket, a screen), read it carefully. Translate Japanese (or any other language) into plain English when that's what they need — line by line for a menu or sign, with the Japanese kept beside each line when they might show it to someone. Say what you read from the photo as from the photo ("Your photo shows…"), never as the Guide; when the photo and her Guide meet (a ticket's train and the rail sheet, a restaurant's name and her booking), say both and whether they match. Words you can't make out: say so — never guess a time, a price, a platform or an ingredient. Food and allergies (Andy is allergic to alliums — onion, garlic, leek, chive): point out what the photo shows that may contain them, give the Japanese words to show a server (玉ねぎ・ねぎ・にんにく), and say plainly that a menu photo can't prove what's in a dish — confirm with the staff. A photo isn't kept: if they ask about it again later without sending it, say to send it again.
 GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing. When directions says her Guide has no address for the place, say so plainly and that the button only searches Maps for the name — never present a searched place as hers.
+HER APPLE MAPS GUIDES: maps Larisa made in Apple Maps, one per day (the HER APPLE MAPS GUIDES lines), apart from her sheet. Call each "her Apple Maps guide for <day>" — never "her Guide" or "her tab" (her Guide is the sheet), and say it may have changed since Wander read it. Their places are NOT in visiting order: her day tab's order is the plan, and you never reorder her day or suggest a new order unless asked — even then, say it's your suggestion and her plan is the order she wrote. Use the "What's close to what" lines to say which places are close together and which need a train or taxi — always as straight-line distance between her map's places ("about 300 m apart in a straight line"), and say a river, a big station or a hill can make the walk longer. Never turn a distance into minutes — "a couple of minutes on foot" or "a short 5-minute walk" is a walking time you don't have; only her own words give times. A place on her map but not in her day tab, or in her day tab but not on her map, or a different branch or address on each: say both, with where each comes from, and suggest checking with Larisa — never pick one silently. Distances exist only between places on her maps; for anything else say Wander doesn't have its location.
 WHERE IN HER SHEET: when someone asks where something is in Larisa's sheet ("which tab has…", "where did I put…", "where does it say…"), answer with the tab, named as she named it, and her words there, cited. Then say in one short sentence that "Sources" under this answer opens that spot in her sheet. If her Guide has it in more than one tab, name each, and cite each. Say where you found it — never that it's the only place or that no other tab has it: her pictures and long tabs can hold more than your copy shows. If it isn't in the copy you have, say so; never guess a tab.
 
 ANSWERING FROM THE GUIDE (most important):

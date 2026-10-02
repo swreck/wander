@@ -21,7 +21,8 @@ type SourceView =
   | { type: "wander"; what: string; from: { label: string; cells: CellWords[] }[] }
   | { type: "added"; by: string; text: string }
   | { type: "web"; title: string; url: string; quote: string }
-  | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: CellWords[] };
+  | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: CellWords[] }
+  | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean };
 
 export interface AnswerSources {
   copy: string | null;
@@ -171,6 +172,22 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
       <div>
         <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.owner}'s {s.source.toLowerCase()}{s.authorship ? `, ${s.authorship}` : ""} — not {guide}</p>
         <OtherSheet name={s.source} owner={s.owner}><Cells cells={s.cells} tripId={tripId} /></OtherSheet>
+      </div>
+    );
+  }
+  if (s.type === "map") {
+    // Her Apple Maps guide for a day — her map, not her sheet; distances are Wander's, between the map's own places
+    const read = new Date(s.readAt).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return (
+      <div>
+        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">
+          {s.worked ? `Worked out by Wander from ${v.her} Apple Maps guide` : `${v.Her} Apple Maps guide`} — not {guide}
+        </p>
+        {s.worked && <p className="text-sm text-[#3a3128]">Straight-line distances between the places on {v.her} map, not walking times.</p>}
+        <p className="text-sm text-[#3a3128]">“{s.guide}”, as Wander read it {read}: {s.places.map((p) => p.name).join(" · ")}</p>
+        <a href={s.link} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+          Open {v.her} map ↗
+        </a>
       </div>
     );
   }

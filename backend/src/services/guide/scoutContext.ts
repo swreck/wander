@@ -7,6 +7,7 @@
  */
 
 import prisma from "../db.js";
+import { appleGuidesOf, guideLines } from "./appleGuides.js";
 import { tabsOfCopy, wordsAt, cellsOfItem, ideaRef, completeCells, type ContextLine, type SourceView, type SourcePart } from "./sources.js";
 
 const ymd = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
@@ -438,6 +439,18 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
           say(out, line, { type: "guide", label: `Her ${n.tabName} tab`, cells: wordsAt([`${n.tabName}!${n.rowIndex}`], tabs) });
         }
       }
+    }
+  }
+  // Her Apple Maps guides — her maps, apart from her sheet; their places with Wander's straight-line distances
+  // (Oct 2: "the locations are not in order. Scout might add value by saying what's close and what isn't")
+  const maps = await appleGuidesOf(tripId);
+  if (maps.length) {
+    say(out, "\nHER APPLE MAPS GUIDES (maps Larisa made in Apple Maps, apart from her sheet — her map, not her sheet; places are NOT in visiting order):");
+    for (const g of maps) {
+      const src = (worked: boolean): SourceView => ({ type: "map", guide: g.name, link: g.link, readAt: g.readAt, places: g.places.filter((p) => p.name).map((p) => ({ name: p.name!, address: p.address })), ...(worked ? { worked: true } : {}) });
+      const lines = guideLines(g, g.date ? weekday(g.date) : null);
+      const at = lines.findIndex((l) => l.startsWith("  What's close"));
+      lines.forEach((l, i) => say(out, l, src(at >= 0 && i >= at)));
     }
   }
   const superseded = (((snapshot as any).report?.supersededPlans) || []) as { tab: string; day: string; current: string; earlier: string[] }[];
