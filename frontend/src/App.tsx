@@ -18,6 +18,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import GuidePage from "./pages/GuidePage";
 import NotesPage from "./pages/NotesPage";
+import WholeTripPage from "./pages/WholeTripPage";
 import JoinPage from "./pages/JoinPage";
 import CityBoard from "./pages/CityBoard";
 import TripStoryPage from "./pages/TripStoryPage";
@@ -318,6 +319,7 @@ function AppRoutes() {
       <Route path="/day/:date" element={<ProtectedRoute><DayPage /></ProtectedRoute>} />
       <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
       <Route path="/notes" element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
+      <Route path="/whole-trip" element={<ProtectedRoute><WholeTripPage /></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
       {/* A step-by-step checklist from another source (the Shin-Osaka ticket pickup, Ken's rail sheet) */}
       <Route path="/checklist/:sourceId/:tab" element={<ProtectedRoute><ChecklistPage /></ProtectedRoute>} />

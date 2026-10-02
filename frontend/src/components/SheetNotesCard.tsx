@@ -25,6 +25,7 @@ import useBackToClose from "../hooks/useBackToClose";
 import { LinkedText } from "./GuideText";
 import { useAuth } from "../contexts/AuthContext";
 import { tabLabel, voiceFor } from "../lib/guideDisplay";
+import FindInGuide from "./FindInGuide";
 
 interface SheetNote {
   id: string;
@@ -201,6 +202,9 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
         </h2>
         <span className="text-sm text-[#6b5d4a]">{expanded ? "\u25B4" : "\u25BE"}</span>
       </button>
+
+      {/* Find a word anywhere in her tabs \u2014 the cell, the day, and the spot in her sheet (round 16) */}
+      <FindInGuide tripId={tripId} />
 
       {expanded && (
         <div className="space-y-3">

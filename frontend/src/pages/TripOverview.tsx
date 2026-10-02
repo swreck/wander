@@ -944,6 +944,7 @@ function HomeViewToggle({
   const [view, setView] = useState<"trip" | "details">(
     () => (localStorage.getItem("wander:home-view") as any) || "trip"
   );
+  const navigate = useNavigate();
 
   function toggleView(v: "trip" | "details") {
     setView(v);
@@ -971,6 +972,14 @@ function HomeViewToggle({
           <span className="font-bold text-white rounded-sm leading-none" style={{ fontSize: 10, backgroundColor: "#c0392b", padding: "1px 3px" }} aria-hidden>B</span>
           with Backroads
         </p>
+      )}
+      {/* Every day, stay, booked meal, flight, train and date to keep in mind, on one page — what the sheet did better
+          (round 16) */}
+      {days.length > 0 && (
+        <button onClick={() => navigate("/whole-trip")} className="w-full min-h-[44px] -mt-1 mb-3 flex items-center justify-between px-3 rounded-xl bg-white border border-[#e0d8cc] text-left">
+          <span className="text-sm text-[#3a3128]">The whole trip on one page<span className="block text-xs text-[#6b5d4a]">Every day, place to sleep, booked meal, flight and train</span></span>
+          <span className="text-[#6b5d4a]" aria-hidden>›</span>
+        </button>
       )}
       {false && (
         <AtAGlanceView

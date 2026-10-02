@@ -45,6 +45,27 @@ No SPEC change.
   answer read in full (the Omotesando answer now quotes their email, and its whisky-bar extra is in that email).
 - Not yet deployed (waiting for Ken's go): it changes what every Scout answer starts from.
 
+## 2026-10-02 — Where the Sheet Won: Find a Word, the Whole Trip on One Page
+
+A fresh reviewer went through all 26 tabs of her Guide asking, for each section, when someone would rather open the
+sheet than Wander (ux-round16). Two of its top answers, built. Not deployed.
+
+### Added
+- **Find a word in your Guide** (Home → "Your Guide, tab by tab", the box at its top — no need to open the list).
+  Every tab searched on the phone, no accents needed ("osaka" finds "Shin-Ōsaka"); each find shows the tab and cell,
+  her words around it with the word marked, the day it belongs to ("Wed, Oct 28 ›" — a booking's email belongs to the
+  dinner, not its cancel-by date), and "Open this spot in your sheet ↗". Pictures are found by what Wander read in
+  them (their summaries — never a booking screenshot's ticket or traveler numbers); card numbers never show. After
+  the first search it works with no signal. A word she never wrote: "Nothing in your Guide says '…' — at least in the
+  copy Wander has."
+- **The whole trip on one page** (Home → "The whole trip on one page", under the calendar). Day by day (where, her
+  line for the day in her words, where you sleep, meals booked); where you sleep (dates and nights, whose, check-in
+  and check-out times, confirmation, free-to-cancel-until with whose); every meal in her Dining Resos tab, with any
+  disagreement between her tabs; flights and booked trains from Ken's rail sheet in one list; every date to keep in
+  mind, not only the next two weeks. A table on a laptop, a list on a phone; every row opens its day.
+
+No SPEC change beyond the new pages; SPEC UPDATE NEEDED: Home (two new entry points).
+
 ## 2026-10-02 — Scout Finds the Exact Spot in Her Sheet; Notes by Place
 
 Ken: "if Larisa wanted to check something in her spreadsheet, asking Scout would be the fastest way to find the exact

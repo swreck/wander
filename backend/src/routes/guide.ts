@@ -19,6 +19,7 @@ import { getUserRole } from "../middleware/role.js";
 import { importGuideSnapshot } from "../services/guide/importSnapshot.js";
 import { sheetLinkOf, otherSheetLinks } from "../services/guide/sheetLink.js";
 import { tabsOfCopy, cellsOfItem, completeCells, spotsOf } from "../services/guide/sources.js";
+import { withoutFinancialDetails } from "../services/sources/filter.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -107,6 +108,41 @@ router.get("/items/:tripId", async (req: AuthRequest, res) => {
   const snap = await prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true } });
   const tabs = snap ? await tabsOfCopy(snap.id) : [];
   res.json(items.map(({ cells, ...i }) => ({ ...i, spots: spotsOf(completeCells(`${i.title}\n${i.detail || ""}`, cellsOfItem({ cells, sourceRef: i.sourceRef }, tabs), tabs, i.source)) })));
+});
+
+// ── Her words, every tab, for "Find in your Guide" (round 16: finding where she wrote a word was a reason to open the
+// sheet — its Find jumps to the cell). Searched on the phone, so it works with no signal once read. Each cell's words
+// (card numbers left out), what Wander read from each picture (its summary, never the whole transcription — a
+// booking screenshot carries ticket and traveler numbers), and the trip day a cell belongs to, when a line of a day
+// comes from it. ──
+router.get("/words/:tripId", async (req: AuthRequest, res) => {
+  const tripId = req.params.tripId as string;
+  if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
+  const snap = await prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true } });
+  if (!snap) { res.json({ tabs: [], pictures: [], dayOf: {} }); return; }
+  const tabs = await tabsOfCopy(snap.id);
+  const images = await prisma.guideImage.findMany({ where: { tripId }, select: { sha256: true, facts: true } });
+  const summaryOf = new Map(images.map((i) => [i.sha256, String((i.facts as any)?.summary || "")]));
+  const items = await prisma.guideItem.findMany({ where: { tripId, date: { not: null } }, select: { date: true, kind: true, title: true, detail: true, source: true, cells: true, sourceRef: true } });
+  const dayOf: Record<string, string> = {};
+  // The day a cell is lived: a booking's email belongs to the dinner (Oct 17), not to its cancel-by date (Oct 9) — a
+  // deadline's day is used only for a cell nothing else is on (round 16: Andy's "allium" find said Fri, Oct 9)
+  for (const pass of ["day", "deadline"] as const) {
+    for (const i of items.filter((x) => (x.kind === "deadline") === (pass === "deadline"))) {
+      const day = i.date!.toISOString().slice(0, 10);
+      for (const s of spotsOf(completeCells(`${i.title}\n${i.detail || ""}`, cellsOfItem(i, tabs), tabs, i.source))) {
+        for (const a1 of s.a1s) {
+          const k = `${s.tab}!${a1}`;
+          if (pass === "deadline" ? !dayOf[k] : !dayOf[k] || day < dayOf[k]) dayOf[k] = day;
+        }
+      }
+    }
+  }
+  res.json({
+    tabs: tabs.map((t) => ({ name: t.name, cells: t.cells.filter((c) => c.text?.trim()).map((c) => [c.a1, withoutFinancialDetails(c.text)]) })),
+    pictures: tabs.flatMap((t) => t.images.map((p) => ({ tab: t.name, anchor: p.anchor, text: summaryOf.get(p.sha256) || "" }))).filter((p) => p.text),
+    dayOf,
+  });
 });
 
 // ── Pictures, with short-lived links ──

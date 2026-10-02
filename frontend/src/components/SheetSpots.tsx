@@ -17,10 +17,12 @@ import { sheetLinks, spotHref, type SheetLinks } from "../lib/sheetLinks";
 /** Her tab as the rest of Wander names it: "Itinerary", not the download's "Japan-Oct26-Itinerary" */
 const shownTab = (t: string) => tabLabel(/-Itinerary$/i.test(t) ? "Itinerary" : t);
 
-export default function SheetSpots({ tripId, spots, label, className = "", wholeTable = false }: {
+export default function SheetSpots({ tripId, spots, label, className = "", wholeTable = false, placeSaid = false }: {
   tripId?: string | null; spots?: { tab: string; a1s: string[] }[]; label?: string; className?: string;
   /** a whole plan table, not one spot: its cells aren't named in the words ("A1:B67" read as code) */
   wholeTable?: boolean;
+  /** the tab and cell are already said just above (a find): not again after "Open your sheet ↗" */
+  placeSaid?: boolean;
 }) {
   const [links, setLinks] = useState<SheetLinks | null>(null);
   const v = voiceFor(useAuth().user?.displayName);
@@ -58,7 +60,7 @@ export default function SheetSpots({ tripId, spots, label, className = "", whole
     return (
       <p className={`text-sm ${className}`}>
         <a href={href} target="_blank" rel="noreferrer" className={linkClass}>{exact ? `Open this spot in ${whose} ↗` : `Open ${whose} ↗`}</a>
-        {!exact && <span className="text-[13px] text-[#6b5d4a]"> — then the “{shownTab(list[0].tab)}” tab{range ? `, ${range.includes(":") ? "cells" : "cell"} ${range}` : ""}</span>}
+        {!exact && !placeSaid && <span className="text-[13px] text-[#6b5d4a]"> — then the “{shownTab(list[0].tab)}” tab{range ? `, ${range.includes(":") ? "cells" : "cell"} ${range}` : ""}</span>}
       </p>
     );
   }
