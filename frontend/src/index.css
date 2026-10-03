@@ -35,6 +35,14 @@ body {
   padding-top: max(env(safe-area-inset-top, 0px), 8px);
 }
 
+/* The iPad's window controls (iPadOS 26: the "•••" / red-yellow-green in the top-left corner of every app) sit over
+   a web app's top-left — "‹ Home" was under them (Ken's iPad, Oct 2). Apple asks apps to keep that corner clear;
+   Safari doesn't tell a page where the controls are, so on the iPad Home Screen app only (html.ipad-app, set in
+   main.tsx) the top bar's left edge steps past them. Same place, same height — just clear of the corner. */
+/* (80 pt from the edge: the controls end near 62 pt. Screens in a centred column — History, Profile, How Wander works —
+   already start clear of them.) */
+html.ipad-app .top-bar { padding-left: 80px; }
+
 /* Safe area helpers */
 .safe-bottom {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);

@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 (night) — The iPad's Window Controls Corner
+
+### Fixed
+- **"‹ Home" sat under the iPad's window controls** (iPadOS 26 puts the "•••" / red-yellow-green controls in the
+  top-left corner of every app; Ken's iPad, the day screen). On the iPad Home Screen app only, the top bar's left edge
+  now starts 80 pt in — clear of the controls, same place and height, no space taken. Day, Notes, Ideas, People,
+  Settings and the whole-trip page; History, Profile and How Wander works already sit in a centred column clear of
+  them. The iPhone is unchanged. (Safari doesn't tell a web page where the controls are, so Wander recognises the
+  iPad Home Screen app and leaves the room itself.)
+
+Tested: every screen's top-left control measured on an emulated iPad Home Screen app (landscape and portrait: all at
+80 pt or more) and on the iPhone (unchanged) — 23/23.
+
+No SPEC change.
+
 ## 2026-10-02 (night) — The Day in a Few Sentences
 
 ### Added
