@@ -54,6 +54,23 @@ const sheetRow = (e: Experience) => (e.sheetRowRef ? Number((e as { priorityOrde
 const personOf = (n: string) => n.replace(/\s*\((maybe|via [^)]*)\)\s*$/i, "").trim().split(/\s+/)[0] || n;
 /** The phone's own date of a moment */
 const localDay = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+/**
+ * "Tell the group": the iPhone's share sheet with a maybe's words, link and city, for the group text (and Julie, who
+ * isn't on Wander); with no share sheet, copied. Returns a line to show, or null. On every maybe, not only just after
+ * Send — Ken, Oct 3: the button was gone by the time he looked for it, and someone else's maybe couldn't be passed on.
+ */
+async function tellGroup(by: string, words: string, link: string | null, cityName: string): Promise<string | null> {
+  const body = `${personOf(by)}: ${words}${link ? `\n${link}` : ""}\n(on Wander's maybes for ${cityName})`;
+  try {
+    if (typeof navigator.share === "function") { await navigator.share({ text: body }); return null; }
+    await navigator.clipboard.writeText(body);
+    return "Copied — paste it into your group text.";
+  } catch (e) {
+    // (closing the share sheet isn't a failure)
+    return (e as { name?: string })?.name === "AbortError" ? null : "Couldn't open sharing here — copy the words from the list instead.";
+  }
+}
+
 /** "just now", "12 min ago", "3 hours ago", "yesterday", "Tue, Oct 13" */
 function agoWords(iso: string, now = Date.now()) {
   const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
@@ -455,7 +472,8 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
     try {
       const res = await api.post<{ on: boolean; interests?: Experience["interests"]; _queued?: boolean }>(`/maybes/${exp.id}/in`, { on, ...(forName ? { forName } : {}) });
       if (res._queued) setMessage("Saved on this phone — it goes through when you have signal.");
-      else if (res.interests) { onInterests(res.interests); setMessage(null); }
+      // (a late reply mustn't wipe what another tap just said — "Copied…" vanished under an earlier I'm in)
+      else if (res.interests) onInterests(res.interests);
     } catch {
       onInterests(before);
       setMessage("That didn't go through — try again?");
@@ -647,6 +665,11 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
           {exp.sourceUrl && <a href={exp.sourceUrl} target="_blank" rel="noreferrer" className="min-h-[44px] min-w-[44px] inline-flex items-center text-sm text-[#514636]">{linkLabel(exp.sourceUrl)} ↗</a>}
           <button onClick={() => window.dispatchEvent(new CustomEvent("wander-open-chat", { detail: { prefill: isMaybe ? `About this maybe in ${cityName} — "${exp.name}": ` : `Tell me about ${exp.name} in ${cityName}` } }))}
             className="min-h-[44px] text-sm text-[#514636]">Ask Scout</button>
+          {/* Any maybe, anyone's, to the group text — with its writer's name */}
+          {isMaybe && (
+            <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName))}
+              className="min-h-[44px] text-sm text-[#514636]">Tell the group</button>
+          )}
           {myMaybe && !confirmGone && (
             <button onClick={() => setConfirmGone(true)} className="min-h-[44px] text-sm text-[#6b5d4a] underline underline-offset-2">Take back</button>
           )}
@@ -698,15 +721,7 @@ function MaybeBox({ tripId, cityId, cityName, me, onAdded }: { tripId: string; c
 
   async function tell() {
     if (!sent) return;
-    const body = `${personOf(me)}: ${sent.words}${sent.link ? `\n${sent.link}` : ""}\n(on Wander's maybes for ${cityName})`;
-    try {
-      if (typeof navigator.share === "function") { await navigator.share({ text: body }); return; }
-      await navigator.clipboard.writeText(body);
-      setLine("Copied — paste it into your group text.");
-    } catch (e) {
-      // (closing the share sheet isn't a failure)
-      if ((e as { name?: string })?.name !== "AbortError") setLine("Couldn't open sharing here — copy the words from the list instead.");
-    }
+    setLine(await tellGroup(me, sent.words, sent.link, cityName));
   }
 
   return (
