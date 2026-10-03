@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-03 (later) — Tell the Group, on Every Maybe
+
+### Changed
+- **Tell the group is on every maybe card**, anyone's, not only beside "On Tokyo's maybes." just after Send. Ken looked
+  for it a minute later and it was gone, and someone else's maybe couldn't be passed on. It sends the writer's name, the
+  words, the link and the city ("Andy: maybe kakigori… (on Wander's maybes for Tokyo)") to the iPhone's share sheet.
+- A late reply to I'm in no longer wipes the line another tap just showed ("Copied — paste it into your group text.").
+
+Tested: walk-through 34/34 (Ken forwards Andy's maybe under Andy's name), Playwright 20/20.
+
 ## 2026-10-03 — Maybes: the Group's Shared List of "Maybe We Should…"
 
 ### Added
