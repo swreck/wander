@@ -132,8 +132,9 @@ export interface Experience {
   tripId: string;
   cityId: string;
   name: string;
-  /** Who marked this idea (Larisa's Guide Activities tab, or in Wander) */
-  interests?: { displayName: string }[];
+  /** Who marked this idea (Larisa's Guide Activities tab, or in Wander) — userCode "wander:<traveler>" is "I'm in" said
+   *  in Wander ("wander:<traveler>:for:julie" is Andy saying Julie's in); her marks carry the name from her column */
+  interests?: { displayName: string; userCode?: string }[];
   description: string | null;
   sourceUrl: string | null;
   sourceText: string | null;

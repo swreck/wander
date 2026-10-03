@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { loadMaybeNews } from "../lib/maybesNews";
 
 interface Props {
   pendingChanges?: number;
@@ -19,7 +20,8 @@ const tabs = [
   },
   {
     path: "/ideas",
-    label: "Ideas",
+    // "Maybes" (Oct 2 2026, Ken: "a shared list of maybes") — her ideas and the group's own "maybe we should…"
+    label: "Maybes",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9 18h6" /><path d="M10 22h4" />
@@ -75,6 +77,38 @@ export default function BottomNav({ pendingChanges }: Props) {
   // Home tells us when its Actions panel is open, so the right tab is highlighted
   const [actionsOpen, setActionsOpen] = useState(false);
   const [scoutOpen, setScoutOpen] = useState(false);
+  // Something new on Maybes from someone else since you last looked — a dot, never an alert
+  const [maybesNew, setMaybesNew] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const look = () => {
+      const tripId = localStorage.getItem("wander:last-trip-id");
+      const me = localStorage.getItem("wander_user");
+      // (only when signed in: a refused request signs the phone out, and this quiet check must never be the cause)
+      if (!tripId || !me || !localStorage.getItem("wander_token") || document.visibilityState === "hidden") return;
+      loadMaybeNews(tripId, me).then((n) => { if (alive) setMaybesNew(n.items.length > 0); }).catch(() => { /* no signal: leave it */ });
+    };
+    look();
+    const told = (e: Event) => setMaybesNew(((e as CustomEvent).detail?.count || 0) > 0);
+    window.addEventListener("wander:maybes-news", told);
+    const onShow = () => { if (document.visibilityState === "visible") look(); };
+    const every = setInterval(look, 3 * 60_000);
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", look);
+    window.addEventListener("wander:maybes-changed", look);
+    window.addEventListener("wander:data-changed", look);
+    return () => {
+      alive = false; clearInterval(every);
+      window.removeEventListener("wander:maybes-news", told);
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("focus", look);
+      window.removeEventListener("wander:maybes-changed", look);
+      window.removeEventListener("wander:data-changed", look);
+    };
+  // (and on every screen change: on a first sign-in the trip isn't known yet when the bar first looks — Ken's dot
+  // didn't show until Wander was opened again)
+  }, [location.pathname]);
 
   useEffect(() => {
     const onPanel = (e: Event) => setActionsOpen(!!(e as CustomEvent).detail?.open);
@@ -144,6 +178,10 @@ export default function BottomNav({ pendingChanges }: Props) {
               {/* Badge dot for pending sync changes on Home */}
               {tab.path === "/" && pendingChanges && pendingChanges > 0 ? (
                 <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" />
+              ) : null}
+              {/* Something new on Maybes (not while you're looking at it) */}
+              {tab.path === "/ideas" && maybesNew && !isActive ? (
+                <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" aria-label="Something new" />
               ) : null}
               {/* Glow dot for Actions needing attention */}
               {tab.path === "__actions__" && actionsNeedAttention ? (

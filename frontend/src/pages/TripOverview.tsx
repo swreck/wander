@@ -25,6 +25,7 @@ import TripGlance from "../components/TripGlance";
 import EveningQuestion from "../components/EveningQuestion";
 import WelcomeOnce from "../components/WelcomeOnce";
 import LeavingSoonCard from "../components/LeavingSoonCard";
+import MaybesLine from "../components/MaybesLine";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
 import { voiceFor } from "../lib/guideDisplay";
 import { changeRest } from "../lib/changeWords";
@@ -687,6 +688,8 @@ export default function TripOverview() {
         {settingUpHere && faceIdHere && <AddToHomeScreen variant="card" />}
         {/* Scout's evening question — after 6 PM on a trip day, once (Oct 1 2026) */}
         <EveningQuestion tripId={trip?.id} className="mb-3" />
+        {/* Something new on Maybes from someone else — one quiet line (Oct 2 2026) */}
+        {trip && <MaybesLine tripId={trip.id} />}
         <TripGlance tripId={trip.id} />
 
         {/* Elsewhere, the Face ID offer sits right under Today — it only shows until it's set up or dismissed. Above

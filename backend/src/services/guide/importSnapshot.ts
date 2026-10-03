@@ -512,17 +512,32 @@ export const REMOVED_PREFIX = "Removed from Guide|";
  * - Otherwise: the old idea stays, marked "no longer in Larisa's Guide", with everything on it.
  * Ideas nobody wrote on simply go, as before.
  */
+/**
+ * Her X marks on an idea, as her Activities tab has them now — only hers. "I'm in" said in Wander (Maybes, Oct 2 2026)
+ * is marked "wander:" and stays: every new copy used to take Andy's taps away with her old marks.
+ */
+export async function replaceGuideMarks(tx: any, experienceId: string, tripId: string, names: string[]): Promise<void> {
+  await tx.experienceInterest.deleteMany({ where: { experienceId, NOT: { userCode: { startsWith: "wander:" } } } });
+  if (names.length) {
+    await tx.experienceInterest.createMany({
+      data: names.map((p) => ({ experienceId, tripId, userCode: p, displayName: p })), skipDuplicates: true,
+    });
+  }
+}
+
 export async function keepWhatPeopleAdded(
   tx: any, tripId: string, ideaRefs: string[], createdNow: { id: string; cityId: string; name: string }[],
   report: { warnings: string[] },
 ): Promise<void> {
   const gone = await tx.experience.findMany({
     where: { tripId, sheetRowRef: { startsWith: "Activities Template|", notIn: ideaRefs.length ? ideaRefs : ["__none__"] } },
-    include: { notes: { select: { id: true } }, reactions: { select: { id: true } }, ratings: { select: { id: true } } },
+    include: { notes: { select: { id: true } }, reactions: { select: { id: true } }, ratings: { select: { id: true } },
+      // "I'm in" said in Wander (Maybes) is people's too — carried across or kept like a note
+      interests: { where: { userCode: { startsWith: "wander:" } }, select: { id: true } } },
   });
   for (const g of gone) {
     const plans = await tx.dayChoice.count({ where: { tripId, experienceId: g.id } });
-    const written = g.notes.length + g.reactions.length + g.ratings.length + plans + (g.userNotes ? 1 : 0);
+    const written = g.notes.length + g.reactions.length + g.ratings.length + g.interests.length + plans + (g.userNotes ? 1 : 0);
     if (!written) continue;
     const words = norm(g.name).split(/[^a-z]+/).filter((w: string) => w.length > 3 && !QUESTION_STOP.has(w));
     const matches = createdNow.filter((e) => e.cityId === g.cityId && words.some((w: string) => norm(e.name).includes(w)));
@@ -531,6 +546,9 @@ export async function keepWhatPeopleAdded(
       await tx.experienceNote.updateMany({ where: { experienceId: g.id }, data: { experienceId: to } });
       await tx.experienceRating.updateMany({ where: { experienceId: g.id }, data: { experienceId: to } });
       await tx.dayChoice.updateMany({ where: { tripId, experienceId: g.id }, data: { experienceId: to } });
+      for (const i of g.interests) {
+        await tx.experienceInterest.update({ where: { id: i.id }, data: { experienceId: to } }).catch(() => {});
+      }
       // Reactions one by one: the new idea has none yet, but never let a clash lose the rest
       for (const r of g.reactions) {
         await tx.experienceReaction.update({ where: { id: r.id }, data: { experienceId: to } }).catch(() => {});
@@ -1472,12 +1490,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         ? await tx.experience.update({ where: { id: existing.id }, data })
         : await tx.experience.create({ data: { ...data, tripId, sheetRowRef: idea.ref, createdBy: "Larisa" } });
       if (!existing) createdNow.push({ id: exp.id, cityId, name: idea.name });
-      await tx.experienceInterest.deleteMany({ where: { experienceId: exp.id } });
-      if (idea.interested.length) {
-        await tx.experienceInterest.createMany({
-          data: idea.interested.map((p) => ({ experienceId: exp.id, tripId, userCode: p, displayName: p })), skipDuplicates: true,
-        });
-      }
+      await replaceGuideMarks(tx, exp.id, tripId, idea.interested);
     }
     await keepWhatPeopleAdded(tx, tripId, ideaRefs, createdNow, report);
     await tx.experience.deleteMany({ where: { tripId, sheetRowRef: { startsWith: "Activities Template|", notIn: ideaRefs.length ? ideaRefs : ["__none__"] } } });
