@@ -44,6 +44,7 @@ enum Theme {
   temples
   nature
   other
+  shopping // Maybes filters (Oct 3 2026): Food & drink · Temples & history · Art & craft (ceramics) · Shopping · Nature · Other
 }
 
 enum RatingPlatform {

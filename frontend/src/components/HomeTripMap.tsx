@@ -332,7 +332,11 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       // the gentlest first; then each again leaving a shared marker on a slant (straight out made hooks and elbows)
       // (to 0.56: at 0.42 the leg out of Hakata on an iPhone 15 couldn't dip far enough to clear "Karatsu · Hakata")
       const bows = BOWS;
-      return { ag, bg, arrive, tries: [...bows.map((k) => arc(k, 0)), ...bows.map((k) => arc(k, STUB * 1.4, true))] };
+      // (and each with a long straight lead into or out of a shared marker's own half, in proportion to the leg: on an
+      // iPhone 17 Pro the leg from Okayama came in flat along the bottom of "2 | 3", under Hakata's half, and the trip
+      // seemed to go from Okayama into Hakata — fresh review, Oct 3. A J-curve, not an elbow.)
+      const deep = Math.max(STUB * 1.4, len * 0.22);
+      return { ag, bg, arrive, tries: [...bows.map((k) => arc(k, 0)), ...bows.map((k) => arc(k, STUB * 1.4, true)), ...bows.map((k) => arc(k, deep))] };
     });
     const clearance = (pts: Pt[], ag: Group, bg: Group) => Math.min(Infinity, ...groups.filter((o) => o !== ag && o !== bg).map((o) => Math.min(...pts.map((p) => Math.hypot(p.x - o.x, p.y - o.y))) - (o.stops.length * SEGMENT) / 2));
     // how much of an arc runs alongside the legs before it (on an iPad the leg into Karatsu and the leg out of Hakata,

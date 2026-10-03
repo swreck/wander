@@ -50,7 +50,7 @@ const tools: Anthropic.Tool[] = [
         cityId: { type: "string" },
         name: { type: "string", description: "Name of the place or activity" },
         description: { type: "string", description: "Optional description" },
-        themes: { type: "array", items: { type: "string", enum: ["ceramics", "architecture", "food", "temples", "nature", "other"] } },
+        themes: { type: "array", items: { type: "string", enum: ["ceramics", "architecture", "food", "temples", "nature", "other", "shopping"] } },
       },
       required: ["tripId", "cityId", "name"],
     },
