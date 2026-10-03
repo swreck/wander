@@ -439,6 +439,15 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const update = () => {
       const layoutH = document.documentElement.clientHeight || window.innerHeight;
       setVp({ h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)) });
+      // The panel just resized around the keyboard: an iPhone can keep the box focused but stop drawing its cursor
+      // (Ken tapped a second time to see it) — setting the cursor again makes it draw
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (el && document.activeElement === el) {
+          const at = el.selectionEnd ?? el.value.length;
+          try { el.setSelectionRange(at, at); } catch { /* ignore */ }
+        }
+      });
     };
     update();
     vv.addEventListener("resize", update);
@@ -470,13 +479,21 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
   // Listen for custom event to open chat (used by Plan page action bar)
   useEffect(() => {
+    // The Scout tab, or an "Ask Scout" button: open ready to type, cursor in the box, in the same tap — an iPhone
+    // raises the keyboard only for a focus inside the tap itself (Ken, Oct 3: asking took two or three taps — one to
+    // open, one for the keyboard, sometimes another before the cursor showed)
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      setSize(detail?.prefill ? "full" : "half");
-      setOpen(true);
-      if (detail?.prefill && inputRef.current) {
-        setInput(detail.prefill);
-        setTimeout(() => inputRef.current?.focus(), 150);
+      flushSync(() => {
+        setSize(detail?.prefill ? "full" : "half");
+        setOpen(true);
+        if (detail?.prefill) setInput(detail.prefill);
+      });
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        const end = el.value.length;
+        try { el.setSelectionRange(end, end); } catch { /* not a text field yet */ }
       }
     };
     const close = () => minimizeRef.current();
@@ -825,7 +842,12 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const wide = typeof window !== "undefined" && window.matchMedia?.("(min-width: 640px)").matches;
   const visibleH = vp?.h ?? (typeof window !== "undefined" ? window.innerHeight : 800);
   const keyboardUp = (vp?.kb ?? 0) > 80;
-  const sheetStyle = wide ? undefined : {
+  // On an iPad (wide): above the bottom bar, so it never covers the bar's Scout button (it sat 24 pt from the screen's
+  // foot, over the bar's right end, held sideways); and above the on-screen keyboard when that's up
+  const sheetStyle = wide ? {
+    bottom: keyboardUp ? `${(vp?.kb ?? 0) + 12}px` : "calc(env(safe-area-inset-bottom, 0px) + 68px)",
+    height: keyboardUp ? `${Math.round(Math.min(500, visibleH - 24))}px` : "min(500px, calc(100dvh - 150px))",
+  } : {
     bottom: vp?.kb ?? 0,
     // With the keyboard up the half sheet keeps a strip of the page in view (the full one uses it all)
     height: keyboardUp

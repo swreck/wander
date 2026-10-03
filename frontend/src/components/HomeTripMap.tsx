@@ -851,7 +851,9 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
                 // fresh review)
                 className={`absolute whitespace-nowrap rounded px-1.5 text-[11px] ${soloHere ? "bg-[#514636]" : "bg-[#faf8f5]/90"} shadow-[0_0_0_0.5px_rgba(58,49,40,0.15)] ${spot.stacked
                   // (stacked: each name on its own line, set toward the marker)
-                  ? `leading-[16px] py-px ${spot.h === "right" ? "text-right" : spot.h === "center" ? "text-center" : "text-left"}` : "leading-[18px]"}`}
+                  // (a lone stop's name over its "start"/"end" reads from the left — "Okayama" over a right-set "start"
+                  // looked stiff on a Pro Max; fresh review, Oct 2)
+                  ? `leading-[16px] py-px ${group.stops.length === 1 ? "text-left" : spot.h === "right" ? "text-right" : spot.h === "center" ? "text-center" : "text-left"}` : "leading-[18px]"}`}
                 style={{
                   ...(spot.h === "left" ? { left: `calc(50% + ${spot.hd}px)` } : spot.h === "right" ? { right: `calc(50% + ${spot.hd}px)` } : { left: "50%" }),
                   ...(spot.v === "top" ? { top: `calc(50% + ${spot.vd}px)` } : spot.v === "bottom" ? { bottom: `calc(50% + ${spot.vd}px)` } : { top: "50%" }),

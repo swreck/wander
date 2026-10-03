@@ -2,6 +2,22 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-03 (night) — Asking Scout in One Tap
+
+### Fixed
+- **Asking Scout starts in one tap.** The Scout tab, and any "Ask Scout" button, opens Scout with the cursor already
+  in the box and the keyboard up, in the same tap. Ken: asking took two or three taps, one to open, one to raise the
+  keyboard, sometimes another before the cursor showed. When the panel resizes around the keyboard, Wander sets the
+  cursor again, because an iPhone can keep the box focused but stop drawing the cursor.
+- **On an iPad, Scout's panel sits above the bottom bar**, held either way, and above the on-screen keyboard. It used
+  to cover the bar's Scout button.
+- **Scout no longer repeats Wander's own labels** such as "(no time given)". It says "Larisa's plan doesn't give a time
+  for it". Scout's description of the screens says Maybes, not Ideas.
+- **Home map:** a stop's name set on two lines ("Okayama" over "start") lines up on the left.
+
+Tested: WebKit (Safari's engine), one tap to type (3/3); iPad sideways and upright (8/8); backend 1116/1116;
+Playwright 20/20; Maybes walk 34/34. The real iPhone keyboard can't be simulated, so Ken checks that on his phone.
+
 ## 2026-10-03 (later) — Tell the Group, on Every Maybe
 
 ### Changed
