@@ -24,6 +24,7 @@ import { warmGuideData } from "../lib/guideData";
 import TripGlance from "../components/TripGlance";
 import EveningQuestion from "../components/EveningQuestion";
 import WelcomeOnce from "../components/WelcomeOnce";
+import LeavingSoonCard from "../components/LeavingSoonCard";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
 import { voiceFor } from "../lib/guideDisplay";
 import { changeRest } from "../lib/changeWords";
@@ -676,6 +677,9 @@ export default function TripOverview() {
           </p>
         )}
         <WelcomeOnce owner={guideOwnerOf(trip.tagline)} />
+        {/* Before Julie and Andy leave home: the days left and a fact a day (and Ken's preview of it) — not while
+            someone new is setting up Face ID, the step that matters more */}
+        {trip && <LeavingSoonCard tripId={trip.id} hold={settingUpHere} />}
         {/* Someone new, in iPhone Safari from their invite: Face ID first, then the Home Screen icon — at the top,
             where it can't be missed (Oct 2: Larisa's icon, added first, opened signed out with no Face ID to use; a
             Face ID key made here in Safari is the one the Home Screen app signs in with — proven on her iPhone) */}
