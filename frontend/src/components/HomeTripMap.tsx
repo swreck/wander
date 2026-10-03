@@ -483,8 +483,10 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       const here = !!s.firstDay && !!s.lastDay && s.firstDay <= today && today <= s.lastDay;
       return width(s.city.name, here ? 600 : 500) + (here ? 4 : 0) + (tagOf(s) ? width(` ${tagOf(s)}`, 400) : 0);
     });
-    // `one`: on one line, "Tokyo · Nikko"; `stacked`: a shared marker's names one above the other
-    return { one: each.reduce((t, w) => t + w, 0) + (each.length - 1) * width(" · ", 400) + 12 + 2, stacked: Math.max(...each) + 12 + 2 };
+    // `one`: on one line, "Tokyo · Nikko"; `stacked`: a shared marker's names one above the other — or a lone stop's
+    // name over its "start" or "end"
+    const lone = g.stops.length === 1 && tagOf(g.stops[0]) ? [width(g.stops[0].city.name, 500), width(tagOf(g.stops[0]), 400)] : null;
+    return { one: each.reduce((t, w) => t + w, 0) + (each.length - 1) * width(" · ", 400) + 12 + 2, stacked: Math.max(...(lone ?? each)) + 12 + 2 };
   }, [tagOf, today]);
 
   // 2. Each name on a free side
@@ -523,7 +525,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     const sizes = new Map(groups.map((g) => [g, nameWidth(g)]));
     // every name placed with the legs drawn as `rt`; `total` is how badly the names sit (0: every one clear)
     // (`movable`: each arrow can still slide along its leg, so it's only in a name's way if it would be wherever it went)
-    const nameAll = (rt: typeof route, movable = false) => {
+    const nameAll = (rt: typeof route, movable = false, pairs = false) => {
       const arrowSpots = rt.filter(({ at }) => at !== null).map(({ pts, at }) => (movable ? ARROW_AT : [at!]).map((a) => arrowBox(pts, a)));
       const arrowHits = (b: Box) => arrowSpots.filter((spots) => spots.every((a) => hit(b, a))).length;
       const taken: Box[] = groups.map((g) => ({ x1: g.x - half(g) - 2, y1: g.y - tall(g) - 2, x2: g.x + half(g) + 2, y2: g.y + tall(g) + 2 }));
@@ -591,7 +593,10 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
         const size = sizes.get(g)!;
         // (stacked only beside the marker, where the names read top to bottom as its halves read left to right — under
         // one half, "Tokyo" sat beneath the 6 and read as stop 6; fresh review, Oct 1)
-        const spots = [...at(size.one, 18, false), ...(g.stops.length > 1 ? at(size.stacked, 34, true).slice(0, 2) : [])];
+        // (a lone stop's "Kyoto" over "end" may go anywhere its one line could: on the phones, with Shirakabeso placed,
+        // 8 sat 50 pt from 1 with 4 to its right, the leg into Nagoya above and "Okayama start" below, and "Kyoto end" on
+        // one line fitted nowhere but 1's ring — fresh review, Oct 2) — once the legs are settled, like the weight below
+        const spots = [...at(size.one, 18, false), ...(g.stops.length > 1 ? at(size.stacked, 34, true).slice(0, 2) : pairs && tagOf(g.stops[0]) ? at(size.stacked, 34, true) : [])];
         // …and tight to its own marker: never nearer another marker than its own ("Kyoto end" sat between 7 and 1 and
         // could be read as either — round 5); a side spot over a corner one when they're otherwise equal
         // (measured from the name's nearest edge — from its middle, a long name touching its own marker could count as
@@ -603,10 +608,16 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
         // (and not hanging over another marker close by — "Kyoto end" on an iPhone SE sat 15 pt above 1 and could be
         // read as its name; fresh review, Oct 1)
         const hovers = (s: Spot) => groups.some((o) => o !== g && apart(s.box, o) < 18);
-        const score = (s: Spot) => (inside(s.box) ? 0 : 10000) + taken.filter((t) => hit(s.box, t)).length * 1000
+        // (on a marker or a name, once the legs are settled: more than any line could weigh — at 1000, a line grazing
+        // every other place near 8 came to more, and "Kyoto end" was put on 1's ring; fresh review, Oct 2. Not while the
+        // legs are chosen: weighed that heavily there, the leg into Nagoya on a Pro Max swung south and crossed another.)
+        const score = (s: Spot) => (inside(s.box) ? 0 : 10000) + taken.filter((t) => hit(s.box, t)).length * (pairs ? 5000 : 1000)
           // (a name on a line hides where the trip goes — weighed almost as heavily as an arrow; round 6: a leg ran under
           // "Kyoto end" and the trip seemed to pass through Kyoto)
-          + (nearer(s) ? 300 : hovers(s) ? 100 : 0) + arrowHits(s.box) * 200 + lineIn(s.box) * 60
+          // (a name read as another stop's is worse than one on a line: with Shirakabeso placed, "Kyoto end" settled on
+          // marker 1's ring on an iPhone SE and 15 and read as "1 = Kyoto end" — fresh review, Oct 2. Nearly as bad as
+          // covering a marker, then.)
+          + (nearer(s) ? 900 : hovers(s) ? 500 : 0) + arrowHits(s.box) * 200 + lineIn(s.box) * 60
           + (s.hd < 0 ? 120 : s.hd === 0 && s.h !== "center" ? 60 : s.vd < 0 ? 2 : 0) + (s.stacked ? 150 : 0);
         return { spots, score, gx };
       };
@@ -637,6 +648,39 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
         }
         if (!moved) break;
       }
+      // A name still read as another stop's may need a neighbour to step aside with it — on the phones, with
+      // Shirakabeso placed, "Kyoto end" could only go below 8 once "Okayama start" moved beside 1, and neither moved
+      // alone, so "Kyoto end" sat on 1's ring (fresh review, Oct 2). Two names at a time, on the final layout only.
+      if (pairs) {
+        type Spot2 = ReturnType<typeof spotsFor>["spots"][number];
+        // (each name's places worked out once — a score reads `taken` as it stands when asked)
+        const sf = new Map(byNeed.map((x) => [x, spotsFor(x)]));
+        const othersBut = (a: Group, b: Group) => byNeed.filter((x) => x !== a && x !== b).map((x) => roomy(chosen.get(x)!.spot.box));
+        const pairCost = (g: Group, sg: Spot2, o: Group, so: Spot2, others: Box[]) => {
+          taken.length = 0; taken.push(...markerBoxes, ...others, roomy(so.box));
+          const a = sf.get(g)!.score(sg);
+          taken.length = 0; taken.push(...markerBoxes, ...others, roomy(sg.box));
+          return a + sf.get(o)!.score(so);
+        };
+        for (const g of byNeed) {
+          taken.length = 0; taken.push(...markerBoxes, ...byNeed.filter((x) => x !== g).map((x) => roomy(chosen.get(x)!.spot.box)));
+          if (sf.get(g)!.score(chosen.get(g)!.spot) < 300) continue;
+          let bestPair: { o: Group; sg: Spot2; so: Spot2; cost: number } | null = null;
+          for (const o of byNeed) {
+            if (o === g) continue;
+            const others = othersBut(g, o);
+            const now = pairCost(g, chosen.get(g)!.spot, o, chosen.get(o)!.spot, others);
+            for (const sg of sf.get(g)!.spots) for (const so of sf.get(o)!.spots) {
+              const c = pairCost(g, sg, o, so, others);
+              if (c < now - 30 && (!bestPair || c - now < bestPair.cost)) bestPair = { o, sg, so, cost: c - now };
+            }
+          }
+          if (bestPair) {
+            chosen.set(g, { ...chosen.get(g)!, spot: bestPair.sg });
+            chosen.set(bestPair.o, { ...chosen.get(bestPair.o)!, spot: bestPair.so });
+          }
+        }
+      }
       let total = 0;
       const crowded: Box[] = [];
       for (const g of byNeed) {
@@ -659,10 +703,31 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     const ruleCost = routeCost(route.map((l) => l.pts));
     // (names first, the arrows free to move; then each arrow at the first place along its leg that's clear of every
     // name — the middle when it can — and the whole judged as drawn)
-    const judge = (rt: typeof route) => {
+    const judge = (rt: typeof route, pairs = false) => {
       const names = nameAll(rt, true).labels.map((l) => l.spot.box);
-      const fixed = rt.map((leg) => ({ ...leg, at: leg.at === null ? null : ARROW_AT.find((at) => !names.some((b) => hit(b, arrowBox(leg.pts, at)))) ?? 0.5 }));
-      const r = nameAll(fixed);
+      // (…and clear of every other leg: on a Pro Max the arrow into Tokyo sat where its leg crossed Nikko → Shirakabeso,
+      // and read as a turn there — fresh review, Oct 2)
+      const offLegs = (i: number, b: Box) => {
+        const c = { x: (b.x1 + b.x2) / 2, y: (b.y1 + b.y2) / 2 };
+        return rt.every((o, j) => j === i || o.pts.every((q, k) => {
+          if (k === 0) return true;
+          const p = o.pts[k - 1], dx = q.x - p.x, dy = q.y - p.y, len = dx * dx + dy * dy || 1;
+          const t = Math.max(0, Math.min(1, ((c.x - p.x) * dx + (c.y - p.y) * dy) / len));
+          return Math.hypot(c.x - (p.x + dx * t), c.y - (p.y + dy * t)) >= 16;
+        }));
+      };
+      const clearOfNames = (leg: (typeof rt)[number], at: number, room = 0) => {
+        const a = arrowBox(leg.pts, at), b = { x1: a.x1 + room, y1: a.y1 + room, x2: a.x2 - room, y2: a.y2 - room };
+        return !names.some((n) => hit(n, b));
+      };
+      // (the room round an arrow given up before the crossing is: on the Pro Max every place on the leg into Tokyo lay
+      // either within 2 pt of "Nagoya" or on the crossing — an arrow on a crossing reads as a turn, one a little near a
+      // name doesn't)
+      const fixed = rt.map((leg, i) => ({ ...leg, at: leg.at === null ? null
+        : ARROW_AT.find((at) => clearOfNames(leg, at) && offLegs(i, arrowBox(leg.pts, at)))
+          ?? ARROW_AT.find((at) => clearOfNames(leg, at, 2) && offLegs(i, arrowBox(leg.pts, at)))
+          ?? ARROW_AT.find((at) => clearOfNames(leg, at)) ?? 0.5 }));
+      const r = nameAll(fixed, false, pairs);
       // (and a little for each step away from the gentlest arc, more for leaving on a slant — weighed only against the
       // names, the legs took hooks and wide swings for the smallest gain; fresh review, Oct 1)
       const shape = rt.reduce((t, leg, i) => { const k = route[i].tries.indexOf(leg.pts); return t + (k % BOWS.length) * 6 + (k >= BOWS.length ? 40 : 0); }, 0);
@@ -684,6 +749,9 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       }
       if (!better) break;
     }
+    // (and once more, the legs settled and the names alone: a crowded name free to move a neighbour aside, a lone stop's
+    // name over its "start" or "end", and a marker or name weighed above any line — see `pairs`)
+    if (best.crowded.length) best = judge(best.rt, true);
     return { placed: best.labels, drawnRoute: best.rt };
   }, [groups, route, routeCost, view, nameWidth, stops, today]);
 
@@ -800,7 +868,9 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
                         : st === "past" ? "text-[#8a7d6a]" : "font-medium text-[#3a3128]"}>{s.city.name}</span>
                       {/* (the secondary text color — lighter, "start"/"end" were hard for older eyes; round 8) */}
                       {/* (…and as quiet as its name once visited — "start" stayed darker than a faded "Okayama"; fresh review) */}
-                      {end && <span className={st === "past" ? "text-[#a39886]" : "text-[#6b5d4a]"}> {end}</span>}
+                      {end && (spot.stacked && group.stops.length === 1
+                        ? <span className={`block ${st === "past" ? "text-[#a39886]" : "text-[#6b5d4a]"}`}>{end}</span>
+                        : <span className={st === "past" ? "text-[#a39886]" : "text-[#6b5d4a]"}> {end}</span>)}
                     </span>
                   );
                 })}

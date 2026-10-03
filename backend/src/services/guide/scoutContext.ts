@@ -8,6 +8,7 @@
 
 import prisma from "../db.js";
 import { appleGuidesOf, guideLines } from "./appleGuides.js";
+import { placeNotesOf, noteFor, placeNoteWords } from "./placeNotes.js";
 import { tabsOfCopy, wordsAt, cellsOfItem, ideaRef, completeCells, type ContextLine, type SourceView, type SourcePart } from "./sources.js";
 
 const ymd = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
@@ -146,6 +147,8 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   };
   const stayCells = (s: (typeof stays)[number]) => stayParts(s).flatMap((p) => p.cells);
 
+  const places = await placeNotesOf(tripId);
+  const placeNote = (name: string) => noteFor(places, name);
   say(out, "\nWHERE EVERYONE SLEEPS (from the Guide):");
   for (const s of stays) {
     // Spell out the nights: "Oct 18–21" is easy to misread as including the 21st
@@ -166,8 +169,13 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       s.confirmationNumber ? `confirmation ${s.confirmationNumber}` : null,
       s.address ? `address ${s.address}` : null,
       s.notes ? `notes: ${s.notes}` : null,
+      // (where it is, when her Guide doesn't say and Wander knows from elsewhere — said as Wander's, with its source)
+      !s.address && placeNote(s.name) ? placeNoteWords(placeNote(s.name)!) : null,
     ].filter(Boolean);
-    const sepNote = own.length > 1 ? ["Each couple's first night comes from their own booking"] : [];
+    const sepNote = [
+      ...(own.length > 1 ? ["Each couple's first night comes from their own booking"] : []),
+      ...(!s.address && placeNote(s.name) ? [`Where it is comes from ${placeNote(s.name)!.from}: ${placeNote(s.name)!.what}${placeNote(s.name)!.address ? `, ${placeNote(s.name)!.address}` : ""}`] : []),
+    ];
     say(out, `- ${parts.join("; ")}`, { type: "guide", label: s.name, cells: dedupeCells(stayCells(s)), ...(sepNote.length ? { wanderNotes: sepNote } : {}) });
   }
   // Nights where the Guide lists more than one place — an open question, not an error
