@@ -4,6 +4,15 @@ import './index.css'
 import App from './App.tsx'
 import { replayQueue, replayCaptureQueue } from './lib/offlineStore'
 
+// The iPad Home Screen app: its window controls sit in the top-left corner (index.css, html.ipad-app). An iPad's Safari
+// calls itself a Mac, with touch; in Safari itself (not the Home Screen app) the browser's own bar is above the page.
+{
+  const ua = navigator.userAgent;
+  const iPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const homeScreenApp = (navigator as any).standalone === true || window.matchMedia?.('(display-mode: standalone)').matches;
+  if (iPad && homeScreenApp) document.documentElement.classList.add('ipad-app');
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
