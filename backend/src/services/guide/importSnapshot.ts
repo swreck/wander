@@ -1525,7 +1525,9 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     const priorMappings = (await tx.sheetSyncConfig.findUnique({ where: { tripId }, select: { tabMappings: true } }))?.tabMappings as any;
     const kept = priorMappings?.sheetLink;
     const keptMaps = Array.isArray(priorMappings?.appleGuides) ? priorMappings.appleGuides : null;
-    const tabMappings = { source: "snapshot", sourceName: opts.sourceName, ...(kept ? { sheetLink: kept } : {}), ...(keptMaps ? { appleGuides: keptMaps } : {}) };
+    // (the days' summaries too — daySummaries.ts; a day the new copy changes hides its own until it's rewritten)
+    const keptSummaries = priorMappings?.daySummaries && typeof priorMappings.daySummaries === "object" ? priorMappings.daySummaries : null;
+    const tabMappings = { source: "snapshot", sourceName: opts.sourceName, ...(kept ? { sheetLink: kept } : {}), ...(keptMaps ? { appleGuides: keptMaps } : {}), ...(keptSummaries ? { daySummaries: keptSummaries } : {}) };
     await tx.sheetSyncConfig.upsert({
       where: { tripId },
       create: { tripId, spreadsheetId: "", lastSyncAt: new Date(), lastSyncStatus: "success", tabMappings },
