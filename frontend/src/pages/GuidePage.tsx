@@ -15,7 +15,7 @@ const sectionsFor = (mine: boolean, meName: string) => [
 
 **Home** opens on what matters now: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.
 
-Along the bottom: **Ideas** (${mine ? "your" : "Larisa's"} ideas, city by city), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Actions** (deadlines and to-dos), and **Scout** — ask it anything about the trip.`,
+Along the bottom: **Maybes** (the group's "maybe we should…" and ${mine ? "your" : "Larisa's"} ideas, city by city), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Actions** (deadlines and to-dos), and **Scout** — ask it anything about the trip.`,
   },
   {
     id: "getting-in",
@@ -87,8 +87,8 @@ Trains come from a second place: ${/^ken$/i.test(meName) ? "your rail sheet, whi
   },
   {
     id: "notes",
-    title: "Ideas and Your Own Notes",
-    body: `**Ideas** shows the ideas in ${mine ? "your" : "Larisa's"} Activities tab, starting with the city you're in, with who marked each one. On any idea: **+ Note** (for everyone, or just for you), **Add to a day**, Maps, and Ask Scout. ${mine ? "Your" : "Larisa's"} Guide stays as it is.`,
+    title: "Maybes and Your Own Notes",
+    body: `**Maybes** is the group's shared list of "maybe we should…", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. ${mine ? "Your" : "Larisa's"} ideas from ${mine ? "your" : "her"} Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. "Interested" shows everyone who's in, from ${mine ? "your" : "her"} X marks and from Wander together. A dot on the Maybes tab means something new. ${mine ? "Your" : "Larisa's"} Guide stays as it is.`,
   },
   {
     id: "no-signal",

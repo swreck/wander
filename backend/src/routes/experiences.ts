@@ -30,8 +30,10 @@ router.get("/trip/:tripId", async (req, res) => {
   const experiences = await prisma.experience.findMany({
     where,
     orderBy: { priorityOrder: "asc" },
-    // interests: who marked the idea in Larisa's Guide (or in Wander) — people choose by this
-    include: { ratings: true, city: true, day: true, interests: { select: { displayName: true } } },
+    // interests: who marked the idea in Larisa's Guide (or in Wander) — people choose by this; userCode says which
+    // ("wander:<traveler>" is "I'm in" said in Wander — Maybes, Oct 2 2026)
+    // (in the order people said so — a maybe's writer first; "Interested: Ken, Andy" on Andy's own maybe read oddly)
+    include: { ratings: true, city: true, day: true, interests: { select: { displayName: true, userCode: true }, orderBy: { createdAt: "asc" } } },
   });
   res.json(experiences);
 });

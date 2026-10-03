@@ -14,7 +14,7 @@ export function notePath(path: string) {
   current = path;
 }
 
-const NAMES: Record<string, string> = { "/": "Home", "/now": "What's next", "/notes": "Notes", "/ideas": "Ideas", "/people": "People", "/settings": "Settings" };
+const NAMES: Record<string, string> = { "/": "Home", "/now": "What's next", "/notes": "Notes", "/ideas": "Maybes", "/people": "People", "/settings": "Settings" };
 
 /** The back button's word for the screen at `here`: where Back will go, or "Back" when that isn't known */
 export function backWord(here: string, canGoBack: boolean): string {

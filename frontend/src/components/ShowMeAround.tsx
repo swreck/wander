@@ -15,7 +15,8 @@ const stepsFor = (mine: boolean) => {
   return [
     // (plain words, no word that could mean two things — "a place for notes" in a travel app reads as a location; Ken)
     { tab: "Home", text: "Today at a glance: what's coming up, where you sleep tonight, and any deadlines. Below that is a calendar of the whole trip. Tap any day to see its plan." },
-    { tab: "Ideas", text: `Things to see, eat and do from ${her} Activities tab, city by city. You can add a note to any of them, or put one on a day of the trip.` },
+    // (Maybes, Oct 2 2026: the group's shared list of "maybe we should…", with her ideas)
+    { tab: "Maybes", text: `When you think "maybe we should…", write it here and everyone on the trip sees it. Tap "I'm in" on anything you'd like to do. ${mine ? "Your" : "Larisa's"} ideas from ${her === "your" ? "your" : "her"} Activities tab are here too, city by city.` },
     { tab: "Next", text: "Your next stop today, and how long until it. The Walk, Train and Taxi buttons open Apple Maps with directions from wherever you're standing." },
     { tab: "Notes", text: "Write down anything you want to remember from the trip. Type or speak, and every word is kept." },
     { tab: "Actions", text: "Things to do soon, with their deadlines, like the last day to cancel a hotel for free." },

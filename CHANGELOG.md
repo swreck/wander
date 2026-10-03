@@ -2,6 +2,49 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-03 — Maybes: the Group's Shared List of "Maybe We Should…"
+
+### Added
+- **Maybes** (the bottom-bar tab that was Ideas; Ken: "a shared list of maybes"). Each city's list starts with a box:
+  "Maybe we should…". A few words, a link if there is one, Send, and it's on that city's list for everyone.
+  - A link in the words is kept as its link ("Instagram post ↗").
+  - With no signal it waits on the phone and goes out when signal is back.
+  - Saying it means you're in on it.
+  - **Tell the group** (after Send) opens the iPhone's share sheet with the words and link, for the group text.
+- **The group's maybes**, newest first, above Larisa's ideas ("Things to do · from Larisa's Guide").
+  - Each says who and when ("Andy · 12 min ago · New").
+  - "Seen by" lists the others who have looked at that city's list since.
+  - A small maybe from a day before today (no link, not on a day) folds into "Earlier · n ›".
+- **I'm in** on any maybe or any of her ideas. Tap again to take it back.
+  - "Interested:" is one line: her Activities tab's X marks and Wander's I'm in together, one name a person, "you"
+    for yourself, in the order people said so.
+  - "Julie's in too" appears for the person beside you in her Guide who isn't on Wander ("Julie (via Andy)").
+  - Your own X in her Guide already counts, so it has no button.
+- **Take back** your own maybe (with "Take this maybe back?"). A day it was put on keeps its plan.
+- **Something new**: a dot on the Maybes tab, and one quiet line on Home ("Andy has a maybe for Tokyo: “…” · and
+  1 more ›"). No phone alerts.
+- **Scout**: "maybe we should…" → add_maybe. "I'm in", "count me in", "Julie's in too" → im_in. "Never mind the ice
+  cream" → take_back_maybe. "Flag this for the group" is now I'm in.
+- Server: routes/maybes.ts and services/maybes.ts (one rule for the screen and Scout); tests/maybes.test.ts (16).
+
+### Changed
+- "+ Note" on an idea is now **Say something**. The filter is **Show: Everyone · What you're in on · Julie's…**, kept
+  apart from the box. Maps shows only for her places, never to search a sentence.
+- The tour, How Wander works, the Guide-tabs card and Scout's description of the screen say Maybes.
+
+### Fixed
+- **A new copy of her Guide no longer wipes Wander's I'm in.** It replaces her X marks only
+  (importSnapshot.replaceGuideMarks). A renamed idea carries Wander's I'm in across.
+- Scout's "take back" can no longer remove an X from her Guide or someone else's I'm in.
+- "In Larisa's plan for …" is matched for her ideas only (a maybe's words could match her lines by chance).
+
+Tested: tests/maybes.test.ts 16/16. A walk-through on the test copy, 33/33: Andy in a Tokyo side street, Ken's Home line
+and dot, Seen by, I'm in, Earlier, no signal then signal, Take back, SE and Pro Max, cleaned up. Tour (Maybes stop),
+Playwright 20/20. Fresh review: two fixes applied (filter moved and relabelled, plainer header).
+
+SPEC UPDATE NEEDED: Ideas → Maybes (the group's own list, I'm in, Seen by, Tell the group); Scout tools add_maybe,
+im_in, take_back_maybe.
+
 ## 2026-10-02 (late night) — Before Julie and Andy Leave
 
 ### Added

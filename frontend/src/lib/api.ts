@@ -10,6 +10,8 @@ const QUEUEABLE_PATHS = [
   "/experience-notes", "/day-choices",
   // Trip notes (Oct 1 2026): every word, kept on the phone until the server says it has them
   "/trip-notes",
+  // Maybes (Oct 2 2026): a maybe or "I'm in" typed on the subway goes out when there's signal
+  "/maybes",
 ];
 
 function isQueueable(path: string, method: string): boolean {

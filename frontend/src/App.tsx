@@ -163,7 +163,7 @@ function ChatOverlay() {
 
   const pageName = {
     "/": "Trip Overview",
-    "/ideas": "Ideas",
+    "/ideas": "Maybes",
     "/now": "Next",
     "/history": "History",
   }[location.pathname] || "Unknown";

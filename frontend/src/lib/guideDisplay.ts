@@ -732,6 +732,10 @@ export function linkLabel(url: string): string {
   if (/maps\.(apple|google)|google\.[a-z.]+\/maps|goo\.gl\/maps|maps\.app/i.test(url)) return "Map";
   if (/tabelog/i.test(url)) return "Tabelog page";
   if (/(^|\/\/|\.)google\.[a-z.]+\/search/i.test(url)) return "Google search";
+  // (a maybe's pasted link — Maybes, Oct 2 2026)
+  if (/instagram\.com/i.test(url)) return "Instagram post";
+  if (/tiktok\.com/i.test(url)) return "TikTok";
+  if (/youtube\.com|youtu\.be/i.test(url)) return "Video";
   return "Website";
 }
 

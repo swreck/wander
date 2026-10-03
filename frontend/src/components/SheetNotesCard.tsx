@@ -205,8 +205,8 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
           {v.mine ? "Your Guide" : "Larisa's Guide"}, tab by tab
           <span className="block text-[#6b5d4a] font-normal text-xs mt-0.5">
             {v.mine
-              ? "Your other tabs, as you wrote them, in your order. Where you pasted a picture, Wander describes it and shows it when tapped. The Itinerary is the days above; Activities are in Ideas; Actions are in Actions."
-              : "Her other tabs, as she wrote them, in her order. Where she pasted a picture, Wander describes it and shows it when you tap. The Itinerary is the days above; Activities are in Ideas; Actions are in Actions."}
+              ? "Your other tabs, as you wrote them, in your order. Where you pasted a picture, Wander describes it and shows it when tapped. The Itinerary is the days above; Activities are in Maybes; Actions are in Actions."
+              : "Her other tabs, as she wrote them, in her order. Where she pasted a picture, Wander describes it and shows it when you tap. The Itinerary is the days above; Activities are in Maybes; Actions are in Actions."}
           </span>
         </h2>
         <span className="text-sm text-[#6b5d4a]">{expanded ? "\u25B4" : "\u25BE"}</span>

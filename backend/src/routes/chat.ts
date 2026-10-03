@@ -15,6 +15,7 @@ import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
 import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
+import { createMaybe, setIn, takeBackMaybe, MaybeError } from "../services/maybes.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
 const router = Router();
@@ -574,7 +575,7 @@ const tools: Anthropic.Tool[] = [
   // ── Group interest tools ──────────────────────────────
   {
     name: "float_to_group",
-    description: "Flag an experience for group attention. Use when user says 'everyone should see this', 'float this to the group', 'I think we should do this', 'what does everyone think about X?'. One tap, optional note.",
+    description: "Same as im_in (kept for older phrasing): mark an idea or maybe as one this person is in on, so the group sees it. Optional note becomes their line on it.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -585,8 +586,40 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "add_maybe",
+    description: "Put a maybe on a city's list for the whole group (the Maybes tab) — 'maybe we should…', 'we could…', 'what about…', 'that looks fun, let's maybe…', a link they want the others to see. Their words as they said them (lightly trimmed), on today's city unless they name another. Wander never changes Larisa's Guide; this is the group's own list.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        cityId: { type: "string", description: "The city whose list it goes on: today's city, or the city they named" },
+        words: { type: "string", description: "Their words: 'tea or ice cream after the museum?', 'the kiln the innkeeper told us about'" },
+        link: { type: "string", description: "A link they shared, if any (http…)" },
+      },
+      required: ["tripId", "cityId", "words"],
+    },
+  },
+  {
+    name: "take_back_maybe",
+    description: "Take back a maybe this person put out ('never mind the ice cream', 'take my maybe about X off'). Only their own; never one of Larisa's ideas.",
+    input_schema: { type: "object" as const, properties: { experienceId: { type: "string" } }, required: ["experienceId"] },
+  },
+  {
+    name: "im_in",
+    description: "'I'm in', 'count me in', 'I'd do that', 'I'm interested' on an idea or maybe (on: true); 'I'm out', 'take me off that' (on: false). forName: when they say their partner who isn't on Wander is in too ('Julie's in too') — shown as 'Julie (via Andy)'. Never changes Larisa's Guide or her X marks.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        experienceId: { type: "string" },
+        on: { type: "boolean", description: "true = in (default); false = take it back" },
+        forName: { type: "string", description: "Only when speaking for someone else on the trip who isn't on Wander" },
+      },
+      required: ["experienceId"],
+    },
+  },
+  {
     name: "react_to_interest",
-    description: "React to an experience someone floated to the group. Use when user says 'I'm interested in that', 'maybe on Ichiran', 'pass on that one', 'count me in'.",
+    description: "Older: react to a flag someone raised ('maybe on Ichiran', 'pass on that one'). For 'I'm in' / 'count me in' use im_in instead.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1400,7 +1433,7 @@ export function withoutUnaskedDraft(reply: string, message: string, history: unk
 export async function executeTool(
   toolName: string,
   input: any,
-  user: { code: string; displayName: string },
+  user: { code: string; displayName: string; travelerId?: string },
 ): Promise<{ result: any; actionDescription?: string; placeCards?: any[]; navigate?: { path: string; label: string; go: boolean; headline?: string }; route?: { label: string; apple: string; google: string; search?: string } }> {
   // Larisa's own items (her ideas, stops, hotels, days) come from her Guide; the next read of it
   // would silently undo any change Scout made to them, losing what the person meant. So Scout
@@ -2771,34 +2804,48 @@ export async function executeTool(
 
     // ── Voting tool implementations ─────────────
     // ── Group interest tools ─────────────
-    case "float_to_group": {
+    // Flagging an idea for the group is "I'm in" (Maybes, Oct 2 2026) — one kind of interest, marked as Wander's, which
+    // a new Guide copy never takes away (flags written the old way were replaced with her marks on every import)
+    case "float_to_group":
+    case "im_in": {
+      if (!user.travelerId) return { result: { error: "Sign in as yourself to say you're in" } };
       const exp = await prisma.experience.findUnique({ where: { id: input.experienceId }, include: { city: true } });
       if (!exp) return { result: { error: "Experience not found" } };
-
-      const interest = await prisma.experienceInterest.upsert({
-        where: { experienceId_userCode: { experienceId: input.experienceId, userCode: user.code } },
-        create: {
-          experienceId: input.experienceId,
-          tripId: exp.tripId,
-          userCode: user.code,
-          displayName: user.displayName,
-          note: input.note || null,
-        },
-        update: { note: input.note || null, displayName: user.displayName },
-      });
-      await logChange({
-        user,
-        tripId: exp.tripId,
-        actionType: "experience_floated",
-        entityType: "experience",
-        entityId: exp.id,
-        entityName: exp.name,
-        description: `${user.displayName} flagged "${exp.name}" for the group`,
-      });
+      const on = input.on !== false;
+      const r = await setIn(user as any, exp.id, on, input.forName || null, " (via chat)");
+      if (input.note && String(input.note).trim() && user.travelerId) {
+        await prisma.experienceNote.create({ data: { experienceId: exp.id, travelerId: user.travelerId, content: String(input.note).trim(), visibility: "group" } });
+      }
+      const who = input.forName ? `${String(input.forName).split(/\s+/)[0]} (via you)` : "You";
       return {
-        result: { interestId: interest.id, experience: exp.name, city: exp.city.name },
-        actionDescription: `Flagged "${exp.name}" for the group`,
+        result: { experience: exp.name, city: exp.city.name, on, interested: r.interests.map((i) => i.displayName) },
+        actionDescription: on ? `${who} — in on "${exp.name}"` : `${who} — no longer in on "${exp.name}"`,
       };
+    }
+
+    case "take_back_maybe": {
+      try {
+        const r = await takeBackMaybe(user as any, input.experienceId, " (via chat)");
+        return { result: { takenBack: r.name }, actionDescription: `Took back the maybe "${r.name}"` };
+      } catch (e) {
+        if (e instanceof MaybeError) return { result: { error: e.message } };
+        throw e;
+      }
+    }
+
+    // "Maybe we should…" (Maybes, Oct 2 2026): on the city's list for everyone, as the Maybes screen does it
+    case "add_maybe": {
+      if (!user.travelerId) return { result: { error: "Sign in as yourself to add a maybe" } };
+      try {
+        const { maybe, city, again } = await createMaybe(user as any, input.tripId, input.cityId, String(input.words || ""), input.link || null, " (via chat)");
+        return {
+          result: { maybeId: maybe.id, words: maybe.name, link: maybe.sourceUrl, city, alreadyThere: again },
+          actionDescription: `On ${city}'s maybes: "${maybe.name}"`,
+        };
+      } catch (e) {
+        if (e instanceof MaybeError) return { result: { error: e.message } };
+        throw e;
+      }
     }
 
     case "react_to_interest": {
@@ -3404,7 +3451,7 @@ export async function executeTool(
           by = names.find((n) => n.toLowerCase() === want) || names.find((n) => n.toLowerCase().startsWith(want)) || null;
           if (!by) return { result: { error: `${input.markedBy} hasn't marked any ideas${city ? ` in ${city.name}` : ""} — nothing opened.` } };
         }
-        const label = city ? `Open Ideas · ${city.name}${by ? ` · marked by ${by}` : ""}` : "Open Ideas";
+        const label = city ? `Open Maybes · ${city.name}${by ? ` · ${by} is in` : ""}` : "Open Maybes";
         const query = [city ? `city=${city.id}` : null, by ? `by=${encodeURIComponent(by)}` : null].filter(Boolean).join("&");
         return { result: { opened: go, screen: label }, navigate: { path: query ? `/ideas?${query}` : "/ideas", label, go, headline } };
       }
@@ -4093,6 +4140,11 @@ export async function executeTool(
         include: { experience: { select: { name: true } } },
       });
       if (!interest) return { result: { error: "Interest not found" } };
+      // Only your own — an X in her Guide is hers, and someone else's "I'm in" is theirs (it took any mark away)
+      const mine = interest.userCode === user.code || (!!user.travelerId && interest.userCode.startsWith(`wander:${user.travelerId}`));
+      if (!mine) {
+        return { result: { error: interest.userCode.startsWith("wander:") ? `That's ${interest.displayName}'s — only they can take it back.` : `That mark is from Larisa's Guide — Wander can't change it.` } };
+      }
       await prisma.experienceInterest.delete({ where: { id: input.interestId } });
       return {
         result: { message: `Took back the flag on ${interest.experience.name}` },
@@ -4495,7 +4547,7 @@ HOW WANDER WORKS (for "how do I…" questions — describe these real screens on
 - A day: everything the Guide says for that date in time order, where everyone sleeps that night, and where each line came from. The arrows at the top move to the day before or after. On days Larisa wrote a day tab for, "Larisa's plan for the day" follows: her lines in her order with her times, who each is for when the group splits, "Larisa's notes ›" and Maps. Where she lists choices for one time, each has "We're going here"; the pick shows "✓ The group's pick" for everyone (added in Wander — her sheet is unchanged), and the others offer "Switch to this".
 - A day's "Trains" part shows that date's legs from Ken's rail sheet (not Larisa's Guide): times, train, class, car and seats, reservation number, how many people, and the sheet's own status words; where it and the Guide disagree it says so. On the ticket-pickup day (Shin-Osaka, Oct 6), Ken's and Larisa's Home, Now and day screen lead with "Ticket pickup — Shin-Osaka", which opens every step in the sheet's order with a tick for each (ticks stay on that phone); anyone can open the steps from a train that needs its tickets collected. Now shows "Next train" with seats. A copy stays on the phone for no signal.
 - A day also has "+ Add a plan for this day": a same-day plan anyone can add ("Ken and Andy: <a museum> this afternoon"). It shows on that day for everyone, labelled as added in Wander. It never changes the Guide.
-- Ideas (bottom bar): the ideas from the Activities tab of Larisa's Guide, city by city (opens on today's city), with who marked each one. On each idea: "+ Note" (for everyone, or "Just for me"), "Add to a day", Maps, and Ask Scout. Notes and plans typed with no signal are saved on the phone and sent later.
+- Maybes (bottom bar; it was called Ideas): the group's shared list of "maybe we should…", city by city (opens on today's city). At the top, a box: "Maybe we should…" — a sentence, a link if there is one, Send; it goes on that city's list for everyone, and "Tell the group" can send it to their group text. Below: the group's maybes, newest first, then the ideas from the Activities tab of Larisa's Guide. Each shows who's in ("Interested: Larisa, Julie, Andy" — her X marks and Wander's "I'm in" together; "Julie (via Andy)" is Andy saying Julie's in), with "I'm in", "+ Note" (for everyone, or "Just for me"), "Add to a day", Maps, and Ask Scout. A dot on the tab and a line on Home say when there's something new. Typed with no signal, it's saved on the phone and sent later.
 - Next (bottom bar; it used to be called Now): today, with where Larisa's day plan has you right now, what's next and how long until it, and "Get there" buttons — walk, train or taxi — that open Apple Maps from where they're standing (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
 - Actions (bottom bar): the to-dos from the Actions tab of Larisa's Guide.
 - Scout: that's you — the chat bubble.
@@ -4533,7 +4585,7 @@ RULES:
 29. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
 30. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.
 31. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
-32. When the user expresses interest in an experience ("this looks cool", "we should check this out"), proactively offer to float it to the group with float_to_group.
+32. Maybes (the Maybes tab — the group's shared list of "maybe we should…", with Larisa's ideas): when someone says "maybe we should…", "we could…", "what about…" about something to do, see or eat — or shares a link they want the others to see — use add_maybe on today's city (or the city they name), in their own words, and say it back in a few words ("On Kyoto's maybes."). "I'm in" / "count me in" on an idea or maybe → im_in; "Julie's in too" (someone not on Wander) → im_in with forName. "Never mind the ice cream" / "take my maybe off" → take_back_maybe (their own only). When asked "any maybes near here?" or "what did people say maybe to?", read the city's ideas (get_city_experiences) and say who's in. Never say Larisa's Guide changed: her X marks are hers; Wander's "I'm in" is Wander's.
 33. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.
 35. When the user asks about a specific place, wants to see what somewhere looks like, or is deciding whether to visit, use lookup_place. This returns a photo and details from Google. Use it proactively when discussing restaurants, temples, hotels, or attractions — don't just describe them in words when you can show a photo card. Include the city or neighborhood in the query for better results (e.g. "Fushimi Inari Kyoto" not just "Fushimi Inari").
 36. When the user asks about something NOT in the trip data — restaurant recommendations, opening hours, crowd levels, "is X worth visiting", "best Y near Z", current conditions, travel tips — use web_search. Synthesize the results into a concise, helpful answer. Do NOT dump raw search results. Never use web_search for questions answerable from trip data (use other tools instead). You can combine web_search with lookup_place in the same response — search for information, then show a photo card for the top recommendation.
