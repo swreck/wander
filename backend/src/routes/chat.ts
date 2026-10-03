@@ -14,6 +14,7 @@ import { addDayChoice, removeDayChoice, listDayChoices, plainDay } from "../serv
 import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
+import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
 const router = Router();
@@ -3322,6 +3323,13 @@ export async function executeTool(
         const stay = pin || address || onMap ? null : one((await prisma.accommodation.findMany({ where: { tripId, address: { not: null } }, select: { name: true, address: true } }))
           .filter((s) => flat(s.name).length >= 4 && (want.includes(flat(s.name)) || flat(s.name).includes(want))).map((s) => s.address));
         herPlace = pin || address || onMap || stay || (linkWords ? `${linkWords}${town ? `, ${town}` : ""}` : null);
+      }
+      // Wander's own note on the place, when nothing of hers gives where it is — Shirakabeso's Izu address, from Backroads.
+      // (A note names one place exactly, so it counts even where the place shares its name with a stop on the trip —
+      // her Guide calls the Oct 21–22 stop "Shirakabeso" too.)
+      if (!herPlace && tripId) {
+        const known = noteFor(await placeNotesOf(tripId), dest.split(",")[0]);
+        if (known) herPlace = known.lat != null && known.lng != null ? `${known.lat},${known.lng}` : known.address;
       }
       const where = herPlace || `${dest}${town && !flat(dest).includes(flat(town)) ? `, ${town}` : ""}, Japan`;
       const way: "walk" | "train" | "taxi" = input.way === "train" || input.way === "taxi" ? input.way : "walk";

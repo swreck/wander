@@ -2,6 +2,26 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 (night) — Shirakabeso Is on the Izu Peninsula
+
+### Added
+- **Wander's own note on one of her places.** Her Guide names "Shirakabeso" (a Backroads stay) and nothing more. Backroads describes it as a ryokan in a forested valley on the Izu Peninsula, at 1594 Yugashima,
+  Izu, Shizuoka (added by Ken). Wander now keeps that as its own note, apart from her Guide:
+  - **Scout** reads it beside her stay, marked as Wander's addition with where it came from, never as her Guide.
+    Sources lists it separately, as Wander's note.
+  - **Walk / Train / Taxi** goes to its location when nothing of hers gives one.
+  - **The Home map** puts it on Izu as stop 7 (Kyoto becomes 8). The "isn't on the map" note is gone.
+- A new Guide copy keeps these notes. backend/src/services/guide/placeNotes.ts, scripts/set-place-note.ts;
+  tests/place-notes.test.ts (3).
+
+### Fixed
+- **Home map, iPhone SE and 15:** with Shirakabeso placed, "Kyoto end" sat on marker 1's ring and read as stop 1's
+  name. A stop's name may now stand over its "start" or "end" ("Kyoto" over "end"). Once the legs are drawn, a name
+  on a marker or another name weighs more than any line. A crowded name can move a neighbour aside. "Kyoto end" now
+  sits under 8, and "Okayama start" sits beside 1. Pro Max and iPad are unchanged.
+
+SPEC UPDATE NEEDED: places — Wander's own notes on her places (kept apart from her Guide, with their source).
+
 ## 2026-10-02 (night) — The iPad's Window Controls Corner
 
 ### Fixed
