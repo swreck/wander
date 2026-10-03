@@ -1483,12 +1483,14 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         cityId, name: idea.name, description: [idea.comment, idea.area, ...idea.dateNotes].filter(Boolean).join(" — ") || null, sourceUrl: idea.url,
         explorationZoneAssociation: idea.area, state: (dayId ? "selected" : "possible") as any, dayId,
         priorityOrder: idea.row, // Larisa's order in her Activities tab
-        themes: (/restaurant/i.test(idea.section) ? ["food"] : []) as any,
       };
+      // Her restaurant section says "food"; otherwise a theme read once is kept (Maybes filters, Oct 3 2026 — every new
+      // copy used to clear it)
+      const food = /restaurant/i.test(idea.section);
       const existing = await tx.experience.findFirst({ where: { tripId, sheetRowRef: idea.ref } });
       const exp = existing
-        ? await tx.experience.update({ where: { id: existing.id }, data })
-        : await tx.experience.create({ data: { ...data, tripId, sheetRowRef: idea.ref, createdBy: "Larisa" } });
+        ? await tx.experience.update({ where: { id: existing.id }, data: { ...data, ...(food ? { themes: ["food"] as any } : {}) } })
+        : await tx.experience.create({ data: { ...data, themes: (food ? ["food"] : []) as any, tripId, sheetRowRef: idea.ref, createdBy: "Larisa" } });
       if (!existing) createdNow.push({ id: exp.id, cityId, name: idea.name });
       await replaceGuideMarks(tx, exp.id, tripId, idea.interested);
     }

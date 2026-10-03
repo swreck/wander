@@ -6,6 +6,7 @@
  */
 import prisma from "./db.js";
 import { logChange } from "./changeLog.js";
+import { guessTheme } from "./themes.js";
 
 /** The marker on Wander's own "I'm in" (her Guide's marks are the plain names from her columns) */
 export const WANDER_MARK = "wander:";
@@ -52,6 +53,10 @@ export async function createMaybe(who: Who, tripId: string, cityId: string, rawW
       data: { experienceId: created.id, tripId, userCode: `${WANDER_MARK}${who.travelerId}`, displayName: me },
     }).catch(() => { /* already there */ });
   }
+  // Its theme, for the filters — read in the background, never holding up the maybe
+  guessTheme(words, null, city.name)
+    .then((t) => prisma.experience.update({ where: { id: created.id }, data: { themes: [t] as any } }))
+    .catch(() => { /* gone already, or no answer: it stays without a theme until the next pass */ });
   const maybe = await withMarks(created.id);
   await logChange({
     user: who, tripId, actionType: "maybe_added", entityType: "experience", entityId: maybe.id, entityName: words,

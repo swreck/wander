@@ -2,6 +2,41 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-03 (night, later) — Maybes: Shorter Cards, Today/Tomorrow, Filters by Day and Kind
+
+### Changed
+- **Shorter Maybes cards, with every word and button kept.** A plain card went from about 241 pt to 159 pt (34%), and
+  Tokyo's list is 22% shorter overall. People's notes and Larisa's longer comments keep their full space.
+  - A short place ("Ginza") sits on the name's line at the right.
+  - "Interested" and the day it's on share one line, with the day as a small chip ("Her plan · Thu, Oct 15 ›") whose
+    tap area is still 44 pt.
+  - "Seen by" joins the Interested line.
+  - The buttons sit closer, so they take two rows instead of three. "Remove" on your own note sits at its line's end.
+
+### Added
+- **Today / Tomorrow tags** beside an idea's name when it's on that day's plan, someone put it on that day, or it's a
+  small maybe said today.
+- **Filters**, in one sideways-scrolling row under "Show:":
+  - **Next 2 days**.
+  - **Themes**: Food & drink · Temples & history · Art & craft · Shopping · Nature · Other.
+  - One theme at a time; tap again to clear. If nothing matches, the screen says so, with "Show everything".
+- **Themes:** her restaurant section is Food & drink. Everything else is read once by a fast, inexpensive model:
+  her ideas once (scripts/tag-themes.ts), a maybe when it's posted, in the background. A theme is only ever a filter,
+  never stated as a fact. "Other" when unsure. A new Guide copy keeps themes it used to clear.
+  New theme value "shopping" (schema).
+
+### Fixed
+- **Home map, the Karatsu/Hakata marker:** the line from Okayama now comes into Karatsu's "2" from above. The line to
+  Nagoya leaves Hakata's "3" below. Before, the line from Okayama ran along the bottom of the marker under "3", and the
+  trip seemed to go from Okayama into Hakata. Each line has one more shape to try: a long, straight lead into a shared
+  marker's own half. Checked by eye at 393, 402 and 440 pt and on the iPad. A fresh review runs once helper agents
+  are available again.
+
+Tested: Maybes walk 40/40 (filters, Today tag, Tell the group, Remove), Playwright 20/20, all walk-throughs, map walk
+72/72.
+
+SPEC UPDATE NEEDED: Maybes card layout, filters by day and theme.
+
 ## 2026-10-03 (late night) — Tell the Group on Anything; Remove; Okayama's Name Off the Line
 
 ### Changed

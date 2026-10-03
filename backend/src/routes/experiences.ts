@@ -112,7 +112,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   const { name, description, themes, userNotes, latitude, longitude, locationStatus, placeIdGoogle, cloudinaryImageId, priorityOrder, cityId, state, dayId, timeWindow, transportModeToHere } = req.body;
 
   // Validate theme enum values
-  const VALID_THEMES = ["ceramics", "architecture", "food", "temples", "nature", "other"];
+  const VALID_THEMES = ["ceramics", "architecture", "food", "temples", "nature", "other", "shopping"];
   if (themes !== undefined && Array.isArray(themes)) {
     const invalid = themes.filter((t: string) => !VALID_THEMES.includes(t));
     if (invalid.length > 0) {

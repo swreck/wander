@@ -52,6 +52,10 @@ const sheetRow = (e: Experience) => (e.sheetRowRef ? Number((e as { priorityOrde
 
 /** One person, however they're named: "Larisa (maybe)", "Julie (via Andy)", "Andy B" → "Larisa", "Julie", "Andy" */
 const personOf = (n: string) => n.replace(/\s*\((maybe|via [^)]*)\)\s*$/i, "").trim().split(/\s+/)[0] || n;
+/** The filter's themes (Ken, Oct 3) — "architecture" counts with temples and history, "ceramics" is art and craft */
+const THEME_ORDER = ["food", "temples", "ceramics", "shopping", "nature", "other"] as const;
+const THEME_OF: Record<string, (typeof THEME_ORDER)[number]> = { food: "food", temples: "temples", architecture: "temples", ceramics: "ceramics", shopping: "shopping", nature: "nature", other: "other" };
+const THEME_LABEL: Record<string, string> = { food: "Food & drink", temples: "Temples & history", ceramics: "Art & craft", shopping: "Shopping", nature: "Nature", other: "Other" };
 /** The phone's own date of a moment */
 const localDay = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 /**
@@ -101,6 +105,9 @@ export default function IdeasPage() {
   const [seenRows, setSeenRows] = useState<SeenRow[]>([]);
   const [lastLook, setLastLook] = useState<Record<string, string | null>>({});
   const [showEarlier, setShowEarlier] = useState(false);
+  // Filters: the next two days, and one theme at a time (tap again to clear)
+  const [soon, setSoon] = useState(false);
+  const [theme, setTheme] = useState<string | null>(null);
 
   // The trip, its days and cities (shared with Home and the day screens; saved on the phone)
   useEffect(() => {
@@ -239,14 +246,7 @@ export default function IdeasPage() {
     for (const i of cityIdeas) for (const p of i.interests || []) set.add(personOf(p.displayName));
     return Array.from(set).sort();
   }, [cityIdeas]);
-  const filtered = person === "everyone" ? cityIdeas : cityIdeas.filter((i) => (i.interests || []).some((p) => personOf(p.displayName) === personOf(person)));
-  // Her ideas in her order, as in her Activities tab; the group's maybes newest first, above them
-  const shown = filtered.filter((i) => !!i.sheetRowRef).sort((a, b) => sheetRow(a) - sheetRow(b));
-  const maybes = filtered.filter((i) => !i.sheetRowRef).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  // A small maybe ("tea or ice cream?" — no link, not on a day) from a day before today folds into "Earlier"
-  const earlierThan = (e: Experience) => !e.sourceUrl && !e.dayId && localDay(e.createdAt) < today;
-  const maybesNow = maybes.filter((e) => !earlierThan(e));
-  const maybesEarlier = maybes.filter(earlierThan);
+  const byPerson = person === "everyone" ? cityIdeas : cityIdeas.filter((i) => (i.interests || []).some((p) => personOf(p.displayName) === personOf(person)));
   const cityDays = useMemo(() => (guide?.days || []).filter((d) => d.cityId === cityId).map((d) => ymd(d.date)).sort(), [guide, cityId]);
   // The days her own plan already has each idea (Bamboo Forest said "Nobody has marked this yet" though it opens her
   // Oct 26; Julie's two marks are both on her days — round 15)
@@ -270,6 +270,28 @@ export default function IdeasPage() {
     }
     return out;
   }, [guide, cityIdeas, cityDays]);
+  // Today / Tomorrow: on that day's plan, put on that day, or a small maybe said today (Ken, Oct 3: "highlight if within
+  // 48 hours… filter to things in the next 2 days")
+  const tomorrow = (() => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
+  const whenOf = (e: Experience): "Today" | "Tomorrow" | null => {
+    const dates = [...(planDays.get(e.id) || []), ...choices.filter((c) => c.experienceId === e.id).map((c) => c.date)];
+    if (dates.includes(today) || (!e.sheetRowRef && !e.sourceUrl && !e.dayId && localDay(e.createdAt) === today)) return "Today";
+    return dates.includes(tomorrow) ? "Tomorrow" : null;
+  };
+  // A theme each (her restaurant section, or read once by Wander) — for the filter only
+  const themeOf = (e: Experience) => THEME_OF[(e.themes || [])[0] || "other"] || "other";
+  const themesHere = THEME_ORDER.filter((t) => byPerson.some((e) => themeOf(e) === t));
+  // (a theme this city has none of — after changing city — is simply off)
+  const activeTheme = theme && (themesHere as readonly string[]).includes(theme) ? theme : null;
+  const passes = (e: Experience) => (!soon || !!whenOf(e)) && (!activeTheme || themeOf(e) === activeTheme);
+  const filtered = byPerson.filter(passes);
+  // Her ideas in her order, as in her Activities tab; the group's maybes newest first, above them
+  const shown = filtered.filter((i) => !!i.sheetRowRef).sort((a, b) => sheetRow(a) - sheetRow(b));
+  const maybes = filtered.filter((i) => !i.sheetRowRef).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // A small maybe ("tea or ice cream?" — no link, not on a day) from a day before today folds into "Earlier"
+  const earlierThan = (e: Experience) => !e.sourceUrl && !e.dayId && localDay(e.createdAt) < today;
+  const maybesNow = maybes.filter((e) => !earlierThan(e));
+  const maybesEarlier = maybes.filter(earlierThan);
   const eat = shown.filter((i) => (i.themes || []).includes("food"));
   const doing = shown.filter((i) => !(i.themes || []).includes("food"));
 
@@ -352,22 +374,44 @@ export default function IdeasPage() {
 
         {/* Show only what one person is in on — apart from the box, above the lists (right under Send it read as
             choosing who a maybe goes to; fresh review, Oct 2) */}
-        {people.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mb-3 mt-5 pt-3 border-t border-[#e0d8cc]" role="group" aria-label="Show what one person is in on">
-            <span className="text-xs text-[#6b5d4a]">Show:</span>
-            {["everyone", ...people].map((p) => (
-              <button key={p} onClick={() => setPerson(p)} aria-pressed={person === p}
-                className={`min-h-[44px] px-3 rounded-full text-sm border ${person === p ? "bg-[#efe6d6] border-[#c8b89c] text-[#3a3128]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
-                {p === "everyone" ? "Everyone" : p.toLowerCase() === myName ? "What you're in on" : `${p}'s`}
+        {/* Two rows of filters, each one line that scrolls sideways: whose, then when and what kind (Ken, Oct 3) */}
+        <div className="mt-5 pt-2 border-t border-[#e0d8cc] mb-2">
+          {people.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4" role="group" aria-label="Show what one person is in on">
+              <span className="shrink-0 text-xs text-[#6b5d4a]">Show:</span>
+              {["everyone", ...people].map((p) => (
+                <button key={p} onClick={() => setPerson(p)} aria-pressed={person === p}
+                  className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${person === p ? "bg-[#efe6d6] border-[#c8b89c] text-[#3a3128]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
+                  {p === "everyone" ? "Everyone" : p.toLowerCase() === myName ? "What you're in on" : `${p}'s`}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 mt-1.5" role="group" aria-label="Show by day or kind">
+            <button onClick={() => setSoon((v) => !v)} aria-pressed={soon}
+              className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${soon ? "bg-[#514636] text-white border-[#514636]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
+              Next 2 days
+            </button>
+            {themesHere.map((t) => (
+              <button key={t} onClick={() => setTheme(activeTheme === t ? null : t)} aria-pressed={activeTheme === t}
+                className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${activeTheme === t ? "bg-[#efe6d6] border-[#c8b89c] text-[#3a3128]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
+                {THEME_LABEL[t]}
               </button>
             ))}
           </div>
+        </div>
+        {(soon || activeTheme) && filtered.length === 0 && (
+          <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-3 mb-4">
+            {soon && activeTheme ? `Nothing ${THEME_LABEL[activeTheme].toLowerCase()} in ${city?.name} in the next two days.`
+              : soon ? `Nothing in ${city?.name} is on the plan for today or tomorrow.` : `No ${THEME_LABEL[activeTheme!].toLowerCase()} ideas in ${city?.name}.`}
+            <button onClick={() => { setSoon(false); setTheme(null); }} className="block min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Show everything</button>
+          </p>
         )}
 
         {(() => {
           const card = (exp: Experience) => (
             <IdeaCard key={exp.id} exp={exp} cityName={city?.name || ""} notes={notes[exp.id] || []} me={me}
-              travelerId={user?.travelerId || null} viaNames={viaNames} seenBy={exp.sheetRowRef ? [] : seenByFor(exp)} isNew={!exp.sheetRowRef && isNewFor(exp)}
+              travelerId={user?.travelerId || null} viaNames={viaNames} seenBy={exp.sheetRowRef ? [] : seenByFor(exp)} isNew={!exp.sheetRowRef && isNewFor(exp)} when={whenOf(exp)}
               tripId={tripId!} days={cityDays} today={today} choices={choices.filter((c) => c.experienceId === exp.id)}
               planned={planDays.get(exp.id) || []}
               onInterests={(list) => setInterestsOf(exp.id, list)}
@@ -395,7 +439,8 @@ export default function IdeasPage() {
                 </section>
               )}
 
-              {shown.length === 0 && (
+              {/* (with a day or theme filter on, the line above already says what's missing) */}
+              {shown.length === 0 && !soon && !activeTheme && (
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4 mb-5">
                   {person === "everyone" ? `${voiceFor(user?.displayName).mine ? "Your" : "Larisa's"} Guide has no ideas listed for ${city?.name || "this city"}.` : `${person} hasn't said they're in on anything in ${city?.name} yet.`}
                 </p>
@@ -415,8 +460,10 @@ export default function IdeasPage() {
   );
 }
 
-function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNew, tripId, days, today, choices, planned, onInterests, onGone, onNote, onRemoveNote, onChoice, onOpenDay }: {
+function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNew, when, tripId, days, today, choices, planned, onInterests, onGone, onNote, onRemoveNote, onChoice, onOpenDay }: {
   exp: Experience; cityName: string; notes: Note[]; me: string; travelerId: string | null; viaNames: string[]; seenBy: string[]; isNew: boolean;
+  /** on today's or tomorrow's plan, put on that day, or a small maybe said today */
+  when: "Today" | "Tomorrow" | null;
   tripId: string; days: string[]; today: string; planned: string[]; onInterests: (list: Experience["interests"]) => void; onGone: () => void;
   choices: DayChoice[]; onNote: (n: Note) => void; onRemoveNote: (id: string) => void; onChoice: (c: DayChoice) => void; onOpenDay: (date: string) => void;
 }) {
@@ -535,8 +582,12 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
     }
   }
 
+  // A short place line ("Ginza", "Shibuya") sits on the name's line, at its right; a longer comment keeps its own line
+  // (Ken, Oct 3: the cards left the right side empty and read as a long column of panels — about a third shorter now,
+  // with every word and button still there)
+  const shortPlace = !!exp.description && exp.description.length <= 24 && !/\n/.test(exp.description);
   return (
-    <li className="bg-white rounded-xl border border-[#e0d8cc] p-3">
+    <li data-card className="bg-white rounded-xl border border-[#e0d8cc] px-3 pt-2.5 pb-0.5">
       {/* A maybe: who said it and when */}
       {isMaybe && (
         <p className="text-xs text-[#6b5d4a] mb-0.5">
@@ -544,39 +595,39 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
           {isNew && <span className="ml-1.5 px-1.5 py-px rounded bg-[#f5e6c8] text-[#7a4f12]">New</span>}
         </p>
       )}
-      <div className="flex items-start gap-2">
-        <p className="flex-1 text-[15px] font-medium text-[#3a3128] leading-snug">{exp.name}</p>
+      <div className="flex items-baseline gap-3">
+        <p className="flex-1 min-w-0 text-[15px] font-medium text-[#3a3128] leading-snug">
+          {exp.name}
+          {when && <span className={`ml-1.5 align-[1px] px-1.5 py-px rounded text-xs font-normal ${when === "Today" ? "bg-[#514636] text-white" : "bg-[#f5e6c8] text-[#7a4f12]"}`}>{when}</span>}
+        </p>
+        {shortPlace && <span className="shrink-0 text-sm text-[#6b5d4a]">{exp.description}</span>}
       </div>
-      {exp.description && <p className="text-sm text-[#6b5d4a] mt-1 whitespace-pre-line">{exp.description}</p>}
-      <p className="text-xs text-[#514636] mt-1.5">
-        {/* "you", not your own name (delight audit: "Marked by Larisa" on Larisa's phone, sixteen times) */}
-        {[
-          interested.length > 0
-            ? `Interested: ${interested.join(", ")}`
-            // (on her plan already: "nobody has marked this" read as nobody wanted it)
-            : planned.length ? null : "Nobody's in yet",
-          removedFromGuide ? `no longer in ${voiceFor(me).guide} — kept here for the notes on it` : null,
-        ].filter(Boolean).join(" · ")}
-      </p>
-      {seenBy.length > 0 && <p className="text-xs text-[#8a7d6a] mt-0.5">Seen by {seenBy.join(", ")}</p>}
-      {planned.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-2">
-          {planned.map((d) => (
-            <button key={d} onClick={() => onOpenDay(d)} className="min-h-[44px] px-3 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-sm">
-              In {voiceFor(me).mine ? "your" : "Larisa's"} plan for {shortDay(d)} ›
-            </button>
-          ))}
-        </div>
-      )}
-      {choices.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-2">
-          {choices.map((c) => (
-            <button key={c.id} onClick={() => onOpenDay(c.date)} className="min-h-[36px] px-2.5 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs">
-              On {shortDay(c.date)} · added by {c.addedBy} ›
-            </button>
-          ))}
-        </div>
-      )}
+      {exp.description && !shortPlace && <p className="text-sm text-[#6b5d4a] mt-0.5 whitespace-pre-line">{exp.description}</p>}
+      {/* Who's in, and the day it's on, on one line — the day a small chip at the right (it was a full-width pill) */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+        <p className="flex-1 min-w-[45%] text-xs text-[#514636] py-1">
+          {/* "you", not your own name (delight audit: "Marked by Larisa" on Larisa's phone, sixteen times) */}
+          {[
+            interested.length > 0
+              ? `Interested: ${interested.join(", ")}`
+              // (on her plan already: "nobody has marked this" read as nobody wanted it)
+              : planned.length ? null : "Nobody's in yet",
+            seenBy.length > 0 ? `Seen by ${seenBy.join(", ")}` : null,
+            removedFromGuide ? `no longer in ${voiceFor(me).guide} — kept here for the notes on it` : null,
+          ].filter(Boolean).join(" · ")}
+        </p>
+        {/* (a 44 pt tap area around a smaller chip) */}
+        {planned.map((d) => (
+          <button key={d} onClick={() => onOpenDay(d)} className="min-h-[44px] -my-2 flex items-center" aria-label={`In ${voiceFor(me).mine ? "your" : "Larisa's"} plan for ${shortDay(d)}`}>
+            <span className="px-2.5 py-1 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs whitespace-nowrap">{voiceFor(me).mine ? "Your" : "Her"} plan · {shortDay(d)} ›</span>
+          </button>
+        ))}
+        {choices.map((c) => (
+          <button key={c.id} onClick={() => onOpenDay(c.date)} className="min-h-[44px] -my-2 flex items-center">
+            <span className="px-2.5 py-1 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs whitespace-nowrap">{shortDay(c.date)} · added by {c.addedBy} ›</span>
+          </button>
+        ))}
+      </div>
 
       {notes.length > 0 && (
         <ul className="mt-2 space-y-1">
@@ -598,7 +649,8 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
                   </span>
                 ) : (
                   // ("Remove", one word for both — Ken, Oct 3: "Take back should be Remove")
-                  <button onClick={() => setConfirmTakeBack(n.id)} aria-label={`Remove your note on ${exp.name}`} className="block min-h-[44px] text-xs text-[#6b5d4a] underline underline-offset-2">
+                  // (at the end of the note's line, not a line of its own — the cards were a third too tall; a 44 pt area)
+                  <button onClick={() => setConfirmTakeBack(n.id)} aria-label={`Remove your note on ${exp.name}`} className="ml-2 min-h-[44px] -my-3 align-middle text-xs text-[#6b5d4a] underline underline-offset-2">
                     Remove
                   </button>
                 ))}
@@ -641,7 +693,8 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
       )}
 
       {!writing && !picking && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
+        // (closer together: two rows where they took three — every one still a 44 pt target)
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-0 mt-1">
           {/* I'm in — one tap, again to take it back (your X in her Guide already says it; only she can change that) */}
           {myCode && !inByHerGuide && (
             <button onClick={() => setIn(!imIn)} aria-pressed={imIn}
