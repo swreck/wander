@@ -59,8 +59,9 @@ const localDay = (iso: string) => { const d = new Date(iso); return `${d.getFull
  * isn't on Wander); with no share sheet, copied. Returns a line to show, or null. On every maybe, not only just after
  * Send — Ken, Oct 3: the button was gone by the time he looked for it, and someone else's maybe couldn't be passed on.
  */
-async function tellGroup(by: string, words: string, link: string | null, cityName: string): Promise<string | null> {
-  const body = `${personOf(by)}: ${words}${link ? `\n${link}` : ""}\n(on Wander's maybes for ${cityName})`;
+async function tellGroup(by: string, words: string, link: string | null, cityName: string, fromGuide?: string): Promise<string | null> {
+  // (one of her ideas carries its source: "From Larisa's Guide: …" — Ken, Oct 3: "any item, with the original source")
+  const body = `${fromGuide ? `From ${fromGuide}: ` : `${personOf(by)}: `}${words}${link ? `\n${link}` : ""}\n(on Wander's maybes for ${cityName})`;
   try {
     if (typeof navigator.share === "function") { await navigator.share({ text: body }); return null; }
     await navigator.clipboard.writeText(body);
@@ -591,13 +592,14 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
                 {n._pending && <span className="text-xs text-[#6b5d4a]"> · waiting for signal</span>}
                 {mine && (confirmTakeBack === n.id ? (
                   <span className="flex flex-wrap items-center gap-x-3">
-                    <span className="text-xs text-[#6b5d4a]">Take this note back?</span>
-                    <button onClick={() => takeBack(n)} className="min-h-[44px] text-sm text-[#8a3a1a]">Take it back</button>
+                    <span className="text-xs text-[#6b5d4a]">Remove your note?</span>
+                    <button onClick={() => takeBack(n)} className="min-h-[44px] text-sm text-[#8a3a1a]">Remove</button>
                     <button onClick={() => setConfirmTakeBack(null)} className="min-h-[44px] text-sm text-[#514636]">Keep</button>
                   </span>
                 ) : (
-                  <button onClick={() => setConfirmTakeBack(n.id)} aria-label={`Take back your note on ${exp.name}`} className="block min-h-[44px] text-xs text-[#6b5d4a] underline underline-offset-2">
-                    Take back
+                  // ("Remove", one word for both — Ken, Oct 3: "Take back should be Remove")
+                  <button onClick={() => setConfirmTakeBack(n.id)} aria-label={`Remove your note on ${exp.name}`} className="block min-h-[44px] text-xs text-[#6b5d4a] underline underline-offset-2">
+                    Remove
                   </button>
                 ))}
               </li>
@@ -665,20 +667,18 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
           {exp.sourceUrl && <a href={exp.sourceUrl} target="_blank" rel="noreferrer" className="min-h-[44px] min-w-[44px] inline-flex items-center text-sm text-[#514636]">{linkLabel(exp.sourceUrl)} ↗</a>}
           <button onClick={() => window.dispatchEvent(new CustomEvent("wander-open-chat", { detail: { prefill: isMaybe ? `About this maybe in ${cityName} — "${exp.name}": ` : `Tell me about ${exp.name} in ${cityName}` } }))}
             className="min-h-[44px] text-sm text-[#514636]">Ask Scout</button>
-          {/* Any maybe, anyone's, to the group text — with its writer's name */}
-          {isMaybe && (
-            <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName))}
-              className="min-h-[44px] text-sm text-[#514636]">Tell the group</button>
-          )}
+          {/* Anything on the list to the group text — a maybe with its writer's name, one of hers as from her Guide */}
+          <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName, isMaybe ? undefined : "Larisa's Guide"))}
+            className="min-h-[44px] text-sm text-[#514636]">Tell the group</button>
           {myMaybe && !confirmGone && (
-            <button onClick={() => setConfirmGone(true)} className="min-h-[44px] text-sm text-[#6b5d4a] underline underline-offset-2">Take back</button>
+            <button onClick={() => setConfirmGone(true)} className="min-h-[44px] text-sm text-[#6b5d4a] underline underline-offset-2">Remove</button>
           )}
         </div>
       )}
       {myMaybe && confirmGone && (
         <div className="flex flex-wrap items-center gap-x-3 mt-1">
-          <span className="text-sm text-[#3a3128]">Take this maybe back?</span>
-          <button onClick={takeBackMaybe} className="min-h-[44px] text-sm text-[#8a3a1a]">Take it back</button>
+          <span className="text-sm text-[#3a3128]">Remove this maybe?</span>
+          <button onClick={takeBackMaybe} className="min-h-[44px] text-sm text-[#8a3a1a]">Remove</button>
           <button onClick={() => setConfirmGone(false)} className="min-h-[44px] text-sm text-[#514636]">Keep it</button>
         </div>
       )}

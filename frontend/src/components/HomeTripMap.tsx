@@ -752,6 +752,34 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     // (and once more, the legs settled and the names alone: a crowded name free to move a neighbour aside, a lone stop's
     // name over its "start" or "end", and a marker or name weighed above any line — see `pairs`)
     if (best.crowded.length) best = judge(best.rt, true);
+    // A name with a leg running under it: that leg and a neighbour may take other arcs together (on Ken's iPhone 17 Pro
+    // the leg into Nagoya ran under "Okayama start" and the trip seemed to go back to Okayama — fresh review, Oct 3; the
+    // cure: the leg to Karatsu and the one to Nagoya bowing on opposite sides, as a Pro Max draws them). No new crossing.
+    // Screened with the quick naming; the careful naming runs on the best few; none clear: the layout above stands.
+    if (best.crowded.length) {
+      const start = best;
+      // (any point inside a name's box)
+      const under = (b: Box) => (pts: { x: number; y: number }[]) => pts.some((p) => p.x > b.x1 && p.x < b.x2 && p.y > b.y1 && p.y < b.y2);
+      const nameOnLine = (r: typeof best) => r.labels.some((l) => r.rt.some((leg) => under(l.spot.box)(leg.pts)));
+      const legsUnder = new Set<number>();
+      for (const l of start.labels) start.rt.forEach((leg, i) => { if (under(l.spot.box)(leg.pts)) legsUnder.add(i); });
+      const found: (typeof best)[] = [];
+      for (const i of legsUnder) for (const j of [i - 1, i + 1]) {
+        if (j < 0 || j >= route.length) continue;
+        // (every shape for the leg under the name, the gentle bows for its neighbour)
+        for (const pi of route[i].tries) for (const pj of route[j].tries.slice(0, BOWS.length)) {
+          const rt = start.rt.map((leg, k) => (k === i ? { ...leg, pts: pi } : k === j ? { ...leg, pts: pj } : leg));
+          if (routeCost(rt.map((l) => l.pts)) > ruleCost) continue;
+          const r = judge(rt);
+          if (!nameOnLine(r)) found.push(r);
+        }
+      }
+      found.sort((x, y) => x.cost - y.cost);
+      for (const f of found.slice(0, 8)) {
+        const careful = judge(f.rt, true);
+        if (!nameOnLine(careful)) { best = careful; break; }
+      }
+    }
     return { placed: best.labels, drawnRoute: best.rt };
   }, [groups, route, routeCost, view, nameWidth, stops, today]);
 

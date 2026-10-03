@@ -2,6 +2,22 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-03 (late night) — Tell the Group on Anything; Remove; Okayama's Name Off the Line
+
+### Changed
+- **Tell the group** is on every item on Maybes, including Larisa's ideas. Hers go out as "From Larisa's Guide: …" and
+  a group maybe goes out under its writer's name (Ken, Oct 3: "any item, with the original source").
+- **"Take back" is now "Remove"**, for your own maybe ("Remove this maybe?") and your own note ("Remove your note?").
+
+### Fixed
+- **Home map, iPhone 17 Pro width:** the line from Karatsu/Hakata to Nagoya no longer runs under "Okayama start".
+  When a name has a line under it, that line and a neighbouring one may take other curves together, with no new
+  crossing. Each candidate is screened quickly and named carefully, and if none comes out clear, the old layout stays.
+  Fresh review: the Pro Max and iPad pass. On the 17 Pro and iPhone 16, the line into Karatsu still runs along the
+  bottom of the 2|3 marker, which is next. On the plain iPhone 16 the Okayama line remains too.
+
+Tested: Maybes walk 36/36, Playwright 20/20, all walk-throughs.
+
 ## 2026-10-03 (night) — Asking Scout in One Tap
 
 ### Fixed
