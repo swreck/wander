@@ -19,6 +19,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
+import { ownFirstDay } from "../lib/leavingSoon";
 import { savedCopy } from "../lib/tripNotes";
 import { sourcesData, railAudience, legIsFor, isBookedTrain, colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, herTab, withTwelveHour, railNoteFor, type OtherSource, type Checklist, type RailRow } from "../lib/sources";
 import { checklistTitle, DifferLine, TicketWarnings } from "./RailSheet";
@@ -221,9 +222,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     const last = ymd(data.trip.endDate);
     const tz = data.trip.timeZone || "Asia/Tokyo";
     const party = partyOf(data.items, me);
-    // Your own first day: your first flight or check-in, when the Guide says whose they are
-    const mine = party ? data.items.filter((i) => i.date && i.forWhom === party && ["flight", "checkin"].includes(i.kind) && !isLanding(i)) : [];
-    const myFirst = mine.map((i) => ymd(i.date)).sort()[0] || first;
+    // Your own first day: your first flight or check-in, when the Guide says whose they are (one rule with the
+    // leaving-soon card's countdown — lib/leavingSoon.ts)
+    const myFirst = ownFirstDay(data.items, party, first);
     const on = (date: string) => sortDay(withCheckoutWho(data.items.filter((i) => ymd(i.date) === date && !["deadline", "stop", "weather", "block"].includes(i.kind) && !isPlanningNote(i) && !isFragmentTitle(i)), date, data.stays, data.items), tz);
     // Coming up — plus any that passed in the last day ("Passed"), so nobody wonders where one went
     // A passed one only when there's something it means for you (delight audit: Julie read "JUST PASSED · Free

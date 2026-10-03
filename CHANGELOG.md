@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-02 (late night) — Before Julie and Andy Leave
+
+### Added
+- **A card once a day before they leave home** (Home, over the page, the first time it opens that day). It says how
+  many days until they leave ("You leave in 10 days", "You leave tomorrow", "You leave today · Safe travels."). It
+  shows their flight as her Guide has it (day, time with its time zone, airline and route) and one fact about Japan,
+  Tokyo or Kyoto, a different one each day.
+  - For anyone whose own first flight is after the trip begins (Julie and Andy).
+  - The day is the one Home counts to: one shared rule (lib/leavingSoon.ts), now also used by Home's countdown.
+  - Gone once their plane has left, and after the day.
+  - Not shown while someone new is still setting up Face ID.
+  - Thanks, Escape or a tap outside puts it away until the next day.
+- **Ken's preview:** someone with the previewLeavingCard setting sees the same card once a day, headed "If Julie and
+  Andy open Wander today, this is what they'll see:". It counts on their date at home, even from Japan.
+- **The twelve facts:** each one was checked against published sources first (Japan's island recount, the bullet
+  train's record, Kyoto and the atomic-bomb list, Ise's rebuilding, Meiji Shrine's forest and others). A
+  fact-checker corrected eight. Kyoto's temple count was dropped because no official source supports it. Sources are
+  in the code.
+
+Tested: Andy on every day Oct 2–13 (the card and Home's countdown agree, and both match her flight), after take-off
+and the day after (nothing), once a day, Julie, Larisa (never), and Ken without and with the setting, including from
+Tokyo (70/70). Fresh review: SHIP.
+
+SPEC UPDATE NEEDED: Home — the before-you-leave card for travelers who join later, and the organiser's preview.
+
 ## 2026-10-02 (night) — Shirakabeso Is on the Izu Peninsula
 
 ### Added
