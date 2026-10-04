@@ -36,7 +36,7 @@ interface SheetNote {
 }
 
 // Her pictures, by tab, with short-lived links (GET /guide/pictures) — fetched once, when a picture is first asked for
-type TabPictures = { tab: string; pictures: { anchor: string; url: string }[] }[];
+type TabPictures = { tab: string; pictures: { anchor: string; url: string | null; personal?: boolean }[] }[];
 let picturesLoad: { tripId: string; p: Promise<TabPictures> } | null = null;
 function picturesOf(tripId: string): Promise<TabPictures> {
   if (!picturesLoad || picturesLoad.tripId !== tripId) {
@@ -48,8 +48,9 @@ function picturesOf(tripId: string): Promise<TabPictures> {
 
 /** The nth picture she pasted in a tab, opened on request (links last ten minutes, so each opening asks afresh) */
 function TabPicture({ tripId, tab, nth }: { tripId: string; tab: string; nth: number }) {
+  const v = voiceFor(useAuth().user?.displayName);
   const [url, setUrl] = useState<string | null>(null);
-  const [state, setState] = useState<"idle" | "opening" | "shown" | "missing">("idle");
+  const [state, setState] = useState<"idle" | "opening" | "shown" | "missing" | "personal">("idle");
   // full screen, to read a map she pasted (round 16)
   const [full, setFull] = useState(false);
   const open = async () => {
@@ -58,9 +59,14 @@ function TabPicture({ tripId, tab, nth }: { tripId: string; tab: string; nth: nu
     const all = await picturesOf(tripId);
     const pic = all.find((t) => t.tab === tab)?.pictures[nth];
     if (!pic) { setState("missing"); return; }
+    // (people's own travel numbers on it — Ken, Oct 4: Wander doesn't surprise people with them)
+    if (pic.personal || !pic.url) { setState("personal"); return; }
     setUrl(pic.url);
     setState("shown");
   };
+  if (state === "personal") {
+    return <span className="block mt-1 text-sm text-[#514636]">Wander keeps this one to {v.owners} sheet — it has people's own travel numbers on it.</span>;
+  }
   if (state === "shown" && url) {
     return (
       <span className="block mt-2">

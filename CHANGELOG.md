@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — People's Own Travel Numbers Stay Out of Wander
+
+### Changed
+- **People's own travel numbers are left out of everything Wander shows or says.** Ken: "unless the info passes
+  through the vault in a safe way, Wander should not surprise people by surfacing their personal info." Her Flight info
+  tab holds a picture of United's confirmation for Julie and Andy; Wander reads every word of a picture, so their Known
+  Traveler, eTicket and MileagePlus numbers, a phone number, an email and the total paid were on Home's "tab by tab",
+  in Find, and in what Scout reads.
+  - Known Traveler, Redress, eTicket, frequent-flyer, passport numbers and birth dates: the number goes, the label stays
+    ("KTN [left out by Wander]"). In a record that carries one of those, its phone, email and total go too. A hotel's
+    phone in an ordinary picture stays; so do flight times, confirmation codes and names.
+  - A picture holding them isn't shown in Wander: "Wander keeps this one to Larisa's sheet — it has people's own travel
+    numbers on it." (Home's tab by tab; Scout's "Where this came from"; the day screen doesn't offer it.) The server
+    won't send it to a phone at all.
+  - Every new Guide copy leaves them out; the words already saved were cleaned once on production
+    (scripts/mask-personal-numbers.ts — one row, Flight info). Scout had never said any of them.
+- **"Open at this spot in her sheet" opens her current sheet.** The address Wander recorded in April was her earlier
+  spreadsheet. Ken's links (Oct 4) are from "Japan Oct 2026", the one she works in; Wander now uses it, with exact tabs
+  for Dining Resos and the three Tokyo day tabs; other tabs open her sheet with the tab and cell named in words.
+
+Tested: personal-numbers tests 9/9 (invented numbers: words, the three picture routes, Find), a browser walk as Andy
+and as Larisa (one picture held back, the other three open, no number on screen) 10/10, Playwright 20/20.
+
+SPEC UPDATE NEEDED: privacy — people's own travel numbers and the pictures holding them.
+
 ## 2026-10-04 — "Taken Off the List" Counts What You Just Removed
 
 ### Fixed

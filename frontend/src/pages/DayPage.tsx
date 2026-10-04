@@ -191,7 +191,11 @@ function DayPicture({ tripId, picture, her, tab }: { tripId: string; picture: Gu
       <button
         onClick={async () => {
           setState("opening");
-          try { setUrl((await api.get<{ url: string }>(`/guide/picture-link/${tripId}/${picture.sha256}`)).url); setState("idle"); }
+          try {
+            // (never one with people's own travel numbers — guidePictures leaves those out; a link refused is a miss)
+            const r = await api.get<{ url: string | null }>(`/guide/picture-link/${tripId}/${picture.sha256}`);
+            if (r.url) { setUrl(r.url); setState("idle"); } else setState("failed");
+          }
           catch { setState("failed"); }
         }}
         disabled={state === "opening"}

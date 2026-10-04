@@ -21,7 +21,7 @@ import { sheetLinkOf, otherSheetLinks } from "../services/guide/sheetLink.js";
 import { guideLinksByDay } from "../services/guide/appleGuides.js";
 import { currentSummaries } from "../services/guide/daySummaries.js";
 import { tabsOfCopy, cellsOfItem, completeCells, spotsOf } from "../services/guide/sources.js";
-import { withoutFinancialDetails } from "../services/sources/filter.js";
+import { withoutFinancialDetails, holdsPersonalNumbers } from "../services/sources/filter.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -38,9 +38,11 @@ router.get("/picture/:tripId/:sha", async (req, res) => {
   }
   const img = await prisma.guideImage.findUnique({
     where: { tripId_sha256: { tripId: req.params.tripId, sha256: req.params.sha } },
-    select: { bytes: true, mimeType: true },
+    select: { bytes: true, mimeType: true, transcription: true },
   });
   if (!img) { res.status(404).json({ error: "Picture not found" }); return; }
+  // Someone's own travel numbers are in it (Known Traveler, eTicket…): never shown in Wander — it's in her sheet (Oct 4)
+  if (holdsPersonalNumbers(img.transcription)) { res.status(404).json({ error: "This picture holds personal numbers, so Wander doesn't show it." }); return; }
   res.setHeader("Content-Type", img.mimeType);
   res.setHeader("Cache-Control", "private, max-age=86400");
   res.send(Buffer.from(img.bytes));
@@ -153,7 +155,7 @@ router.get("/pictures/:tripId", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;
   if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
   const current = await prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { tabs: true } });
-  const images = await prisma.guideImage.findMany({ where: { tripId }, select: { sha256: true, readStatus: true, facts: true } });
+  const images = await prisma.guideImage.findMany({ where: { tripId }, select: { sha256: true, readStatus: true, facts: true, transcription: true } });
   const bySha = new Map(images.map((i) => [i.sha256, i]));
   const tabs = ((current?.tabs as any[]) || []).filter((t) => t.images?.length);
   res.json(tabs.map((t) => ({
@@ -161,11 +163,14 @@ router.get("/pictures/:tripId", async (req: AuthRequest, res) => {
     pictures: t.images.map((p: { anchor: string; sha256: string }) => {
       const img = bySha.get(p.sha256);
       const token = jwt.sign({ picture: `${tripId}:${p.sha256}` }, PICTURE_SECRET, { expiresIn: "10m" });
+      // (someone's own travel numbers in it: no link — the phone says it's in her sheet)
+      const personal = holdsPersonalNumbers(img?.transcription);
       return {
         anchor: p.anchor,
         // (which picture — the day screen asks for a fresh link on a tap: "See her map from this tab", Oct 2)
         sha256: p.sha256,
-        url: `/api/guide/picture/${tripId}/${p.sha256}?t=${token}`,
+        url: personal ? null : `/api/guide/picture/${tripId}/${p.sha256}?t=${token}`,
+        personal,
         summary: (img?.facts as any)?.summary || null,
         read: img?.readStatus === "read",
       };
@@ -178,8 +183,9 @@ router.get("/picture-link/:tripId/:sha", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;
   const sha = req.params.sha as string;
   if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
-  const img = await prisma.guideImage.findUnique({ where: { tripId_sha256: { tripId, sha256: sha } }, select: { sha256: true } });
+  const img = await prisma.guideImage.findUnique({ where: { tripId_sha256: { tripId, sha256: sha } }, select: { sha256: true, transcription: true } });
   if (!img) { res.status(404).json({ error: "That picture isn't in the Guide Wander has now." }); return; }
+  if (holdsPersonalNumbers(img.transcription)) { res.json({ url: null, personal: true }); return; }
   const token = jwt.sign({ picture: `${tripId}:${sha}` }, PICTURE_SECRET, { expiresIn: "10m" });
   res.json({ url: `/api/guide/picture/${tripId}/${sha}?t=${token}` });
 });
