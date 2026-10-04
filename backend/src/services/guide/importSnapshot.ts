@@ -18,6 +18,7 @@ import { readGuideText, isBookingProse, tabTextHash, type TextReading } from "./
 import { readDayPlans, looksLikeDayPlan, dayPlanHash, verifyAgainstTab, type DayPlanReading } from "./dayPlanReader.js";
 import { pictureGroupFor, pictureStartFor } from "./pictureGroup.js";
 import { withoutFinancialDetails } from "../sources/filter.js";
+import { noteFor, type PlaceNote } from "./placeNotes.js";
 
 export interface ImportOptions {
   buffer: Buffer;
@@ -574,7 +575,7 @@ export async function keepWhatPeopleAdded(
 interface ParsedAction { action: string; owner: string; dueDate: string | null; notes: string | null; andyStatus: string | null; larisaStatus: string | null; statusNotes: string | null; ref: string }
 
 /** Actions tab, found by headers ("Actions", "Owner"), columns matched by name. */
-function parseActionsTab(tabs: GuideTab[]): ParsedAction[] {
+export function parseActionsTab(tabs: GuideTab[]): ParsedAction[] {
   for (const tab of tabs) {
     const rows = rowsOf(tab);
     for (const [r, cells] of rows) {
@@ -592,6 +593,27 @@ function parseActionsTab(tabs: GuideTab[]): ParsedAction[] {
           notes: at(col("notes")), andyStatus: at(col("andy status")), larisaStatus: at(col("larisa status")),
           statusNotes: at(col("status notes")), ref: `${tab.name}|${action}`,
         });
+      }
+      // Her lists outside the table (Oct 4 copy: under it, in the Notes column, "AB / JD Actions" — Train to Hotel, Cash
+      // at ATM, Using Suica cards for train, Let Chase know we will be in japan — and "LT actions" — Chase Sapphire). A
+      // cell ending "actions" or "to do" heads a list; the cells under it in that column are its to-dos, for whoever its
+      // heading names, in her words. (These rows have nothing in the Actions column, so they were skipped.)
+      const loose = [...rows].filter(([rr, row]) => rr > r && !row.some((x) => x.c === col("actions") && x.text.trim())).sort((a, b) => a[0] - b[0]);
+      const HEAD = /^(.+?)\s*(?:actions?|to-?dos?)\s*:?\s*$/i;
+      const columns = [...new Set(loose.flatMap(([, row]) => row.map((x) => x.c)))].sort((a, b) => a - b);
+      for (const c of columns) {
+        let heading: { owner: string; words: string } | null = null;
+        for (const [, row] of loose) {
+          const text = row.find((x) => x.c === c)?.text.trim();
+          if (!text) continue;
+          const h = text.match(HEAD);
+          if (h && text.length <= 40) { heading = { owner: h[1].trim(), words: text }; continue; }
+          if (!heading) continue;
+          out.push({
+            action: text, owner: heading.owner, dueDate: null, notes: `In her “${heading.words}” list`,
+            andyStatus: null, larisaStatus: null, statusNotes: null, ref: `${tab.name}|${heading.words}|${text}`,
+          });
+        }
       }
       return out;
     }
@@ -659,17 +681,36 @@ export function parseIdeasTab(tabs: GuideTab[], tripYear: string): ParsedIdea[] 
   return [];
 }
 
-/** Dinner reservation tab rows like "Sa, 10/17 @6p" + restaurant name to the right. */
-function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & { link: string | null; refs?: string[] })[] {
+/**
+ * Dinner reservation tab rows like "Sa, 10/17 @6p" + restaurant name to the right. Under a "Backroads" heading (Oct 4
+ * copy: her Backroads dinners as "Day 1" … "Day 7", no dates), a "Day N" row is that day of the Backroads trip, counted
+ * from `backroadsStart` — her Itinerary's first Backroads night — and says it was dated that way.
+ */
+export function parseReservations(tabs: GuideTab[], year: string, backroadsStart: string | null = null): (InterpretedItem & { link: string | null; refs?: string[] })[] {
   const out: (InterpretedItem & { link: string | null; refs?: string[] })[] = [];
   for (const tab of tabs) {
     if (!/reso|reservation|dinner/i.test(tab.name)) continue;
     const rows = rowsOf(tab);
-    for (const [r, cells] of rows) {
+    let section = "";
+    for (const [r, cells] of [...rows].sort((a, b) => a[0] - b[0])) {
       const sorted = [...cells].sort((a, b) => a.c - b.c);
-      const dateCell = sorted.find((c) => /^(mo|tu|we|th|fr|sa|su)[a-z]*,?\s*\d{1,2}\/\d{1,2}/i.test(c.text.trim()));
-      if (!dateCell) continue;
-      const m = dateCell.text.match(/(\d{1,2})\/(\d{1,2})/)!;
+      // (a word alone in her first column heads a section: "Backroads", "Kyoto")
+      const head = sorted.find((c) => c.c === 1 && /^[A-Za-z][A-Za-z &'-]{1,30}$/.test(c.text.trim()));
+      if (head) section = head.text.trim();
+      let dateCell = sorted.find((c) => /^(mo|tu|we|th|fr|sa|su)[a-z]*,?\s*\d{1,2}\/\d{1,2}/i.test(c.text.trim()));
+      let date: string | null = null;
+      let dated: string | null = null;
+      if (dateCell) {
+        const m = dateCell.text.match(/(\d{1,2})\/(\d{1,2})/)!;
+        date = `${year}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+      } else if (backroadsStart && /backroads/i.test(section)) {
+        dateCell = sorted.find((c) => /^day\s*\d{1,2}$/i.test(c.text.trim()));
+        if (!dateCell) continue;
+        const n = Number(dateCell.text.match(/\d+/)![0]);
+        date = addDays(backroadsStart, n - 1);
+        dated = `Her ${tab.name} tab lists this under Backroads, Day ${n} — Wander dated it from the first Backroads night in her Itinerary.`;
+      }
+      if (!dateCell || !date) continue;
       const nameCell = sorted.find((c) => c.c > dateCell.c && c.kind === "text" && !/^https?:/i.test(c.text));
       if (!nameCell) continue; // a date with nothing booked yet stays in the raw tab
       const detailCell = sorted.find((c) => c.c > nameCell.c && c.kind === "text" && !/^https?:/i.test(c.text));
@@ -677,7 +718,7 @@ function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & {
       const at = dateCell.text.match(/@\s*([\d:]+\s*[ap])/i);
       const noReso = /no\s*resos?\b|no reservation/i.test(dateCell.text);
       out.push({
-        date: `${year}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`,
+        date,
         time: at ? parseStatedTimes(at[1]).start : null, endTime: null, kind: "meal",
         // The name is the first line; what she wrote under it ("(Michelin 1 star - Tempura)") is detail
         title: nameCell.text.split("\n")[0].trim(),
@@ -687,7 +728,9 @@ function parseReservations(tabs: GuideTab[], year: string): (InterpretedItem & {
           // Her next column is the place's address block, which can open with a building's name
           // ("Château Restaurant Joël Robuchon · Reception Yasuda · Yebisu Garden Place…" for La Table,
           // 1F) — labelled, so nobody reads it as the name of the restaurant booked
-          detailCell ? `Address: ${detailCell.text.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 3).join(" · ")}` : null,
+          // (beside a Backroads "Day N" row her next column is a note — "see below" — not an address)
+          detailCell ? `${dated ? "Her note" : "Address"}: ${detailCell.text.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 3).join(" · ")}` : null,
+          dated,
         ].filter(Boolean).join("\n") || null,
         place: null, confirmation: null, sourceRef: `${tab.name}!${nameCell.a1}`, source: `${tab.name} (row ${r})`, city: null,
         link: linkCell?.link || linkCell?.text || null,
@@ -970,7 +1013,9 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     }
   }
 
-  const reservations = parseReservations(read.tabs, year).map((r) => ({ ...r, timeZone: tripZone }));
+  // (her Backroads stays' first night — "Day 1" of a Backroads section in her reservations tab)
+  const backroadsStart = itin.stays.filter((s) => /^backroads/i.test(s.sectionTitle) && s.checkIn).map((s) => s.checkIn!).sort()[0] || null;
+  const reservations = parseReservations(read.tabs, year, backroadsStart).map((r) => ({ ...r, timeZone: tripZone }));
   items.push(...reservations);
 
   // Ideas Larisa marked for a specific day (Activities tab). A plain mark is part of that day;
@@ -1445,6 +1490,19 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       else await tx.accommodation.create({ data: { ...data, tripId, guideKey: key } });
     }
     await tx.accommodation.deleteMany({ where: { tripId, guideKey: { not: null, notIn: stayKeys } } });
+
+    // A stop with no location, named for — or holding a stay at — a place Wander has its own note on, is on the map
+    // where the note puts it (Oct 4 copy: her "Nikko->Shirakabeso" became "Nikko->Izu Peninsula", a new stop with no
+    // location, and the Home map lost it; its stay is still Shirakabeso, which Ken's note places at 1594 Yugashima).
+    // Never an old stop's pin by its dates — a different city on the same nights would land in the wrong place.
+    const placeList = (((await tx.sheetSyncConfig.findUnique({ where: { tripId }, select: { tabMappings: true } }))?.tabMappings as any)?.placeNotes || []) as PlaceNote[];
+    if (Array.isArray(placeList) && placeList.length) {
+      const unplaced = await tx.city.findMany({ where: { tripId, hidden: false, latitude: null }, select: { id: true, name: true, accommodations: { select: { name: true } } } });
+      for (const c of unplaced) {
+        const note = [c.name, ...c.accommodations.map((a) => a.name)].map((n) => noteFor(placeList, n)).find((p) => p && p.lat != null && p.lng != null);
+        if (note) await tx.city.update({ where: { id: c.id }, data: { latitude: note.lat, longitude: note.lng } });
+      }
+    }
 
     // Guide items (rebuilt)
     await tx.guideItem.deleteMany({ where: { tripId } });

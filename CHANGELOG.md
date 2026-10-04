@@ -2,6 +2,36 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — Larisa's Oct 3 Copy: Her New Lists, Backroads Dinners, and a Renamed Stop
+
+Her Oct 3 copy (kept as "Japan Oct 2026-5") added things in new shapes. Each was read cell by cell before production.
+
+### Added
+- **Her informal to-do lists in the Actions tab.** Under her Actions table, in the Notes column, she started
+  "AB / JD Actions" (Train to Hotel · Cash at ATM · Using Suica cards for train · Let Chase know we will be in japan)
+  and "LT actions" (Chase Sapphire). Rows with nothing in the Actions column were skipped, so they reached neither the
+  Actions screen nor Scout. Now a cell ending "actions" or "to do" heads a list, and the cells under it are its
+  to-dos, in her words, each noted "In her “AB / JD Actions” list". Her initials become names on the Actions screen and
+  in Scout's to-do list — "AB / JD" is "For Andy & Julie" (JD is new); initials no one has, like "LT", stay as she
+  wrote them.
+- **Her Backroads dinners, by day.** Her Dining Resos tab now has a "Backroads" section of dinners labelled "Day 1" …
+  "Day 7" instead of dates (Ritz Carlton, the Bar Lounge's ramen, Shirakabeso, "Dine on Your Own — we're eating soba…",
+  Six Senses). Each is now on its day screen — Day 1 is the first Backroads night in her Itinerary (Sun, Oct 18) — and
+  says so: "Her Dining Resos tab lists this under Backroads, Day 3 — Wander dated it from the first Backroads night in
+  her Itinerary." The note beside one ("see below") is shown as her note, not as an address.
+
+### Fixed
+- **A renamed stop keeps its place on the map.** Her Itinerary now says "Nikko → Izu Peninsula" where it said
+  "Shirakabeso". Wander matches stops by name, so "Izu Peninsula" was a new stop with no location, and the Home map
+  would have lost stop 7. A stop with no location now takes it from Wander's note on its stay — Shirakabeso, placed at
+  1594 Yugashima from Backroads' description. A stop is never given an old stop's pin by its dates alone.
+
+Tested: actions-lists tests 6/6 (her layout, invented to-dos and dinners), a browser walk as Andy 11/11 (the four
+to-dos "For you & Julie", Oct 20's ramen and Oct 23's soba with the dating line), the Home map at 402 pt (stop 7 "Izu
+Peninsula", nothing overlapping), real Scout 2/2 on the new copy (read word for word), Playwright 20/20.
+
+SPEC UPDATE NEEDED: reading her Guide — informal lists in her Actions tab; Backroads "Day N" dinners.
+
 ## 2026-10-04 — Backroads' Itinerary, a Source for Scout
 
 ### Added
