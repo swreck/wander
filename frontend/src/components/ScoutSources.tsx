@@ -93,18 +93,22 @@ function Picture({ tab, anchor, sha256, tripId }: { tab: string; anchor: string;
   const v = voiceFor(useAuth().user?.displayName);
   const [url, setUrl] = useState<string | null>(null);
   // "Opening…" lasts until the picture has actually arrived (a screenshot can be half a megabyte on hotel wifi)
-  const [state, setState] = useState<"idle" | "opening" | "shown" | "failed">("idle");
+  const [state, setState] = useState<"idle" | "opening" | "shown" | "failed" | "personal">("idle");
   const [full, setFull] = useState(false);
   return (
     <div>
       <p className="text-[13px] text-[#6b5d4a]">A picture in {v.her} {tab} tab{anchor ? ` (at ${anchor})` : ""}</p>
-      {state !== "shown" && (
+      {/* (someone's own travel numbers are on it — Ken, Oct 4: Wander doesn't surprise people with them) */}
+      {state === "personal" && <p className="text-sm text-[#514636] mt-1">Wander keeps this one to {v.owners} sheet — it has people's own travel numbers on it.</p>}
+      {state !== "shown" && state !== "personal" && (
         <button
           disabled={!tripId || state === "opening"}
           onClick={async () => {
             setState("opening");
-            try { setUrl((await api.get<{ url: string }>(`/guide/picture-link/${tripId}/${sha256}`)).url); }
-            catch { setState("failed"); }
+            try {
+              const r = await api.get<{ url: string | null; personal?: boolean }>(`/guide/picture-link/${tripId}/${sha256}`);
+              if (r.personal || !r.url) setState("personal"); else setUrl(r.url);
+            } catch { setState("failed"); }
           }}
           className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2 disabled:opacity-50"
         >

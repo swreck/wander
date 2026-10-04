@@ -5,13 +5,13 @@
 import { api } from "./api";
 
 export interface GuidePicture { tab: string; anchor: string; sha256: string; summary: string }
-type ByTab = { tab: string; pictures: { anchor: string; sha256?: string; summary: string | null; read: boolean }[] }[];
+type ByTab = { tab: string; pictures: { anchor: string; sha256?: string; summary: string | null; read: boolean; personal?: boolean }[] }[];
 const byTrip = new Map<string, Promise<GuidePicture[]>>();
 /** Once per trip per visit (a failed ask is tried again next time) */
 export function guidePictures(tripId: string): Promise<GuidePicture[]> {
   if (!byTrip.has(tripId)) {
     const p = api.get<ByTab>(`/guide/pictures/${tripId}`)
-      .then((tabs) => (Array.isArray(tabs) ? tabs : []).flatMap((t) => t.pictures.filter((x) => x.read && x.sha256).map((x) => ({ tab: t.tab, anchor: x.anchor, sha256: x.sha256!, summary: x.summary || "" }))))
+      .then((tabs) => (Array.isArray(tabs) ? tabs : []).flatMap((t) => t.pictures.filter((x) => x.read && x.sha256 && !x.personal).map((x) => ({ tab: t.tab, anchor: x.anchor, sha256: x.sha256!, summary: x.summary || "" }))))
       .catch(() => { byTrip.delete(tripId); return []; });
     byTrip.set(tripId, p);
   }
