@@ -401,6 +401,10 @@ model Experience {
   popularTimes  Json?    @map("popular_times")
   conditionalAssignment Json? @map("conditional_assignment") // { fallbackDate, waitFor, ifInterested, ifNot }
   sheetRowRef           String? @map("sheet_row_ref") // e.g. "Activities Template:14" — null = Wander-only
+  // Removed from the Maybes list by someone on the trip (Ken, Oct 3 2026: "remove it as a maybe for Tokyo") — hidden for
+  // everyone, put back with one tap; her Guide is never changed, and a new copy of it keeps this
+  removedBy             String? @map("removed_by")
+  removedAt             DateTime? @map("removed_at")
 
   decisionId   String?           @map("decision_id")
 

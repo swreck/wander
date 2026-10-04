@@ -15,7 +15,7 @@ import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
 import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
-import { createMaybe, setIn, takeBackMaybe, MaybeError } from "../services/maybes.js";
+import { createMaybe, setIn, removeFromMaybes, putBackOnMaybes, MaybeError } from "../services/maybes.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
 const router = Router();
@@ -600,8 +600,13 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
-    name: "take_back_maybe",
-    description: "Take back a maybe this person put out ('never mind the ice cream', 'take my maybe about X off'). Only their own; never one of Larisa's ideas.",
+    name: "remove_from_maybes",
+    description: "Take something off a city's Maybes list for everyone ('never mind the ice cream', 'take TeamLab off Tokyo's maybes — we're doing it in Kyoto'). Allowed for the person who put it there (Larisa for her Guide's ideas) and the trip's organizer; anyone else gets a refusal to pass on. Nothing is deleted and Larisa's Guide doesn't change; it can be put back.",
+    input_schema: { type: "object" as const, properties: { experienceId: { type: "string" } }, required: ["experienceId"] },
+  },
+  {
+    name: "put_back_on_maybes",
+    description: "Put something taken off a Maybes list back on it ('put the ice cream back'). The same people who may take it off.",
     input_schema: { type: "object" as const, properties: { experienceId: { type: "string" } }, required: ["experienceId"] },
   },
   {
@@ -851,7 +856,7 @@ const tools: Anthropic.Tool[] = [
   // ── Notes on ideas (Wander's own; the Guide is never changed) ──────────────
   {
     name: "add_idea_note",
-    description: "Write a note on one of the trip's ideas for the person asking, e.g. 'note on Tsukiji: go early, before 8'. Everyone on the trip sees it under that idea in Ideas, with the person's name — unless justForMe is true (only they see it). It does not change Larisa's Guide. Find the idea's id with search_experiences.",
+    description: "Write a note on one of the trip's ideas for the person asking, e.g. 'note on Tsukiji: go early, before 8'. Everyone on the trip sees it under that idea in Maybes, with the person's name — unless justForMe is true (only they see it). It does not change Larisa's Guide. Find the idea's id with search_experiences.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -2823,10 +2828,21 @@ export async function executeTool(
       };
     }
 
-    case "take_back_maybe": {
+    case "take_back_maybe":
+    case "remove_from_maybes": {
       try {
-        const r = await takeBackMaybe(user as any, input.experienceId, " (via chat)");
-        return { result: { takenBack: r.name }, actionDescription: `Took back the maybe "${r.name}"` };
+        const r = await removeFromMaybes(user as any, input.experienceId, " (via chat)");
+        return { result: { offTheList: r.name, city: r.city, alreadyOff: r.already }, actionDescription: `Off ${r.city}'s maybes: "${r.name}"` };
+      } catch (e) {
+        if (e instanceof MaybeError) return { result: { error: e.message } };
+        throw e;
+      }
+    }
+
+    case "put_back_on_maybes": {
+      try {
+        const r = await putBackOnMaybes(user as any, input.experienceId, " (via chat)");
+        return { result: { backOnTheList: r.name, city: r.city, alreadyOn: r.already }, actionDescription: `Back on ${r.city}'s maybes: "${r.name}"` };
       } catch (e) {
         if (e instanceof MaybeError) return { result: { error: e.message } };
         throw e;
@@ -4547,7 +4563,7 @@ HOW WANDER WORKS (for "how do I…" questions — describe these real screens on
 - A day: everything the Guide says for that date in time order, where everyone sleeps that night, and where each line came from. The arrows at the top move to the day before or after. On days Larisa wrote a day tab for, "Larisa's plan for the day" follows: her lines in her order with her times, who each is for when the group splits, "Larisa's notes ›" and Maps. Where she lists choices for one time, each has "We're going here"; the pick shows "✓ The group's pick" for everyone (added in Wander — her sheet is unchanged), and the others offer "Switch to this".
 - A day's "Trains" part shows that date's legs from Ken's rail sheet (not Larisa's Guide): times, train, class, car and seats, reservation number, how many people, and the sheet's own status words; where it and the Guide disagree it says so. On the ticket-pickup day (Shin-Osaka, Oct 6), Ken's and Larisa's Home, Now and day screen lead with "Ticket pickup — Shin-Osaka", which opens every step in the sheet's order with a tick for each (ticks stay on that phone); anyone can open the steps from a train that needs its tickets collected. Now shows "Next train" with seats. A copy stays on the phone for no signal.
 - A day also has "+ Add a plan for this day": a same-day plan anyone can add ("Ken and Andy: <a museum> this afternoon"). It shows on that day for everyone, labelled as added in Wander. It never changes the Guide.
-- Maybes (bottom bar; it was called Ideas): the group's shared list of "maybe we should…", city by city (opens on today's city). At the top, a box: "Maybe we should…" — a sentence, a link if there is one, Send; it goes on that city's list for everyone, and "Tell the group" can send it to their group text. Below: the group's maybes, newest first, then the ideas from the Activities tab of Larisa's Guide. Each shows who's in ("Interested: Larisa, Julie, Andy" — her X marks and Wander's "I'm in" together; "Julie (via Andy)" is Andy saying Julie's in), with "I'm in", "+ Note" (for everyone, or "Just for me"), "Add to a day", Maps, and Ask Scout. A dot on the tab and a line on Home say when there's something new. Typed with no signal, it's saved on the phone and sent later.
+- Maybes (bottom bar; it was called Ideas): the group's shared list of "maybe we should…", city by city (opens on today's city). At the top, a box: "Maybe we should…" — a sentence, a link if there is one, Send; it goes on that city's list for everyone, and "Tell the group" can send it to their group text. Below: the group's maybes, newest first, then the ideas from the Activities tab of Larisa's Guide. Each shows who's in ("Interested: Larisa, Julie, Andy" — her X marks and Wander's "I'm in" together; "Julie (via Andy)" is Andy saying Julie's in), with "I'm in", "Say something" (a note for everyone, or "Just for me"), "Add to a day", Maps, Ask Scout, "Tell the group", and Remove (for whoever put it there, and the trip's organizer — off the list for everyone, with "Put it back"). A dot on the tab and a line on Home say when there's something new. Typed with no signal, it's saved on the phone and sent later.
 - Next (bottom bar; it used to be called Now): today, with where Larisa's day plan has you right now, what's next and how long until it, and "Get there" buttons — walk, train or taxi — that open Apple Maps from where they're standing (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
 - Actions (bottom bar): the to-dos from the Actions tab of Larisa's Guide.
 - Scout: that's you — the chat bubble.
@@ -4585,7 +4601,7 @@ RULES:
 29. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
 30. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.
 31. When the user asks how long it takes to get somewhere, use get_travel_time. Look up coordinates from the relevant experiences first. Default to walking unless the user specifies a mode.
-32. Maybes (the Maybes tab — the group's shared list of "maybe we should…", with Larisa's ideas): when someone says "maybe we should…", "we could…", "what about…" about something to do, see or eat — or shares a link they want the others to see — use add_maybe on today's city (or the city they name), in their own words, and say it back in a few words ("On Kyoto's maybes."). "I'm in" / "count me in" on an idea or maybe → im_in; "Julie's in too" (someone not on Wander) → im_in with forName. "Never mind the ice cream" / "take my maybe off" → take_back_maybe (their own only). When asked "any maybes near here?" or "what did people say maybe to?", read the city's ideas (get_city_experiences) and say who's in. Never say Larisa's Guide changed: her X marks are hers; Wander's "I'm in" is Wander's.
+32. Maybes (the Maybes tab — the group's shared list of "maybe we should…", with Larisa's ideas): when someone says "maybe we should…", "we could…", "what about…" about something to do, see or eat — or shares a link they want the others to see — use add_maybe on today's city (or the city they name), in their own words, and say it back in a few words ("On Kyoto's maybes."). "I'm in" / "count me in" on an idea or maybe → im_in; "Julie's in too" (someone not on Wander) → im_in with forName. "Never mind the ice cream" / "take X off the maybes" → remove_from_maybes (the person who put it there, or the trip's organizer; if refused, say who can); "put it back" → put_back_on_maybes. When asked "any maybes near here?" or "what did people say maybe to?", read the city's ideas (get_city_experiences) and say who's in; one with removedAt is off the list (say who took it off if asked), never offered as a maybe. Never say Larisa's Guide changed: her X marks are hers; Wander's "I'm in" is Wander's.
 33. When the user asks about ratings or reviews for a place, use get_ratings. Interpret the scores in context — Tabelog 3.5+ is excellent, Google 4.0+ is very good.
 35. When the user asks about a specific place, wants to see what somewhere looks like, or is deciding whether to visit, use lookup_place. This returns a photo and details from Google. Use it proactively when discussing restaurants, temples, hotels, or attractions — don't just describe them in words when you can show a photo card. Include the city or neighborhood in the query for better results (e.g. "Fushimi Inari Kyoto" not just "Fushimi Inari").
 36. When the user asks about something NOT in the trip data — restaurant recommendations, opening hours, crowd levels, "is X worth visiting", "best Y near Z", current conditions, travel tips — use web_search. Synthesize the results into a concise, helpful answer. Do NOT dump raw search results. Never use web_search for questions answerable from trip data (use other tools instead). You can combine web_search with lookup_place in the same response — search for information, then show a photo card for the top recommendation.
@@ -4600,7 +4616,7 @@ RULES:
 45. Letting people in: the trip's planners do it from Wander's People screen (Settings → People on this trip). "+ Add someone": type the name, pick the trip, and Wander shows a QR code for that person's iPhone camera (or "Send as a message"); on their phone it opens in Safari, where they tap Let's go, set up Face ID, and are then shown how to put Wander on the Home Screen. If someone's Home Screen icon won't sign them in, they haven't set up Face ID yet: open their link in Safari, Let's go, then Settings → Face ID. Someone already in Wander from another trip just gets this trip too. For a new phone: "New phone? New link" next to their name. You can't make or show links in chat — say so plainly and point there. If the asker isn't a planner, say Ken or Larisa can do it. Don't guess anyone's pronouns — use their name.
 46d. Showing things: you can move Wander's screen with show_in_wander (it changes nothing). When someone asks to see, open, show or be taken to something — "show me our first day in Kyoto", "the day Andy and Julie arrive", "open tomorrow", "Tokyo ideas", "show me the deadlines" (that's Actions), "who's on the trip" (People) — work out the exact date or city from the Guide, call it with go=true, and reply in one short line that says what they're looking at ("Here's Wed, Oct 14 — Julie & Andy land at Narita at 3:00 PM."). Your panel steps down to a small bar while they look, so they can ask a follow-up; always pass a headline — the answer itself in a few words for that bar ("Oct 29 · still open: Shiraume or Four Seasons"). When you're talking about one line of that day (the Backroads meeting, a dinner), pass item with a few of its words so the screen scrolls to it. "Ideas I marked" / "what Julie's in on" / "Julie's maybes" → target "ideas" (the Maybes screen) with markedBy set to that person's name (the asker's own name for "I"). "Take me back" / "go back" → target "back". When your answer is about one specific day, also call it with go=false so a button appears. If what they asked for doesn't exist in the plan (a city with no stay, a date outside the trip), say so in words first ("The trip ends Thu, Oct 29 — Nov 3 isn't part of it.") and offer the nearest real day as a button — never invent one, and never answer with only "tap below". Phrases like "been to by now" mean what the plan says up to today; say that you know the plan, not what they actually did. Everything you write before and after a tool call is shown together as one answer — so after a tool call, don't repeat yourself; add only what's new, or nothing.
 46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?", "do we need to reconfirm anything?", "where does the tour start?", "are we going to X?") gets an answer, not a draft — at most offer in words ("Want me to draft a note to Larisa?"). Never do this when the asker is Larisa herself.
-46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed — say both in one short line. Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Take back" under their own note in Ideas — someone else's note is theirs to take back.
+46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed — say both in one short line. Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Remove" beside their own note in Maybes — someone else's note is theirs to take back.
 46e. Trip notes (the Notes tab): each person's own words, kept exactly — private unless they share a note with the trip. "What did I write about…", "my notes from Kyoto" → get_my_notes, and quote their words exactly, saying whose note it is. When someone asks what a person "wrote", "said" or "noted" about something, look in get_my_notes (their shared notes) AND the Guide, and give both — a shared note is something they wrote. Never say "that's all they wrote" unless you looked in both. You never see or mention anyone's private notes but the asker's. You don't write notes: when someone wants to note something down, tell them the Notes tab keeps every word exactly as they say or type it.
 46c. To-dos (the Actions screen): "remind us to…" / "add a to-do…" → add_todo (added in Wander; her Guide unchanged — say so in a few words). "We did it" / "that's done" → set_todo_done. "Take that off the list" → remove_todo, only for one added in Wander; one from Larisa's Guide stays until she takes it out of her sheet (it can still be ticked off). Use get_todos to find it. On screen: Actions → "+ Add", the tick beside each, and "Take out" on those added in Wander.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.

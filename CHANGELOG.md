@@ -2,6 +2,47 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-03 (night, last) — Remove Anything From Maybes; One Warning, Not Two; a Quieter Home Feed
+
+### Added
+- **Remove on any item in Maybes, for the person who put it there and the trip's organizer.** Ken: "I know we're going
+  to TeamLab in Kyoto, so I can remove it as a maybe for Tokyo" — and "It is for the person who added it and me."
+  - Larisa can remove her Guide's ideas; anyone can remove their own maybe; Ken (the trip's first member) can remove
+    anything. Nobody else sees the button.
+  - Removing takes the item off that city's list for everyone. Nothing is deleted: notes, "I'm in"s and a day it was
+    put on all stay. Larisa's Guide never changes, and a new copy of it keeps the item off (a renamed idea too).
+  - Where the card was, a slim line: "“…” is off Tokyo's list for everyone. Put it back". At the bottom of the list,
+    "Taken off the list · n ›" shows what's off and who took it off; Put it back is there for the same people.
+  - The button is a quiet × at the end of the card's name line. As a word it took a row of its own on every card
+    Larisa and Ken see. It asks first: "Remove this maybe?", "Take Andy's maybe off the list for everyone?", or "Take
+    this off Tokyo's list for everyone? Larisa's Guide keeps it."
+  - Scout: remove_from_maybes and put_back_on_maybes, same rules (take_back_maybe still works). Schema:
+    experiences.removed_by, removed_at (pushed to production and the test copy before deploy).
+
+### Fixed
+- **A dinner's "Her tabs differ" said twice on the day screen** (Yazawa, Oct 15: on her plan's line and again on the
+  booking below it). It's said once, on the booking beside its address; the plan line says "Her tabs differ on where
+  this is — her booking, with its address, is below ↓" and scrolls there.
+- **"…this address is her Dining Resos tab's" where no address shows** (Home, the Now and Next cards). There it says
+  "her Dining Resos tab gives another address — on the day's screen" (or "— below").
+- **Home's Recent activity**: "… is no longer in on …", an "I'm in" taken back, and taking a maybe off or putting it
+  back are no longer posted there. An item taken off the list keeps none of its lines there until it's put back.
+- **Actions' link to Maybes said "Ideas ›"** (the tab's old name). Scout's own descriptions of the Maybes screen
+  ("in Ideas", "Take back") now match what's on screen.
+- **"Ken's in too" flashed on Larisa's cards** for a moment while the list of who's on Wander loaded.
+- A quick Put it back → Remove could reach the server in the wrong order and undo the removal; the two now go in the
+  order they were tapped.
+
+Where: the Maybes tab (every card; the bottom of each city's list), the day screen's plan, Home's Today card and
+Recent activity, Actions.
+
+Tested: Maybes tests 20/20 (who may remove, put back, a new Guide copy, Scout, Home feed), Maybes walk 53/53 (Andy,
+Ken and Larisa in three browsers), real Scout 4/4 on the Maybes actions from plain speech (a maybe, "I'm in" on the
+right one of two similar ideas, Ken removing Tokyo's TeamLab and not Kyoto's, Andy refused on Larisa's idea with who
+can) — every reply read and its facts checked against her Guide, Playwright 20/20, all walk-throughs.
+
+SPEC UPDATE NEEDED: Maybes — Remove and Put it back, who may; the day screen's single "tabs differ" note.
+
 ## 2026-10-03 (night, later) — Maybes: Shorter Cards, Today/Tomorrow, Filters by Day and Kind
 
 ### Changed

@@ -452,6 +452,7 @@ export default function TripOverview() {
   const selectedPerDay: Record<string, number> = {};
   const possiblePerCity: Record<string, number> = {};
   for (const exp of experiences) {
+    if (exp.removedAt) continue; // taken off the Maybes list
     if (exp.state === "selected" && exp.dayId) {
       selectedPerDay[exp.dayId] = (selectedPerDay[exp.dayId] || 0) + 1;
     }

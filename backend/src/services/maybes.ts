@@ -65,21 +65,65 @@ export async function createMaybe(who: Who, tripId: string, cityId: string, rawW
   return { maybe, city: city.name, again: false };
 }
 
-/** Take back your own maybe (plans change — "tea or ice cream?" at 3 is gone by 5). Only the person who said it, and
- *  never one of her ideas. The notes and "I'm in"s on it go with it. */
-export async function takeBackMaybe(who: Who, experienceId: string, via = "") {
-  const exp = await prisma.experience.findUnique({ where: { id: experienceId }, select: { id: true, tripId: true, name: true, sheetRowRef: true, createdBy: true } });
+/** The trip's organizer: its first member, whoever set the trip up (Ken, on Japan 2026). Stored roles can't say it —
+ *  every new Guide copy marks Ken and Larisa both "planner". */
+export async function organizerOf(tripId: string): Promise<{ id: string; name: string } | null> {
+  const m = await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { traveler: { select: { id: true, displayName: true } } } });
+  return m ? { id: m.traveler.id, name: m.traveler.displayName } : null;
+}
+
+const samePerson = (a: string, b: string) => firstName(a).toLowerCase() === firstName(b).toLowerCase();
+
+/**
+ * Off the Maybes list, for everyone (Ken, Oct 3 2026: "I know we're going to TeamLab in Kyoto, so I can remove it as a
+ * maybe for Tokyo" — clearing up so the others don't have to). Only the person who put it there — Larisa for her
+ * Guide's ideas — and the trip's organizer ("It is for the person who added it and me"). Nothing is deleted: notes,
+ * "I'm in"s and day plans stay, it can be put back by the same people, and her Guide never changes (a new copy keeps
+ * it off the list).
+ */
+async function mayRemove(who: Who, exp: { tripId: string; createdBy: string }) {
+  if (samePerson(exp.createdBy, who.displayName)) return { ok: true, organizer: null as string | null };
+  const org = await organizerOf(exp.tripId);
+  return { ok: !!who.travelerId && org?.id === who.travelerId, organizer: org ? firstName(org.name) : null };
+}
+
+export async function removeFromMaybes(who: Who, experienceId: string, via = "") {
+  const exp = await prisma.experience.findUnique({ where: { id: experienceId }, select: { id: true, tripId: true, name: true, sheetRowRef: true, createdBy: true, removedAt: true, removedBy: true, city: { select: { name: true } } } });
   if (!exp) throw new MaybeError(404, "Not found");
-  if (exp.sheetRowRef) throw new MaybeError(403, "That's one of Larisa's ideas — Wander can't take it off her list.");
-  if (firstName(exp.createdBy).toLowerCase() !== firstName(who.displayName).toLowerCase()) throw new MaybeError(403, `That's ${firstName(exp.createdBy)}'s maybe — only they can take it back.`);
-  const plans = await prisma.dayChoice.count({ where: { experienceId } });
-  if (plans) await prisma.dayChoice.updateMany({ where: { experienceId }, data: { experienceId: null } });
-  await prisma.experience.delete({ where: { id: experienceId } });
+  if (exp.removedAt) return { name: exp.name, city: exp.city.name, already: true };
+  const may = await mayRemove(who, exp);
+  if (!may.ok) {
+    const adder = firstName(exp.createdBy);
+    const also = may.organizer && !samePerson(may.organizer, adder) ? ` or ${may.organizer}` : "";
+    throw new MaybeError(403, exp.sheetRowRef
+      ? `That's from ${adder}'s Guide — only ${adder}${also} can take it off the list.`
+      : `That's ${adder}'s maybe — only ${adder}${also} can take it off the list.`);
+  }
+  await prisma.experience.update({ where: { id: experienceId }, data: { removedBy: who.displayName, removedAt: new Date() } });
   await logChange({
-    user: who, tripId: exp.tripId, actionType: "maybe_taken_back", entityType: "experience", entityId: experienceId,
-    entityName: exp.name, description: `${who.displayName} took back the maybe "${exp.name}"${via}`,
+    user: who, tripId: exp.tripId, actionType: "maybe_removed", entityType: "experience", entityId: experienceId,
+    entityName: exp.name, description: `${who.displayName} took "${exp.name}" off ${exp.city.name}'s maybes${via}`,
   });
-  return { name: exp.name };
+  return { name: exp.name, city: exp.city.name, already: false };
+}
+
+/** Back on the list — by the same people who may take it off */
+export async function putBackOnMaybes(who: Who, experienceId: string, via = "") {
+  const exp = await prisma.experience.findUnique({ where: { id: experienceId }, select: { id: true, tripId: true, name: true, createdBy: true, removedAt: true, city: { select: { name: true } } } });
+  if (!exp) throw new MaybeError(404, "Not found");
+  if (!exp.removedAt) return { name: exp.name, city: exp.city.name, already: true };
+  const may = await mayRemove(who, exp);
+  if (!may.ok) {
+    const adder = firstName(exp.createdBy);
+    const also = may.organizer && !samePerson(may.organizer, adder) ? ` or ${may.organizer}` : "";
+    throw new MaybeError(403, `Only ${adder}${also} can put that back on the list.`);
+  }
+  await prisma.experience.update({ where: { id: experienceId }, data: { removedBy: null, removedAt: null } });
+  await logChange({
+    user: who, tripId: exp.tripId, actionType: "maybe_put_back", entityType: "experience", entityId: experienceId,
+    entityName: exp.name, description: `${who.displayName} put "${exp.name}" back on ${exp.city.name}'s maybes${via}`,
+  });
+  return { name: exp.name, city: exp.city.name, already: false };
 }
 
 /** "I'm in" on a maybe or one of her ideas — or "Julie's in too", said by her partner (forName) */

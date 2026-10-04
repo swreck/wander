@@ -284,7 +284,12 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           const lines = (b.detail || "").split("\n").filter((l) => l && !l.startsWith("Wander matched this plan") && !/^Her tab has \d+ versions of this day's plan/.test(l));
           const choices = lines.filter((l) => l.startsWith("Choice: ")).map((l) => l.slice(8));
           const estimate = lines.includes("Times are Larisa's estimate.");
-          const differ = tabsDiffer(b);
+          // Her booking for this same line, when it says the same "tabs differ" itself: the warning is said once, on the
+          // booking beside its address (Oct 15 review: Yazawa's amber note twice, a screen apart), and the line points
+          // there
+          const booking = choices.length ? undefined : (bookings || []).find((m) => m.time === b.time && saidAgain(b, m));
+          const atBooking = !!booking && tabsDiffer(booking).length > 0;
+          const differ = atBooking ? [] : tabsDiffer(b);
           const picGroup = pictureGroupOf(b);
           const notes = lines.filter((l) => !l.startsWith("Choice: ") && !l.startsWith("Tabs differ: ") && l !== "Times are Larisa's estimate." && !PICTURE_GROUP.test(l) && !l.startsWith("Her whole route for the day: "))
             .map((l) => (/^Where:/.test(l) ? v.say(l) : l));
@@ -319,6 +324,12 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 {differ.map((d) => <p key={d} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{differWordsFor(d, v)}</p>)}
                 {/* her tabs disagree: each tab's spot, one tap each, to settle it in her own layout (round 16) */}
                 {differ.length > 0 && (b.spots?.length || 0) > 1 && <SheetSpots tripId={tripId} spots={b.spots} />}
+                {atBooking && (
+                  <button onClick={() => document.getElementById(`item-${booking!.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                    className="-mb-2 min-h-[44px] text-left text-[13px] text-[#8a5a1a]">
+                    {v.Her} tabs differ on where this is — {v.her} booking, with its address, is below ↓
+                  </button>
+                )}
                 {(() => {
                   const dress = bookingDress(b, bookings);
                   return dress ? <p className={`text-[13px] rounded-md px-2 py-1 mt-1 ${dress.stricter ? "text-[#8a5a1a] bg-[#fff8ec]" : "text-[#514636] bg-[#f6f1e8]"}`}>
@@ -1229,7 +1240,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 className="block w-full text-left mb-2 min-h-[44px] text-[15px] text-[#3a3128]">
                 <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{currentBlock.title.replace(/^./, (c) => c.toUpperCase())}
                 <span className="text-[#6b5d4a]">{currentBlock.endTime ? `, until ${/^~/.test(currentBlock.timeText || "") || (currentBlock.detail || "").includes("Times are Larisa's estimate.") ? "about " : ""}${clock(currentBlock.endTime)}` : planLineEndSaid(currentBlock, planBlocks) !== null ? `, until about ${minutesToClock(planLineEndSaid(currentBlock, planBlocks)!)}` : ""}</span>
-                {tabsDiffer(currentBlock).map((d) => <span key={d} className="block text-sm text-[#8a5a1a] mt-0.5">{differWordsFor(d, v)}</span>)}
+                {tabsDiffer(currentBlock).map((d) => <span key={d} className="block text-sm text-[#8a5a1a] mt-0.5">{differWordsFor(d, v, "below")}</span>)}
                 {(() => {
                   const dress = bookingDress(currentBlock, dayItems.filter((m) => m.kind === "meal"));
                   return dress ? <span className={`block text-sm mt-0.5 ${dress.stricter ? "text-[#8a5a1a]" : "text-[#514636]"}`}>
@@ -1304,7 +1315,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     </p>
                   )}
                   {opts.length > 0 && !pick && <p className="text-sm text-white/85 mt-1">{opts.length} places to choose from — see {v.her} plan below</p>}
-                  {u.kind !== "flight" && tabsDiffer(u).map((d) => <p key={d} className="text-sm text-[#f3d9a8] mt-1">{differWordsFor(d, v)}</p>)}
+                  {u.kind !== "flight" && tabsDiffer(u).map((d) => <p key={d} className="text-sm text-[#f3d9a8] mt-1">{differWordsFor(d, v, "below")}</p>)}
                   {/* What you need for it — her own transit and dress notes, here and not behind a tap (round 13: Oct 17's
                       "Strict Formalwear Prep" card hid "jackets required for men… Ginza Line straight back" behind "Your notes ›") */}
                   {u.kind === "block" && (() => {

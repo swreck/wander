@@ -46,7 +46,13 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   });
   // Something added and then taken back isn't news: neither half shows here (History keeps both) — round 12: a plan
   // added and taken off posted "Ken took 'w4 test …' off Tue, Oct 6" to everyone's Home
-  const takenBack = new Set(changes.filter((c) => c.entityId && /(_removed|_deleted|taken_back)$/.test(c.actionType || "")).map((c) => c.entityId));
+  // (by what happened LAST to it: a maybe taken off the list and put back is on the list — Remove, Oct 3)
+  const latest = new Map<string, string>();
+  for (const c of changes) if (c.entityId && !latest.has(c.entityId)) latest.set(c.entityId, c.actionType || "");
+  const takenBack = new Set([...latest].filter(([, a]) => /(_removed|_deleted|taken_back)$/.test(a)).map(([id]) => id));
+  // "I'm in" said and then taken back isn't news either, and "no longer in" is never news (Oct 15 review: Home's
+  // Recent activity was two "… is no longer in on 'Akihabara'"); nor is putting a maybe back
+  const outLater = new Set<string>();
 
   // Get recent reactions (last 50)
   const reactions = await prisma.experienceReaction.findMany({
@@ -68,6 +74,11 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
 
   for (const c of changes) {
     if (c.entityId && takenBack.has(c.entityId)) continue;
+    const who = `${c.userDisplayName}|${c.entityId}`;
+    if (c.actionType === "maybe_out") { outLater.add(who); continue; }
+    if (c.actionType === "maybe_in" && outLater.has(who)) continue;
+    // (taking something off the list, and putting it back: Maybes' "Taken off the list" says who and what)
+    if (c.actionType === "maybe_put_back" || c.actionType === "maybe_removed") continue;
     feed.push({
       id: c.id,
       type: "change",

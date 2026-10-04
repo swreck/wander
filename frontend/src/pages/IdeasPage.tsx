@@ -76,6 +76,15 @@ async function tellGroup(by: string, words: string, link: string | null, cityNam
   }
 }
 
+/** Remove and Put it back go out in the order they were tapped (a quick Put it back → Remove sent both at once, and the
+ *  put-back could land last and undo the removal) */
+let offQueue: Promise<unknown> = Promise.resolve();
+function inOrder<T>(send: () => Promise<T>): Promise<T> {
+  const next = offQueue.then(send, send);
+  offQueue = next.catch(() => {});
+  return next;
+}
+
 /** "just now", "12 min ago", "3 hours ago", "yesterday", "Tue, Oct 13" */
 function agoWords(iso: string, now = Date.now()) {
   const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
@@ -108,6 +117,9 @@ export default function IdeasPage() {
   // Filters: the next two days, and one theme at a time (tap again to clear)
   const [soon, setSoon] = useState(false);
   const [theme, setTheme] = useState<string | null>(null);
+  // Remove: the one you just took off stays in its place as a slim "Put it back" line; the rest fold at the bottom
+  const [justOff, setJustOff] = useState<string | null>(null);
+  const [showOff, setShowOff] = useState(false);
 
   // The trip, its days and cities (shared with Home and the day screens; saved on the phone)
   useEffect(() => {
@@ -238,7 +250,11 @@ export default function IdeasPage() {
     return () => { cancelled = true; };
   }, [tripId, cityId, attempt]);
 
-  const cityIdeas = useMemo(() => (ideas || []).filter((i) => i.cityId === cityId), [ideas, cityId]);
+  const allHere = useMemo(() => (ideas || []).filter((i) => i.cityId === cityId), [ideas, cityId]);
+  // (taken off the list — by whoever put it there, or the trip's organizer — out of the lists and filters, for everyone)
+  const cityIdeas = useMemo(() => allHere.filter((i) => !i.removedAt || i.id === justOff), [allHere, justOff]);
+  const offList = useMemo(() => allHere.filter((i) => i.removedAt && i.id !== justOff)
+    .sort((a, b) => (b.removedAt || "").localeCompare(a.removedAt || "")), [allHere, justOff]);
   // "Larisa (maybe)", "Julie (via Andy)" and "Andy B" are Larisa, Julie and Andy for the filter (her columns hold first
   // names; Wander's "I'm in" carries the full name); the card keeps the "(maybe)"
   const people = useMemo(() => {
@@ -312,7 +328,8 @@ export default function IdeasPage() {
   // Whom you can speak for: the others in your party in her Guide who aren't on Wander ("Julie (via Andy)")
   const viaNames = useMemo(() => {
     const party = guide ? partyOf(guide.items, me) : null;
-    if (!party) return [] as string[];
+    // (not before Wander knows who's on it — "Ken's in too" flashed on Larisa's cards until it did)
+    if (!party || !seenRows.length) return [] as string[];
     const onWander = new Set(seenRows.map((r) => personOf(r.name).toLowerCase()));
     return party.split(/\s*(?:&|,|\band\b)\s*/i).map((n) => n.trim()).filter(Boolean)
       .filter((n) => personOf(n).toLowerCase() !== myName && !onWander.has(personOf(n).toLowerCase()))
@@ -320,6 +337,17 @@ export default function IdeasPage() {
   }, [guide, me, myName, seenRows]);
   const setInterestsOf = (id: string, interests: Experience["interests"]) =>
     setIdeas((prev) => (prev || []).map((x) => (x.id === id ? { ...x, interests } : x)));
+  // Who may take an item off the list: whoever put it there (Larisa, for her Guide's ideas), and the trip's organizer
+  // (Ken, Oct 3: "It is for the person who added it and me")
+  const iOrganize = !!seenRows.find((r) => r.me)?.organizer;
+  const mayRemove = (e: Experience) => iOrganize || personOf(e.createdBy).toLowerCase() === myName;
+  const setOff = (id: string, off: boolean) =>
+    setIdeas((prev) => (prev || []).map((x) => (x.id === id ? { ...x, removedBy: off ? me : null, removedAt: off ? new Date().toISOString() : null } : x)));
+  async function putBack(e: Experience) {
+    setOff(e.id, false);
+    if (justOff === e.id) setJustOff(null);
+    try { await inOrder(() => api.post(`/maybes/${e.id}/back`, {})); maybesChanged(); } catch { setOff(e.id, true); }
+  }
 
   // Reset the person filter when the city changes and that person marked nothing there
   // (only once the ideas are here — before that the list is empty, and a filter Scout set would be lost)
@@ -409,13 +437,20 @@ export default function IdeasPage() {
         )}
 
         {(() => {
-          const card = (exp: Experience) => (
+          const card = (exp: Experience) => exp.removedAt ? (
+            // Just taken off: a slim line in its place, so it's clear what happened and it can go straight back
+            <li key={exp.id} className="flex flex-wrap items-center gap-x-3 rounded-xl border border-dashed border-[#d6cbb8] px-3 py-1" role="status">
+              <span className="flex-1 min-w-0 text-sm text-[#6b5d4a]">“{exp.name}” is off {city?.name}'s list for everyone.</span>
+              <button onClick={() => putBack(exp)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Put it back</button>
+            </li>
+          ) : (
             <IdeaCard key={exp.id} exp={exp} cityName={city?.name || ""} notes={notes[exp.id] || []} me={me}
+              mayRemove={mayRemove(exp)}
+              onRemoved={() => { setOff(exp.id, true); setJustOff(exp.id); maybesChanged(); }}
               travelerId={user?.travelerId || null} viaNames={viaNames} seenBy={exp.sheetRowRef ? [] : seenByFor(exp)} isNew={!exp.sheetRowRef && isNewFor(exp)} when={whenOf(exp)}
               tripId={tripId!} days={cityDays} today={today} choices={choices.filter((c) => c.experienceId === exp.id)}
               planned={planDays.get(exp.id) || []}
               onInterests={(list) => setInterestsOf(exp.id, list)}
-              onGone={() => setIdeas((prev) => (prev || []).filter((x) => x.id !== exp.id))}
               onNote={(n) => setNotes((prev) => ({ ...prev, [exp.id]: [...(prev[exp.id] || []), n] }))}
               onRemoveNote={(id) => setNotes((prev) => ({ ...prev, [exp.id]: (prev[exp.id] || []).filter((x) => x.id !== id) }))}
               onChoice={(c) => setChoices((prev) => [...prev, c])}
@@ -442,7 +477,10 @@ export default function IdeasPage() {
               {/* (with a day or theme filter on, the line above already says what's missing) */}
               {shown.length === 0 && !soon && !activeTheme && (
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4 mb-5">
-                  {person === "everyone" ? `${voiceFor(user?.displayName).mine ? "Your" : "Larisa's"} Guide has no ideas listed for ${city?.name || "this city"}.` : `${person} hasn't said they're in on anything in ${city?.name} yet.`}
+                  {person !== "everyone" ? `${person} hasn't said they're in on anything in ${city?.name} yet.`
+                    // (all of hers taken off the list — "has no ideas" would be untrue)
+                    : offList.some((e) => !!e.sheetRowRef) ? `Everything from ${voiceFor(user?.displayName).guide} for ${city?.name} has been taken off the list.`
+                    : `${voiceFor(user?.displayName).mine ? "Your" : "Larisa's"} Guide has no ideas listed for ${city?.name || "this city"}.`}
                 </p>
               )}
 
@@ -452,6 +490,30 @@ export default function IdeasPage() {
                   <ul className="space-y-2">{(list as Experience[]).map(card)}</ul>
                 </section>
               ))}
+
+              {/* What's been taken off this city's list, and by whom — quiet, at the bottom; nothing just vanishes */}
+              {offList.length > 0 && (
+                <section className="mb-5">
+                  <button onClick={() => setShowOff((v) => !v)} aria-expanded={showOff} className="min-h-[44px] text-sm text-[#6b5d4a]">
+                    {showOff ? "Hide what's been taken off" : `Taken off the list · ${offList.length} ›`}
+                  </button>
+                  {showOff && (
+                    <ul className="divide-y divide-[#ece5d8] bg-white/60 rounded-xl border border-[#e0d8cc] px-3">
+                      {offList.map((e) => (
+                        <li key={e.id} className="flex flex-wrap items-center gap-x-3 py-1">
+                          <span className="flex-1 min-w-0 text-sm text-[#514636] py-2">
+                            {e.name}
+                            <span className="text-xs text-[#6b5d4a]"> · taken off by {personOf(e.removedBy || "").toLowerCase() === myName ? "you" : personOf(e.removedBy || "someone")}</span>
+                          </span>
+                          {mayRemove(e) && (
+                            <button onClick={() => putBack(e)} aria-label={`Put ${e.name} back on the list`} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Put it back</button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
             </>
           );
         })()}
@@ -460,11 +522,13 @@ export default function IdeasPage() {
   );
 }
 
-function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNew, when, tripId, days, today, choices, planned, onInterests, onGone, onNote, onRemoveNote, onChoice, onOpenDay }: {
+function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, viaNames, seenBy, isNew, when, tripId, days, today, choices, planned, onInterests, onNote, onRemoveNote, onChoice, onOpenDay }: {
   exp: Experience; cityName: string; notes: Note[]; me: string; travelerId: string | null; viaNames: string[]; seenBy: string[]; isNew: boolean;
+  /** whoever put it there (Larisa, for hers) or the trip's organizer — Remove takes it off the list for everyone */
+  mayRemove: boolean; onRemoved: () => void;
   /** on today's or tomorrow's plan, put on that day, or a small maybe said today */
   when: "Today" | "Tomorrow" | null;
-  tripId: string; days: string[]; today: string; planned: string[]; onInterests: (list: Experience["interests"]) => void; onGone: () => void;
+  tripId: string; days: string[]; today: string; planned: string[]; onInterests: (list: Experience["interests"]) => void;
   choices: DayChoice[]; onNote: (n: Note) => void; onRemoveNote: (id: string) => void; onChoice: (c: DayChoice) => void; onOpenDay: (date: string) => void;
 }) {
   const [writing, setWriting] = useState(false);
@@ -479,16 +543,16 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
   const myName = personOf(me).toLowerCase();
   const myMaybe = isMaybe && personOf(exp.createdBy).toLowerCase() === myName;
   const [confirmGone, setConfirmGone] = useState(false);
-  // Take back your own maybe (plans change); a day it was put on keeps its plan
-  async function takeBackMaybe() {
+  // Off the list for everyone (plans change; or it's settled elsewhere — "we're doing TeamLab in Kyoto"). Nothing is
+  // deleted: notes, "I'm in"s and a day it was put on all stay, and it can be put back.
+  async function removeIt() {
     setConfirmGone(false);
     try {
-      await api.delete(`/maybes/${exp.id}`);
-      onGone();
-      maybesChanged();
+      await inOrder(() => api.delete(`/maybes/${exp.id}`));
+      onRemoved();
     } catch (err) {
-      if ((err as { status?: number }).status === 404) { onGone(); return; }
-      setMessage(navigator.onLine === false ? "No signal — try taking it back when you're online." : "That didn't come off — try again?");
+      if ((err as { status?: number }).status === 404) { onRemoved(); return; }
+      setMessage((err as { status?: number }).status === 403 ? "Only the person who put this here can take it off." : "That didn't come off — try again?");
     }
   }
   const myCode = travelerId ? `wander:${travelerId}` : null;
@@ -601,6 +665,12 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
           {when && <span className={`ml-1.5 align-[1px] px-1.5 py-px rounded text-xs font-normal ${when === "Today" ? "bg-[#514636] text-white" : "bg-[#f5e6c8] text-[#7a4f12]"}`}>{when}</span>}
         </p>
         {shortPlace && <span className="shrink-0 text-sm text-[#6b5d4a]">{exp.description}</span>}
+        {/* Remove as a quiet × at the end of the name's line: as a word it took a row of its own on every card Larisa
+            (all of hers) and Ken (everything) see — it asks before anything happens */}
+        {mayRemove && !confirmGone && (
+          <button onClick={() => setConfirmGone(true)} aria-label={`Remove ${exp.name} from the list`}
+            className="shrink-0 -my-3 -mr-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-xl leading-none text-[#a89880]">×</button>
+        )}
       </div>
       {exp.description && !shortPlace && <p className="text-sm text-[#6b5d4a] mt-0.5 whitespace-pre-line">{exp.description}</p>}
       {/* Who's in, and the day it's on, on one line — the day a small chip at the right (it was a full-width pill) */}
@@ -723,15 +793,17 @@ function IdeaCard({ exp, cityName, notes, me, travelerId, viaNames, seenBy, isNe
           {/* Anything on the list to the group text — a maybe with its writer's name, one of hers as from her Guide */}
           <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName, isMaybe ? undefined : "Larisa's Guide"))}
             className="min-h-[44px] text-sm text-[#514636]">Tell the group</button>
-          {myMaybe && !confirmGone && (
-            <button onClick={() => setConfirmGone(true)} className="min-h-[44px] text-sm text-[#6b5d4a] underline underline-offset-2">Remove</button>
-          )}
         </div>
       )}
-      {myMaybe && confirmGone && (
+      {mayRemove && confirmGone && (
         <div className="flex flex-wrap items-center gap-x-3 mt-1">
-          <span className="text-sm text-[#3a3128]">Remove this maybe?</span>
-          <button onClick={takeBackMaybe} className="min-h-[44px] text-sm text-[#8a3a1a]">Remove</button>
+          {/* (what happens, plainly: off the list for everyone; hers stays in her Guide) */}
+          <span className="text-sm text-[#3a3128]">
+            {myMaybe ? "Remove this maybe?"
+              : isMaybe ? `Take ${personOf(exp.createdBy)}'s maybe off the list for everyone?`
+              : `Take this off ${cityName}'s list for everyone? ${voiceFor(me).mine ? "Your" : "Larisa's"} Guide keeps it.`}
+          </span>
+          <button onClick={removeIt} className="min-h-[44px] text-sm text-[#8a3a1a]">Remove</button>
           <button onClick={() => setConfirmGone(false)} className="min-h-[44px] text-sm text-[#514636]">Keep it</button>
         </div>
       )}

@@ -538,7 +538,8 @@ export async function keepWhatPeopleAdded(
   for (const g of gone) {
     const plans = await tx.dayChoice.count({ where: { tripId, experienceId: g.id } });
     const written = g.notes.length + g.reactions.length + g.ratings.length + g.interests.length + plans + (g.userNotes ? 1 : 0);
-    if (!written) continue;
+    // (taken off the Maybes list by someone: a rename keeps it off; gone from her Guide with nothing else on it, it goes)
+    if (!written && !g.removedAt) continue;
     const words = norm(g.name).split(/[^a-z]+/).filter((w: string) => w.length > 3 && !QUESTION_STOP.has(w));
     const matches = createdNow.filter((e) => e.cityId === g.cityId && words.some((w: string) => norm(e.name).includes(w)));
     if (matches.length === 1) {
@@ -556,8 +557,11 @@ export async function keepWhatPeopleAdded(
       const carry: Record<string, unknown> = {};
       if (g.userNotes) carry.userNotes = g.userNotes;
       if (g.latitude !== null && g.longitude !== null) Object.assign(carry, { latitude: g.latitude, longitude: g.longitude, placeIdGoogle: g.placeIdGoogle, locationStatus: g.locationStatus });
+      if (g.removedAt) Object.assign(carry, { removedBy: g.removedBy, removedAt: g.removedAt });
       if (Object.keys(carry).length) await tx.experience.update({ where: { id: to }, data: carry });
       report.warnings.push(`"${g.name}" is now "${matches[0].name}" in the Guide — notes and plans on it moved across.`);
+    } else if (!written) {
+      continue;
     } else {
       await tx.experience.update({ where: { id: g.id }, data: { sheetRowRef: `${REMOVED_PREFIX}${g.sheetRowRef}`, dayId: null, state: "possible" } });
       report.warnings.push(`"${g.name}" is no longer in the Guide — kept in Wander, marked that way, because people wrote on it.`);

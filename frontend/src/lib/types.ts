@@ -162,6 +162,9 @@ export interface Experience {
   culturalNotes?: CulturalNote[] | null;
   notes?: ExperienceNoteEntry[];
   sheetRowRef?: string | null;
+  /** Taken off the Maybes list (by whoever put it there, or the trip's organizer) — hidden for everyone, can go back */
+  removedBy?: string | null;
+  removedAt?: string | null;
   conditionalAssignment?: {
     fallbackDate: string;
     waitFor: string;
