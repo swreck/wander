@@ -78,6 +78,19 @@ export function checkoutBeforeFirst(i: GuideItem, day?: GuideItem[]): boolean {
 }
 
 /**
+ * The line you leave by, before the hotel's own check-out time: a train, a flight, a transfer, or meeting Backroads
+ * (Oct 18: "check-out due by 12:00 PM" on the morning everyone meets Backroads at 8:30 and leaves Tokyo — day review,
+ * Oct 4). Only a leaving line: a morning walk before noon isn't when you must be out.
+ */
+export function leaveBeforeCheckout(i: GuideItem, day?: GuideItem[]): GuideItem | null {
+  if (i.kind !== "checkout" || !i.time || !day) return null;
+  const own = mins(i.time) ?? 0;
+  return day.filter((d) => d !== i && isAppointment(d) && (mins(d.time) ?? 0) < own
+    && (["train", "flight", "travel"].includes(d.kind) || /\bmeet\b[^.]*\bbackroads\b|\bbackroads\b[^.]*\bmeet/i.test(d.title)))
+    .sort((a, b) => (mins(a.time) ?? 0) - (mins(b.time) ?? 0))[0] || null;
+}
+
+/**
  * A check-in listed after its party's landing (Oct 14: land 3:00 PM, room from 2:00 PM). "from
  * 2:00 PM" under "3:00 PM" read as out of order, so its time column says "After landing".
  */

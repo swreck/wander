@@ -16,6 +16,7 @@ import type { ContextLine } from "../services/guide/sources.js";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
 import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
 import { createMaybe, setIn, removeFromMaybes, putBackOnMaybes, MaybeError } from "../services/maybes.js";
+import { validAttachments, attachmentBlocks } from "../services/attachments.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
 const router = Router();
@@ -4300,7 +4301,11 @@ export async function executeTool(
 
 router.post("/", async (req: AuthRequest, res) => {
   try {
-    const { message, context, history, clientTime, image } = req.body;
+    const { context, history, clientTime, image } = req.body;
+    // Files dragged in, pasted or chosen (services/attachments.ts) — with or without words
+    const sent = validAttachments(req.body.attachments);
+    if (sent === null) { res.status(400).json({ error: "Those files couldn't be sent — there may be too many, or they're too large together." }); return; }
+    const message: string = String(req.body.message || "").trim() || (sent.length ? (sent.length === 1 ? "What's in this?" : "What's in these?") : "");
 
     if (!message) {
       res.status(400).json({ error: "message is required" });
@@ -4314,6 +4319,11 @@ router.post("/", async (req: AuthRequest, res) => {
       ? { mediaType: image.mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: image.data as string }
       : null;
     if (image && !photo) { res.status(400).json({ error: "That photo couldn't be read — try another, or a smaller one." }); return; }
+    // Everything sent with the question, as Claude reads it (an older phone's single photo the same way)
+    const files = await attachmentBlocks([...(photo ? [{ mediaType: photo.mediaType, data: photo.data, name: "the photo" }] : []), ...sent]);
+    const fileWords = files.names.length
+      ? `[They sent ${files.names.length === 1 ? `one file — ${files.names[0]} —` : `${files.names.length} files — ${files.names.join(", ")} —`} with this question; it's above. Read it before answering.]\n${files.notes.length ? `${files.notes.join("\n")}\n` : ""}`
+      : "";
 
     const user = req.user!;
 
@@ -4516,6 +4526,7 @@ TALKING WITH THEM (every answer):
 - Wander already shows the rail sheet's pickup steps on their own page (from a day's Trains, "Ticket pickup — Shin-Osaka: the steps ›") — point them there instead of offering to pull the steps up.
 
 CITING (every answer): the Guide, the right-now statuses and Ken's rail sheet are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
+FILES (anything dragged in, pasted or attached — a PDF, a document, a text, a screenshot; titled "Sent with this question: <name>"): read every one fully before answering. With no real question ("What's in this?"), say in a line or two what it is and what in it matters for this trip — the day, place or booking in Larisa's Guide it touches, and whether they agree — then offer what's useful: putting it on that city's Maybes (add_maybe, in its own words, with its link if it has one) or answering about it. Cite its words like any document; say what came from it as from the file ("The PDF you sent says…"), never as the Guide or a fact of the trip. Where it and her Guide differ on a time, a place or a booking, say both and never pick one. A file isn't kept: if they ask later without sending it again, say to send it again — unless it was saved as a maybe. A [COULD NOT READ …] or [NOT READ …] note means nothing in that file was read: say so plainly and never guess at it.
 PHOTOS: when a photo comes with the question (a menu, a sign, a ticket, a screen), read it carefully. Translate Japanese (or any other language) into plain English when that's what they need — line by line for a menu or sign, with the Japanese kept beside each line when they might show it to someone. Say what you read from the photo as from the photo ("Your photo shows…"), never as the Guide; when the photo and her Guide meet (a ticket's train and the rail sheet, a restaurant's name and her booking), say both and whether they match. Words you can't make out: say so — never guess a time, a price, a platform or an ingredient. Food and allergies (Andy is allergic to alliums — onion, garlic, leek, chive): point out what the photo shows that may contain them, give the Japanese words to show a server (玉ねぎ・ねぎ・にんにく), and say plainly that a menu photo can't prove what's in a dish — confirm with the staff. A photo isn't kept: if they ask about it again later without sending it, say to send it again.
 GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing. When directions says her Guide has no address for the place, say so plainly and that the button only searches Maps for the name — never present a searched place as hers.
 HER PICTURES: every picture in her tabs is given with all its words, as Wander read them ("Its words, as Wander read them") — use them: who goes where, times, places, what's on her illustrated day maps. A picture can be OLDER than her tab's text: her DAY BY DAY lines are the plan. When a picture's date, time, order or who-goes differs from them, give the plan first and then say her picture shows something else ("her map picture in that tab still shows Tokyodo at 2:15") — never quote a picture's time as the plan. When a picture says something her plan doesn't (who a stop is for, a van's return time), say it as her picture's.
@@ -4655,7 +4666,7 @@ RULES:
       } catch { /* no saved history — answer this question on its own */ }
     }
     // Append tripId hint to the user message so the model can't miss it
-    const augmentedMessage = `${photo ? "[They sent the photo above with this question.]\n" : ""}${tripId
+    const augmentedMessage = `${fileWords}${tripId
       ? `${message}\n\n[System: The active trip ID is ${tripId}. Use it for any tool calls. Do not ask the user for it.]`
       : message}`;
     const actions: string[] = [];
@@ -4710,7 +4721,7 @@ RULES:
     const latest: any[] = [
       ...(liveLines.length ? [asDocument(LIVE_TITLE, liveLines, false)] : []),
       { type: "text", text: liveTail },
-      ...(photo ? [{ type: "image", source: { type: "base64", media_type: photo.mediaType, data: photo.data } }] : []),
+      ...files.blocks,
       { type: "text", text: augmentedMessage },
     ];
     messages.push({ role: "user", content: latest });
@@ -4837,7 +4848,7 @@ RULES:
     // "Sources" under the answer.
     const sources0 = finalReply ? answerSources(finalReply, answerPieces, citedDocs, guideCopy, fetchedPages) : null;
     // (what Scout read from a photo has no Guide source — the Sources panel says the photo is where it came from)
-    const sources = sources0 && photo ? { ...sources0, photo: true } : sources0;
+    const sources = sources0 && files.images ? { ...sources0, photo: true } : sources0;
     const hasSources = !!sources && (sources.claims.length > 0 || sources.ownWords.length > 0);
 
     // Opus 5 list price: $5/M input, $25/M output, one-hour cache writes 2x input ($10/M), cache reads 0.1x,
@@ -4849,7 +4860,7 @@ RULES:
     if (tripId && req.user?.travelerId && finalReply) {
       prisma.chatMessage.createMany({
         data: [
-          { tripId, travelerId: req.user.travelerId, role: "user", content: photo ? `${message} (with a photo)` : message },
+          { tripId, travelerId: req.user.travelerId, role: "user", content: files.names.length ? `${message} (with ${files.names.join(", ")})` : message },
           { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply, ...(hasSources ? { sources: sources as any } : {}) },
         ],
       }).catch(() => { /* non-critical — don't fail the response */ });

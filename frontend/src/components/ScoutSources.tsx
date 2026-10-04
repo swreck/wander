@@ -24,7 +24,7 @@ type SourceView =
   | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: CellWords[] }
   | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean }
   // A document someone gave Wander (Backroads' itinerary): whose words, where in it, the words
-  | { type: "document"; document: string; from: string; version: string; place: string; quote: string };
+  | { type: "document"; document: string; from: string; version: string; place: string; quote: string; aside?: string };
 
 export interface AnswerSources {
   copy: string | null;
@@ -186,10 +186,11 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
     return (
       <div>
         <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.document} — not {guide}</p>
-        <p className="text-[13px] text-[#6b5d4a]">{s.place}</p>
+        {s.place && <p className="text-[13px] text-[#6b5d4a]">{s.place}</p>}
         <p className="text-sm text-[#3a3128] whitespace-pre-line">“{s.quote}”</p>
-        {/* ("their general itinerary, dated May 7, 2026" → "Backroads' general itinerary, dated May 7, 2026") */}
-        <p className="text-xs text-[#6b5d4a] mt-1">{s.version.replace(/^their\b/, s.from.endsWith("s") ? `${s.from}'` : `${s.from}'s`)}. Details can differ for your departure.</p>
+        {/* ("their general itinerary, dated May 7, 2026" → "Backroads' general itinerary, dated May 7, 2026"; a file sent
+            with the question: "Sent with the question — Wander doesn't keep it") */}
+        <p className="text-xs text-[#6b5d4a] mt-1">{s.version.replace(/^their\b/, s.from.endsWith("s") ? `${s.from}'` : `${s.from}'s`).replace(/^./, (c) => c.toUpperCase())}.{s.aside ? ` ${s.aside}` : ""}</p>
       </div>
     );
   }
@@ -257,8 +258,26 @@ function useBackClosesPanel(onClose: () => void) {
   }, []);
 }
 
+/** Escape (a Mac or iPad keyboard) closes the Sources panel, and only it — wherever the focus is. Caught before Scout
+ *  sees it: Scout's own Escape made Scout small and left the panel up, or did nothing (found Oct 4 2026, Mac). */
+function useEscapeClosesPanel(onClose: () => void) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeRef.current();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+}
+
 export default function ScoutSources({ sources, tripId, onClose }: { sources: AnswerSources; tripId?: string; onClose: () => void }) {
   useBackClosesPanel(onClose);
+  useEscapeClosesPanel(onClose);
   const [links, setLinks] = useState<SheetLinks | null>(null);
   const v = voiceFor(useAuth().user?.displayName);
   useEffect(() => {

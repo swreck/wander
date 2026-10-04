@@ -481,7 +481,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     for (const s of d.sections) {
       const place = placeIn(d, s);
       say(out, `[${d.name} — ${s.day ? dayWords(d, s.day) : s.heading} (page ${s.page})]`);
-      for (const p of s.paragraphs) say(out, `- ${p}`, { type: "document", document: d.name, from: d.from, version: d.version, place, quote: p });
+      for (const p of s.paragraphs) say(out, `- ${p}`, { type: "document", document: d.name, from: d.from, version: d.version, place, quote: p, ...(d.aside ? { aside: d.aside } : {}) });
     }
   }
   const superseded = (((snapshot as any).report?.supersededPlans) || []) as { tab: string; day: string; current: string; earlier: string[] }[];
