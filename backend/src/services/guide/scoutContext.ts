@@ -8,6 +8,7 @@
 
 import prisma from "../db.js";
 import { appleGuidesOf, guideLines } from "./appleGuides.js";
+import { tripDocumentsOf, dayWords, placeIn, whose } from "./tripDocuments.js";
 import { placeNotesOf, noteFor, placeNoteWords } from "./placeNotes.js";
 import { tabsOfCopy, wordsAt, cellsOfItem, ideaRef, completeCells, type ContextLine, type SourceView, type SourcePart } from "./sources.js";
 
@@ -459,6 +460,15 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       const lines = guideLines(g, g.date ? weekday(g.date) : null);
       const at = lines.findIndex((l) => l.startsWith("  What's close"));
       lines.forEach((l, i) => say(out, l, src(at >= 0 && i >= at)));
+    }
+  }
+  // Documents someone gave Wander (Backroads' itinerary, Oct 4) — their words, by day and page, never her Guide
+  for (const d of await tripDocumentsOf(tripId)) {
+    say(out, `\n${d.name.toUpperCase()} (${whose(d.from)} own words, given to Wander by ${d.addedBy} — NOT Larisa's Guide; ${d.version}). ${d.caution}${d.dayOne ? ` Its Day 1 is ${dayWords(d, 1).replace(/^Day 1 \((.*)\)$/, "$1")}, the day her Guide meets ${d.from}; Wander dated the days from that.` : ""}`);
+    for (const s of d.sections) {
+      const place = placeIn(d, s);
+      say(out, `[${d.name} — ${s.day ? dayWords(d, s.day) : s.heading} (page ${s.page})]`);
+      for (const p of s.paragraphs) say(out, `- ${p}`, { type: "document", document: d.name, from: d.from, version: d.version, place, quote: p });
     }
   }
   const superseded = (((snapshot as any).report?.supersededPlans) || []) as { tab: string; day: string; current: string; earlier: string[] }[];

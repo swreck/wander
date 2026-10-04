@@ -120,6 +120,8 @@ function trimmed(s: SourceView, said: string): SourceView {
   const cut = (cells: any[]) => cells.map((c) => (c.kind === "cell" && c.text.length > 300 ? { ...c, ...excerptFor(c.text, said) } : c));
   if (s.type === "guide" || s.type === "sheet") return { ...s, cells: cut(s.cells) };
   if (s.type === "wander") return { ...s, from: s.from.map((f) => ({ ...f, cells: cut(f.cells) })) };
+  // (a long paragraph of a document: the sentences that bear on what Scout said)
+  if (s.type === "document" && s.quote.length > 300) return { ...s, quote: excerptFor(s.quote, said).text };
   return s;
 }
 

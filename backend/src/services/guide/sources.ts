@@ -26,7 +26,9 @@ export type SourceView =
   | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: GuideCellWords[] }
   // Her Apple Maps guide for a day (appleGuides.ts): her map, not her sheet; `worked` when the line is Wander's
   // straight-line distances between its places
-  | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean };
+  | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean }
+  // A document someone gave Wander (Backroads' itinerary — tripDocuments.ts): whose words, where in it, and the words
+  | { type: "document"; document: string; from: string; version: string; place: string; quote: string };
 
 export interface ContextLine { text: string; src: SourceView | null }
 
