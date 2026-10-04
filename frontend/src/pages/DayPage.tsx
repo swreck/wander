@@ -30,8 +30,8 @@ import {
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
 } from "../lib/guideDisplay";
-import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
-import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings } from "../components/RailSheet";
+import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
+import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings, RailLeg } from "../components/RailSheet";
 import SheetSpots from "../components/SheetSpots";
 import SendOut, { dayText, bookingText } from "../components/SendOut";
 import { directionsHref } from "../lib/directions";
@@ -211,8 +211,10 @@ function DayPicture({ tripId, picture, her, tab }: { tripId: string; picture: Gu
   );
 }
 
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
+  /** the train under this line already says where the sources' times differ — not again in amber on the line */
+  differBelow?: (b: GuideItem) => boolean;
   /** the sources' disagreement about this line's time is already said at the top of the day — a pointer here, not again */
   differAbove?: (b: GuideItem) => boolean;
   /** her booking for a line (the flight, the dinner, the check-out), drawn under her line — said once, there */
@@ -300,7 +302,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           // (the booking itself, under this line — then its "tabs differ" is right here, with no pointer down the page)
           const below = under ? under(b) : [];
           const saidAbove = !!differAbove && differAbove(b);
-          const differ = atBooking || saidAbove ? [] : tabsDiffer(b);
+          const saidBelow = !saidAbove && !!differBelow && differBelow(b);
+          const differ = atBooking || saidAbove || saidBelow ? [] : tabsDiffer(b);
           const picGroup = pictureGroupOf(b);
           const notes = lines.filter((l) => !l.startsWith("Choice: ") && !l.startsWith("Tabs differ: ") && l !== "Times are Larisa's estimate." && !PICTURE_GROUP.test(l) && !l.startsWith("Her whole route for the day: "))
             .map((l) => (/^Where:/.test(l) ? v.say(l) : l));
@@ -341,7 +344,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                   </button>
                 )}
                 {/* (each of her tabs' spots stays here, one tap each, to settle it in her own layout — round 16) */}
-                {saidAbove && tabsDiffer(b).length > 0 && (b.spots?.length || 0) > 1 && <SheetSpots tripId={tripId} spots={b.spots} />}
+                {(saidAbove || saidBelow) && tabsDiffer(b).length > 0 && (b.spots?.length || 0) > 1 && <SheetSpots tripId={tripId} spots={b.spots} />}
                 {/* her tabs disagree: each tab's spot, one tap each, to settle it in her own layout (round 16) */}
                 {differ.length > 0 && (b.spots?.length || 0) > 1 && <SheetSpots tripId={tripId} spots={b.spots} />}
                 {atBooking && !below.length && (
@@ -409,6 +412,42 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           );
         })}
       </ol>
+    </section>
+  );
+}
+
+/**
+ * "Today, don't miss": the day's dark action card (a ticket pickup) and the checks, each said once with a way down to its
+ * line. Four show; any more open in place — nothing is dropped.
+ */
+function DontMiss({ heading, cards, checks }: { heading: string; cards: ReactNode[]; checks: { key: string; body: ReactNode; to?: string }[] }) {
+  const [all, setAll] = useState(false);
+  if (!cards.length && !checks.length) return null;
+  const shown = all ? checks : checks.slice(0, 4);
+  const go = (id: string) => {
+    const el = document.getElementById(id);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  return (
+    <section aria-label={heading} className="mb-4">
+      <h2 className="text-xs uppercase tracking-wide text-[#8a5a1a] mb-1.5">{heading}</h2>
+      {cards}
+      {shown.length > 0 && (
+        <ul className="space-y-1.5">
+          {shown.map((c) => (
+            <li key={c.key}>
+              {c.to
+                ? <button onClick={() => go(c.to!)} className="w-full text-left min-h-[44px] text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1.5">
+                    {c.body} <span aria-hidden>↓</span>
+                  </button>
+                : <div className="text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1.5 [&>p]:bg-transparent [&>p]:p-0">{c.body}</div>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {checks.length > shown.length && (
+        <button onClick={() => setAll(true)} className="min-h-[44px] text-sm text-[#514636]">{checks.length - shown.length} more to check ›</button>
+      )}
     </section>
   );
 }
@@ -731,7 +770,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     if (location.hash === "#trains") {
       if (!otherSources.length || scrolledFor.current === `${date}:trains`) return;
       scrolledFor.current = `${date}:trains`;
-      requestAnimationFrame(() => document.getElementById("trains")?.scrollIntoView({ block: "start" }));
+      // (the day's own first train when every one of yours is drawn in the day — day review, Oct 4)
+      requestAnimationFrame(() => (document.querySelector("[data-train]") || document.getElementById("trains"))?.scrollIntoView({ block: "center" }));
       return;
     }
     const id = location.hash.startsWith("#item-") ? location.hash.slice(6) : null;
@@ -975,6 +1015,62 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   }
   const shownUnder = new Set([...underLine.values()].flat());
   const alsoItems = otherItems.filter((o) => !shownUnder.has(o));
+  // Your trains, each said once in the day itself (day review, Oct 4: every booked train was said twice — in the day and in
+  // full under "Trains"): under her line when it names the train ("Board reserved HARUKA" ↔ HARUKA 31), else at its time;
+  // on your landing day the airport leg with no booking follows the landing. Only what's drawn here leaves "Trains".
+  const railMine = otherSources.flatMap((s) => {
+    const a = railAudience(items, s.owner);
+    return s.rail.filter((r) => r.date === date && legIsFor(r, s, me, a.ownerParty, a.groupSize)).map((r) => ({ s, r }));
+  });
+  const railKey = (x: { s: OtherSource; r: RailRow }) => `${x.s.id}-${x.r.row}`;
+  // whose job a ticket pickup is ("Ken & Larisa"), said to everyone else
+  const pickupByFor = (s: OtherSource) => { const { ownerParty } = railAudience(items, s.owner); return ownerParty && !isFor({ forWhom: ownerParty }, me) ? ownerParty : null; };
+  const bookedMine = railMine.filter((x) => isBookedTrain(x.r));
+  const trainsUnder = new Map<string, { s: OtherSource; r: RailRow }[]>();
+  if (planBlocks.length) for (const x of bookedMine) {
+    const name = colOf(x.r.cols, /^train$/);
+    const b = name ? planBlocks.find((p) => sameThing(name, p.title)) : undefined;
+    if (b) trainsUnder.set(b.id, [...(trainsUnder.get(b.id) || []), x]);
+  }
+  const nestedTrains = new Set([...trainsUnder.values()].flat().map(railKey));
+  const listDrawn = !(dayItems.length === 0 && choices.length === 0 && planBlocks.length === 0);
+  const timelineTrains = listDrawn ? bookedMine.filter((x) => !nestedTrains.has(railKey(x))) : [];
+  const landingInList = !!myLanding && alsoItems.includes(myLanding);
+  const landingLegs = landingInList && listDrawn ? railMine.filter((x) => !isBookedTrain(x.r)
+    && x.r.row < Math.min(...bookedMine.filter((b) => b.s.id === x.s.id).map((b) => b.r.row))) : [];
+  const placedTrains = new Set([...nestedTrains, ...timelineTrains.map(railKey), ...landingLegs.map(railKey)]);
+  // Where her Guide has a train at another time: with the train on other days (today it's said at the top)
+  const differsFor = (x: { s: OtherSource; r: RailRow }) => (isToday ? [] : x.s.differs.filter((d) => d.date === date && d.row === x.r.row));
+
+  // "Today, don't miss" (day review, Oct 4): what you can't get wrong this day, each said once, right under the summary —
+  // her open question for this day, today's disagreement between the sources, a train still to check, your own
+  // deadline ending today, a line where her tabs name two places. Each points down to its line (↓). Before, these sat
+  // scattered: Oct 6's SmartEX "PENDING" on the third screen, Oct 25's two e-bike meeting points on the second.
+  const myDayWords = distinctWords(dayItems.filter((x) => isFor(x, me)).map((x) => `${x.title} ${x.detail || ""}`).join(" "));
+  const travellers = new Set([...items.flatMap((x) => (x.forWhom || "").split(/\s*(?:&|,|\band\b)\s*/i)), owner || ""].map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const someoneElsesJob = (i: GuideItem) => { const a = bookedByName(i)?.split(/\s+/)[0]?.toLowerCase(); return !!a && !!me && travellers.has(a) && a !== me.trim().toLowerCase(); };
+  const checks: { key: string; body: ReactNode; to?: string }[] = [
+    ...(isToday ? otherSources.flatMap((s) => s.differs.filter((d) => d.date === date && differLive(d)).map((d) => ({ key: `differ-${s.id}-${d.row}-${d.guideSource}`, body: <DifferNote d={d} /> }))) : []),
+    ...stopNotes.flatMap((s) => openQuestionsIn(`${s.title}\n${s.detail || ""}`)
+      // only on a day whose own lines mention what it's about ("Bizen" on Oct 7; "Kenji" on Oct 14, not all of Tokyo) — and
+      // only lines that are yours (Ken & Larisa's Kenji question led Julie's landing day; round 12)
+      .filter((q) => distinctWords(q).some((w) => myDayWords.includes(w)))
+      .map((q) => ({ key: `q-${s.id}-${q}`, body: <>Still open in {v.her} Guide: “{q}”</> }))),
+    ...bookedMine.flatMap((x) => {
+      const ready = colOf(x.r.cols, /^boarding readiness/, /readiness/);
+      const day = ready ? dateInText(ready, Number(date.slice(0, 4))) : null;
+      if (!ready || (day && day < today) || !/pending|verify|unverified|not yet|confirm/i.test(ready)) return [];
+      // (your train is drawn in the day or in "More trains" — the same id either way)
+      return [{ key: `ready-${railKey(x)}`, to: `train-${railKey(x)}`,
+        body: <>Check before the {twelveHour(colOf(x.r.cols, /^depart/))} {colOf(x.r.cols, /^train$/)}: {withTwelveHour(ready.split(/(?<=[.;])\s+/)[0]).replace(/;$/, ".")}</> }];
+    }),
+    ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && isFor(i, me) && !someoneElsesJob(i))
+      .map((i) => ({ key: `deadline-${i.id}`, to: `item-${i.id}`, body: <>Deadline: {itemTitle(i, stays, date)}</> })),
+    // (her line, or the booking under it when that's where the difference is said — never both)
+    ...[...planBlocks.filter((b) => !(underLine.get(b.id) || []).some((o) => tabsDiffer(o).length > 0)), ...otherItems].filter((b) => b.kind !== "flight" && isFor(b, me) && tabsDiffer(b).length > 0
+      && !(b.time && isToday && otherSources.some((s) => s.differs.some((d) => d.date === date && d.guideSays === (b.endTime ? `${twelveHour(b.time!)}–${twelveHour(b.endTime)}` : twelveHour(b.time!))))))
+      .map((b) => ({ key: `two-${b.id}`, to: `item-${b.id}`, body: <>{b.title.replace(/^./, (c) => c.toUpperCase())}: {v.her} tabs say two different things</> })),
+  ];
   // A Backroads day, in the band: "With Backroads · day 3 of 8" (their guides lead it; the summary says the rest)
   const guidedDays = days.filter((d) => d.dayType === "guided").map((d) => ymd(d.date)).sort();
   const backroadsDay = day?.dayType === "guided" ? guidedDays.indexOf(date) + 1 : 0;
@@ -1203,6 +1299,16 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 <p className="text-xs text-[#6b5d4a] mt-1">Wander's summary of {v.owners} plan</p>
               </section>
             )}
+            {/* What you can't get wrong this day, each once, pointing down to its line (the Next tab keeps its own order) */}
+            {!now && (
+              <DontMiss heading={isToday ? "Today, don't miss" : "Don't miss"} checks={checks}
+                // the ticket pickup on its day — the sheet owner's couple's job (anyone else reaches its steps from the trains)
+                cards={otherSources.flatMap((s) => {
+                  const { ownerParty } = railAudience(items, s.owner);
+                  if (!ownerParty || !isFor({ forWhom: ownerParty }, me)) return [];
+                  return s.checklists.filter((c) => c.date === date).map((c) => <ChecklistCard key={`${s.id}-${c.tab}`} c={c} s={s} today={isToday} />);
+                })} />
+            )}
             {/* (Larisa's note for the whole stay sits at the bottom of each of its days, folded — on its first day at the
                 top it read as that day's plan: Oct 6 led with tomorrow's Bizen; day review, Oct 4) */}
             {/* Her travel note in a stay's note, on the day whose own lines name where it goes ("Okayama -> Bizen" on the Bizen
@@ -1224,7 +1330,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* Her open question in a stay's note, up top on a day whose own lines name what it's about — only the
                 question, in her words (round 12: Oct 7 led with "8:30 AM Okayama → Bizen" as settled; "WHERE IS BIZEN TOUR
                 STARTING" was at the very bottom) */}
-            {stopNotes.flatMap((s) => openQuestionsIn(`${s.title}\n${s.detail || ""}`)
+            {/* (on the day screen it's in "Don't miss" above) */}
+            {now && stopNotes.flatMap((s) => openQuestionsIn(`${s.title}\n${s.detail || ""}`)
               // only on a day whose own lines mention what it's about ("Bizen" on Oct 7; "Kenji" on Oct 14, not all of Tokyo)
               // (and only lines that are yours — Ken & Larisa's Kenji question led Julie's landing day; round 12)
               .filter((q) => { const day = distinctWords(dayItems.filter((x) => isFor(x, me)).map((x) => `${x.title} ${x.detail || ""}`).join(" ")); return distinctWords(q).some((w) => day.includes(w)); })
@@ -1270,7 +1377,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             })()}
             {/* Ken's rail sheet: the pickup checklist on its day (Shin-Osaka, Oct 6), and on Now the next train */}
             {/* (the pickup is the sheet owner's couple's job — anyone else reaches its steps from the day's trains) */}
-            {otherSources.flatMap((s) => {
+            {/* (on the day screen it leads "Don't miss" above) */}
+            {now && otherSources.flatMap((s) => {
               const { ownerParty } = railAudience(items, s.owner);
               if (!ownerParty || !isFor({ forWhom: ownerParty }, me)) return [];
               // On Now, the pickup goes once the train it comes before has left (delight audit: "Collect all six…" was
@@ -1283,12 +1391,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               <NextTrain sources={otherSources} date={date} nowMinutes={tripNow} quiet={pickupCardShown && !riding && !trainImminent}
                 isMine={(r, s) => { const a = railAudience(items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); }} />
             )}
-            {/* Today, where the rail sheet and her Guide disagree is said up top, before either's "Next" (round r1: at
-                12:10 on Oct 29 Now led with the Guide's 12:30 HARUKA and the difference was two screens down) */}
-            {/* (on Now it's one line inside the train's card instead — delight audit) */}
-            {isToday && !now && otherSources.flatMap((s) => s.differs.filter((d) => d.date === date && differLive(d)).map((d) => (
-              <DifferNote key={`${s.id}-${d.row}-${d.guideSource}`} d={d} className="mb-3" />
-            )))}
+            {/* (today, where the rail sheet and her Guide disagree is said first in "Don't miss" — round r1: at 12:10 on Oct
+                29 Now led with the Guide's 12:30 HARUKA and the difference was two screens down; on Now it's one line inside
+                the train's card instead — delight audit) */}
             {leave && flightAt !== null && flightNow < flightAt && (
               <div className={`mb-3 rounded-xl p-4 text-white ${flightNow > leave.minutes ? "bg-[#8a5a1a]" : "bg-[#514636]"}`}>
                 <p className="text-xs uppercase tracking-wide text-white/70">
@@ -1489,9 +1594,16 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 pictures={pictures}
                 differAbove={(b) => isToday && !now && !!b.time && otherSources.some((s) => s.differs.some((d) => d.date === date && differLive(d)
                   && d.guideSays === (b.endTime ? `${twelveHour(b.time!)}–${twelveHour(b.endTime)}` : twelveHour(b.time!))))}
-                under={(b) => (underLine.get(b.id) || []).map((o) => (
-                  <ItemCard key={o.id} nested i={o} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === o.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />
-                ))}
+                under={(b) => [
+                  ...(underLine.get(b.id) || []).map((o) => (
+                    <ItemCard key={o.id} nested i={o} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === o.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />
+                  )),
+                  // the train her line names, from the rail sheet — its booking, seats and steps, under her line
+                  ...(trainsUnder.get(b.id) || []).map((x) => (
+                    <RailLeg key={`train-${railKey(x)}`} r={x.r} s={x.s} today={today} look="nested" pickupBy={pickupByFor(x.s)} differs={differsFor(x)} />
+                  )),
+                ]}
+                differBelow={(b) => (trainsUnder.get(b.id) || []).some((x) => differsFor(x).length > 0)}
                 blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel} bookings={dayItems.filter((m) => m.kind === "meal")}
                 picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
                 onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}
@@ -1505,8 +1617,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 nowAt={isToday ? tripNow : null}
               />
             )}
-            {planBlocks.length > 0 && alsoItems.length > 0 && (
-              <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Also in {v.her} Guide for today</h2>
+            {/* (a rail-sheet train her plan doesn't name joins this list too — then it isn't all "in her Guide") */}
+            {planBlocks.length > 0 && (alsoItems.length > 0 || timelineTrains.length > 0) && (
+              <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">{timelineTrains.length ? "Also today" : `Also in ${v.her} Guide for today`}</h2>
             )}
             {dayItems.length === 0 && choices.length === 0 && planBlocks.length === 0 ? (
               day?.dayType === "guided" ? (
@@ -1525,11 +1638,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // landing, and the booked 6:17 PM NOZOMI 77 sat at the bottom under Trains): your booked trains join the
                   // timed lines at their times — each opens its full card in Trains — and lines her Guide gives no time say so
                   const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />;
-                  // (not under "Also in her Guide for today" on a day with her detailed plan — a rail-sheet train isn't hers)
-                  const trains = planBlocks.length ? [] : otherSources.flatMap((s) => {
-                    const a = railAudience(items, s.owner);
-                    return s.rail.filter((r) => r.date === date && isBookedTrain(r) && legIsFor(r, s, me, a.ownerParty, a.groupSize)).map((r) => ({ s, r }));
-                  });
+                  // (on a day with her plan, a train her plan names sits under that line; any other joins here at its time)
+                  const trains = timelineTrains;
                   const dep = (r: RailRow) => tripClockMinutes({ time: colOf(r.cols, /^depart/).padStart(5, "0") } as GuideItem, tripZone);
                   const firstTimed = alsoItems.findIndex((i) => !!i.time);
                   const lead = firstTimed > 0 ? alsoItems.slice(0, firstTimed).filter((i) => i.kind !== "checkout") : [];
@@ -1537,16 +1647,12 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // landing, in her sheet's order, and so does the airport leg with no booking (KIX → Shin-Osaka). Day
                   // review, Oct 4 (Ken: "itinerary in order"): Oct 6 read "Osaka → Okayama, Rikuro, Shinkansen" above the
                   // 2:50 PM landing, and the airport train only under Trains, two screens down.
-                  const landing = myLanding && alsoItems.includes(myLanding) ? myLanding : null;
+                  const landing = landingInList ? myLanding! : null;
                   const afterLanding = landing ? lead : [];
                   const order = afterLanding.length
                     ? alsoItems.filter((i) => !afterLanding.includes(i)).flatMap((i) => (i === landing ? [i, ...afterLanding] : [i]))
                     : alsoItems;
-                  const legs = landing && !planBlocks.length ? otherSources.flatMap((s) => {
-                    const a = railAudience(items, s.owner);
-                    const firstBooked = Math.min(...s.rail.filter((r) => r.date === date && isBookedTrain(r) && legIsFor(r, s, me, a.ownerParty, a.groupSize)).map((r) => r.row));
-                    return s.rail.filter((r) => r.date === date && !isBookedTrain(r) && legIsFor(r, s, me, a.ownerParty, a.groupSize) && r.row < firstBooked).map((r) => ({ s, r }));
-                  }) : [];
+                  const legs = landingLegs;
                   const timedAt = order.findIndex((i) => !!i.time);
                   const out: ReactNode[] = [];
                   let t = 0;
@@ -1563,37 +1669,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   });
                   while (t < sorted.length) out.push(trainLine(sorted[t++]));
                   return out;
-                  // A leg the rail sheet has with no booking, at its place after landing (its notes are in Trains below)
-                  function legLine({ s, r }: { s: OtherSource; r: RailRow }) {
-                    const c = r.cols;
-                    const name = colOf(c, /^notes$/).match(/^\s*([A-Z][A-Z0-9 -]{2,20}?)\s*=/)?.[1];
-                    return (
-                      <li key={`leg-${s.id}-${r.row}`} className="bg-white rounded-xl border border-[#e0d8cc]">
-                        <a href="#trains" onClick={(e) => { e.preventDefault(); document.getElementById("trains")?.scrollIntoView({ block: "start" }); }}
-                          className="flex gap-3 p-3 min-h-[44px]">
-                          <span className="w-16 shrink-0 text-right text-sm text-[#6b5d4a] leading-snug">{colOf(c, /^target/) || "After landing"}</span>
-                          <span className="flex-1 min-w-0 text-[15px] leading-snug text-[#3a3128]">
-                            {name ? `${name} · ` : ""}{colOf(c, /^route$/)}{colOf(c, /^mode$/) ? ` · ${colOf(c, /^mode$/)}` : ""}
-                            <span className="block text-xs text-[#6b5d4a] mt-0.5">No booking needed · from {sourceWordsFor(s, me)} — its notes in Trains below ›</span>
-                          </span>
-                        </a>
-                      </li>
-                    );
+                  // A leg the rail sheet has with no booking, at its place after landing; a booked train at its time — each
+                  // opens in place ("Seats, notes and steps ›")
+                  function legLine(x: { s: OtherSource; r: RailRow }) {
+                    return <RailLeg key={`leg-${railKey(x)}`} r={x.r} s={x.s} today={today} look="card" pickupBy={pickupByFor(x.s)} />;
                   }
-                  function trainLine({ s, r }: { s: OtherSource; r: RailRow }) {
-                    const arr = colOf(r.cols, /^arrive/);
-                    return (
-                      <li key={`train-${s.id}-${r.row}`} className="bg-white rounded-xl border border-[#e0d8cc]">
-                        <a href="#trains" onClick={(e) => { e.preventDefault(); document.getElementById("trains")?.scrollIntoView({ block: "start" }); }}
-                          className="flex gap-3 p-3 min-h-[44px]">
-                          <span className="w-16 shrink-0 text-right text-sm font-medium text-[#3a3128] tabular-nums">{twelveHour(colOf(r.cols, /^depart/))}</span>
-                          <span className="flex-1 min-w-0 text-[15px] leading-snug text-[#3a3128]">
-                            {colOf(r.cols, /^train$/)} · {colOf(r.cols, /^route$/)}{arr ? ` · arrives ${twelveHour(arr)}` : ""}
-                            <span className="block text-xs text-[#6b5d4a] mt-0.5">Booked · from {sourceWordsFor(s, me)} — seats and steps in Trains below ›</span>
-                          </span>
-                        </a>
-                      </li>
-                    );
+                  function trainLine(x: { s: OtherSource; r: RailRow }) {
+                    return <RailLeg key={`train-${railKey(x)}`} r={x.r} s={x.s} today={today} look="card" pickupBy={pickupByFor(x.s)} differs={differsFor(x)} />;
                   }
                 })()}
               </ol>
@@ -1680,8 +1762,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             </section>
 
             {/* The day's trains from Ken's rail sheet, apart from her Guide, with any disagreement said */}
-            <TrainsForDay sources={otherSources} date={date} today={today} differsShownAbove={isToday}
-              pickupBy={(s) => { const { ownerParty } = railAudience(items, s.owner); return ownerParty && !isFor({ forWhom: ownerParty }, me) ? ownerParty : null; }}
+            {/* (only what isn't already in the day: the others' trains, folded; a leg with no booking; the pickup's steps) */}
+            <TrainsForDay sources={otherSources} date={date} today={today} differsShownAbove={isToday} shownInPlace={placedTrains}
+              pickupBy={pickupByFor}
               isMine={(r, s) => { const a = railAudience(items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); }}
               theirsName={(s) => railAudience(items, s.owner).ownerParty} />
 
@@ -1756,6 +1839,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 </p>
               );
             })()}
+            {/* The trains' source, and how current it is, said once here — each train in the day says only "from Ken's rail
+                sheet" (it was the Trains section's first line, gone when every train is drawn in the day) */}
+            {otherSources.filter((s) => s.rail.some((r) => r.date === date)).map((s) => (
+              <p key={s.id} className="text-xs mt-1 text-center text-[#6b5d4a]">
+                The trains are from {sourceWordsFor(s, me)}{s.readAt ? `, as Wander last read it ${readWords(s.readAt)}` : ""}.{s.lastError ? " Its latest read didn't work, so this may be out of date." : ""}
+              </p>
+            ))}
           </>
         )}
       </main>
@@ -1832,6 +1922,18 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   // A to-do whose window closed: say plainly Wander can't know whether it was done
   const couldBeDone = over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title);
   const Box = nested ? "div" : "li";
+  // Someone else's line on a split day: one quiet row at its time, opened in place (day review, Oct 4: on Julie's landing
+  // day two full Ken & Larisa Mashiko cards — about 420 pt — came before her own 3:00 PM landing)
+  if (theirs && !showTheirs && !nested && !highlight) {
+    return (
+      <Box id={`item-${i.id}`} className="rounded-xl border border-[#efe8dc] bg-white/60">
+        <button onClick={() => setShowTheirs(true)} aria-expanded={false} className="w-full flex items-center gap-3 px-3 py-1 min-h-[44px] text-left">
+          <span className="w-16 shrink-0 text-right text-sm text-[#6b5d4a]">{i.time ? timeLabel(i, day) : ""}</span>
+          <span className="flex-1 min-w-0 text-sm text-[#6b5d4a] leading-snug">{i.forWhom} · {itemTitle(i, stays, date)} ›</span>
+        </button>
+      </Box>
+    );
+  }
   return (
     <Box id={`item-${i.id}`} className={nested
       ? `mt-2 rounded-lg border p-2.5 transition-shadow ${tone === "bg-white border-[#e0d8cc]" ? "bg-[#faf8f5] border-[#efe8dc]" : tone} ${highlight ? "ring-2 ring-[#c8a060]" : ""}`

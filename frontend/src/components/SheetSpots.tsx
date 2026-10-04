@@ -39,8 +39,11 @@ export default function SheetSpots({ tripId, spots, label, className = "", whole
   const linkClass = "inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2";
   if (label && list.length === 1) {
     const { href, exact, range } = spotHref(link, list[0].tab, list[0].a1s);
+    // A quiet line: it opens her sheet at the exact cells, so the words don't spell them out ("F7:Q7" is spreadsheet talk —
+    // day review, Oct 4: the underlined source was the loudest text on every card); a screen reader still hears the cells
     return exact ? (
-      <p className={className}><a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-xs text-[#514636] underline underline-offset-2">{label}{range && !wholeTable ? `, ${range}` : ""} ↗</a></p>
+      <p className={className}><a href={href} target="_blank" rel="noreferrer" aria-label={`${label}${range && !wholeTable ? `, ${range}` : ""}, in ${whose}`}
+        className="inline-flex items-center min-h-[44px] text-xs text-[#6b5d4a] underline decoration-[#d6ccbc] underline-offset-2">{label} ↗</a></p>
     ) : (
       <p className={`text-xs text-[#6b5d4a] ${className}`}>
         {label}{range && !wholeTable ? `, ${range}` : ""} · <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-[#514636] underline underline-offset-2">Open {whose} ↗</a>

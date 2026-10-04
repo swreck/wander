@@ -49,9 +49,19 @@ const shortWhen = (ymd: string) => new Date(`${ymd}T00:00:00Z`).toLocaleDateStri
 /** "Tix pick up — Shin-Osaka" → "Ticket pickup — Shin-Osaka" (its tab name stays in the source line) */
 export const checklistTitle = (tab: string) => tab.replace(/^tix\s*pick\s*-?\s*up/i, "Ticket pickup");
 
-function Leg({ r, s, today, pickupBy }: { r: RailRow; s: OtherSource; today: string; pickupBy?: string | null }) {
+/**
+ * A train in the day itself, at its time (look "card") or under her line for it (look "nested"): one compact line —
+ * its time, name and route, anything to check now — and "Seats, notes and steps ›" opens the rest in place (day review,
+ * Oct 4: every booked train was said twice, once in the day and again in full under "Trains" two screens down).
+ */
+export function RailLeg(props: { r: RailRow; s: OtherSource; today: string; pickupBy?: string | null; look: "card" | "nested"; differs?: RailDiffer[] }) {
+  return <Leg {...props} />;
+}
+
+function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRow; s: OtherSource; today: string; pickupBy?: string | null; look?: "list" | "card" | "nested"; differs?: RailDiffer[] }) {
   const me = useAuth().user?.displayName ?? null;
   const [open, setOpen] = useState(false);
+  const [more, setMore] = useState(false);
   const train = colOf(r.cols, /^train$/);
   const depart = colOf(r.cols, /^depart/);
   const arrive = colOf(r.cols, /^arrive/);
@@ -73,8 +83,71 @@ function Leg({ r, s, today, pickupBy }: { r: RailRow; s: OtherSource; today: str
   // Wander says it can't tell what happened since (round r1: Andy read it as "the tickets were never collected")
   const statusDay = readiness ? dateInText(readiness, Number(today.slice(0, 4))) : null;
   const stale = !!statusDay && statusDay < today;
+  // Its pickup's steps, until the pickup's own day (after it, the link repeated on every later day)
+  const pickups = /collect|pick ?up/i.test(`${readiness} ${ticket}`) ? s.checklists.filter((c) => !c.date || today <= c.date) : [];
+  if (look !== "list") {
+    const nested = look === "nested";
+    const head = booked ? `${train} · ${route}` : `${route}${mode ? ` · ${mode}` : ""}`;
+    const name = !booked ? notes.match(/^\s*([A-Z][A-Z0-9 -]{2,20}?)\s*=/)?.[1] : undefined;
+    const Box = nested ? "div" : "li";
+    return (
+      <Box id={`train-${s.id}-${r.row}`} data-train className={nested ? "mt-2 rounded-lg border border-[#efe8dc] bg-[#faf8f5] p-2.5" : "bg-white rounded-xl border border-[#e0d8cc] p-3"}>
+        <div className="flex gap-3">
+          {!nested && (
+            <div className="w-16 shrink-0 text-right">
+              {booked ? (
+                <>
+                  <div className="text-sm font-medium text-[#3a3128] tabular-nums">{twelveHour(depart)}</div>
+                  {arrive && <div className="text-xs text-[#6b5d4a]">arrive {twelveHour(arrive)}</div>}
+                </>
+              ) : <div className="text-sm text-[#6b5d4a] leading-snug">{target && target !== "—" ? target : ""}</div>}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className={`${nested ? "text-sm" : "text-[15px]"} leading-snug text-[#3a3128]`}>
+              {nested && booked ? `${twelveHour(depart)} · ` : ""}{name ? `${name} · ` : ""}{head}{nested && booked && arrive ? ` · arrives ${twelveHour(arrive)}` : ""}
+            </p>
+            <p className="text-xs text-[#6b5d4a] mt-0.5">{booked ? "Booked" : "No booking needed"} · from {sourceWordsFor(s, me)}</p>
+            {/* Car and seats stay in sight — what you look for on the platform, never behind a tap */}
+            {booked && [cls, seat, resv].some((x) => x && x !== "—") && (
+              <p className="text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">{[cls, seat, resv && resv !== "—" ? `Reservation #${resv}` : ""].filter((x) => x && x !== "—").join(" · ")}</p>
+            )}
+            {onlyFor && <p className="text-xs text-[#514636] mt-0.5">“{onlyFor}”, the sheet says</p>}
+            {/* Where her Guide has this train at another time — said here, with the train (not on today's screen, where it's
+                said at the top) */}
+            {differs.map((d) => <DifferLine key={`${d.row}-${d.guideSource}`} d={d} />)}
+            {status === "?" && <p className="text-sm text-[#8a5a1a] mt-0.5">The rail sheet marks this leg “?”{notes ? `: ${withTwelveHour(notes)}` : "."}</p>}
+            {/* Anything to check before boarding stays in sight ("PENDING — SmartEX: verify…"); an old one waits inside */}
+            {readiness && !stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className="text-sm mt-1 text-[#8a5a1a]" />}
+            {more ? (
+              <>
+                {/^\d+$/.test(pax) && <p className="text-sm text-[#514636] mt-1">{pax} {pax === "1" ? "person" : "people"}</p>}
+                {!booked && resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}
+                {readiness && stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className="text-sm mt-1 text-[#6b5d4a]" />}
+                {ticket && !stale && <p className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]">{withTwelveHour(ticket)}</p>}
+                {notes && status !== "?" && <GuideText text={withTwelveHour(notes)} className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]" />}
+                {pickups.map((c) => (
+                  <Link key={c.tab} to={`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`}
+                    className="flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+                    {checklistTitle(c.tab)}{pickupBy ? ` (${pickupBy}'s job)` : ""}: the steps ›
+                  </Link>
+                ))}
+                <p className="text-xs text-[#6b5d4a] mt-1">From {sourceWordsFor(s, me)} — its {r.tab} tab</p>
+                <button onClick={() => setMore(false)} className="min-h-[44px] text-sm text-[#514636]">Hide the details ‹</button>
+              </>
+            ) : (
+              <button onClick={() => setMore(true)} aria-expanded={false} className="-mb-2 min-h-[44px] text-sm text-[#514636]">
+                {booked ? "Reservation, notes and steps ›" : "The sheet's notes ›"}
+              </button>
+            )}
+          </div>
+        </div>
+      </Box>
+    );
+  }
   return (
-    <li className="py-2.5">
+    // (the same id as in the day itself — a train is drawn in one place or the other, never both)
+    <li id={`train-${s.id}-${r.row}`} className="py-2.5 scroll-mt-24">
       <div className="flex gap-3">
         <div className="w-16 shrink-0 text-right">
           {booked ? (
@@ -157,8 +230,10 @@ export function DifferLine({ d, dark = false }: { d: RailDiffer; dark?: boolean 
   );
 }
 
-export function TrainsForDay({ sources, date, today, pickupBy, differsShownAbove = false, isMine, theirsName }: {
+export function TrainsForDay({ sources, date, today, pickupBy, differsShownAbove = false, isMine, theirsName, shownInPlace }: {
   sources: OtherSource[]; date: string; today: string;
+  /** trains already drawn in the day itself, at their time or under her line ("<source id>-<row>") — not again here */
+  shownInPlace?: Set<string>;
   /** today's screen already says it at the top — not again here (round 12: four times on Oct 29's Now) */
   differsShownAbove?: boolean;
   /** whose job the pickup is ("Ken & Larisa"), said to everyone else */
@@ -171,20 +246,27 @@ export function TrainsForDay({ sources, date, today, pickupBy, differsShownAbove
 }) {
   const me = useAuth().user?.displayName ?? null;
   const [showTheirs, setShowTheirs] = useState(false);
-  const found = sources.map((s) => ({ s, legs: s.rail.filter((r) => r.date === date), differs: s.differs.filter((d) => d.date === date) })).filter((x) => x.legs.length);
+  const placed = (s: OtherSource, row: number) => !!shownInPlace?.has(`${s.id}-${row}`);
+  const found = sources.map((s) => {
+    const legs = s.rail.filter((r) => r.date === date);
+    const mine = (isMine ? legs.filter((r) => isMine(r, s)) : legs).filter((r) => !placed(s, r.row));
+    const theirs = isMine ? legs.filter((r) => !isMine(r, s) && !placed(s, r.row)) : [];
+    const differs = differsShownAbove ? [] : s.differs.filter((d) => d.date === date && !placed(s, d.row));
+    // (the pickup's steps are also inside each placed train that needs them)
+    const pickups = legs.filter((r) => !placed(s, r.row)).some((r) => /collect|pick ?up/i.test(`${colOf(r.cols, /readiness/)} ${colOf(r.cols, /^ticket/)}`)) ? s.checklists.filter((c) => !c.date || today <= c.date) : [];
+    return { s, legs, mine, theirs, differs, pickups };
+  }).filter((x) => x.mine.length || x.theirs.length || x.differs.length || x.pickups.length);
   if (!found.length) return null;
   return (
     <section id="trains" className="mt-6 scroll-mt-24">
-      <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">Trains</h2>
-      {found.map(({ s, legs, differs }) => {
-        const mine = isMine ? legs.filter((r) => isMine(r, s)) : legs;
-        const theirs = isMine ? legs.filter((r) => !isMine(r, s)) : [];
+      <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{shownInPlace?.size ? "More trains" : "Trains"}</h2>
+      {found.map(({ s, mine, theirs, differs, pickups }) => {
         return (
         <div key={s.id}>
           <p className="text-[13px] text-[#6b5d4a] mt-0.5">
             From {sourceWordsFor(s, me)} — not {voiceFor(me).guide}.{s.readAt ? ` Wander last read it ${readWords(s.readAt)}.` : ""}{s.lastError ? " Its latest read didn't work, so this may be out of date." : ""}
           </p>
-          {!differsShownAbove && differs.map((d) => <DifferNote key={`${d.row}-${d.guideSource}`} d={d} className="mt-2" />)}
+          {differs.map((d) => <DifferNote key={`${d.row}-${d.guideSource}`} d={d} className="mt-2" />)}
           {mine.length > 0 && (
             <ol className="mt-2 bg-white rounded-xl border border-[#e0d8cc] px-3 divide-y divide-[#f0ebe3]">
               {mine.map((r) => <Leg key={`${r.tab}-${r.row}`} r={r} s={s} today={today} pickupBy={pickupBy(s)} />)}
@@ -202,7 +284,7 @@ export function TrainsForDay({ sources, date, today, pickupBy, differsShownAbove
               </button>)}
           {/* Paper tickets to collect: the steps are one tap away from any of their trains */}
           {/* (until the pickup's own day — after it, the link repeated on every later day) */}
-          {legs.some((r) => /collect|pick ?up/i.test(`${colOf(r.cols, /readiness/)} ${colOf(r.cols, /^ticket/)}`)) && s.checklists.filter((c) => !c.date || today <= c.date).map((c) => (
+          {pickups.map((c) => (
             <Link key={c.tab} to={`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`}
               className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
               {checklistTitle(c.tab)}{pickupBy(s) ? ` (${pickupBy(s)}'s job)` : ""}: the steps ›
@@ -261,7 +343,10 @@ export function NextTrain({ sources, date, nowMinutes, isMine, quiet = false }: 
     const inWords = mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins / 60)} hr${mins % 60 ? ` ${mins % 60} min` : ""}`;
     const c = next.r.cols;
     return (
-      <a href="#trains" className={`block mb-3 rounded-xl text-white ${quiet ? "bg-[#7a6d5c] p-3" : "bg-[#514636] p-4"}`}>
+      // (to the train itself, wherever the day draws it — the Trains section can be empty now; day review, Oct 4)
+      <a href={`#train-${s.id}-${next.r.row}`}
+        onClick={(e) => { const el = document.getElementById(`train-${s.id}-${next.r.row}`); if (el) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth", block: "center" }); } }}
+        className={`block mb-3 rounded-xl text-white ${quiet ? "bg-[#7a6d5c] p-3" : "bg-[#514636] p-4"}`}>
         <p className="text-xs uppercase tracking-wide text-white/70">
           {riding ? `On this train now, by the schedule · arriving ${twelveHour(colOf(c, /^arrive/))}` : `Next train · ${inWords}`}
         </p>
