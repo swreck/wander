@@ -136,7 +136,7 @@ function ItemLine({ i, me, stays, date, day, onOpen, picks, all, tz, railSaysIt,
         {flightNow && <span className="block text-xs text-[#514636] mt-0.5">{flightNow}</span>}
         {i.kind === "flight" && !isLanding(i) && (() => { const lands = (i.detail || "").match(/Lands at [^\n|]+/)?.[0]; return lands ? <span className="block text-xs text-[#514636] mt-0.5">{lands.trim()}</span> : null; })()}
         {opts.length > 0 && !pick && <span className="block text-xs text-[#8a5a1a] mt-0.5">{opts.length} places to choose from ›</span>}
-        {i.kind !== "flight" && !railSaysIt && tabsDiffer(i).map((d) => <span key={d} className="block text-xs text-[#8a5a1a] mt-0.5">{differWordsFor(d, v)}</span>)}
+        {i.kind !== "flight" && !railSaysIt && tabsDiffer(i).map((d) => <span key={d} className="block text-xs text-[#8a5a1a] mt-0.5">{differWordsFor(d, v, "on the day's screen")}</span>)}
         {railSaysIt && <span className="block text-xs text-[#6b5d4a] mt-0.5">The same train as the rail sheet's — the times differ, see below</span>}
         {/* (round 13: Oct 29's Home said "~2:00–2:30 Arrive KIX" under the 1:30 PM HARUKA, which arrives 2:50 PM) */}
         {railArrives && <span className="block text-xs text-[#8a5a1a] mt-0.5">Timed for the train in {v.her} tab — the booked train arrives {railArrives}</span>}
@@ -769,7 +769,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           <button onClick={() => openDay(today, current.id)} className="w-full text-left mt-2 min-h-[44px] text-sm text-[#3a3128]">
             <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{current.title.replace(/^./, (c) => c.toUpperCase())}
             <span className="text-[#6b5d4a]">{current.endTime ? `, until ${currentRough ? "about " : ""}${clock(current.endTime)}` : planLineEndSaid(current, plan.all) !== null ? `, until about ${minutesToClock(planLineEndSaid(current, plan.all)!)}` : ""}</span>
-            {tabsDiffer(current).map((d) => <span key={d} className="block text-xs text-[#8a5a1a] mt-0.5">{differWordsFor(d, v)}</span>)}
+            {tabsDiffer(current).map((d) => <span key={d} className="block text-xs text-[#8a5a1a] mt-0.5">{differWordsFor(d, v, "on the day's screen")}</span>)}
           </button>
         )}
         {currentUnowned && (

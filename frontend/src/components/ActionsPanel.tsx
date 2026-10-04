@@ -396,7 +396,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               onClick={() => onNavigate?.(dest)}
                               className="text-sm text-[#514636] shrink-0 ml-2 min-h-[44px] px-2"
                             >
-                              Ideas ›
+                              Maybes ›
                             </button>
                           )}
                         </div>

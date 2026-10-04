@@ -8,6 +8,8 @@
  * - Seen: each person's last look at a city's list, readable by the trip's own people only
  * - Recent: the last two weeks' maybes and group notes, not private ones
  * - Scout: add_maybe and im_in do the same; retract_interest never takes away her X or someone else's "I'm in"
+ * - Remove (Oct 3, Ken): off the list for everyone, by whoever put it there (Larisa for her ideas) or the trip's
+ *   organizer (its first member) — nobody else; nothing deleted; put back by the same people; a new copy keeps it off
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
@@ -23,27 +25,30 @@ const prisma = new PrismaClient();
 
 const TRIP = "MB Maybes Trip";
 let tripId = "", otherTripId = "", cityId = "", otherCityId = "", herIdea = "";
-let andyId = "", kenId = "", outsiderId = "";
-let andy = "", ken = "", outsider = "";
+let andyId = "", kenId = "", outsiderId = "", larisaId = "";
+let andy = "", ken = "", outsider = "", larisa = "";
 
 beforeAll(async () => {
   tripId = (await prisma.trip.create({ data: { name: TRIP, status: "archived" } })).id;
   otherTripId = (await prisma.trip.create({ data: { name: `${TRIP} (other)`, status: "archived" } })).id;
   const mk = async (name: string) => prisma.traveler.upsert({ where: { displayName: name }, update: {}, create: { displayName: name } });
-  const a = await mk("MBAndy B"), k = await mk("MBKen"), o = await mk("MBOutsider");
-  andyId = a.id; kenId = k.id; outsiderId = o.id;
-  for (const t of [a, k]) await prisma.tripMember.create({ data: { tripId, travelerId: t.id, role: "traveler" } });
+  const a = await mk("MBAndy B"), k = await mk("MBKen"), o = await mk("MBOutsider"), l = await mk("MBLarisa");
+  andyId = a.id; kenId = k.id; outsiderId = o.id; larisaId = l.id;
+  // (Ken set the trip up: its first member is its organizer)
+  const t0 = Date.now() - 60_000;
+  for (const [i, t] of [k, l, a].entries()) await prisma.tripMember.create({ data: { tripId, travelerId: t.id, role: i < 2 ? "planner" : "traveler", joinedAt: new Date(t0 + i * 1000) } });
+  larisa = signToken({ code: "MBLarisa", displayName: "MBLarisa", travelerId: l.id });
   andy = signToken({ code: "MBAndy B", displayName: "MBAndy B", travelerId: a.id });
   ken = signToken({ code: "MBKen", displayName: "MBKen", travelerId: k.id });
   outsider = signToken({ code: "MBOutsider", displayName: "MBOutsider", travelerId: o.id });
   cityId = (await prisma.city.create({ data: { tripId, name: "Mossvale", sequenceOrder: 1 } })).id;
   otherCityId = (await prisma.city.create({ data: { tripId: otherTripId, name: "Elsewhere", sequenceOrder: 1 } })).id;
-  herIdea = (await prisma.experience.create({ data: { tripId, cityId, name: "Lantern museum", sheetRowRef: "Activities Template|Lantern museum", createdBy: "Larisa" } })).id;
+  herIdea = (await prisma.experience.create({ data: { tripId, cityId, name: "Lantern museum", sheetRowRef: "Activities Template|Lantern museum", createdBy: "MBLarisa" } })).id;
   await replaceGuideMarks(prisma, herIdea, tripId, ["Larisa", "Julie"]);
 });
 afterAll(async () => {
   await prisma.trip.deleteMany({ where: { name: { startsWith: TRIP } } });
-  await prisma.traveler.deleteMany({ where: { displayName: { in: ["MBAndy B", "MBKen", "MBOutsider"] } } }).catch(() => {});
+  await prisma.traveler.deleteMany({ where: { displayName: { in: ["MBAndy B", "MBKen", "MBOutsider", "MBLarisa"] } } }).catch(() => {});
   await prisma.$disconnect();
 });
 
@@ -130,26 +135,79 @@ describe("a new copy of her Guide", () => {
   });
 });
 
-describe("taking a maybe back", () => {
-  it("only its writer, never one of her ideas; a day it was put on keeps the plan", async () => {
+describe("off the list (Remove)", () => {
+  const del = (id: string, token: string) => request(app).delete(`/api/maybes/${id}`).set("Authorization", `Bearer ${token}`);
+  const back = (id: string, token: string) => request(app).post(`/api/maybes/${id}/back`).set("Authorization", `Bearer ${token}`);
+  const row = (id: string) => prisma.experience.findUnique({ where: { id } });
+
+  it("whoever put it there, or the organizer — nobody else; nothing is deleted; a day plan keeps it", async () => {
     const m = await as(andy).post("/api/maybes").send({ tripId, cityId, words: "never mind — sake bar at 5?" });
     await prisma.dayChoice.create({ data: { tripId, date: "2027-01-02", text: "sake bar at 5", experienceId: m.body.id, travelerId: andyId } });
-    expect((await request(app).delete(`/api/maybes/${m.body.id}`).set("Authorization", `Bearer ${ken}`)).status).toBe(403);
-    expect((await request(app).delete(`/api/maybes/${herIdea}`).set("Authorization", `Bearer ${andy}`)).status).toBe(403);
-    expect(await prisma.experience.count({ where: { id: herIdea } })).toBe(1);
-    const gone = await request(app).delete(`/api/maybes/${m.body.id}`).set("Authorization", `Bearer ${andy}`);
-    expect(gone.status).toBe(200);
-    expect(await prisma.experience.count({ where: { id: m.body.id } })).toBe(0);
-    const plan = await prisma.dayChoice.findFirst({ where: { tripId, text: "sake bar at 5" } });
-    expect(plan?.experienceId).toBeNull();
+    const no = await del(m.body.id, larisa);
+    expect(no.status).toBe(403);
+    expect(no.body.error).toBe("That's MBAndy's maybe — only MBAndy or MBKen can take it off the list.");
+    const notHers = await del(herIdea, andy);
+    expect(notHers.status).toBe(403);
+    expect(notHers.body.error).toBe("That's from MBLarisa's Guide — only MBLarisa or MBKen can take it off the list.");
+    expect([403, 404]).toContain((await del(m.body.id, outsider)).status);
+    expect((await row(herIdea))?.removedAt).toBeNull();
+    const off = await del(m.body.id, andy);
+    expect(off.status).toBe(200);
+    expect((await row(m.body.id))?.removedBy).toBe("MBAndy B");
+    expect((await prisma.dayChoice.findFirst({ where: { tripId, text: "sake bar at 5" } }))?.experienceId).toBe(m.body.id);
+    // again (a second phone, a double tap): fine, still off
+    expect((await del(m.body.id, andy)).status).toBe(200);
+    // not news any more
+    expect((await as(ken).get(`/api/maybes/recent/${tripId}`)).body.maybes.some((x: any) => x.id === m.body.id)).toBe(false);
   });
-  it("Scout's take_back_maybe: the same rules", async () => {
+
+  it("the organizer takes her idea off; only she or he puts it back", async () => {
+    expect((await del(herIdea, ken)).status).toBe(200);
+    expect((await row(herIdea))?.removedBy).toBe("MBKen");
+    const list = await as(andy).get(`/api/experiences/trip/${tripId}`);
+    expect(list.body.find((e: any) => e.id === herIdea).removedBy).toBe("MBKen");
+    const no = await back(herIdea, andy);
+    expect(no.status).toBe(403);
+    expect(no.body.error).toBe("Only MBLarisa or MBKen can put that back on the list.");
+    expect((await back(herIdea, larisa)).status).toBe(200);
+    expect((await row(herIdea))?.removedAt).toBeNull();
+    // her marks and Wander's I'm in were never touched
+    expect(await marks(herIdea)).toContain("Larisa");
+  });
+
+  it("the organizer can take anyone's maybe off, and the seen rows say who the organizer is", async () => {
+    const m = await as(andy).post("/api/maybes").send({ tripId, cityId, words: "the night market?" });
+    expect((await del(m.body.id, ken)).status).toBe(200);
+    expect((await back(m.body.id, andy)).status).toBe(200);
+    const seen = await as(andy).get(`/api/maybes/seen/${tripId}`);
+    expect(seen.body.filter((p: any) => p.organizer).map((p: any) => p.name)).toEqual(["MBKen"]);
+  });
+
+  it("a new copy of her Guide keeps it off — renamed, it stays off; gone with nothing on it, it goes", async () => {
+    const town = (await prisma.city.create({ data: { tripId, name: "Reedby", sequenceOrder: 3 } })).id;
+    const old = (await prisma.experience.create({ data: { tripId, cityId: town, name: "Indigo dye studio", sheetRowRef: "Activities Template|Indigo dye studio", createdBy: "MBLarisa" } })).id;
+    const lone = (await prisma.experience.create({ data: { tripId, cityId: town, name: "Clock tower", sheetRowRef: "Activities Template|Clock tower", createdBy: "MBLarisa" } })).id;
+    await del(old, ken);
+    await del(lone, ken);
+    const renamed = (await prisma.experience.create({ data: { tripId, cityId: town, name: "Indigo dye studio (morning)", sheetRowRef: "Activities Template|Indigo dye studio (morning)", createdBy: "MBLarisa" } })).id;
+    const report = { warnings: [] as string[] };
+    const keep = ["Activities Template|Lantern museum", "Activities Template|Paper lantern workshop (evening)", "Activities Template|Indigo dye studio (morning)"];
+    await prisma.$transaction((tx) => keepWhatPeopleAdded(tx, tripId, keep, [{ id: renamed, cityId: town, name: "Indigo dye studio (morning)" }], report));
+    expect((await row(renamed))?.removedBy).toBe("MBKen");
+    // (the import deletes what's gone and unmarked right after; the lone one wasn't kept as "no longer in her Guide")
+    expect((await row(lone))?.sheetRowRef).toBe("Activities Template|Clock tower");
+  });
+
+  it("Scout: remove_from_maybes and put_back_on_maybes, the same rules; take_back_maybe still works", async () => {
     const m = await as(andy).post("/api/maybes").send({ tripId, cityId, words: "karaoke later?" });
+    const asLarisa = { code: "MBLarisa", displayName: "MBLarisa", travelerId: larisaId } as any;
     const asKen = { code: "MBKen", displayName: "MBKen", travelerId: kenId } as any;
-    expect((await executeTool("take_back_maybe", { experienceId: m.body.id }, asKen)).result.error).toMatch(/only they can take it back/);
-    expect((await executeTool("take_back_maybe", { experienceId: herIdea }, asKen)).result.error).toMatch(/Larisa's ideas/);
-    const r = await executeTool("take_back_maybe", { experienceId: m.body.id }, { code: "MBAndy B", displayName: "MBAndy B", travelerId: andyId } as any);
-    expect(r.actionDescription).toBe(`Took back the maybe "karaoke later?"`);
+    const asAndy = { code: "MBAndy B", displayName: "MBAndy B", travelerId: andyId } as any;
+    expect((await executeTool("remove_from_maybes", { experienceId: m.body.id }, asLarisa)).result.error).toMatch(/only MBAndy or MBKen/);
+    expect((await executeTool("remove_from_maybes", { experienceId: m.body.id }, asKen)).actionDescription).toBe(`Off Mossvale's maybes: "karaoke later?"`);
+    expect((await executeTool("put_back_on_maybes", { experienceId: m.body.id }, asAndy)).actionDescription).toBe(`Back on Mossvale's maybes: "karaoke later?"`);
+    expect((await executeTool("take_back_maybe", { experienceId: m.body.id }, asAndy)).actionDescription).toBe(`Off Mossvale's maybes: "karaoke later?"`);
+    expect((await row(m.body.id))?.removedBy).toBe("MBAndy B");
   });
 });
 
@@ -175,6 +233,20 @@ describe("seen and recent", () => {
     expect(r.body.maybes.some((m: any) => m.words === "Lantern museum")).toBe(false); // hers, not a maybe
     expect(r.body.notes.length).toBe(1);
     expect(r.body.notes[0].by).toBe("MBAndy B");
+  });
+  it("Home's Recent activity: an I'm in taken back, a no-longer-in and a put-back aren't news; a removal hides the item", async () => {
+    const town = (await prisma.city.create({ data: { tripId, name: "Feedham", sequenceOrder: 4 } })).id;
+    const idea = (await prisma.experience.create({ data: { tripId, cityId: town, name: "Rope bridge walk", sheetRowRef: "Activities Template|Rope bridge walk", createdBy: "MBLarisa" } })).id;
+    await as(andy).post(`/api/maybes/${idea}/in`).send({ on: true });
+    await as(andy).post(`/api/maybes/${idea}/in`).send({ on: false });
+    await as(ken).post(`/api/maybes/${idea}/in`).send({ on: true });
+    const feed = async () => (await as(ken).get(`/api/activity-feed/trip/${tripId}?limit=50`)).body.feed.map((f: any) => `${f.userDisplayName}: ${f.description}`).filter((d: string) => d.includes("Rope bridge"));
+    expect(await feed()).toEqual([`MBKen: MBKen is in on "Rope bridge walk"`]);
+    await request(app).delete(`/api/maybes/${idea}`).set("Authorization", `Bearer ${ken}`);
+    expect(await feed()).toEqual([]);
+    await as(larisa).post(`/api/maybes/${idea}/back`);
+    // (back on the list: what people said shows again; the taking off and putting back don't)
+    expect(await feed()).toEqual([`MBKen: MBKen is in on "Rope bridge walk"`]);
   });
 });
 

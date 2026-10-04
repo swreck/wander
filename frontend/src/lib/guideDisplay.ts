@@ -856,9 +856,12 @@ export function voiceFor(me: string | null | undefined, owner: string | null | u
 
 /** A "tabs differ" note in words: "Her tabs differ — …", or "Her tab says two things — …" when both are in one tab
  *  (round 13: Oct 25's stop list and booking picture are both in her Kyoto Sun tab) */
-export function differWordsFor(d: string, v: ReturnType<typeof voiceFor>): string {
+export function differWordsFor(d: string, v: ReturnType<typeof voiceFor>, addressAt?: string): string {
   const within = /^within this tab — /.test(d);
-  const rest = d.replace(/^within this tab — /, "").replace(/^her /, "").replace(/\bher\b/g, v.her);
+  let rest = d.replace(/^within this tab — /, "").replace(/^her /, "").replace(/\bher\b/g, v.her);
+  // Where no address shows beside it, "this address is her Dining Resos tab's" points at nothing (Oct 15 review, Julie's
+  // Home): say where the booking's address is
+  if (addressAt) rest = rest.replace(/this address is (\w+) (.+?) tab's\.?$/, (_m, who, tab) => `${who} ${tab} tab gives another address — ${addressAt}.`);
   return within ? `${v.Her} tab says two things — ${rest}` : `${v.Her} tabs differ — ${rest}`;
 }
 

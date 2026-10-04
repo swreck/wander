@@ -5,7 +5,9 @@
  *
  *  POST /maybes                { tripId, cityId, words, link? } — one sentence; a link in the words is taken out
  *  POST /maybes/:id/in         { on, forName? } — "I'm in" on a maybe or one of her ideas ("Julie's in too": forName)
- *  DELETE /maybes/:id          — take back your own maybe (never one of her ideas, never someone else's)
+ *  DELETE /maybes/:id          — off the list for everyone (by whoever put it there — Larisa for her ideas — or the
+ *                                trip's organizer); nothing deleted, her Guide unchanged
+ *  POST /maybes/:id/back       — back on the list (the same people)
  *  POST /maybes/seen           { tripId, cityId } — you've looked at that city's list now
  *  GET  /maybes/seen/:tripId   — when each person on the trip last looked at each city ("Seen by", the new dot)
  *  GET  /maybes/recent/:tripId — the last two weeks' maybes and group notes, for the new dot and Home's line
@@ -15,7 +17,7 @@ import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { getUserRole, tripMemberParam, itemMemberParam } from "../middleware/role.js";
 import { tripOf } from "../middleware/tripGuard.js";
-import { createMaybe, setIn, takeBackMaybe, MaybeError } from "../services/maybes.js";
+import { createMaybe, setIn, removeFromMaybes, putBackOnMaybes, organizerOf, MaybeError } from "../services/maybes.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -48,11 +50,17 @@ router.post("/:id/in", async (req: AuthRequest, res) => {
   } catch (e) { fail(res, e); }
 });
 
-// ── Take back your own maybe ──
+// ── Off the list, and back on ──
 router.delete("/:id", async (req: AuthRequest, res) => {
   try {
-    const r = await takeBackMaybe(req.user!, req.params.id as string);
-    res.json({ deleted: true, name: r.name });
+    const r = await removeFromMaybes(req.user!, req.params.id as string);
+    res.json({ removed: true, name: r.name });
+  } catch (e) { fail(res, e); }
+});
+router.post("/:id/back", async (req: AuthRequest, res) => {
+  try {
+    const r = await putBackOnMaybes(req.user!, req.params.id as string);
+    res.json({ removed: false, name: r.name });
   } catch (e) { fail(res, e); }
 });
 
@@ -71,10 +79,15 @@ router.post("/seen", async (req: AuthRequest, res) => {
 
 router.get("/seen/:tripId", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;
-  const members = await prisma.tripMember.findMany({ where: { tripId }, include: { traveler: { select: { id: true, displayName: true, preferences: true } } } });
+  const [members, organizer] = await Promise.all([
+    prisma.tripMember.findMany({ where: { tripId }, include: { traveler: { select: { id: true, displayName: true, preferences: true } } } }),
+    organizerOf(tripId),
+  ]);
   res.json(members.map((m) => ({
     name: m.traveler.displayName,
     me: m.traveler.id === req.user?.travelerId,
+    // (may take anything off the list — Remove)
+    organizer: m.traveler.id === organizer?.id,
     seen: (((m.traveler.preferences as Record<string, any>) || {}).maybesSeen || {})[tripId] || {},
   })));
 });
@@ -85,12 +98,12 @@ router.get("/recent/:tripId", async (req: AuthRequest, res) => {
   const since = new Date(Date.now() - 14 * 86400_000);
   const [maybes, notes] = await Promise.all([
     prisma.experience.findMany({
-      where: { tripId, sheetRowRef: null, createdAt: { gte: since } },
+      where: { tripId, sheetRowRef: null, removedAt: null, createdAt: { gte: since } },
       select: { id: true, cityId: true, name: true, createdBy: true, createdAt: true, city: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.experienceNote.findMany({
-      where: { visibility: "group", createdAt: { gte: since }, experience: { tripId } },
+      where: { visibility: "group", createdAt: { gte: since }, experience: { tripId, removedAt: null } },
       select: { id: true, experienceId: true, createdAt: true, traveler: { select: { displayName: true } }, experience: { select: { cityId: true, name: true } } },
       orderBy: { createdAt: "desc" },
     }),

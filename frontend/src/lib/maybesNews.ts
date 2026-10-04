@@ -11,7 +11,7 @@ interface Recent {
   maybes: { id: string; cityId: string; city: string; words: string; by: string; at: string }[];
   notes: { id: string; experienceId: string; cityId: string; about: string; by: string; at: string }[];
 }
-export interface SeenRow { name: string; me: boolean; seen: Record<string, string> }
+export interface SeenRow { name: string; me: boolean; seen: Record<string, string>; organizer?: boolean }
 
 export const firstOf = (name: string) => (name || "").trim().split(/\s+/)[0] || name;
 const same = (a: string, b: string) => firstOf(a).toLowerCase() === firstOf(b).toLowerCase();
