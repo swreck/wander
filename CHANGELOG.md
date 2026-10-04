@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — "Taken Off the List" Counts What You Just Removed
+
+### Fixed
+- **Maybes:** right after removing something, the bottom of the city's list didn't say so. Ken took TeamLab off Tokyo's
+  list on his iPhone, scrolled down, and found no "Taken off the list"; the slim "Put it back" line where the card was
+  was the only sign. The fold now counts everything off the list, the one just removed too. (The Maybes tab, bottom of
+  each city's list.) Tested: Maybes walk 54/54, Playwright 20/20.
+
 ## 2026-10-03 (night, last) — Remove Anything From Maybes; One Warning, Not Two; a Quieter Home Feed
 
 ### Added
