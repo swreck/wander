@@ -253,8 +253,10 @@ export default function IdeasPage() {
   const allHere = useMemo(() => (ideas || []).filter((i) => i.cityId === cityId), [ideas, cityId]);
   // (taken off the list — by whoever put it there, or the trip's organizer — out of the lists and filters, for everyone)
   const cityIdeas = useMemo(() => allHere.filter((i) => !i.removedAt || i.id === justOff), [allHere, justOff]);
-  const offList = useMemo(() => allHere.filter((i) => i.removedAt && i.id !== justOff)
-    .sort((a, b) => (b.removedAt || "").localeCompare(a.removedAt || "")), [allHere, justOff]);
+  // (everything off the list, the one just taken off too — Ken, Oct 3: he took TeamLab off, scrolled to the bottom and
+  // found no "Taken off the list"; the slim line in its place was the only sign)
+  const offList = useMemo(() => allHere.filter((i) => i.removedAt)
+    .sort((a, b) => (b.removedAt || "").localeCompare(a.removedAt || "")), [allHere]);
   // "Larisa (maybe)", "Julie (via Andy)" and "Andy B" are Larisa, Julie and Andy for the filter (her columns hold first
   // names; Wander's "I'm in" carries the full name); the card keeps the "(maybe)"
   const people = useMemo(() => {
