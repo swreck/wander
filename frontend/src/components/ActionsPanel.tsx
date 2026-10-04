@@ -407,7 +407,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                                 "Both" on a to-do added in Wander is the form's "Group". */}
                             {/* "you" for the person looking (delight audit: "For Andy & Larisa" above "You · working on it") */}
                             {(() => {
-                              const who = a.owner === "Both" ? (a.sheetRowRef ? ["Andy", "Larisa"] : null) : [a.owner === "LF" ? "Larisa" : a.owner === "KR" ? "Ken" : a.owner === "AB" ? "Andy" : a.owner];
+                              // (her initials, one or several — "AB / JD" is Andy & Julie; ones no one has stay as written)
+                              const INITIALS: Record<string, string> = { LF: "Larisa", KR: "Ken", AB: "Andy", JD: "Julie" };
+                              const who = a.owner === "Both" ? (a.sheetRowRef ? ["Andy", "Larisa"] : null) : a.owner.split(/\s*[/&,]\s*/).map((o) => INITIALS[o] || o);
                               if (!who) return "For everyone";
                               const named = who.map((n) => (me && n.toLowerCase() === me.toLowerCase() ? "you" : n));
                               const ordered = named.includes("you") && named.length > 1 ? ["you", ...named.filter((n) => n !== "you")] : named;

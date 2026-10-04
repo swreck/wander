@@ -3580,8 +3580,10 @@ export async function executeTool(
     case "get_todos": {
       const todos = await prisma.planningAction.findMany({ where: { tripId: input.tripId }, orderBy: { createdAt: "asc" } });
       // Her Actions tab's "Both" is Andy and Larisa (its two status columns); "Both" added in Wander is everyone
+      // (her initials, one or several — "AB / JD" is Andy & Julie; initials no one has, like "LT", stay as she wrote them)
+      const INITIALS: Record<string, string> = { LF: "Larisa", KR: "Ken", AB: "Andy", JD: "Julie" };
       const forWhom = (t: { owner: string; sheetRowRef: string | null }) =>
-        t.owner === "Both" ? (t.sheetRowRef ? "Andy & Larisa" : "everyone") : ({ LF: "Larisa", KR: "Ken", AB: "Andy" } as Record<string, string>)[t.owner] || t.owner;
+        t.owner === "Both" ? (t.sheetRowRef ? "Andy & Larisa" : "everyone") : t.owner.split(/\s*[\/&,]\s*/).map((o) => INITIALS[o] || o).join(" & ");
       return { result: { todos: todos.map((t) => ({ id: t.id, action: t.action, for: forWhom(t), by: t.dueDate, done: t.status === "done", andyStatus: t.andyStatus, larisaStatus: t.larisaStatus, notes: t.notes, from: t.sheetRowRef ? "Larisa's Guide" : t.createdBy ? `added in Wander by ${t.createdBy}` : "added in Wander" })) } };
     }
     case "add_todo": {
