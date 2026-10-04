@@ -2,6 +2,37 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — Copy a Scout Answer; Selecting Its Words Works on iPhone
+
+### Fixed
+- **Selecting words in a Scout answer on iPhone.** Ken: "a long press gives tactile feedback but doesn't actually
+  select anything." After asking, the typing box keeps focus; every small move of the iPhone's visible area (a long press
+  makes several) put the cursor back in the box — which takes any selection away — and scrolled the conversation to its
+  end. Now that happens only when the keyboard actually rises or falls, never while words are selected elsewhere, and the
+  conversation never jumps while someone is selecting in it. (A WebKit check reproduces the old loss of the selection
+  and passes now.)
+
+### Added
+- **Copy under every Scout answer**, beside Sources: the whole answer as plain words, for pasting anywhere ("✓ Copied the
+  answer").
+
+Tested: a WebKit check of selection with the box focused (fails on the previous build, passes now), Copy in the browser
+(the whole answer, plain), Scout one-tap 3/3, iPad Scout 8/8, Sources panels, Playwright 20/20.
+
+## 2026-10-04 — A Date When Charges Start Is Not a Last Day
+
+### Fixed
+- **Cancellation deadlines that say when charges start.** Her new copy's reading of the La Table de Joël Robuchon
+  booking says "… (Oct 17): free cancellation ends — 60% charge from this date" on Sat, Oct 10 (the policy charges 60%
+  from 7 days before). On Oct 10 the screens labelled it "Today is the last day", and Scout's status line said "OPEN NOW —
+  last chance Oct 10" — Scout would have told Larisa she could still cancel free that day. A deadline whose own words say
+  charges start that day now closes as the day begins: Scout's status says "free through the end of Oct 9; charges start
+  Oct 10" (then "PASSED — charges apply"), and the screens show it as ended on Oct 10, never "Today is the last day".
+  Oct 10's day summary on production says "from today, cancelling the October 17 Robuchon dinner costs 60%".
+
+Tested: charges-from tests 3/3, a browser check of Larisa's Home and Actions on Oct 9 and 10, Playwright 20/20, all
+walk-throughs, full backend suite.
+
 ## 2026-10-04 — Larisa's Oct 3 Copy: Her New Lists, Backroads Dinners, and a Renamed Stop
 
 Her Oct 3 copy (kept as "Japan Oct 2026-5") added things in new shapes. Each was read cell by cell before production.

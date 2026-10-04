@@ -9,6 +9,9 @@
 import prisma from "../db.js";
 import { appleGuidesOf, guideLines } from "./appleGuides.js";
 import { tripDocumentsOf, dayWords, placeIn, whose } from "./tripDocuments.js";
+
+/** A deadline whose own words say charges START that day ("cancellation charges start", "60% charge from this date") */
+export const CHARGES_FROM = /\bcharges? (?:start|begin)s?\b|\bcharges? from this date\b|% (?:charge )?from this date\b/i;
 import { placeNotesOf, noteFor, placeNoteWords } from "./placeNotes.js";
 import { tabsOfCopy, wordsAt, cellsOfItem, ideaRef, completeCells, type ContextLine, type SourceView, type SourcePart } from "./sources.js";
 
@@ -313,7 +316,17 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       const timeMin = i.time ? Number(i.time.slice(0, 2)) * 60 + Number(i.time.slice(3, 5)) : saidMin;
       const end = zonedMoment(last, timeMin ?? 23 * 60 + 59, zone);
       const start = i.windowStart ? zonedMoment(i.windowStart, 0, zone) : null;
-      const status = opts.now > end
+      // A date when charges START closes the free window as that day begins (Oct 4 copy: "La Table … (Oct 17): free
+      // cancellation ends — 60% charge from this date" on Oct 10 read "OPEN NOW — last chance Oct 10" — so Scout would
+      // have told Larisa she could still cancel free on the 10th; the policy charges 60% from that day)
+      const chargesFrom = CHARGES_FROM.test(i.title) && timeMin === null;
+      const chargesStart = zonedMoment(last, 0, zone);
+      const dayBefore = new Date(`${last}T00:00:00Z`); dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+      const status = chargesFrom
+        ? opts.now >= chargesStart
+          ? `PASSED — charges apply from ${last}; the free window ended with ${dayBefore.toISOString().slice(0, 10)}; say so gently`
+          : `OPEN NOW — free through the end of ${dayBefore.toISOString().slice(0, 10)} ${zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`}; charges start ${last}${phoneWords(chargesStart)}`
+        : opts.now > end
         ? "PASSED — it's over; say so gently"
         : start && opts.now < start
         ? `NOT OPEN YET — it can be done from ${i.windowStart} through ${last}`

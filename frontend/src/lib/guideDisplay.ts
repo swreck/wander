@@ -418,9 +418,14 @@ const ZONE_WORDS: Record<string, string> = { "America/Los_Angeles": "California 
 /** "California time", "Japan time" — whose clock a time is on */
 export const zoneWords = (zone: string) => ZONE_WORDS[zone] || zone;
 
+/** A deadline whose own words say charges START that day ("cancellation charges start", "60% charge from this date") */
+export const CHARGES_FROM = /\bcharges? (?:start|begin)s?\b|\bcharges? from this date\b|% (?:charge )?from this date\b/i;
+
 /** True once a deadline has gone by — its stated time in the trip's zone, or the end of its day. */
 export function deadlineOver(i: GuideItem, tripZone: string, now = new Date()) {
   if (i.kind !== "deadline" || !i.date) return false;
+  // (a date when charges start is past as that day begins — the free window ended the day before)
+  if (CHARGES_FROM.test(i.title) && deadlineMinutes(i) === null) return now.getTime() >= zonedMoment(ymd(i.date), 0, tripZone).getTime();
   const at = deadlineMinutes(i) ?? 24 * 60 - 1;
   // "Ends 3:00 PM" holds through 3:00 itself — over from 3:01 (it read "Passed" at 3:00:00)
   return now.getTime() >= zonedMoment(ymd(i.date), at, tripZone).getTime() + 60_000;
@@ -438,7 +443,9 @@ export function deadlineOnDate(i: GuideItem, date: string) {
 export function deadlineWhen(i: GuideItem, today: string) {
   const last = ymd(i.date);
   const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
-  if (today === last) return deadlineMinutes(i) !== null ? "Today" : "Today is the last day";
+  // (a date when charges START is no "last day" — Oct 4 copy: "La Table … (Oct 17): free cancellation ends — 60% charge
+  // from this date" on Sat, Oct 10 read "Today is the last day", as if cancelling free were still possible that day)
+  if (today === last) return CHARGES_FROM.test(i.title) ? "From today" : deadlineMinutes(i) !== null ? "Today" : "Today is the last day";
   if (i.windowStart && i.windowStart <= today && today < last) return `Any day through ${day(last)}`;
   if (i.windowStart && today < i.windowStart) return `${day(i.windowStart)} – ${day(last)}`;
   return day(last);
