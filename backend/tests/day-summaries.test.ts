@@ -73,6 +73,8 @@ describe("the instruction", () => {
     expect(p).toMatch(/never call its hours "open" or "free"/);
     expect(p).toMatch(/never pick one, never judge/);
     expect(p).toMatch(/2:50 PM or 8:30 AM — never 14:50/);
+    // (Oct 18: "check-out due by 12:00 PM" on the morning everyone meets Backroads at 8:30 — day review, Oct 4)
+    expect(p).toMatch(/never give the hotel's time as when they check out/);
     expect(p).toMatch(/Monday, May 3 \(2027-05-03\)/);
   });
 });

@@ -101,6 +101,8 @@ if (!process.env.VITEST) {
   app.use("/api", apiLimiter);
 }
 
+// (Scout takes files dragged in or pasted — a few PDFs and pictures with one question; services/attachments.ts)
+app.use("/api/chat", express.json({ limit: "25mb" }));
 app.use(express.json({ limit: "10mb" })); // Reduced from 50mb
 
 // API routes

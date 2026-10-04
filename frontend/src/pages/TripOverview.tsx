@@ -10,7 +10,6 @@ import { tripCountryOf, cityAccent } from "../lib/cityColors";
 import type { Trip, City, Day, Experience, ChangeLogEntry, Decision } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import useBackToClose from "../hooks/useBackToClose";
-import useUniversalCapture from "../hooks/useUniversalCapture";
 import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
 import ContributorView from "../components/ContributorView";
 import ApprovalQueue from "../components/ApprovalQueue";
@@ -108,7 +107,6 @@ export default function TripOverview() {
   const initialLoadDone = useRef(false);
 
   useKeyboardShortcuts();
-  useUniversalCapture(trip?.id);
 
   // Listen for bottom nav actions trigger (on Home), or arrive from another tab asking for it
   useEffect(() => {

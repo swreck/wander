@@ -28,7 +28,7 @@ export type SourceView =
   // straight-line distances between its places
   | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean }
   // A document someone gave Wander (Backroads' itinerary — tripDocuments.ts): whose words, where in it, and the words
-  | { type: "document"; document: string; from: string; version: string; place: string; quote: string };
+  | { type: "document"; document: string; from: string; version: string; place: string; quote: string; aside?: string };
 
 export interface ContextLine { text: string; src: SourceView | null }
 

@@ -110,6 +110,8 @@ interface ChatMessage {
   sources?: AnswerSources;
   /** A small copy of the photo sent with this question (the photo itself isn't kept) */
   photoThumb?: string;
+  /** What else went with it — files by name, pictures by a small copy (nothing is kept) */
+  files?: { name: string; thumb?: string }[];
   /** Directions Scout offered, from wherever the phone is ("Walk to Tokyodo Main Showroom", "Taxi to …") */
   routes?: { label: string; apple: string; google: string; search?: string }[];
 }
@@ -119,6 +121,19 @@ interface ChatMessage {
  * hotel wifi (longest side 1568 px, which is all Scout reads), plus a small copy for the conversation.
  */
 type Photo = { data: string; thumb: string };
+/** Anything going to Scout with a question (Oct 4, Ken: "just drag (Mac) or paste (iOS) anything") */
+type Attached = { name: string; mimeType: string; data: string; thumb?: string; size: number };
+// (one file up to 10 MB; all of them together up to 18 MB as sent — the server takes 25 MB)
+const MAX_FILE = 10 * 1024 * 1024, MAX_TOTAL_SENT = 18 * 1024 * 1024;
+/** A file as base64, as it is (a PDF, a document, text) */
+function readAsBase64(file: File): Promise<string | null> {
+  return new Promise((ok) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result || "").split(",")[1] || null);
+    r.onerror = () => ok(null);
+    r.readAsDataURL(file);
+  });
+}
 async function shrinkPhoto(file: File): Promise<Photo | null> {
   const url = URL.createObjectURL(file);
   try {
@@ -230,10 +245,15 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const [cameraTip, cameraTipDone] = useOnceTip("scout-camera");
   const [sourcesTip, sourcesTipDone] = useOnceTip("scout-sources");
   const [input, setInput] = useState("");
-  // the photo going with the next question, and one in flight (kept for "Try again")
-  const [photo, setPhoto] = useState<Photo | null>(null);
-  const [photoState, setPhotoState] = useState<"idle" | "reading" | "failed">("idle");
-  const retryPhotoRef = useRef<Photo | null>(null);
+  // What goes with the next question — pictures, PDFs, documents, text files, dragged in, pasted or chosen — and what
+  // went with one in flight (kept for "Try again")
+  const [files, setFiles] = useState<Attached[]>([]);
+  const [filesReading, setFilesReading] = useState(0);
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const retryFilesRef = useRef<Attached[]>([]);
+  // (the same list, for code that runs between renders)
+  const filesRef = useRef<Attached[]>([]);
+  filesRef.current = files;
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [sending, setSending] = useState(false);
   const [listening, setListening] = useState(false);
@@ -522,9 +542,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
   // retryText: resend a question already on screen. asNew: a tapped example question — show it as theirs.
   const sendMessage = useCallback(async (retryText?: string, asNew = false) => {
-    const sendPhoto = retryText ? retryPhotoRef.current : photo;
-    // a photo sent with no words: what it says (Scout translates)
-    const text = retryText || input.trim() || (sendPhoto ? "What does this say?" : "");
+    const sendFiles = retryText ? retryFilesRef.current : files;
+    // sent with no words: a photo is read and translated; anything else, what it is and why it matters
+    const onlyPictures = sendFiles.length > 0 && sendFiles.every((f) => f.mimeType.startsWith("image/"));
+    const text = retryText || input.trim() || (sendFiles.length ? (onlyPictures ? "What does this say?" : sendFiles.length === 1 ? "What's in this?" : "What's in these?") : "");
+    const sendPhoto = sendFiles.length > 0;
     if (!text || sending || sendingRef.current) return;
     // Sent while the voice button still listens: stop it, and late words don't refill the box (Ken, Oct 1: one
     // dictated question reached Scout twice, a second apart — Send, then the mic's own send as it stopped)
@@ -553,10 +575,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     if (!retryText || asNew) {
       if (!retryText) setInput("");
       if (inputRef.current) inputRef.current.style.height = "auto";
-      setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString(), ...(sendPhoto ? { photoThumb: sendPhoto.thumb } : {}) }]);
+      setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString(), ...(sendFiles.length ? { files: sendFiles.map((f) => ({ name: f.name, ...(f.thumb ? { thumb: f.thumb } : {}) })) } : {}) }]);
     }
-    retryPhotoRef.current = sendPhoto;
-    if (!retryText) { setPhoto(null); setPhotoState("idle"); }
+    retryFilesRef.current = sendFiles;
+    if (!retryText) { setFiles([]); setFileNote(null); }
     sendingRef.current = true;
     setSending(true);
     setFailed(false);
@@ -594,7 +616,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const res = await fetch("/api/chat", {
         method: "POST",
         headers,
-        body: JSON.stringify({ message: text, context, history, clientTime, ...(sendPhoto ? { image: { mediaType: "image/jpeg", data: sendPhoto.data } } : {}) }),
+        body: JSON.stringify({ message: text, context, history, clientTime, ...(sendFiles.length ? { attachments: sendFiles.map((f) => ({ mediaType: f.mimeType, data: f.data, name: f.name })) } : {}) }),
         signal: controller.signal,
       });
 
@@ -602,7 +624,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
       if (!res.ok) throw new Error(`Request failed: ${res.status}`);
       const data = await res.json();
-      retryPhotoRef.current = null;
+      retryFilesRef.current = [];
 
       const shows = data.shows as ChatMessage["shows"];
       const goTo = shows?.find((s) => s.go);
@@ -640,20 +662,89 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setSending(false);
       abortRef.current = null;
     }
-  }, [input, sending, context, onDataChanged, messages, photo]);
+  }, [input, sending, context, onDataChanged, messages, files]);
 
-  // A photo chosen or pasted: shrunk on the phone, shown above the box until it's sent or taken off
-  const takePhoto = useCallback(async (file: File | null | undefined) => {
-    if (!file || !/^image\//.test(file.type || "image/")) return;
+  // Files added — dragged in, pasted or chosen — shown above the box until they're sent or taken off. A picture is
+  // shrunk on the phone (and an iPhone HEIC photo becomes a JPEG on the way); anything else goes as it is, up to 10 MB.
+  const addFiles = useCallback(async (list: File[]) => {
+    if (!list.length) return;
     cameraTipDone();
-    setPhotoState("reading");
-    const p = await shrinkPhoto(file);
-    if (p) { setPhoto(p); setPhotoState("idle"); inputRef.current?.focus(); } else setPhotoState("failed");
+    setFileNote(null);
+    setFilesReading((n) => n + list.length);
+    const added: Attached[] = [];
+    const notes: string[] = [];
+    for (const file of list) {
+      const name = file.name || (file.type.startsWith("image/") ? "Pasted picture" : "Pasted file");
+      try {
+        if (file.type.startsWith("image/") && file.type !== "image/svg+xml") {
+          const p = await shrinkPhoto(file);
+          if (p) { added.push({ name, mimeType: "image/jpeg", data: p.data, thumb: p.thumb, size: p.data.length }); continue; }
+        }
+        if (file.size > MAX_FILE) { notes.push(`${name} is too large to send (over 10 MB). A smaller file works, or a screenshot of the part that matters.`); continue; }
+        const data = await readAsBase64(file);
+        if (!data) { notes.push(`${name} couldn't be read on this phone — try another copy of it?`); continue; }
+        added.push({ name, mimeType: file.type || "application/octet-stream", data, size: data.length });
+      } finally {
+        setFilesReading((n) => Math.max(0, n - 1));
+      }
+    }
+    // (against what's already waiting — read now, so the note below is never lost)
+    const next = [...filesRef.current];
+    for (const f of added) {
+      if (next.reduce((t, x) => t + x.size, 0) + f.size > MAX_TOTAL_SENT) { notes.push(`${f.name} didn't fit with the others — send it with its own question.`); continue; }
+      next.push(f);
+    }
+    filesRef.current = next;
+    setFiles(next);
+    if (notes.length) setFileNote(notes.join(" "));
+    inputRef.current?.focus();
   }, [cameraTipDone]);
+  const addFilesRef = useRef(addFiles);
+  addFilesRef.current = addFiles;
+  // Pasted: files go to Scout; words stay words, pasted into the box as they are (learned from Maria). Words count only
+  // when there are real ones: a picture copied from a web page brings its HTML along, and a file copied in the Finder
+  // brings its own name — either way the box would get nothing useful, and the file is what they meant.
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const file = Array.from(e.clipboardData?.items || []).find((it) => it.kind === "file" && it.type.startsWith("image/"))?.getAsFile();
-    if (file) { e.preventDefault(); takePhoto(file); }
+    const items = Array.from(e.clipboardData?.items || []);
+    const pasted = items.filter((it) => it.kind === "file").map((it) => it.getAsFile()).filter((f): f is File => !!f);
+    if (!pasted.length) return;
+    const words = (e.clipboardData?.getData("text/plain") || "").trim();
+    const justNames = words.split(/\r?\n/).every((w) => !w.trim() || pasted.some((f) => f.name && f.name === w.trim()));
+    if (words && !justNames) return;
+    e.preventDefault();
+    addFiles(pasted);
   };
+  // Dragged onto Wander (a Mac, an iPad): anywhere on the screen — Scout opens with it, ready to read
+  useEffect(() => {
+    let depth = 0;
+    // (the whole screen says where it goes while a file is over it — index.css, html.wander-dropping)
+    const hint = (on: boolean) => document.documentElement.classList.toggle("wander-dropping", on);
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files");
+    const enter = (e: DragEvent) => { if (!hasFiles(e)) return; depth++; hint(true); };
+    const over = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "copy"; };
+    const leave = (e: DragEvent) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) hint(false); };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      hint(false);
+      const list = Array.from(e.dataTransfer?.files || []);
+      if (!list.length) return;
+      setSize("half");
+      setOpen(true);
+      addFilesRef.current(list);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+    };
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -961,7 +1052,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               <p>I'm Scout, your travel companion.</p>
               {/* What it actually knows (round 12 delight audit: "I know your whole trip" overclaimed) */}
               {/* Said to whoever holds the phone (round 13: Ken read "Ken's rail sheet", Larisa "Larisa's Guide") */}
-              <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. You can send me a photo too, like a menu or a sign, and I'll read and translate it.</p>
+              <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. I can read a photo or a file too, like a menu, a ticket or a PDF. Paste it in, tap the paperclip, or on a Mac drag it here.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
               {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.</p>}
               {/* Tap one to ask it */}
@@ -997,6 +1088,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                   return (
                     <>
                       {msg.photoThumb && <img src={msg.photoThumb} alt="The photo sent with this question" className="mb-1.5 h-20 w-20 object-cover rounded-lg" />}
+                      {msg.files && msg.files.length > 0 && (
+                        <span className="flex flex-wrap gap-1.5 mb-1.5">
+                          {msg.files.map((f, k) => f.thumb
+                            ? <img key={k} src={f.thumb} alt={`Sent with this question: ${f.name}`} className="h-20 w-20 object-cover rounded-lg" />
+                            : <span key={k} className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-2 py-1 text-[13px]">📄 {f.name}</span>)}
+                        </span>
+                      )}
                       <div className="whitespace-pre-wrap">{renderMarkdown(body)}</div>
                       {draft && (
                         <div className="mt-2 rounded-xl bg-white border border-[#e0d8cc] p-3">
@@ -1182,19 +1280,34 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             </p>
           )}
           {/* (once, for someone already talking with Scout — a first-timer reads it in Scout's hello above) */}
-          {cameraTip && online && messages.length > 0 && !photo && photoState === "idle" && (
+          {cameraTip && online && messages.length > 0 && !files.length && !filesReading && (
             <OnceTip onClose={cameraTipDone} className="mb-2">
-              Tap the camera button to send Scout a photo of a menu, a sign or a ticket. Scout will read it and translate it.
+              Tap the paperclip to send Scout a photo or a file, like a menu, a ticket or a PDF. You can paste one into the box too, or on a Mac drag it in. Scout will read it.
             </OnceTip>
           )}
-          {/* the photo going with the next question (or why it couldn't be added) */}
-          {(photo || photoState !== "idle") && (
-            <div className="flex items-center gap-2 mb-2">
-              {photo && <img src={photo.thumb} alt="Your photo, ready to send" className="h-12 w-12 object-cover rounded-lg border border-[#e0d8cc]" />}
-              <p className="flex-1 text-[13px] text-[#6b5d4a]" role="status">
-                {photoState === "reading" ? "Getting the photo ready…" : photoState === "failed" ? "That photo couldn't be read — try another?" : "Photo added — ask about it, or just send to have it read and translated."}
+          {/* what goes with the next question (or why something couldn't be added) */}
+          {(files.length > 0 || filesReading > 0 || fileNote) && (
+            <div className="mb-2" role="status">
+              {files.length > 0 && (
+                <ul className="flex flex-wrap gap-2 mb-1" aria-label="Going with your question">
+                  {files.map((f, k) => (
+                    <li key={`${f.name}-${k}`} className="flex items-center gap-1.5 rounded-lg border border-[#e0d8cc] bg-white pl-1.5 max-w-full">
+                      {f.thumb
+                        ? <img src={f.thumb} alt="" className="h-9 w-9 object-cover rounded" />
+                        : <span aria-hidden className="text-lg leading-none px-0.5">📄</span>}
+                      <span className="text-[13px] text-[#3a3128] truncate max-w-[11rem]">{f.name}</span>
+                      <button type="button" onClick={() => setFiles((prev) => prev.filter((_, j) => j !== k))}
+                        className="min-h-[44px] min-w-[40px] text-sm text-[#514636]" aria-label={`Take ${f.name} off`}>✕</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-[13px] text-[#6b5d4a]">
+                {filesReading > 0 ? "Getting it ready…"
+                  : fileNote ? fileNote
+                  : files.every((f) => f.mimeType.startsWith("image/")) ? "Ask about it, or just send to have it read and translated."
+                  : "Ask about it, or just send it. Scout will read it and say what matters for the trip."}
               </p>
-              {photo && <button type="button" onClick={() => { setPhoto(null); setPhotoState("idle"); }} className="min-h-[44px] min-w-[44px] text-sm text-[#514636]" aria-label="Take the photo off">✕</button>}
             </div>
           )}
           <div className="flex items-end gap-2">
@@ -1209,25 +1322,26 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               // Stays open while Scout answers: the next question can be typed now (Send waits for the answer)
               // Short enough for one line on a 375pt phone (round 12: "…back online" was cut off); the line above
               // the box says Scout answers once the signal is back
-              placeholder={!online ? "No signal right now" : sending ? "Your next question…" : photo ? "Ask about the photo…" : "Ask about the trip…"}
+              placeholder={!online ? "No signal right now" : sending ? "Your next question…" : files.length ? "Ask about it…" : "Ask about the trip…"}
               aria-label="Ask Scout about the trip"
               rows={1}
               className="flex-1 min-h-[44px] bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-[16px] text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50 resize-none"
             />
-            {/* a photo for Scout: take one or choose one (the phone offers both) */}
+            {/* a photo or a file for Scout: the phone offers the camera, its photos and its files */}
             <button
               type="button"
               onClick={() => photoInputRef.current?.click()}
-              disabled={!online || photoState === "reading"}
+              disabled={!online || filesReading > 0}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-[#f0ebe3] text-[#6b5d4a] hover:bg-[#e0d8cc] transition-colors disabled:opacity-30"
-              aria-label="Add a photo"
+              aria-label="Add a photo or a file"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
               </svg>
             </button>
-            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1}
-              onChange={(e) => { takePhoto(e.target.files?.[0]); e.target.value = ""; }} />
+            <input ref={photoInputRef} type="file" multiple className="hidden" aria-hidden tabIndex={-1}
+              accept="image/*,application/pdf,.pdf,text/plain,.txt,.md,.csv,.json,.eml,.html,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(e) => { addFiles(Array.from(e.target.files || [])); e.target.value = ""; }} />
             {hasSpeechRecognition && (
               <button
                 // the cursor goes to the box as it starts listening (Ken, Oct 2)
@@ -1251,7 +1365,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             )}
             <button
               type="submit"
-              disabled={sending || (!input.trim() && !photo) || !online || photoState === "reading"}
+              disabled={sending || (!input.trim() && !files.length) || !online || filesReading > 0}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-30"
               style={{ backgroundColor: "#514636", color: "#faf8f5" }}
               aria-label="Send message"

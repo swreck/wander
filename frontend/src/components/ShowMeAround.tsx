@@ -20,7 +20,7 @@ const stepsFor = (mine: boolean) => {
     { tab: "Next", text: "Your next stop today, and how long until it. The Walk, Train and Taxi buttons open Apple Maps with directions from wherever you're standing." },
     { tab: "Notes", text: "Write down anything you want to remember from the trip. Type or speak, and every word is kept." },
     { tab: "Actions", text: "Things to do soon, with their deadlines, like the last day to cancel a hotel for free." },
-    { tab: "Scout", text: `Ask Scout anything about the trip, typed or spoken. Scout answers from ${her} Guide and shows which tab the answer came from. You can send Scout a photo of a menu or a sign, too.` },
+    { tab: "Scout", text: `Ask Scout anything about the trip, typed or spoken. Scout answers from ${her} Guide and shows which tab the answer came from. Scout reads photos and files too, like a menu, a sign or a PDF. Paste one in, or tap the paperclip.` },
   ];
 };
 

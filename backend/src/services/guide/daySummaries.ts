@@ -65,6 +65,7 @@ Write a short summary of the day's theme for the top of the day's screen: 2 or 3
 - Who: only the people who are there. If a [WHERE] line says someone is still at home, never say "everyone" or "the group" — name who is travelling. If the group splits, say who does what by name. Several people read this, so never "you" or "your".
 - A day "with Backroads": Backroads' guides lead it — say so, and never call its hours "open" or "free" unless her lines do. A day with few lines isn't empty; say only what's there.
 - A flight: its arrival is on the date her lines give — never move it to this day.
+- A hotel's check-out time is only the latest allowed. On a morning the day leaves earlier (a train, a flight, meeting Backroads), say they check out before leaving — never give the hotel's time as when they check out.
 - Plain, warm words, as a friend at a small table would say it. One thought per sentence. No metaphorical verbs (unlock, immerse, fuel), no "from X to Y", no "not X but Y", no exclamation marks, no advice.
 - Times only if one really anchors the day (a dinner booking, a train, a flight), written like 2:50 PM or 8:30 AM — never 14:50. Never a list of stops — name two or three at most.
 - Never number or rank the day ("the last Backroads day", "day seven") unless her lines say exactly that.

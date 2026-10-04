@@ -14,7 +14,6 @@ import CitySplash from "../components/CitySplash";
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useCapture } from "../contexts/CaptureContext";
-import useUniversalCapture from "../hooks/useUniversalCapture";
 import { getNudgesForPlace } from "../lib/travelerProfiles";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
@@ -58,7 +57,6 @@ export default function PlanPage() {
 
   // Universal capture
   const captureCtx = useCapture();
-  useUniversalCapture(trip?.id);
   const cameraRef = useRef<HTMLInputElement>(null);
 
   // Nudge state

@@ -6,6 +6,7 @@
  * Parts of the answer with no citation are Scout's own words, and are listed as that. (Ken, Sep 30 2026.)
  */
 import type { ContextLine, SourceView } from "./sources.js";
+import { SENT_PREFIX } from "../attachments.js";
 
 export interface Claim {
   said: string;              // the part of Scout's answer, as shown
@@ -65,6 +66,11 @@ export function resolveCitation(c: any, docs: CitedDocument[], fetched: { url: s
     const from = Math.max(0, Number(c.start_block_index) || 0);
     const to = Math.min(doc.lines.length, Number(c.end_block_index) || from + 1);
     return doc.lines.slice(from, Math.max(to, from + 1)).map((l) => l.src).filter((s): s is SourceView => !!s);
+  }
+  // A file sent with the question (services/attachments.ts): its words, where in it, and that it's the file they sent
+  if (typeof c.document_title === "string" && c.document_title.startsWith(SENT_PREFIX)) {
+    const page = c.type === "page_location" && c.start_page_number ? `page ${c.start_page_number}${c.end_page_number && c.end_page_number - 1 > c.start_page_number ? `–${c.end_page_number - 1}` : ""}` : "";
+    return [{ type: "document", document: c.document_title.slice(SENT_PREFIX.length), from: "the file you sent", version: "sent with the question — Wander doesn't keep it", place: page, quote: c.cited_text || "" }];
   }
   // A page Scout fetched and cited (its citations name the page by title)
   const page = fetched.find((p) => p.title && p.title === c.document_title);

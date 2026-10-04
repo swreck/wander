@@ -51,3 +51,20 @@ html.ipad-app .top-bar { padding-left: 80px; }
 .safe-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* A file dragged over Wander (a Mac, an iPad): the whole screen says where it goes (ChatBubble — Scout reads it) */
+html.wander-dropping::after {
+  content: "Drop it here — Scout will read it";
+  position: fixed;
+  inset: 12px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #514636;
+  border-radius: 20px;
+  background: rgba(250, 248, 245, 0.92);
+  color: #3a3128;
+  font-size: 18px;
+  pointer-events: none;
+}

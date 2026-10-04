@@ -27,6 +27,8 @@ export interface TripDocument {
   version: string;
   /** said with it, always: what it is and isn't */
   caution: string;
+  /** a short line under its words in Sources ("Details can differ for your departure.") */
+  aside?: string;
   addedBy: string;
   file: string;
   /** YYYY-MM-DD of Day 1 */

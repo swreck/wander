@@ -2,6 +2,90 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — The Day Screen, Reordered: The Day in Brief First, Each Booking Said Once
+
+Ken asked for a fresh opinion on the order and layout of each day page (his six points on Oct 6: the landing line, her
+note, the weather, the summary, the actions, the order). A UI reviewer with no part in building it read seven days as
+Ken, Larisa, Andy and Julie and found the same booking said two to four times and the top of the page set by whatever
+data the day had. Its rule, now the page's: first the day in a few sentences, then what you can't get wrong, then the
+day by the clock; reference goes last.
+
+### Changed
+- **The city band carries the day's quiet facts:** her forecast as one line ("Larisa's forecast: lows 64, highs 80",
+  with its small picture), "With Backroads · day N of 8" on a Backroads day, and "Send this day ›" beside the city's
+  name. The separate weather row and the Backroads card are gone.
+- **Wander's summary of the day comes first** under the band (on Oct 6 it began about 435 pt down).
+- **The "You land at …" box** shows on the day screen only when it says something the day doesn't: that earlier lines
+  are the others' (a split day), or how to get from the airport to the hotel. On Oct 6, with no one else in Japan, it
+  only repeated the 2:50 PM line. The Next tab keeps it as what's next.
+- **Her note for a whole stay** folds to one row at the bottom of each of its days ("Larisa's note for the Okayama stay,
+  Oct 6–8 ›"), opened in place. On a stay's first day it used to lead the page (Oct 6 began with tomorrow's Bizen). Its
+  open question still rises to the top on the day whose lines name it.
+- **On your landing day, lines with no time come after you land**, in her sheet's order, and the airport leg with no
+  booking sits right after the landing (Oct 6: land 2:50 → HARUKA to Shin-Osaka → her Osaka → Okayama line, Rikuro,
+  Shinkansen → 6:17 PM NOZOMI 77). The airport train had been only under Trains, two screens down.
+- **Each booking said once, under her line for it:** a booking at the same time naming the same thing (the 6:35 PM
+  flight, Yazawa, Shiraume, "Backroads ends" with the $250 tip) and a check-out beside her line that says "check out"
+  at that hotel are drawn under her line, smaller; "Also in her Guide for today" keeps only what has no line of hers.
+- **A sources' disagreement said at the top today** is not repeated in amber on her line; the line points up ("The
+  sources give two times for this — see the top of the day ↑"). Oct 29's HARUKA times had been said four times.
+- **Someone else's to-do isn't amber:** a deadline booked under another traveller reads "Larisa's to-do · …" in plain
+  colours; amber stays for the person who must act.
+- **A check-out on a morning you leave earlier** says "Check out before 8:30 AM · Meet Backroads, Courtyard by Marriott
+  Tokyo Station", with the hotel's own 12:00 PM below, smaller (only a leaving line counts: a train, a flight, a
+  transfer, meeting Backroads). Day summaries are told the same: a hotel's check-out time is only the latest allowed.
+- **The footer** ("Larisa's Guide, as Wander last read it …") is always gray; amber is kept for things to check.
+
+Where: the day screen (and the Next tab where they share parts: the band, the stay note, deadlines, check-outs).
+SPEC sections: Day view / execution screens.
+SPEC UPDATE NEEDED: the day screen's order (band facts, summary first, stay note folded, bookings under her lines).
+
+Tested: the reviewer's seven days photographed before and after; every walk-through; Playwright; type checks.
+
+## 2026-10-04 — Give Scout Anything: Drag It In on a Mac, Paste It on an iPhone
+
+Ken: "User should just drag (Mac) or paste (iOS) anything and Scout should parse and make sense of it: picture with
+text, pdf, text, etc." Learned from Maria's attachments.
+
+### Added
+- **Drag a file anywhere onto Wander (Mac, iPad):** the screen says "Drop it here — Scout will read it"; dropping it
+  opens Scout with the file waiting by name above the box, ready for a question.
+- **Paste a file into Scout's box (iPhone, Mac):** a picture shows as a small copy of itself; a PDF or document by its
+  name. Pasted words stay words. A picture copied from a web page, or a file copied in the Finder, comes in as the file
+  (the clipboard's HTML or file name alone isn't taken as words).
+- **The paperclip now takes files too**, not only photos: PDFs, Word documents (.docx), text, CSV, email (.eml) and web
+  pages, several at once (up to 6 per question; 10 MB each).
+- **What Scout does with them:** pictures are read (and translated); PDFs are read page by page; Word and text files by
+  their words. Sent with no question, Scout says what it is and what in it matters for this trip — the day, place or
+  booking in Larisa's Guide it touches, and whether they agree. Where a file and her Guide differ on a time, a place or a
+  booking, Scout shows both and never picks one. A file Scout can't open (an iPhone HEIC photo, a zip) is named as unread,
+  never guessed at; a very long text is read in part and Scout says so.
+- **Sources show a sent file as that file:** "PICKUP-EMAIL.TXT — NOT LARISA'S GUIDE", with its page for a PDF and the
+  words quoted, and "Sent with the question — Wander doesn't keep it." Nothing sent is stored; the saved conversation
+  keeps only the file names.
+- Scout's hello, the paperclip tip and the Show-me-around Scout step say how to give Scout a file.
+
+### Fixed
+- **Escape closes the Sources panel, and only it** (Mac or iPad keyboard). Before, Escape made Scout small behind the
+  panel, or did nothing, depending on where the focus was.
+
+### Removed
+- The old document-wide paste/drop capture on the Trip Overview and Plan screens (it sent pasted text to the old import
+  extractor). Dropping or pasting now always goes to Scout. The hook's code is kept, unused.
+
+Where: Scout panel (box, paperclip, the row of waiting files), anywhere on screen for a drop, Sources panel.
+Server: `backend/src/services/attachments.ts`; `/api/chat` takes `attachments` (25 MB request limit on that route only).
+SPEC sections: Scout / AI assistant; capture ("Capture never blocks" — capture by paste/drop now goes through Scout).
+SPEC UPDATE NEEDED: Scout reads files dragged in, pasted or attached; paste/drop capture on Overview and Plan removed.
+
+Tested: attachments unit tests 16/16 (pictures, PDFs, a real Word document, broken and unknown files, limits, citations
+to a sent file); a browser check 29/29 — a PDF dragged onto a Mac screen and sent byte for byte with Enter, two dropped
+and one taken off, a picture sent with no words, a file too large, a pasted picture on iPhone (WebKit), the paste rules,
+the paperclip with five files, Try again after a failure resending the files, Escape on Sources; real Scout, three
+questions: Backroads' PDF (recognized, cited by page, nothing conflicting), an email whose meeting time and hotel
+differ from her Guide (both shown with sources, nothing picked), and a Japanese menu photo for Andy (each dish
+translated, allium dishes named, words to show staff).
+
 ## 2026-10-04 — Copy a Scout Answer; Selecting Its Words Works on iPhone
 
 ### Fixed
