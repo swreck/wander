@@ -22,7 +22,9 @@ type SourceView =
   | { type: "added"; by: string; text: string }
   | { type: "web"; title: string; url: string; quote: string }
   | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: CellWords[] }
-  | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean };
+  | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean }
+  // A document someone gave Wander (Backroads' itinerary): whose words, where in it, the words
+  | { type: "document"; document: string; from: string; version: string; place: string; quote: string };
 
 export interface AnswerSources {
   copy: string | null;
@@ -176,6 +178,18 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
       <div>
         <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.owner}'s {s.source.toLowerCase()}{s.authorship ? `, ${s.authorship}` : ""} — not {guide}</p>
         <OtherSheet name={s.source} owner={s.owner}><Cells cells={s.cells} tripId={tripId} /></OtherSheet>
+      </div>
+    );
+  }
+  if (s.type === "document") {
+    // Backroads' itinerary (Oct 4): their words, the day and page — never passed off as her Guide
+    return (
+      <div>
+        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.document} — not {guide}</p>
+        <p className="text-[13px] text-[#6b5d4a]">{s.place}</p>
+        <p className="text-sm text-[#3a3128] whitespace-pre-line">“{s.quote}”</p>
+        {/* ("their general itinerary, dated May 7, 2026" → "Backroads' general itinerary, dated May 7, 2026") */}
+        <p className="text-xs text-[#6b5d4a] mt-1">{s.version.replace(/^their\b/, s.from.endsWith("s") ? `${s.from}'` : `${s.from}'s`)}. Details can differ for your departure.</p>
       </div>
     );
   }

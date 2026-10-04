@@ -1548,7 +1548,9 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     const keptSummaries = priorMappings?.daySummaries && typeof priorMappings.daySummaries === "object" ? priorMappings.daySummaries : null;
     // (and Wander's own notes on her places — placeNotes.ts)
     const keptPlaces = Array.isArray(priorMappings?.placeNotes) ? priorMappings.placeNotes : null;
-    const tabMappings = { source: "snapshot", sourceName: opts.sourceName, ...(kept ? { sheetLink: kept } : {}), ...(keptMaps ? { appleGuides: keptMaps } : {}), ...(keptSummaries ? { daySummaries: keptSummaries } : {}), ...(keptPlaces ? { placeNotes: keptPlaces } : {}) };
+    // (and documents people gave Wander — Backroads' itinerary; tripDocuments.ts)
+    const keptDocs = Array.isArray(priorMappings?.documents) ? priorMappings.documents : null;
+    const tabMappings = { source: "snapshot", sourceName: opts.sourceName, ...(kept ? { sheetLink: kept } : {}), ...(keptMaps ? { appleGuides: keptMaps } : {}), ...(keptSummaries ? { daySummaries: keptSummaries } : {}), ...(keptPlaces ? { placeNotes: keptPlaces } : {}), ...(keptDocs ? { documents: keptDocs } : {}) };
     await tx.sheetSyncConfig.upsert({
       where: { tripId },
       create: { tripId, spreadsheetId: "", lastSyncAt: new Date(), lastSyncStatus: "success", tabMappings },

@@ -2,6 +2,32 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — Backroads' Itinerary, a Source for Scout
+
+### Added
+- **Backroads' detailed itinerary is a source Scout reads and cites.** Ken gave Wander Backroads' 18-page itinerary
+  (a PDF). Larisa's Guide gives the Backroads week a line a day ("day 7 - hike, lunch"); the itinerary gives each day in
+  full — where to meet and what to bring on Oct 18, the rides and hikes with their distances, rafting and a sake
+  brewery, which dinners are included, the bullet train to Izu, how the trip ends — plus meals and dietary rules,
+  trains and airports, weather, documents and terrain.
+  - Transcribed from the PDF in reading order, Backroads' words as written (kept privately in trip-data); its days
+    dated from Day 1 = Sun, Oct 18, the day her Guide meets Backroads. Recorded on the trip with
+    scripts/set-trip-document.ts; every new Guide copy keeps it (proved with a re-import).
+  - Scout reads it as its own section, "Backroads' own words, given to Wander by Ken — NOT Larisa's Guide", and calls it
+    Backroads' itinerary. It's their general itinerary (dated May 7, 2026), not one for the exact departure; Scout says
+    so when it matters, and says both when it and her Guide differ.
+  - "Where this came from" shows it as "Backroads' itinerary — not Larisa's Guide", with the day and page and their
+    words, and "Backroads' general itinerary, dated May 7, 2026. Details can differ for your departure."
+- **"Open at this spot in her sheet" opens 15 of her 26 tabs exactly** (Ken's links, Oct 4): the Itinerary, Flight info,
+  Tokyo Hotel Info, Dining Resos, the Tokyo day tabs, three Kyoto day tabs, both Kyoto hotel tabs, Mark & Steve's email,
+  Activities and Actions.
+
+Tested: real Scout 5/5 on Backroads days (written from the PDF before running; every answer read word for word and its
+facts checked — the rail-sheet quote it used is in Rail Detail T17), trip-documents tests 4/4, a re-import that keeps
+it, the Sources panel in the browser 5/5.
+
+SPEC UPDATE NEEDED: sources — documents given to Wander (Backroads' itinerary).
+
 ## 2026-10-04 — People's Own Travel Numbers Stay Out of Wander
 
 ### Changed
