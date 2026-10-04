@@ -2,6 +2,42 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — The Day Screen, Second Pass: Trains in Place, "Today, Don't Miss", Quieter Links
+
+The rest of the UI review, built rather than listed (Ken: "build what you know must be built unless you need me"), each
+change checked for what could go wrong for someone using Wander on the trip.
+
+### Changed
+- **Each of your trains is drawn once, in the day itself:** under her line when it names the train (Oct 29: HARUKA 31
+  under "Board reserved HARUKA"), else at its time; on your landing day the airport leg follows the landing. The line
+  keeps what you need on the platform — car, seats, reservation number, anything still to check ("PENDING — SmartEX…")
+  — and "Reservation, notes and steps ›" opens the rest in place (the sheet's notes, the ticket pickup's steps, its tab).
+  The Trains section keeps only what isn't in the day (the others' trains, folded; a leg with no booking) and is called
+  "More trains" then, or is gone. On another day, where her Guide has the train at another time is said with the train;
+  her line doesn't repeat it in amber. The rail sheet's "as Wander last read it …" moved to the foot of the day ("The
+  trains are from your rail sheet, as Wander last read it Sat, Oct 3, 5:02 AM Japan time."). The Next tab's train card
+  and Home's links to a day's trains go to the train itself.
+- **"Today, don't miss"** (or "Don't miss" on another day), right under the summary: the ticket pickup card on its day,
+  then each thing to check once — today's disagreement between the sources, her open question for the day, a train
+  still marked to verify, your own deadline ending that day, a line where her tabs name two places — each with ↓ to its
+  line. Four show; more open in place. (On Oct 6 the SmartEX check had been on the third screen; on Oct 25 the two e-bike
+  meeting points on the second.) The Next tab keeps its own order.
+- **Quieter source links:** "From Larisa's Guide — the Itinerary tab ↗" in small gray, a faint underline, still a 44-pt
+  tap; when it opens her sheet at the exact cells, the words no longer spell them ("F7:Q7"), and a screen reader still
+  hears them. A tab Wander has no address for still names its cell, so it can be found by hand.
+- **Someone else's line on a split day** is one quiet row at its time ("Ken & Larisa · Day trip from Tokyo to Mashiko ›"),
+  opened in place; opened from Home, it shows whole.
+
+Where: the day screen (trains, the cards and the folded rows on the Next tab too). SPEC sections: Day view.
+SPEC UPDATE NEEDED: trains in the day, "Today, don't miss", others' lines folded on split days.
+
+Tested: a risk check written from Ken's question "what bad thing can happen" (21/21: car, seats and reservation in sight
+without a tap; NOZOMI 77 and HARUKA 31 each drawn once; every ↓, the Next tab's train card and Home's #trains link land
+on the train; Julie's landing and hotel help still up top; Larisa's to-do not amber on Julie's page; "ASK KENJI…" still
+on Ken's Oct 14 and the Bizen question on Oct 7; links 44 pt with their cells for a screen reader); every fact on the
+seven reviewed days before the change is still on screen without a tap (only Ken & Larisa's Kenji note is one tap away on
+Julie's and Andy's days, by design); every walk-through; Playwright; the file-attachment check.
+
 ## 2026-10-04 — The Day Screen, Reordered: The Day in Brief First, Each Booking Said Once
 
 Ken asked for a fresh opinion on the order and layout of each day page (his six points on Oct 6: the landing line, her
