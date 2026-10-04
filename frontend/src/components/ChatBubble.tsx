@@ -414,6 +414,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const scrollToLatest = useCallback(() => {
     const box = scrollRef.current;
     if (!box) return;
+    // (never while someone is selecting words in the conversation — it moved the answer out from under their finger)
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.anchorNode && box.contains(sel.anchorNode)) return;
     const bubbles = box.querySelectorAll<HTMLElement>("[data-msg]");
     // Nothing said yet: the greeting and suggestions from the top
     if (!bubbles.length && !box.querySelector("[data-thinking]")) { box.scrollTop = 0; return; }
@@ -430,19 +433,34 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // The sheet's size on a phone, and the space the keyboard leaves (the visible part of the screen)
   const [size, setSize] = useState<"half" | "full">("half");
   const [vp, setVp] = useState<{ h: number; kb: number } | null>(null);
+  // Which answer was just copied (Copy under each answer — Ken, Oct 4: a long answer he wanted elsewhere couldn't be
+  // selected or copied)
+  const [copied, setCopied] = useState<number | null>(null);
   const dragStart = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const vv = window.visualViewport;
     if (!vv) return;
+    let last: { h: number; kb: number } | null = null;
     const update = () => {
       const layoutH = document.documentElement.clientHeight || window.innerHeight;
-      setVp({ h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)) });
+      const next = { h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)) };
+      // (only a real change — a long press to select an answer moves the viewport a little, and every update scrolled
+      // the conversation to its end and put the cursor back in the box, which took the selection away: Ken, Oct 4,
+      // "a long press gives tactile feedback but doesn't actually select anything")
+      if (last && last.h === next.h && last.kb === next.kb) return;
+      const keyboardMoved = !last || last.kb !== next.kb;
+      last = next;
+      setVp(next);
+      if (!keyboardMoved) return;
       // The panel just resized around the keyboard: an iPhone can keep the box focused but stop drawing its cursor
-      // (Ken tapped a second time to see it) — setting the cursor again makes it draw
+      // (Ken tapped a second time to see it) — setting the cursor again makes it draw. Never while words are selected
+      // somewhere else on the screen.
       requestAnimationFrame(() => {
         const el = inputRef.current;
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.anchorNode && !el?.contains(sel.anchorNode) && sel.anchorNode !== el?.parentNode) return;
         if (el && document.activeElement === el) {
           const at = el.selectionEnd ?? el.value.length;
           try { el.setSelectionRange(at, at); } catch { /* ignore */ }
@@ -1064,12 +1082,29 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                     ))}
                   </div>
                 )}
-                {/* Where the answer came from — a quiet link; nothing shows unless it's tapped */}
-                {msg.role === "assistant" && hasSources(msg.sources) && (
-                  <button onClick={() => { sourcesTipDone(); setSourcesOf(msg.sources!); }}
-                    className="-mb-1.5 min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
-                    Sources
-                  </button>
+                {/* Where the answer came from — a quiet link; nothing shows unless it's tapped — and Copy, the whole answer
+                    as plain words, to paste anywhere */}
+                {msg.role === "assistant" && !msg.error && !msg.quiet && (
+                  <div className="-mb-1.5 flex flex-wrap gap-x-5">
+                    {hasSources(msg.sources) && (
+                      <button onClick={() => { sourcesTipDone(); setSourcesOf(msg.sources!); }}
+                        className="min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
+                        Sources
+                      </button>
+                    )}
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(msg.text.replace(/\*\*/g, "").replace(/(^|\s)\*(\S[^*\n]*\S)\*(?=\s|$)/g, "$1$2").trim());
+                          setCopied(i);
+                          setTimeout(() => setCopied((c) => (c === i ? null : c)), 2500);
+                        } catch { /* no clipboard here: the words can still be selected */ }
+                      }}
+                      aria-label="Copy this answer"
+                      className="min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
+                      {copied === i ? "✓ Copied the answer" : "Copy"}
+                    </button>
+                  </div>
                 )}
                 {/* (once, under the newest answer with Sources) */}
                 {sourcesTip && msg.role === "assistant" && hasSources(msg.sources) && i === messages.map((m) => m.role === "assistant" && hasSources(m.sources)).lastIndexOf(true) && (
