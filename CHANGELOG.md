@@ -2,6 +2,19 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — Scout's "Working" Words Say What It's Doing
+
+### Fixed
+- While Scout worked on an answer it always said "Looking in Larisa's Guide…" — a fixed line from when her Guide was
+  its only source. Ken, asking about a paper-ticket screenshot, read it as Scout checking the wrong place. Every question
+  goes with all of its sources at once (her Guide, Ken's rail sheet, Backroads' itinerary, anything sent, the web when
+  Scout looks), so it now says "Reading your picture" (or "pictures"), "Reading what you sent" for a PDF or document, or
+  "Going through the trip". After a while it still says "Still working — a long answer takes a minute or two".
+
+Where: Scout's panel, while an answer is on its way.
+
+Tested: the file-attachment browser check 32/32 (the words for a PDF, a picture and a plain question), Playwright 20/20.
+
 ## 2026-10-04 — The Day Screen, Second Pass: Trains in Place, "Today, Don't Miss", Quieter Links
 
 The rest of the UI review, built rather than listed (Ken: "build what you know must be built unless you need me"), each
