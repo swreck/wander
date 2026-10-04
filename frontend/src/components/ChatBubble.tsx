@@ -248,6 +248,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // What goes with the next question — pictures, PDFs, documents, text files, dragged in, pasted or chosen — and what
   // went with one in flight (kept for "Try again")
   const [files, setFiles] = useState<Attached[]>([]);
+  // What went with the question in flight, for the words while Scout works ("Reading your picture")
+  const [sentWith, setSentWith] = useState<"picture" | "pictures" | "file" | null>(null);
   const [filesReading, setFilesReading] = useState(0);
   const [fileNote, setFileNote] = useState<string | null>(null);
   const retryFilesRef = useRef<Attached[]>([]);
@@ -578,6 +580,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString(), ...(sendFiles.length ? { files: sendFiles.map((f) => ({ name: f.name, ...(f.thumb ? { thumb: f.thumb } : {}) })) } : {}) }]);
     }
     retryFilesRef.current = sendFiles;
+    setSentWith(!sendFiles.length ? null : onlyPictures ? (sendFiles.length > 1 ? "pictures" : "picture") : "file");
     if (!retryText) { setFiles([]); setFileNote(null); }
     sendingRef.current = true;
     setSending(true);
@@ -1218,11 +1221,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {sending && (
             <div className="flex justify-start" data-thinking role="status" aria-busy="true">
               <div className="bg-[#f0ebe3] rounded-2xl px-3.5 py-2 text-sm text-[#514636]">
-                {/* (to Larisa it's her own Guide — round 12 delight audit; and after a while it says it's still at it — a
-                    long answer can take a minute or more, and the old 45 seconds gave up on answers that came; Ken, Oct 2) */}
+                {/* What Scout is really doing: every question goes with all its sources at once — her Guide, Ken's rail sheet,
+                    Backroads' itinerary, anything sent, the web when it looks — so not "Looking in Larisa's Guide" (Ken, Oct 4:
+                    asking about a paper-ticket screenshot, it read as checking the wrong source). After a while it says it's
+                    still at it — a long answer can take a minute or more (Ken, Oct 2). */}
                 {waitedLong
                   ? "Still working — a long answer takes a minute or two"
-                  : /^larisa$/i.test(user?.displayName || "") ? "Looking in your Guide" : "Looking in Larisa's Guide"}
+                  : sentWith === "picture" ? "Reading your picture"
+                  : sentWith === "pictures" ? "Reading your pictures"
+                  : sentWith === "file" ? "Reading what you sent"
+                  : "Going through the trip"}
                 <span className="inline-flex gap-0.5 ml-0.5" aria-hidden>
                   <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
                   <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
