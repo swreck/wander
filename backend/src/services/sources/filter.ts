@@ -40,6 +40,20 @@ export function withoutPersonalNumbers(text: string): string {
     .replace(PAID, (m, label: string, sep: string, value: string) => (/\d/.test(value) ? `${label}${sep || " "}${LEFT_OUT}` : m));
 }
 
+/**
+ * A person's own email address and US phone number, in the words of her tabs (Oct 4: the Four Seasons tab holds Ken's
+ * forwarded confirmation email — the sender's personal address, Larisa's, the sender's phone — and Scout read them
+ * as they were; Ken: Wander shouldn't surface people's personal information). Only addresses at personal mail services
+ * and US-style numbers: a restaurant's or hotel's own address and its Japanese phone number stay — people need them.
+ */
+const PERSONAL_MAIL = /[\w.+-]+@(?:gmail|googlemail|comcast|icloud|me|mac|yahoo|hotmail|outlook|live|msn|aol|proton|protonmail|sbcglobal|att|verizon|perworks)\.[a-z.]{2,8}\b/gi;
+// (a US area code and exchange never start with 0 or 1; a Japanese number dialled in Japan always starts with 0 — Kyoto's
+// 075-344-8888 has the US shape, and must stay)
+const US_PHONE = /(?<![\d+])(?:\+?1[ .-]?)?\(?\b[2-9]\d{2}\)?[ .-][2-9]\d{2}[ .-]\d{4}\b/g;
+export function withoutPersonalContacts(text: string): string {
+  return text.replace(PERSONAL_MAIL, "[email left out by Wander]").replace(US_PHONE, "[phone left out by Wander]");
+}
+
 export function withoutFinancialDetails(text: string): string {
   // (a person's own numbers first: a 13-digit eTicket number would otherwise read as "[card ending …]"; then the
   // transit-card ID: its digits would otherwise be taken for a card number)

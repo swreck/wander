@@ -214,6 +214,46 @@ function saveMessages(msgs: ChatMessage[]) {
   } catch { /* quota exceeded — ignore */ }
 }
 
+/**
+ * Your conversation as Wander saved it, with what only this phone has (Oct 4, Ken: "When I change devices or change
+ * between a webpage and web app … I seem to lose the history"). The saved one is the record: its questions and answers,
+ * in order, with this phone's richer copy where they match (a photo's small copy, the bar's words). Kept from this phone
+ * only: a question that never got its answer and a reply of the phone's own ("Back where you were") — in their place,
+ * after what came before them — and nothing from before a "Start fresh" made on any device.
+ */
+export function mergeConversation(local: ChatMessage[], saved: ChatMessage[], freshAt: string | null): ChatMessage[] {
+  const key = (m: ChatMessage) => `${m.role}|${m.text.replace(/\s+/g, " ").trim().slice(0, 300)}`;
+  // (in order: the same "next" asked twice matches twice, never one line twice)
+  const match = new Map<number, number>();
+  let from = 0;
+  local.forEach((l, i) => {
+    for (let j = from; j < saved.length; j++) if (key(saved[j]) === key(l)) { match.set(i, j); from = j + 1; return; }
+  });
+  const out: ChatMessage[][] = saved.map((s) => [s]);
+  const before: ChatMessage[] = [];
+  // (what's newer than everything saved goes last, after anything another device added — never to the top; walk check,
+  // Oct 4: a fresh question and answer landed above the saved conversation)
+  const tail: ChatMessage[] = [];
+  // Anything on this phone newer than the last saved line isn't saved yet — an answer that arrived while this read was on
+  // its way (the save follows the answer); it's never dropped (Playwright, Oct 4: a fresh answer vanished)
+  const lastSaved = saved.reduce<string | null>((m, s) => (s.at && (!m || s.at > m) ? s.at : m), null);
+  const newer = (l: ChatMessage) => !!l.at && (!lastSaved || l.at > lastSaved);
+  for (const [i, j] of match) out[j][0] = { ...saved[j], ...local[i], sources: local[i].sources || saved[j].sources };
+  let after = -1;
+  local.forEach((l, i) => {
+    if (match.has(i)) { after = match.get(i)!; return; }
+    const next = local[i + 1];
+    const onlyHere = l.error || l.quiet || newer(l) || (l.role === "user" && !!next && !match.has(i + 1) && (next.error || next.quiet || newer(next)));
+    const sinceFresh = l.at ? !freshAt || l.at > freshAt : after >= 0 || !freshAt;
+    if (!onlyHere || !sinceFresh) return;
+    // (a question with no time of its own goes with the answer after it)
+    if (newer(l) || (tail.length > 0 && !l.at) || (l.role === "user" && !!next && newer(next) && !match.has(i + 1))) tail.push(l);
+    else if (after >= 0) out[after].push(l);
+    else before.push(l);
+  });
+  return [...before, ...out.flat(), ...tail];
+}
+
 function clearMessages() {
   localStorage.removeItem(chatKey());
   localStorage.removeItem("wander-chat");
@@ -417,6 +457,36 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   useEffect(() => {
     saveMessages(messages);
   }, [messages]);
+
+  // The same conversation on every device — read back from Wander when Scout opens and when the app comes back to the
+  // front (at most every 15 seconds; never while an answer is on its way). See mergeConversation.
+  const syncedAt = useRef(0);
+  const tripForChat = context?.tripId;
+  useEffect(() => {
+    if (!tripForChat) return;
+    let live = true;
+    const sync = async () => {
+      if (sendingRef.current || Date.now() - syncedAt.current < 15_000 || navigator.onLine === false) return;
+      syncedAt.current = Date.now();
+      try {
+        const token = localStorage.getItem("wander_token");
+        const r = await fetch(`/api/chat/history?tripId=${encodeURIComponent(tripForChat)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (!r.ok) return;
+        const j = await r.json() as { messages: ChatMessage[]; freshAt: string | null };
+        if (!live || sendingRef.current || !Array.isArray(j.messages)) return;
+        // (nothing new: the conversation isn't redrawn — it would jump someone reading it back to the end)
+        setMessages((prev) => {
+          const next = mergeConversation(prev, j.messages, j.freshAt);
+          const same = next.length === prev.length && next.every((m, i) => m.role === prev[i].role && m.text === prev[i].text);
+          return same ? prev : next;
+        });
+      } catch { /* this phone's own copy stays */ }
+    };
+    sync();
+    const onShow = () => { if (document.visibilityState === "visible") sync(); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => { live = false; document.removeEventListener("visibilitychange", onShow); };
+  }, [tripForChat, open]);
 
   // The bottom bar's Scout tab lights up while the panel is open
   useEffect(() => {
@@ -1243,9 +1313,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {messages.length > 0 && !sending && (
             confirmingClear ? (
               <div className="flex flex-wrap items-center gap-x-2 pt-1">
-                <span className="text-sm text-[#6b5d4a]">Clear this conversation?</span>
+                <span className="text-sm text-[#6b5d4a]">Clear this conversation on all your devices?</span>
                 <button
-                  onClick={() => { setMessages([]); clearMessages(); setConfirmingClear(false); setFailed(false); }}
+                  onClick={() => {
+                    setMessages([]); clearMessages(); setConfirmingClear(false); setFailed(false);
+                    // …on every device: a marker on Wander, so the others start fresh too (what was said stays saved)
+                    const token = localStorage.getItem("wander_token");
+                    if (context?.tripId) fetch("/api/chat/fresh", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ tripId: context.tripId }) }).catch(() => { /* this phone is fresh anyway */ });
+                  }}
                   className="min-h-[44px] px-3 rounded-lg text-sm text-[#8a3a1a] hover:bg-[#f0ebe3]"
                 >
                   Yes, start fresh

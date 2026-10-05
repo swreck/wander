@@ -2,6 +2,69 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — Scout's Conversation on Every Device; Reading Larisa's Oct 4 Copy
+
+### Added
+- **Your Scout conversation is the same on every device** (Ken: "When I change devices or change between a webpage
+  and web app … I seem to lose the history"). Each answer was always saved on Wander; the screens showed only the copy
+  on that device — and an iPhone's Home Screen app keeps its own, apart from Safari. Scout's panel now reads the saved
+  conversation when it opens and when the app comes back to the front: your own questions and answers on that trip,
+  with each answer's sources, place cards, screens and directions. What only that device has stays in its place — a
+  question that didn't get through, a just-arrived answer not saved yet. "Start fresh" now asks "Clear this
+  conversation on all your devices?" and starts fresh on all of them (a marker; what was said stays saved). Reading the
+  conversation back never counts against Scout's "a moment to catch up" limit.
+
+### Fixed (her Oct 4 copy, kept as "Japan Oct 2026-6")
+- **A sentence in her Hotel column is her note, not a hotel.** Itinerary T40 — "AI estimates our arrival to the hotel
+  (6:15-6:45p) and your arrival (6-6:30p) and to aim for dinner between 7-7:30p" — was read as a second hotel for
+  Oct 14–17 ("more than one place to sleep tonight"). Now it's a note on Oct 14, in her words; a hotel name with a
+  bracketed note ("Hotel Granvia Okayama (chk in 3p, chk out 12p)") stays a hotel.
+- **A pasted copy of Ken's rail sheet** (her new tab "COPY of Ken Rail sheet") is known by its column headings. Its rows
+  had been read as her words — credited to her Guide, and pinned to the Four Seasons ("Four Seasons: 'HARUKA 31'"). The
+  tab is kept, with one line saying what it is; Scout says it's a backup and answers trains from Ken's sheet itself.
+- **Personal email addresses and US phone numbers in her tabs are left out** (the Four Seasons tab holds a forwarded
+  confirmation email with Ken's and Larisa's addresses and Ken's phone, which Scout read as they were). A hotel's or
+  restaurant's own address and Japanese numbers stay.
+- **The rail sheet's answer under a question put to you** shows for any such question, not only one ending in "?"
+  (Julie's Oct 13: the Mashiko question now lives only as "X, if Julie isn't interested" in her Activities tab).
+
+Where: Scout's panel; every screen reading her Guide. Server: GET /api/chat/history, POST /api/chat/fresh;
+guide/itinerary.ts (hotel note), guide/importSnapshot.ts (rail copy, personal contacts), sources/filter.ts.
+
+Tested: conversation tests 7/7 (your own only, in order, with cards and files; others refused; Start fresh everywhere,
+nothing deleted); three browsers as three devices 9/9; reader tests (hotel note, rail copy) 4/4; personal-contacts
+tests 3/3; her copy imported into the test copy and read back line by line (no second hotel; one line for the rail
+copy; no personal address left, hotel numbers kept); real Scout on Oct 14's note and on the rail copy (both right);
+every walk-through; Playwright; full backend suite 1178/1178.
+
+## 2026-10-04 — Scout Never Gives a Link or a Website Step It Hasn't Seen
+
+Ken, collecting his JR West tickets with Scout's help: Scout told him "under 'Regular Ticket Online Reservations' the
+third option is 'Reserve Lookup'" and gave a link it had never opened — the link was dead and the steps a guess. It
+also sent him to Larisa's emails for a number he had set himself, and kept answering at length while he worked one
+screen at a time.
+
+### Fixed
+- **Links:** a link in Scout's answer must be one Scout saw while answering — in her Guide, the rail sheet, a document,
+  a file sent, a tool's result, a search result or a page it opened. Wander checks every answer: a link Scout never saw
+  sends Scout back once to open it or take it out; one it keeps anyway is marked "(Wander couldn't check this link —
+  Scout didn't open it)". Scout's own earlier words never count as having seen a link.
+- **Website and app steps** come only from a page Scout opened, the rail sheet's steps or the person's screenshot; asked
+  for a page, Scout searches the service's own site and opens it first. Otherwise it says it can't see that screen and
+  asks for a screenshot.
+- **Who did it:** who booked, paid, set a number or holds an email only when a source says so — a booking's contact or
+  card owner isn't who made it.
+- **Hedges are claims:** "it should be in the email" only with where it comes from; otherwise "I don't know".
+- **Step by step:** while someone works through a screen ("next", "one step", screenshots), Scout gives only the next
+  step asked for.
+
+Where: Scout's answers (backend/src/routes/chat.ts rules; backend/src/services/links.ts check).
+
+Tested: link-check tests 6/6; real Scout on Ken's three failed questions (test copy), asked again after each change —
+final: every link opened and live (200), no invented screens or steps, no guessed booker, one step when asked. Measured
+Scout thinking before answering (test server only, SCOUT_THINKING): the same honesty, the same time, about the same
+cost — not turned on.
+
 ## 2026-10-04 — Scout's "Working" Words Say What It's Doing
 
 ### Fixed
