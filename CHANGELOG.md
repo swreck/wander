@@ -2,6 +2,13 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-05 — Scout Says "Larisa's Guide" to Everyone but Larisa
+
+### Fixed
+- Scout once told Ken "your Guide has dinner at Une Immersion". Its instructions said Larisa hears "your Guide" but not,
+  outright, that everyone else hears "Larisa's Guide"; now they do. Re-asked as Ken: "Larisa's Guide has Une Immersion
+  at 7:00 PM"; as Larisa: "your Dining Resos tab … your own transit note".
+
 ## 2026-10-05 — "Say This in Japanese" Gets Only the Japanese
 
 ### Changed
