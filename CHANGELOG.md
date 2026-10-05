@@ -2,6 +2,24 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-05 — "Say This in Japanese" Gets Only the Japanese
+
+### Changed
+- Asked to put something into Japanese for someone ("ask the waiter if…", "tell the taxi driver…", "translate this into
+  Japanese"), Scout replies with only the Japanese — no English, no lead-in, no pronunciation — so what's shown or read
+  aloud is just the sentence for the other person (Ken: "if Scout is asked to translate something, it should assume it
+  should only give the Japanese"). It uses the trip (the booking's time, the hotel and its address, an allergy). Asked
+  how to pronounce it, it adds the pronunciation; asked what something means, it answers in English; Japanese into
+  English (a menu, a sign) is unchanged. A request that also asks something for you gets the Japanese, a line, then the
+  English.
+
+Where: Scout's answers.
+
+Tested: real Scout, six questions (test copy): the dinner reservation (only Japanese; 7 PM checked against her Oct 16
+plan), pronunciation (Japanese + how to say it), a closed-for-a-private-event sign (English), the taxi to the Imperial
+Hotel (only Japanese, with its address), Andy's allergy with "broth is fine" (only Japanese, the exception kept), a
+mixed request (Japanese, then English for Ken); full backend suite.
+
 ## 2026-10-05 — Read a Scout Answer Aloud
 
 ### Added
