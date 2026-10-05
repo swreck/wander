@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-05 — Ask Scout From a Link (for a Siri Shortcut)
+
+### Added
+- **wander.up.railway.app/?ask=<question>** opens Wander with Scout asking that question (Ken: the fastest way to ask
+  Scout with Siri — a Shortcut that dictates the question and opens this link). The question leaves the address at once,
+  so a reload or Back never asks it twice. Signed out, the link opens the sign-in first and the question isn't asked.
+
+Where: any page's address; Scout's panel opens with the answer.
+
+Tested: in the browser, signed in — the question reaches Scout once, word for word; Scout open with the answer; the
+address cleaned; a reload doesn't ask again (4/4); Playwright 20/20.
+
 ## 2026-10-04 — "Show me around", Offered Up to Three Times; Kyoto Mon and Tue Tabs Open Exactly
 
 ### Changed

@@ -946,6 +946,20 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     return () => window.removeEventListener("wander:ask-scout", ask);
   }, [sendMessage]);
 
+  // A question in the link — wander.up.railway.app/?ask=… — from a Siri shortcut ("Hey Siri, Ask Scout", Ken, Oct 5): Scout
+  // opens and asks it. The question leaves the address at once, so a reload or Back never asks it twice.
+  useEffect(() => {
+    let q = "";
+    try { q = (new URLSearchParams(window.location.search).get("ask") || "").trim().slice(0, 1000); } catch { /* no address */ }
+    if (!q) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("ask");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    // (after Scout's own listener above is in place)
+    const t = setTimeout(() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: q } })), 300);
+    return () => clearTimeout(t);
+  }, []);
+
   if (!open) {
     // Scout stepped aside: a bar above the tabs keeps the conversation going ("I got it — now take me
     // back"). Its words on top; ↩ Back, a place to ask, the microphone and ✕ below.
