@@ -2,6 +2,26 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — "Show me around", Offered Up to Three Times; Kyoto Mon and Tue Tabs Open Exactly
+
+### Changed
+- **"Show me around" is offered up to three times** (Ken: "I'd like it offered at least 3x with Yes, Next time, No
+  Thanks"). The welcome card on Home offers it with "Show me around", "Next time" and "No thanks". "Next time" brings it
+  back on a visit at least 12 hours later; an offer not yet answered stays on Home for the rest of that visit. The second
+  and third offers are one line ("Want a quick look at the buttons along the bottom, Julie? Six short steps."); the third
+  has no "Next time" and says it's the last, and that it's always in Settings. The answer is kept per person on Wander,
+  so a new phone or the Home Screen app doesn't ask again (and an answer this phone kept but never sent goes the next
+  time). Before, one tap of "Got it" retired it for good on that phone. Anyone who saw the old card counts it as the
+  first offer.
+- **Larisa's Kyoto Mon 10/26 and Tue 10/27 tabs** now open at the exact spot from Sources (Ken's links; 17 of her 28
+  tabs have their address — the rest are reference tabs, opened with the tab and cell said in words).
+
+Where: Home's welcome card; Sources links.
+
+Tested: the three offers across visits in the browser (11/11 — Next time, the 12 hours, the last offer, No thanks kept on
+Wander with her other preferences, a new device not asked again, the tour starting); Sources walk with the Kyoto tabs;
+all walk-throughs; Playwright.
+
 ## 2026-10-04 — A Status Settled by Hand Reads as Done
 
 ### Fixed

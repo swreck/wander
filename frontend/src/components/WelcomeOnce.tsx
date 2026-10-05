@@ -1,43 +1,137 @@
 /**
- * The first time someone opens Wander on a phone: what it is and that there's nothing they need to do — once, then it
- * goes (delight audit: Julie's first minute never said what Wander was, and the best sentence was behind "?").
- * Larisa hears it as hers: her Guide, on everyone's phone, never changed.
+ * The welcome card on Home, with "Show me around" (Oct 2) — offered up to three times, then it stops (Oct 4, Ken: "I'd
+ * like it offered at least 3x with Yes, Next time, No Thanks"). Usual practice for an optional tour: offer it at a calm
+ * moment (Home, never the Next tab), let "Next time" bring it back on a later visit (12 hours on, not the same visit),
+ * stop after the third offer or a "No thanks", and say where it lives (Settings, How Wander works). Kept per person on
+ * Wander (their preferences), so a new phone or the Home Screen app doesn't ask again; this phone's copy for no signal.
+ * The first offer says what Wander is (delight audit: Julie's first minute never said); Larisa hears it as hers.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor } from "../lib/guideDisplay";
+import { api } from "../lib/api";
 import { showMeAround } from "./ShowMeAround";
 import { isIPhoneSafari, isHomeScreenApp } from "./AddToHomeScreen";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
 
-const KEY = "wander:welcome-seen";
+type Tour = { offers: number; lastAt?: string; status?: "taken" | "declined" };
+const MAX_OFFERS = 3;
+const AGAIN_AFTER = 12 * 60 * 60 * 1000;
+const localKey = (id: string) => `wander:tour:${id}`;
+
+function readLocal(id: string): Tour {
+  try {
+    const t = JSON.parse(localStorage.getItem(localKey(id)) || "null") as Tour | null;
+    if (t) return t;
+    // (the old one-time card, already seen on this phone: that was the first offer)
+    if (localStorage.getItem("wander:welcome-seen") === "1") return { offers: 1, lastAt: new Date(0).toISOString() };
+  } catch { /* private window */ }
+  return { offers: 0 };
+}
+/** The two copies together: the further along wins (a "No thanks" on any device holds everywhere) */
+function merged(a: Tour, b: Tour): Tour {
+  return {
+    offers: Math.max(a.offers || 0, b.offers || 0),
+    lastAt: [a.lastAt, b.lastAt].filter(Boolean).sort().pop(),
+    status: a.status || b.status,
+  };
+}
+/** Saved on this phone and on Wander — read first and merged, so their other preferences stay as they are */
+async function save(id: string, t: Tour) {
+  try { localStorage.setItem(localKey(id), JSON.stringify(t)); } catch { /* private window */ }
+  try {
+    const cur = (await api.get<{ preferences?: Record<string, unknown> | null }>(`/auth/travelers/${id}`))?.preferences || {};
+    await api.patch(`/auth/travelers/${id}`, { preferences: { ...cur, tour: merged(t, ((cur as any).tour || { offers: 0 }) as Tour) } });
+  } catch { /* no signal: this phone's copy holds until next time */ }
+}
 
 export default function WelcomeOnce({ owner }: { owner: string | null }) {
-  const me = useAuth().user?.displayName ?? null;
-  const [seen, setSeen] = useState(() => { try { return localStorage.getItem(KEY) === "1"; } catch { return true; } });
+  const { user } = useAuth();
+  const me = user?.displayName ?? null;
+  const id = user?.travelerId ?? null;
+  const [tour, setTour] = useState<Tour | null>(() => (id ? readLocal(id) : null));
+  const [showing, setShowing] = useState(false);
+  const counted = useRef(false);
   // (in iPhone Safari, until Face ID is set up, Home's next card is "Set up Face ID")
   const [settingUpHere] = useState(() => {
     let putOff = false;
     try { putOff = localStorage.getItem("wander:faceid-card-dismissed") === "1"; } catch { /* private window */ }
     return isIPhoneSafari() && !isHomeScreenApp() && !signedInWithPasskeyHere() && !putOff;
   });
-  if (seen || !me) return null;
+
+  // What Wander has for this person (another device's answer counts here too) — nothing is offered until it's known, or
+  // until a few seconds without signal (tour check, Oct 4: a new phone asked again before her "No thanks" arrived)
+  const [checked, setChecked] = useState(false);
+  useEffect(() => {
+    if (!id) return;
+    let live = true;
+    const giveUp = setTimeout(() => { if (live) setChecked(true); }, 4000);
+    api.get<{ preferences?: Record<string, unknown> | null }>(`/auth/travelers/${id}`)
+      .then((t) => {
+        const saved = ((t?.preferences as any)?.tour || null) as Tour | null;
+        if (live && saved) setTour((cur) => merged(cur || { offers: 0 }, saved));
+        // (an answer this phone kept but Wander never got — the app closed as it was sent — goes now; tour check, Oct 4)
+        const local = readLocal(id);
+        const both = merged(local, saved || { offers: 0 });
+        if ((both.status && both.status !== saved?.status) || both.offers > (saved?.offers || 0)) save(id, both);
+      })
+      .catch(() => { /* this phone's copy */ })
+      .finally(() => { if (live) { clearTimeout(giveUp); setChecked(true); } });
+    return () => { live = false; clearTimeout(giveUp); };
+  }, [id]);
+
+  // Due now: not taken, not declined, fewer than three offers, and the last one long enough ago. Counted once, as shown.
+  const due = !!tour && !tour.status && tour.offers < MAX_OFFERS && (!tour.lastAt || Date.now() - Date.parse(tour.lastAt) >= AGAIN_AFTER);
+  // (an offer not yet answered stays on Home for the rest of this visit — leaving Home and coming back mustn't lose it)
+  const SESSION = "wander:tour-offer-open";
+  useEffect(() => {
+    if (!tour || tour.status || showing) return;
+    let open = false;
+    try { open = sessionStorage.getItem(SESSION) === "1"; } catch { /* private window */ }
+    if (open) { counted.current = true; setShowing(true); }
+  }, [tour, showing]);
+  useEffect(() => {
+    if (!id || !tour || !due || !checked || counted.current) return;
+    counted.current = true;
+    try { sessionStorage.setItem(SESSION, "1"); } catch { /* private window */ }
+    const next = { ...tour, offers: tour.offers + 1, lastAt: new Date().toISOString() };
+    setTour(next);
+    setShowing(true);
+    save(id, next);
+  }, [id, tour, due, checked]);
+
+  if (!me || !id || !tour || !showing) return null;
   const v = voiceFor(me, owner);
-  const close = () => { try { localStorage.setItem(KEY, "1"); } catch { /* private window */ } setSeen(true); };
+  const first = tour.offers <= 1;
+  const last = tour.offers >= MAX_OFFERS;
+  const answer = (status?: Tour["status"]) => {
+    setShowing(false);
+    try { sessionStorage.removeItem("wander:tour-offer-open"); } catch { /* private window */ }
+    if (status) { const t = { ...tour, status }; setTour(t); save(id, t); }
+    try { localStorage.setItem("wander:welcome-seen", "1"); } catch { /* private window */ }
+  };
   return (
     <section className="mb-4 rounded-xl bg-white border border-[#e0d8cc] p-4">
-      <p className="text-base text-[#3a3128]">Hi {me}.</p>
-      <p className="text-sm text-[#514636] mt-1">
-        {v.mine
-          ? "This is your Guide, day by day, on everyone's phone. Wander reads it and never changes it."
-          // (nothing to set up — not "nothing to do": Ken has six tickets to collect; delight audit). In iPhone Safari
-          // there is one thing — Face ID, just below — so it says that instead (Oct 2: the two cards contradicted).
-          : `This is ${owner || "Larisa"}'s plan for the trip, day by day, on your phone. ${settingUpHere ? "One thing to set up: Face ID, just below." : "There's nothing to set up — it's here when you want it."}`}
-      </p>
-      {/* A quick look at the buttons along the bottom, if they'd like one (Oct 2) — also in Settings */}
+      {first ? (
+        <>
+          <p className="text-base text-[#3a3128]">Hi {me}.</p>
+          <p className="text-sm text-[#514636] mt-1">
+            {v.mine
+              ? "This is your Guide, day by day, on everyone's phone. Wander reads it and never changes it."
+              // (nothing to set up — not "nothing to do": Ken has six tickets to collect; delight audit). In iPhone Safari
+              // there is one thing — Face ID, just below — so it says that instead (Oct 2: the two cards contradicted).
+              : `This is ${owner || "Larisa"}'s plan for the trip, day by day, on your phone. ${settingUpHere ? "One thing to set up: Face ID, just below." : "There's nothing to set up — it's here when you want it."}`}
+          </p>
+          <p className="text-sm text-[#514636] mt-1">Want a quick look at the buttons along the bottom? Six short steps.</p>
+        </>
+      ) : (
+        <p className="text-sm text-[#514636]">Want a quick look at the buttons along the bottom, {me}? Six short steps.</p>
+      )}
+      {last && <p className="text-xs text-[#6b5d4a] mt-1">This is the last time it's offered here. It's always in Settings, under "Show me around".</p>}
       <div className="mt-2 flex flex-wrap gap-2">
-        <button onClick={() => { close(); showMeAround(); }} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm">Show me around</button>
-        <button onClick={close} className="min-h-[44px] px-4 rounded-lg border border-[#e0d8cc] text-sm text-[#514636]">Got it</button>
+        <button onClick={() => { answer("taken"); showMeAround(); }} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm">Show me around</button>
+        {!last && <button onClick={() => answer()} className="min-h-[44px] px-4 rounded-lg border border-[#e0d8cc] text-sm text-[#514636]">Next time</button>}
+        <button onClick={() => answer("declined")} className="min-h-[44px] px-4 text-sm text-[#6b5d4a]">No thanks</button>
       </div>
     </section>
   );
