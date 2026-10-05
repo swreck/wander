@@ -2,6 +2,20 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-05 — Read a Scout Answer Aloud
+
+### Added
+- **"Read aloud" under each Scout answer**, beside Copy (Ken: "put a button into Scout's answer to make it read the
+  answer"). The phone's own voice, nothing sent anywhere. It reads the whole answer — from that bubble to the next
+  question, since an answer can come in two bubbles (one button per answer) — as words: no ** marks, a web address said as
+  "a link". Japanese in an answer (a menu line, the words to show staff) is read in a Japanese voice. "Stop reading" stops
+  it; closing Scout or reading another answer stops it too.
+
+Where: Scout's panel, under an answer.
+
+Tested: in the browser with the phone's voice stood in (7/7 — the words said, Japanese in a Japanese voice, Stop, end,
+closing Scout); Scout's panel checks 32/32; Playwright 20/20. On a real iPhone: not yet heard.
+
 ## 2026-10-05 — Ask Scout From a Link (for a Siri Shortcut)
 
 ### Added

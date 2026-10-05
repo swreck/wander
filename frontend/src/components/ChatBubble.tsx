@@ -254,6 +254,45 @@ export function mergeConversation(local: ChatMessage[], saved: ChatMessage[], fr
   return [...before, ...out.flat(), ...tail];
 }
 
+/**
+ * Read an answer aloud (Ken, Oct 5: "put a button into Scout's answer to make it read the answer") — the phone's own
+ * voice, nothing sent anywhere. Words only: no ** marks, no web addresses (said as "a link"); Japanese stretches (a
+ * menu line, the words to show staff) in a Japanese voice — an English voice garbles them.
+ */
+const canRead = () => typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+function stopReading() { try { if (canRead()) window.speechSynthesis.cancel(); } catch { /* nothing to stop */ } }
+function readAloud(text: string, onEnd: () => void) {
+  stopReading();
+  const plain = text
+    .replace(/\*\*/g, "").replace(/(^|\s)\*(\S[^*\n]*\S)\*(?=\s|$)/g, "$1$2")
+    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "a link")
+    .replace(/^\s*[–•-]\s*/gm, "")
+    .replace(/[ \t]+/g, " ").trim();
+  const JA = /[぀-ヿ㐀-鿿ｦ-ﾟ]+(?:[\s・、。ー]*[぀-ヿ㐀-鿿ｦ-ﾟ]+)*/g;
+  const parts: { text: string; ja: boolean }[] = [];
+  let at = 0;
+  for (const m of plain.matchAll(JA)) {
+    if (m.index! > at) parts.push({ text: plain.slice(at, m.index), ja: false });
+    parts.push({ text: m[0], ja: true });
+    at = m.index! + m[0].length;
+  }
+  if (at < plain.length) parts.push({ text: plain.slice(at), ja: false });
+  const voices = window.speechSynthesis.getVoices();
+  const jaVoice = voices.find((v) => /^ja/i.test(v.lang));
+  const enVoice = voices.find((v) => /^en-US/i.test(v.lang) && v.localService) || voices.find((v) => /^en/i.test(v.lang));
+  const spoken = parts.filter((p) => p.text.trim());
+  if (!spoken.length) { onEnd(); return; }
+  spoken.forEach((p, n) => {
+    const u = new SpeechSynthesisUtterance(p.text);
+    u.lang = p.ja ? "ja-JP" : "en-US";
+    const voice = p.ja ? jaVoice : enVoice;
+    if (voice) u.voice = voice;
+    if (n === spoken.length - 1) { u.onend = onEnd; u.onerror = onEnd; }
+    window.speechSynthesis.speak(u);
+  });
+}
+
 function clearMessages() {
   localStorage.removeItem(chatKey());
   localStorage.removeItem("wander-chat");
@@ -528,6 +567,12 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // Which answer was just copied (Copy under each answer — Ken, Oct 4: a long answer he wanted elsewhere couldn't be
   // selected or copied)
   const [copied, setCopied] = useState<number | null>(null);
+  // The answer being read aloud (its first bubble), if any — one at a time; it stops when Scout closes
+  const [reading, setReading] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open && reading !== null) { stopReading(); setReading(null); }
+  }, [open, reading]);
+  useEffect(() => () => stopReading(), []);
   const dragStart = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1289,6 +1334,21 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                       className="min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
                       {copied === i ? "✓ Copied the answer" : "Copy"}
                     </button>
+                    {/* The whole answer read aloud — from this bubble to the next question (an answer can come in two) */}
+                    {canRead() && messages[i - 1]?.role !== "assistant" && (
+                      <button
+                        onClick={() => {
+                          if (reading === i) { stopReading(); setReading(null); return; }
+                          const rest: string[] = [];
+                          for (let j = i; j < messages.length && messages[j].role === "assistant"; j++) if (!messages[j].error && !messages[j].quiet) rest.push(messages[j].text);
+                          setReading(i);
+                          readAloud(rest.join("\n\n"), () => setReading((r) => (r === i ? null : r)));
+                        }}
+                        aria-label={reading === i ? "Stop reading this answer" : "Read this answer aloud"}
+                        className="min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
+                        {reading === i ? "Stop reading" : "Read aloud"}
+                      </button>
+                    )}
                   </div>
                 )}
                 {/* (once, under the newest answer with Sources) */}
