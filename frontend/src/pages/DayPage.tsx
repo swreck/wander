@@ -1963,7 +1963,9 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             <div className="mt-0.5">
               <p className="text-sm text-[#8a5a1a]">A question for you in {owner ? `${owner}'s` : "her"} Guide.</p>
               {/* (under the question itself only — round 13: it repeated under "Maybe: Mashiko") */}
-              {(() => { const n = sources?.length && /\?/.test(i.title) ? railNoteFor(i.title, sources, me) : null; return n ? <p className="text-sm text-[#514636] mt-0.5">{n}</p> : null; })()}
+              {/* (any question put to them, not only one whose words end in "?" — Oct 4 copy: the Mashiko question lives on as
+                  "X, if Julie isn't interested" in her Activities tab, and lost the rail sheet's "Ken + Larisa only") */}
+              {(() => { const n = sources?.length ? railNoteFor(i.title, sources, me) : null; return n ? <p className="text-sm text-[#514636] mt-0.5">{n}</p> : null; })()}
               <button onClick={() => sendToGuideOwner(owner || "Larisa", `Hi ${owner || "Larisa"} — about “${i.title}” in your Guide: `)}
                 className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Tell {owner || "her"} your answer ›</button>
             </div>

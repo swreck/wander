@@ -261,7 +261,19 @@ export function interpretItinerary(tabs: GuideTab[]): ItineraryResult | null {
 
     // Stay: a hotel on a dated row
     const hotelCell = cellIn(row, roles.get("hotel"));
-    const hotel = hotelCell?.text.trim() || "";
+    const hotelText = hotelCell?.text.trim() || "";
+    // A sentence in her Hotel column is her note for the day, not a place to sleep (Oct 4 copy, T40: "AI estimates our
+    // arrival to the hotel (6:15-6:45p) and your arrival (6-6:30p) and to aim for dinner between 7-7:30p" was read as a
+    // second hotel for Oct 14–17). Her hotel names run three words at most outside their brackets ("Hotel Granvia
+    // Okayama (chk in 3p, chk out 12p)", "Ritz-Carlton, Nikko"); the note ran 17. Kept whole, as a note.
+    const hotelIsNote = hotelText.replace(/\([^)]*\)/g, " ").trim().split(/\s+/).filter(Boolean).length > 6;
+    if (hotelIsNote && hotelCell!.kind === "text" && itemDate) {
+      result.items.push({
+        date: itemDate, time: null, endTime: null, kind: "note", title: hotelText, detail: null, place: null, confirmation: null,
+        sourceRef: ref(hotelCell!.a1), source: readable("Hotel", r), city,
+      });
+    }
+    const hotel = hotelIsNote ? "" : hotelText;
     if (hotel && hotelCell!.kind === "text" && date) {
       const checkoutCell = cellIn(row, roles.get("checkout"));
       const nightsCell = cellIn(row, roles.get("nights"));

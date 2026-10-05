@@ -49,7 +49,8 @@ test("chat clear button requires confirmation (requires backend)", async ({ page
   // "Start fresh" asks first; "Keep" keeps the conversation
   // (it sits at the end of the conversation once Scout has answered)
   await page.getByRole("button", { name: "Start fresh", exact: true }).click({ timeout: 60000 });
-  await expect(page.getByText("Clear this conversation?")).toBeVisible();
+  // (Oct 4: the conversation is the same on every device, so Start fresh says so)
+  await expect(page.getByText("Clear this conversation on all your devices?")).toBeVisible();
   await page.getByRole("button", { name: "Keep" }).click();
   await page.waitForTimeout(300);
   const messages = page.locator("[data-chat-panel] [data-msg]");

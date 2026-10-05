@@ -12,12 +12,20 @@
 
 import prisma from "../db.js";
 import { readGuideXlsx, rowsOf, type GuideReadResult, type GuideTab } from "./reader.js";
+
+/** What Wander says of a pasted copy of Ken's rail sheet in her Guide (its tab is kept; its rows aren't read again) */
+export const RAIL_COPY_NOTE = "A pasted copy of Ken's rail sheet, kept here as a backup. Wander reads Ken's rail sheet itself — its trains are on each day, and Scout uses it — so this copy's rows aren't read a second time.";
+/** Ken's rail sheet, pasted into her Guide: known by its own column headings ("Train", "Reservation #", "Boarding readiness") */
+export function isRailSheetCopy(tab: GuideTab): boolean {
+  const top = [...rowsOf(tab)].slice(0, 3).map(([, cells]) => cells.map((c) => c.text).join(" | ")).join(" ");
+  return /boarding readiness/i.test(top) && /reservation\s*#/i.test(top) && /\btrain\b/i.test(top);
+}
 import { interpretItinerary, parseStatedTimes, type ItineraryResult, type InterpretedItem } from "./itinerary.js";
 import { readGuideImage, whoFromNames, roomFor, type ImageReading } from "./images.js";
 import { readGuideText, isBookingProse, tabTextHash, type TextReading } from "./textReader.js";
 import { readDayPlans, looksLikeDayPlan, dayPlanHash, verifyAgainstTab, type DayPlanReading } from "./dayPlanReader.js";
 import { pictureGroupFor, pictureStartFor } from "./pictureGroup.js";
-import { withoutFinancialDetails } from "../sources/filter.js";
+import { withoutFinancialDetails, withoutPersonalContacts } from "../sources/filter.js";
 import { noteFor, type PlaceNote } from "./placeNotes.js";
 
 export interface ImportOptions {
@@ -1566,8 +1574,16 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     const pictureFirstTab = new Map<string, string>();
     for (const tab of read.tabs) {
       if (structured.has(tab.name)) continue;
+      // A pasted copy of Ken's rail sheet (Oct 4 copy: "COPY of Ken Rail sheet", kept as a backup) is a source Wander
+      // already reads, live, as his — its rows read as hers were credited to her Guide and pinned to the Four Seasons
+      // ("Four Seasons: 'HARUKA 31'"). The tab is kept, said for what it is; its rows aren't read as her words.
+      if (isRailSheetCopy(tab)) {
+        notes.push({ tripId, tabName: tab.name, rowIndex: 1, text: RAIL_COPY_NOTE });
+        continue;
+      }
       for (const [r, cells] of rowsOf(tab)) {
-        const text = cells.sort((a, b) => a.c - b.c).map((c) => c.text.trim()).filter(Boolean).join(" · ");
+        // (a person's own email address and US phone number left out — Oct 4: the Four Seasons tab's forwarded email)
+        const text = withoutPersonalContacts(cells.sort((a, b) => a.c - b.c).map((c) => c.text.trim()).filter(Boolean).join(" · "));
         if (text) notes.push({ tripId, tabName: tab.name, rowIndex: r, text });
       }
       tab.images.forEach((p, n) => {

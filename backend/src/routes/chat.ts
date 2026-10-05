@@ -17,6 +17,7 @@ import { appleGuidesOf } from "../services/guide/appleGuides.js";
 import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
 import { createMaybe, setIn, removeFromMaybes, putBackOnMaybes, MaybeError } from "../services/maybes.js";
 import { validAttachments, attachmentBlocks } from "../services/attachments.js";
+import { unseenLinks, markUnseen, seenIn, LINK_CHECK_NOTE } from "../services/links.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
 const router = Router();
@@ -4299,6 +4300,54 @@ export async function executeTool(
   }
 }
 
+/**
+ * Your conversation with Scout on every device (Oct 4, Ken: "When I change devices or change between a webpage and web
+ * app … I seem to lose the history. I can imagine starting a topic on one device and wanting to refer to it on
+ * another."). Each answer was always saved here; the screens showed only the copy on that device (and an iPhone's Home
+ * Screen app keeps its own, apart from Safari). Only your own conversation, on that trip, since your last "Start fresh".
+ */
+const FRESH = "fresh";
+async function freshSince(tripId: string, travelerId: string): Promise<Date> {
+  const m = await prisma.chatMessage.findFirst({ where: { tripId, travelerId, role: FRESH }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+  return m?.createdAt || new Date(0);
+}
+router.get("/history", async (req: AuthRequest, res) => {
+  const tripId = typeof req.query.tripId === "string" ? req.query.tripId : "";
+  const travelerId = req.user?.travelerId;
+  if (!tripId || !travelerId) { res.json({ messages: [] }); return; }
+  // (a trip that isn't yours is refused before this — bodyTripGuard reads ?tripId)
+  const fresh = await freshSince(tripId, travelerId);
+  const rows = await prisma.chatMessage.findMany({
+    where: { tripId, travelerId, role: { in: ["user", "assistant"] }, createdAt: { gt: fresh } },
+    orderBy: [{ createdAt: "desc" }], take: 50,
+    select: { role: true, content: true, sources: true, toolUse: true, createdAt: true },
+  });
+  // (a question and its answer are saved together, at one moment: the question first)
+  rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.role === "user" ? -1 : 1) - (b.role === "user" ? -1 : 1));
+  res.json({
+    freshAt: fresh.getTime() ? fresh.toISOString() : null,
+    messages: rows.map((m) => {
+      if (m.role === "user") {
+        // "what's this? (with menu.png, plan.pdf)" — the files went with it; their names, not the files, were kept
+        const w = m.content.match(/^([\s\S]*?) \(with ([^()]+)\)$/);
+        return { role: "user", text: w ? w[1] : m.content, at: m.createdAt.toISOString(), ...(w ? { files: w[2].split(", ").map((name) => ({ name })) } : {}) };
+      }
+      const t = (m.toolUse || {}) as { places?: unknown[]; shows?: unknown[]; routes?: unknown[] };
+      return { role: "assistant", text: m.content, at: m.createdAt.toISOString(), ...(m.sources ? { sources: m.sources } : {}),
+        ...(Array.isArray(t.places) && t.places.length ? { places: t.places } : {}), ...(Array.isArray(t.shows) && t.shows.length ? { shows: t.shows } : {}),
+        ...(Array.isArray(t.routes) && t.routes.length ? { routes: t.routes } : {}) };
+    }),
+  });
+});
+/** "Start fresh" on one device starts fresh on all of them — a marker; what was said stays saved */
+router.post("/fresh", async (req: AuthRequest, res) => {
+  const tripId = typeof req.body?.tripId === "string" ? req.body.tripId : "";
+  const travelerId = req.user?.travelerId;
+  if (!tripId || !travelerId) { res.status(400).json({ error: "Which trip?" }); return; }
+  await prisma.chatMessage.create({ data: { tripId, travelerId, role: FRESH, content: "" } });
+  res.json({ ok: true });
+});
+
 router.post("/", async (req: AuthRequest, res) => {
   try {
     const { context, history, clientTime, image } = req.body;
@@ -4527,6 +4576,10 @@ TALKING WITH THEM (every answer):
 
 CITING (every answer): the Guide, the right-now statuses and Ken's rail sheet are documents you can cite. Cite every fact you take from them, each time, at the line it comes from — a time, a place, a booking, who it's for, where someone is. People tap "Sources" under your answer to check you against Larisa's sheet; a fact without a citation reads as your own guess. Anything you work out yourself (adding up times, comparing two lines) stays uncited — that's honest. Web facts are cited by the search itself. Don't write cell names or "(source: …)" in the answer; the citation does that.
 FILES (anything dragged in, pasted or attached — a PDF, a document, a text, a screenshot; titled "Sent with this question: <name>"): read every one fully before answering. With no real question ("What's in this?"), say in a line or two what it is and what in it matters for this trip — the day, place or booking in Larisa's Guide it touches, and whether they agree — then offer what's useful: putting it on that city's Maybes (add_maybe, in its own words, with its link if it has one) or answering about it. Cite its words like any document; say what came from it as from the file ("The PDF you sent says…"), never as the Guide or a fact of the trip. Where it and her Guide differ on a time, a place or a booking, say both and never pick one. A file isn't kept: if they ask later without sending it again, say to send it again — unless it was saved as a maybe. A [COULD NOT READ …] or [NOT READ …] note means nothing in that file was read: say so plainly and never guess at it.
+LINKS AND WEBSITE STEPS (Ken, Oct 4: Scout told him "the third option is 'Reserve Lookup'" and gave a link it had never opened — a guess said as fact, and the link was dead): a link you give must be one you saw in this conversation — in her Guide, the rail sheet, a document, a file they sent, or a page you searched or opened with web_fetch while answering. Never write a link from memory. Steps for a website or an app (which button, which menu, what a page says) only from a page you opened while answering, from the rail sheet's own steps, or from their screenshot — open the page with web_fetch first. If you can't see it, say so in one line and ask for a screenshot of what's on their screen; never describe a screen you haven't seen. Something from your general knowledge (how a service usually works) is said as that, in a few words, never as a step to follow. When they need a page ("what website can I check that on?", "where do I look it up?"), find the real one: web_search for it (the service's own site first), open the best result with web_fetch, and give that page's link with what it asks for, in its own words. Search and open first, then write the answer once — never "let me open that page".
+WHO DID IT: who booked, paid, set a number or holds an email only when a source says so in those words — a booking's contact or passenger name isn't who made it, and a card's owner isn't who booked with it. Never "X is the contact, so X's emails have it" or "so X set it" (Ken, Oct 4: he had made the JR West bookings; Scout twice sent him to Larisa's emails). When it matters and nothing says, say "whoever made the booking" — or ask.
+HEDGES ARE CLAIMS: "it should be in the email", "probably", "usually", "most likely" are still claims. Say one only with where it comes from (a source, a page you opened, their screenshot); otherwise say plainly you don't know where it is.
+STEP BY STEP: when someone is doing a task on a screen right now — sending screenshots, saying "next", "one step", "now what" — give only the next step (or the number of steps they ask for), in a line each, then stop. No background, no what-comes-after, no warnings unless the step itself could go wrong. Read their screenshot first: the next step is what's on that screen.
 PHOTOS: when a photo comes with the question (a menu, a sign, a ticket, a screen), read it carefully. Translate Japanese (or any other language) into plain English when that's what they need — line by line for a menu or sign, with the Japanese kept beside each line when they might show it to someone. Say what you read from the photo as from the photo ("Your photo shows…"), never as the Guide; when the photo and her Guide meet (a ticket's train and the rail sheet, a restaurant's name and her booking), say both and whether they match. Words you can't make out: say so — never guess a time, a price, a platform or an ingredient. Food and allergies (Andy is allergic to alliums — onion, garlic, leek, chive): point out what the photo shows that may contain them, give the Japanese words to show a server (玉ねぎ・ねぎ・にんにく), and say plainly that a menu photo can't prove what's in a dish — confirm with the staff. A photo isn't kept: if they ask about it again later without sending it, say to send it again.
 GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing. When directions says her Guide has no address for the place, say so plainly and that the button only searches Maps for the name — never present a searched place as hers.
 HER PICTURES: every picture in her tabs is given with all its words, as Wander read them ("Its words, as Wander read them") — use them: who goes where, times, places, what's on her illustrated day maps. A picture can be OLDER than her tab's text: her DAY BY DAY lines are the plan. When a picture's date, time, order or who-goes differs from them, give the plan first and then say her picture shows something else ("her map picture in that tab still shows Tokyodo at 2:15") — never quote a picture's time as the plan. When a picture says something her plan doesn't (who a stop is for, a van's return time), say it as her picture's.
@@ -4655,8 +4708,10 @@ RULES:
       try {
         // Only the current conversation (the last six hours) — older exchanges may rest on a
         // previous copy of the Guide or an earlier day, and shouldn't steer today's answers
+        // (and only since "Start fresh" — a marker row, never a turn of the conversation)
+        const fresh = await freshSince(tripId, req.user.travelerId);
         const dbMessages = await prisma.chatMessage.findMany({
-          where: { tripId, travelerId: req.user.travelerId, createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) } },
+          where: { tripId, travelerId: req.user.travelerId, role: { in: ["user", "assistant"] }, createdAt: { gte: new Date(Math.max(Date.now() - 6 * 60 * 60 * 1000, fresh.getTime() + 1)) } },
           orderBy: { createdAt: "desc" },
           take: 20,
         });
@@ -4743,6 +4798,7 @@ RULES:
     const answerPieces: AnswerPiece[] = [];
     const fetchedPages: { url: string; title: string }[] = [];
     let askedAgainForWords = false;
+    let askedAgainForLinks = false;
     const startedAt = Date.now();
 
     for (let turn = 0; turn < 8; turn++) {
@@ -4750,7 +4806,10 @@ RULES:
         model: "claude-opus-5",
         // (4,096: a full answer on one place across every source, or a table of eight days, ran past 2,048 and was cut
         // off mid-row — Ken, Oct 2)
-        max_tokens: 4096,
+        // SCOUT_THINKING (test server only, Oct 4): Scout thinks before answering — measured against the same questions
+        // before it's offered for production (Ken: "Should I assume Scout will always be stupider than ChatGPT?")
+        ...(process.env.SCOUT_THINKING ? { thinking: { type: "adaptive" } as any } : {}),
+        max_tokens: process.env.SCOUT_THINKING ? 16000 : 4096,
         system,
         tools: offeredTools,
         messages,
@@ -4792,8 +4851,22 @@ RULES:
         messages.push({ role: "assistant", content: response.content });
         continue;
       }
-      // If no tool use, we're done
-      if (response.stop_reason !== "tool_use") break;
+      // Done — unless the answer gives a link Scout never saw (Ken, Oct 4: a JR West link from memory, dead, with a
+      // made-up page behind it). Once: open it or take it out, and write the answer again. (services/links.ts)
+      if (response.stop_reason !== "tool_use") {
+        const unseen = unseenLinks(finalReply, seenIn(systemPrompt, messages as any[], response.content as any[]));
+        if (unseen.length && !askedAgainForLinks && turn < 6) {
+          askedAgainForLinks = true;
+          console.log(`Scout gave ${unseen.length} link(s) it never saw — asking it to open or drop them`);
+          messages.push({ role: "assistant", content: response.content });
+          messages.push({ role: "user", content: [{ type: "text", text: `${LINK_CHECK_NOTE} ${unseen.length === 1 ? "a link" : "links"} you haven't seen in this conversation: ${unseen.join(" ")}. Open ${unseen.length === 1 ? "it" : "each"} with web_fetch and keep only what the page itself shows, or take it out. Then write your whole answer again, as your reply to the question — don't mention this check.` }] });
+          finalReply = "";
+          answerPieces.length = 0;
+          continue;
+        }
+        if (unseen.length) finalReply = markUnseen(finalReply, unseen);
+        break;
+      }
 
       // Process tool calls
       const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
@@ -4861,7 +4934,9 @@ RULES:
       prisma.chatMessage.createMany({
         data: [
           { tripId, travelerId: req.user.travelerId, role: "user", content: files.names.length ? `${message} (with ${files.names.join(", ")})` : message },
-          { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply, ...(hasSources ? { sources: sources as any } : {}) },
+          // (its place cards, screens and directions too, so the answer looks the same on every device — Oct 4)
+          { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply, ...(hasSources ? { sources: sources as any } : {}),
+            ...(placeCards.length || shows.length || routes.length ? { toolUse: { places: placeCards, shows, routes } as any } : {}) },
         ],
       }).catch(() => { /* non-critical — don't fail the response */ });
     }

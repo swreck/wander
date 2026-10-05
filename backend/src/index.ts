@@ -93,6 +93,8 @@ if (!process.env.VITEST) {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Give Scout a moment to catch up" },
+    // (reading your conversation back, on another device, isn't asking Scout anything — Oct 4)
+    skip: (req) => req.method === "GET",
   });
 
   app.use("/api/auth/login", loginLimiter);
