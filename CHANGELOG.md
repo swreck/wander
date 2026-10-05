@@ -2,6 +2,20 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-04 — A Status Settled by Hand Reads as Done
+
+### Fixed
+- Ken finished designating the IC cards for the Oct 6 NOZOMI 77 and changed the rail sheet's status cell from
+  "PENDING" to "Done (my suica and her pasmo are confirmed in the reservation) — SmartEX: verify …", keeping the rest of
+  its words. Because the leftover words still said "verify", Wander would have kept the reminder under "Today, don't
+  miss" in amber. A status that starts with Done, Complete, Confirmed, Verified or ✓ is now settled: it shows on the
+  train in the color of a thing done, never under "Today, don't miss", and Scout is told it's done.
+
+Where: the day's trains, "Today, don't miss", the Next tab's train card; Scout's view of the rail sheet.
+
+Tested: his real cell, read into the test copy — the status shown as he wrote it, in green, no reminder; the day-page
+risk check now follows the sheet either way (20/20); rail-sheet tests 18/18; Playwright 20/20.
+
 ## 2026-10-04 — Scout's Conversation on Every Device; Reading Larisa's Oct 4 Copy
 
 ### Added

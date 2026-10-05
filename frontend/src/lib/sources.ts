@@ -243,6 +243,13 @@ export function sourceWordsFor(s: Pick<OtherSource, "owner" | "name" | "authorsh
 }
 
 /** A leg is a booked train when the sheet gives it a train and a departure (not "Local train · No") */
+/**
+ * A status someone has settled by hand — "DONE — SmartEX: verify…", "Complete", "Confirmed Oct 4", "✓ …" (Ken, Oct 4:
+ * he finished the SmartEX designation and changed "PENDING" to "done" in the cell, keeping the rest of its words). Its
+ * leftover "verify…" isn't a check any more: said calmly, never under "Today, don't miss".
+ */
+export const isSettledStatus = (s: string) => /^\s*(?:done|complete(?:d)?|confirmed|verified|finished|ok|✓|✔|☑)\b/i.test(s) || /^\s*[✓✔☑]/.test(s);
+
 export const isBookedTrain = (r: RailRow) => !!colOf(r.cols, /^train$/) && /^\d{1,2}:\d{2}$/.test(colOf(r.cols, /^depart/));
 
 /**

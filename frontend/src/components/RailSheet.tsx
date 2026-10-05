@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor } from "../lib/guideDisplay";
-import { colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, isBookedTrain, withTwelveHour, readWords, dateInText, differWords, herTab, type OtherSource, type RailRow, type Checklist, type RailDiffer } from "../lib/sources";
+import { colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, isBookedTrain, isSettledStatus, withTwelveHour, readWords, dateInText, differWords, herTab, type OtherSource, type RailRow, type Checklist, type RailDiffer } from "../lib/sources";
 import GuideText from "./GuideText";
 
 /**
@@ -118,7 +118,8 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
             {differs.map((d) => <DifferLine key={`${d.row}-${d.guideSource}`} d={d} />)}
             {status === "?" && <p className="text-sm text-[#8a5a1a] mt-0.5">The rail sheet marks this leg “?”{notes ? `: ${withTwelveHour(notes)}` : "."}</p>}
             {/* Anything to check before boarding stays in sight ("PENDING — SmartEX: verify…"); an old one waits inside */}
-            {readiness && !stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className="text-sm mt-1 text-[#8a5a1a]" />}
+            {/* (settled by hand — "DONE — …" — said calmly, in the color of a thing done) */}
+            {readiness && !stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className={`text-sm mt-1 ${isSettledStatus(readiness) ? "text-[#3f5a2a]" : "text-[#8a5a1a]"}`} />}
             {more ? (
               <>
                 {/^\d+$/.test(pax) && <p className="text-sm text-[#514636] mt-1">{pax} {pax === "1" ? "person" : "people"}</p>}
@@ -166,7 +167,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
           {/* A "?" leg: the question is the point — its notes say what's open, shown right here (round 12: Oct 23's
               "who has the train tickets?" was behind a tap) */}
           {status === "?" && <p className="text-sm text-[#8a5a1a] mt-0.5">The rail sheet marks this leg “?”{notes ? `: ${withTwelveHour(notes)}` : "."}</p>}
-          {readiness && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className={`text-sm mt-1 ${stale ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`} />}
+          {readiness && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className={`text-sm mt-1 ${stale ? "text-[#6b5d4a]" : isSettledStatus(readiness) ? "text-[#3f5a2a]" : "text-[#8a5a1a]"}`} />}
           {/* (its pickup instructions are past once the pickup day is — on Oct 29 they read to Andy as an order; delight audit) */}
           {ticket && !stale && <p className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]">{withTwelveHour(ticket)}</p>}
           {notes && status !== "?" && (open
@@ -358,7 +359,7 @@ export function NextTrain({ sources, date, nowMinutes, isMine, quiet = false }: 
             ridden on those tickets (round 12); the day's train list still has it, said as possibly out of date */}
         {/* (and not once you're aboard — delight audit: "PENDING — SmartEX: verify…" under "On this train now") */}
         {!riding && colOf(c, /readiness/) && !((d) => !!d && d < date)(dateInText(colOf(c, /readiness/), Number(date.slice(0, 4)))) && (
-          <StatusWords readiness={colOf(c, /readiness/)} s={s} today={date} className="text-sm text-[#f3d9a8] mt-1" />
+          <StatusWords readiness={colOf(c, /readiness/)} s={s} today={date} className={`text-sm mt-1 ${isSettledStatus(colOf(c, /readiness/)) ? "text-white/85" : "text-[#f3d9a8]"}`} />
         )}
         {/* Where her Guide has this train at another time: said once, here, in one line */}
         {!riding && s.differs.filter((d) => d.date === date && d.row === next.r.row).map((d) => <DifferLine key={`${d.row}-${d.guideSource}`} d={d} dark />)}

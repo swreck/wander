@@ -30,7 +30,7 @@ import {
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
 } from "../lib/guideDisplay";
-import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
+import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, isSettledStatus, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings, RailLeg } from "../components/RailSheet";
 import SheetSpots from "../components/SheetSpots";
 import SendOut, { dayText, bookingText } from "../components/SendOut";
@@ -1059,7 +1059,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     ...bookedMine.flatMap((x) => {
       const ready = colOf(x.r.cols, /^boarding readiness/, /readiness/);
       const day = ready ? dateInText(ready, Number(date.slice(0, 4))) : null;
-      if (!ready || (day && day < today) || !/pending|verify|unverified|not yet|confirm/i.test(ready)) return [];
+      // (a status settled by hand — "DONE — SmartEX: verify…" — isn't a check any more, whatever words it kept)
+      if (!ready || (day && day < today) || isSettledStatus(ready) || !/pending|verify|unverified|not yet|confirm/i.test(ready)) return [];
       // (your train is drawn in the day or in "More trains" — the same id either way)
       return [{ key: `ready-${railKey(x)}`, to: `train-${railKey(x)}`,
         body: <>Check before the {twelveHour(colOf(x.r.cols, /^depart/))} {colOf(x.r.cols, /^train$/)}: {withTwelveHour(ready.split(/(?<=[.;])\s+/)[0]).replace(/;$/, ".")}</> }];
