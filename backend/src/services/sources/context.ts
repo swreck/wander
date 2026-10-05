@@ -195,7 +195,7 @@ export function sourceDocuments(views: SourceView2[]): { title: string; lines: C
     const title = `${m.name} (${m.owner}'s${m.authorship ? `, ${m.authorship}` : ""})`;
     const lines: ContextLine[] = [];
     const src = (label: string, cells: ReturnType<typeof cellsOf>): SourceView => ({ type: "sheet", source: m.name, owner: m.owner, authorship: m.authorship, label, cells });
-    lines.push({ text: `${m.name.toUpperCase()}: "${m.title}" — ${m.owner}'s own sheet${m.authorship ? `, ${m.authorship}` : ""}${m.about ? ` (${m.about})` : ""}. It is NOT Larisa's Guide. Its words (statuses like TRUE, "?", PENDING) are its own.`, src: null });
+    lines.push({ text: `${m.name.toUpperCase()}: "${m.title}" — ${m.owner}'s own sheet${m.authorship ? `, ${m.authorship}` : ""}${m.about ? ` (${m.about})` : ""}. It is NOT Larisa's Guide. Its words (statuses like TRUE, "?", PENDING) are its own. A status changed by hand to DONE (or complete, confirmed, ✓) is done, even when it keeps its old "verify…" words — never remind anyone to do it.`, src: null });
     for (const r of v.rail) {
       const label = `${r.tab} tab, row ${r.row}`;
       lines.push({ text: `${label} — ${rowWords(r.cols)}`, src: src(label, cellsOf(r.tab, r.cols)) });
