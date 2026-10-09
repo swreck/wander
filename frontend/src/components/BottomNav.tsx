@@ -128,12 +128,30 @@ export default function BottomNav({ pendingChanges }: Props) {
     return () => window.removeEventListener("wander:actions-attention", handler);
   }, []);
 
+  // While typing, the bar steps away; when the keyboard goes, it comes back and the page is nudged so iOS puts it at the
+  // bottom again (Ken, Oct 9: after typing a note the bar floated mid-screen over his notes, the page showing below it)
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const editable = (el: Element | EventTarget | null) => el instanceof HTMLElement
+      && el.matches("textarea, select, [contenteditable='true'], input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='range'])");
+    const nudge = () => requestAnimationFrame(() => window.scrollTo(window.scrollX, window.scrollY));
+    const onIn = (e: FocusEvent) => { if (editable(e.target)) setTyping(true); };
+    const onOut = () => setTimeout(() => { if (!editable(document.activeElement)) { setTyping(false); nudge(); } }, 60);
+    // (the keyboard closing without the box losing focus — "Done" on some keyboards)
+    const vv = window.visualViewport;
+    const onResize = () => { if (vv && vv.height > window.innerHeight * 0.85) nudge(); };
+    document.addEventListener("focusin", onIn);
+    document.addEventListener("focusout", onOut);
+    vv?.addEventListener("resize", onResize);
+    return () => { document.removeEventListener("focusin", onIn); document.removeEventListener("focusout", onOut); vv?.removeEventListener("resize", onResize); };
+  }, []);
+
   // Hide on login and join pages; everywhere else the same four tabs, always
   if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e0d8cc]"
+      className={`fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e0d8cc] ${typing ? "hidden" : ""}`}
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
       <div className="flex items-center justify-around h-14 max-w-lg mx-auto">

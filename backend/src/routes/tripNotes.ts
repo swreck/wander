@@ -69,7 +69,7 @@ router.post("/trip/:tripId", async (req: AuthRequest, res) => {
   const me = req.user?.travelerId;
   if (!me) { res.status(403).json({ error: "Sign in on your own phone to keep notes." }); return; }
   const tripId = req.params.tripId as string;
-  const { clientId, text, source, visibility, dayDate, city, writtenAt } = req.body || {};
+  const { clientId, text, source, visibility, dayDate, city, writtenAt, changedAt } = req.body || {};
   // When the phone says it was written (a note kept on the phone with no signal arrives later — it keeps its own time);
   // only a time that makes sense: not ahead of now, not before the last two months
   const written = typeof writtenAt === "string" ? new Date(writtenAt) : null;
@@ -80,6 +80,16 @@ router.post("/trip/:tripId", async (req: AuthRequest, res) => {
   if (text.length > MAX_CHARS) { res.status(400).json({ error: `That's longer than one note can hold (${MAX_CHARS.toLocaleString()} characters) — split it in two.` }); return; }
   // The same note sent again (a weak signal, a retry): the one already kept, unchanged
   const already = await prisma.tripNote.findUnique({ where: { travelerId_clientId: { travelerId: me, clientId } } });
+  // …unless it was changed on the phone while it waited for signal (Ken, Oct 9: "I wanted to edit the last note I added
+  // and could not" — it showed as waiting though Wander had it): the change arrives as an edit, the first words kept as
+  // the original — but only a change newer than any edit made since, so a late resend never undoes one
+  const changed = typeof changedAt === "string" ? new Date(changedAt) : null;
+  if (already && changed && !isNaN(changed.getTime()) && changed.getTime() <= Date.now() + 5 * 60_000
+    && (!already.editedAt || changed > already.editedAt) && text.replace(/^\s+|\s+$/g, "") !== already.text) {
+    const note = await prisma.tripNote.update({ where: { id: already.id }, data: { text: text.replace(/^\s+|\s+$/g, ""), editedAt: changed, tidied: null, tidyStatus: null } });
+    res.json({ note: shape(note, me), duplicate: true, changed: true });
+    return;
+  }
   if (already) { res.json({ note: shape(already, me), duplicate: true }); return; }
   const words = text.replace(/^\s+|\s+$/g, "");
   const note = await prisma.tripNote.create({

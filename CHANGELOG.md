@@ -2,6 +2,23 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-09 — Notes Waiting for Signal Catch Up, and Can Be Changed; the Tab Bar Stays Put
+
+### Fixed
+- Notes: Ken's two notes said "waiting for signal" on full LTE though Wander already had them — the reply had been slow,
+  the one quick retry was slow too, and nothing tried again until the phone went offline and back. Now, while Notes is
+  open, waiting notes try again every 20 seconds and whenever Wander comes back to the front; a note Wander has leaves the
+  waiting list.
+- The tab bar floated mid-screen over his notes after typing (iOS leaves a bottom bar where the keyboard pushed it). It
+  now steps away while you type in any box, and comes back at the bottom when the keyboard goes.
+- Wander's sending of things kept on the phone runs one at a time, so nothing is sent twice when two tries overlap.
+
+### Added
+- Notes: a note still waiting for signal has "Change it" (Ken: "I wanted to edit the last note I added and could
+  not"). The change goes with the note; if its first words already reached Wander, it arrives as an edit — the first
+  words kept as the original — and a late resend never undoes an edit made since.
+- SPEC sections: notes (offline queue). SPEC UPDATE NEEDED.
+
 ## 2026-10-09 — Rebooked Trains Said as Rebooked; the Line That's Now Opens Itself
 
 ### Fixed

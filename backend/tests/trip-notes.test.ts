@@ -76,6 +76,29 @@ describe("every word kept", () => {
     expect(two.body.note.id).toBe(one.body.note.id);
     expect(await prisma.tripNote.count({ where: { travelerId: aId, clientId: id } })).toBe(1);
   });
+  // Ken, Oct 9: a note Wander had (the reply was slow) still waited on the phone, and couldn't be edited there. Changed
+  // while it waits, it carries when it was changed: arriving after its first words, the change is an edit.
+  it("a note changed on the phone while it waited arrives as an edit — the first words kept as the original", async () => {
+    const id = cid();
+    const first = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: id, text: "The first family studio" });
+    const changed = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: id, text: "The first family studio, ten generations", changedAt: new Date().toISOString() });
+    expect(changed.status).toBe(200);
+    expect(changed.body.changed).toBe(true);
+    expect(changed.body.note.id).toBe(first.body.note.id);
+    expect(changed.body.note.text).toBe("The first family studio, ten generations");
+    expect(changed.body.note.original).toBe("The first family studio");
+    expect(await prisma.tripNote.count({ where: { travelerId: aId, clientId: id } })).toBe(1);
+  });
+  it("a late resend never undoes an edit made since (its change is older, or it has none)", async () => {
+    const id = cid();
+    const n = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: id, text: "Version one" });
+    const before = new Date(Date.now() - 60_000).toISOString();
+    await as(a).patch(`/api/trip-notes/${n.body.note.id}`, { text: "Edited on Wander" });
+    const stale = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: id, text: "Version two from the phone", changedAt: before });
+    expect(stale.body.note.text).toBe("Edited on Wander");
+    const plain = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: id, text: "Version one" });
+    expect(plain.body.note.text).toBe("Edited on Wander");
+  });
   it("an edit changes the words now and keeps the original", async () => {
     const n = await as(a).post(`/api/trip-notes/trip/${tripId}`, { clientId: cid(), text: "The adoring promise" });
     const e = await as(a).patch(`/api/trip-notes/${n.body.note.id}`, { text: "The durable promise" });
