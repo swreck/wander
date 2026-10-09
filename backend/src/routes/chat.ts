@@ -18,6 +18,7 @@ import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
 import { createMaybe, setIn, removeFromMaybes, putBackOnMaybes, MaybeError } from "../services/maybes.js";
 import { validAttachments, attachmentBlocks } from "../services/attachments.js";
 import { unseenLinks, markUnseen, seenIn, LINK_CHECK_NOTE } from "../services/links.js";
+import { listMarks, setMark, todoKey, deadlineKey } from "../services/actionMarks.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
 const router = Router();
@@ -944,6 +945,11 @@ const tools: Anthropic.Tool[] = [
     name: "set_todo_done",
     description: "Tick a to-do off, or open it again (done: false). Works for any to-do on the Actions screen; ticking one from Larisa's Guide marks it done in Wander only.",
     input_schema: { type: "object" as const, properties: { tripId: { type: "string" }, todoId: { type: "string" }, done: { type: "boolean" } }, required: ["tripId", "todoId", "done"] },
+  },
+  {
+    name: "set_deadline_done",
+    description: "Mark a deadline from Larisa's Guide done in Wander (e.g. 'I reconfirmed Robuchon'), or not done (done: false). Wander's record only — her sheet isn't changed. Name it by its words as the deadlines status lists it. Only when the person says it's done; never assume.",
+    input_schema: { type: "object" as const, properties: { tripId: { type: "string" }, deadline: { type: "string", description: "Its words, e.g. 'Reconfirm the La Table de Joël Robuchon dinner'" }, done: { type: "boolean" } }, required: ["tripId", "deadline", "done"] },
   },
   {
     name: "remove_todo",
@@ -3586,7 +3592,12 @@ export async function executeTool(
       const INITIALS: Record<string, string> = { LF: "Larisa", KR: "Ken", AB: "Andy", JD: "Julie" };
       const forWhom = (t: { owner: string; sheetRowRef: string | null }) =>
         t.owner === "Both" ? (t.sheetRowRef ? "Andy & Larisa" : "everyone") : t.owner.split(/\s*[\/&,]\s*/).map((o) => INITIALS[o] || o).join(" & ");
-      return { result: { todos: todos.map((t) => ({ id: t.id, action: t.action, for: forWhom(t), by: t.dueDate, done: t.status === "done", andyStatus: t.andyStatus, larisaStatus: t.larisaStatus, notes: t.notes, from: t.sheetRowRef ? "Larisa's Guide" : t.createdBy ? `added in Wander by ${t.createdBy}` : "added in Wander" })) } };
+      // (her to-dos ticked in Wander by the person they're for — Oct 9 — are done, said with who and when)
+      const marks = new Map((await listMarks(input.tripId).catch(() => [])).map((m) => [m.key, m]));
+      return { result: { todos: todos.map((t) => {
+        const mark = t.sheetRowRef ? marks.get(todoKey(t)) : undefined;
+        return { id: t.id, action: t.action, for: forWhom(t), by: t.dueDate, done: t.status === "done" || !!mark, ...(mark ? { markedDoneInWander: `by ${mark.byName} on ${mark.at.slice(0, 10)} (Wander's record; her sheet may not say so)` } : {}), andyStatus: t.andyStatus, larisaStatus: t.larisaStatus, notes: t.notes, from: t.sheetRowRef ? "Larisa's Guide" : t.createdBy ? `added in Wander by ${t.createdBy}` : "added in Wander" };
+      }) } };
     }
     case "add_todo": {
       if (!String(input.action || "").trim()) return { result: { error: "What needs doing?" } };
@@ -3599,9 +3610,30 @@ export async function executeTool(
     case "set_todo_done": {
       const t = await prisma.planningAction.findFirst({ where: { id: input.todoId, tripId: input.tripId } });
       if (!t) return { result: { error: "That to-do isn't on this trip." } };
+      // Her Guide's to-do: marked done in Wander, beside her list — never changed in it (it's rebuilt on every read of her
+      // Guide, and her sheet is hers to tick)
+      if (t.sheetRowRef) {
+        const r = await setMark(input.tripId, { travelerId: user.travelerId || "", name: user.displayName }, todoKey(t), t.action, !!input.done);
+        if (!r.ok) return { result: { error: r.error } };
+        logChange({ tripId: input.tripId, user: user as any, actionType: input.done ? "action_marked_done" : "action_marked_open", entityType: "action_mark", entityId: todoKey(t), entityName: t.action, description: input.done ? `marked "${t.action}" done` : `marked "${t.action}" not done yet` }).catch(() => {});
+        return { result: { updated: true, markedInWander: true, note: "Marked in Wander only — Larisa's sheet isn't changed." }, actionDescription: `${input.done ? "Done" : "Open again"}: ${t.action}` };
+      }
       const updated = await prisma.planningAction.update({ where: { id: t.id }, data: { status: input.done ? "done" : "open" } });
       logChange({ tripId: input.tripId, user: user as any, actionType: input.done ? "action_done" : "action_reopened", entityType: "planning_action", entityId: t.id, entityName: t.action, description: input.done ? `ticked off "${t.action}"` : `marked "${t.action}" not done` }).catch(() => {});
       return { result: { updated: true, todo: updated }, actionDescription: `${input.done ? "Done" : "Open again"}: ${t.action}` };
+    }
+    case "set_deadline_done": {
+      const words = String(input.deadline || "").trim().toLowerCase();
+      if (!words) return { result: { error: "Which deadline?" } };
+      const deadlines = await prisma.guideItem.findMany({ where: { tripId: input.tripId, kind: "deadline" }, select: { title: true, date: true } });
+      const found = deadlines.filter((d) => d.title.toLowerCase().includes(words) || words.includes(d.title.toLowerCase()));
+      if (!found.length) return { result: { error: "No deadline in the Guide says that.", deadlines: deadlines.map((d) => d.title) } };
+      if (found.length > 1) return { result: { error: "More than one deadline matches — which one?", matches: found.map((d) => `${d.title} (${d.date?.toISOString().slice(0, 10)})`) } };
+      const d = found[0];
+      const r = await setMark(input.tripId, { travelerId: user.travelerId || "", name: user.displayName }, deadlineKey(d), d.title, !!input.done);
+      if (!r.ok) return { result: { error: r.error } };
+      logChange({ tripId: input.tripId, user: user as any, actionType: input.done ? "action_marked_done" : "action_marked_open", entityType: "action_mark", entityId: deadlineKey(d), entityName: d.title, description: input.done ? `marked "${d.title}" done` : `marked "${d.title}" not done yet` }).catch(() => {});
+      return { result: { updated: true, deadline: d.title, done: !!input.done, note: "Marked in Wander only — Larisa's sheet isn't changed." }, actionDescription: `${input.done ? "Done" : "Open again"}: ${d.title}` };
     }
     case "remove_todo": {
       const t = await prisma.planningAction.findFirst({ where: { id: input.todoId, tripId: input.tripId } });

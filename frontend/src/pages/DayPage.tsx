@@ -499,6 +499,7 @@ import { CityTitle } from "../components/CityArrival";
 import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
 import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwner";
+import { loadMarks, savedMarks, deadlineKey, markDay, type Mark } from "../lib/actionMarks";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -717,6 +718,16 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     guidePictures(tripId).then((p) => { if (!cancelled) setPictures(p); });
     daySummaries(tripId).then((s) => { if (!cancelled) setDaySummaries(s); });
     return () => { cancelled = true; };
+  }, [tripId]);
+  // Deadlines marked done in Wander by the person they're for (Oct 9) — "Don't miss" stops asking, the card says done
+  const [doneMarks, setDoneMarks] = useState<Map<string, Mark>>(() => (tripId ? savedMarks(tripId) : new Map()));
+  useEffect(() => {
+    if (!tripId) return;
+    let cancelled = false;
+    const get = () => loadMarks(tripId).then((m) => { if (!cancelled) setDoneMarks(m); });
+    get();
+    window.addEventListener("wander:marks-changed", get);
+    return () => { cancelled = true; window.removeEventListener("wander:marks-changed", get); };
   }, [tripId]);
 
   // The day in the order it's lived (lib/guideDisplay.ts). Deadlines appear on every day of their
@@ -1193,11 +1204,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       return [{ key: `ready-${railKey(x)}`, to: `train-${railKey(x)}`,
         body: <>Check before the {twelveHour(colOf(x.r.cols, /^depart/))} {colOf(x.r.cols, /^train$/)}: {withTwelveHour(ready.split(/(?<=[.;])\s+/)[0]).replace(/;$/, ".")}</> }];
     }),
-    ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && isFor(i, me) && !someoneElsesJob(i))
+    ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && !doneMarks.has(deadlineKey(i)) && isFor(i, me) && !someoneElsesJob(i))
       .map((i) => ({ key: `deadline-${i.id}`, to: `item-${i.id}`, body: <>Deadline: {itemTitle(i, stays, date)}</> })),
     // …and one ending today that's the job of someone you travel with — said as theirs (day review, Oct 8: on Oct 14 Ken's
     // page had Larisa's last day to reconfirm Robuchon only as a card below dinner; Julie and Andy don't get it)
-    ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && isFor(i, me) && someoneElsesJob(i)
+    ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && !doneMarks.has(deadlineKey(i)) && isFor(i, me) && someoneElsesJob(i)
       && (partyOf(items, me) || "").toLowerCase().split(/\s*(?:&|,|\band\b)\s*/).includes(bookedByName(i)!.split(/\s+/)[0].toLowerCase()))
       .map((i) => ({ key: `deadline-${i.id}`, to: `item-${i.id}`, body: <>{bookedByName(i)!.split(/\s+/)[0]}'s to-do, last day today: {itemTitle(i, stays, date)}</> })),
     // (her line, or the booking under it when that's where the difference is said — never both)
@@ -1784,7 +1795,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // landing, and the booked 6:17 PM NOZOMI 77 sat at the bottom under Trains): your booked trains join the
                   // timed lines at their times — each opens its full card in Trains — and lines her Guide gives no time say so
                   const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} quotedAbove={headline?.title} compact
-                    autoOpen={nowLine?.key === `item-${i.id}`} past={pastLine(i)} />;
+                    autoOpen={nowLine?.key === `item-${i.id}`} past={pastLine(i)}
+                    doneMark={i.kind === "deadline" ? doneMarks.get(deadlineKey(i)) : undefined} />;
                   // (on a day with her plan, a train her plan names sits under that line; any other joins here at its time)
                   const trains = timelineTrains;
                   const dep = (r: RailRow) => tripClockMinutes({ time: colOf(r.cols, /^depart/).padStart(5, "0") } as GuideItem, tripZone);
@@ -2012,7 +2024,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 }
 
 /** One line of the Guide for this day. */
-function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false }: {
+function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false, doneMark }: {
+  /** a deadline marked done in Wander by the person it's for (Oct 9): said as done, not amber */
+  doneMark?: Mark;
   i: GuideItem; date: string; today: string; tripZone: string; stays: TripGuideData["stays"]; me: string | null; highlight: boolean; day: GuideItem[];
   /** the line that's now (or a future day's first): open by itself (day design step 3) */
   autoOpen?: boolean;
@@ -2059,7 +2073,9 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   const actor = deadline ? bookedByName(i)?.split(/\s+/)[0] || null : null;
   const people = new Set([...(all || []).flatMap((x) => (x.forWhom || "").split(/\s*(?:&|,|\band\b)\s*/i)), owner || ""].map((s) => s.trim().toLowerCase()).filter(Boolean));
   const othersJob = !!actor && !!me && people.has(actor.toLowerCase()) && actor.toLowerCase() !== me.trim().toLowerCase();
-  const tone = over ? "bg-[#f4efe7] border-[#e0d8cc]" : deadline && !othersJob ? "bg-[#fff8ec] border-[#e8c98f]" : maybe ? "bg-white/60 border-dashed border-[#d6ccbc]" : "bg-white border-[#e0d8cc]";
+  // (marked done in Wander: said as done — "Done — Larisa, Oct 12" — calm, not amber)
+  const doneWords = doneMark ? `Done — ${me && doneMark.byName.toLowerCase() === me.toLowerCase() ? "you" : doneMark.byName}, ${markDay(doneMark)} (marked in Wander)` : null;
+  const tone = over || doneMark ? "bg-[#f4efe7] border-[#e0d8cc]" : deadline && !othersJob ? "bg-[#fff8ec] border-[#e8c98f]" : maybe ? "bg-white/60 border-dashed border-[#d6ccbc]" : "bg-white border-[#e0d8cc]";
   // Her quoted policy ("Worked out from: …") is the why, not the what — one tap away, not a wall of text
   const [showWhy, setShowWhy] = useState(false);
   // Someone else's line: whose it is up top, and their long notes folded (round 11: Ken & Larisa's 12-line Mashiko
@@ -2153,7 +2169,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
               {landingTitle(i, me, itemTitle(i, stays, date))}{booked ? ` · ${booked}` : ""}
               <span className="text-[#6b5d4a]">{"\u00a0"}›</span>
             </span>
-            {timing && <span className={`block text-sm mt-0.5 ${othersJob ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>{timing}</span>}
+            {doneWords ? <span className="block text-sm mt-0.5 text-[#3f5a2a]">{doneWords}</span>
+              : timing && <span className={`block text-sm mt-0.5 ${othersJob ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>{timing}</span>}
             {leaveBy && <span className="block text-sm text-[#3a3128] mt-0.5">Check out before {timeLabel(leaveBy, day)} · {itemTitle(leaveBy, stays, date)}</span>}
             {checkinAfterLanding(i, day) && <span className="block text-sm text-[#6b5d4a] mt-0.5">Rooms are ready from {clock(i.time)}.</span>}
             {inJapan && <span className="block text-sm text-[#514636] mt-0.5">{inJapan}</span>}
@@ -2231,7 +2248,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
                 className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Tell {owner || "her"} your answer ›</button>
             </div>
           )}
-          {deadline && (over || windowWords || time) && (
+          {doneWords && <p className="text-sm mt-1 text-[#3f5a2a]">{doneWords}</p>}
+          {deadline && !doneWords && (over || windowWords || time) && (
             <p className={`text-sm mt-1 ${othersJob ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>
               {/* A free-cancellation window that closed asks nothing of anyone — said so (delight audit: Julie read "Ended"
                   beside "Until 11:59 PM Japan time" and wondered what she'd missed) */}

@@ -2,6 +2,24 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-09 — Actions: Yours First, Others' Lists Folded, Done Marked in Wander
+
+### Changed
+- Actions (Ken: "it seems to include old actions, non actions, and actions not for me"):
+  - Your to-dos (and everyone's) come first; each other person's list is one quiet row ("Andy & Julie's to-dos · 4 ›",
+    "LT's to-dos · 1 ›") that opens in place. With nothing of yours open: "Nothing for you right now."
+  - A to-do from Larisa's Guide can now be marked done in Wander by the people it's for (and the trip's lead). Her lists
+    with no status column ("AB / JD Actions") could never finish before. It's Wander's record — never written to her
+    sheet — said with who and when ("done — Andy, Oct 14"), with "Not done after all".
+  - A deadline that asks something (reconfirm, pay, book…) has "Done ✓" for whoever it's for, or the trip's lead.
+    Marked done, it leaves Actions' deadlines, the day's "Today, don't miss" and Home's deadlines; its card on the day
+    says "Done — Larisa, Oct 14 (marked in Wander)". "Free cancellation ends" asks nothing and has no Done.
+- Scout: told which deadlines were marked done (never reminds anyone of them); its to-do list says who marked one done.
+  Its "set_todo_done" on one of her to-dos now marks it in Wander instead of changing her list (which every re-read of
+  her Guide rebuilt); new "set_deadline_done" ("I reconfirmed Robuchon").
+- New table action_marks (key per her to-do's place in her list, or a deadline's words and date — stable across re-reads).
+- SPEC sections: Actions; deadlines; AI chat parity. SPEC UPDATE NEEDED.
+
 ## 2026-10-09 — Scout's Panel Stays on the Screen; the Day's Tab Bar Changes Withdrawn
 
 ### Fixed

@@ -24,6 +24,7 @@ import { savedCopy } from "../lib/tripNotes";
 import { sourcesData, railAudience, legIsFor, isBookedTrain, colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, herTab, withTwelveHour, railNoteFor, type OtherSource, type Checklist, type RailRow } from "../lib/sources";
 import { checklistTitle, DifferLine, TicketWarnings } from "./RailSheet";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
+import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMarks";
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
@@ -215,6 +216,15 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     window.addEventListener("focus", refresh);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); window.removeEventListener("focus", refresh); };
   }, []);
+  // Deadlines marked done in Wander by the person they're for (Oct 9) — Home stops listing them
+  const [doneMarks, setDoneMarks] = useState<Map<string, Mark>>(() => savedMarks(tripId));
+  useEffect(() => {
+    let live = true;
+    const get = () => loadMarks(tripId).then((m) => { if (live) setDoneMarks(m); });
+    get();
+    window.addEventListener("wander:marks-changed", get);
+    return () => { live = false; window.removeEventListener("wander:marks-changed", get); };
+  }, [tripId]);
 
   const view = useMemo(() => {
     if (!data) return null;
@@ -236,7 +246,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
       return !owner || !me || owner.toLowerCase() === me.toLowerCase();
     };
     const deadlinesAhead = (from: string, span: number) => data.items
-      .filter((i) => i.kind === "deadline" && (!deadlineOver(i, tz) || (deadlineJustPassed(i, tz) && passedForMe(i))) &&
+      .filter((i) => i.kind === "deadline" && !doneMarks.has(deadlineKey(i)) && (!deadlineOver(i, tz) || (deadlineJustPassed(i, tz) && passedForMe(i))) &&
         (ymd(i.date) >= from || deadlineOnDate(i, from) || deadlineJustPassed(i, tz)) && (i.windowStart || ymd(i.date)) <= addDays(from, span))
       // A window sorts by when it opens ("Oct 10 – 14" before an Oct 11 cutoff)
       .sort((a, b) => (a.windowStart || ymd(a.date)).localeCompare(b.windowStart || ymd(b.date)));
@@ -254,7 +264,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         unowned: blocks.filter((b) => b.time && !said(b) && noOwner.has(b.id)) };
     };
     return { first, last, tz, myFirst, on, planOn, deadlinesAhead };
-  }, [data, me]);
+  }, [data, me, doneMarks]);
 
   // While it loads, hold its place: the calendar used to sit at the top for half a second, then drop ~500px when this
   // arrived, under a thumb about to tap a day (round 12). A calm card in its place keeps everything below still.
@@ -662,7 +672,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const tomorrowPlanFirst = planOn(tomorrow).timed.filter((b) => isFor(b, me) || !b.forWhom).sort((a, b) => a.time!.localeCompare(b.time!))[0];
   const planLeadsTomorrow = !!tomorrowPlanFirst && (!tomorrowLead?.time || tomorrowPlanFirst.time! < tomorrowLead.time);
   const tomorrowLeave = tomorrowFlight && !planOn(tomorrow).all.some((b) => /haruka|airport|\bKIX\b|transfer/i.test(b.title)) ? leaveForAirport(tomorrowFlight, cityOn(tomorrow) || cityOn(today)) : null;
-  const todayDeadlines = data.items.filter((i) => deadlineOnDate(i, today));
+  // (not one marked done in Wander — Oct 9)
+  const todayDeadlines = data.items.filter((i) => deadlineOnDate(i, today) && !doneMarks.has(deadlineKey(i)));
   const guidedToday = data.days.find((d) => ymd(d.date) === today)?.dayType === "guided";
   const guidedDays = data.days.filter((d) => d.dayType === "guided").map((d) => ymd(d.date)).sort();
 
