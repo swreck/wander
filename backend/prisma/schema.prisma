@@ -114,6 +114,7 @@ model Trip {
   dedupSuggestions  DedupSuggestion[]
   sheetSyncConfig   SheetSyncConfig?
   planningActions   PlanningAction[]
+  actionMarks       ActionMark[]
   sheetNotes        SheetNote[]
 
   // Larisa's Guide (Sep 2026): the trip is built from snapshots of her sheet.
@@ -863,6 +864,25 @@ model SheetNote {
 }
 
 // ── Planning Actions (from Larisa's Japan Guide Actions tab) ─
+// A to-do or deadline marked done in Wander (Ken, Oct 9: Actions "seems to include old actions, non actions, and actions not
+// for me"). Her Guide's own to-dos can't be ticked in her sheet from Wander, so the person it's for ticks it here — kept
+// apart from her items, which are rebuilt on every read of the Guide. `key`: "todo:<her list's row ref>" or
+// "deadline:<title>|<date>" — stable across re-reads. Never written to her sheet.
+model ActionMark {
+  id         String   @id @default(cuid())
+  tripId     String   @map("trip_id")
+  key        String
+  label      String                                   // what it was, as shown when ticked (for History and Scout)
+  byName     String   @map("by_name")                 // who ticked it, as named then
+  travelerId String   @map("traveler_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, key])
+  @@map("action_marks")
+}
+
 model PlanningAction {
   id           String   @id @default(cuid())
   tripId       String   @map("trip_id")

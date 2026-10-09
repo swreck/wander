@@ -12,6 +12,7 @@ import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName, bookedWord
 import { useAuth } from "../contexts/AuthContext";
 import { sourcesData, railAudience, beforeTravelSteps, sourceWordsFor, type OtherSource } from "../lib/sources";
 import { checklistTitle } from "./RailSheet";
+import { loadMarks, savedMarks, setMark, todoKey, deadlineKey, markDay, type Mark } from "../lib/actionMarks";
 
 interface PlanningAction {
   id: string;
@@ -69,7 +70,10 @@ function dueWords(due: string): string {
 export default function ActionsPanel({ tripId, onClose, decisions, userCode, onNavigate }: Props) {
   const { showToast } = useToast();
   // Who is looking — a deadline says whose to-do it is ("Larisa's to do …")
-  const me = useAuth().user?.displayName || null;
+  const auth = useAuth();
+  const me = auth.user?.displayName || null;
+  // The trip's lead (Ken) may tick anyone's to-do, as he may take out anyone's Maybe
+  const isPlanner = auth.user?.role === "planner";
   const [actions, setActions] = useState<PlanningAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -87,6 +91,16 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
 
   // Done section toggle — must be above early return to avoid hooks ordering violation
   const [showDone, setShowDone] = useState(false);
+  // Marked done in Wander (Ken, Oct 9), and which other person's list is open
+  const [marks, setMarks] = useState<Map<string, Mark>>(() => savedMarks(tripId));
+  const [openList, setOpenList] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const get = () => loadMarks(tripId).then((m) => { if (live) setMarks(m); });
+    get();
+    window.addEventListener("wander:marks-changed", get);
+    return () => { live = false; window.removeEventListener("wander:marks-changed", get); };
+  }, [tripId]);
   // With no signal: the list this phone saved, or an honest "can't load" (never a false "nothing")
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [unreachable, setUnreachable] = useState(false);
@@ -176,6 +190,15 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
     }
   }
 
+  // Her to-do or deadline marked done in Wander — beside her list, never in her sheet
+  async function mark(key: string, label: string, done: boolean) {
+    try {
+      await setMark(tripId, key, label, done);
+    } catch {
+      showToast(navigator.onLine ? "That tick didn't stick — try again?" : "No signal — that tick didn't save. Try again when you're back online.", "error");
+    }
+  }
+
   async function handleSaveNotes(actionId: string) {
     try {
       await api.patch(`/sheets-sync/actions/${actionId}`, { notes: editNotes });
@@ -197,10 +220,27 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   // Due dates arrive as "2026-04-15" (from the Guide) or "4/15" (typed here). Past-due ones aren't
   // "coming up" — they're earlier to-dos in the Guide, shown quietly below.
   const todayStart = new Date(new Date().toDateString());
-  const upcoming = actions.filter(a => a.status === "open" && !isPastDue(a.dueDate, todayStart));
-  const earlier = actions.filter(a => a.status === "open" && isPastDue(a.dueDate, todayStart));
+  // Whose it is. Her Actions tab's "Both" is Andy and Larisa — its two status columns (her "LF" rows mark Andy's "N/A");
+  // round 12: Larisa read "For everyone" on her and Andy's planning to-dos. "Both" on a to-do added in Wander is the
+  // form's "Group". Her initials, one or several — "AB / JD" is Andy & Julie; ones no one has ("LT") stay as written.
+  const INITIALS: Record<string, string> = { LF: "Larisa", KR: "Ken", AB: "Andy", JD: "Julie" };
+  const whoFor = (a: PlanningAction): string[] | null =>
+    a.owner === "Both" ? (a.sheetRowRef ? ["Andy", "Larisa"] : null) : a.owner.split(/\s*[/&,]\s*/).map((o) => INITIALS[o] || o);
+  const isMine = (a: PlanningAction) => { const w = whoFor(a); return !w || (!!me && w.some((n) => n.toLowerCase() === me.toLowerCase())); };
+  // Done: in her sheet (its column says so), ticked in Wander, or marked done in Wander (her to-dos, Oct 9)
+  const markOf = (a: PlanningAction) => (a.sheetRowRef ? marks.get(todoKey(a)) : undefined);
+  const isDone = (a: PlanningAction) => a.status === "done" || !!markOf(a);
+  // Ticked by the people it's for (and the trip's lead); a Wander-added one by anyone, as before
+  const canTick = (a: PlanningAction) => !a.sheetRowRef || isMine(a) || isPlanner;
+  // Yours first (and everyone's); each other person's list is one quiet row (Ken, Oct 9: "actions not for me")
+  const upcoming = actions.filter(a => !isDone(a) && isMine(a) && !isPastDue(a.dueDate, todayStart));
+  const earlier = actions.filter(a => !isDone(a) && isMine(a) && isPastDue(a.dueDate, todayStart));
   const open = [...upcoming, ...earlier];
-  const done = actions.filter(a => a.status === "done");
+  const othersLists = [...actions.filter((a) => !isDone(a) && !isMine(a)).reduce((m, a) => {
+    const label = (whoFor(a) || []).join(" & ");
+    return m.set(label, [...(m.get(label) || []), a]);
+  }, new Map<string, PlanningAction[]>())];
+  const done = actions.filter(isDone);
 
   // Decisions that need THIS user's input
   const needsMyInput = (decisions || []).filter(dec => {
@@ -237,139 +277,22 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   const tz = guide?.trip.timeZone || "Asia/Tokyo";
   const todayYmd = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
   const in14 = (() => { const d = new Date(`${todayYmd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 14); return d.toISOString().slice(0, 10); })();
+  // A deadline that asks something of someone (reconfirm, pay, book…) can be marked done by them or the trip's lead —
+  // not "free cancellation ends" or "charges start", which ask nothing (Oct 9)
+  const deadlineMark = (i: { title: string; date: string | null }) => marks.get(deadlineKey(i));
+  const asksSomething = (i: { title: string }) => /\b(reconfirm|confirm|pay|book|send|call|submit|register|order|buy|apply|sign|email|reply|tell)\b/i.test(i.title);
+  const canTickDeadline = (i: Parameters<typeof bookedByName>[0] & { forWhom?: string | null }) => {
+    if (isPlanner) return true;
+    const actor = bookedByName(i)?.split(/\s+/)[0];
+    return actor ? !!me && actor.toLowerCase() === me.toLowerCase() : !!i.forWhom && !/^everyone$/i.test(i.forWhom) && isFor(i, me);
+  };
+  const doneDeadlines = (guide?.items || []).filter((i) => i.kind === "deadline" && !!deadlineMark(i));
   const deadlines = (guide?.items || [])
-    .filter((i) => i.kind === "deadline" && !deadlineOver(i, tz) && (i.windowStart || (i.date || "").slice(0, 10)) <= in14)
+    .filter((i) => i.kind === "deadline" && !deadlineMark(i) && !deadlineOver(i, tz) && (i.windowStart || (i.date || "").slice(0, 10)) <= in14)
     .sort((a, b) => (a.windowStart || (a.date || "").slice(0, 10)).localeCompare(b.windowStart || (b.date || "").slice(0, 10)));
 
-  return (
-    <div className="fixed inset-0 z-50 bg-[#faf8f5] overflow-y-auto"
-         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px + var(--scout-dock, 0px))" }}>
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-4 py-3 flex items-center justify-between"
-           style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
-        <div className="flex items-center gap-3">
-          <button onClick={onClose} className="text-[#6b5d4a] hover:text-[#3a3128] min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Close">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-          <div>
-            <h1 className="text-lg font-medium text-[#3a3128]">Actions</h1>
-            <span className="text-xs text-[#6b5d4a]">Deadlines and to-dos from {voiceFor(me).guide}</span>
-          </div>
-        </div>
-        <button
-          // Cancel clears what was typed, as on every other form (a tester's draft came back after Cancel)
-          onClick={() => { if (adding) { setNewAction(""); setNewOwner("Both"); setNewDue(""); setNewNotes(""); } setAdding(!adding); }}
-          className="text-sm text-[#514636] font-medium hover:text-[#3a3128] min-h-[44px] min-w-[44px] justify-end flex items-center"
-        >
-          {adding ? "Cancel" : "+ Add"}
-        </button>
-      </div>
-
-      <div className="max-w-lg mx-auto px-4 py-4">
-
-        {savedAt && (
-          <p className="mb-4 text-sm text-[#6b5d4a] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2" role="status">
-            No signal — showing what this phone saved {new Date(savedAt).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}.
-          </p>
-        )}
-
-        {/* ── Deadlines from the Guide ── */}
-        {deadlines.length > 0 && (
-          <div className="mb-6">
-            <div className="text-xs text-[#8a5a1a] uppercase tracking-wider font-medium mb-2">Deadlines in the next two weeks</div>
-            <ul className="space-y-2">
-              {deadlines.map((i) => {
-                const time = deadlineTimeWords(i, tz);
-                return (
-                  <li key={i.id}>
-                    <button onClick={() => onNavigate?.(`/day/${(i.date || "").slice(0, 10)}#item-${i.id}`)}
-                      className="w-full text-left bg-[#fff8ec] rounded-xl border border-[#e8c98f] p-3.5">
-                      <div className="text-sm text-[#3a3128]"><span className="text-[#8a5a1a]">{deadlineWhen(i, todayYmd)}</span> · {i.title}</div>
-                      {/* Whose it is: the people it names, else whose name the booking is under (round 10) */}
-                      {(i.forWhom || time || bookedByName(i)) && (
-                        <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : bookedWords(i, me), time].filter(Boolean).join(" · ")}</div>
-                      )}
-                      {isFreeCancel(i) && <div className="text-xs text-[#6b5d4a] mt-0.5">{FREE_CANCEL_WORDS}</div>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-
-        {/* ── Ken's rail sheet: before you travel (round 13: Actions looked empty of the card and IDs to pack) ── */}
-        {(() => {
-          const lists = otherSources.flatMap((s) => {
-            const a = guide ? railAudience(guide.items, s.owner) : null;
-            if (!a?.ownerParty || !isFor({ forWhom: a.ownerParty }, me)) return [];
-            return s.checklists.filter((c) => c.date && todayYmd < c.date)
-              .map((c) => ({ s, c, steps: beforeTravelSteps(s.id, c) })).filter((x) => x.steps.length);
-          });
-          if (!lists.length) return null;
-          return (
-            <div className="mb-6">
-              <div className="text-xs text-[#8a5a1a] uppercase tracking-wider font-medium mb-2">Before you travel</div>
-              {lists.map(({ s, c, steps }) => (
-                <button key={`${s.id}-${c.tab}`} onClick={() => onNavigate?.(`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`)}
-                  className="w-full text-left bg-white rounded-xl border border-[#e0d8cc] p-3.5 mb-2">
-                  <div className="text-sm text-[#3a3128]">{checklistTitle(c.tab)} — {steps.length === 1 ? "one step" : `${steps.length} steps`} for before you go ›</div>
-                  <ul className="mt-1.5 space-y-1">
-                    {steps.map((x) => (
-                      <li key={x.row} className="text-[13px] text-[#514636]">
-                        <span className={x.ticked ? "text-[#3d6b3a]" : "text-[#8a5a1a]"}>{x.ticked ? "✓ Ticked on this phone · " : ""}</span>
-                        {x.where.replace(/^Before travel;?\s*/i, "") || "Before travel"}: {x.what}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="text-xs text-[#6b5d4a] mt-1.5">From {sourceWordsFor(s, me)}</div>
-                </button>
-              ))}
-            </div>
-          );
-        })()}
-
-        {/* ── Section 1: Needs your input ── */}
-        {needsMyInput.length > 0 && (
-          <div className="mb-6">
-            <div className="text-xs text-amber-700 uppercase tracking-wider font-medium mb-2">
-              {needsMyInput.length === 1 ? "Your thoughts?" : `${needsMyInput.length} things could use your input`}
-            </div>
-            <div className="space-y-2">
-              {needsMyInput.map(dec => {
-                const voterCount = new Set(dec.votes.map(v => v.userCode)).size;
-                const voterNames = [...new Set(dec.votes.map(v => v.displayName))];
-                return (
-                  <button
-                    key={dec.id}
-                    onClick={() => onNavigate?.(`/ideas?city=${dec.cityId}`)}
-                    className="w-full text-left p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-50 transition-colors"
-                  >
-                    <div className="text-sm font-medium text-[#3a3128]">{dec.title}</div>
-                    <div className="text-xs text-[#6b5d4a] mt-1">
-                      {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
-                      {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
-                    </div>
-                    <div className="text-xs text-amber-700 mt-1">Tap to weigh in →</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Section 2: Coming up (Guide Actions), then earlier to-dos the Guide still lists ── */}
-        {open.length > 0 && (
-          <div className="mb-6">
-            <div className="text-xs text-[#6b5d4a] uppercase tracking-wider font-medium mb-2">
-              {/* (not "Coming up": a to-do with no date — her April "Activities", TBD — isn't coming up; round 12) */}
-              {upcoming.length > 0 ? "Still to do" : "Earlier to-dos in the Guide"}
-            </div>
-            <div className="space-y-2">
-              {open.map((a, idx) => {
-                const firstEarlier = upcoming.length > 0 && idx === upcoming.length;
+  // One to-do, as a card — yours, or in someone else's list opened in place
+  const renderTodo = (a: PlanningAction, firstEarlier = false) => {
                 const dest = getActionDestination(a);
                 return (
                   <Fragment key={a.id}>
@@ -378,10 +301,11 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                   )}
                   <div className="bg-white rounded-xl border border-[#e8e0d4] p-3.5">
                     <div className="flex items-start gap-3">
-                      {/* The Guide's own to-dos are Larisa's to tick, in her sheet; only Wander's own can be ticked here */}
-                      {!a.sheetRowRef && (
+                      {/* A Wander to-do is ticked as before; one of hers is marked done in Wander by the people it's for (and
+                          the trip's lead) — never in her sheet (Ken, Oct 9: they could never finish here) */}
+                      {canTick(a) && (
                         <button
-                          onClick={() => handleToggleDone(a)}
+                          onClick={() => (a.sheetRowRef ? mark(todoKey(a), a.action, true) : handleToggleDone(a))}
                           className="-m-3 p-3 shrink-0"
                           aria-label={`Mark ${a.action} as done`}
                         >
@@ -501,8 +425,157 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                   </div>
                   </Fragment>
                 );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#faf8f5] overflow-y-auto"
+         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px + var(--scout-dock, 0px))" }}>
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-4 py-3 flex items-center justify-between"
+           style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
+        <div className="flex items-center gap-3">
+          <button onClick={onClose} className="text-[#6b5d4a] hover:text-[#3a3128] min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-lg font-medium text-[#3a3128]">Actions</h1>
+            <span className="text-xs text-[#6b5d4a]">Deadlines and to-dos from {voiceFor(me).guide}</span>
+          </div>
+        </div>
+        <button
+          // Cancel clears what was typed, as on every other form (a tester's draft came back after Cancel)
+          onClick={() => { if (adding) { setNewAction(""); setNewOwner("Both"); setNewDue(""); setNewNotes(""); } setAdding(!adding); }}
+          className="text-sm text-[#514636] font-medium hover:text-[#3a3128] min-h-[44px] min-w-[44px] justify-end flex items-center"
+        >
+          {adding ? "Cancel" : "+ Add"}
+        </button>
+      </div>
+
+      <div className="max-w-lg mx-auto px-4 py-4">
+
+        {savedAt && (
+          <p className="mb-4 text-sm text-[#6b5d4a] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2" role="status">
+            No signal — showing what this phone saved {new Date(savedAt).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}.
+          </p>
+        )}
+
+        {/* ── Deadlines from the Guide ── */}
+        {deadlines.length > 0 && (
+          <div className="mb-6">
+            <div className="text-xs text-[#8a5a1a] uppercase tracking-wider font-medium mb-2">Deadlines in the next two weeks</div>
+            <ul className="space-y-2">
+              {deadlines.map((i) => {
+                const time = deadlineTimeWords(i, tz);
+                return (
+                  <li key={i.id} className="bg-[#fff8ec] rounded-xl border border-[#e8c98f]">
+                    <button onClick={() => onNavigate?.(`/day/${(i.date || "").slice(0, 10)}#item-${i.id}`)}
+                      className="w-full text-left p-3.5 pb-2">
+                      <div className="text-sm text-[#3a3128]"><span className="text-[#8a5a1a]">{deadlineWhen(i, todayYmd)}</span> · {i.title}</div>
+                      {/* Whose it is: the people it names, else whose name the booking is under (round 10) */}
+                      {(i.forWhom || time || bookedByName(i)) && (
+                        <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : bookedWords(i, me), time].filter(Boolean).join(" · ")}</div>
+                      )}
+                      {isFreeCancel(i) && <div className="text-xs text-[#6b5d4a] mt-0.5">{FREE_CANCEL_WORDS}</div>}
+                    </button>
+                    {asksSomething(i) && canTickDeadline(i) && (
+                      <div className="px-3.5 pb-1.5">
+                        <button onClick={() => mark(deadlineKey(i), i.title, true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Done ✓</button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {/* ── Ken's rail sheet: before you travel (round 13: Actions looked empty of the card and IDs to pack) ── */}
+        {(() => {
+          const lists = otherSources.flatMap((s) => {
+            const a = guide ? railAudience(guide.items, s.owner) : null;
+            if (!a?.ownerParty || !isFor({ forWhom: a.ownerParty }, me)) return [];
+            return s.checklists.filter((c) => c.date && todayYmd < c.date)
+              .map((c) => ({ s, c, steps: beforeTravelSteps(s.id, c) })).filter((x) => x.steps.length);
+          });
+          if (!lists.length) return null;
+          return (
+            <div className="mb-6">
+              <div className="text-xs text-[#8a5a1a] uppercase tracking-wider font-medium mb-2">Before you travel</div>
+              {lists.map(({ s, c, steps }) => (
+                <button key={`${s.id}-${c.tab}`} onClick={() => onNavigate?.(`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`)}
+                  className="w-full text-left bg-white rounded-xl border border-[#e0d8cc] p-3.5 mb-2">
+                  <div className="text-sm text-[#3a3128]">{checklistTitle(c.tab)} — {steps.length === 1 ? "one step" : `${steps.length} steps`} for before you go ›</div>
+                  <ul className="mt-1.5 space-y-1">
+                    {steps.map((x) => (
+                      <li key={x.row} className="text-[13px] text-[#514636]">
+                        <span className={x.ticked ? "text-[#3d6b3a]" : "text-[#8a5a1a]"}>{x.ticked ? "✓ Ticked on this phone · " : ""}</span>
+                        {x.where.replace(/^Before travel;?\s*/i, "") || "Before travel"}: {x.what}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="text-xs text-[#6b5d4a] mt-1.5">From {sourceWordsFor(s, me)}</div>
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* ── Section 1: Needs your input ── */}
+        {needsMyInput.length > 0 && (
+          <div className="mb-6">
+            <div className="text-xs text-amber-700 uppercase tracking-wider font-medium mb-2">
+              {needsMyInput.length === 1 ? "Your thoughts?" : `${needsMyInput.length} things could use your input`}
+            </div>
+            <div className="space-y-2">
+              {needsMyInput.map(dec => {
+                const voterCount = new Set(dec.votes.map(v => v.userCode)).size;
+                const voterNames = [...new Set(dec.votes.map(v => v.displayName))];
+                return (
+                  <button
+                    key={dec.id}
+                    onClick={() => onNavigate?.(`/ideas?city=${dec.cityId}`)}
+                    className="w-full text-left p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-50 transition-colors"
+                  >
+                    <div className="text-sm font-medium text-[#3a3128]">{dec.title}</div>
+                    <div className="text-xs text-[#6b5d4a] mt-1">
+                      {dec.options.length} option{dec.options.length !== 1 ? "s" : ""}
+                      {voterCount > 0 && ` · ${voterNames.join(", ")} weighed in`}
+                    </div>
+                    <div className="text-xs text-amber-700 mt-1">Tap to weigh in →</div>
+                  </button>
+                );
               })}
             </div>
+          </div>
+        )}
+
+        {/* ── Section 2: your to-dos (and everyone's) first, then earlier ones the Guide still lists; then each other
+            person's list as one quiet row, opened in place (Ken, Oct 9: "actions not for me") ── */}
+        {(open.length > 0 || othersLists.length > 0) && (
+          <div className="mb-6">
+            <div className="text-xs text-[#6b5d4a] uppercase tracking-wider font-medium mb-2">
+              {/* (not "Coming up": a to-do with no date — her April "Activities", TBD — isn't coming up; round 12) */}
+              {upcoming.length > 0 ? "Still to do" : open.length > 0 ? "Earlier to-dos in the Guide" : "Still to do"}
+            </div>
+            {open.length === 0 && <p className="text-sm text-[#6b5d4a] mb-3">Nothing for you right now.</p>}
+            <div className="space-y-2">
+              {open.map((a, idx) => renderTodo(a, upcoming.length > 0 && idx === upcoming.length))}
+            </div>
+            {othersLists.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {othersLists.map(([who, list]) => (
+                  <div key={who}>
+                    <button onClick={() => setOpenList(openList === who ? null : who)} aria-expanded={openList === who}
+                      className="w-full text-left min-h-[44px] px-3.5 rounded-xl border border-[#efe8dc] bg-white/60 text-sm text-[#6b5d4a]">
+                      {who}'s to-dos · {list.length} {openList === who ? "‹" : "›"}
+                    </button>
+                    {openList === who && <div className="space-y-2 mt-2">{list.map((a) => renderTodo(a))}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -560,17 +633,52 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
         )}
 
         {/* ── Section 3: Done — collapsed by default ── */}
-        {done.length > 0 && (
+        {done.length + doneDeadlines.length > 0 && (
           <div>
             <button
               onClick={() => setShowDone(!showDone)}
               className="text-sm text-[#6b5d4a] hover:text-[#514636] transition-colors min-h-[44px] min-w-[44px] pr-2"
             >
-              {showDone ? "Hide the done ones" : `${done.length} done ›`}
+              {showDone ? "Hide the done ones" : `${done.length + doneDeadlines.length} done ›`}
             </button>
             {showDone && (
               <div className="mt-2 space-y-1.5">
-                {done.map((a) => (
+                {/* Deadlines marked done in Wander — who and when; "Not done after all" for whoever may tick it */}
+                {doneDeadlines.map((i) => {
+                  const m = deadlineMark(i)!;
+                  return (
+                    <div key={`d-${i.id}`} className="bg-white/50 rounded-lg border border-[#f0ece5] px-3 py-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] flex items-center justify-center shrink-0" aria-hidden>
+                          <span className="text-white text-[10px]">✓</span>
+                        </span>
+                        <span className="text-sm text-[#6b5d4a] line-through">{i.title}</span>
+                        <span className="text-xs text-[#6b5d4a]">done — {m.byName === me ? "you" : m.byName}, {markDay(m)}</span>
+                        {canTickDeadline(i) && (
+                          <button onClick={() => mark(deadlineKey(i), i.title, false)} className="ml-auto min-h-[44px] text-xs text-[#514636] underline underline-offset-2">Not done after all</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {done.filter((a) => markOf(a)).map((a) => {
+                  const m = markOf(a)!;
+                  return (
+                    <div key={a.id} className="bg-white/50 rounded-lg border border-[#f0ece5] px-3 py-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="w-5 h-5 rounded-full bg-[#514636] border-2 border-[#514636] flex items-center justify-center shrink-0" aria-hidden>
+                          <span className="text-white text-[10px]">✓</span>
+                        </span>
+                        <span className="text-sm text-[#6b5d4a] line-through">{a.action}</span>
+                        <span className="text-xs text-[#6b5d4a]">done — {m.byName === me ? "you" : m.byName}, {markDay(m)} · {whoAdded(a)}</span>
+                        {canTick(a) && (
+                          <button onClick={() => mark(todoKey(a), a.action, false)} className="ml-auto min-h-[44px] text-xs text-[#514636] underline underline-offset-2">Not done after all</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {done.filter((a) => !markOf(a)).map((a) => (
                   <div key={a.id} className="bg-white/50 rounded-lg border border-[#f0ece5] px-3 py-2">
                     <div className="flex items-center gap-2">
                       {/* Done in her Guide (its Larisa/Andy column says DONE): that's hers to change, not a tick to undo

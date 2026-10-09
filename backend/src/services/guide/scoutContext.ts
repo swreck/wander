@@ -7,6 +7,7 @@
  */
 
 import prisma from "../db.js";
+import { deadlineKey, listMarks } from "../actionMarks.js";
 import { appleGuidesOf, guideLines } from "./appleGuides.js";
 import { tripDocumentsOf, dayWords, placeIn, whose } from "./tripDocuments.js";
 
@@ -295,6 +296,9 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   if (opts.now) {
     const zone = trip.timeZone || "Asia/Tokyo";
     const lines: ContextLine[] = [];
+    // Marked done in Wander by the person it's for (Oct 9) — said with its status, so Scout never reminds anyone of it
+    // (never at Scout's expense: unreadable, Scout goes on without them)
+    const marks = new Map((await listMarks(tripId).catch(() => [])).map((m) => [m.key, m]));
     // The same moment on the asker's own clock, when their phone isn't on Japan's (say both)
     const phoneWords = (at: Date) => {
       const pz = opts.phoneZone;
@@ -333,7 +337,9 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
         : timeMin !== null
         ? `OPEN NOW — last chance ${last} at ${clockOf(timeMin)} ${zone === "Asia/Tokyo" ? "Japan time" : zone}${phoneWords(end)}`
         : `OPEN NOW — last chance ${last}, by the end of that day ${zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`} — NO TIME IS GIVEN, so never state one${phoneWords(end)}`;
-      say(lines, `  - ${i.title}${i.forWhom ? ` (For ${i.forWhom})` : ""}: ${status}`,
+      const mark = marks.get(deadlineKey(i));
+      const done = mark ? ` — MARKED DONE in Wander by ${mark.byName} on ${mark.at.slice(0, 10)} (Wander's record, not her sheet): it's done; never remind anyone to do it` : "";
+      say(lines, `  - ${i.title}${i.forWhom ? ` (For ${i.forWhom})` : ""}: ${status}${done}`,
         worked(`Whether "${i.title}" is still open, worked out from its date${timeMin !== null ? " and time" : ""} and the time on the phone`, [partOf(i)]));
     }
     if (lines.length) {
