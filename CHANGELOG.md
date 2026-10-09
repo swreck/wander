@@ -2,6 +2,25 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-09 — Each Line of the Day Is Short Until Tapped
+
+### Changed
+- Day screen (Ken: "an absolute yes" to the layered day; designed with a UX-expert agent): each line of the day is a
+  short row — its time and what it is — and a tap opens the rest in place ("Show less ‹" closes it). Only what you
+  can't be without stays in sight on the short row:
+  - a booked train: its times ("8:07 AM → 9:00 AM"), name and route, car, seats and reservation #, any check before
+    boarding, and her Guide's other time for it;
+  - a car, taxi or local leg with no booking: one thin row joined to the day ("After train · Utsunomiya station →
+    Mashiko town · Car / taxi · no booking");
+  - her lines: the title, a still-open question or her tabs disagreeing, a question for you (with what the rail sheet
+    says about it), check-out timing, a flight's status, take-off on Japan's clock and confirmation;
+  - a meal: its name, whether it's booked, and its Map; a to-do: its window and phone numbers.
+  Class, "Booked · from your rail sheet", "Ken + Larisa only", addresses, sources and her notes open on a tap.
+- A booking under a line of her plan (Oct 15's Yazawa) is short the same way, its disagreement still in sight.
+- "Today, don't miss": tapping a line with ↓ now opens the line it points to, not just scrolls to it.
+- Tapping someone else's one-line row opens it fully in one tap.
+- SPEC sections: day view. SPEC UPDATE NEEDED.
+
 ## 2026-10-08 — The Day Reads in the Order It's Lived
 
 ### Changed

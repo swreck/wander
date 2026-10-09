@@ -87,6 +87,79 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
   const stale = !!statusDay && statusDay < today;
   // Its pickup's steps, until the pickup's own day (after it, the link repeated on every later day)
   const pickups = /collect|pick ?up/i.test(`${readiness} ${ticket}`) ? s.checklists.filter((c) => !c.date || today <= c.date) : [];
+  // What's inside a train or leg when it's opened: the rest of its row in the sheet, and where it's from
+  const details = (
+    <>
+      {booked && cls && cls !== "—" && <p className="text-sm text-[#514636] mt-1">{cls}</p>}
+      <p className="text-xs text-[#6b5d4a] mt-0.5">{booked ? "Booked" : "No booking needed"}{onlyFor ? ` · “${onlyFor}”, the sheet says` : ""}</p>
+      {/^\d+$/.test(pax) && <p className="text-sm text-[#514636] mt-1">{pax} {pax === "1" ? "person" : "people"}</p>}
+      {!booked && resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}
+      {readiness && stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className="text-sm mt-1 text-[#6b5d4a]" />}
+      {ticket && !stale && <p className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]">{withTwelveHour(ticket)}</p>}
+      {moreNotes && status !== "?" && <GuideText text={withTwelveHour(moreNotes)} className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]" />}
+      {pickups.map((c) => (
+        <Link key={c.tab} to={`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`}
+          className="flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+          {checklistTitle(c.tab)}{pickupBy ? ` (${pickupBy}'s job)` : ""}: the steps ›
+        </Link>
+      ))}
+      <p className="text-xs text-[#6b5d4a] mt-1">From {sourceWordsFor(s, me)} — its {r.tab} tab</p>
+      <button onClick={() => setMore(false)} aria-expanded={true} className="min-h-[44px] text-sm text-[#514636]">Show less ‹</button>
+    </>
+  );
+  // Always in sight, open or not: her Guide's other time for it, a "?" leg's question, a check before boarding
+  const mustSee = (
+    <>
+      {differs.map((d) => <DifferLine key={`${d.row}-${d.guideSource}`} d={d} />)}
+      {status === "?" && <p className="text-sm text-[#8a5a1a] mt-0.5">The rail sheet marks this leg “?”{notes ? `: ${withTwelveHour(notes)}` : "."}</p>}
+      {readiness && !stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className={`text-sm mt-1 ${isSettledStatus(readiness) ? "text-[#3f5a2a]" : "text-[#8a5a1a]"}`} />}
+    </>
+  );
+  // A booked train in the day, short (day design, Oct 8): its times, its name and route, and car, seats and reservation
+  // — what you look for on the platform, never behind a tap. The whole row opens it.
+  if (look === "card" && booked) {
+    const platform = [seat, resv && resv !== "—" ? `Reservation #${resv}` : ""].filter((x) => x && x !== "—").join(" · ");
+    return (
+      <li id={`train-${s.id}-${r.row}`} data-train className="bg-white rounded-xl border border-[#e0d8cc] scroll-mt-24">
+        <button onClick={() => setMore(!more)} aria-expanded={more} className="w-full flex gap-3 px-3 pt-3 pb-2 min-h-[44px] text-left">
+          <span className="w-16 shrink-0 text-right">
+            <span className="block text-sm font-medium text-[#3a3128] tabular-nums">{twelveHour(depart)}</span>
+            {arrive && <span className="block text-xs text-[#6b5d4a] whitespace-nowrap">→ {twelveHour(arrive)}</span>}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[15px] leading-snug text-[#3a3128]">{train} · {route}<span className="text-[#6b5d4a]">{"\u00a0"}{more ? "‹" : "›"}</span></span>
+            {platform && <span className="block text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">{platform}</span>}
+          </span>
+        </button>
+        <div className="pl-[88px] pr-3 pb-2 -mt-1">
+          {mustSee}
+          {more && details}
+        </div>
+      </li>
+    );
+  }
+  // A leg with no booking (a taxi, a car, a local train), short: a thin row joined to the day — when, where, how
+  if (look === "card") {
+    const name = notes.match(/^\s*([A-Z][A-Z0-9 -]{2,20}?)\s*=/)?.[1];
+    return (
+      <li id={`train-${s.id}-${r.row}`} data-train className="scroll-mt-24">
+        <button onClick={() => setMore(!more)} aria-expanded={more}
+          aria-label={`${target && target !== "—" ? `${target}, ` : ""}${mode || "travel"}, ${route.replace(/→|->/g, "to")}, no booking needed`}
+          className="w-full flex gap-3 px-3 py-1 min-h-[44px] text-left items-center">
+          <span className="w-16 shrink-0 text-right text-xs text-[#6b5d4a] leading-snug">{target && target !== "—" ? target : ""}</span>
+          <span className="flex-1 min-w-0 border-l-2 border-[#e0d8cc] pl-3 text-sm text-[#514636] leading-snug">
+            {name ? `${name} · ` : ""}{route}{mode ? ` · ${mode}` : ""} · no booking<span className="text-[#6b5d4a]">{"\u00a0"}{more ? "‹" : "›"}</span>
+          </span>
+        </button>
+        {(more || status === "?" || differs.length > 0 || (readiness && !stale)) && (
+          <div className="pl-[104px] pr-3 pb-1">
+            {mustSee}
+            {more && details}
+          </div>
+        )}
+      </li>
+    );
+  }
   if (look !== "list") {
     const nested = look === "nested";
     const head = booked ? `${train} · ${route}` : `${route}${mode ? ` · ${mode}` : ""}`;
