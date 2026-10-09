@@ -491,7 +491,7 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
 import PhraseCard from "../components/PhraseCard";
 import EveningQuestion from "../components/EveningQuestion";
 import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
-import CityArrival from "../components/CityArrival";
+import { CityTitle } from "../components/CityArrival";
 import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
 import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwner";
@@ -1064,6 +1064,18 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   }
   const shownUnder = new Set([...underLine.values()].flat());
   const alsoItems = otherItems.filter((o) => !shownUnder.has(o));
+  // Her Itinerary's heading for the day, in her shorthand ("day 1 - JA Arrive (evening), KL day trip to Mashiko"), on a
+  // day without her plan: said once, quietly, atop the day — as a day with her plan says it — not one more card among the
+  // lines it sums up (day review, Oct 8: Oct 14's second card, its "still open" line said twice). Its own notes stay,
+  // unless another line of the day already says them.
+  // (her "day 1 - …" heading, or the kind of day in plain words — Oct 8's "travel day"; never a short line that names a
+  // place or a thing, like Oct 6's "Rikuro Cheesecake")
+  const headline = planBlocks.length ? undefined : alsoItems.find((i) => !i.time && !i.forWhom && /^Itinerary · Description/.test(i.source)
+    && (/^(?:[A-Za-z]+\s+)?day\s*\d+\s*[-–]/i.test(i.title.trim()) || (/^(travel|rest|free|open|flex|arrival|departure|down|lazy)\s+day$/i.test(i.title.trim()) && !(i.detail || "").trim()))
+    && alsoItems.some((o) => o !== i && o.kind !== "checkout"));
+  const headlineMore = headline ? (headline.detail || "").split("\n").map((l) => l.trim())
+    .filter((l) => l && !alsoItems.some((o) => o !== headline && (o.detail || "").includes(l))) : [];
+  const listItems = headline ? alsoItems.filter((o) => o !== headline) : alsoItems;
   // Your trains, each said once in the day itself (day review, Oct 4: every booked train was said twice — in the day and in
   // full under "Trains"): under her line when it names the train ("Board reserved HARUKA" ↔ HARUKA 31), else at its time;
   // on your landing day the airport leg with no booking follows the landing. Only what's drawn here leaves "Trains".
@@ -1087,7 +1099,45 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const landingInList = !!myLanding && alsoItems.includes(myLanding);
   const landingLegs = landingInList && listDrawn ? railMine.filter((x) => !isBookedTrain(x.r)
     && x.r.row < Math.min(...bookedMine.filter((b) => b.s.id === x.s.id).map((b) => b.r.row))) : [];
-  const placedTrains = new Set([...nestedTrains, ...timelineTrains.map(railKey), ...landingLegs.map(railKey)]);
+  // Every other leg with no booking (a car, a taxi) in the day, by the rail sheet's own order: right after the booked train
+  // before it — or just ahead of the next train when it goes to where that train leaves from (the car back to Utsunomiya
+  // before the 4:58 PM, not after the 8:07 AM) — (day review, Oct 8: Oct 14's two Mashiko taxi legs sat under "More
+  // trains", a screen below the trains they join). Only in the day's own timeline — on a day with her plan they stay in Trains.
+  const legsAfter = new Map<string, { s: OtherSource; r: RailRow }[]>();
+  const legsAhead = new Map<string, { s: OtherSource; r: RailRow }[]>();
+  const ends = (r: RailRow) => colOf(r.cols, /^route$/).split(/→|->/).map((p) => p.trim()).filter(Boolean);
+  if (!planBlocks.length) for (const x of [...railMine].sort((a, b) => a.r.row - b.r.row)) {
+    if (isBookedTrain(x.r) || landingLegs.includes(x)) continue;
+    const same = timelineTrains.filter((b) => b.s.id === x.s.id && b.r.tab === x.r.tab);
+    const before = same.filter((b) => b.r.row < x.r.row).sort((a, b) => b.r.row - a.r.row)[0];
+    const next = same.filter((b) => b.r.row > x.r.row).sort((a, b) => a.r.row - b.r.row)[0];
+    const [from, to] = [ends(x.r)[0] || "", ends(x.r).slice(-1)[0] || ""];
+    const toNext = !!next && !!to && sameThing(to, ends(next.r)[0] || "")
+      && !(before && from && sameThing(from, ends(before.r).slice(-1)[0] || ""));
+    if (before && !toNext) legsAfter.set(railKey(before), [...(legsAfter.get(railKey(before)) || []), x]);
+    else if (next) legsAhead.set(railKey(next), [...(legsAhead.get(railKey(next)) || []), x]);
+  }
+  // …and on a day with no booked train beside it, by her line about the place it goes to or leaves from: the train to
+  // Tokoname just before her Tokoname day, the one back just after; the train from Shirakabeso after its check-out
+  const byTrain = new Set([...[...legsAfter.values(), ...legsAhead.values()].flat().map(railKey)]);
+  const legsBeforeLine = new Map<string, { s: OtherSource; r: RailRow }[]>();
+  const legsAfterLine = new Map<string, { s: OtherSource; r: RailRow }[]>();
+  if (!planBlocks.length && listDrawn) for (const x of [...railMine].sort((a, b) => a.r.row - b.r.row)) {
+    if (isBookedTrain(x.r) || landingLegs.includes(x) || byTrain.has(railKey(x))) continue;
+    const [from, to] = [ends(x.r)[0] || "", ends(x.r).slice(-1)[0] || ""];
+    if (!from || !to || from === to) continue;
+    const lines = listItems.filter((i) => i.kind !== "deadline" && isFor(i, me));
+    const names = (place: string, i: GuideItem) => distinctWords(place).length > 0 && sameThing(place, i.title);
+    // (a line naming both ends is that journey, or its way back — the leg follows it: Oct 7's "8:30 AM Okayama → Bizen",
+    // then the sheet's Okayama → Imbe and Imbe → Okayama, not both above it)
+    const both = lines.find((i) => names(from, i) && names(to, i));
+    const there = both ? undefined : lines.find((i) => names(to, i));
+    const leaving = both || there ? undefined : lines.find((i) => names(from, i));
+    if (there) legsBeforeLine.set(there.id, [...(legsBeforeLine.get(there.id) || []), x]);
+    else if (both || leaving) legsAfterLine.set((both || leaving)!.id, [...(legsAfterLine.get((both || leaving)!.id) || []), x]);
+  }
+  const placedTrains = new Set([...nestedTrains, ...timelineTrains.map(railKey), ...landingLegs.map(railKey), ...byTrain,
+    ...[...legsBeforeLine.values(), ...legsAfterLine.values()].flat().map(railKey)]);
   // Where her Guide has a train at another time: with the train on other days (today it's said at the top)
   const differsFor = (x: { s: OtherSource; r: RailRow }) => (isToday ? [] : x.s.differs.filter((d) => d.date === date && d.row === x.r.row));
 
@@ -1116,6 +1166,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     }),
     ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && isFor(i, me) && !someoneElsesJob(i))
       .map((i) => ({ key: `deadline-${i.id}`, to: `item-${i.id}`, body: <>Deadline: {itemTitle(i, stays, date)}</> })),
+    // …and one ending today that's the job of someone you travel with — said as theirs (day review, Oct 8: on Oct 14 Ken's
+    // page had Larisa's last day to reconfirm Robuchon only as a card below dinner; Julie and Andy don't get it)
+    ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && isFor(i, me) && someoneElsesJob(i)
+      && (partyOf(items, me) || "").toLowerCase().split(/\s*(?:&|,|\band\b)\s*/).includes(bookedByName(i)!.split(/\s+/)[0].toLowerCase()))
+      .map((i) => ({ key: `deadline-${i.id}`, to: `item-${i.id}`, body: <>{bookedByName(i)!.split(/\s+/)[0]}'s to-do, last day today: {itemTitle(i, stays, date)}</> })),
     // (her line, or the booking under it when that's where the difference is said — never both)
     ...[...planBlocks.filter((b) => !(underLine.get(b.id) || []).some((o) => tabsDiffer(o).length > 0)), ...otherItems].filter((b) => b.kind !== "flight" && isFor(b, me) && tabsDiffer(b).length > 0
       && !(b.time && isToday && otherSources.some((s) => s.differs.some((d) => d.date === date && d.guideSays === (b.endTime ? `${twelveHour(b.time!)}–${twelveHour(b.endTime)}` : twelveHour(b.time!))))))
@@ -1180,18 +1235,6 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         const pastel = trip ? getCityPastel(trip.cities, cityId) : "#F2ECDE";
         return (
           <div className="pt-5 pb-4" style={{ backgroundColor: pastel, borderBottom: `3px solid ${cityAccent(pastel)}` }}>
-            {/* The first time a day in this city opens on this phone: the city's photo, for a moment (C2) */}
-            {(() => {
-              const c = trip?.cities.find((x) => x.id === cityId);
-              const away = !!c && (!c.country || c.country === tripCountryOf(trip!.cities));
-              // Only when you've arrived — the day opened is today or past. Looking ahead from home used up the photo
-              // (Julie, tester t1: Kyoto's photo on Oct 10 in California, then none on Oct 23 in Kyoto)
-              // …and while you're in that city — not a week later looking back (tester t4: a photo missed with no
-              // signal turned up when Karatsu's day was opened from Tokyo)
-              const cityDates = days.filter((d) => d.cityId === cityId).map((d) => ymd(d.date)).sort();
-              const inCityNow = cityDates.length > 0 && cityDates[0] <= today && today <= cityDates[cityDates.length - 1];
-              return away && date <= today && inCityNow ? <CityArrival cityId={cityId} cityName={cityName} dateWords={longDate(date)} /> : null;
-            })()}
             {/* Just the city: the date and the way here ("Tokyo → Nikko") are in the bar above, and Backroads in the
                 day's note — said three times, they crowded the top of the screen (map review, Oct 1 2026) */}
             {/* (the same column as the day below it — on an iPad the name sat 16 px left of it; tester t5) */}
@@ -1199,7 +1242,19 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 summary can then be the first thing below (day review, Oct 4: it started 435 pt down on Oct 6) */}
             <div className="max-w-xl mx-auto px-4">
               <div className="flex items-end justify-between gap-2">
-                <p className="text-[32px] leading-tight font-light tracking-wide text-[#3a3128] min-w-0">{cityName}</p>
+                {/* The first time a day in this city opens on this phone: the city's photo, for a moment (C2); a tap on the
+                    name brings it back (Ken, Oct 8) */}
+                {(() => {
+                  const c = trip?.cities.find((x) => x.id === cityId);
+                  const away = !!c && (!c.country || c.country === tripCountryOf(trip!.cities));
+                  // By itself only when you've arrived — the day opened is today or past. Looking ahead from home used up
+                  // the photo (Julie, tester t1: Kyoto's photo on Oct 10 in California, then none on Oct 23 in Kyoto)
+                  // …and while you're in that city — not a week later looking back (tester t4: a photo missed with no
+                  // signal turned up when Karatsu's day was opened from Tokyo)
+                  const cityDates = days.filter((d) => d.cityId === cityId).map((d) => ymd(d.date)).sort();
+                  const inCityNow = cityDates.length > 0 && cityDates[0] <= today && today <= cityDates[cityDates.length - 1];
+                  return <CityTitle cityId={cityId} cityName={cityName} dateWords={longDate(date)} photo={away && !!cityId} auto={away && date <= today && inCityNow} />;
+                })()}
                 {(planBlocks.length > 0 || dayItems.length > 0) && (
                   <div className="shrink-0 -mb-2">
                     <SendOut label="Send this day ›" title={`${longDate(date)} — ${cityName}`}
@@ -1364,13 +1419,18 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* Her travel note in a stay's note, on the day whose own lines name where it goes ("Okayama -> Bizen" on the Bizen
                 day, "PT1: Okayama -> Hakata" on the day to Karatsu) — the stay's own city doesn't count, so Oct 6 isn't
                 told about tomorrow's Bizen (day review, Oct 4); the whole note stays folded at the bottom */}
+            {/* (not when a train or leg in the day already goes between the places it names — Oct 8's "PT1: Okayama -> Hakata"
+                and "PT2: Hakata -> Karatsu" above the NOZOMI 9 and the local that say it; day review, Oct 8) */}
             {(() => {
+              const routes = railMine.filter((x) => placedTrains.has(railKey(x))).map((x) => ends(x.r)).filter((p) => p.length > 1 && p.some((e) => distinctWords(e).length > 0));
+              const toldByTrain = (t: string) => routes.some((p) => p.every((e) => distinctWords(e).length === 0 || sameThing(e, t)));
               const mine = distinctWords([...dayItems, ...planBlocks].filter((x) => isFor(x, me)).map((x) => `${x.title} ${x.detail || ""}`).join(" "));
               const notes = stopNotes.flatMap((s) => {
                 const home = distinctWords(stopCity(s) || "");
                 return (s.detail || "").split("\n").map((l) => l.match(/^Larisa's travel note: (.+)$/)?.[1]).filter((t): t is string => !!t)
                   // (by the places it names — her capitalised words — never "local" in "local train" meeting "Haruka-local")
                   .filter((t) => (t.match(/\b[A-Z][A-Za-z]{3,}\b/g) || []).map((w) => w.toLowerCase()).some((w) => !home.includes(w) && mine.includes(w)))
+                  .filter((t) => !toldByTrain(t))
                   .map((t) => ({ key: `${s.id}-${t}`, t }));
               });
               return notes.map(({ key, t }) => (
@@ -1684,38 +1744,79 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               )
             ) : (
               <ol className="space-y-2">
+                {headline && (
+                  <li id={`item-${headline.id}`} className="text-[13px] text-[#514636] scroll-mt-24">
+                    In {v.her} Itinerary for today: “{headline.title}”
+                    {headlineMore.map((l) => <span key={l} className="block text-[#6b5d4a] mt-0.5">{v.say(l)}</span>)}
+                  </li>
+                )}
                 {(() => {
                   // One timeline (round 13: Oct 6 read "Osaka → Okayama… Rikuro Cheesecake… Shinkansen" above the 2:50 PM
                   // landing, and the booked 6:17 PM NOZOMI 77 sat at the bottom under Trains): your booked trains join the
                   // timed lines at their times — each opens its full card in Trains — and lines her Guide gives no time say so
-                  const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />;
+                  const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} quotedAbove={headline?.title} />;
                   // (on a day with her plan, a train her plan names sits under that line; any other joins here at its time)
                   const trains = timelineTrains;
                   const dep = (r: RailRow) => tripClockMinutes({ time: colOf(r.cols, /^depart/).padStart(5, "0") } as GuideItem, tripZone);
-                  const firstTimed = alsoItems.findIndex((i) => !!i.time);
-                  const lead = firstTimed > 0 ? alsoItems.slice(0, firstTimed).filter((i) => i.kind !== "checkout") : [];
+                  const firstTimed = listItems.findIndex((i) => !!i.time);
+                  const lead = firstTimed > 0 ? listItems.slice(0, firstTimed).filter((i) => i.kind !== "checkout") : [];
                   // The day you land: nothing happens in Japan before you're there — her lines with no time follow your
                   // landing, in her sheet's order, and so does the airport leg with no booking (KIX → Shin-Osaka). Day
                   // review, Oct 4 (Ken: "itinerary in order"): Oct 6 read "Osaka → Okayama, Rikuro, Shinkansen" above the
                   // 2:50 PM landing, and the airport train only under Trains, two screens down.
                   const landing = landingInList ? myLanding! : null;
                   const afterLanding = landing ? lead : [];
-                  const order = afterLanding.length
-                    ? alsoItems.filter((i) => !afterLanding.includes(i)).flatMap((i) => (i === landing ? [i, ...afterLanding] : [i]))
-                    : alsoItems;
+                  const inOrder = afterLanding.length
+                    ? listItems.filter((i) => !afterLanding.includes(i)).flatMap((i) => (i === landing ? [i, ...afterLanding] : [i]))
+                    : listItems;
                   const legs = landingLegs;
+                  // Her lines with no time that name where a train or car of yours goes today, right after it — her Mashiko
+                  // day after the car to Mashiko, her "Nagoya to Tokyo" after the NOZOMI (day review, Oct 8: Oct 14 opened
+                  // with two untimed cards, then "The lines above have no time…", the trains two screens down)
+                  const after = new Map<string, GuideItem[]>();
+                  const sortedRail = [...trains].sort((a, b) => dep(a.r) - dep(b.r));
+                  const chain = sortedRail.flatMap((x) => [...(legsAhead.get(railKey(x)) || []), x, ...(legsAfter.get(railKey(x)) || [])]);
+                  const goesTo = (x: { r: RailRow }) => { const parts = ends(x.r); return parts.length > 1 ? parts : []; };
+                  // (any of her lines with no time — Oct 8's "Okayama → Hakata…" waited below the noon check-out until every
+                  // train was said; never a check-out or a to-do)
+                  const placeable = listItems.filter((i) => !i.time && !["checkout", "deadline"].includes(i.kind));
+                  if (!afterLanding.length) for (const i of placeable) {
+                    // (its destination first — the car to Mashiko, not the train to Utsunomiya; then a line naming the whole
+                    // route, "Nagoya to Tokyo" ↔ "Nagoya → Tokyo")
+                    const x = chain.find((c) => goesTo(c).length && sameThing(goesTo(c).slice(-1)[0], i.title))
+                      || chain.find((c) => goesTo(c).length && goesTo(c).every((p) => sameThing(p, i.title) || distinctWords(p).length === 0) && sameThing(goesTo(c).join(" "), i.title));
+                    if (x) after.set(railKey(x), [...(after.get(railKey(x)) || []), i]);
+                  }
+                  const placedLines = new Set([...after.values()].flat());
+                  const order = inOrder.filter((i) => !placedLines.has(i));
+                  const restLead = lead.filter((i) => !placedLines.has(i));
                   const timedAt = order.findIndex((i) => !!i.time);
                   const out: ReactNode[] = [];
                   let t = 0;
-                  const sorted = [...trains].sort((a, b) => dep(a.r) - dep(b.r));
+                  const sorted = sortedRail;
                   // Plans added in Wander with a time, at their time among the day's lines and trains (on a day with her
                   // plan they're in her plan's list instead)
                   const own = planBlocks.length ? [] : timedOwn;
                   let o = 0;
                   const flushOwn = (beforeMin: number) => { while (o < own.length && toMin(own[o].time!) < beforeMin) out.push(addedPlan(own[o++], "card")); };
-                  const pushTrain = () => { flushOwn(dep(sorted[t].r)); out.push(trainLine(sorted[t++])); };
+                  // Her line, with the leg that takes you there before it and the one that takes you away after it
+                  const pushCard = (i: GuideItem) => {
+                    (legsBeforeLine.get(i.id) || []).forEach((l) => out.push(legLine(l)));
+                    out.push(card(i));
+                    (legsAfterLine.get(i.id) || []).forEach((l) => out.push(legLine(l)));
+                  };
+                  // A train, with the car or taxi that leads to it and any that follows, and her lines about where they go
+                  const pushLeg = (l: { s: OtherSource; r: RailRow }) => { out.push(legLine(l)); (after.get(railKey(l)) || []).forEach((i) => pushCard(i)); };
+                  const pushTrain = () => {
+                    const x = sorted[t++];
+                    flushOwn(dep(x.r));
+                    (legsAhead.get(railKey(x)) || []).forEach(pushLeg);
+                    out.push(trainLine(x));
+                    (after.get(railKey(x)) || []).forEach((i) => pushCard(i));
+                    (legsAfter.get(railKey(x)) || []).forEach(pushLeg);
+                  };
                   order.forEach((i, n) => {
-                    if (n === timedAt && !afterLanding.length && lead.length) out.push(<li key="untimed-note" className="text-xs text-[#6b5d4a] -mt-1">The lines above have no time in {v.guide}; by the clock:</li>);
+                    if (n === timedAt && !afterLanding.length && restLead.length) out.push(<li key="untimed-note" className="text-xs text-[#6b5d4a] -mt-1">The lines above have no time in {v.guide}; by the clock:</li>);
                     // (a check-out comes before the day's trains — round 13: Oct 8 read "10:26 AM NOZOMI 9" above "by 12:00
                     // PM Check out"; and the untimed evening lines after the timed ones wait until every train is said —
                     // Oct 14 put Ippudo Ramen above Ken & Larisa's 4:58 PM train back)
@@ -1723,7 +1824,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     while (t < sorted.length && i.kind !== "checkout" && (eveningUntimed || (i.time && dep(sorted[t].r) < tripClockMinutes(i, tripZone)))) pushTrain();
                     if (i.time) flushOwn(tripClockMinutes(i, tripZone));
                     else if (eveningUntimed) flushOwn(Infinity);
-                    out.push(card(i));
+                    pushCard(i);
                     if (i === landing) legs.forEach((l) => out.push(legLine(l)));
                   });
                   while (t < sorted.length) pushTrain();
@@ -1880,8 +1981,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 }
 
 /** One line of the Guide for this day. */
-function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false }: {
+function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove }: {
   i: GuideItem; date: string; today: string; tripZone: string; stays: TripGuideData["stays"]; me: string | null; highlight: boolean; day: GuideItem[];
+  /** her Itinerary's heading for the day, already said atop the day — "her Itinerary line this day says “…”" isn't said again */
+  quotedAbove?: string;
   /** drawn under her line for it in her plan: no card of its own, no second time column (the line has the time) */
   nested?: boolean;
   /** The whole Guide: a landing says where its flight stands right now, by the schedule */
@@ -1925,7 +2028,10 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   // Someone else's line: whose it is up top, and their long notes folded (round 11: Ken & Larisa's 12-line Mashiko
   // train note filled Julie's Now, its "For Ken & Larisa" at the bottom, her own landing below the fold)
   const [showTheirs, setShowTheirs] = useState(false);
-  const theirs = !!i.forWhom && !/^everyone$/i.test(i.forWhom) && !!me && !isFor(i, me);
+  // Her long travel note on a line — the route and her thinking before it was booked — one tap away (day review, Oct 8:
+  // Oct 14's Mashiko card was a screen and a half of planning prose before the day's first train)
+  const [showNote, setShowNote] = useState(false);
+  const theirs =!!i.forWhom && !/^everyone$/i.test(i.forWhom) && !!me && !isFor(i, me);
   const differ = tabsDiffer(i);
   // A landing says where its flight stands by the clock; that line replaces the booking's "Takes off from …"
   const flightNow = all ? landingStatus(i, all, tripZone) : null;
@@ -1935,26 +2041,40 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   // (round 12: Oct 29's flight card said "1:30-2:00p Haruka…" a third time beside the rail-sheet difference)
   const saidOnTrainLine = (l: string) => i.kind === "flight" && l.startsWith("Larisa's travel note: ")
     && (day || []).some((o) => o !== i && (o.detail || "").includes(l.slice("Larisa's travel note: ".length).trim()));
-  const shown = allLines.filter((l, n) => l && !l.startsWith("Tabs differ: ") && !(flightNow && l.startsWith("Takes off from ")) && !saidOnTrainLine(l) && (whyAt < 0 || n < whyAt))
+  const quotedLine = (l: string) => { const m = l.match(/^For .+: her Itinerary line this day says “(.+)”\.?$/); return !!m && !!quotedAbove && quotedAbove.includes(m[1]); };
+  const shown = allLines.filter((l, n) => l && !l.startsWith("Tabs differ: ") && !(flightNow && l.startsWith("Takes off from ")) && !saidOnTrainLine(l) && !quotedLine(l) && (whyAt < 0 || n < whyAt))
     // The name as Home says it ("Hana Sato", not the booking's "Sato, Hana")
     // (to the person it's booked under: "your name" — round 13: Larisa read her own full name there)
-    .map((l) => (/^Booked under /.test(l) && bookedByName(i) ? (i.kind === "deadline" ? bookedWords(i, me)!
+    // (when the card's heading already says "Larisa's to-do", just whose name it's under — not "Larisa's to do" twice)
+    .map((l) => (/^Booked under /.test(l) && bookedByName(i) ? (i.kind === "deadline" && !othersJob ? bookedWords(i, me)!
       : me && bookedByName(i)!.split(/\s+/)[0].toLowerCase() === me.trim().toLowerCase() ? "Booked under your name" : `Booked under ${bookedByName(i)}`) : l))
     // Her own notes, to her: "Your travel note: …"
     .map((l) => (v.mine ? l.replace(/^Larisa's (travel note|note|estimate)/, "Your $1") : l))
     // Lines Wander wrote about her Guide, in her voice to her ("the stop your tab lists"); her own words untouched
     .map((l) => (/^(Where:|Wander |Still open in the Guide|Times are)/.test(l) ? v.say(l) : l));
   const why = v.say(whyAt >= 0 ? allLines.slice(whyAt).join("\n") : "");
+  // (her note runs on over the lines after it until a line Wander or a booking adds — "For …:", "Still open…", "Booked…")
+  const noteAt = shown.findIndex((l) => /^(Larisa's|Your) travel note: /.test(l));
+  let noteEnd = noteAt + 1;
+  if (noteAt >= 0) while (noteEnd < shown.length && !/^(For .+:|Still open|Where:|Booked|Wander |Times are|A picture|Beside |The end time|Time from the |Confirmation|No reservation)/.test(shown[noteEnd])) noteEnd++;
+  const noteLines = noteAt >= 0 ? shown.slice(noteAt, noteEnd) : [];
+  const foldNote = noteLines.join(" ").length > 160;
+  const visible = foldNote ? [...shown.slice(0, noteAt), ...shown.slice(noteEnd)] : shown;
   // A to-do whose window closed: say plainly Wander can't know whether it was done
   const couldBeDone = over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title);
   const Box = nested ? "div" : "li";
   // Someone else's line on a split day: one quiet row at its time, opened in place (day review, Oct 4: on Julie's landing
   // day two full Ken & Larisa Mashiko cards — about 420 pt — came before her own 3:00 PM landing)
   if (theirs && !showTheirs && !nested && !highlight) {
+    // A time on another clock, said on the day's own (day review, Oct 8: Julie & Andy's SFO take-off read "12:00 PM" below
+    // Ken's 8:00 PM dinner on Japan's Oct 13 — that's Wed 4:00 AM in Japan)
+    const elsewhere = i.time && i.date && i.timeZone && i.timeZone !== tripZone
+      ? zonedMoment(i.date.slice(0, 10), toMin(i.time), i.timeZone).toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" })
+      : null;
     return (
       <Box id={`item-${i.id}`} className="rounded-xl border border-[#efe8dc] bg-white/60">
         <button onClick={() => setShowTheirs(true)} aria-expanded={false} className="w-full flex items-center gap-3 px-3 py-1 min-h-[44px] text-left">
-          <span className="w-16 shrink-0 text-right text-sm text-[#6b5d4a]">{i.time ? timeLabel(i, day) : ""}</span>
+          <span className="w-16 shrink-0 text-right text-sm text-[#6b5d4a]">{elsewhere ?? (i.time ? timeLabel(i, day) : "")}</span>
           <span className="flex-1 min-w-0 text-sm text-[#6b5d4a] leading-snug">{i.forWhom} · {itemTitle(i, stays, date)} ›</span>
         </button>
       </Box>
@@ -2044,7 +2164,13 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             : <>
                 {/* Wander's own phrasings said to Larisa as "your …" (round 13: on her phone, "The end time is Larisa's
                     estimate", "her Itinerary line this day says…"); her cell text is never touched */}
-                <GuideText text={shown.map((l) => (/^(The end time is |For .+: her Itinerary line |Beside .+ in her Itinerary|Time from the |A picture in her tab )/.test(l) ? v.say(l) : l)).join("\n")} className="text-sm text-[#6b5d4a] mt-1" />
+                {foldNote && (showNote
+                  ? <>
+                      <GuideText text={noteLines.join("\n")} className="text-sm text-[#6b5d4a] mt-1" />
+                      <button onClick={() => setShowNote(false)} className="min-h-[44px] text-sm text-[#514636]">Hide the travel note ‹</button>
+                    </>
+                  : <button onClick={() => setShowNote(true)} aria-expanded={false} className="min-h-[44px] text-sm text-[#514636]">{v.mine ? "Your" : `${owner || "Larisa"}'s`} travel note ›</button>)}
+                {visible.length > 0 && <GuideText text={visible.map((l) => (/^(The end time is |For .+: her Itinerary line |Beside .+ in her Itinerary|Time from the |A picture in her tab )/.test(l) ? v.say(l) : l)).join("\n")} className="text-sm text-[#6b5d4a] mt-1" />}
                 {theirs && shown.length > 2 && <button onClick={() => setShowTheirs(false)} className="min-h-[44px] text-sm text-[#514636]">Hide their notes ‹</button>}
               </>)}
           {flightNow && <p className="text-sm text-[#514636] mt-1">{flightNow}</p>}

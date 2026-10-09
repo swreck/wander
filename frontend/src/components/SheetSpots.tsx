@@ -51,11 +51,22 @@ export default function SheetSpots({ tripId, spots, label, className = "", whole
     );
   }
   if (label) {
+    // (as quiet as one spot: the tabs by name, the cells only for a screen reader — day review, Oct 8: Oct 14's
+    // "Itinerary F36:Q40 ↗ · Activities Template L37 ↗" was the loudest text on its card)
     return (
-      <div className={className}>
-        <p className="text-xs text-[#6b5d4a]">{label}</p>
-        <SheetSpots tripId={tripId} spots={list} />
-      </div>
+      <p className={`text-xs text-[#6b5d4a] ${className}`}>
+        {label.split(" — ")[0]} —{" "}
+        {list.map((s, n) => {
+          const { href, range } = spotHref(link, s.tab, s.a1s);
+          return (
+            <span key={s.tab}>
+              {n > 0 && " · "}
+              <a href={href} target="_blank" rel="noreferrer" aria-label={`The ${shownTab(s.tab)} tab${range ? `, ${range}` : ""}, in ${whose}`}
+                className="inline-flex items-center min-h-[44px] underline decoration-[#d6ccbc] underline-offset-2">{shownTab(s.tab)} ↗</a>
+            </span>
+          );
+        })}
+      </p>
     );
   }
   if (list.length === 1) {

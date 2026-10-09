@@ -78,6 +78,8 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
   const pax = colOf(r.cols, /^pax$/);
   // Whose it is, when its notes open by saying so ("Ken + Larisa only. Booked Sep 29…") — its words, shown up top
   const onlyFor = notes.match(/^\s*([A-Z][a-z]+(?:\s*(?:\+|&|and)\s*[A-Z][a-z]+)*\s+only)\b/)?.[1] || "";
+  // (notes that say only that — "Ken + Larisa only" — are said once, up top; day review, Oct 8: Oct 14's taxi legs said it twice)
+  const moreNotes = onlyFor && notes.trim().replace(/[.\s]+$/, "") === onlyFor ? "" : notes;
   const booked = isBookedTrain(r);
   // Its status names a day that has passed ("collect at Shin-Osaka Oct 6", seen on Oct 14): still its words, but
   // Wander says it can't tell what happened since (round r1: Andy read it as "the tickets were never collected")
@@ -126,7 +128,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
                 {!booked && resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}
                 {readiness && stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className="text-sm mt-1 text-[#6b5d4a]" />}
                 {ticket && !stale && <p className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]">{withTwelveHour(ticket)}</p>}
-                {notes && status !== "?" && <GuideText text={withTwelveHour(notes)} className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]" />}
+                {moreNotes && status !== "?" && <GuideText text={withTwelveHour(moreNotes)} className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]" />}
                 {pickups.map((c) => (
                   <Link key={c.tab} to={`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`}
                     className="flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
@@ -138,7 +140,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
               </>
             ) : (
               <button onClick={() => setMore(true)} aria-expanded={false} className="-mb-2 min-h-[44px] text-sm text-[#514636]">
-                {booked ? "Reservation, notes and steps ›" : "The sheet's notes ›"}
+                {booked ? "Reservation, notes and steps ›" : moreNotes || pickups.length ? "The sheet's notes ›" : "More from the sheet ›"}
               </button>
             )}
           </div>
@@ -170,11 +172,11 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
           {readiness && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className={`text-sm mt-1 ${stale ? "text-[#6b5d4a]" : isSettledStatus(readiness) ? "text-[#3f5a2a]" : "text-[#8a5a1a]"}`} />}
           {/* (its pickup instructions are past once the pickup day is — on Oct 29 they read to Andy as an order; delight audit) */}
           {ticket && !stale && <p className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]">{withTwelveHour(ticket)}</p>}
-          {notes && status !== "?" && (open
-            ? <><GuideText text={withTwelveHour(notes)} className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]" />
+          {moreNotes && status !== "?" && (open
+            ? <><GuideText text={withTwelveHour(moreNotes)} className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]" />
                 <button onClick={() => setOpen(false)} className="min-h-[44px] text-sm text-[#514636]">Hide the sheet's notes ‹</button></>
-            : notes.length <= 90
-              ? <p className="text-sm text-[#6b5d4a] mt-1">{withTwelveHour(notes)}</p>
+            : moreNotes.length <= 90
+              ? <p className="text-sm text-[#6b5d4a] mt-1">{withTwelveHour(moreNotes)}</p>
               : <button onClick={() => setOpen(true)} className="min-h-[44px] text-sm text-[#514636]">The sheet's notes ›</button>)}
           <p className="text-xs text-[#6b5d4a] mt-1">From {sourceWordsFor(s, me)} — its {r.tab} tab</p>
         </div>
