@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-09 — Rebooked Trains Said as Rebooked; the Line That's Now Opens Itself
+
+### Fixed
+- Ken's rail sheet gained a "REBOOK — ACTION" tab: five trains (Oct 11, Oct 13, both Oct 14, Oct 29) cancelled and
+  rebooked on a new card, the old tabs renamed "OLD — …". Wander didn't read the new tab, so it kept showing the
+  cancelled bookings' seats, and Scout could give their reservation numbers. Now a rebooking tab is recognized by its
+  header (cancelled, rebooked, date, train — whatever else it has), and for each train it marks cancelled:
+  - its old reservation #, seats, cost, notes and boarding note are kept only as "the cancelled booking's" — never on a
+    screen or from Scout as current;
+  - the train card, the Next tab's train card and Scout say "Rebooked on the new card — car and seats are on the paper
+    tickets" (a paper-ticket booking; Ken: tickets picked up before cancelling, nothing outstanding); the new number and
+    seats show once they're in the sheet;
+  - a train cancelled but not rebooked says there's no booking for it; one not yet cancelled keeps its booking.
+  - The old Shin-Osaka pickup's "not ticked" warning no longer applies to these trains.
+- The sheet's "Reso #" column is read as the reservation number, like "Reservation #".
+- Tapping the Next tab's train card or a "Don't miss" line brings a tall, opened line in at its top, clear of the
+  header (centered, its name and time went above the screen).
+
+### Changed
+- Day screen (day design step 3): on today's screen the line that's now opens by itself — the train you're on, else the
+  sooner of your next booked train and her next timed line for you, the same reckoning as the Next tab. Earlier timed
+  lines turn a quieter color (still easy to read; never hidden); lines with no time never do. On a day ahead, its first
+  timed line opens; a day looked back on stays short. Days with her plan keep their own "Now".
+- SPEC sections: day view; Ken's rail sheet. SPEC UPDATE NEEDED.
+
 ## 2026-10-09 — Each Line of the Day Is Short Until Tapped
 
 ### Changed

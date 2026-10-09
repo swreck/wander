@@ -16,8 +16,13 @@ export function railAudience(items: GuideItem[], owner: string): { ownerParty: s
   };
 }
 
-export interface Cited { text: string; a1: string }
-export interface RailRow { tab: string; row: number; date: string | null; cols: Record<string, Cited> }
+export interface Cited { text: string; a1: string; tab?: string }
+export interface RailRow { tab: string; row: number; date: string | null; cols: Record<string, Cited>; rebook?: Rebook }
+/** What his rebooking tab says about this booking (Oct 8: five trains cancelled and rebooked on a new card) — the server
+ *  has already renamed a cancelled booking's reservation #, seats and notes, so they're never read as current */
+export interface Rebook { tab: string; row: number; cancelled: boolean; rebooked: boolean; oldRes: string | null; newRes: Cited | null; newSeats: Cited | null }
+/** A booking's reservation number column, however the sheet heads it ("Reservation #", "Reso #", "Res #") */
+export const RESERVATION_COL = /^(reservation|reso\b|res #|res$)/;
 export interface ChecklistStep { tab: string; row: number; cols: Record<string, Cited> }
 export interface Checklist { tab: string; steps: ChecklistStep[]; date: string | null }
 export interface RailDiffer {
@@ -216,8 +221,8 @@ export function untickedTickets(sources: OtherSource[], date: string, me: string
     const pickup = s.checklists.find((c) => c.date && c.date < date);
     if (!pickup) continue;
     const progress = pickupProgress(s.id, pickup);
-    for (const r of s.rail.filter((x) => x.date === date && isBookedTrain(x) && isMine(x, s) && (!stillAhead || stillAhead(x)))) {
-      const resv = colOf(r.cols, /^reservation/);
+    for (const r of s.rail.filter((x) => x.date === date && isBookedTrain(x) && !x.rebook?.cancelled && isMine(x, s) && (!stillAhead || stillAhead(x)))) {
+      const resv = colOf(r.cols, RESERVATION_COL);
       if (!resv || progress.tickedFor(resv) !== false) continue;
       const text = `${colOf(r.cols, /^ticket/)}. ${colOf(r.cols, /^notes$/)}`;
       // Where it can still be had, first ("cannot be collected at Utsunomiya", "Tokyo Station's JR East Travel Service
