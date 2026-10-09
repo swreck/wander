@@ -73,6 +73,11 @@ function place(x: number, y: number, zoom: number) {
   return { lat: (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / scale))) * 180) / Math.PI, lng: (x / scale) * 360 - 180 };
 }
 
+/** The map's settled view per trip — its height, zoom and middle — kept while Wander is open: coming back to Home it's
+ *  shown just so, not fitted again (each refit nudged the zoom, and the zoom the height: 216 ↔ 234 pt, every visit) */
+type Settled = { height: number; zoom: number; center: google.maps.LatLngLiteral };
+const settledViews = new Map<string, Settled>();
+
 const shortDay = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** `cities`: the cities the map shows (in Japan, located); `allCities`: the trip's whole list, for the calendar colors */
@@ -118,8 +123,9 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
     return Math.round(Math.min(h * 0.4, Math.max(220, tall)));
   }, [stops]);
   // …then, once drawn, exactly as tall as the markers and names need (a stop drawn inside a shared marker left its own
-  // place as empty sea — map review round 4)
-  const [fitted, setFitted] = useState<number | null>(null);
+  // place as empty sea — map review round 4) — remembered, so coming back to Home it's that height at once, no jump
+  const viewKey = `${tripId}:${order.join(",")}`;
+  const [fitted, setFitted] = useState<number | null>(() => settledViews.get(`${tripId}:${order.join(",")}`)?.height ?? null);
   const height = fitted ?? estimate;
   // "Whole trip": back to the fitted view after a pinch or a drag (there was no way back but leaving Home — tester t4)
   const [refit, setRefit] = useState(0);
@@ -128,7 +134,10 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   return (
     <div className="relative bg-[#e8e1d2]" style={{ height }}>
       <APIProvider apiKey={API_KEY}>
+        {/* (the map built the first time is kept and used again — Ken, Oct 9: "every time I go to home, there is a delay
+            in showing the map… shouldn't those be cached on the phone" — it was built from nothing on every visit) */}
         <GoogleMap
+          reuseMaps
           defaultCenter={{ lat: stops[0].city.latitude!, lng: stops[0].city.longitude! }}
           defaultZoom={6}
           styles={MAP_STYLE}
@@ -140,9 +149,9 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
           backgroundColor="#e8e1d2"
           style={{ width: "100%", height: "100%" }}
         >
-          <Fit stops={stops} again={refit} />
+          <Fit stops={stops} again={refit} viewKey={viewKey} />
           <Markers stops={stops} order={order} allCities={allCities} today={today} onOpenDay={onOpenDay} onHeight={setFitted}
-            again={refit} onWholeTrip={() => setRefit((n) => n + 1)} />
+            again={refit} onWholeTrip={() => setRefit((n) => n + 1)} viewKey={viewKey} />
         </GoogleMap>
       </APIProvider>
     </div>
@@ -150,16 +159,19 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
 }
 
 /** The view: the trip's cities, filling the map */
-function Fit({ stops, again }: { stops: Stop[]; again: number }) {
+function Fit({ stops, again, viewKey }: { stops: Stop[]; again: number; viewKey: string }) {
   const map = useMap();
   useEffect(() => {
     if (!map) return;
+    // (back on Home: the view it settled on last time, as it was — "Whole trip" fits afresh)
+    const kept = again === 0 ? settledViews.get(viewKey) : undefined;
+    if (kept) { map.setZoom(kept.zoom); map.setCenter(kept.center); return; }
     if (stops.length === 1) { map.setCenter({ lat: stops[0].city.latitude!, lng: stops[0].city.longitude! }); map.setZoom(10); return; }
     const b = new google.maps.LatLngBounds();
     for (const s of stops) b.extend({ lat: s.city.latitude!, lng: s.city.longitude! });
     // room for a marker and its name at every edge
     map.fitBounds(b, { top: 36, bottom: 36, left: 44, right: 44 });
-  }, [map, stops, again]);
+  }, [map, stops, again, viewKey]);
   return null;
 }
 
@@ -212,9 +224,11 @@ const measurer = () => {
   return measuring;
 };
 
-function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, onWholeTrip }: {
+function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, onWholeTrip, viewKey }: {
   stops: Stop[]; order: string[]; allCities: City[]; today: string; onOpenDay: (date: string) => void; onHeight: (h: number) => void;
   again: number; onWholeTrip: () => void;
+  /** whose settled view this is, to keep for the next visit to Home */
+  viewKey: string;
 }) {
   const map = useMap();
   // The view: its zoom, and where its edges are (a name must stay inside — "Tokyo · Nikko" was cut off at the right)
@@ -802,7 +816,18 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       setMoved(Math.abs(view.zoom - s.zoom) > 0.05 || Math.hypot(cxNow - s.cx * k, cyNow - s.cy * k) > 20);
       return;
     }
-    if (fits.current >= 4) { settled.current = { zoom: view.zoom, cx: cxNow, cy: cyNow }; return; }
+    // (kept for the next visit to Home: shown just so, not fitted again)
+    const settle = () => {
+      settled.current = { zoom: view.zoom, cx: cxNow, cy: cyNow };
+      const c = map.getCenter();
+      if (c) settledViews.set(viewKey, { height: view.h, zoom: view.zoom, center: c.toJSON() });
+    };
+    // (back on Home with the view kept from last time: it's already settled)
+    if (fits.current === 0 && again === 0 && settledViews.has(viewKey)) {
+      const kept = settledViews.get(viewKey)!;
+      if (Math.abs(kept.zoom - view.zoom) < 0.01 && Math.abs(kept.height - view.h) <= 2) { settled.current = { zoom: view.zoom, cx: cxNow, cy: cyNow }; return; }
+    }
+    if (fits.current >= 4) { settle(); return; }
     // (the lines too: a leg arcing below the names ran into Google's credit)
     const boxes = [...placed.map((p) => p.spot.box), ...placed.map(({ group: g }) => ({ x1: g.x - 14, y1: g.y - 14, x2: g.x + 14, y2: g.y + 14 })),
       ...drawnRoute.flatMap(({ pts }) => pts.map((p) => ({ x1: p.x - 3, y1: p.y - 3, x2: p.x + 3, y2: p.y + 3 })))];
@@ -813,11 +838,11 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     // (8 above the content, 8 + the strip below it: the view's middle is half the strip below the content's)
     const cx = (left + right) / 2, cy = (top + bottom) / 2 + GOOGLE_STRIP / 2;
     const off = Math.abs(cx - (view.x0 + view.w / 2)) > 6 || Math.abs(cy - (view.y0 + view.h / 2)) > 6;
-    if (Math.abs(want - view.h) <= 6 && !off) { settled.current = { zoom: view.zoom, cx: cxNow, cy: cyNow }; return; }
+    if (Math.abs(want - view.h) <= 6 && !off) { settle(); return; }
     fits.current++;
     onHeight(want);
     map.setCenter(place(cx, cy, view.zoom));
-  }, [map, view, placed, drawnRoute, onHeight]);
+  }, [map, view, placed, drawnRoute, onHeight, again, viewKey]);
 
   // During the trip: today's city dark, the ones already visited quieter; before it, the start ringed
   const tripStarted = stops.some((s) => s.firstDay && s.firstDay <= today);
