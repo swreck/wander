@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-09 — Home's Map Shows at Once When You Come Back
+
+### Changed
+- Home: the trip map was built from nothing on every visit to Home (Ken: "every time I go to home, there is a delay in
+  showing the map"). Now the map built the first time is kept and used again while Wander is open, with the view it
+  settled on — height, zoom and middle — so coming back to Home it's there at once, at the same size (it had also changed
+  height a moment after showing). In a test browser: back to Home in about 60 ms instead of 0.7–3 s. The first Home
+  after opening Wander still builds the map. The calendar was already shown from the phone's copy, its little maps kept.
+- SPEC sections: Home map. No spec change in behavior beyond speed.
+
 ## 2026-10-09 — Notes Waiting for Signal Catch Up, and Can Be Changed; the Tab Bar Stays Put
 
 ### Fixed
