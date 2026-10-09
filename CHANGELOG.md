@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-08 — A Plan Added in Wander Sits at Its Time in the Day
+
+### Changed
+- On a day screen, a plan added with "+ Add a plan for this day" that has a time now sits at that time among Larisa's
+  lines, marked "Added by you · not in Larisa's Guide" (or by whoever added it), with Tell Larisa and Take off this day
+  on it. On a day with her detailed plan it is a row in "Larisa's plan for the day"; on other days it is a card between
+  her lines and trains. A plan with no time stays under "Added in Wander" further down. Home, the Next tab and Scout
+  already treated added plans as part of the day; the day screen now matches.
+- Where: the day screen (tap a day from Home). Nothing is written to her sheet.
+- SPEC sections: day view / itinerary display. SPEC UPDATE NEEDED (added plans interleave with Guide lines by time).
+
 ## 2026-10-05 — Scout Says "Larisa's Guide" to Everyone but Larisa
 
 ### Fixed

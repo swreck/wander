@@ -211,8 +211,10 @@ function DayPicture({ tripId, picture, her, tab }: { tripId: string; picture: Gu
   );
 }
 
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [] }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
+  /** plans added in Wander with a time, drawn among her lines at their time ("HH:MM") — marked as added, never as hers */
+  added?: { time: string; node: ReactNode }[];
   /** the train under this line already says where the sources' times differ — not again in amber on the line */
   differBelow?: (b: GuideItem) => boolean;
   /** the sources' disagreement about this line's time is already said at the top of the day — a pointer here, not again */
@@ -248,6 +250,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // When each line ends, and the line you're on now — the same rule Home and Now use (lib/guideDisplay.ts)
   const endOf = (b: GuideItem) => planLineEnd(b, blocks);
   const current = nowAt === null ? null : currentPlanLine(blocks, nowAt, me) || currentUnownedLine(blocks, nowAt) || null;
+  const addedSorted = [...added].sort((a, b) => a.time.localeCompare(b.time));
+  let nextAdded = 0;
   return (
     <section id="plan" className="mb-5 scroll-mt-24">
       <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{v.Owners} plan for the day</h2>
@@ -290,7 +294,11 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
             {/A picture in her/.test(matched) ? "Wander placed this plan on this day; a picture in the tab dates it differently ›" : "Wander placed this plan on this day ›"}
           </button>)}
       <ol className="mt-2 bg-white rounded-xl border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
-        {blocks.map((b) => {
+        {blocks.flatMap((b) => {
+          // (a plan added in Wander before this line's time goes here, in the day's order — Oct 8, Ken: "does it become an
+          // equal item to activities extracted from the sheet?")
+          const lead: ReactNode[] = [];
+          if (b.time) while (nextAdded < addedSorted.length && addedSorted[nextAdded].time < b.time) lead.push(addedSorted[nextAdded++].node);
           const lines = (b.detail || "").split("\n").filter((l) => l && !l.startsWith("Wander matched this plan") && !/^Her tab has \d+ versions of this day's plan/.test(l));
           const choices = lines.filter((l) => l.startsWith("Choice: ")).map((l) => l.slice(8));
           const estimate = lines.includes("Times are Larisa's estimate.");
@@ -317,7 +325,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           const isNow = current?.id === b.id;
           const past = nowAt !== null && b.time && !isNow && endOf(b) <= nowAt;
           const ring = highlight === b.id || isNow ? "ring-2 ring-[#c8a060] rounded-xl" : "";
-          return (
+          return [...lead, (
             <li key={b.id} id={`item-${b.id}`} className={`flex gap-3 p-3 transition-shadow ${ring} ${past ? "opacity-60" : ""}`}>
               <div className="w-20 shrink-0 text-right text-sm text-[#3a3128] [overflow-wrap:anywhere]" title={estimate ? "Larisa's estimate" : undefined}>
                 {isNow && <span className="block text-[11px] uppercase tracking-wide text-[#8a5a1a]">Now</span>}
@@ -409,8 +417,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 {below}
               </div>
             </li>
-          );
+          )];
         })}
+        {addedSorted.slice(nextAdded).map((a) => a.node)}
       </ol>
     </section>
   );
@@ -956,6 +965,46 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     ? planBlocks.find((b) => b !== currentUnowned && noOwner.has(b.id) && b.time && toMin(b.time) >= tripNow && (!upcomingGuide?.time || toMin(b.time) < toMin(upcomingGuide.time)))
     : undefined;
   const ownPlans = choices.filter((c) => !pickTexts.has(c.text));
+  // A plan added in Wander with a time sits in the day at its time, among her lines (Oct 8, Ken: "does it become an equal
+  // item to activities extracted from the sheet?" — on Home and Next it did; here it waited in its own section); one with
+  // no time stays under "Added in Wander". Always marked as added, never as hers.
+  const timedOwn = ownPlans.filter((c) => !!c.time).sort((a, b) => a.time!.localeCompare(b.time!));
+  const untimedOwn = ownPlans.filter((c) => !c.time);
+  const addedPlan = (c: DayChoice, look: "card" | "row") => {
+    const body = (
+      <div className="flex-1 min-w-0">
+        <p className="text-[15px] leading-snug text-[#3a3128] [overflow-wrap:anywhere]">{c.text}</p>
+        <p className="text-xs text-[#6b5d4a] mt-1">
+          {c._pending
+            ? "Saved on this phone — waiting for signal"
+            : c.fromGuideIdea
+              ? `Put on this day by ${c.addedBy} · one of ${owner || "Larisa"}'s ideas`
+              : `Added by ${me && c.addedBy === me ? "you" : c.addedBy} · not in ${v.guide}`}
+        </p>
+        {confirmRemove === c.id ? (
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-sm text-[#6b5d4a]">Take this off the day?</span>
+            <button onClick={() => removeChoice(c)} className="min-h-[44px] px-3 text-sm text-[#8a3a1a]">Take it off</button>
+            <button onClick={() => setConfirmRemove(null)} className="min-h-[44px] px-3 text-sm text-[#514636]">Keep</button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-x-4">
+            {owner && me !== owner && !c._pending && (
+              <button onClick={async () => setNotice(await sendToGuideOwner(owner, planMessage(owner, c, me)))} className="min-h-[44px] text-sm text-[#514636]">
+                Tell {owner}
+              </button>
+            )}
+            <button onClick={() => setConfirmRemove(c.id)} aria-label={`Take ${c.text} off this day`} className="min-h-[44px] text-sm text-[#6b5d4a]">Take off this day</button>
+          </div>
+        )}
+      </div>
+    );
+    const time = c.time ? clock(c.time) : <span className="text-[#6b5d4a]" aria-hidden>✦</span>;
+    return look === "row"
+      // (a row of her plan's list, tinted so it reads as the group's own)
+      ? <li key={`added-${c.id}`} id={`added-${c.id}`} data-added className="flex gap-3 p-3 bg-[#fbf9f4]"><div className="w-20 shrink-0 text-right text-sm text-[#3a3128]">{time}</div>{body}</li>
+      : <li key={`added-${c.id}`} id={`added-${c.id}`} data-added className="bg-white rounded-xl border border-[#e0d8cc] p-3"><div className="flex gap-3"><div className="w-16 shrink-0 text-right text-sm font-medium text-[#3a3128]">{time}</div>{body}</div></li>;
+  };
   const upcomingChoice = isToday
     ? ownPlans.filter((c) => c.time && toMin(c.time) >= tripNow).sort((a, b) => a.time!.localeCompare(b.time!))[0]
     : undefined;
@@ -1593,6 +1642,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 tripId={tripId}
                 maps={mapsByDay[date] || []}
                 pictures={pictures}
+                added={timedOwn.map((c) => ({ time: c.time!, node: addedPlan(c, "row") }))}
                 differAbove={(b) => isToday && !now && !!b.time && otherSources.some((s) => s.differs.some((d) => d.date === date && differLive(d)
                   && d.guideSays === (b.endTime ? `${twelveHour(b.time!)}–${twelveHour(b.endTime)}` : twelveHour(b.time!))))}
                 under={(b) => [
@@ -1658,17 +1708,26 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   const out: ReactNode[] = [];
                   let t = 0;
                   const sorted = [...trains].sort((a, b) => dep(a.r) - dep(b.r));
+                  // Plans added in Wander with a time, at their time among the day's lines and trains (on a day with her
+                  // plan they're in her plan's list instead)
+                  const own = planBlocks.length ? [] : timedOwn;
+                  let o = 0;
+                  const flushOwn = (beforeMin: number) => { while (o < own.length && toMin(own[o].time!) < beforeMin) out.push(addedPlan(own[o++], "card")); };
+                  const pushTrain = () => { flushOwn(dep(sorted[t].r)); out.push(trainLine(sorted[t++])); };
                   order.forEach((i, n) => {
                     if (n === timedAt && !afterLanding.length && lead.length) out.push(<li key="untimed-note" className="text-xs text-[#6b5d4a] -mt-1">The lines above have no time in {v.guide}; by the clock:</li>);
                     // (a check-out comes before the day's trains — round 13: Oct 8 read "10:26 AM NOZOMI 9" above "by 12:00
                     // PM Check out"; and the untimed evening lines after the timed ones wait until every train is said —
                     // Oct 14 put Ippudo Ramen above Ken & Larisa's 4:58 PM train back)
                     const eveningUntimed = !i.time && timedAt >= 0 && n > timedAt && !afterLanding.includes(i);
-                    while (t < sorted.length && i.kind !== "checkout" && (eveningUntimed || (i.time && dep(sorted[t].r) < tripClockMinutes(i, tripZone)))) out.push(trainLine(sorted[t++]));
+                    while (t < sorted.length && i.kind !== "checkout" && (eveningUntimed || (i.time && dep(sorted[t].r) < tripClockMinutes(i, tripZone)))) pushTrain();
+                    if (i.time) flushOwn(tripClockMinutes(i, tripZone));
+                    else if (eveningUntimed) flushOwn(Infinity);
                     out.push(card(i));
                     if (i === landing) legs.forEach((l) => out.push(legLine(l)));
                   });
-                  while (t < sorted.length) out.push(trainLine(sorted[t++]));
+                  while (t < sorted.length) pushTrain();
+                  flushOwn(Infinity);
                   return out;
                   // A leg the rail sheet has with no booking, at its place after landing; a booked train at its time — each
                   // opens in place ("Seats, notes and steps ›")
@@ -1685,47 +1744,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* Same-day plans added in Wander — the group's own, beside the Guide */}
             <section className="mt-5">
               {!choicesChecked && <p className="text-sm text-[#6b5d4a] mb-2" role="status">Checking for plans added in Wander…</p>}
-              {ownPlans.length > 0 && (
+              {untimedOwn.length > 0 && (
                 <>
                   <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Added in Wander</h2>
                   <ul className="space-y-2">
                     {/* In the order they'll happen: times first (2:30 before 3:00), then plans with no time */}
-                    {[...ownPlans].sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || "").localeCompare(b.time || "")).map((c) => (
-                      <li key={c.id} className="bg-white rounded-xl border border-[#e0d8cc] p-3">
-                        <div className="flex gap-3">
-                          <div className="w-16 shrink-0 text-right text-sm font-medium text-[#3a3128]">{c.time ? clock(c.time) : <span className="text-[#6b5d4a]" aria-hidden>✦</span>}</div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[15px] leading-snug text-[#3a3128] [overflow-wrap:anywhere]">{c.text}</p>
-                            <p className="text-xs text-[#6b5d4a] mt-1">
-                              {c._pending
-                                ? "Saved on this phone — waiting for signal"
-                                : c.fromGuideIdea
-                                  ? `Put on this day by ${c.addedBy} · one of ${owner || "Larisa"}'s ideas`
-                                  : `Added by ${me && c.addedBy === me ? "you" : c.addedBy} · not in ${v.guide}`}
-                            </p>
-                            {confirmRemove === c.id ? (
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-sm text-[#6b5d4a]">Take this off the day?</span>
-                                <button onClick={() => removeChoice(c)} className="min-h-[44px] px-3 text-sm text-[#8a3a1a]">Take it off</button>
-                                <button onClick={() => setConfirmRemove(null)} className="min-h-[44px] px-3 text-sm text-[#514636]">Keep</button>
-                              </div>
-                            ) : (
-                              <div className="flex flex-wrap gap-x-4">
-                                {owner && me !== owner && !c._pending && (
-                                  <button
-                                    onClick={async () => setNotice(await sendToGuideOwner(owner, planMessage(owner, c, me)))}
-                                    className="min-h-[44px] text-sm text-[#514636]"
-                                  >
-                                    Tell {owner}
-                                  </button>
-                                )}
-                                <button onClick={() => setConfirmRemove(c.id)} aria-label={`Take ${c.text} off this day`} className="min-h-[44px] text-sm text-[#6b5d4a]">Take off this day</button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </li>
-                    ))}
+                    {/* (only plans with no time here — one with a time sits in the day at its time, above) */}
+                    {untimedOwn.map((c) => addedPlan(c, "card"))}
                   </ul>
                 </>
               )}
