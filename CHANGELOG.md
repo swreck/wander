@@ -2,6 +2,13 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-09 — The Tab Bar Comes Back to the Bottom
+
+### Fixed
+- The tab bar still floated mid-screen on Ken's iPhone after the first fix. It now finds where the screen really ends —
+  from where it's actually drawn and the part of the page on screen — and moves itself there whenever iOS changes
+  either (after the keyboard, a scroll, coming back to Wander). It still steps away while you type.
+
 ## 2026-10-09 — Home's Map Shows at Once When You Come Back
 
 ### Changed

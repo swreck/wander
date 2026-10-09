@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { loadMaybeNews } from "../lib/maybesNews";
 
@@ -131,6 +131,52 @@ export default function BottomNav({ pendingChanges }: Props) {
   // While typing, the bar steps away; when the keyboard goes, it comes back and the page is nudged so iOS puts it at the
   // bottom again (Ken, Oct 9: after typing a note the bar floated mid-screen over his notes, the page showing below it)
   const [typing, setTyping] = useState(false);
+  // …and wherever iOS leaves the page's own bottom, the bar sits at the bottom of what's on the screen (Ken, Oct 9, again
+  // after the first fix: the bar still floated mid-screen over his notes, the page going on below it). iOS can keep the
+  // page's fixed layer short after the keyboard; the visible part says where the screen really ends.
+  const [drop, setDrop] = useState(0);
+  const navRef = useRef<HTMLElement | null>(null);
+  const dropRef = useRef(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let frame = 0;
+    const place = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        // where the bar really is (less what it's been moved), against where the screen really ends
+        const el = navRef.current;
+        const rect = el?.getBoundingClientRect();
+        // (hidden while typing: nothing to measure — it's placed again when it comes back)
+        if (!el || !rect || rect.height === 0 || vv.scale > 1.01) { dropRef.current = 0; setDrop(0); return; }
+        const bottom = rect.bottom - dropRef.current;
+        const screenEnd = Math.max(vv.offsetTop + vv.height, window.innerHeight);
+        // (only ever down to the screen's bottom — with the keyboard up the bar is away anyway)
+        const gap = Math.round(screenEnd - bottom);
+        const next = gap > 1 ? gap : 0;
+        dropRef.current = next;
+        setDrop(next);
+      });
+    };
+    place();
+    window.addEventListener("wander:place-nav", place);
+    vv.addEventListener("resize", place);
+    vv.addEventListener("scroll", place);
+    window.addEventListener("scroll", place, { passive: true });
+    window.addEventListener("orientationchange", place);
+    document.addEventListener("visibilitychange", place);
+    document.addEventListener("focusout", place);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("wander:place-nav", place);
+      vv.removeEventListener("resize", place);
+      vv.removeEventListener("scroll", place);
+      window.removeEventListener("scroll", place);
+      window.removeEventListener("orientationchange", place);
+      document.removeEventListener("visibilitychange", place);
+      document.removeEventListener("focusout", place);
+    };
+  }, []);
   useEffect(() => {
     const editable = (el: Element | EventTarget | null) => el instanceof HTMLElement
       && el.matches("textarea, select, [contenteditable='true'], input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='range'])");
@@ -145,14 +191,22 @@ export default function BottomNav({ pendingChanges }: Props) {
     vv?.addEventListener("resize", onResize);
     return () => { document.removeEventListener("focusin", onIn); document.removeEventListener("focusout", onOut); vv?.removeEventListener("resize", onResize); };
   }, []);
+  // (back from typing: placed at once, and again once iOS has settled the screen)
+  useEffect(() => {
+    if (typing) return;
+    window.dispatchEvent(new Event("wander:place-nav"));
+    const later = setTimeout(() => window.dispatchEvent(new Event("wander:place-nav")), 400);
+    return () => clearTimeout(later);
+  }, [typing]);
 
   // Hide on login and join pages; everywhere else the same four tabs, always
   if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
 
   return (
     <nav
+      ref={navRef}
       className={`fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e0d8cc] ${typing ? "hidden" : ""}`}
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", transform: drop ? `translateY(${drop}px)` : undefined }}
     >
       <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
         {tabs.map((tab) => {
