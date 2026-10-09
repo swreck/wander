@@ -16,7 +16,7 @@ import { replayQueue, dropQueued } from "../lib/offlineStore";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  saveNote, waitingNotes, savedCopy, keepCopy, readDraft, keepDraft, exportText, tripToday, dayWords, sendCopy,
+  saveNote, waitingNotes, changeWaitingNote, savedCopy, keepCopy, readDraft, keepDraft, exportText, tripToday, dayWords, sendCopy,
   newClientId, wordCount, JAPAN_OVERALL, BACKROADS, placeOf, readView, keepView, type TripNote, type NoteSettings, type SaveBody, type NotesView,
 } from "../lib/tripNotes";
 import { isLanding, isFor } from "../lib/guideDisplay";
@@ -39,6 +39,8 @@ export default function NotesPage() {
   const [days, setDays] = useState<DayOption[]>([]);
   const [notes, setNotes] = useState<TripNote[]>([]);
   const [waiting, setWaiting] = useState<(SaveBody & { _at: number })[]>([]);
+  // A waiting note being changed before it goes (Ken, Oct 9)
+  const [changing, setChanging] = useState<{ cid: string; text: string } | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "unreachable">("loading");
   const [settings, setSettings] = useState<NoteSettings | null>(null);
@@ -93,8 +95,10 @@ export default function NotesPage() {
     if (d.sending && list.some((n) => n.mine && n.clientId === d.sending)) { keepDraft(id, ""); setText(""); pendingRef.current = null; }
     // A note "waiting for signal" that Wander already has (it arrived; the reply didn't) leaves the waiting list — it
     // showed twice, once waiting and once kept (tester k1)
-    const kept = new Set(list.filter((n) => n.mine).map((n) => n.clientId));
-    await dropQueued(`/api/trip-notes/trip/${id}`, (b) => kept.has(String(b.clientId)));
+    // (…only with the same words: one changed while it waited still has its change to deliver — Ken, Oct 9)
+    const keptText = new Map(list.filter((n) => n.mine).map((n) => [n.clientId, n.text]));
+    await dropQueued(`/api/trip-notes/trip/${id}`, (b) => keptText.has(String(b.clientId))
+      && (!b.changedAt || keptText.get(String(b.clientId)) === String(b.text).replace(/^\s+|\s+$/g, "")));
     const w = await waitingNotes(id);
     setWaiting(w);
     // ("Kept on this phone… you'll see it below as waiting" stayed after it was sent — tester t4)
@@ -142,6 +146,22 @@ export default function NotesPage() {
     window.addEventListener("online", run);
     return () => window.removeEventListener("online", run);
   }, [load]);
+
+  // Notes waiting for signal keep trying while Notes is open, and the moment Wander is back in front (Ken, Oct 9: two
+  // notes Wander already had still said "waiting for signal" on full LTE — the one retry after a slow reply was slow
+  // too, and nothing tried again until the phone went offline and back)
+  useEffect(() => {
+    if (!tripId || !waiting.length) return;
+    const tryNow = () => {
+      if (navigator.onLine === false) return;
+      replayQueue().catch(() => null).then(() => load(tripId)).catch(() => { /* next time */ });
+    };
+    const every = setInterval(tryNow, 20_000);
+    const onShow = () => { if (document.visibilityState === "visible") tryNow(); };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    return () => { clearInterval(every); document.removeEventListener("visibilitychange", onShow); window.removeEventListener("focus", onShow); };
+  }, [tripId, waiting.length, load]);
 
   // A draft typed or said before Wander closed comes back
   // (with the day it was about — not whatever day it is when Wander opens again)
@@ -482,7 +502,29 @@ export default function NotesPage() {
                   {waiting.map((w) => (
                     <li key={w.clientId} className="rounded-xl border border-dashed border-[#e8c98f] bg-[#fffdf8] p-3">
                       <p className="text-xs text-[#8a5a1a]">{w.dayDate ? `${dayWords(w.dayDate)} · ` : ""}{wordCount(w.text)} words · {w.visibility === "trip" ? "to be shared with the trip · " : ""}sends when there's signal</p>
-                      <p className="text-sm text-[#3a3128] whitespace-pre-wrap [overflow-wrap:anywhere] mt-1">{w.text}</p>
+                      {changing?.cid === w.clientId ? (
+                        <>
+                          <textarea value={changing.text} onChange={(e) => setChanging({ cid: w.clientId, text: e.target.value })} rows={Math.min(12, Math.max(4, changing.text.split("\n").length + 2))}
+                            aria-label="Change this note" autoFocus
+                            className="w-full mt-1.5 p-2 rounded-lg border border-[#e0d8cc] bg-white text-[16px] leading-relaxed text-[#3a3128]" />
+                          <div className="flex gap-2 mt-1.5">
+                            <button disabled={!changing.text.trim()} onClick={async () => {
+                              const words = changing.text;
+                              await changeWaitingNote(tripId!, w.clientId, words);
+                              setChanging(null);
+                              setWaiting(await waitingNotes(tripId!));
+                              // (and try now — it may go straight away)
+                              if (navigator.onLine !== false) replayQueue().catch(() => null).then(() => load(tripId!)).catch(() => { /* next time */ });
+                            }} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm disabled:opacity-40">Save the change</button>
+                            <button onClick={() => setChanging(null)} className="min-h-[44px] px-3 text-sm text-[#514636]">Cancel</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-[#3a3128] whitespace-pre-wrap [overflow-wrap:anywhere] mt-1">{w.text}</p>
+                          <button onClick={() => setChanging({ cid: w.clientId, text: w.text })} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Change it</button>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

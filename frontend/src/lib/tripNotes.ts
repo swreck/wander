@@ -4,7 +4,7 @@
  * signal it's kept on the phone and sent later; what's being typed is kept as a draft on the phone until it's saved.
  */
 import { api } from "./api";
-import { queuedBodies, whoIs } from "./offlineStore";
+import { queuedBodies, whoIs, updateQueued } from "./offlineStore";
 
 export interface TripNote {
   id: string;
@@ -38,13 +38,20 @@ export function newClientId(): string {
 }
 
 /** `writtenAt`: when it was written on the phone — a note kept with no signal arrives later and keeps its own time */
-export type SaveBody = { clientId: string; text: string; source: TripNote["source"]; visibility: TripNote["visibility"]; dayDate: string | null; city: string | null; writtenAt: string };
+export type SaveBody = { clientId: string; text: string; source: TripNote["source"]; visibility: TripNote["visibility"]; dayDate: string | null; city: string | null; writtenAt: string; changedAt?: string };
 
 /** Saved (the note, read back) or kept on the phone until there's signal */
 export async function saveNote(tripId: string, body: SaveBody): Promise<{ note: TripNote } | { queued: true }> {
   const res = await api.postRepeatable<{ note?: TripNote; _queued?: boolean }>(`/trip-notes/trip/${tripId}`, body, 8000);
   if (res._queued) return { queued: true };
   return { note: res.note! };
+}
+
+/** Change a note still waiting for signal (Ken, Oct 9: "I wanted to edit the last note I added and could not"). It
+ *  carries when it was changed, so if its first words already reached Wander the change arrives as an edit. */
+export async function changeWaitingNote(tripId: string, clientId: string, text: string): Promise<boolean> {
+  const n = await updateQueued(`/api/trip-notes/trip/${tripId}`, (b) => b.clientId === clientId, (b) => ({ ...b, text, changedAt: new Date().toISOString() }));
+  return n > 0;
 }
 
 /** Notes this phone is still holding for signal — this person's only (a phone can be handed to someone else) */

@@ -167,10 +167,45 @@ export async function dropQueued(urlPart: string, matches: (body: Record<string,
   }
 }
 
+/** Change something still waiting to send, in place (a waiting note's words changed before it went — Ken, Oct 9) */
+export async function updateQueued(urlPart: string, matches: (body: Record<string, unknown>) => boolean, change: (body: Record<string, unknown>) => Record<string, unknown>, method = "POST"): Promise<number> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    let changed = 0;
+    await new Promise<void>((resolve, reject) => {
+      const req = store.openCursor();
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (!cursor) return;
+        const q = cursor.value as QueuedRequest;
+        let body: Record<string, unknown> | null = null;
+        try { body = q.body ? JSON.parse(q.body) : null; } catch { body = null; }
+        if (q.method === method && q.url.includes(urlPart) && body && matches(body)) { cursor.update({ ...q, body: JSON.stringify(change(body)) }); changed++; }
+        cursor.continue();
+      };
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    return changed;
+  } catch {
+    return 0;
+  }
+}
+
 /**
- * Attempt to replay all queued requests (called on reconnect).
+ * Attempt to replay all queued requests (called on reconnect, and by Notes while something waits). One at a time: a
+ * second call while one runs shares it, so nothing is sent twice (Oct 9).
  */
-export async function replayQueue(): Promise<{ success: number; failed: number }> {
+let replaying: Promise<{ success: number; failed: number }> | null = null;
+export function replayQueue(): Promise<{ success: number; failed: number }> {
+  if (!replaying) replaying = replayQueueOnce().finally(() => { replaying = null; });
+  return replaying;
+}
+
+async function replayQueueOnce(): Promise<{ success: number; failed: number }> {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readonly');
   const store = tx.objectStore(STORE_NAME);
@@ -202,8 +237,17 @@ export async function replayQueue(): Promise<{ success: number; failed: number }
     try {
       const res = await fetch(value.url, { method: value.method, headers: value.headers, body: value.body });
       if (isNote ? res.ok : (res.ok || res.status < 500)) {
-        const delTx = db.transaction(STORE_NAME, 'readwrite');
-        delTx.objectStore(STORE_NAME).delete(key);
+        // (only what was sent leaves the phone: a note changed while it was on its way keeps its change for the next try —
+        // Oct 9, a "Change it" saved mid-send was dropped with the old words)
+        await new Promise<void>((resolve) => {
+          const delTx = db.transaction(STORE_NAME, 'readwrite');
+          const st = delTx.objectStore(STORE_NAME);
+          const g = st.get(key);
+          g.onsuccess = () => { const now = g.result as QueuedRequest | undefined; if (now && now.body === value.body) st.delete(key); };
+          delTx.oncomplete = () => resolve();
+          delTx.onerror = () => resolve();
+          delTx.onabort = () => resolve();
+        });
         success++;
       } else {
         failed++;
