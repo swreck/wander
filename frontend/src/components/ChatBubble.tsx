@@ -580,9 +580,19 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const vv = window.visualViewport;
     if (!vv) return;
     let last: { h: number; kb: number } | null = null;
+    // The keyboard is up only while a box in Scout is being typed in. An iPhone can go on reporting a keyboard-sized
+    // screen after the keyboard has gone (Ken, Oct 9: after typing a note, Scout's panel opened above the top of the
+    // screen, lifted over a keyboard that wasn't there) — so without typing, it's the page's own full height.
+    const typingHere = () => {
+      const a = document.activeElement;
+      return !!a && !!panelRef.current?.contains(a) && a.matches("textarea, input:not([type='file']), [contenteditable='true']");
+    };
     const update = () => {
       const layoutH = document.documentElement.clientHeight || window.innerHeight;
-      const next = { h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)) };
+      const typing = typingHere();
+      const next = typing
+        ? { h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)) }
+        : { h: Math.round(Math.max(vv.height, layoutH)), kb: 0 };
       // (only a real change — a long press to select an answer moves the viewport a little, and every update scrolled
       // the conversation to its end and put the cursor back in the box, which took the selection away: Ken, Oct 4,
       // "a long press gives tactile feedback but doesn't actually select anything")
@@ -607,7 +617,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
-    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+    // (starting or stopping typing changes the answer even when the iPhone reports nothing new)
+    const soon = () => requestAnimationFrame(update);
+    document.addEventListener("focusin", soon);
+    document.addEventListener("focusout", soon);
+    return () => {
+      vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update);
+      document.removeEventListener("focusin", soon); document.removeEventListener("focusout", soon);
+    };
   }, [open]);
   // The newest words stay in view when the keyboard comes up or the sheet changes size
   useEffect(() => {

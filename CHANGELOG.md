@@ -2,7 +2,20 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
-## 2026-10-09 — The Tab Bar Comes Back to the Bottom
+## 2026-10-09 — Scout's Panel Stays on the Screen; the Day's Tab Bar Changes Withdrawn
+
+### Fixed
+- Ken: "Wander is not stable. Tapped scout… Tried to expand scout panel and got second (scout gone)" — the expanded
+  panel sat above the top of the screen. After typing (a note), an iPhone can go on reporting a keyboard-sized screen
+  with no keyboard; Scout lifted its panel over that keyboard. Now Scout believes the keyboard is up only while a box in
+  Scout is being typed in; otherwise it uses the page's full height. Rechecked when typing starts or stops.
+
+### Removed
+- Both of the day's tab bar changes (stepping away while typing; moving itself to the measured bottom) are withdrawn —
+  they acted on the same misreported screen as Scout's panel. The bar is as it was before Oct 9. The floating bar Ken
+  saw comes from the same iPhone misreport; to be solved without touching Scout.
+
+## 2026-10-09 — The Tab Bar Comes Back to the Bottom (withdrawn — see above)
 
 ### Fixed
 - The tab bar still floated mid-screen on Ken's iPhone after the first fix. It now finds where the screen really ends —
