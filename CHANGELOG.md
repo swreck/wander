@@ -2,6 +2,35 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-08 — The Day Reads in the Order It's Lived
+
+### Changed
+- Day screen, on days without Larisa's detailed day tab: everything now sits in one list in the order the day happens.
+  - A car, taxi or local leg from Ken's rail sheet with no booking sits beside the booked train it connects to: right
+    after the train before it, or just ahead of the next train when it goes to where that train leaves. On a day with
+    no booked train, it sits by her line about the place it goes to or leaves from. (Oct 14's two Mashiko taxis were
+    under "More trains"; Oct 12's Tokoname trains and Oct 23's train to Kyoto were in a separate Trains section.)
+  - Her lines with no time sit right after the train or leg that goes where they name: her Mashiko day after the taxi
+    to Mashiko, "Nagoya to Tokyo" after the NOZOMI 6, "Okayama → Hakata…" after the NOZOMI 9.
+  - Her Itinerary's own heading for the day ("day 1 - JA Arrive (evening), KL day trip to Mashiko", "travel day") is
+    one quiet line at the top, "In her Itinerary for today: …", as on days with her plan, not another card.
+  - A long travel note of hers on a line folds behind "Larisa's travel note ›".
+  - Her stay note's travel lines aren't repeated at the top when a train or leg in the day already makes that journey
+    (Oct 8's "PT1/PT2"); they stay in the stay's note at the bottom.
+  - A rail leg whose notes say only "Ken + Larisa only" says it once.
+  - A line from two of her tabs names them quietly ("From Larisa's Guide — Itinerary ↗ · Activities Template ↗").
+- "Today, don't miss" now includes a to-do ending today that belongs to someone in your own party, said as theirs
+  ("Larisa's to-do, last day today: Reconfirm … Robuchon …"). Others on the trip don't get it. The to-do card itself
+  says "Booked under Larisa Fong", not "Larisa's to do" a second time.
+- The city's photo on the first visit to a city stays 1.5 seconds longer (3.1 s before it fades). Tapping the city's
+  name at the top of any of its days brings the photo back; a faint picture mark beside the name hints at it.
+- SPEC sections: day view / itinerary display; city arrival photo. SPEC UPDATE NEEDED.
+
+### Fixed
+- Oct 13 showed Julie & Andy's take-off as "12:00 PM" in Ken's Japan-time list, after his 8 PM dinner. That was
+  California time; it now says "Wed 4:00 AM" (Japan). Any other person's one-line row on another clock is said on the
+  trip's clock.
+
 ## 2026-10-08 — A Plan Added in Wander Sits at Its Time in the Day
 
 ### Changed
