@@ -9,7 +9,7 @@ import prisma from "../db.js";
 import type { GuideTab } from "../guide/reader.js";
 import type { ContextLine, SourceView } from "../guide/sources.js";
 import { currentSources } from "./refresh.js";
-import { railRows, checklistSteps, col, twelveHour, dateIn, type RailRow, type ChecklistStep, type Cited } from "./shapes.js";
+import { railRows, rebookRows, applyRebooks, checklistSteps, col, twelveHour, dateIn, type RailRow, type ChecklistStep, type Cited } from "./shapes.js";
 
 export interface SourceMeta { id: string; name: string; owner: string; authorship: string | null; about: string | null; title: string | null; readAt: string | null; lastTriedAt: string | null; lastError: string | null }
 
@@ -143,12 +143,16 @@ export async function sourceViews(tripId: string): Promise<SourceView2[]> {
   const year = trip?.startDate ? trip.startDate.getUTCFullYear() : new Date().getUTCFullYear();
   return found.map(({ source, copy }) => {
     const tabs = ((copy?.tabs as unknown) as GuideTab[]) || [];
-    const rail: RailRow[] = [];
+    let rail: RailRow[] = [];
     const checklists: SourceView2["checklists"] = [];
     const otherTabs: GuideTab[] = [];
+    const rebooks: NonNullable<ReturnType<typeof rebookRows>> = [];
     for (const t of tabs) {
       const r = railRows(t, year);
       if (r) { rail.push(...r); continue; }
+      // (a rebooking tab is read for what it says about each train, and kept whole for Scout too)
+      const rb = rebookRows(t, year);
+      if (rb) { rebooks.push(...rb); otherTabs.push(t); continue; }
       const steps = checklistSteps(t);
       if (steps) {
         // The day it's for: the first date in its "When / where" steps ("Shin-Osaka, Oct 6")
@@ -158,6 +162,7 @@ export async function sourceViews(tripId: string): Promise<SourceView2[]> {
       }
       otherTabs.push(t);
     }
+    rail = applyRebooks(rail, rebooks);
     return {
       meta: {
         id: source.id, name: source.name, owner: source.owner, authorship: source.authorship, about: source.about,
@@ -169,7 +174,7 @@ export async function sourceViews(tripId: string): Promise<SourceView2[]> {
   });
 }
 
-const cellsOf = (tab: string, cols: Record<string, Cited>) => Object.values(cols).map((v) => ({ kind: "cell" as const, tab, a1: v.a1, text: v.text }));
+const cellsOf = (tab: string, cols: Record<string, Cited>) => Object.values(cols).map((v) => ({ kind: "cell" as const, tab: v.tab ?? tab, a1: v.a1, text: v.text }));
 const TIME_HEADS = /^(depart|arrive)/;
 /** An afternoon time written 24-hour inside a sentence ("Hakata 10:36 → Nagoya 13:55") gets its 12-hour words beside it
  * (Scout copied "13:55" from the pickup tab's summaries; every Wander time is "1:55 PM") */
@@ -199,6 +204,21 @@ export function sourceDocuments(views: SourceView2[]): { title: string; lines: C
     for (const r of v.rail) {
       const label = `${r.tab} tab, row ${r.row}`;
       lines.push({ text: `${label} — ${rowWords(r.cols)}`, src: src(label, cellsOf(r.tab, r.cols)) });
+      // What his rebooking tab says about this train, said plainly beside it (Oct 8: five trains cancelled and rebooked on
+      // a new card; the old reservation numbers were still the only ones in the row)
+      if (r.rebook) {
+        const b = r.rebook, train = col(r.cols, /^train$/)?.text || "this train";
+        const rbLabel = `${b.tab} tab, row ${b.row}`;
+        // (a missing new number is not a to-do: a paper-ticket booking's car and seats are on its tickets — Ken, Oct 8)
+        const paper = /paper/i.test(col(r.cols, /^ticket/)?.text || "");
+        const missing = paper ? "not in the sheet (a paper-ticket booking: car and seats are printed on the tickets; don't suggest finding or adding it)" : "not in the sheet";
+        const now = b.cancelled && b.rebooked
+          ? `the old booking${b.oldRes ? ` (reservation #${b.oldRes})` : ""} is CANCELLED and the same train is REBOOKED on the new card. New reservation #: ${b.newRes?.text || missing}. New seats: ${b.newSeats?.text || missing}. Never give the cancelled booking's reservation #, seats, cost or pickup notes as current.`
+          : b.cancelled
+            ? `the old booking${b.oldRes ? ` (reservation #${b.oldRes})` : ""} is CANCELLED and NOT rebooked yet — there is no booking for this train in the sheet right now.`
+            : `this booking is still to be cancelled and rebooked — until then the booking in the row above stands.`;
+        lines.push({ text: `REBOOKING (${rbLabel}) for ${r.date} ${train}: ${now}`, src: src(rbLabel, []) });
+      }
     }
     for (const c of v.checklists) {
       lines.push({ text: `${c.tab} tab — a step-by-step checklist${c.date ? ` for ${c.date}` : ""}, in its order:`, src: null });

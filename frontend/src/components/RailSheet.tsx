@@ -3,11 +3,11 @@
  * train on Now. Its words stay its own — a "PENDING — …" readiness line is shown as the sheet wrote it, never turned
  * into "booked" or "done" — and every card says where it came from. Where it and Larisa's Guide disagree, both show.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor } from "../lib/guideDisplay";
-import { colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, isBookedTrain, isSettledStatus, withTwelveHour, readWords, dateInText, differWords, herTab, type OtherSource, type RailRow, type Checklist, type RailDiffer } from "../lib/sources";
+import { colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, isBookedTrain, isSettledStatus, withTwelveHour, readWords, dateInText, differWords, herTab, RESERVATION_COL, type OtherSource, type RailRow, type Checklist, type RailDiffer } from "../lib/sources";
 import GuideText from "./GuideText";
 
 /**
@@ -54,14 +54,41 @@ export const checklistTitle = (tab: string) => tab.replace(/^tix\s*pick\s*-?\s*u
  * its time, name and route, anything to check now — and "Seats, notes and steps ›" opens the rest in place (day review,
  * Oct 4: every booked train was said twice, once in the day and again in full under "Trains" two screens down).
  */
-export function RailLeg(props: { r: RailRow; s: OtherSource; today: string; pickupBy?: string | null; look: "card" | "nested"; differs?: RailDiffer[] }) {
+/** What his rebooking tab says about a train, in a line ("Rebooked — the new reservation number and seats aren't in
+ *  your rail sheet yet"); settled once the new number is in */
+export function rebookSaid(r: RailRow, s: OtherSource, me: string | null): { words: string; settled: boolean } {
+  const rb = r.rebook;
+  if (!rb) return { words: "", settled: true };
+  const whose = sourceWordsFor(s, me).replace(/, written with AI help$/, "");
+  if (rb.cancelled && rb.rebooked) {
+    // (Ken, Oct 8: "We made and picked up our paper tickets before canceling. So no outstanding actions." — a missing new
+    // number isn't a to-do: a paper-ticket booking's car and seats are printed on its tickets)
+    const paper = /paper/i.test(colOf(r.cols, /^ticket/));
+    return rb.newRes
+      ? { words: `Rebooked on the new card (${whose}, its ${rb.tab} tab).`, settled: true }
+      : paper
+        ? { words: `Rebooked on the new card — car and seats are on the paper tickets (${whose}, its ${rb.tab} tab).`, settled: true }
+        : { words: `Rebooked on the new card — the new reservation number and seats aren't in ${whose} (its ${rb.tab} tab).`, settled: true };
+  }
+  if (rb.cancelled) return { words: `Cancelled in ${whose} and not rebooked yet — no booking for this train right now (its ${rb.tab} tab).`, settled: false };
+  return { words: `${whose.charAt(0).toUpperCase()}${whose.slice(1)} says to cancel and rebook this one — not done yet (its ${rb.tab} tab).`, settled: false };
+}
+
+export function RailLeg(props:{ r: RailRow; s: OtherSource; today: string; pickupBy?: string | null; look: "card" | "nested"; differs?: RailDiffer[]; autoOpen?: boolean; past?: boolean }) {
   return <Leg {...props} />;
 }
 
-function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRow; s: OtherSource; today: string; pickupBy?: string | null; look?: "list" | "card" | "nested"; differs?: RailDiffer[] }) {
+function Leg({ r, s, today, pickupBy, look = "list", differs = [], autoOpen = false, past = false }: {
+  r: RailRow; s: OtherSource; today: string; pickupBy?: string | null; look?: "list" | "card" | "nested"; differs?: RailDiffer[];
+  /** the train that's now (or a future day's first): open by itself (day design step 3) */
+  autoOpen?: boolean;
+  /** today, a train already arrived: quieter (still readable) */
+  past?: boolean;
+}) {
   const me = useAuth().user?.displayName ?? null;
   const [open, setOpen] = useState(false);
-  const [more, setMore] = useState(false);
+  const [more, setMore] = useState(autoOpen);
+  useEffect(() => { if (autoOpen) setMore(true); }, [autoOpen]);
   const train = colOf(r.cols, /^train$/);
   const depart = colOf(r.cols, /^depart/);
   const arrive = colOf(r.cols, /^arrive/);
@@ -69,7 +96,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
   const mode = colOf(r.cols, /^mode$/);
   const cls = colOf(r.cols, /^class$/);
   const seat = colOf(r.cols, /^car/);
-  const resv = colOf(r.cols, /^reservation/);
+  const resv = colOf(r.cols, RESERVATION_COL);
   const ticket = colOf(r.cols, /^ticket/);
   const readiness = colOf(r.cols, /^boarding readiness/, /readiness/);
   const target = colOf(r.cols, /^target/);
@@ -77,7 +104,12 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
   const notes = colOf(r.cols, /^notes$/);
   const pax = colOf(r.cols, /^pax$/);
   // Whose it is, when its notes open by saying so ("Ken + Larisa only. Booked Sep 29…") — its words, shown up top
-  const onlyFor = notes.match(/^\s*([A-Z][a-z]+(?:\s*(?:\+|&|and)\s*[A-Z][a-z]+)*\s+only)\b/)?.[1] || "";
+  // (a rebooked train's "Who" — its notes are the cancelled booking's)
+  const onlyFor = colOf(r.cols, /^who$/) || notes.match(/^\s*([A-Z][a-z]+(?:\s*(?:\+|&|and)\s*[A-Z][a-z]+)*\s+only)\b/)?.[1] || "";
+  // What his rebooking tab says about this train, in sight on its card (Oct 8: five trains cancelled and rebooked on a
+  // new card, the new numbers not yet in the sheet) — never the cancelled booking's number or seats
+  const { words: rebookWords, settled: rebookSettled } = rebookSaid(r, s, me);
+  const rebookTone = rebookSettled ? "text-[#514636]" : "text-[#8a5a1a]";
   // (notes that say only that — "Ken + Larisa only" — are said once, up top; day review, Oct 8: Oct 14's taxi legs said it twice)
   const moreNotes = onlyFor && notes.trim().replace(/[.\s]+$/, "") === onlyFor ? "" : notes;
   const booked = isBookedTrain(r);
@@ -87,6 +119,80 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
   const stale = !!statusDay && statusDay < today;
   // Its pickup's steps, until the pickup's own day (after it, the link repeated on every later day)
   const pickups = /collect|pick ?up/i.test(`${readiness} ${ticket}`) ? s.checklists.filter((c) => !c.date || today <= c.date) : [];
+  // What's inside a train or leg when it's opened: the rest of its row in the sheet, and where it's from
+  const details = (
+    <>
+      {booked && cls && cls !== "—" && <p className="text-sm text-[#514636] mt-1">{cls}</p>}
+      <p className="text-xs text-[#6b5d4a] mt-0.5">{booked ? "Booked" : "No booking needed"}{onlyFor ? ` · “${onlyFor}”, the sheet says` : ""}</p>
+      {/^\d+$/.test(pax) && <p className="text-sm text-[#514636] mt-1">{pax} {pax === "1" ? "person" : "people"}</p>}
+      {!booked && resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}
+      {readiness && stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className="text-sm mt-1 text-[#6b5d4a]" />}
+      {ticket && !stale && <p className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]">{withTwelveHour(ticket)}</p>}
+      {moreNotes && status !== "?" && <GuideText text={withTwelveHour(moreNotes)} className="text-sm text-[#6b5d4a] mt-1 [overflow-wrap:anywhere]" />}
+      {pickups.map((c) => (
+        <Link key={c.tab} to={`/checklist/${encodeURIComponent(s.id)}/${encodeURIComponent(c.tab)}`}
+          className="flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+          {checklistTitle(c.tab)}{pickupBy ? ` (${pickupBy}'s job)` : ""}: the steps ›
+        </Link>
+      ))}
+      <p className="text-xs text-[#6b5d4a] mt-1">From {sourceWordsFor(s, me)} — its {r.tab} tab</p>
+      <button onClick={() => setMore(false)} aria-expanded={true} className="min-h-[44px] text-sm text-[#514636]">Show less ‹</button>
+    </>
+  );
+  // Always in sight, open or not: her Guide's other time for it, a "?" leg's question, a check before boarding
+  const mustSee = (
+    <>
+      {rebookWords && <p className={`text-sm mt-0.5 ${rebookTone}`}>{rebookWords}</p>}
+      {differs.map((d) => <DifferLine key={`${d.row}-${d.guideSource}`} d={d} />)}
+      {status === "?" && <p className="text-sm text-[#8a5a1a] mt-0.5">The rail sheet marks this leg “?”{notes ? `: ${withTwelveHour(notes)}` : "."}</p>}
+      {readiness && !stale && <StatusWords readiness={readiness} s={s} today={today} pickupBy={pickupBy} resv={resv} className={`text-sm mt-1 ${isSettledStatus(readiness) ? "text-[#3f5a2a]" : "text-[#8a5a1a]"}`} />}
+    </>
+  );
+  // A booked train in the day, short (day design, Oct 8): its times, its name and route, and car, seats and reservation
+  // — what you look for on the platform, never behind a tap. The whole row opens it.
+  if (look === "card" && booked) {
+    const platform = [seat, resv && resv !== "—" ? `Reservation #${resv}` : ""].filter((x) => x && x !== "—").join(" · ");
+    return (
+      <li id={`train-${s.id}-${r.row}`} data-train className="bg-white rounded-xl border border-[#e0d8cc] scroll-mt-24">
+        <button onClick={() => setMore(!more)} aria-expanded={more} className="w-full flex gap-3 px-3 pt-3 pb-2 min-h-[44px] text-left">
+          <span className="w-16 shrink-0 text-right">
+            <span className={`block text-sm font-medium tabular-nums ${past ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>{twelveHour(depart)}</span>
+            {arrive && <span className="block text-xs text-[#6b5d4a] whitespace-nowrap">→ {twelveHour(arrive)}</span>}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className={`block text-[15px] leading-snug ${past ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>{train} · {route}<span className="text-[#6b5d4a]">{"\u00a0"}{more ? "‹" : "›"}</span></span>
+            {platform && <span className="block text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">{platform}</span>}
+          </span>
+        </button>
+        <div className="pl-[88px] pr-3 pb-2 -mt-1">
+          {mustSee}
+          {more && details}
+        </div>
+      </li>
+    );
+  }
+  // A leg with no booking (a taxi, a car, a local train), short: a thin row joined to the day — when, where, how
+  if (look === "card") {
+    const name = notes.match(/^\s*([A-Z][A-Z0-9 -]{2,20}?)\s*=/)?.[1];
+    return (
+      <li id={`train-${s.id}-${r.row}`} data-train className="scroll-mt-24">
+        <button onClick={() => setMore(!more)} aria-expanded={more}
+          aria-label={`${target && target !== "—" ? `${target}, ` : ""}${mode || "travel"}, ${route.replace(/→|->/g, "to")}, no booking needed`}
+          className="w-full flex gap-3 px-3 py-1 min-h-[44px] text-left items-center">
+          <span className="w-16 shrink-0 text-right text-xs text-[#6b5d4a] leading-snug">{target && target !== "—" ? target : ""}</span>
+          <span className="flex-1 min-w-0 border-l-2 border-[#e0d8cc] pl-3 text-sm text-[#514636] leading-snug">
+            {name ? `${name} · ` : ""}{route}{mode ? ` · ${mode}` : ""} · no booking<span className="text-[#6b5d4a]">{"\u00a0"}{more ? "‹" : "›"}</span>
+          </span>
+        </button>
+        {(more || status === "?" || differs.length > 0 || (readiness && !stale)) && (
+          <div className="pl-[104px] pr-3 pb-1">
+            {mustSee}
+            {more && details}
+          </div>
+        )}
+      </li>
+    );
+  }
   if (look !== "list") {
     const nested = look === "nested";
     const head = booked ? `${train} · ${route}` : `${route}${mode ? ` · ${mode}` : ""}`;
@@ -115,6 +221,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
               <p className="text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">{[cls, seat, resv && resv !== "—" ? `Reservation #${resv}` : ""].filter((x) => x && x !== "—").join(" · ")}</p>
             )}
             {onlyFor && <p className="text-xs text-[#514636] mt-0.5">“{onlyFor}”, the sheet says</p>}
+            {rebookWords && <p className={`text-sm mt-0.5 ${rebookTone}`}>{rebookWords}</p>}
             {/* Where her Guide has this train at another time — said here, with the train (not on today's screen, where it's
                 said at the top) */}
             {differs.map((d) => <DifferLine key={`${d.row}-${d.guideSource}`} d={d} />)}
@@ -163,6 +270,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [] }: { r: RailRo
         <div className="flex-1 min-w-0">
           <p className="text-[15px] leading-snug text-[#3a3128]">{booked ? `${train} · ${route}` : `${route}${mode ? ` · ${mode}` : ""}`}</p>
           {onlyFor && <p className="text-xs text-[#514636] mt-0.5">“{onlyFor}”, the sheet says</p>}
+          {rebookWords && <p className={`text-sm mt-0.5 ${rebookTone}`}>{rebookWords}</p>}
           {(booked || /^\d+$/.test(pax)) && <p className="text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">{[booked ? cls : "", booked ? seat : "", /^\d+$/.test(pax) ? `${pax} ${pax === "1" ? "person" : "people"}` : ""].filter((x) => x && x !== "—").join(" · ")}</p>}
           {resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}
           {!booked && !resv && <p className="text-sm text-[#6b5d4a]">No booking for this leg in the rail sheet.</p>}
@@ -348,14 +456,17 @@ export function NextTrain({ sources, date, nowMinutes, isMine, quiet = false }: 
     return (
       // (to the train itself, wherever the day draws it — the Trains section can be empty now; day review, Oct 4)
       <a href={`#train-${s.id}-${next.r.row}`}
-        onClick={(e) => { const el = document.getElementById(`train-${s.id}-${next.r.row}`); if (el) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth", block: "center" }); } }}
+        // (a tall, opened train lands at its top — centered, its name and time went above the screen; Oct 9)
+        onClick={(e) => { const el = document.getElementById(`train-${s.id}-${next.r.row}`); if (el) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth", block: el.offsetHeight > window.innerHeight * 0.6 ? "start" : "center" }); } }}
         className={`block mb-3 rounded-xl text-white ${quiet ? "bg-[#7a6d5c] p-3" : "bg-[#514636] p-4"}`}>
         <p className="text-xs uppercase tracking-wide text-white/70">
           {riding ? `On this train now, by the schedule · arriving ${twelveHour(colOf(c, /^arrive/))}` : `Next train · ${inWords}`}
         </p>
         <p className="text-lg leading-snug mt-1">{twelveHour(colOf(c, /^depart/))} · {colOf(c, /^train$/)} · {colOf(c, /^route$/)}</p>
         <p className="text-sm text-white/85 mt-1 [overflow-wrap:anywhere]">{[colOf(c, /^class$/), colOf(c, /^car/)].filter(Boolean).join(" · ")}</p>
-        {colOf(c, /^reservation/) && <p className="text-sm text-white/80">Reservation #{colOf(c, /^reservation/)}</p>}
+        {colOf(c, RESERVATION_COL) && <p className="text-sm text-white/80">Reservation #{colOf(c, RESERVATION_COL)}</p>}
+        {/* (rebooked on a new card: said here too, never the cancelled booking's number) */}
+        {(() => { const rb = rebookSaid(next.r, s, me); return rb.words ? <p className={`text-sm mt-1 ${rb.settled ? "text-white/85" : "text-[#f3d9a8]"}`}>{rb.words}</p> : null; })()}
         {/* Its own warning for this train ("PENDING — SmartEX: verify … IC cards …"), on the card itself (round r1) */}
         {/* Its warning only while it's current — an old "collect … Oct 6" on Oct 14's card led Now, after Ken had already
             ridden on those tickets (round 12); the day's train list still has it, said as possibly out of date */}

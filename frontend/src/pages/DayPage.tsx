@@ -435,7 +435,11 @@ function DontMiss({ heading, cards, checks }: { heading: string; cards: ReactNod
   const shown = all ? checks : checks.slice(0, 4);
   const go = (id: string) => {
     const el = document.getElementById(id);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // (a short line opens where it lands — day design, Oct 8: "↓" otherwise led to a line that still needed a tap)
+    const closed = el?.querySelector<HTMLButtonElement>(':scope > button[aria-expanded="false"]');
+    closed?.click();
+    // (once open, a tall line lands at its top, not centered with its first words above the screen)
+    requestAnimationFrame(() => el?.scrollIntoView({ behavior: "smooth", block: el.offsetHeight > window.innerHeight * 0.6 ? "start" : "center" }));
   };
   return (
     <section aria-label={heading} className="mb-4">
@@ -1138,6 +1142,31 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   }
   const placedTrains = new Set([...nestedTrains, ...timelineTrains.map(railKey), ...landingLegs.map(railKey), ...byTrain,
     ...[...legsBeforeLine.values(), ...legsAfterLine.values()].flat().map(railKey)]);
+  // The line that's now opens by itself (day design step 3, with the UX review): today, the train you're on, else the
+  // sooner of your next booked train and her next timed line for you — the Next tab's own reckoning (riding,
+  // upcomingGuide); on a day ahead, its first timed line. A past day stays short. Only in the day's own timeline — her
+  // plan marks its own "now". Earlier timed lines today are quieter, never hidden; a line with no time never is.
+  const depOf = (x: { r: RailRow }) => railMin(colOf(x.r.cols, /^depart/));
+  const arrOf = (x: { r: RailRow }) => railMin(colOf(x.r.cols, /^arrive/));
+  const nowLine = (() => {
+    if (planBlocks.length || !listDrawn || date < today) return null;
+    const trains = [...timelineTrains].filter((x) => depOf(x) !== null).sort((a, b) => depOf(a)! - depOf(b)!);
+    const lineAt = (i: GuideItem) => tripClockMinutes(i, tripZone);
+    if (isToday) {
+      const onIt = riding ? trains.find((x) => depOf(x) === riding.dep) : undefined;
+      if (onIt) return { key: `train-${railKey(onIt)}`, at: depOf(onIt)! };
+      const nextTrain = trains.find((x) => depOf(x)! >= tripNow);
+      const next = upcomingGuide && listItems.includes(upcomingGuide) ? upcomingGuide : undefined;
+      if (nextTrain && (!next || depOf(nextTrain)! <= lineAt(next))) return { key: `train-${railKey(nextTrain)}`, at: depOf(nextTrain)! };
+      return next ? { key: `item-${next.id}`, at: lineAt(next) } : null;
+    }
+    const first = listItems.filter((i) => i.time && isFor(i, me) && !["deadline", "checkout", "checkin"].includes(i.kind)).sort((a, b) => lineAt(a) - lineAt(b))[0];
+    if (trains[0] && (!first || depOf(trains[0])! <= lineAt(first))) return { key: `train-${railKey(trains[0])}`, at: depOf(trains[0])! };
+    return first ? { key: `item-${first.id}`, at: lineAt(first) } : null;
+  })();
+  const pastLine = (i: GuideItem) => isToday && !!i.time && nowLine?.key !== `item-${i.id}`
+    && (i.endTime ? toMin(i.endTime) : tripClockMinutes(i, tripZone)) < tripNow && tripClockMinutes(i, tripZone) < (nowLine?.at ?? Infinity);
+  const pastTrain = (x: { s: OtherSource; r: RailRow }) => isToday && nowLine?.key !== `train-${railKey(x)}` && (arrOf(x) ?? Infinity) < tripNow;
   // Where her Guide has a train at another time: with the train on other days (today it's said at the top)
   const differsFor = (x: { s: OtherSource; r: RailRow }) => (isToday ? [] : x.s.differs.filter((d) => d.date === date && d.row === x.r.row));
 
@@ -1707,7 +1736,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   && d.guideSays === (b.endTime ? `${twelveHour(b.time!)}–${twelveHour(b.endTime)}` : twelveHour(b.time!))))}
                 under={(b) => [
                   ...(underLine.get(b.id) || []).map((o) => (
-                    <ItemCard key={o.id} nested i={o} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === o.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />
+                    <ItemCard key={o.id} nested compact i={o} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === o.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />
                   )),
                   // the train her line names, from the rail sheet — its booking, seats and steps, under her line
                   ...(trainsUnder.get(b.id) || []).map((x) => (
@@ -1754,7 +1783,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // One timeline (round 13: Oct 6 read "Osaka → Okayama… Rikuro Cheesecake… Shinkansen" above the 2:50 PM
                   // landing, and the booked 6:17 PM NOZOMI 77 sat at the bottom under Trains): your booked trains join the
                   // timed lines at their times — each opens its full card in Trains — and lines her Guide gives no time say so
-                  const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} quotedAbove={headline?.title} />;
+                  const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} quotedAbove={headline?.title} compact
+                    autoOpen={nowLine?.key === `item-${i.id}`} past={pastLine(i)} />;
                   // (on a day with her plan, a train her plan names sits under that line; any other joins here at its time)
                   const trains = timelineTrains;
                   const dep = (r: RailRow) => tripClockMinutes({ time: colOf(r.cols, /^depart/).padStart(5, "0") } as GuideItem, tripZone);
@@ -1836,7 +1866,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     return <RailLeg key={`leg-${railKey(x)}`} r={x.r} s={x.s} today={today} look="card" pickupBy={pickupByFor(x.s)} />;
                   }
                   function trainLine(x: { s: OtherSource; r: RailRow }) {
-                    return <RailLeg key={`train-${railKey(x)}`} r={x.r} s={x.s} today={today} look="card" pickupBy={pickupByFor(x.s)} differs={differsFor(x)} />;
+                    return <RailLeg key={`train-${railKey(x)}`} r={x.r} s={x.s} today={today} look="card" pickupBy={pickupByFor(x.s)} differs={differsFor(x)}
+                      autoOpen={nowLine?.key === `train-${railKey(x)}`} past={pastTrain(x)} />;
                   }
                 })()}
               </ol>
@@ -1981,8 +2012,14 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 }
 
 /** One line of the Guide for this day. */
-function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove }: {
+function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false }: {
   i: GuideItem; date: string; today: string; tripZone: string; stays: TripGuideData["stays"]; me: string | null; highlight: boolean; day: GuideItem[];
+  /** the line that's now (or a future day's first): open by itself (day design step 3) */
+  autoOpen?: boolean;
+  /** today, a timed line before the one that's now: quieter (still readable) */
+  past?: boolean;
+  /** a short line until tapped: its time, what it is, and only what must stay in sight (day design, Oct 8) */
+  compact?: boolean;
   /** her Itinerary's heading for the day, already said atop the day — "her Itinerary line this day says “…”" isn't said again */
   quotedAbove?: string;
   /** drawn under her line for it in her plan: no card of its own, no second time column (the line has the time) */
@@ -2031,7 +2068,10 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   // Her long travel note on a line — the route and her thinking before it was booked — one tap away (day review, Oct 8:
   // Oct 14's Mashiko card was a screen and a half of planning prose before the day's first train)
   const [showNote, setShowNote] = useState(false);
-  const theirs =!!i.forWhom && !/^everyone$/i.test(i.forWhom) && !!me && !isFor(i, me);
+  // A short line opened in place (day design, Oct 8); the line that's now opens by itself, and stays open once opened
+  const [open, setOpen] = useState(autoOpen);
+  useEffect(() => { if (autoOpen) setOpen(true); }, [autoOpen]);
+  const theirs = !!i.forWhom && !/^everyone$/i.test(i.forWhom) && !!me && !isFor(i, me);
   const differ = tabsDiffer(i);
   // A landing says where its flight stands by the clock; that line replaces the booking's "Takes off from …"
   const flightNow = all ? landingStatus(i, all, tripZone) : null;
@@ -2073,17 +2113,92 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
       : null;
     return (
       <Box id={`item-${i.id}`} className="rounded-xl border border-[#efe8dc] bg-white/60">
-        <button onClick={() => setShowTheirs(true)} aria-expanded={false} className="w-full flex items-center gap-3 px-3 py-1 min-h-[44px] text-left">
+        {/* (one tap opens it all — not to a short line that needs a second; short lines, Oct 8) */}
+        <button onClick={() => { setShowTheirs(true); setOpen(true); }} aria-expanded={false} className="w-full flex items-center gap-3 px-3 py-1 min-h-[44px] text-left">
           <span className="w-16 shrink-0 text-right text-sm text-[#6b5d4a]">{elsewhere ?? (i.time ? timeLabel(i, day) : "")}</span>
           <span className="flex-1 min-w-0 text-sm text-[#6b5d4a] leading-snug">{i.forWhom} · {itemTitle(i, stays, date)} ›</span>
         </button>
       </Box>
     );
   }
+  // A short line (day design, Oct 8 — with the UX review): its time and what it is, and in sight only what you can't
+  // be without — a time limit, a disagreement, a question for you, a to-do's phone, the map. The rest opens in place.
+  if (compact && !open && !highlight) {
+    const stillOpen = shown.filter((l) => /^Still open/.test(l));
+    const phone = deadline ? shown.find((l) => /^Phone:/.test(l)) : undefined;
+    const booked = i.kind === "meal" ? shown.find((l) => /^(No reservation|Booked|Reserved)\b/i.test(l)) : undefined;
+    const mapAt = q ? mapsLink(q) : herLinks.find((u) => linkLabel(u) === "Map");
+    // (a fact from a picture or a tab other than her Itinerary and Dining Resos says where, even short)
+    const elsewhereFrom = !/^Itinerary|^Dining Resos/.test(i.source) ? friendlySource(i.source, me) : null;
+    const timing = deadline && (over || windowWords || time)
+      ? (over ? `Ended ${time || ""}`.trim() : [windowWords, time].filter(Boolean).join(" · ")) : null;
+    const leaveBy = earlyCheckout && !split ? leaveBeforeCheckout(i, day) : null;
+    const inJapan = departureInTripZone(i, tripZone);
+    return (
+      // (under her line in her plan — Oct 15's Yazawa booking: no time column of its own, the line above has the time)
+      <Box id={`item-${i.id}`} className={`scroll-mt-24 ${nested ? `mt-2 rounded-lg border ${tone === "bg-white border-[#e0d8cc]" ? "bg-[#faf8f5] border-[#efe8dc]" : tone}` : `rounded-xl border ${tone}`}`}>
+        <button onClick={() => setOpen(true)} aria-expanded={false} className={`w-full flex gap-3 text-left min-h-[44px] ${nested ? "px-2.5 pt-2 pb-1.5" : "px-3 pt-3 pb-2"}`}>
+          <span className={nested ? "hidden" : "w-16 shrink-0 text-right"}>
+            {i.time && !split ? (
+              <>
+                <span className={`block text-sm font-medium ${past ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>{timeLabel(i, day)}</span>
+                {i.endTime && i.kind !== "flight" && <span className="block text-xs text-[#6b5d4a] whitespace-nowrap">{["travel", "train"].includes(i.kind) ? "→ " : "to "}{clock(i.endTime)}</span>}
+                {zone && <span className="block text-xs text-[#6b5d4a]">{zone}</span>}
+              </>
+            ) : <span className="block text-base text-[#6b5d4a]" aria-hidden>{KIND_MARK[i.kind] || "•"}</span>}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className={`block ${nested ? "text-sm" : "text-[15px]"} leading-snug ${over || past ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
+              {deadline && <span className="font-medium">{over ? "Passed · " : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}
+              {landingTitle(i, me, itemTitle(i, stays, date))}{booked ? ` · ${booked}` : ""}
+              <span className="text-[#6b5d4a]">{"\u00a0"}›</span>
+            </span>
+            {timing && <span className={`block text-sm mt-0.5 ${othersJob ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>{timing}</span>}
+            {leaveBy && <span className="block text-sm text-[#3a3128] mt-0.5">Check out before {timeLabel(leaveBy, day)} · {itemTitle(leaveBy, stays, date)}</span>}
+            {checkinAfterLanding(i, day) && <span className="block text-sm text-[#6b5d4a] mt-0.5">Rooms are ready from {clock(i.time)}.</span>}
+            {inJapan && <span className="block text-sm text-[#514636] mt-0.5">{inJapan}</span>}
+            {/* (where a flight stands right now is a "when" — in sight: "Should be in the air now… due to land at 2:50 PM") */}
+            {flightNow && <span className="block text-sm text-[#514636] mt-0.5">{flightNow}</span>}
+            {/* (a flight's confirmation is what the counter asks for — in sight, like a train's car and seats) */}
+            {i.kind === "flight" && i.confirmation && <span className="block text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">Confirmation {confirmationWords(i.confirmation)}</span>}
+            {elsewhereFrom && <span className="block text-xs text-[#6b5d4a] mt-0.5">{elsewhereFrom}</span>}
+          </span>
+        </button>
+        {/* Outside the row's button, each its own tap: disagreements, a question for you, the phone, the map */}
+        {(differ.length > 0 && i.kind !== "flight") || stillOpen.length > 0 || askedOf(i, me, today) || phone || mapAt || split ? (
+          <div className={nested ? "px-2.5 pb-1.5 -mt-1" : "pl-[88px] pr-3 pb-2 -mt-1"}>
+            {i.kind !== "flight" && differ.map((d) => <p key={d} className="text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{differWordsFor(d, v)}</p>)}
+            {stillOpen.map((l) => <p key={l} className="text-sm text-[#6b5d4a] mt-1">{l}</p>)}
+            {split && (
+              <ul className="text-sm text-[#3a3128] mt-1 space-y-0.5">
+                {bothLeaving.map((s) => {
+                  const mine = ownHotel.toLowerCase().includes(s.name.toLowerCase().split(" ")[0]);
+                  return <li key={s.id}>{s.name}: {mine && i.time ? `by ${clock(i.time)}` : "no check-out time in the Guide"}</li>;
+                })}
+              </ul>
+            )}
+            {askedOf(i, me, today) && (
+              <>
+                <p className="text-sm text-[#8a5a1a] mt-1">A question for you in {owner ? `${owner}'s` : "her"} Guide.</p>
+                {/* (with what the rail sheet already says about it — Julie's Mashiko question and its "Ken + Larisa only") */}
+                {(() => { const n = sources?.length ? railNoteFor(i.title, sources, me) : null; return n ? <p className="text-sm text-[#514636] mt-0.5">{n}</p> : null; })()}
+                <button onClick={() => sendToGuideOwner(owner || "Larisa", `Hi ${owner || "Larisa"} — about “${i.title}” in your Guide: `)}
+                  className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Tell {owner || "her"} your answer ›</button>
+              </>
+            )}
+            {phone && <GuideText text={phone} className="text-sm text-[#6b5d4a] mt-1" />}
+            {mapAt && (
+              <a href={mapAt} target={q ? undefined : "_blank"} rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Map ↗</a>
+            )}
+          </div>
+        ) : null}
+      </Box>
+    );
+  }
   return (
     <Box id={`item-${i.id}`} className={nested
-      ? `mt-2 rounded-lg border p-2.5 transition-shadow ${tone === "bg-white border-[#e0d8cc]" ? "bg-[#faf8f5] border-[#efe8dc]" : tone} ${highlight ? "ring-2 ring-[#c8a060]" : ""}`
-      : `rounded-xl border p-3 transition-shadow ${tone} ${highlight ? "ring-2 ring-[#c8a060] shadow-md" : ""}`}>
+      ? `scroll-mt-24 mt-2 rounded-lg border p-2.5 transition-shadow ${tone === "bg-white border-[#e0d8cc]" ? "bg-[#faf8f5] border-[#efe8dc]" : tone} ${highlight ? "ring-2 ring-[#c8a060]" : ""}`
+      : `scroll-mt-24 rounded-xl border p-3 transition-shadow ${tone} ${highlight ? "ring-2 ring-[#c8a060] shadow-md" : ""}`}>
       <div className="flex gap-3">
         <div className={nested ? "hidden" : "w-16 shrink-0 text-right"}>
           {i.time && !split ? (
@@ -2199,6 +2314,9 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           )}
           {/* (its source line opens that spot in her sheet; where her tabs disagree, each tab's spot — round 16) */}
           <SheetSpots tripId={tripId} spots={i.spots} label={friendlySource(i.source, me)} className="mt-1" />
+          {compact && open && (
+            <button onClick={() => setOpen(false)} aria-expanded={true} className="min-h-[44px] text-sm text-[#514636]">Show less ‹</button>
+          )}
         </div>
       </div>
     </Box>
