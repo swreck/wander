@@ -162,8 +162,22 @@ export function partiesOf(items: GuideItem[]): string[] {
   return Array.from(set);
 }
 
-const hasName = (party: string | null | undefined, name: string | null | undefined) =>
-  !!party && !!name && new RegExp(`(^|[^a-z])${name.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z]|$)`).test(party.toLowerCase());
+// A person's first name, as her Guide writes people ("Julie & Andy") — accounts can carry an initial ("Julie D.", "Andy B")
+export const firstNameOf = (name: string) => name.trim().split(/\s+/)[0].toLowerCase();
+/** Is this the same person — "Andy" and "Andy B" are (Oct 10: the real accounts have initials; her Guide doesn't) */
+export const samePerson = (a: string | null | undefined, b: string | null | undefined) =>
+  !!a && !!b && (a.trim().toLowerCase() === b.trim().toLowerCase() || firstNameOf(a) === firstNameOf(b));
+
+const hasName = (party: string | null | undefined, name: string | null | undefined) => {
+  if (!party || !name) return false;
+  const p = party.toLowerCase();
+  const said = (n: string) => new RegExp(`(^|[^a-z])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z]|$)`).test(p);
+  const full = name.trim().toLowerCase();
+  // (the whole name, or else the first name: "Julie D." is the Julie of "Julie & Andy" — Oct 10, her and Andy's own
+  // lines read as someone else's: "For Julie & Andy", no "You leave in 3 days" card, their to-dos not theirs)
+  const first = firstNameOf(full);
+  return said(full) || (first !== full && first.length >= 2 && said(first));
+};
 
 /** The party this person travels with ("Julie" → "Julie & Andy"), when the Guide says. */
 export function partyOf(items: GuideItem[], name: string | null | undefined): string | null {
@@ -638,7 +652,7 @@ export function bookedWords(i: GuideItem, me: string | null | undefined): string
   const name = bookedByName(i);
   if (!name) return null;
   const first = name.split(/\s+/)[0];
-  if (me && first.toLowerCase() === me.trim().toLowerCase()) return "Booked under your name";
+  if (samePerson(first, me)) return "Booked under your name";
   return `${first}'s to do (booked under ${name})`;
 }
 

@@ -503,9 +503,15 @@ router.patch("/travelers/:id", requireAuth, async (req: AuthRequest, res) => {
     return;
   }
   const { preferences } = req.body;
+  // Only what's sent changes; everything else they've chosen stays (Oct 10: a save that sent one setting replaced them
+  // all — the unused welcome screen sent just interests, which would have wiped the tour answer and notes settings)
+  const plain = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+  const current = plain(preferences)
+    ? (await prisma.traveler.findUnique({ where: { id }, select: { preferences: true } }))?.preferences
+    : null;
   const traveler = await prisma.traveler.update({
     where: { id },
-    data: { preferences },
+    data: { preferences: plain(preferences) ? { ...(plain(current) ? current : {}), ...preferences } as any : preferences },
     select: { id: true, displayName: true, preferences: true },
   });
   res.json(traveler);

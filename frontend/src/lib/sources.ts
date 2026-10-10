@@ -4,7 +4,7 @@
  * must open in the station with no signal.
  */
 import { api } from "./api";
-import { partiesOf, partyOf } from "./guideDisplay";
+import { partiesOf, partyOf, samePerson } from "./guideDisplay";
 import type { GuideItem } from "./guideData";
 
 /** The sheet owner's couple and the group's size, from her Guide's pairs ("Ken & Larisa", "Julie & Andy") */
@@ -217,7 +217,8 @@ export function untickedTickets(sources: OtherSource[], date: string, me: string
   for (const s of sources) {
     const party = partyOf(s);
     const names = (party || "").split(/\s*(?:&|and|,)\s*/i).map((n) => n.trim()).filter(Boolean);
-    if (!names.some((n) => n.toLowerCase() === me.trim().toLowerCase())) continue;
+    // (her Guide names first names; accounts can carry an initial — "Andy B" is the Andy of "Julie & Andy")
+    if (!names.some((n) => samePerson(n, me))) continue;
     const pickup = s.checklists.find((c) => c.date && c.date < date);
     if (!pickup) continue;
     const progress = pickupProgress(s.id, pickup);
@@ -235,7 +236,7 @@ export function untickedTickets(sources: OtherSource[], date: string, me: string
       const past = (x: string) => { const d = dateInText(x, Number(date.slice(0, 4))); return (!!d && d < date && !/machine|counter|office|English/i.test(x)) || /\ballow\b/i.test(x); };
       const where = text.split(/(?<=[.;])\s+/).map((x) => x.trim().replace(/[;.]$/, ".")).filter((x) => x.length > 3 && /collect|pick ?up|cannot|travel service|ticket office|machine|5489/i.test(x) && !past(x))
         .sort((a, b) => score(a) - score(b));
-      out.push({ s, r, where: where.slice(0, 2), others: names.filter((n) => n.toLowerCase() !== me.trim().toLowerCase()).join(" & ") || null, pickup });
+      out.push({ s, r, where: where.slice(0, 2), others: names.filter((n) => !samePerson(n, me)).join(" & ") || null, pickup });
     }
   }
   return out;
@@ -244,7 +245,7 @@ export function untickedTickets(sources: OtherSource[], date: string, me: string
 /** The same, to the person looking: "your rail sheet" to Ken himself (delight audit: "From Ken's rail sheet" on Ken's
  *  own phone read as Wander not knowing who he is) */
 export function sourceWordsFor(s: Pick<OtherSource, "owner" | "name" | "authorship">, me: string | null | undefined): string {
-  return me && s.owner.toLowerCase() === me.trim().toLowerCase() ? `your ${s.name.toLowerCase()}` : sourceWords(s);
+  return samePerson(s.owner, me) ? `your ${s.name.toLowerCase()}` : sourceWords(s);
 }
 
 /** A leg is a booked train when the sheet gives it a train and a departure (not "Local train · No") */
@@ -267,6 +268,6 @@ export function legIsFor(r: RailRow, s: OtherSource, me: string | null | undefin
   const pax = Number(colOf(r.cols, /^pax$/));
   if (pax && groupSize && pax >= groupSize) return true;
   if (!ownerParty) return false;
-  const inParty = ownerParty.split(/\s*(?:&|and|,)\s*/i).some((n) => n.trim().toLowerCase() === me.trim().toLowerCase());
+  const inParty = ownerParty.split(/\s*(?:&|and|,)\s*/i).some((n) => samePerson(n, me));
   return inParty && (!pax || pax <= ownerParty.split(/\s*(?:&|and|,)\s*/i).length) && !!s;
 }

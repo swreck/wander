@@ -23,14 +23,14 @@ const MAX_CHARS = 50_000;
 export { wordCount };
 
 type NoteSettings = { tidy: boolean; storyUse: boolean | null };
-async function settingsOf(travelerId: string): Promise<NoteSettings> {
+export async function settingsOf(travelerId: string): Promise<NoteSettings> {
   const t = await prisma.traveler.findUnique({ where: { id: travelerId }, select: { preferences: true } });
   const n = ((t?.preferences as any) || {}).notes || {};
   return { tidy: n.tidy === true, storyUse: typeof n.storyUse === "boolean" ? n.storyUse : null };
 }
 
 /** Tidy in the background; the note is already saved with every word, and stays so whatever happens here */
-function tidyLater(id: string, text: string) {
+export function tidyLater(id: string, text: string) {
   prisma.tripNote.update({ where: { id }, data: { tidyStatus: "pending" } })
     .then(() => tidyDictation(text))
     .then(async (r) => {
@@ -138,7 +138,7 @@ router.get("/trip/:tripId/export", async (req: AuthRequest, res) => {
     const head = `${n.city || "Japan overall"}${day ? ` · ${dayWords(day)}` : ""}`;
     if (head !== lastDay) { lines.push(`## ${head}`, ""); lastDay = head; }
     const when = n.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: zone });
-    lines.push(`${when}${n.visibility === "trip" ? " · shared with the trip" : ""}${n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : ""}`);
+    lines.push(`${when}${n.visibility === "trip" ? " · shared with the trip" : ""}${n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : ""}`);
     lines.push(n.text);
     if (n.text !== n.original) lines.push("", "As first saved:", n.original);
     if (n.tidied) lines.push("", "Tidied copy:", n.tidied);

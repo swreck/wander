@@ -16,7 +16,8 @@ export interface TripNote {
   text: string;
   tidied: string | null;
   tidyStatus: string | null;
-  source: "typed" | "voice" | "evening";
+  // ("scout": told to Scout, kept word for word — Oct 10)
+  source: "typed" | "voice" | "evening" | "scout";
   visibility: "private" | "trip";
   storyUse: boolean | null;
   dayDate: string | null;

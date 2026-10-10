@@ -216,5 +216,9 @@ describe("the two settings", () => {
     expect(keepsTheWords("um so the adoring promise uh was kept", "So the durable promise was kept.")).toBe(true);
     expect(keepsTheWords("The potter showed us three kilns and talked about wood ash for an hour", "We visited a potter.")).toBe(false);
     expect(keepsTheWords("Short note", "Short note, plus a whole new sentence the writer never said at all here")).toBe(false);
+    // no feeling added (Ken, Oct 10): an "!" or an emoji they didn't say is thrown out; their own is kept
+    expect(keepsTheWords("we came to okawachiyama to see porcelain", "We came to Okawachiyama to see porcelain!")).toBe(false);
+    expect(keepsTheWords("we came to okawachiyama to see porcelain", "We came to Okawachiyama to see porcelain 🏺")).toBe(false);
+    expect(keepsTheWords("we came to okawachiyama wow!", "We came to Okawachiyama, wow!")).toBe(true);
   });
 });

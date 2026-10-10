@@ -590,7 +590,7 @@ export default function NotesPage() {
                               ? <button onClick={() => navigate(`/day/${n.dayDate}`)} className="underline underline-offset-2">{dayWords(n.dayDate)}</button>
                               : new Date(n.createdAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                             {` · ${timeOf(n.createdAt)} · ${n.visibility === "trip" ? (n.mine ? "Shared with the trip" : "shared with the trip") : "Just you"}`}
-                            {n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : ""}
+                            {n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : ""}
                             {n.editedAt ? " · changed" : ""}
                           </p>
                           {isEditing ? (
@@ -633,7 +633,7 @@ export default function NotesPage() {
                                 {/* "Tidy my dictation" said nothing when it couldn't tidy (tester t5) */}
                                 {n.mine && n.tidyStatus === "pending" && <p className="text-xs text-[#6b5d4a] mt-1">Tidying — your words are saved as you said them.</p>}
                                 {n.mine && (n.tidyStatus === "failed" || n.tidyStatus === "kept-original") && (
-                                  <p className="text-xs text-[#6b5d4a] mt-1">Left exactly as you said it{n.tidyStatus === "failed" ? " — tidying wasn't possible just now" : " — tidying would have changed more than the punctuation"}.</p>
+                                  <p className="text-xs text-[#6b5d4a] mt-1">Left exactly as you said it{n.tidyStatus === "failed" ? " — tidying wasn't possible just now" : " — tidying would have changed more than a few words"}.</p>
                                 )}
                               </>
                             );

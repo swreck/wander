@@ -29,6 +29,7 @@ import {
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
+  samePerson,
 } from "../lib/guideDisplay";
 import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, isSettledStatus, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings, RailLeg } from "../components/RailSheet";
@@ -2103,7 +2104,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
     // (to the person it's booked under: "your name" — round 13: Larisa read her own full name there)
     // (when the card's heading already says "Larisa's to-do", just whose name it's under — not "Larisa's to do" twice)
     .map((l) => (/^Booked under /.test(l) && bookedByName(i) ? (i.kind === "deadline" && !othersJob ? bookedWords(i, me)!
-      : me && bookedByName(i)!.split(/\s+/)[0].toLowerCase() === me.trim().toLowerCase() ? "Booked under your name" : `Booked under ${bookedByName(i)}`) : l))
+      : samePerson(bookedByName(i)!.split(/\s+/)[0], me) ? "Booked under your name" : `Booked under ${bookedByName(i)}`) : l))
     // Her own notes, to her: "Your travel note: …"
     .map((l) => (v.mine ? l.replace(/^Larisa's (travel note|note|estimate)/, "Your $1") : l))
     // Lines Wander wrote about her Guide, in her voice to her ("the stop your tab lists"); her own words untouched

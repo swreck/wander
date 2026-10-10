@@ -11,8 +11,12 @@ const anthropic = new Anthropic();
 const FILLER = new Set(["um", "uh", "uhm", "erm", "er", "ah", "hmm", "mm"]);
 const wordsOf = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9']+/).filter(Boolean);
 
-/** Whether a tidied copy kept the writer's words: nearly every non-filler word still there, about the same length */
+/** Whether a tidied copy kept the writer's words: nearly every non-filler word still there, about the same length — and
+ * no feeling added (Ken, Oct 10: an "!" he never said "could leak into an eventual trip story") */
 export function keepsTheWords(original: string, tidied: string): boolean {
+  const count = (s: string, re: RegExp) => (s.match(re) || []).length;
+  if (count(tidied, /!/g) > count(original, /!/g)) return false;
+  if (count(tidied, /\p{Extended_Pictographic}/gu) > count(original, /\p{Extended_Pictographic}/gu)) return false;
   const before = wordsOf(original).filter((w) => !FILLER.has(w));
   const after = wordsOf(tidied);
   if (!before.length) return false;
@@ -33,8 +37,9 @@ export async function tidyDictation(text: string): Promise<{ tidied: string | nu
       temperature: 0,
       system: "You clean up dictated travel notes. Fix only words that speech recognition clearly misheard, punctuation, " +
         "capitalization and filler sounds (um, uh). Keep every other word exactly as the person said it — never rephrase, " +
-        "summarize, shorten, reorder, add, or change the meaning, tone or opinions. If you're unsure whether a word was " +
-        "misheard, keep it. Reply with the cleaned text only — no preface, no quotes, no notes.",
+        "summarize, shorten, reorder, add, or change the meaning, tone or opinions. Never add feeling: no exclamation marks, " +
+        "emphasis, capitals for stress or emoji they didn't give — end a plain statement with a full stop. If you're unsure " +
+        "whether a word was misheard, keep it. Reply with the cleaned text only — no preface, no quotes, no notes.",
       messages: [{ role: "user", content: text }],
     });
     const out = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();

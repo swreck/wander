@@ -146,7 +146,7 @@ model TripNote {
   text       String                                     // the words now (the same as original unless edited)
   tidied     String?                                    // "Tidy my dictation": the cleaned copy (null when off/not done)
   tidyStatus String?   @map("tidy_status")             // "pending" | "done" | "kept-original" | "failed"
-  source     String    @default("typed")                // "typed" | "voice" | "evening" (Scout's evening question)
+  source     String    @default("typed")                // "typed" | "voice" | "evening" (Scout's evening question) | "scout" (told to Scout)
   visibility String    @default("private")              // "private" (only the writer) | "trip" (everyone on the trip)
   storyUse   Boolean?  @map("story_use")               // others' stories may use what it says about places; null = the writer's setting
   dayDate    String?   @map("day_date")                // the trip day it's about, "2026-10-14"

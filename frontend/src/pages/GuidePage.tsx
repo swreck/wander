@@ -88,7 +88,9 @@ Trains come from a second place: ${/^ken$/i.test(meName) ? "your rail sheet, whi
   {
     id: "notes",
     title: "Maybes and Your Own Notes",
-    body: `**Maybes** is the group's shared list of "maybe we should…", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. ${mine ? "Your" : "Larisa's"} ideas from ${mine ? "your" : "her"} Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. "Interested" shows everyone who's in, from ${mine ? "your" : "her"} X marks and from Wander together. A dot on the Maybes tab means something new. ${mine ? "Your" : "Larisa's"} Guide stays as it is.`,
+    body: `**Maybes** is the group's shared list of "maybe we should…", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. ${mine ? "Your" : "Larisa's"} ideas from ${mine ? "your" : "her"} Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. "Interested" shows everyone who's in, from ${mine ? "your" : "her"} X marks and from Wander together. A dot on the Maybes tab means something new. ${mine ? "Your" : "Larisa's"} Guide stays as it is.
+
+**Notes** keeps what you want to remember of the trip, every word as you type or say it, on the day it's about. Only you see a note unless you share it with the trip. You can also tell Scout what happened ("we came here because our guide drove us, so we saw Arita too"), and it keeps your words in your Notes for that day.`,
   },
   {
     id: "no-signal",

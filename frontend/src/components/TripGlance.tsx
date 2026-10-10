@@ -30,6 +30,7 @@ import {
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
   freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEndSaid, currentUnownedLine,
   withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords, landingStatus, checkinAfterLanding, zoneWords, landingTitle, bookedByName, bookedWords, askedOf, nowMinutesOn, phoneIsElsewhere, tripClockMinutes, homeOnJapanDate, partiesOf, zonedMoment, scheduledLanding, openQuestionsOn, besideHotel, voiceFor, noGroupWords, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, sameThing, differWordsFor,
+  samePerson,
 } from "../lib/guideDisplay";
 
 interface DayChoice { id: string; date: string; time: string | null; text: string; addedBy: string; fromGuideIdea?: boolean }
@@ -243,7 +244,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     const passedForMe = (i: GuideItem) => {
       if (/free cancel|cancel(lation)? free|last day to cancel/i.test(i.title) && !/reconfirm/i.test(i.title)) return false;
       const owner = i.forWhom && !/^everyone$/i.test(i.forWhom) ? (isFor(i, me) ? me : "someone else") : bookedByName(i)?.split(/\s+/)[0] || null;
-      return !owner || !me || owner.toLowerCase() === me.toLowerCase();
+      return !owner || !me || samePerson(owner, me);
     };
     const deadlinesAhead = (from: string, span: number) => data.items
       .filter((i) => i.kind === "deadline" && !doneMarks.has(deadlineKey(i)) && (!deadlineOver(i, tz) || (deadlineJustPassed(i, tz) && passedForMe(i))) &&

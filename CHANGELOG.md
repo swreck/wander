@@ -2,6 +2,46 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-10 — Scout Keeps What You Tell It; Its Panel Stays Put While You Type; Julie's Packing Offer
+
+### Fixed
+- Scout's panel went off the screen while typing to it, and the tab bar floated mid-screen behind (Ken's screenshot at
+  Okawachiyama). Typing, the panel was placed from the page's height, which an iPhone can misreport; it's now placed from
+  the visible part of the screen itself, and the dimmed page behind covers all of what you see. iPad likewise.
+- Andy's and Julie's own lines read as someone else's (since ~Oct 3): their accounts were "Andy B" and "Julie D.", and
+  Wander looked for the whole name in her Guide's "Julie & Andy". Now the first name counts too (lib/guideDisplay.ts
+  samePerson / hasName) — Home's "yours", the day screen's "Yours · Julie & Andy", their flights and landings, the
+  "You leave in N days" card with its Japan fact (it never showed for them), Actions' "yours first", the rail sheet's
+  "your next train", "Booked under your name", Notes and the evening question. The accounts are renamed "Andy" and
+  "Julie" (as they know themselves); the server now takes a person's name from their account, not from the phone's
+  sign-in, so a renamed person is known by the new name at once (middleware/auth.ts).
+- Saving one personal setting no longer replaces the others (the server keeps what isn't sent). The unused new-member
+  welcome screen sent only interests, which would have wiped the tour answer and notes settings.
+
+### Added
+- Scout keeps what you tell it about the trip — what happened, what you saw, why the day went as it did — in your Notes
+  for that day, marked "told to Scout". Only your own words are kept: the server checks every word Scout passes is in
+  what you said (a part of your message, or an earlier one in the conversation), exactly as you wrote it; Scout's
+  rewording is refused. Private unless you ask to share. With "Tidy my dictation" on, it's tidied like a spoken note
+  (misheard words, punctuation, "um"s — the original one tap away). Scout replies in one line ("In your Notes for today —
+  just you."), adding one sentence only when a booking is touched. New Scout tool keep_in_my_notes.
+- Julie's first visit to Scout (until Oct 13 ends, Japan time): "Ken mentioned your quip about packing…" with one question
+  to tap, and Later / No thanks (Ken: "people are in a hurry … there should be a show me later option"). Later brings it
+  back six hours on, at most three offers (the last without Later); asking Scout something else first counts as Later;
+  No thanks ends it ("ask me what to pack" still works). With a conversation already under way it comes after it, shown
+  from its first words. The answer comes from a checked list of what Americans most often say they wish they'd brought to Japan
+  (services/packing.ts, official sources for the rules), tied to her own days where the Guide shows it. Andy (or anyone)
+  can ask Scout for the same list; it's never put in front of him. New Scout tool packing_tips.
+
+### Changed
+- Scout no longer says "Larisa's Guide is unchanged" every time it adds a plan — only when asked.
+- "Tidy my dictation" never adds feeling: no exclamation marks, emphasis or emoji the writer didn't give (Ken: an "!" he
+  never said "could leak into an eventual trip story"); a tidy that adds one is thrown away, the original kept.
+- The tour answer and the profile's interests are saved on their own, never the whole set of choices (a copy read a
+  moment earlier could undo a newer choice).
+- Settings → Tidy my dictation, Notes and How Wander works say that Scout can keep your words in Notes.
+- SPEC sections: Trip notes; AI chat (Scout tools); Scout panel on iPhone. SPEC UPDATE NEEDED.
+
 ## 2026-10-09 — Actions: Yours First, Others' Lists Folded, Done Marked in Wander
 
 ### Changed

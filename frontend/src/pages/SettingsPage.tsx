@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import FaceIdSetup from "../components/FaceIdSetup";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
 import { sourcesData, type OtherSource } from "../lib/sources";
-import { voiceFor } from "../lib/guideDisplay";
+import { voiceFor, samePerson } from "../lib/guideDisplay";
 import { showMeAround } from "../components/ShowMeAround";
 
 export default function SettingsPage() {
@@ -138,7 +138,7 @@ function NotesSettingsSection() {
       <h2 className="text-sm font-medium text-[#3a3128] mb-1">Trip notes</h2>
       <p className="text-xs text-[#6b5d4a] mb-1">Every word you write or say in Notes is kept exactly. These two choices are yours alone.</p>
       {row("tidy", s.tidy, "Tidy my dictation",
-        s.tidy ? "On — notes you speak get their punctuation, capitals and “um”s fixed. Your exact words are always kept too, one tap away. Typed notes are left as you wrote them."
+        s.tidy ? "On — notes you speak, and what you tell Scout to keep, get misheard words, punctuation, capitals and “um”s fixed. Your exact words are always kept too, one tap away. Notes you type on the Notes tab are left as you wrote them."
           : "Off — notes show exactly the words you said or typed.")}
       {row("storyUse", s.storyUse === true, "Let others' trip stories use what I say about places",
         // ("Never your personal notes" left people unsure whether a note kept to themselves counted — privacy tester)
@@ -203,7 +203,7 @@ function SheetSyncSection() {
         )}
         {others.map((s) => (
           <div key={s.id} className="p-3 text-[13px]">
-            <p className="text-[#3a3128] font-medium">{me && s.owner.toLowerCase() === me.toLowerCase() ? `Your ${s.name.toLowerCase()}` : `${s.owner}'s ${s.name.toLowerCase()}`}</p>
+            <p className="text-[#3a3128] font-medium">{samePerson(s.owner, me) ? `Your ${s.name.toLowerCase()}` : `${s.owner}'s ${s.name.toLowerCase()}`}</p>
             <p className="text-[#6b5d4a] mt-0.5">
               {s.authorship ? `${s.authorship[0].toUpperCase()}${s.authorship.slice(1)}. ` : ""}Read every few minutes{s.readAt ? ` — last ${japanWhen(s.readAt)}` : ""}.
               {s.lastError ? " Its latest read didn't work, so Wander is showing the copy before that." : ""}
