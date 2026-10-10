@@ -75,6 +75,13 @@ Ken's question, and three fresh testers walking the whole trip as Ken, Larisa, A
 - (follow-up) "Send this day" lists a time on another clock with its clock ("12:00 PM California time") after the day's
   Japan times. On a day trip, the morning's train out folds into "Earlier today" with the evening's return; a transfer to
   tonight's hotel folds too. The arrival photo waits until you've landed on your landing day.
+- (follow-up, from a second fresh check) The morning Julie and Andy fly, Japan's date is already their landing date, and
+  Home's map marked Tokyo as their "today's stop" from 8 AM California time: no city is theirs until their plane is due
+  to land. Larisa's Oct 5 summary said "Ken and your flight": the second of two names keeps its "Larisa's".
+- (follow-up) "Ken & Larisa were to collect these at Pickup Plan" (a tab's name read as a place) → "at Shin-Osaka".
+  A train's "Green" class says "Green Car (JR's first class)". On Home a free-cancellation date is "Last day … Nothing
+  to do unless plans change", not a gold "Deadline". The whole-trip page says a flight's clock ("12:00 PM California
+  time").
 - SPEC sections: Next, Home, Day screen, Notes, Maybes, Whole trip, Actions, Scout. SPEC UPDATE NEEDED.
 
 ## 2026-10-10 — The Second Audit's Fixes: a Still Day, No Freeze on Opening, One Ask at a Time

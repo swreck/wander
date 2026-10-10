@@ -21,7 +21,7 @@ import type { City, Day } from "../lib/types";
 import { getCityPastel } from "../lib/cityColors";
 import { guideData, savedGuideData } from "../lib/guideData";
 import { tripToday } from "../lib/tripNotes";
-import { homeOnJapanDate } from "../lib/guideDisplay";
+import { homeOnJapanDate, notLandedYet } from "../lib/guideDisplay";
 import { useAuth } from "../contexts/AuthContext";
 import useBackToClose from "../hooks/useBackToClose";
 import { MARKER, TOUCH, SEGMENT, GOOGLE_STRIP, pixel, place, tagFor, isHere, layoutMap, type Stop, type Group, type View, type Layout, type LayoutInput, type NameWidths } from "../lib/homeMapLayout";
@@ -130,7 +130,7 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   const me = useAuth().user?.displayName ?? null;
   const noHere = useMemo(() => {
     const g = savedGuideData(tripId);
-    return !!g && !!homeOnJapanDate(g.items || [], me, today, g.trip.timeZone || zone);
+    return !!g && (!!homeOnJapanDate(g.items || [], me, today, g.trip.timeZone || zone) || notLandedYet(g.items || [], me, g.trip.timeZone || zone));
   }, [tripId, me, today, zone]);
 
   // The stops in the order they're visited (each change of city is a stop; a city visited twice has two numbers) — worked

@@ -438,6 +438,17 @@ export function homeOnJapanDate(items: GuideItem[], me: string | null | undefine
   return date < departJapanDay ? flight : null;
 }
 
+/** You haven't landed in Japan yet, by the schedule — at home or in the air (verify 5: from 8 AM California time the
+ *  morning Julie flies, Japan's date is already her landing date, so "still at home on this Japan date" no longer said so,
+ *  and Home's map marked Tokyo as her "today's stop") */
+export function notLandedYet(items: GuideItem[], me: string | null | undefined, tripZone: string, now = new Date()): boolean {
+  const party = partyOf(items, me);
+  if (!party) return false;
+  const land = items.filter((l) => isLanding(l) && l.forWhom === party && l.date && l.time).sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)))[0];
+  if (!land) return false;
+  return now.getTime() < zonedMoment(ymd(land.date), mins(land.time) ?? 0, land.timeZone || tripZone).getTime();
+}
+
 /** Her line names you in its own words ("Julie & Andy depart SFO, Ken & Larisa arrive in Tokyo") — never "the others'"
  *  to you (Sweep A: Julie's Oct 13 read "The others · Julie & Andy depart SFO…") */
 export function namesMe(text: string, me: string | null | undefined): boolean {
@@ -1034,7 +1045,8 @@ export function voiceFor(me: string | null | undefined, owner: string | null | u
      *  said to her as "your …" — her own cell text is never touched, only these phrasings */
     say: (text: string) => !mine ? text : capitalPut(text
       .replace(/worth checking with [A-Z][a-z]+/g, "worth a second look")
-      .replace(new RegExp(`\\b${name}'s\\b`, "g"), `${PUT}your`)
+      // (not the second of two names — "Ken and Larisa's flight" became "Ken and your flight"; verify 5)
+      .replace(new RegExp(`(?<!(?:and|&) )\\b${name}'s\\b`, "g"), `${PUT}your`)
       .replace(new RegExp(`\\b${name} (${Object.keys(BASE_VERB).join("|")})\\b`, "g"), (_m, verb) => `${PUT}you ${BASE_VERB[verb]}`)
       .replace(new RegExp(`\\b(for|with|to|by|from|of) ${name}\\b`, "g"), "$1 you")
       .replace(/\b([Hh])er (Guide|tab's|tabs?|Itinerary|Activities tab|Dining Resos|Rail|Backroads|day tab|plan|estimate|other tabs|lines?|notes?|travel line|hotel notes|forecast|pictures?|maps?|words|“)/g, (_m, h, what) => `${h === "H" ? "Your" : "your"} ${what}`)

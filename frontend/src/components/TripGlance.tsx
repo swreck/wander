@@ -1011,7 +1011,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
               const time = deadlineTimeWords(i, tz);
               return (
                 <li key={i.id} className="flex gap-3 py-1.5">
-                  <span className="w-[4.75rem] shrink-0 text-right text-xs text-[#8a5a1a] pt-0.5">{over ? (startsSomething(i) ? "Started" : "Ended") : "Deadline"}</span>
+                  {/* (a free-cancellation window asks nothing — said quietly, as Actions says it; Sweep C / verify 4: a gold
+                      "Deadline · Free cancellation ends · Imperial Hotel" read as a to-do) */}
+                  <span className={`w-[4.75rem] shrink-0 text-right text-xs pt-0.5 ${isFreeCancel(i) && !over ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>{over ? (startsSomething(i) ? "Started" : "Ended") : isFreeCancel(i) ? "Last day" : "Deadline"}</span>
                   <span className={`flex-1 min-w-0 text-sm leading-snug ${over ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>
                     {i.title}
                     <span className="block text-xs text-[#6b5d4a] mt-0.5 no-underline">
@@ -1020,6 +1022,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
                       {/* (charges that have started: whose name it's booked under, never anyone's "to do" — re-audit 2) */}
                       {[over && startsSomething(i) ? bookedWords(i, me) : whose(i, me) || bookedWords(i, me), over ? (startsSomething(i) ? "These charges apply now — nothing to do; it stays booked" : `Ended ${time || "today"}`) : i.windowStart ? [deadlineWhen(i, today), time].filter(Boolean).join(", ") : time].filter(Boolean).join(" · ")}
                       {over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title) && `. ${cantTell}`}
+                      {!over && isFreeCancel(i) && <span className="block">{FREE_CANCEL_WORDS}</span>}
                     </span>
                   </span>
                 </li>
