@@ -61,6 +61,20 @@ Ken's question, and three fresh testers walking the whole trip as Ken, Larisa, A
   day it waits until the booked train in has arrived, or you've reached tonight's place.
 - Scout said the Robuchon cancellation charges "started yesterday" on the day they started. Its deadline status now says
   the day in words ("that's TODAY").
+- (follow-up) Home's map marked the others' city as "today's stop" (a dark chip on Nagoya, then Tokyo) while Julie and
+  Andy were at home; no city is today's for someone still at home on that Japan date. Two phone numbers side by side
+  ("03-5424-1338 / 03-5424-1347") are each their own full-height row, so a tap on one never dials the other; the day's
+  "Map ↗", Scout's "Copy" and a note's date link are finger-sized.
+- (follow-up, from a fresh check of the above) Day summaries name the travellers as written again: turning "Ken and
+  Larisa have…" into "you and Larisa have…" left the next sentence's "They check out…" pointing at Julie and Andy. To
+  Larisa, Wander's words about her Guide still say "your" ("your tabs name two…", "which you note is likely kaiseki").
+- (follow-up) On the morning Julie and Andy fly (Japan's evening), Home said "Now · Tapas Molecular Bar" — Ken and
+  Larisa's table for two in Tokyo — and earlier "Next · 8:00 PM … Tapas". On a Japan date you're still at home, Home's
+  now/next only take lines that name you. In the air, Home said "You hadn't left home yet": now "You were still at home
+  for this day of their trip."
+- (follow-up) "Send this day" lists a time on another clock with its clock ("12:00 PM California time") after the day's
+  Japan times. On a day trip, the morning's train out folds into "Earlier today" with the evening's return; a transfer to
+  tonight's hotel folds too. The arrival photo waits until you've landed on your landing day.
 - SPEC sections: Next, Home, Day screen, Notes, Maybes, Whole trip, Actions, Scout. SPEC UPDATE NEEDED.
 
 ## 2026-10-10 — The Second Audit's Fixes: a Still Day, No Freeze on Opening, One Ask at a Time

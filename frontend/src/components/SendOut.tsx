@@ -6,21 +6,25 @@
  */
 import { useState } from "react";
 import { sendCopy } from "../lib/tripNotes";
-import { clock, tabsDiffer, type voiceFor } from "../lib/guideDisplay";
+import { clock, tabsDiffer, ZONE_WORDS, type voiceFor } from "../lib/guideDisplay";
 import type { GuideItem } from "../lib/guideData";
 
 const longDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 
 /** A day as text: her plan in her order, with its times as she wrote them and whose each line is; the bookings that
  *  day; where they sleep. No confirmation numbers — a day goes to friends, not front desks. */
-export function dayText({ date, city, overview, plan, others, sleep, owner, trains = [] }: {
+export function dayText({ date, city, overview, plan, others, sleep, owner, trains = [], tripZone = "Asia/Tokyo" }: {
   date: string; city: string; overview: GuideItem[]; plan: GuideItem[]; others: GuideItem[]; sleep: string[]; owner: string;
+  tripZone?: string;
   /** the day's booked trains from the rail sheet ("HH:MM" and its words) — in time order with the rest (Sweep C: Oct 11's
    *  message was only "Sleeping at: Nagoya Marriott"; the 10:36 NOZOMI 22 was left out) */
   trains?: { time: string; text: string }[];
 }): string {
+  // (a time on another clock says which, and goes last — verify 4: Julie & Andy's "12:00 PM" California take-off sat
+  // between the 10:36 AM NOZOMI and the 2:00 PM check-in, read as noon in Japan)
+  const elsewhere = (i: GuideItem) => !!i.time && !!i.timeZone && i.timeZone !== tripZone;
   const line = (i: GuideItem) => {
-    const t = i.timeText || (i.time ? clock(i.time) : "");
+    const t = elsewhere(i) ? `${clock(i.time!)} ${ZONE_WORDS[i.timeZone!] || i.timeZone}` : i.timeText || (i.time ? clock(i.time) : "");
     const who = i.forWhom && !/^everyone$/i.test(i.forWhom) ? ` (${i.forWhom})` : "";
     // (a time her own tabs dispute never goes out as fact — round 16: "8:00 PM Cafe Ensou" vs her 1:00 lunch)
     const doubt = tabsDiffer(i).length ? " — her tabs differ on this; check before relying on it" : "";
@@ -32,10 +36,10 @@ export function dayText({ date, city, overview, plan, others, sleep, owner, trai
   // (her lines in her order; each train at its time among them — a line with no time keeps its place after the one before)
   let carry = "";
   const keyed = [
-    ...timed.map((i) => ({ key: (carry = i.time || carry), text: line(i) })),
+    ...timed.map((i) => ({ key: elsewhere(i) ? "99:99" : (carry = i.time || carry), text: line(i) })),
     ...trains.map((t) => ({ key: t.time.padStart(5, "0"), text: `${clock(t.time.padStart(5, "0"))}  ${t.text}` })),
   ];
-  const ordered = !trains.length ? keyed : keyed.map((k, n) => ({ ...k, n })).sort((a, b) => a.key.localeCompare(b.key) || a.n - b.n);
+  const ordered = !trains.length && !timed.some(elsewhere) ? keyed : keyed.map((k, n) => ({ ...k, n })).sort((a, b) => a.key.localeCompare(b.key) || a.n - b.n);
   if (ordered.length) out.push("", ...ordered.map((k) => k.text));
   if (sleep.length) out.push("", `Sleeping at: ${sleep.join(" / ")}`);
   out.push("", `— from ${owner}'s plan for the trip`);

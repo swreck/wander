@@ -42,7 +42,9 @@ export type View = { zoom: number; x0: number; y0: number; w: number; h: number 
 /** Each stop's name measured on the page in Wander's type (a worker can't measure): medium, today's semibold, its
  *  " start"/" end" after it and alone; and the " · " between names */
 export type NameWidths = { dot: number; byCity: Record<string, { w500: number; w600: number; tag: number; tagAlone: number }> };
-export type LayoutInput = { stops: Stop[]; order: string[]; view: View; today: string; innerHeight: number; widths: NameWidths };
+export type LayoutInput = { stops: Stop[]; order: string[]; view: View; today: string; innerHeight: number; widths: NameWidths;
+  /** no city is "today's stop" for this person (still at home on this Japan date) — names drawn as the rest */
+  noHere?: boolean };
 export type Box = { x1: number; y1: number; x2: number; y2: number };
 export type Spot = { box: Box; h: "left" | "right" | "center"; hd: number; v: "top" | "bottom" | "middle"; vd: number; stacked: boolean };
 /** The drawing: each marker with its name's place, and each leg as drawn (its points, the stop it arrives at, its arrow) */
@@ -56,12 +58,12 @@ export function tagFor(stops: Stop[]) {
 /** Today's stop (its name is drawn semibold, in a chip) */
 export const isHere = (s: Stop, today: string) => !!s.firstDay && !!s.lastDay && s.firstDay <= today && today <= s.lastDay;
 
-export function layoutMap({ stops, order, view, today, innerHeight, widths }: LayoutInput): Layout {
+export function layoutMap({ stops, order, view, today, innerHeight, widths, noHere = false }: LayoutInput): Layout {
   const tagOf = tagFor(stops);
   // A name's width (as drawn: names medium, today's semibold in a chip, " · " and "start"/"end" regular; 6 px each side)
   const nameWidth = (g: Group) => {
     const each = g.stops.map((s) => {
-      const w = widths.byCity[s.city.id], here = isHere(s, today);
+      const w = widths.byCity[s.city.id], here = !noHere && isHere(s, today);
       return (here ? w.w600 : w.w500) + (here ? 4 : 0) + (tagOf(s) ? w.tag : 0);
     });
     // `one`: on one line, "Tokyo · Nikko"; `stacked`: a shared marker's names one above the other — or a lone stop's

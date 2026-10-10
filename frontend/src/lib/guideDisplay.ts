@@ -483,7 +483,7 @@ export function deadlineJustPassed(i: GuideItem, tripZone: string, now = new Dat
   return now.getTime() - zonedMoment(ymd(i.date), at, tripZone).getTime() < 24 * 3600 * 1000;
 }
 
-const ZONE_WORDS: Record<string, string> = { "America/Los_Angeles": "California time", "Asia/Tokyo": "Japan time" };
+export const ZONE_WORDS: Record<string, string> = { "America/Los_Angeles": "California time", "Asia/Tokyo": "Japan time" };
 /** "California time", "Japan time" — whose clock a time is on */
 export const zoneWords = (zone: string) => ZONE_WORDS[zone] || zone;
 
@@ -1054,27 +1054,6 @@ const PUT = "\u0001";
 const capitalPut = (t: string) => t
   .replace(new RegExp(`(^|[.!?]\\s+|—\\s+|:\\s+|“)${PUT}y`, "g"), "$1Y")
   .split(PUT).join("");
-
-/**
- * Wander's own sentences that name the travellers ("Ken, Larisa, Andy and Julie check out…", "with Julie and Andy still
- * at home"), said to one of them: their name in the list becomes "you" (Sweep B, Oct 10: Larisa read "Ken and Larisa
- * have a Nagoya day" atop her own day — "it sounds like it's talking about me to someone else"). Only lists of the trip's
- * people are reworded ("the MIHO Museum and Larisa" is not a list of people); a verb after a list is already plural, so
- * it reads right after "you".
- */
-export function namesToYou(text: string, me: string | null | undefined, people: string[]): string {
-  const who = (me || "").trim().split(/\s+/)[0];
-  const names = [...new Set([who, ...people.map((p) => p.trim().split(/\s+/)[0])])].filter((n) => /^[A-Z][a-z]+$/.test(n || ""));
-  if (!who || !names.includes(who)) return text;
-  const NAME = `(?:${names.join("|")})`;
-  const list = new RegExp(`\\b${NAME}(?:, ${NAME})*,? (?:and|&) ${NAME}\\b`, "g");
-  return capitalPut(text.replace(list, (whole) => {
-    const inList = whole.split(/,? (?:and|&) |, /);
-    if (!inList.includes(who)) return whole;
-    const others = inList.filter((n) => n !== who);
-    return `${PUT}you${others.length === 1 ? ` and ${others[0]}` : `, ${others.slice(0, -1).join(", ")} and ${others[others.length - 1]}`}`;
-  }));
-}
 
 /** A "tabs differ" note in words: "Her tabs differ — …", or "Her tab says two things — …" when both are in one tab
  *  (round 13: Oct 25's stop list and booking picture are both in her Kyoto Sun tab) */
