@@ -529,7 +529,11 @@ export default function TripGlance({ tripId }: { tripId: string }) {
 
   // ── During the trip ──
   const todays = on(today);
-  const mineToday = todays.filter((i) => isFor(i, me));
+  // (on a Japan date you're still at home: only lines that name you — verify 4, Oct 10: on the morning Julie flies, Home
+  // said "Now · Tapas Molecular Bar" and "Next · 8:00 PM … Tapas", Ken and Larisa's table for two in Tokyo)
+  const homeToday = !!homeOnJapanDate(data.items, me, today, tz);
+  const namedForMe = (i: GuideItem) => (!!i.forWhom && !/^everyone$/i.test(i.forWhom) && isFor(i, me)) || namesMe(i.title, me);
+  const mineToday = todays.filter((i) => isFor(i, me) && (!homeToday || namedForMe(i)));
   const flight = mineToday.find((i) => i.kind === "flight" && !isLanding(i) && i.time);
   const plan = planOn(today);
   // Her own plan for getting to the airport replaces Wander's estimate
@@ -555,13 +559,13 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const nowFor = (i: { timeZone?: string | null }) => (i.timeZone && i.timeZone !== tz ? nowMinutesOn(today, i.timeZone) : tripNow);
   const flightNow = flight ? nowFor(flight) : tripNow;
   const showLeave = !!leave && flightNow < flightAt;
-  const appointments = [...mineToday.filter((i) => i.time && !["checkout", "checkin"].includes(i.kind)), ...plan.timed.filter((b) => isFor(b, me))]
+  const appointments = [...mineToday.filter((i) => i.time && !["checkout", "checkin"].includes(i.kind)), ...plan.timed.filter((b) => isFor(b, me) && (!homeToday || namedForMe(b)))]
     .sort((a, b) => tripClockMinutes(a, tz) - tripClockMinutes(b, tz));
   // Where her plan puts you right now ("MIHO Museum, until ~12:35 PM") — only a line with your name on it,
   // or one for everybody outside a split; never a guess
   const current = currentPlanLine(plan.all, tripNow, me);
   // Your booked meal under way leads her line at that hour (Sweep B: the Robuchon dinner's name flipped at 6:00 PM)
-  const mealNow = mealUnderWay([...todays, ...plan.all], tripNow, me);
+  const mealNow = homeToday ? undefined : mealUnderWay([...todays, ...plan.all], tripNow, me);
   const mealLeads = !!mealNow && !!current && (!current.time || toMin(current.time) <= toMin(mealNow.time!));
   // Under way with no group named (Maruni Toryo, 10:35–11:35): said as now, its group left unsaid
   const currentUnowned = !current && !mealNow ? currentUnownedLine(plan.all, tripNow) : undefined;
@@ -640,7 +644,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   // day 3 -") is the day's line whatever its kind; round 13: Oct 24 and 25 weren't quoted)
   // (not on a Japan date you're still at home on: her line is the others' day, so it goes below "The rest is the others'
   // plan" — Oct 10 re-audit: Julie's Oct 13 led with "In her Itinerary for today: “Nagoya to Tokyo”" above her own flight)
-  const stillHome = !!homeOnJapanDate(data.items, me, today, tz);
+  const stillHome = homeToday;
   // (…unless it names you — "Julie & Andy depart SFO, Ken & Larisa arrive in Tokyo" is hers too; Sweep A)
   const itineraryLines = todays.filter((i) => (!stillHome || namesMe(i.title, me)) && !gotHere(i) && !i.time && /itinerary/i.test(i.source) && (["plan", "tour", "note"].includes(i.kind) || /^(\w+\s)?day\s*\d+\s*-/i.test(i.title)) && !besideHotel(i) && !/\binterested\?/i.test(i.title) && !/^see above\b/i.test(i.title));
   // A landing stays all day (round 8: at 6 PM Home had dropped it, leaving "After landing · Check in" hanging)
@@ -956,7 +960,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           const out = homeOnJapanDate(data.items, me, today, tz);
           if (!out) return null;
           const gone = nowMinutesOn(ymd(out.date), out.timeZone!) >= toMin(out.time);
-          return <p className="text-xs text-[#6b5d4a] mt-2 ml-[5.5rem]">The rest is the others' plan. {gone ? "You hadn't left home yet." : "You're still at home."}</p>;
+          return <p className="text-xs text-[#6b5d4a] mt-2 ml-[5.5rem]">The rest is the others' plan. {gone ? "You were still at home for this day of their trip." : "You're still at home."}</p>;
         })()}
         {rows.length > 0 && (
           <ul className="mt-1">

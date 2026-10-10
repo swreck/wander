@@ -25,7 +25,7 @@ import {
   nightOf, isFor, isLanding, deadlineOnDate, deadlineOver, deadlineTimeWords, deadlineWhen,
   leaveForAirport, isPlanningNote, isFragment, partyOf, myNight, leavingOn, stayMapsQuery,
   checkoutBeforeFirst, leaveBeforeCheckout, checkinAfterLanding, leadItem, withCheckoutWho, minutesToClock, lateLeaveWords,
-  ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, planLineEndSaid, saidAgain, sameThing, currentUnownedLine, mealUnderWay, outvoted, namesMe, linksIn, besideHotel, voiceFor, namesToYou, tabLabel,
+  ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, planLineEndSaid, saidAgain, sameThing, currentUnownedLine, mealUnderWay, outvoted, namesMe, linksIn, besideHotel, voiceFor, tabLabel,
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
@@ -1027,7 +1027,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // train now… arriving 2:50 PM" under "Now, in Larisa's plan · Arrive KIX, until about 2:30 PM")
   const currentBlock = isToday && !riding ? currentPlanLine(planBlocks, tripNow, me) : undefined;
   // Your booked meal under way leads her line at that hour (Sweep B: the Robuchon dinner's name flipped at 6:00 PM)
-  const mealNow = isToday && !riding ? mealUnderWay([...dayItems, ...planBlocks], tripNow, me) : undefined;
+  // (never on a Japan date you're still at home — verify 4: "Now · Tapas Molecular Bar" for Julie the morning she flies)
+  const mealNow = isToday && !riding && !homeOnJapanDate(items, me, date, tripZone) ? mealUnderWay([...dayItems, ...planBlocks], tripNow, me) : undefined;
   const mealLeads = !!mealNow && !!currentBlock && (!currentBlock.time || toMin(currentBlock.time) <= toMin(mealNow.time!));
   const currentUnowned = isToday && !riding && !currentBlock && !mealNow ? currentUnownedLine(planBlocks, tripNow) : undefined;
   // Now, in the clock's order (delight audit: the 6:17 PM train card sat above "Next · in 10 min · landing", the landing
@@ -1430,13 +1431,17 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // train) once you've reached tonight's place (Sweep B/C: Nagoya's photo played at 8:30 AM in Hakata)
                   const arriveBy = otherSources.flatMap((s) => { const a = railAudience(items, s.owner); return s.rail.filter((r) => r.date === today && isBookedTrain(r) && legIsFor(r, s, me, a.ownerParty, a.groupSize) && getsYouTo(colOf(r.cols, /^route$/), cityName)); })
                     .map((r) => railMin(colOf(r.cols, /^arrive/))).filter((m): m is number => m !== null).sort((a, b) => b - a)[0] ?? null;
-                  const notThereYet = isToday && cityDates[0] === today && (arriveBy !== null ? tripNow < arriveBy : leaving.length > 0 && !arrivedForTonight(dayItems, me, tripNow, null));
+                  // (…and on your landing day, not before you land — verify 4: Julie's "Arriving in Tokyo" played at 2 PM
+                  // for her 3 PM landing)
+                  const landsAt = dayItems.filter((i) => isLanding(i) && !!i.time && isFor(i, me) && (!i.timeZone || i.timeZone === tripZone)).map((i) => toMin(i.time!))[0] ?? null;
+                  const notThereYet = isToday && cityDates[0] <= today && ((landsAt !== null && tripNow < landsAt)
+                    || (cityDates[0] === today && (arriveBy !== null ? tripNow < arriveBy : leaving.length > 0 && !arrivedForTonight(dayItems, me, tripNow, null))));
                   return <CityTitle cityId={cityId} cityName={cityName} dateWords={longDate(date)} photo={away && !!cityId} auto={away && date <= today && inCityNow && !notThereYet} />;
                 })()}
                 {(planBlocks.length > 0 || dayItems.length > 0) && (
                   <div className="shrink-0 -mb-2">
                     <SendOut label="Send this day ›" title={`${longDate(date)} — ${cityName}`}
-                      text={() => dayText({ date, city: cityName, overview: itineraryLines, plan: planBlocks, others: otherItems.filter((o) => !planBlocks.some((b) => saidAgain(b, o))), sleep: night.stays.map((n) => n.stay.name), owner: owner || "Larisa",
+                      text={() => dayText({ date, city: cityName, overview: itineraryLines, plan: planBlocks, others: otherItems.filter((o) => !planBlocks.some((b) => saidAgain(b, o))), sleep: night.stays.map((n) => n.stay.name), owner: owner || "Larisa", tripZone,
                         trains: otherSources.flatMap((s) => { const a = railAudience(items, s.owner); return s.rail.filter((r) => r.date === date && isBookedTrain(r) && legIsFor(r, s, me, a.ownerParty, a.groupSize)); })
                           .map((r) => ({ time: colOf(r.cols, /^depart/), text: [colOf(r.cols, /^train$/), colOf(r.cols, /^route$/), colOf(r.cols, /^arrive/) ? `arrives ${twelveHour(colOf(r.cols, /^arrive/))}` : ""].filter(Boolean).join(" · ") }))
                           .filter((t) => /^\d{1,2}:\d{2}$/.test(t.time)) })} />
@@ -1590,8 +1595,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             )}
             {!now && summariesByDay[date] && (
               <section aria-label="This day in brief" className="mb-4">
-                {/* (to one of the people it names, said to them: "You and Ken have a Nagoya day", "Your tabs name two…") */}
-                <p className="text-[15px] leading-relaxed text-[#3a3128]">{v.say(namesToYou(summariesByDay[date], me, [owner || "", ...items.flatMap((x) => (x.forWhom || "").split(/\s*(?:&|,|\+|\band\b)\s*/i))]))}</p>
+                {/* (to Larisa, Wander's words about her Guide in her voice: "your tabs name two…", "which you note is
+                    likely kaiseki". The travellers' names stay as written — turning "Ken and Larisa" into "you and Larisa"
+                    left the next sentence's "They check out…" pointing at Julie and Andy; verify 4, Oct 10) */}
+                <p className="text-[15px] leading-relaxed text-[#3a3128]">{v.say(summariesByDay[date])}</p>
                 <p className="text-xs text-[#6b5d4a] mt-1">Wander's summary of {v.owners} plan</p>
               </section>
             )}
@@ -2058,7 +2065,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   const leftOnTrain = isToday && firstDep !== null && tripNow > firstDep;
                   if (!arrived && !leftOnTrain) return out;
                   const doneIds = new Set(listItems.filter((i) => !i.time && (i.kind === "checkout" || (arrived && getsYouTo(i.title, cityName)))).map((i) => i.id));
-                  const doneLegs = arrived ? railMine.filter(({ r }) => !isBookedTrain(r) && getsYouTo(colOf(r.cols, /^route$/), cityName)) : [];
+                  // (a leg with no booking that got you here, to tonight's hotel, or out of here and back on a day trip —
+                  // verify 4: on Larisa's Tokoname day at 8 PM only the return folded; the morning's "Nagoya → Tokoname"
+                  // and Oct 21's "Nikko → Shirakabeso" transfer still read as ahead)
+                  const hereWords = [cityName, ...night.stays.map((n) => n.stay.name)].filter(Boolean);
+                  const fromHere = (route: string) => { const from = route.split(/→|-\s*>/)[0] || ""; return !!cityName && route !== from && new RegExp(`\\b${cityName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(from); };
+                  const doneLegs = arrived ? railMine.filter(({ r }) => { const route = colOf(r.cols, /^route$/); return !isBookedTrain(r) && !/evening|night|dinner|late/i.test(colOf(r.cols, /^depart/))
+                    && (hereWords.some((w) => getsYouTo(route, w)) || (fromHere(route) && railMine.some((x) => getsYouTo(colOf(x.r.cols, /^route$/), cityName)))); }) : [];
                   const doneKeys = new Set([...doneIds, ...doneLegs.map((x) => `leg-${railKey(x)}`)]);
                   const isDone = (n: ReactNode) => !!n && typeof n === "object" && "key" in n && doneKeys.has(String((n as { key: unknown }).key));
                   const earlier = out.filter(isDone);
@@ -2444,7 +2457,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             {askedOf(i, me, today, all, tripZone) && <AskedQuestion i={i} me={me} owner={owner} sources={sources} className="mt-1" />}
             {phone && <GuideText text={phone} className="text-sm text-[#6b5d4a] mt-1" />}
             {mapAt && (
-              <a href={mapAt} target={q ? undefined : "_blank"} rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Map ↗</a>
+              <a href={mapAt} target={q ? undefined : "_blank"} rel="noreferrer" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-sm text-[#514636] underline underline-offset-2">Map ↗</a>
             )}
           </div>
         ) : null}

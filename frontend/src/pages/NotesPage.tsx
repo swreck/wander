@@ -614,7 +614,7 @@ export default function NotesPage() {
                             {!n.mine && <span className="text-[#3a3128] font-medium">{n.authorName} · </span>}
                             {view.order === "newest" && `${placeOf(n)} · `}
                             {n.dayDate
-                              ? <button onClick={() => navigate(`/day/${n.dayDate}`)} className="underline underline-offset-2">{dayWords(n.dayDate)}</button>
+                              ? <button onClick={() => navigate(`/day/${n.dayDate}`)} className="inline-block py-3 -my-3 underline underline-offset-2">{dayWords(n.dayDate)}</button>
                               : new Date(n.createdAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                             {` · ${whenOf(n)} · ${n.visibility === "trip" ? (n.mine ? "Shared with the trip" : "shared with the trip") : "Just you"}`}
                             {n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : ""}

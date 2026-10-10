@@ -19,8 +19,10 @@ import { createPortal } from "react-dom";
 import { APIProvider, Map as GoogleMap, useMap } from "@vis.gl/react-google-maps";
 import type { City, Day } from "../lib/types";
 import { getCityPastel } from "../lib/cityColors";
-import { guideData } from "../lib/guideData";
+import { guideData, savedGuideData } from "../lib/guideData";
 import { tripToday } from "../lib/tripNotes";
+import { homeOnJapanDate } from "../lib/guideDisplay";
+import { useAuth } from "../contexts/AuthContext";
 import useBackToClose from "../hooks/useBackToClose";
 import { MARKER, TOUCH, SEGMENT, GOOGLE_STRIP, pixel, place, tagFor, isHere, layoutMap, type Stop, type Group, type View, type Layout, type LayoutInput, type NameWidths } from "../lib/homeMapLayout";
 
@@ -122,6 +124,14 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   const [zone, setZone] = useState("Asia/Tokyo");
   useEffect(() => { guideData(tripId).then((g) => g?.trip.timeZone && setZone(g.trip.timeZone)).catch(() => { /* Japan time */ }); }, [tripId]);
   const today = tripToday(zone);
+  // Still at home on this Japan date (Andy and Julie before their flight): no city is "today's stop" for you — the dark
+  // chip on the others' city read as where you are (Sweep A, Oct 10: Nagoya, then Tokyo, while Julie was in California).
+  // From this phone's copy of the trip, so it's right in the map's first drawing.
+  const me = useAuth().user?.displayName ?? null;
+  const noHere = useMemo(() => {
+    const g = savedGuideData(tripId);
+    return !!g && !!homeOnJapanDate(g.items || [], me, today, g.trip.timeZone || zone);
+  }, [tripId, me, today, zone]);
 
   // The stops in the order they're visited (each change of city is a stop; a city visited twice has two numbers) — worked
   // out again only when what they're made of changes, not each time Home hands over a fresh copy of the same lists
@@ -193,7 +203,7 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
           style={{ width: "100%", height: "100%" }}
         >
           <Fit stops={stops} again={refit} viewKey={viewKey} />
-          <Markers stops={stops} order={order} allCities={allCities} today={today} onOpenDay={onOpenDay} onHeight={setFitted}
+          <Markers stops={stops} order={order} allCities={allCities} today={today} noHere={noHere} onOpenDay={onOpenDay} onHeight={setFitted}
             canResize={(want) => refit > 0 || want > (fitted ?? estimate) || Date.now() - openedAt.current < 300}
             again={refit} onWholeTrip={() => setRefit((n) => n + 1)} viewKey={viewKey} layoutKey={stopsKey} />
         </GoogleMap>
@@ -285,8 +295,10 @@ function measureWidths(stops: Stop[], today: string): NameWidths {
   return { dot: width(" · ", 400), byCity };
 }
 
-function Markers({ stops, order, allCities, today, onOpenDay, onHeight, canResize, again, onWholeTrip, viewKey, layoutKey }: {
+function Markers({ stops, order, allCities, today, noHere = false, onOpenDay, onHeight, canResize, again, onWholeTrip, viewKey, layoutKey }: {
   stops: Stop[]; order: string[]; allCities: City[]; today: string; onOpenDay: (date: string) => void; onHeight: (h: number) => void;
+  /** no city is "today's stop" for this person (still at home on this Japan date) */
+  noHere?: boolean;
   /** whether the map may change to this height now — growing (so no name is cut off) or after "Whole trip", but never
    *  shrinking under someone already reading Home */
   canResize: (want: number) => boolean;
@@ -322,7 +334,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, canResiz
   // The markers, the route between them in the trip's order, and each name on a free side (lib/homeMapLayout.ts) — for
   // this trip, view, day and screen height. Worked out once, then kept in memory and on the phone and used again; else
   // asked of the worker, the last drawing staying on the map until it comes (markers sit by place, so they stay put).
-  const namesKey = view ? `names|${shortHash(layoutKey)}|${viewSig}|${today}|${typeof window !== "undefined" ? window.innerHeight : 0}` : "";
+  const namesKey = view ? `names|${shortHash(layoutKey)}|${viewSig}|${today}${noHere ? "-away" : ""}|${typeof window !== "undefined" ? window.innerHeight : 0}` : "";
   const [fromWorker, setFromWorker] = useState<{ key: string; layout: Layout } | null>(null);
   const fresh = useMemo(() => (!namesKey ? undefined
     : (kept.get(namesKey) as Layout | undefined) ?? (fromWorker?.key === namesKey ? fromWorker.layout : undefined) ?? fromPhone<Layout>(LAYOUTS_ON_PHONE, namesKey)),
@@ -337,7 +349,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, canResiz
     let cancelled = false;
     // (the names measured here, in Wander's type — the worker can't; estimated from their letters, "Karatsu · Hakata"
     // came out 20 pt longer than drawn — fresh review, Oct 1)
-    layoutOffPage({ stops, order, view, today, innerHeight: window.innerHeight, widths: measureWidths(stops, today) }).then((layout) => {
+    layoutOffPage({ stops, order, view, today, noHere, innerHeight: window.innerHeight, widths: measureWidths(stops, noHere ? "" : today) }).then((layout) => {
       if (kept.size > 80) kept.clear();
       kept.set(namesKey, layout);
       toPhone(LAYOUTS_ON_PHONE, namesKey, layout, 6);
@@ -399,7 +411,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, canResiz
   // During the trip: today's city dark, the ones already visited quieter; before it, the start ringed
   const tripStarted = stops.some((s) => s.firstDay && s.firstDay <= today);
   const stateOf = (s: Stop) =>
-    s.firstDay && s.lastDay && s.firstDay <= today && today <= s.lastDay ? "here" as const
+    !noHere && s.firstDay && s.lastDay && s.firstDay <= today && today <= s.lastDay ? "here" as const
       : tripStarted && s.lastDay && s.lastDay < today ? "past" as const : "ahead" as const;
   // a leg is travelled once its stop has been reached
   const legs = useMemo(() => drawnRoute.map(({ pts, arrive, at }) => ({

@@ -1435,7 +1435,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                         } catch { /* no clipboard here: the words can still be selected */ }
                       }}
                       aria-label="Copy this answer"
-                      className="min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
+                      className="min-h-[44px] min-w-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
                       {copied === i ? "✓ Copied the answer" : "Copy"}
                     </button>
                     {/* The whole answer read aloud — from this bubble to the next question (an answer can come in two) */}
