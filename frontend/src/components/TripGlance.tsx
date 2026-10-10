@@ -30,7 +30,7 @@ import {
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
   freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEndSaid, currentUnownedLine,
   withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords, landingStatus, checkinAfterLanding, zoneWords, landingTitle, bookedByName, bookedWords, askedOf, nowMinutesOn, phoneIsElsewhere, tripClockMinutes, homeOnJapanDate, partiesOf, zonedMoment, scheduledLanding, openQuestionsOn, besideHotel, voiceFor, noGroupWords, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, sameThing, differWordsFor,
-  samePerson,
+  samePerson, travelerToday, deadlineIsMine, startsSomething,
 } from "../lib/guideDisplay";
 
 interface DayChoice { id: string; date: string; time: string | null; text: string; addedBy: string; fromGuideIdea?: boolean }
@@ -169,7 +169,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const [data, setData] = useState<TripGuideData | null>(null);
   const [loading, setLoading] = useState(true);
   const [choices, setChoices] = useState<DayChoice[]>([]);
-  const [today, setToday] = useState(phoneToday());
+  const [phoneDay, setToday] = useState(phoneToday());
   const [, setNow] = useState(nowMinutes());
   // Other sources (Ken's rail sheet): the ticket pickup and today's trains
   const [otherSources, setOtherSources] = useState<OtherSource[]>([]);
@@ -217,6 +217,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     window.addEventListener("focus", refresh);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); window.removeEventListener("focus", refresh); };
   }, []);
+  // Your own today: Japan's date once your plane has landed there, whatever the phone's clock (Oct 10 audit: a phone
+  // still on California time after Julie landed kept her on the day she flew); worked out on every redraw
+  const today = data ? travelerToday(data.items, me, data.trip.timeZone || "Asia/Tokyo", phoneDay) : phoneDay;
   // Deadlines marked done in Wander by the person they're for (Oct 9) — Home stops listing them
   const [doneMarks, setDoneMarks] = useState<Map<string, Mark>>(() => savedMarks(tripId));
   useEffect(() => {
@@ -246,8 +249,10 @@ export default function TripGlance({ tripId }: { tripId: string }) {
       const owner = i.forWhom && !/^everyone$/i.test(i.forWhom) ? (isFor(i, me) ? me : "someone else") : bookedByName(i)?.split(/\s+/)[0] || null;
       return !owner || !me || samePerson(owner, me);
     };
+    // (only yours — one naming you, or no one; another party's to-do or theirs by name stays in Actions, folded; Oct 10
+    // audit: Julie's Home led with Larisa's Robuchon reminder and Ken & Larisa's free cancellation)
     const deadlinesAhead = (from: string, span: number) => data.items
-      .filter((i) => i.kind === "deadline" && !doneMarks.has(deadlineKey(i)) && (!deadlineOver(i, tz) || (deadlineJustPassed(i, tz) && passedForMe(i))) &&
+      .filter((i) => i.kind === "deadline" && deadlineIsMine(i, data.items, me) && !doneMarks.has(deadlineKey(i)) && (!deadlineOver(i, tz) || (deadlineJustPassed(i, tz) && passedForMe(i))) &&
         (ymd(i.date) >= from || deadlineOnDate(i, from) || deadlineJustPassed(i, tz)) && (i.windowStart || ymd(i.date)) <= addDays(from, span))
       // A window sorts by when it opens ("Oct 10 – 14" before an Oct 11 cutoff)
       .sort((a, b) => (a.windowStart || ymd(a.date)).localeCompare(b.windowStart || ymd(b.date)));
@@ -920,13 +925,13 @@ export default function TripGlance({ tripId }: { tripId: string }) {
               const time = deadlineTimeWords(i, tz);
               return (
                 <li key={i.id} className="flex gap-3 py-1.5">
-                  <span className="w-[4.75rem] shrink-0 text-right text-xs text-[#8a5a1a] pt-0.5">{over ? "Ended" : "Deadline"}</span>
+                  <span className="w-[4.75rem] shrink-0 text-right text-xs text-[#8a5a1a] pt-0.5">{over ? (startsSomething(i) ? "Started" : "Ended") : "Deadline"}</span>
                   <span className={`flex-1 min-w-0 text-sm leading-snug ${over ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>
                     {i.title}
                     <span className="block text-xs text-[#6b5d4a] mt-0.5 no-underline">
                       {/* Whose booking, when no one's name is on it (round 10: Andy, just landed, was told "Today is the
                           last day" to reconfirm Larisa's dinner) */}
-                      {[whose(i, me) || bookedWords(i, me), over ? `Ended ${time || "today"}` : i.windowStart ? [deadlineWhen(i, today), time].filter(Boolean).join(", ") : time].filter(Boolean).join(" · ")}
+                      {[whose(i, me) || bookedWords(i, me), over ? (startsSomething(i) ? "These charges apply now" : `Ended ${time || "today"}`) : i.windowStart ? [deadlineWhen(i, today), time].filter(Boolean).join(", ") : time].filter(Boolean).join(" · ")}
                       {over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title) && `. ${cantTell}`}
                     </span>
                   </span>

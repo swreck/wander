@@ -8,6 +8,7 @@
  * No sign-in needed (an <img> can't send one); a city id is a long random id, and nothing else is reachable here.
  */
 import { Router } from "express";
+import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 
 const router = Router();
@@ -27,6 +28,25 @@ function photoFor(cityId: string): Promise<Photo | null> {
   return asking.get(cityId)!;
 }
 
+/** A photo that can stand for the city this trip (autumn): a view of the place, not another season's decorations or
+ *  snow. True when it can't be judged (no key, an error) — the photo then stands as it would have. */
+async function fitsTheSeason(bytes: Buffer, type: string, cityName: string): Promise<boolean> {
+  if (!process.env.ANTHROPIC_API_KEY || !/^image\/(jpeg|png|webp|gif)$/.test(type)) return true;
+  try {
+    const r = await new Anthropic().messages.create({
+      model: "claude-haiku-4-5-20251001", max_tokens: 5, temperature: 0,
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: type as "image/jpeg", data: bytes.toString("base64") } },
+        { type: "text", text: `This photo will greet travelers arriving in ${cityName}, Japan, in October. Answer NO if it shows Christmas or New Year decorations, Santa, snow, or it isn't a view of a place (a close-up of food, a portrait, a sign). Otherwise answer YES. One word.` },
+      ] }],
+    });
+    const said = r.content.filter((c): c is Anthropic.TextBlock => c.type === "text").map((c) => c.text).join("").trim();
+    return !/^no\b/i.test(said);
+  } catch {
+    return true;
+  }
+}
+
 async function lookUp(cityId: string): Promise<Photo | null> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   const city = await prisma.city.findUnique({ where: { id: cityId }, select: { name: true, country: true, latitude: true, longitude: true } }).catch(() => null);
@@ -43,20 +63,29 @@ async function lookUp(cityId: string): Promise<Photo | null> {
     // the city itself — location only prefers, and "Okayama" would otherwise be Kurashiki, a town 17 km away. (12 km:
     // Nikko's pin is its town hall, 9 km from Tōshō-gū.)
     const NOT_A_SIGHT = new Set(["shopping_mall", "store", "department_store", "amusement_park", "lodging", "clothing_store", "restaurant"]);
-    const best = (find?.results || [])
+    const sights = (find?.results || [])
       .filter((r: any) => r.photos?.[0]?.photo_reference && r.geometry?.location && kmFrom(r.geometry.location) <= 12)
       .filter((r: any) => !(r.types || []).some((t: string) => NOT_A_SIGHT.has(t)))
-      .sort((a: any, b: any) => (b.user_ratings_total || 0) - (a.user_ratings_total || 0))[0];
+      .sort((a: any, b: any) => (b.user_ratings_total || 0) - (a.user_ratings_total || 0));
+    // The best-known sight's photo — unless it plainly shows another season or isn't a view of the place (Oct 10 audit:
+    // Hakata's was Fukuoka Tower with Santas and a Christmas tree, in October); then the next sight's. A quick look by
+    // Claude, once per city while it's kept; if the look can't be had, the first photo stands.
+    let best: any = null, bytes: Buffer | null = null, type = "image/jpeg";
+    for (const s of sights.slice(0, 4)) {
+      const img = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${s.photos[0].photo_reference}&key=${key}`);
+      if (!img.ok) continue;
+      const b = Buffer.from(await img.arrayBuffer());
+      const t = img.headers.get("content-type") || "image/jpeg";
+      if (!best) { best = s; bytes = b; type = t; }
+      if (await fitsTheSeason(b, t, city.name)) { best = s; bytes = b; type = t; break; }
+    }
     const p = best?.photos?.[0];
-    if (!p) return null;
-    const img = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${p.photo_reference}&key=${key}`);
-    if (!img.ok) return null;
-    const bytes = Buffer.from(await img.arrayBuffer());
+    if (!p || !bytes) return null;
     // "<a href=…>Name</a>" → "Name"
     const who = ((p.html_attributions || [])[0] || "").replace(/<[^>]+>/g, "").trim();
     // the sight spelled as her Guide spells places ("Nikko", not Google's "Nikkō")
     const place = best.name ? String(best.name).normalize("NFD").replace(/\p{M}/gu, "") : null;
-    return { bytes, type: img.headers.get("content-type") || "image/jpeg", place, credit: who ? `Photo: ${who}` : null, at: Date.now() };
+    return { bytes, type, place, credit: who ? `Photo: ${who}` : null, at: Date.now() };
   } catch {
     return null;
   }

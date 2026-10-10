@@ -65,6 +65,9 @@ export default function NotesPage() {
   const daysRef = useRef<DayOption[]>([]);
   const zoneRef = useRef("Asia/Tokyo");
   const [result, setResult] = useState<Result | null>(null);
+  // The story question put off for a day ("Not now") — it stayed above everything until answered (Oct 10 audit)
+  const STORY_LATER = "wander:story-q-later";
+  const [storyLater, setStoryLater] = useState(() => { try { return Number(localStorage.getItem(STORY_LATER) || 0) > Date.now(); } catch { return false; } });
   const [showSaved, setShowSaved] = useState(false);
   const [listening, setListening] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
@@ -75,7 +78,9 @@ export default function NotesPage() {
   // The list
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ id: string; text: string; place?: string } | null>(null);
+  // (start: the words the change began from — the tidied ones when the note shows those; Oct 10 audit: "Change" opened
+  // the untidied, lower-case words instead of the ones being read)
+  const [editing, setEditing] = useState<{ id: string; text: string; start?: string; place?: string } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -391,7 +396,8 @@ export default function NotesPage() {
 
   return (
     <div className="min-h-[100dvh] bg-[#faf8f5] pb-28">
-      <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] px-4 top-bar pb-2">
+      {/* (solid — words scrolling under it showed through; Oct 10 audit) */}
+      <header className="sticky top-0 z-10 bg-[#faf8f5] border-b border-[#e0d8cc] px-4 top-bar pb-2">
         <h1 className="text-center text-base font-medium text-[#3a3128] min-h-[44px] flex items-center justify-center">Trip notes</h1>
       </header>
 
@@ -477,7 +483,7 @@ export default function NotesPage() {
             </section>
 
             {/* Asked once, after a first note: may others' trip stories use what this person says about places? */}
-            {settings && settings.storyUse === null && myCount > 0 && (
+            {settings && settings.storyUse === null && myCount > 0 && !storyLater && (
               // (its own card with a heading, apart from the Saved line — under it, the question read as more of the
               // same and Ken answered it only after he went looking; Oct 2)
               <section className="mt-4 rounded-xl border-2 border-[#e8c98f] bg-[#fff8ec] p-3" aria-labelledby="story-q">
@@ -488,6 +494,8 @@ export default function NotesPage() {
                   {/* (two equal choices — neither is the "right" answer; tester t1) */}
                   <button onClick={() => answerStoryUse(true)} className="min-h-[44px] px-4 rounded-xl bg-[#f0ebe3] text-[#514636] text-sm">Yes, what I say about places</button>
                   <button onClick={() => answerStoryUse(false)} className="min-h-[44px] px-4 rounded-xl bg-[#f0ebe3] text-[#514636] text-sm">No, keep my notes to me</button>
+                  <button onClick={() => { try { localStorage.setItem(STORY_LATER, String(Date.now() + 24 * 3600_000)); } catch { /* this visit only */ } setStoryLater(true); }}
+                    className="min-h-[44px] px-3 text-sm text-[#6b5d4a] underline underline-offset-2">Not now</button>
                 </div>
                 <p className="text-xs text-[#6b5d4a] mt-1.5">You can change this any time in Settings.</p>
               </section>
@@ -512,6 +520,8 @@ export default function NotesPage() {
                               const words = changing.text;
                               await changeWaitingNote(tripId!, w.clientId, words);
                               setChanging(null);
+                              // (the "Kept on this phone — 11 words" line above says the words as they are now; Oct 10 audit)
+                              setResult((r) => (r?.kind === "queued" ? { kind: "queued", words: wordCount(words) } : r));
                               setWaiting(await waitingNotes(tripId!));
                               // (and try now — it may go straight away)
                               if (navigator.onLine !== false) replayQueue().catch(() => null).then(() => load(tripId!)).catch(() => { /* next time */ });
@@ -607,8 +617,8 @@ export default function NotesPage() {
                                 </select>
                               </label>
                               <div className="flex gap-2 mt-1">
-                                <button onClick={() => changeNote(n, { ...(editing.text !== n.text ? { text: editing.text } : {}), ...(editing.place && editing.place !== placeOf(n) ? { city: editing.place } : {}) })}
-                                  disabled={!editing.text.trim() || busy === n.id || (editing.text === n.text && (!editing.place || editing.place === placeOf(n)))} className="min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">Save the change</button>
+                                <button onClick={() => changeNote(n, { ...(editing.text !== (editing.start ?? n.text) ? { text: editing.text } : {}), ...(editing.place && editing.place !== placeOf(n) ? { city: editing.place } : {}) })}
+                                  disabled={!editing.text.trim() || busy === n.id || (editing.text === (editing.start ?? n.text) && (!editing.place || editing.place === placeOf(n)))} className="min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">Save the change</button>
                                 <button onClick={() => setEditing(null)} className="min-h-[44px] px-4 text-sm text-[#514636]">Cancel</button>
                               </div>
                             </>
@@ -633,7 +643,9 @@ export default function NotesPage() {
                                 {/* "Tidy my dictation" said nothing when it couldn't tidy (tester t5) */}
                                 {n.mine && n.tidyStatus === "pending" && <p className="text-xs text-[#6b5d4a] mt-1">Tidying — your words are saved as you said them.</p>}
                                 {n.mine && (n.tidyStatus === "failed" || n.tidyStatus === "kept-original") && (
-                                  <p className="text-xs text-[#6b5d4a] mt-1">Left exactly as you said it{n.tidyStatus === "failed" ? " — tidying wasn't possible just now" : " — tidying would have changed more than a few words"}.</p>
+                                  // ("…would have changed more than a few words" was said of clean notes too — tidy keeps the same
+                                  // status for "nothing to change"; Oct 10 audit — so only what's true either way)
+                                  <p className="text-xs text-[#6b5d4a] mt-1">Left exactly as you said it{n.tidyStatus === "failed" ? " — tidying wasn't possible just now" : ""}.</p>
                                 )}
                               </>
                             );
@@ -660,7 +672,7 @@ export default function NotesPage() {
                               </div>
                             ) : (
                               <div className="flex flex-wrap gap-x-4 -mb-1">
-                                <button onClick={() => setEditing({ id: n.id, text: n.text })} className="min-h-[44px] text-sm text-[#514636]">Change</button>
+                                <button onClick={() => setEditing({ id: n.id, text: n.tidied || n.text, start: n.tidied || n.text })} className="min-h-[44px] text-sm text-[#514636]">Change</button>
                                 <button onClick={() => changeNote(n, { visibility: n.visibility === "trip" ? "private" : "trip" })} disabled={busy === n.id} className="min-h-[44px] text-sm text-[#514636]">
                                   {n.visibility === "trip" ? "Make it just me" : "Share with the trip"}
                                 </button>

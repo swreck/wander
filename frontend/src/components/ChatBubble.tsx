@@ -6,7 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import useBackToClose from "../hooks/useBackToClose";
 import { sendToGuideOwner } from "../lib/tellGuideOwner";
 import { withPhoneLinks } from "../lib/guideDisplay";
-import ScoutSources, { hasSources, type AnswerSources } from "./ScoutSources";
+import ScoutSources, { hasSources, citesGuide, type AnswerSources } from "./ScoutSources";
 import OnceTip, { useOnceTip } from "./OnceTip";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 
@@ -1448,8 +1448,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                     )}
                   </div>
                 )}
-                {/* (once, under the newest answer with Sources) */}
-                {sourcesTip && msg.role === "assistant" && hasSources(msg.sources) && i === messages.map((m) => m.role === "assistant" && hasSources(m.sources)).lastIndexOf(true) && (
+                {/* (once, under the newest answer that quotes her Guide — it said "where in Larisa's Guide this answer came
+                    from" under a note kept and the packing list, which aren't from it; Oct 10 audit) */}
+                {sourcesTip && msg.role === "assistant" && citesGuide(msg.sources) && i === messages.map((m) => m.role === "assistant" && citesGuide(m.sources)).lastIndexOf(true) && (
                   <OnceTip onClose={sourcesTipDone} className="mt-2">
                     {/^larisa$/i.test(user?.displayName || "")
                       ? "Tap Sources to see which tab and cells of your Guide this answer came from, and to open those cells in your spreadsheet."

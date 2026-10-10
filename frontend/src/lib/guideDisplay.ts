@@ -307,6 +307,30 @@ export function zonedMoment(date: string, minutes: number, zone: string): Date {
   return new Date(guess.getTime() - zoneOffsetMinutes(zone, guess) * 60000);
 }
 
+/**
+ * "Today" for this person: the phone's own date at home, but Japan's date from their scheduled landing in Japan until
+ * their flight home takes off — they're in Japan whatever the phone's clock says (Oct 10 audit: at 3:30 PM in Japan on
+ * Oct 14, half an hour after Julie's landing, a phone still on California time said "Your flight should be in the air …
+ * You should be on your way" — its date was still Oct 13). By the schedule only; unknown landing → the phone's date.
+ */
+export function travelerToday(items: GuideItem[], me: string | null | undefined, tripZone: string, phoneDay: string, now = new Date()): string {
+  const party = partyOf(items, me);
+  if (!party) return phoneDay;
+  const mine = items.filter((i) => i.kind === "flight" && i.date && i.time && (i.forWhom === party || isFor(i, me)));
+  const arrivals = [
+    ...mine.filter((i) => isLanding(i)).map((i) => zonedMoment(ymd(i.date), hm(i.time!), i.timeZone || tripZone)),
+    // (a flight's own "Lands at Narita (NRT) Wed, Oct 14, 3:00 PM Japan time" — landings in Japan only, not the one home)
+    ...mine.filter((i) => !isLanding(i) && /Lands at [^\n|]*Japan time/i.test(i.detail || ""))
+      .map((i) => scheduledLanding(i.detail, ymd(i.date).slice(0, 4))).filter((d): d is Date => !!d),
+  ].filter((d) => !isNaN(d.getTime())).sort((a, b) => a.getTime() - b.getTime());
+  const departures = mine.filter((i) => !isLanding(i)).map((i) => zonedMoment(ymd(i.date), hm(i.time!), i.timeZone || tripZone)).sort((a, b) => a.getTime() - b.getTime());
+  const landed = arrivals[0];
+  // (the flight home: their last departure, after landing)
+  const home = departures.filter((d) => !landed || d.getTime() > landed.getTime()).pop();
+  if (!landed || now.getTime() < landed.getTime() || (home && now.getTime() >= home.getTime())) return phoneDay;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tripZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
 /** When a flight lands by its schedule, from its "Lands at San Francisco (SFO) Thu, Oct 29, 12:30 PM California time"
  *  line; null when it doesn't say. One rule for Home and Now — they disagreed after landing (testers t4, k1) */
 export function scheduledLanding(detail: string | null | undefined, year: string): Date | null {
@@ -665,10 +689,38 @@ export function askedOf(i: GuideItem, me: string | null | undefined, today?: str
   // Not on a line for someone else, and never from Wander's own notes quoting her (round 12: Ken & Larisa's Mashiko card
   // said "A question for you" to Julie because its "Still open in the Guide: … if Julie isn't interested" quoted her)
   if (i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me)) return false;
-  const who = me.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return !!askedLine(i, me);
+}
+
+/** A deadline that starts something rather than ending it ("cancellation charges start — 60%"): once its day has come
+ *  it's in effect, not "Ended" (Oct 10 audit: "Robuchon (Oct 17): cancellation charges start … Ended" read as the dinner
+ *  being over) */
+export const startsSomething = (i: { title: string }) => /\bcharges?\b[^.]{0,30}\b(start|begin|appl)/i.test(i.title);
+
+/** A to-do under someone else's name who isn't in your party (Larisa's "Reconfirm Robuchon", seen by Julie) — theirs, not
+ *  yours to see among your own lines (Oct 10 audit: it led Julie's Home deadlines and sat on her Oct 13 and 14) */
+export function othersPartysJob(i: GuideItem, items: GuideItem[], me: string | null | undefined): boolean {
+  if (i.kind !== "deadline" || !me) return false;
+  const actor = bookedByName(i)?.split(/\s+/)[0];
+  if (!actor || samePerson(actor, me)) return false;
+  return !(partyOf(items, me) || "").toLowerCase().split(/\s*(?:&|,|\band\b)\s*/).some((n) => samePerson(n, actor));
+}
+/** A deadline that's yours: it names you, or no one and isn't another party's to-do */
+export function deadlineIsMine(i: GuideItem, items: GuideItem[], me: string | null | undefined): boolean {
+  if (i.forWhom && !/^everyone$/i.test(i.forWhom)) return isFor(i, me);
+  return !othersPartysJob(i, items, me);
+}
+
+/** Her own words that ask this person something ("X, if Julie isn't interested") — shown with "A question for you", which
+ *  said nothing of what was asked (Oct 10 audit: Julie's Mashiko card showed only the rail sheet's "Ken + Larisa only") */
+export function askedLine(i: GuideItem, me: string | null | undefined): string | null {
+  if (!me) return null;
+  // (her lists say first names: "Julie", not "Julie D.")
+  const who = firstNameOf(me).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const own = (i.detail || "").split("\n").filter((l) => !/^(Still open in the Guide|Tabs differ:|For [^:]+: her |Wander matched|Worked out from:)/.test(l)).join("\n");
-  const text = `${i.title}\n${own}`;
-  return new RegExp(`\\b${who}\\b[^.\\n]{0,20}\\binterested\\?|\\bif ${who} (isn't|is not|wants?)\\b`, "i").test(text);
+  const asks = new RegExp(`\\b${who}\\b[^.\\n]{0,20}\\binterested\\?|\\bif ${who} (isn't|is not|wants?)\\b`, "i");
+  const line = `${i.title}\n${own}`.split("\n").find((l) => asks.test(l));
+  return line ? line.trim().replace(/^[-•·]\s*/, "").slice(0, 160) : null;
 }
 
 /** A title that says nothing on its own: "2 nights", "1/2 day", "see above - 1/2 day" (round 10: a bare

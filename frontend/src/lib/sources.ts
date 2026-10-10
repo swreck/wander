@@ -78,6 +78,12 @@ async function load(tripId: string): Promise<SourcesData> {
   }
 }
 
+/** This phone's last copy of the trip's other sources, at once — a day opened fresh drew its trains a moment later and
+ *  everything under them moved down (Oct 10: Oct 12's Tokoname line was pushed down when the local train arrived) */
+export function savedSources(tripId: string): OtherSource[] {
+  try { return ((JSON.parse(localStorage.getItem(savedKey(tripId)) || "null") as SourcesData | null)?.sources) || []; } catch { return []; }
+}
+
 /** A trip's other sources, fetched once and shared; a failure or a saved copy is forgotten so the next look retries */
 export function sourcesData(tripId: string): Promise<SourcesData> {
   let p = cache.get(tripId);

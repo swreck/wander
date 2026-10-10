@@ -37,6 +37,8 @@ const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 let _cachedTrip: Trip | null = null;
 let _cachedDays: Day[] = [];
 let _cachedExperiences: Experience[] = [];
+/** The same contents (a fresh copy from Wander that changed nothing) */
+const sameAs = (a: unknown, b: unknown) => { try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; } };
 
 // The phone's own copy of Home from the last good load: opens Home instantly, and keeps the trip
 // on screen with no signal. Labelled with whose it is, so a phone switched to another person
@@ -207,9 +209,12 @@ export default function TripOverview() {
         }
       }
 
-      setTrip(effectiveActive);
-      _cachedTrip = effectiveActive;
-      setAllTrips(all);
+      // A fresh copy the same as the one shown is not swapped in — nothing on Home is redrawn for it (Ken, Oct 9: "there
+      // is almost never a change in those items"; Oct 10 audit: each identical copy had the map's layout worked out again)
+      const keptTrip = sameAs(_cachedTrip, effectiveActive) ? _cachedTrip : effectiveActive;
+      setTrip(keptTrip);
+      _cachedTrip = keptTrip;
+      setAllTrips((prev) => (sameAs(prev, all) ? prev : all));
       if (!effectiveActive) { setShowCreate(true); }
       else {
         // Fetch the Guide's day-by-day items now, so tapping a day opens at once
@@ -218,12 +223,15 @@ export default function TripOverview() {
           api.get<Day[]>(`/days/trip/${effectiveActive.id}`),
           api.get<Experience[]>(`/experiences/trip/${effectiveActive.id}`),
         ]);
-        setDays(d); _cachedDays = d;
-        setExperiences(e); _cachedExperiences = e;
+        const keptDays = sameAs(_cachedDays, d) ? _cachedDays : d;
+        setDays(keptDays); _cachedDays = keptDays;
+        const keptIdeas = sameAs(_cachedExperiences, e) ? _cachedExperiences : e;
+        setExperiences(keptIdeas); _cachedExperiences = keptIdeas;
         saveHome(effectiveActive, d, all);
         try {
           const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${effectiveActive.id}?limit=50`);
-          setRecentActivity(logs.slice(0, 5));
+          const latest = logs.slice(0, 5);
+          setRecentActivity((prev) => (sameAs(prev, latest) ? prev : latest));
           // (A first-visit overlay — "X has already started the itinerary… everyone will see your
           // changes" — was removed: it covered Home on first open and wasn't true; the plan is Larisa's Guide.)
         } catch { /* ignore */ }
