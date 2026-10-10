@@ -29,7 +29,7 @@ import {
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
-  samePerson, travelerToday, askedParts, othersPartysJob, startsSomething,
+  samePerson, travelerToday, askedParts, othersPartysJob, startsSomething, inHerVoice, speaksAsHer,
 } from "../lib/guideDisplay";
 import { sourcesData, savedSources, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, isSettledStatus, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings, RailLeg } from "../components/RailSheet";
@@ -39,6 +39,7 @@ import { directionsHref } from "../lib/directions";
 import { appleGuides, savedAppleGuides, type GuidesByDay } from "../lib/appleGuides";
 import { guidePictures, savedGuidePictures, type GuidePicture } from "../lib/guidePictures";
 import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
+import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 
@@ -304,7 +305,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
         </a>
       ))}
       {overview.map((o) => (
-        <p key={o.id} className="text-[13px] text-[#514636] mt-1">In {v.her} Itinerary for today: “{o.title}”</p>
+        <p key={o.id} className="text-[13px] text-[#514636] mt-1">In {v.her} Itinerary for this day: “{o.title}”</p>
       ))}
       {twoVersions && <p className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{v.say(twoVersions.replace(/^Her tab/, `${v.Her} tab`).replace("worth checking with Larisa", v.checkWith))}</p>}
       {matched && (whyOpen
@@ -629,12 +630,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         if (!id) id = (await api.get<Trip | null>("/trips/active"))?.id || null;
         if (!id) { if (!cancelled) setState("unreachable"); return; }
         const tid = id;
-        const got: { sources?: OtherSource[]; summaries?: Record<string, string>; notes?: NotesByTab; maps?: GuidesByDay; pictures?: GuidePicture[] } = {};
+        const got: { sources?: OtherSource[]; summaries?: Record<string, string>; notes?: NotesByTab; maps?: GuidesByDay; pictures?: GuidePicture[]; links?: SheetLinks } = {};
         // (the Next tab's day is worked out from her Guide; the phone's date is its best guess until then)
         const firstDate = now ? phoneToday() : /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
-        const saved = { sources: savedSources(tid), summaries: savedDaySummaries(tid), notes: savedSheetNotes(tid), maps: savedAppleGuides(tid), pictures: savedGuidePictures(tid) };
+        // (her sheet's address too: a "from her … tab" line is a link in the first drawing — re-audit 2)
+        const saved = { sources: savedSources(tid), summaries: savedDaySummaries(tid), notes: savedSheetNotes(tid), maps: savedAppleGuides(tid), pictures: savedGuidePictures(tid), links: savedSheetLinks(tid) ?? undefined };
         const plansSaved = !firstDate || localStorage.getItem(`wander:day-plans:${tid}:${firstDate}`) !== null;
-        const haveAll = (["sources", "summaries", "notes", "maps", "pictures"] as const).every((k) => saved[k] !== undefined) && plansSaved;
+        const haveAll = (["sources", "summaries", "notes", "maps", "pictures", "links"] as const).every((k) => saved[k] !== undefined) && plansSaved;
         // (with this phone's copies, her Guide comes first and the rest refresh after — on a slow signal they'd only slow it)
         const asked = haveAll ? null : Promise.allSettled([
           sourcesData(tid).then((d) => { got.sources = d.sources; }),
@@ -642,6 +644,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
           sheetNotes(tid).then((n) => { got.notes = n; }),
           appleGuides(tid).then((g) => { got.maps = g; }),
           guidePictures(tid).then((p) => { got.pictures = p; }),
+          sheetLinks(tid).then((l) => { got.links = l; }),
           // (kept where the plans' own loader below reads its saved copy first)
           firstDate ? api.get<DayChoice[]>(`/day-choices/${tid}?date=${firstDate}`).then((c) => { try { localStorage.setItem(`wander:day-plans:${tid}:${firstDate}`, JSON.stringify(c)); } catch { /* full */ } }) : null,
         ]);
@@ -656,7 +659,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         const photo = warmCityPhoto(photoCity);
         const cityDates = d.days.filter((x) => x.cityId === photoCity).map((x) => ymd(x.date)).sort();
         const photoDue = photoWanted(photoCity) && dayDate <= phoneToday() && cityDates[0] <= phoneToday() && phoneToday() <= cityDates[cityDates.length - 1];
-        const known = () => (["sources", "summaries", "notes", "maps", "pictures"] as const).every((k) => got[k] !== undefined || saved[k] !== undefined)
+        const known = () => (["sources", "summaries", "notes", "maps", "pictures", "links"] as const).every((k) => got[k] !== undefined || saved[k] !== undefined)
           && (!firstDate || localStorage.getItem(`wander:day-plans:${tid}:${firstDate}`) !== null);
         if (asked && !known()) await Promise.race([asked, new Promise((r) => setTimeout(r, EXTRAS_WAIT_MS))]);
         if (photoDue && photoWanted(photoCity)) await Promise.race([photo, new Promise((r) => setTimeout(r, PHOTO_GRACE_MS))]);
@@ -1241,7 +1244,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       if (nextTrain && (!next || depOf(nextTrain)! <= lineAt(next))) return { key: `train-${railKey(nextTrain)}`, at: depOf(nextTrain)! };
       return next ? { key: `item-${next.id}`, at: lineAt(next) } : null;
     }
-    const first = listItems.filter((i) => i.time && isFor(i, me) && !["deadline", "checkout", "checkin"].includes(i.kind)).sort((a, b) => lineAt(a) - lineAt(b))[0];
+    // (on a Japan date you're still at home, only a line naming you — re-audit 2: Julie's Oct 13 opened Ken & Larisa's
+    // 8 PM dinner by itself, with nothing saying whose it was)
+    const stillHome = !!homeOnJapanDate(items, me, date, tripZone);
+    const first = listItems.filter((i) => i.time && isFor(i, me) && (!stillHome || (!!i.forWhom && !/^everyone$/i.test(i.forWhom)))
+      && !["deadline", "checkout", "checkin"].includes(i.kind)).sort((a, b) => lineAt(a) - lineAt(b))[0];
     if (trains[0] && (!first || depOf(trains[0])! <= lineAt(first))) return { key: `train-${railKey(trains[0])}`, at: depOf(trains[0])! };
     return first ? { key: `item-${first.id}`, at: lineAt(first) } : null;
   })();
@@ -1290,9 +1297,29 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // A Backroads day, in the band: "With Backroads · day 3 of 8" (their guides lead it; the summary says the rest)
   const guidedDays = days.filter((d) => d.dayType === "guided").map((d) => ymd(d.date)).sort();
   const backroadsDay = day?.dayType === "guided" ? guidedDays.indexOf(date) + 1 : 0;
-  const tomorrowFirst = now && isToday && !upcomingGuide && !upcomingChoice && date < last
-    ? leadItem(sortDay(items.filter((i) => ymd(i.date) === addDays(date, 1) && !["deadline", "stop", "weather", "block"].includes(i.kind) && isFor(i, me) && !isPlanningNote(i) && !isFragment(i))))
-    : null;
+  // Tomorrow's first thing: the earliest with a time among her Itinerary's lines, her detailed plan for the day and your
+  // booked trains (journeys check, Oct 10: Andy's Next said "Tomorrow · 6:30 PM · Yakiniku Yazawa" when Oct 15 starts
+  // at 8:30 at Tsukiji in her day tab; Ken's said "Tomorrow · Check out" with the 10:36 NOZOMI unmentioned). Her
+  // Itinerary's untimed line only when nothing has a time.
+  const tomorrowDate = addDays(date, 1);
+  const tomorrowLead = (() => {
+    if (!(now && isToday && !upcomingGuide && !upcomingChoice && date < last)) return null;
+    const guide = leadItem(sortDay(items.filter((i) => ymd(i.date) === tomorrowDate && !["deadline", "stop", "weather", "block"].includes(i.kind) && isFor(i, me) && !isPlanningNote(i) && !isFragment(i))));
+    const at = (i: GuideItem) => tripClockMinutes(i, tripZone);
+    const plan = items.filter((b) => b.kind === "block" && ymd(b.date) === tomorrowDate && !!b.time && (isFor(b, me) || !b.forWhom)).sort((a, b) => at(a) - at(b))[0];
+    const train = otherSources.flatMap((s) => {
+      const a = railAudience(items, s.owner);
+      return s.rail.filter((r) => r.date === tomorrowDate && isBookedTrain(r) && legIsFor(r, s, me, a.ownerParty, a.groupSize));
+    }).map((r) => ({ r, dep: railMin(colOf(r.cols, /^depart/)) })).filter((x) => x.dep !== null).sort((a, b) => a.dep! - b.dep!)[0];
+    const timed: { min: number; item?: GuideItem; train?: RailRow }[] = [
+      ...(guide?.time ? [{ min: at(guide), item: guide }] : []),
+      ...(plan ? [{ min: at(plan), item: plan }] : []),
+      ...(train ? [{ min: train.dep!, train: train.r }] : []),
+    ].sort((a, b) => a.min - b.min);
+    return timed[0] || (guide ? { min: -1, item: guide } : null);
+  })();
+  const tomorrowFirst = tomorrowLead?.item || null;
+  const tomorrowTrain = tomorrowLead?.train || null;
 
   return (
     <div className="min-h-[100dvh] bg-[#faf8f5] pb-32">
@@ -1797,6 +1824,12 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 })() : (
                   <p className="text-sm text-[#6b5d4a]">Nothing more with a time today.</p>
                 )}
+                {tomorrowTrain && (
+                  <button onClick={() => navigate(`/day/${tomorrowDate}#trains`)} className="w-full text-left min-h-[44px] text-sm text-[#3a3128]">
+                    <span className="text-[#6b5d4a]">Tomorrow · </span>
+                    {twelveHour(colOf(tomorrowTrain.cols, /^depart/))}{phoneIsElsewhere(tripZone) ? ` ${ZONE_LABEL[tripZone] || ""}` : ""} · {colOf(tomorrowTrain.cols, /^train$/)} · {colOf(tomorrowTrain.cols, /^route$/)} ›
+                  </button>
+                )}
                 {tomorrowFirst && (
                   <button onClick={() => navigate(`/day/${addDays(date, 1)}`)} className="w-full text-left min-h-[44px] text-sm text-[#3a3128]">
                     <span className="text-[#6b5d4a]">Tomorrow · </span>
@@ -1866,8 +1899,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               <ol className="space-y-2">
                 {headline && (
                   <li id={`item-${headline.id}`} className="text-[13px] text-[#514636] scroll-mt-24">
-                    In {v.her} Itinerary for today: “{headline.title}”
-                    {headlineMore.map((l) => <span key={l} className="block text-[#6b5d4a] mt-0.5">{v.say(l)}</span>)}
+                    {/* (the day shown, not always today — journeys check: "for today" on Julie's Oct 14 seen on Oct 10) */}
+                    {/* (her own voice — "our arrival … your arrival" — names her: read bare, "our" was Andy's; journeys check) */}
+                    {speaksAsHer(headline.title, me, owner) ? `${owner || "Larisa"}'s words in her Itinerary for` : `In ${v.her} Itinerary for`} {isToday ? "today" : "this day"}: “{headline.title}”
+                    {headlineMore.map((l) => <span key={l} className="block text-[#6b5d4a] mt-0.5">{inHerVoice(v.say(l), me, owner)}</span>)}
                   </li>
                 )}
                 {(() => {
@@ -2199,7 +2234,15 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   // A short line opened in place (day design, Oct 8); the line that's now opens by itself, and stays open once opened
   const [open, setOpen] = useState(autoOpen);
   useEffect(() => { if (autoOpen) setOpen(true); }, [autoOpen]);
-  const theirs = !!i.forWhom && !/^everyone$/i.test(i.forWhom) && !!me && !isFor(i, me);
+  // (on a Japan date you're still at home, a line naming no one isn't yours either — journeys check, Oct 10: Ken & Larisa's
+  // 8 PM Tapas dinner stood at full strength on Julie's Oct 13, like her own flight)
+  const named = !!i.forWhom && !/^everyone$/i.test(i.forWhom);
+  const othersOnHomeDate = !named && !!all && !!me && !["flight", "deadline"].includes(i.kind) && !isLanding(i) && !!homeOnJapanDate(all, me, date, tripZone);
+  const theirs = (named && !!me && !isFor(i, me)) || othersOnHomeDate;
+  const theirsWho = named ? i.forWhom : "The others";
+  // (her line in her own voice — "AI estimates our arrival … and your arrival" — said as hers to anyone else; journeys
+  // check, Oct 10: read bare, "our arrival" was Andy's)
+  const lineTitle = (() => { const t = landingTitle(i, me, itemTitle(i, stays, date)); return speaksAsHer(t, me, owner) ? `${owner || "Larisa"}'s words: “${t}”` : t; })();
   const differ = tabsDiffer(i);
   // A landing says where its flight stands by the clock; that line replaces the booking's "Takes off from …"
   const flightNow = all ? landingStatus(i, all, tripZone) : null;
@@ -2244,7 +2287,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
         {/* (one tap opens it all — not to a short line that needs a second; short lines, Oct 8) */}
         <button onClick={() => { setShowTheirs(true); setOpen(true); }} aria-expanded={false} className="w-full flex items-center gap-3 px-3 py-1 min-h-[44px] text-left">
           <span className="w-16 shrink-0 text-right text-sm text-[#6b5d4a]">{elsewhere ?? (i.time ? timeLabel(i, day) : "")}</span>
-          <span className="flex-1 min-w-0 text-sm text-[#6b5d4a] leading-snug">{i.forWhom} · {itemTitle(i, stays, date)} ›</span>
+          <span className="flex-1 min-w-0 text-sm text-[#6b5d4a] leading-snug">{theirsWho} · {itemTitle(i, stays, date)} ›</span>
         </button>
       </Box>
     );
@@ -2259,7 +2302,10 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
     // (a fact from a picture or a tab other than her Itinerary and Dining Resos says where, even short)
     const elsewhereFrom = !/^Itinerary|^Dining Resos/.test(i.source) ? friendlySource(i.source, me) : null;
     const timing = deadline && (over || windowWords || time)
-      ? (over ? passedWords(i, time) : [windowWords, time].filter(Boolean).join(" · ")) : null;
+      // (a passed "reconfirm" says Wander can't tell whether it was done, as the opened card does — re-audit 2: under
+      // "Started · … charges" a bare "Ended." read as the booking being cancelled)
+      ? (over ? passedWords(i, time) + (couldBeDone ? (owner && me && owner.toLowerCase() !== me.toLowerCase() ? ` Wander can't tell whether it was done — ask ${owner} if you're not sure.` : " Wander can't tell whether it was done.") : "")
+        : [windowWords, time].filter(Boolean).join(" · ")) : null;
     const leaveBy = earlyCheckout && !split ? leaveBeforeCheckout(i, day) : null;
     const inJapan = departureInTripZone(i, tripZone);
     return (
@@ -2278,7 +2324,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           <span className="flex-1 min-w-0">
             <span className={`block ${nested ? "text-sm" : "text-[15px]"} leading-snug ${over || past ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
               {deadline && <span className="font-medium">{over ? (startsSomething(i) ? "Started · " : "Passed · ") : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}
-              {landingTitle(i, me, itemTitle(i, stays, date))}{booked ? ` · ${booked}` : ""}
+              {lineTitle}{booked ? ` · ${booked}` : ""}
               <span className="text-[#6b5d4a]">{"\u00a0"}›</span>
             </span>
             {doneWords ? <span className="block text-sm mt-0.5 text-[#3f5a2a]">{doneWords}</span>
@@ -2294,7 +2340,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           </span>
         </button>
         {/* Outside the row's button, each its own tap: disagreements, a question for you, the phone, the map */}
-        {(differ.length > 0 && i.kind !== "flight") || stillOpen.length > 0 || askedOf(i, me, today) || phone || mapAt || split ? (
+        {(differ.length > 0 && i.kind !== "flight") || stillOpen.length > 0 || askedOf(i, me, today, all, tripZone) || phone || mapAt || split ? (
           <div className={nested ? "px-2.5 pb-1.5 -mt-1" : "pl-[88px] pr-3 pb-2 -mt-1"}>
             {i.kind !== "flight" && differ.map((d) => <p key={d} className="text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{differWordsFor(d, v)}</p>)}
             {stillOpen.map((l) => <p key={l} className="text-sm text-[#6b5d4a] mt-1">{l}</p>)}
@@ -2306,7 +2352,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
                 })}
               </ul>
             )}
-            {askedOf(i, me, today) && <AskedQuestion i={i} me={me} owner={owner} sources={sources} className="mt-1" />}
+            {askedOf(i, me, today, all, tripZone) && <AskedQuestion i={i} me={me} owner={owner} sources={sources} className="mt-1" />}
             {phone && <GuideText text={phone} className="text-sm text-[#6b5d4a] mt-1" />}
             {mapAt && (
               <a href={mapAt} target={q ? undefined : "_blank"} rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Map ↗</a>
@@ -2335,14 +2381,14 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
         </div>
         <div className="flex-1 min-w-0">
           <p className={`${nested ? "text-sm" : "text-[15px]"} leading-snug ${over ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
-            {deadline && <span className="font-medium">{over ? (startsSomething(i) ? "Started · " : "Passed · ") : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}{landingTitle(i, me, itemTitle(i, stays, date))}
+            {deadline && <span className="font-medium">{over ? (startsSomething(i) ? "Started · " : "Passed · ") : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}{lineTitle}
           </p>
-          {theirs && <p className="text-xs text-[#514636] mt-0.5">For {i.forWhom}</p>}
+          {theirs && <p className="text-xs text-[#514636] mt-0.5">{named ? `For ${i.forWhom}` : "The others' plan"}</p>}
           {/* Her Guide asking the person looking (round 12: "1 day to Mashiko-Julie interested?" shown to Julie, with
               nothing saying what to do about it) — Wander can't answer for her; the answer goes to Larisa */}
           {/* …with a way to answer: a message to her, already started (delight audit: tapping it did nothing) */}
           {/* (under the question itself only — round 13: it repeated under "Maybe: Mashiko") */}
-          {askedOf(i, me, today) && <AskedQuestion i={i} me={me} owner={owner} sources={sources} className="mt-0.5" />}
+          {askedOf(i, me, today, all, tripZone) && <AskedQuestion i={i} me={me} owner={owner} sources={sources} className="mt-0.5" />}
           {doneWords && <p className="text-sm mt-1 text-[#3f5a2a]">{doneWords}</p>}
           {deadline && !doneWords && (over || windowWords || time) && (
             <p className={`text-sm mt-1 ${othersJob ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>

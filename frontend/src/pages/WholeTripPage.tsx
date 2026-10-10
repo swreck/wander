@@ -12,7 +12,7 @@ import type { Trip } from "../lib/types";
 import { guideData, type TripGuideData } from "../lib/guideData";
 import { sourcesData, isBookedTrain, colOf, twelveHour, type OtherSource } from "../lib/sources";
 import { useAuth } from "../contexts/AuthContext";
-import { ymd, clock, isLanding, isFor, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor } from "../lib/guideDisplay";
+import { ymd, clock, isLanding, isFor, startsSomething, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor } from "../lib/guideDisplay";
 
 const dayWords = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 const shortDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -201,7 +201,7 @@ export default function WholeTripPage() {
                       <button onClick={() => navigate(`/day/${ymd(d.date)}#item-${d.id}`)} className={row}>
                         <span className={`block text-sm ${past ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}><span className="font-medium">{dayWords(ymd(d.date))}</span> · {d.title}</span>
                         {forWords(d.forWhom) && <span className="block text-xs text-[#514636]">{forWords(d.forWhom, me)}</span>}
-                        <span className="block text-xs text-[#6b5d4a]">{past ? (isFreeCancel(d) ? "That's passed — nothing to do; it stays booked." : "That date has passed.") : isFreeCancel(d) ? FREE_CANCEL_WORDS : ""}</span>
+                        <span className="block text-xs text-[#6b5d4a]">{past ? (isFreeCancel(d) ? "That's passed — nothing to do; it stays booked." : startsSomething(d) ? "These charges apply now — nothing to do; it stays booked." : "That date has passed.") : isFreeCancel(d) ? FREE_CANCEL_WORDS : ""}</span>
                       </button>
                     </li>
                   );

@@ -104,7 +104,10 @@ export default function LeavingSoonCard({ tripId, hold = false }: { tripId: stri
     cardRef.current?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShown(null); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // (Home stays still behind it — a swipe on the card scrolled the page underneath; re-audit 2)
+    const was = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = was; };
   }, [shown]);
 
   if (!shown) return null;

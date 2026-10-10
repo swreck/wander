@@ -170,6 +170,8 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   const height = fitted ?? estimate;
   // "Whole trip": back to the fitted view after a pinch or a drag (there was no way back but leaving Home — tester t4)
   const [refit, setRefit] = useState(0);
+  // (when Home opened — the map may still change height in the first moment, before anyone is reading)
+  const openedAt = useRef(Date.now());
 
   if (!API_KEY || stops.length === 0) return null;
   return (
@@ -192,6 +194,7 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
         >
           <Fit stops={stops} again={refit} viewKey={viewKey} />
           <Markers stops={stops} order={order} allCities={allCities} today={today} onOpenDay={onOpenDay} onHeight={setFitted}
+            canResize={(want) => refit > 0 || want > (fitted ?? estimate) || Date.now() - openedAt.current < 300}
             again={refit} onWholeTrip={() => setRefit((n) => n + 1)} viewKey={viewKey} layoutKey={stopsKey} />
         </GoogleMap>
       </APIProvider>
@@ -282,8 +285,11 @@ function measureWidths(stops: Stop[], today: string): NameWidths {
   return { dot: width(" · ", 400), byCity };
 }
 
-function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, onWholeTrip, viewKey, layoutKey }: {
+function Markers({ stops, order, allCities, today, onOpenDay, onHeight, canResize, again, onWholeTrip, viewKey, layoutKey }: {
   stops: Stop[]; order: string[]; allCities: City[]; today: string; onOpenDay: (date: string) => void; onHeight: (h: number) => void;
+  /** whether the map may change to this height now — growing (so no name is cut off) or after "Whole trip", but never
+   *  shrinking under someone already reading Home */
+  canResize: (want: number) => boolean;
   again: number; onWholeTrip: () => void;
   /** whose settled view this is, to keep for the next visit to Home */
   viewKey: string;
@@ -358,18 +364,17 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       setMoved(Math.abs(view.zoom - s.zoom) > 0.05 || Math.hypot(cxNow - s.cx * k, cyNow - s.cy * k) > 20);
       return;
     }
-    // (kept for the next visit to Home: shown just so, not fitted again)
-    const settle = () => {
+    // (kept for the next visit to Home: shown just so, not fitted again — at `height`, the height it should have)
+    const settle = (height = view.h) => {
       settled.current = { zoom: view.zoom, cx: cxNow, cy: cyNow };
       const c = map.getCenter();
-      if (c) keepSettledView(viewKey, { height: view.h, zoom: view.zoom, center: c.toJSON() });
+      if (c) keepSettledView(viewKey, { height, zoom: view.zoom, center: c.toJSON() });
     };
     // (back on Home with the view kept from last time: it's already settled)
     if (fits.current === 0 && again === 0 && settledView(viewKey)) {
       const kept = settledView(viewKey)!;
       if (Math.abs(kept.zoom - view.zoom) < 0.01 && Math.abs(kept.height - view.h) <= 2) { settled.current = { zoom: view.zoom, cx: cxNow, cy: cyNow }; return; }
     }
-    if (fits.current >= 4) { settle(); return; }
     // (the lines too: a leg arcing below the names ran into Google's credit)
     const boxes = [...placed.map((p) => p.spot.box), ...placed.map(({ group: g }) => ({ x1: g.x - 14, y1: g.y - 14, x2: g.x + 14, y2: g.y + 14 })),
       ...drawnRoute.flatMap(({ pts }) => pts.map((p) => ({ x1: p.x - 3, y1: p.y - 3, x2: p.x + 3, y2: p.y + 3 })))];
@@ -380,10 +385,15 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     // (8 above the content, 8 + the strip below it: the view's middle is half the strip below the content's)
     const cx = (left + right) / 2, cy = (top + bottom) / 2 + GOOGLE_STRIP / 2;
     const off = Math.abs(cx - (view.x0 + view.w / 2)) > 6 || Math.abs(cy - (view.y0 + view.h / 2)) > 6;
-    if (Math.abs(want - view.h) <= 6 && !off) { settle(); return; }
+    // (never shrinking under someone already reading Home: the map keeps its height this visit — its content centred — and
+    // the right height is kept for next time; re-audit 2: on a first open the map settled late and shrank, moving the page)
+    const resizable = canResize(want);
+    if (fits.current >= 4) { settle(resizable ? view.h : want); return; }
+    if ((Math.abs(want - view.h) <= 6 || !resizable) && !off) { settle(resizable ? view.h : want); return; }
     fits.current++;
-    onHeight(want);
+    if (resizable) onHeight(want);
     map.setCenter(place(cx, cy, view.zoom));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, view, fresh, onHeight, again, viewKey]);
 
   // During the trip: today's city dark, the ones already visited quieter; before it, the start ringed

@@ -125,7 +125,13 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
     try { localStorage.setItem("wander:welcome-seen", "1"); } catch { /* private window */ }
   };
   return (
-    <section className="mb-4 rounded-xl bg-white border border-[#e0d8cc] p-4">
+    // Just above the tab bar, over Home rather than in it: it's decided a moment after Home draws (what Wander has saved
+    // for this person), and arriving at the top it pushed the whole page down a third of a screen (re-audit 2: Andy's first
+    // visit, layout shift 0.41). Same words and buttons; nothing under the reader moves.
+    <section role="dialog" aria-label="A quick look at Wander"
+      className="fixed inset-x-0 z-40 mx-auto max-w-md px-4 animate-[slideUp_0.3s_ease-out]"
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 68px)" }}>
+      <div className="rounded-xl bg-white border border-[#e0d8cc] shadow-lg p-4">
       {first ? (
         <>
           <p className="text-base text-[#3a3128]">Hi {me}.</p>
@@ -142,10 +148,12 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
         <p className="text-sm text-[#514636]">Want a quick look at the buttons along the bottom, {me}? Six short steps.</p>
       )}
       {last && <p className="text-xs text-[#6b5d4a] mt-1">This is the last time it's offered here. It's always in Settings, under "Show me around".</p>}
-      <div className="mt-2 flex flex-wrap gap-2">
-        <button onClick={() => { answer("taken"); showMeAround(); }} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm">Show me around</button>
-        {!last && <button onClick={() => answer()} className="min-h-[44px] px-4 rounded-lg border border-[#e0d8cc] text-sm text-[#514636]">Next time</button>}
-        <button onClick={() => answer("declined")} className="min-h-[44px] px-4 text-sm text-[#6b5d4a]">No thanks</button>
+      {/* (one row on a phone — over Home, the card covers as little as it can) */}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <button onClick={() => { answer("taken"); showMeAround(); }} className="min-h-[44px] px-3 rounded-lg bg-[#514636] text-white text-sm">Show me around</button>
+        {!last && <button onClick={() => answer()} className="min-h-[44px] px-3 rounded-lg border border-[#e0d8cc] text-sm text-[#514636]">Next time</button>}
+        <button onClick={() => answer("declined")} className="min-h-[44px] px-2 text-sm text-[#6b5d4a]">No thanks</button>
+      </div>
       </div>
     </section>
   );

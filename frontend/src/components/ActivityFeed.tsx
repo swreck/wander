@@ -37,8 +37,9 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
     return () => window.removeEventListener("wander:data-changed", handler);
   }, [tripId]);
 
-  if (feed.length === 0) return null;
   const shown = netMarks(latestPicksOnly(feed));
+  // (nothing left to show — only a tick and its Undo — no heading over nothing; re-audit 2)
+  if (shown.length === 0) return null;
 
   const typeIcon = (type: string) => {
     switch (type) {

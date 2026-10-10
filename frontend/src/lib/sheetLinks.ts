@@ -9,10 +9,18 @@ export interface SheetLink { url: string; tabs: Record<string, number> }
 export interface SheetLinks { link: SheetLink | null; others: Record<string, SheetLink> }
 
 const byTrip = new Map<string, Promise<SheetLinks>>();
+const key = (tripId: string) => `wander:sheet-links:${tripId}`;
+/** This phone's last copy, at once (null if none) — a day's "from her … tab" lines are links in its first drawing, not a
+ *  moment later (re-audit 2: on Oct 15 a line became a link and the list under it moved) */
+export function savedSheetLinks(tripId: string): SheetLinks | null {
+  try { const raw = localStorage.getItem(key(tripId)); return raw ? (JSON.parse(raw) as SheetLinks) : null; } catch { return null; }
+}
 /** Once per trip per visit (a failed ask is tried again next time) */
 export function sheetLinks(tripId: string): Promise<SheetLinks> {
   if (!byTrip.has(tripId)) {
-    const p = api.get<SheetLinks>(`/guide/sheet-link/${tripId}`).catch(() => { byTrip.delete(tripId); return { link: null, others: {} }; });
+    const p = api.get<SheetLinks>(`/guide/sheet-link/${tripId}`)
+      .then((l) => { try { localStorage.setItem(key(tripId), JSON.stringify(l)); } catch { /* full */ } return l; })
+      .catch(() => { byTrip.delete(tripId); return savedSheetLinks(tripId) || { link: null, others: {} }; });
     byTrip.set(tripId, p);
   }
   return byTrip.get(tripId)!;

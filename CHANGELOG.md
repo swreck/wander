@@ -41,6 +41,43 @@ A second independent check, signed in as each real person, found what the first 
 - SPEC sections: Home (Today card, map, asks), Day screen / Next, Actions, arrival photo, Scout (packing, notes).
   SPEC UPDATE NEEDED.
 
+### Fixed (what the independent check found after that deploy)
+- A passed "reconfirm" line on a day's short list said only "Ended." under "Started · … charges" — it now says Wander
+  can't tell whether it was done, and to ask Larisa, as the opened card does.
+- Charges that have started: Home lists them under "Now in effect" (not "Just passed"), described by whose name the
+  booking is under (not "Larisa's to do"); the whole-trip page says "These charges apply now" too.
+- "Done ✓" under a deadline read as already done: it says "Mark it done".
+- The welcome ("Hi Andy… Show me around") arrived a moment late at the top of Home and pushed the page down a third of
+  a screen: it now comes up as a card just above the tab bar, over Home, buttons on one row. Nothing moves.
+- On a phone's first open the map settled late and shrank, moving the page: it never shrinks under someone reading;
+  it keeps its height that visit and opens at the right height every time after.
+- A tick in Actions shows on the line at the same moment as its message; "Recent activity" isn't a heading over
+  nothing; Home doesn't scroll behind the "You leave in N days" card.
+- Julie's Oct 13 day: her take-off said once (the Tonight box says she's on the plane and when she lands); Ken &
+  Larisa's 8 PM dinner no longer opens by itself on a date she's still at home.
+- A "from her … tab" line is a link from the day's first drawing (it became one a moment later and moved the list).
+- A question in her Guide isn't put to someone on a Japan date they're still at home (Ken: "is Julie even in Japan when
+  the event happens?" — Mashiko on Oct 13, "X, if Julie isn't interested", while she flies). The line stays listed;
+  Shigaraki (Oct 28, when she's in Kyoto) is still asked.
+
+### Fixed (a fresh tester walking Andy's, Julie's, Ken's and Larisa's next days, scored on a fixed rubric)
+- Next said "Tomorrow · 6:30 PM · Yakiniku Yazawa" the evening before Andy's Ginza day, which starts at 8:30 AM at
+  Tsukiji; Ken's evening said "Tomorrow · Check out" with the 10:36 NOZOMI unmentioned. Tomorrow's first thing is now the
+  earliest of her Itinerary, her detailed day plan and your booked trains — on Next and Home; Home's "and N more" counts
+  every stop.
+- Just landed, Julie's Home first said "her Guide doesn't say" how to reach the hotel, then quoted her hotel notes. It
+  never says that before her tabs are known, and keeps a copy of them on the phone.
+- Cards that arrived late and pushed the page: "Set up Face ID" now comes up above the tab bar like the welcome; Scout's
+  evening question is decided in the first drawing; Home draws the rail sheet's lines and plans added in Wander with the
+  rest.
+- On a date Julie is still at home, the others' unnamed lines (the 8 PM Tapas dinner) are said to be the others'.
+- Larisa's own words ("our arrival… your arrival") are said to be hers; "In her Itinerary for this day" on days other than
+  today; tapping your flight on Home opens the day at your flight; Actions says "In her list for Andy & Julie" (not
+  "AB / JD Actions") and "your" list to Larisa.
+- A Scout answer showed a link as "[JR Central](https://…)": it shows the name.
+- SPEC sections: Next, Home, Actions, Scout. SPEC UPDATE NEEDED.
+- SPEC sections: Home (welcome, deadlines, map), Day screen, Actions. SPEC UPDATE NEEDED.
+
 ## 2026-10-10 — The Leaving Card Never Pops Over What You're Doing
 
 ### Fixed
