@@ -22,7 +22,11 @@ function StatusWords({ readiness, s, today, className, pickupBy, resv }: { readi
   // After its day: one calm line saying whose pickup it was; the sheet's old words one tap away (delight audit: on the
   // airport day a nine-line "PENDING — …" paragraph had Andy texting Ken in a panic)
   const pickup = s.checklists.find((c) => c.date && c.date === day);
-  const place = pickup ? checklistTitle(pickup.tab).replace(/^Ticket pickup — /, "") : null;
+  // (the place, not the tab's name — verify 4: "collect these at Pickup Plan" read "Pickup Plan" as a place; then the
+  // station the sheet's own words name, else just "the pickup")
+  const tabPlace = pickup ? checklistTitle(pickup.tab).replace(/^Ticket pickup — /, "") : null;
+  const place = tabPlace && !/\b(plan|pickup|tix|tickets?)\b/i.test(tabPlace) ? tabPlace
+    : readiness.match(/\b(?:at|in) ((?:Shin-)?[A-Z][a-z]+(?:[- ](?!(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b)[A-Z][a-z]+)?)\b/)?.[1] || "the pickup";
   if (!stale) return <p className={`${className} [overflow-wrap:anywhere]`}>{withTwelveHour(readiness)}</p>;
   // On the phone that did the pickup: whether this ticket's step was ticked (delight audit: an unticked ticket read the
   // same as a collected one — and his sheet says some can't be collected anywhere else later)
@@ -33,7 +37,7 @@ function StatusWords({ readiness, s, today, className, pickupBy, resv }: { readi
         {ticked === true
           ? `Paper ticket: collected at ${place} on ${shortWhen(day!)} — ticked on this phone.`
           : ticked === false
-            ? `Paper ticket: not ticked on this phone at the ${place} pickup on ${shortWhen(day!)} — check you have it before boarding.`
+            ? `Paper ticket: not ticked on this phone at ${place === "the pickup" ? "the pickup" : `the ${place} pickup`} on ${shortWhen(day!)} — check you have it before boarding.`
             : pickup
               ? `Paper tickets: ${pickupBy ? `${pickupBy} were` : "you were"} to collect these at ${place} on ${shortWhen(day!)}.`
               : `The rail sheet's note was for ${shortWhen(day!)}.`}
@@ -134,7 +138,8 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [], autoOpen = fa
   // What's inside a train or leg when it's opened: the rest of its row in the sheet, and where it's from
   const details = (
     <>
-      {booked && cls && cls !== "—" && <p className="text-sm text-[#514636] mt-1">{cls}</p>}
+      {/* ("Green" alone means a Green Car seat — JR's first class; Sweep B read it as a word on its own) */}
+      {booked && cls && cls !== "—" && <p className="text-sm text-[#514636] mt-1">{/^green$/i.test(cls.trim()) ? "Green Car (JR's first class)" : cls}</p>}
       <p className="text-xs text-[#6b5d4a] mt-0.5">{booked ? "Booked" : "No booking needed"}{onlyFor ? ` · “${onlyFor}”, the sheet says` : ""}</p>
       {/^\d+$/.test(pax) && <p className="text-sm text-[#514636] mt-1">{pax} {pax === "1" ? "person" : "people"}</p>}
       {!booked && resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}

@@ -12,7 +12,7 @@ import type { Trip } from "../lib/types";
 import { guideData, type TripGuideData } from "../lib/guideData";
 import { sourcesData, isBookedTrain, colOf, twelveHour, type OtherSource } from "../lib/sources";
 import { useAuth } from "../contexts/AuthContext";
-import { ymd, clock, isLanding, isFor, startsSomething, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor, distinctWords } from "../lib/guideDisplay";
+import { ymd, clock, isLanding, isFor, startsSomething, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor, distinctWords, ZONE_WORDS } from "../lib/guideDisplay";
 
 const dayWords = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 const shortDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -181,7 +181,7 @@ export default function WholeTripPage() {
               <ul className="grid md:grid-cols-2 gap-2">
                 {[...flights.map((f) => ({ key: f.id, date: ymd(f.date), time: f.time || "", el: (
                     <>
-                      <span className="block text-sm text-[#3a3128]"><span className="font-medium">{dayWords(ymd(f.date))}{f.time ? ` · ${clock(f.time)}` : ""}</span> · {f.title}</span>
+                      <span className="block text-sm text-[#3a3128]"><span className="font-medium">{dayWords(ymd(f.date))}{f.time ? ` · ${clock(f.time)}` : ""}{f.time && f.timeZone && f.timeZone !== (data.trip.timeZone || "Asia/Tokyo") ? ` ${ZONE_WORDS[f.timeZone] || f.timeZone}` : ""}</span> · {f.title}</span>
                       {forWords(f.forWhom) && <span className="block text-xs text-[#514636]">{forWords(f.forWhom, me)}</span>}
                       {(f.detail || "").match(/^Lands at [^\n]+/m)?.[0] && <span className="block text-xs text-[#6b5d4a]">{(f.detail || "").match(/^Lands at [^\n]+/m)![0]}</span>}
                     </>) })),
