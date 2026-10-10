@@ -35,7 +35,9 @@ export const PACKING: { about: string; items: PackingItem[]; end: string } = {
     {
       say: "A smaller suitcase than you think — and send it ahead when you can.",
       why: "Stations have long stairs, trains have little room for bags, and rooms are small; it's the strongest regret in Americans' first-trip accounts. Hotels and convenience stores send a suitcase to your next hotel, usually by the next day (check a small inn takes deliveries). On the Tokaido, Sanyo and Kyushu bullet trains, a bag over 160 cm (length + width + height) needs a seat with an oversized-baggage area reserved, or there's a ¥1,000 fee; a standard US checked bag (62 inches, 157 cm) is just under. Worth checking Backroads' own bag limit too.",
-      tieTo: "their bullet-train days; moving between hotels",
+      // (the rule is the Tokaido, Sanyo and Kyushu shinkansen only — not the HARUKA or other limited expresses; Oct 10
+      // audit: Andy's answer stretched it to the HARUKA)
+      tieTo: "their days on the Tokaido, Sanyo or Kyushu shinkansen only (never the HARUKA or another limited express); moving between hotels",
       rule: true,
       source: "https://global.jr-central.co.jp/en/info/oversized-baggage/",
     },

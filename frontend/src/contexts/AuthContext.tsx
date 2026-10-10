@@ -62,6 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
     try { localStorage.setItem("wander_me", JSON.stringify(user)); } catch { /* storage unavailable */ }
+    // …and the name as Wander has it now (Oct 10: "Andy B" became "Andy" — a phone kept the old name, and the Maybes
+    // dot counted his own additions as someone else's)
+    try { if (user.displayName && localStorage.getItem("wander_user") !== user.displayName) localStorage.setItem("wander_user", user.displayName); } catch { /* storage unavailable */ }
   }, [user]);
 
   // The phone's saved copies of what Wander read belong to the person signed in — when someone else signs in (or the

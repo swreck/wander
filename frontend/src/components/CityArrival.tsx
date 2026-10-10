@@ -38,6 +38,11 @@ export default function CityArrival({ cityId, cityName, dateWords, auto = true, 
     if (!auto || !cityId || !cityName || typeof navigator === "undefined" || navigator.onLine === false) return;
     try { if (localStorage.getItem(seenKey(cityId))) return; } catch { return; }
     let alive = true;
+    // Only if it's there almost at once: by 2.6 s people are reading the day, and a photo landing over it covered it
+    // (Oct 10 audit). Too late, it isn't marked seen — the picture is on the phone by then, and the next visit shows it
+    // at once. The city's name above the day brings it any time.
+    const opened = Date.now();
+    const READY_MS = 1200;
     const controller = new AbortController();
     const giveUp = setTimeout(() => controller.abort(), 2200);
     fetch(`/api/city-photo/${encodeURIComponent(cityId)}/info`, { signal: controller.signal })
@@ -45,9 +50,8 @@ export default function CityArrival({ cityId, cityName, dateWords, auto = true, 
       .then((info: { image: string | null; place?: string | null; credit?: string | null } | null) => {
         if (!alive || !info?.image) return;
         const img = new Image();
-        const started = Date.now();
         img.onload = () => {
-          if (!alive || Date.now() - started > 2500) return;
+          if (!alive || Date.now() - opened > READY_MS) return;
           try { localStorage.setItem(seenKey(cityId), "1"); } catch { /* storage off: may show again, harmless */ }
           shownAt.current = Date.now();
           setFading(false);

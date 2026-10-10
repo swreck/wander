@@ -29,16 +29,16 @@ import {
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
-  samePerson,
+  samePerson, travelerToday, askedLine, othersPartysJob, startsSomething,
 } from "../lib/guideDisplay";
-import { sourcesData, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, isSettledStatus, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
+import { sourcesData, savedSources, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, isSettledStatus, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings, RailLeg } from "../components/RailSheet";
 import SheetSpots from "../components/SheetSpots";
 import SendOut, { dayText, bookingText } from "../components/SendOut";
 import { directionsHref } from "../lib/directions";
 import { appleGuides, type GuidesByDay } from "../lib/appleGuides";
 import { guidePictures, type GuidePicture } from "../lib/guidePictures";
-import { daySummaries } from "../lib/daySummaries";
+import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import PictureViewer from "../components/PictureViewer";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 
@@ -629,7 +629,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const tripZone = trip?.timeZone || "Asia/Tokyo";
   const tripFirst = ymd(trip?.startDate);
   const last = ymd(trip?.endDate);
-  const today = phoneToday();
+  // (your own today: Japan's date once your plane has landed there, whatever the phone's clock — Oct 10 audit)
+  const today = travelerToday(items, me, tripZone, phoneToday());
   // The Now tab starts from YOUR first day: Julie, at home until Oct 13, isn't shown Ken & Larisa's Okayama
   const myParty = partyOf(items, me);
   const myStart = myParty
@@ -701,7 +702,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   useEffect(() => {
     if (!tripId) return;
     let cancelled = false;
-    sourcesData(tripId).then((d) => { if (!cancelled) setOtherSources(d.sources); }).catch(() => { /* the Guide still shows */ });
+    // (the phone's saved copy at once; Wander's when it says something different — no jump when nothing changed)
+    setOtherSources((cur) => (cur.length ? cur : savedSources(tripId)));
+    sourcesData(tripId).then((d) => { if (!cancelled) setOtherSources((cur) => (JSON.stringify(cur) === JSON.stringify(d.sources) ? cur : d.sources)); }).catch(() => { /* the Guide still shows */ });
     return () => { cancelled = true; };
   }, [tripId]);
   // Her other tabs' text — so "her Guide doesn't say" is only said when none of her tabs does
@@ -717,7 +720,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     let cancelled = false;
     appleGuides(tripId).then((g) => { if (!cancelled) setMapsByDay(g); });
     guidePictures(tripId).then((p) => { if (!cancelled) setPictures(p); });
-    daySummaries(tripId).then((s) => { if (!cancelled) setDaySummaries(s); });
+    // (this phone's saved copy at once; Wander's only if it says something different — no jump when nothing changed)
+    setDaySummaries((cur) => (Object.keys(cur).length ? cur : savedDaySummaries(tripId)));
+    daySummaries(tripId).then((s) => { if (!cancelled) setDaySummaries((cur) => (JSON.stringify(cur) === JSON.stringify(s) ? cur : s)); });
     return () => { cancelled = true; };
   }, [tripId]);
   // Deadlines marked done in Wander by the person they're for (Oct 9) — "Don't miss" stops asking, the card says done
@@ -734,7 +739,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // The day in the order it's lived (lib/guideDisplay.ts). Deadlines appear on every day of their
   // window; Larisa's budget and bookkeeping notes sit apart from the plan.
   const { dayItems, planningNotes, stopNotes, planBlocks, forecast } = useMemo(() => {
-    const onDay = withCheckoutWho(items.filter((i) => (i.kind === "deadline" ? deadlineOnDate(i, date) : ["stop", "block", "weather"].includes(i.kind) ? false : ymd(i.date) === date) && !isFragment(i)), date, stays, items);
+    // (another party's to-do — Larisa's Robuchon reminder on Julie's days — isn't among your lines; Oct 10 audit)
+    const onDay = withCheckoutWho(items.filter((i) => (i.kind === "deadline" ? deadlineOnDate(i, date) && !othersPartysJob(i, items, me) : ["stop", "block", "weather"].includes(i.kind) ? false : ymd(i.date) === date) && !isFragment(i)), date, stays, items);
     return {
       dayItems: sortDay(onDay.filter((i) => !isPlanningNote(i)), tripZone),
       planningNotes: onDay.filter(isPlanningNote),
@@ -745,7 +751,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       // Her forecast for the stay this day is in
       forecast: items.find((i) => i.kind === "weather" && (i.windowStart || ymd(i.date)) <= date && date <= ymd(i.date)) || null,
     };
-  }, [items, date, stays, tripZone]);
+  }, [items, date, stays, tripZone, me]);
   // On a day with her detailed plan, her Itinerary tab's own untimed line for the day ("Kyoto day 2 - Viator
   // Tour?") goes in the plan's header as hers; everything else (bookings, deadlines, flights) follows the plan
   const { itineraryLines, otherItems } = useMemo(() => {
@@ -1205,7 +1211,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       return [{ key: `ready-${railKey(x)}`, to: `train-${railKey(x)}`,
         body: <>Check before the {twelveHour(colOf(x.r.cols, /^depart/))} {colOf(x.r.cols, /^train$/)}: {withTwelveHour(ready.split(/(?<=[.;])\s+/)[0]).replace(/;$/, ".")}</> }];
     }),
-    ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && !doneMarks.has(deadlineKey(i)) && isFor(i, me) && !someoneElsesJob(i))
+    // (not one that asks nothing — "Free cancellation ends" is "nothing to do unless plans change"; Oct 10 audit)
+    ...dayItems.filter((i) => i.kind === "deadline" && ymd(i.date) === date && !deadlineOver(i, tripZone) && !doneMarks.has(deadlineKey(i)) && isFor(i, me) && !someoneElsesJob(i) && !isFreeCancel(i))
       .map((i) => ({ key: `deadline-${i.id}`, to: `item-${i.id}`, body: <>Deadline: {itemTitle(i, stays, date)}</> })),
     // …and one ending today that's the job of someone you travel with — said as theirs (day review, Oct 8: on Oct 14 Ken's
     // page had Larisa's last day to reconfirm Robuchon only as a card below dinner; Julie and Andy don't get it)
@@ -1863,7 +1870,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     // (a check-out comes before the day's trains — round 13: Oct 8 read "10:26 AM NOZOMI 9" above "by 12:00
                     // PM Check out"; and the untimed evening lines after the timed ones wait until every train is said —
                     // Oct 14 put Ippudo Ramen above Ken & Larisa's 4:58 PM train back)
-                    const eveningUntimed = !i.time && timedAt >= 0 && n > timedAt && !afterLanding.includes(i);
+                    // (a deadline with no time waits for every train too — Oct 10 audit: Oct 11, with none of her lines
+                    // timed, read check-out, the 11:59 PM free-cancellation, a to-do, then the 10:36 AM NOZOMI)
+                    const eveningUntimed = !i.time && !afterLanding.includes(i) && (i.kind === "deadline" || (timedAt >= 0 && n > timedAt));
                     while (t < sorted.length && i.kind !== "checkout" && (eveningUntimed || (i.time && dep(sorted[t].r) < tripClockMinutes(i, tripZone)))) pushTrain();
                     if (i.time) flushOwn(tripClockMinutes(i, tripZone));
                     else if (eveningUntimed) flushOwn(Infinity);
@@ -2166,7 +2175,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           </span>
           <span className="flex-1 min-w-0">
             <span className={`block ${nested ? "text-sm" : "text-[15px]"} leading-snug ${over || past ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
-              {deadline && <span className="font-medium">{over ? "Passed · " : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}
+              {deadline && <span className="font-medium">{over ? (startsSomething(i) ? "Started · " : "Passed · ") : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}
               {landingTitle(i, me, itemTitle(i, stays, date))}{booked ? ` · ${booked}` : ""}
               <span className="text-[#6b5d4a]">{"\u00a0"}›</span>
             </span>
@@ -2198,6 +2207,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             {askedOf(i, me, today) && (
               <>
                 <p className="text-sm text-[#8a5a1a] mt-1">A question for you in {owner ? `${owner}'s` : "her"} Guide.</p>
+                {/* (her words, so it's clear what's asked — Oct 10 audit) */}
+                {askedLine(i, me) && <p className="text-sm text-[#3a3128] mt-0.5">Her words: “{askedLine(i, me)}”</p>}
                 {/* (with what the rail sheet already says about it — Julie's Mashiko question and its "Ken + Larisa only") */}
                 {(() => { const n = sources?.length ? railNoteFor(i.title, sources, me) : null; return n ? <p className="text-sm text-[#514636] mt-0.5">{n}</p> : null; })()}
                 <button onClick={() => sendToGuideOwner(owner || "Larisa", `Hi ${owner || "Larisa"} — about “${i.title}” in your Guide: `)}
@@ -2232,7 +2243,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
         </div>
         <div className="flex-1 min-w-0">
           <p className={`${nested ? "text-sm" : "text-[15px]"} leading-snug ${over ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
-            {deadline && <span className="font-medium">{over ? "Passed · " : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}{landingTitle(i, me, itemTitle(i, stays, date))}
+            {deadline && <span className="font-medium">{over ? (startsSomething(i) ? "Started · " : "Passed · ") : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}{landingTitle(i, me, itemTitle(i, stays, date))}
           </p>
           {theirs && <p className="text-xs text-[#514636] mt-0.5">For {i.forWhom}</p>}
           {/* Her Guide asking the person looking (round 12: "1 day to Mashiko-Julie interested?" shown to Julie, with
@@ -2241,6 +2252,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           {askedOf(i, me, today) && (
             <div className="mt-0.5">
               <p className="text-sm text-[#8a5a1a]">A question for you in {owner ? `${owner}'s` : "her"} Guide.</p>
+              {askedLine(i, me) && <p className="text-sm text-[#3a3128] mt-0.5">Her words: “{askedLine(i, me)}”</p>}
               {/* (under the question itself only — round 13: it repeated under "Maybe: Mashiko") */}
               {/* (any question put to them, not only one whose words end in "?" — Oct 4 copy: the Mashiko question lives on as
                   "X, if Julie isn't interested" in her Activities tab, and lost the rail sheet's "Ken + Larisa only") */}
@@ -2256,6 +2268,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
                   beside "Until 11:59 PM Japan time" and wondered what she'd missed) */}
               {over && /free cancel|cancel(lation)? free|last day to cancel/i.test(i.title) && !/reconfirm/i.test(i.title)
                 ? "Free cancellation has ended. Nothing to do — it stays booked."
+                : over && startsSomething(i) ? "These charges apply now. Nothing to do — it stays booked."
                 : over ? `Ended ${time || ""}`.trim() + "." : [windowWords, time].filter(Boolean).join(" · ")}
               {!over && isFreeCancel(i) && ` ${FREE_CANCEL_WORDS}`}
               {/* Never tell Larisa to ask Larisa (round 9) */}

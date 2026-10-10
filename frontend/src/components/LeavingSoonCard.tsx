@@ -8,6 +8,7 @@
  * has left; a tap anywhere outside, Escape, or the button puts it away.
  */
 import { useEffect, useRef, useState } from "react";
+import { takeVisitAsk, leavingCardSettled } from "../lib/visitAsks";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { guideData, type GuideItem } from "../lib/guideData";
@@ -38,7 +39,8 @@ export default function LeavingSoonCard({ tripId, hold = false }: { tripId: stri
   const cardRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (!me || hold) return;
+    // (one ask per visit — lib/visitAsks: the tour offer waits for this card's decision)
+    if (!me || hold) { leavingCardSettled(); return; }
     let alive = true;
     (async () => {
       let data: Awaited<ReturnType<typeof guideData>> | null = null;
@@ -71,10 +73,12 @@ export default function LeavingSoonCard({ tripId, hold = false }: { tripId: stri
       if (!next || !alive) return;
       try { if (localStorage.getItem(next.key)) return; } catch { /* unreadable: the visit's own memory below */ }
       if (seenThisVisit.has(next.key)) return;
+      // (another ask already has this visit — the card waits for the next one, not marked as seen)
+      if (!takeVisitAsk("leaving")) return;
       seenThisVisit.add(next.key);
       try { localStorage.setItem(next.key, new Date().toISOString()); } catch { /* full or private */ }
       setShown(next);
-    })();
+    })().finally(() => leavingCardSettled());
     return () => { alive = false; };
   }, [tripId, me, travelerId, hold]);
 

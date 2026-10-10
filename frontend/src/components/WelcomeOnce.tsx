@@ -13,6 +13,7 @@ import { api } from "../lib/api";
 import { showMeAround } from "./ShowMeAround";
 import { isIPhoneSafari, isHomeScreenApp } from "./AddToHomeScreen";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
+import { takeVisitAsk, isLeavingCardSettled, onLeavingCardSettled } from "../lib/visitAsks";
 
 type Tour = { offers: number; lastAt?: string; status?: "taken" | "declined" };
 const MAX_OFFERS = 3;
@@ -81,6 +82,16 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
     return () => { live = false; clearTimeout(giveUp); };
   }, [id]);
 
+  // One ask per visit (lib/visitAsks; Oct 10 audit): wait for the "You leave in N days" card to decide — at most a few
+  // seconds — and stay away on a visit it showed (not counted as an offer)
+  const [leavingDone, setLeavingDone] = useState(isLeavingCardSettled);
+  useEffect(() => {
+    if (leavingDone) return;
+    const off = onLeavingCardSettled(() => setLeavingDone(true));
+    const giveUp = setTimeout(() => setLeavingDone(true), 8000);
+    return () => { off(); clearTimeout(giveUp); };
+  }, [leavingDone]);
+
   // Due now: not taken, not declined, fewer than three offers, and the last one long enough ago. Counted once, as shown.
   const due = !!tour && !tour.status && tour.offers < MAX_OFFERS && (!tour.lastAt || Date.now() - Date.parse(tour.lastAt) >= AGAIN_AFTER);
   // (an offer not yet answered stays on Home for the rest of this visit — leaving Home and coming back mustn't lose it)
@@ -92,14 +103,16 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
     if (open) { counted.current = true; setShowing(true); }
   }, [tour, showing]);
   useEffect(() => {
-    if (!id || !tour || !due || !checked || counted.current) return;
+    if (!id || !tour || !due || !checked || !leavingDone || counted.current) return;
+    // (the leaving card had this visit: not offered, not counted)
+    if (!takeVisitAsk("tour")) return;
     counted.current = true;
     try { sessionStorage.setItem(SESSION, "1"); } catch { /* private window */ }
     const next = { ...tour, offers: tour.offers + 1, lastAt: new Date().toISOString() };
     setTour(next);
     setShowing(true);
     save(id, next);
-  }, [id, tour, due, checked]);
+  }, [id, tour, due, checked, leavingDone]);
 
   if (!me || !id || !tour || !showing) return null;
   const v = voiceFor(me, owner);

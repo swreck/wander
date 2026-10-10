@@ -2,6 +2,39 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-10 — The Independent Audit's Fixes
+
+An independent check, signed in as each real person, found what the day's work hadn't fixed or had missed. All of it:
+
+### Fixed
+- Julie was told she's in the air after landing (3:00–4:00 PM Japan time on Oct 14, phone still on California time):
+  "today" for a person is Japan's date from their scheduled landing until their flight home (travelerToday) — Next and
+  Home. Home also said "Should be in the air" then.
+- Home froze 4–9 s after every return: the map worked its layout out ~9 times because Home handed it a fresh copy of the
+  same lists on each redraw. The layout is kept per trip, contents and view; the map counts only a real change of view;
+  Home keeps a fresh copy that changed nothing. Back on Home: map and calendar drawn at once, no freeze.
+- Julie's first open stacked three asks: one ask per visit (20 minutes) — the "You leave in N days" card goes first,
+  the "Show me around" offer waits for a later visit (not counted against its three offers).
+- Notes: a note tidying left alone said "tidying would have changed more than a few words" (untrue) — now "Left exactly
+  as you said it."; "Change" on a tidied note opened the lower-case words as said — it opens the tidied words read.
+- Actions: yours first — your deadlines ("Yours (Julie & Andy)", as Home says it), the ones asking something on top;
+  others' folded by whose they are ("Larisa's deadline · 1 ›"). Ticking a to-do says so, with Undo.
+- Julie's Oct 13 "A question for you" now shows Larisa's words ("X, if Julie isn't interested").
+- Another party's to-do (Larisa's Robuchon reminder) is off Julie's and Andy's day lists and Home; Ken still sees it.
+- Oct 11 read out of time order (deadlines above the 10:36 NOZOMI): a deadline with no time waits for every train.
+  "Free cancellation ends" is no longer under "Don't miss" (it asks nothing).
+- A passed "cancellation charges start" said "Ended" (read as the dinner being over): "Started · … These charges apply
+  now."
+- The day's summary dropped in late and pushed the day down: shown at once from the phone's saved copy.
+- The city photo landed over a day being read (2.6 s late): it shows by itself only if ready within ~1.2 s; a photo
+  showing another season (Hakata's had Santas) or not a view of the place is passed over for the next sight's.
+- Scout's packing answer: a rule for some trains isn't stretched to the HARUKA; each place named once.
+- "Tap Sources to see where in Larisa's Guide…" only under answers that quote her Guide.
+- Notes header solid; a waiting note's word count follows a change; the story question has "Not now" (a day).
+- A phone signed in under an old name ("Andy B") takes the current one from Wander (the Maybes dot).
+- Wording: "Loading..." → "Finding what needs doing…"; "Couldn't save/add" → "That didn't save/add — try again?"
+- SPEC sections: Home, Next/day screen, Actions, Notes, Scout, arrival photo. SPEC UPDATE NEEDED.
+
 ## 2026-10-10 — Scout Keeps What You Tell It; Its Panel Stays Put While You Type; Julie's Packing Offer
 
 ### Fixed

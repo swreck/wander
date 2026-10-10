@@ -35,6 +35,11 @@ export interface AnswerSources {
   photo?: boolean;
 }
 
+/** An answer that quotes her Guide (a claim pointing at her tabs) — not one only in Scout's own words or from the web */
+export function citesGuide(s: AnswerSources | undefined | null): boolean {
+  return !!s && (s.claims || []).some((c) => c.sources.some((v) => v.type === "guide"));
+}
+
 export function hasSources(s: AnswerSources | undefined | null): s is AnswerSources {
   return !!s && ((s.claims?.length || 0) > 0 || (s.ownWords?.length || 0) > 0);
 }

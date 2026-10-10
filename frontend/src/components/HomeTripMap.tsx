@@ -78,6 +78,18 @@ function place(x: number, y: number, zoom: number) {
 type Settled = { height: number; zoom: number; center: google.maps.LatLngLiteral };
 const settledViews = new Map<string, Settled>();
 
+/** The stops, and the markers', lines' and names' layouts already worked out — kept while Wander is open and used again
+ *  for the same trip, contents and view (Oct 10 audit: coming back to Home froze the page 4–9 s while the layout was
+ *  worked out ~9 times over — Home hands the map a new but identical city list on each of its redraws). */
+const kept = new Map<string, unknown>();
+function keptOr<T>(key: string, make: () => T): T {
+  if (kept.has(key)) return kept.get(key) as T;
+  const v = make();
+  if (kept.size > 80) kept.clear();
+  kept.set(key, v);
+  return v;
+}
+
 const shortDay = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** `cities`: the cities the map shows (in Japan, located); `allCities`: the trip's whole list, for the calendar colors */
@@ -88,8 +100,10 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   useEffect(() => { guideData(tripId).then((g) => g?.trip.timeZone && setZone(g.trip.timeZone)).catch(() => { /* Japan time */ }); }, [tripId]);
   const today = tripToday(zone);
 
-  // The stops in the order they're visited (each change of city is a stop; a city visited twice has two numbers)
-  const { stops, order } = useMemo(() => {
+  // The stops in the order they're visited (each change of city is a stop; a city visited twice has two numbers) — worked
+  // out again only when what they're made of changes, not each time Home hands over a fresh copy of the same lists
+  const stopsKey = `${tripId}|${JSON.stringify(cities.map((c) => [c.id, c.name, c.latitude, c.longitude]))}|${JSON.stringify(days.filter((d) => d.cityId).map((d) => [d.date.slice(0, 10), d.cityId]))}`;
+  const { stops, order } = useMemo(() => keptOr(`stops|${stopsKey}`, () => {
     const sorted = [...days].filter((d) => d.cityId).sort((a, b) => a.date.localeCompare(b.date));
     const byCity = new Map<string, Stop>();
     const order: string[] = [];
@@ -110,7 +124,8 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
       byCity.get(city.id)!.lastDay = date;
     }
     return { stops: Array.from(byCity.values()), order };
-  }, [cities, days]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [stopsKey]);
 
   // The map as tall as the trip needs at the phone's width (with room for names), up to 40% of the screen — a fixed
   // 40% left a third of it empty sea on a phone and pushed Today below the fold on a small one (map review round 3)
@@ -151,7 +166,7 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
         >
           <Fit stops={stops} again={refit} viewKey={viewKey} />
           <Markers stops={stops} order={order} allCities={allCities} today={today} onOpenDay={onOpenDay} onHeight={setFitted}
-            again={refit} onWholeTrip={() => setRefit((n) => n + 1)} viewKey={viewKey} />
+            again={refit} onWholeTrip={() => setRefit((n) => n + 1)} viewKey={viewKey} layoutKey={stopsKey} />
         </GoogleMap>
       </APIProvider>
     </div>
@@ -224,11 +239,13 @@ const measurer = () => {
   return measuring;
 };
 
-function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, onWholeTrip, viewKey }: {
+function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, onWholeTrip, viewKey, layoutKey }: {
   stops: Stop[]; order: string[]; allCities: City[]; today: string; onOpenDay: (date: string) => void; onHeight: (h: number) => void;
   again: number; onWholeTrip: () => void;
   /** whose settled view this is, to keep for the next visit to Home */
   viewKey: string;
+  /** what the stops are made of — with the view, the key to a layout already worked out */
+  layoutKey: string;
 }) {
   const map = useMap();
   // The view: its zoom, and where its edges are (a name must stay inside — "Tokyo · Nikko" was cut off at the right)
@@ -240,13 +257,21 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       const zoom = map.getZoom(), b = map.getBounds(), r = map.getDiv().getBoundingClientRect();
       if (zoom == null || !b) return;
       const tl = pixel(b.getNorthEast().lat(), b.getSouthWest().lng(), zoom);
-      setView({ zoom, x0: tl.x, y0: tl.y, w: r.width, h: r.height });
+      // (only a real change of view: the map says "idle" again and again with nothing moved, and each one had the whole
+      // layout worked out anew)
+      setView((v) => (v && Math.abs(v.zoom - zoom) < 1e-4 && Math.round(v.x0) === Math.round(tl.x) && Math.round(v.y0) === Math.round(tl.y)
+        && Math.round(v.w) === Math.round(r.width) && Math.round(v.h) === Math.round(r.height)) ? v : { zoom, x0: tl.x, y0: tl.y, w: r.width, h: r.height });
     });
     return () => l.remove();
   }, [map]);
 
+  // (this trip's stops at this view — a layout worked out before is used again)
+  const viewSig = view ? `${view.zoom.toFixed(4)}|${Math.round(view.x0)}|${Math.round(view.y0)}|${Math.round(view.w)}|${Math.round(view.h)}` : "";
   // 1. The markers, and the route between them in the trip's order
-  const { groups, route, routeCost } = useMemo(() => {
+  const { groups, route, routeCost } = useMemo(() => view ? keptOr(`groups|${layoutKey}|${viewSig}`, () => groupsAndRoute()) : groupsAndRoute(),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [stops, order, view, layoutKey, viewSig]);
+  function groupsAndRoute() {
     if (!view) return { groups: [] as Group[], route: [] as { pts: { x: number; y: number }[]; arrive: Stop; tries: { x: number; y: number }[][]; at: number | null }[], routeCost: () => 0 };
     const z = view.zoom;
     const groups: Group[] = [];
@@ -482,7 +507,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       pts.slice(1).reduce((t, p, i) => t + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0) - (shared(ag) ? 0 : MARKER / 2) - (shared(bg) ? 0 : MARKER / 2);
     const route = legArcs.map((leg, i) => ({ pts: chosen[i], arrive: leg.arrive, tries: leg.tries, at: shown(chosen[i], leg.ag, leg.bg) < 16 ? null : 0.5 as number | null }));
     return { groups, route, routeCost };
-  }, [stops, order, view]);
+  }
 
   // "start" and "end" beside the first and last stop's names (a ring marked the start; the end had to be worked out)
   const lastVisit = Math.max(0, ...stops.flatMap((s) => s.visits));
@@ -507,8 +532,13 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
     return { one: each.reduce((t, w) => t + w, 0) + (each.length - 1) * width(" · ", 400) + 12 + 2, stacked: Math.max(...(lone ?? each)) + 12 + 2 };
   }, [tagOf, today]);
 
-  // 2. Each name on a free side
-  const { placed, drawnRoute } = useMemo(() => {
+  // 2. Each name on a free side (worked out before for this trip, view, day and screen height → used again)
+  const { placed, drawnRoute } = useMemo(() => view
+    ? keptOr(`names|${layoutKey}|${viewSig}|${today}|${typeof window !== "undefined" ? window.innerHeight : 0}`, () => namesPlaced())
+    : namesPlaced(),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [groups, route, routeCost, view, nameWidth, stops, today, layoutKey, viewSig]);
+  function namesPlaced() {
     if (!view) return { placed: [], drawnRoute: route };
     type Box = { x1: number; y1: number; x2: number; y2: number };
     const hit = (a: Box, b: Box) => a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
@@ -799,7 +829,7 @@ function Markers({ stops, order, allCities, today, onOpenDay, onHeight, again, o
       }
     }
     return { placed: best.labels, drawnRoute: best.rt };
-  }, [groups, route, routeCost, view, nameWidth, stops, today]);
+  }
 
   // 3. The map fitted to what's drawn: as tall as the markers and names need (plus a margin), centered on them. A few
   // steps at most — each resize redraws, and the names may move.

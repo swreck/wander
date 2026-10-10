@@ -1,3 +1,20 @@
+=== CHECK YOUR OWN WORK WITH A FRESH AGENT (PERMANENT — Ken, Oct 10 2026) ===
+After any batch of work, and BEFORE telling Ken it's done, run a fresh independent agent — one with no history of the
+session — to verify the work as the real people use it. Fix what it finds; only then report. Ken: "you should have run
+the fresh agent to check your own work. Do that in future." Don't pause to show him findings unless a decision is his.
+
+How to check (each is a rule, not a suggestion):
+1. "Fixed" is defined first, in Ken's own words, and the check measures exactly that — and fails on the old code before
+   it passes on the new. A check that passes on both proves nothing.
+2. Sign in as each real person by their real account name (Ken, Larisa, Andy, Julie) for any personal view — never a
+   stand-in whose name or situation differs from theirs (Oct 10: "Andy B"/"Julie D." broke their views for a week while
+   every check passed as "Andy"/"Julie").
+3. "What X sees" is shown only from X's real view, or labelled a preview with how it differs.
+4. Say plainly what was only simulated (iPhone keyboard/viewport, things a test server can't produce) and what only
+   Ken's phone can confirm — never "fixed" for those.
+5. Keep trip-data/HANDOFF.md's top current as work goes, so Ken's intent survives a compacted session.
+=== END RULE ===
+
 === WANDER DOC DRIFT RULE (PERMANENT) ===
 SPEC.md is the canonical product specification for Wander.
 Do not modify SPEC.md automatically during feature work or refactors.

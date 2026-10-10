@@ -94,6 +94,8 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   // Marked done in Wander (Ken, Oct 9), and which other person's list is open
   const [marks, setMarks] = useState<Map<string, Mark>>(() => savedMarks(tripId));
   const [openList, setOpenList] = useState<string | null>(null);
+  // Others' deadlines, folded by whose they are — which are open (Oct 10 audit)
+  const [openOthersDeadlines, setOpenOthersDeadlines] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     let live = true;
     const get = () => loadMarks(tripId).then((m) => { if (live) setMarks(m); });
@@ -151,7 +153,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
       showToast("Got it — saved here in Wander", "success");
       loadActions();
     } catch {
-      showToast("Couldn't add that", "error");
+      showToast("That didn't add — try again?", "error");
     }
   }
 
@@ -180,24 +182,35 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
     <button onClick={() => setConfirmRemoveId(a.id)} className="min-h-[44px] px-2 text-sm text-[#6b5d4a] underline underline-offset-2">Take out</button>
   );
 
-  async function handleToggleDone(action: PlanningAction) {
+  async function handleToggleDone(action: PlanningAction): Promise<boolean> {
     const newStatus = action.status === "done" ? "open" : "done";
     try {
       await api.patch(`/sheets-sync/actions/${action.id}`, { status: newStatus });
       loadActions();
+      return true;
     } catch {
       showToast(navigator.onLine ? "That tick didn't stick — try again?" : "No signal — that tick didn't save. Try again when you're back online.", "error");
+      return false;
     }
   }
 
   // Her to-do or deadline marked done in Wander — beside her list, never in her sheet
-  async function mark(key: string, label: string, done: boolean) {
+  async function mark(key: string, label: string, done: boolean): Promise<boolean> {
     try {
       await setMark(tripId, key, label, done);
+      return true;
     } catch {
       showToast(navigator.onLine ? "That tick didn't stick — try again?" : "No signal — that tick didn't save. Try again when you're back online.", "error");
+      return false;
     }
   }
+
+  // Ticked: said, with a way back (Oct 10 audit: a tick made the line vanish into "10 done" with nothing said and no
+  // undo in sight)
+  const ticked = (label: string, undo: () => void) => {
+    const short = label.length > 40 ? `${label.slice(0, 38).trim()}…` : label;
+    showToast(`“${short}” is ticked off — it's in the done list.`, "success", { action: { label: "Undo", onClick: undo } });
+  };
 
   async function handleSaveNotes(actionId: string) {
     try {
@@ -205,14 +218,14 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
       setEditingId(null);
       loadActions();
     } catch {
-      showToast("Couldn't save", "error");
+      showToast("That didn't save — try again?", "error");
     }
   }
 
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 bg-[#faf8f5] flex items-center justify-center">
-        <p className="text-sm text-[#6b5d4a]">Loading...</p>
+        <p className="text-sm text-[#6b5d4a]">Finding what needs doing…</p>
       </div>
     );
   }
@@ -291,6 +304,45 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   const deadlines = (guide?.items || [])
     .filter((i) => i.kind === "deadline" && !deadlineMark(i) && !deadlineOver(i, tz) && (i.windowStart || (i.date || "").slice(0, 10)) <= in14)
     .sort((a, b) => (a.windowStart || (a.date || "").slice(0, 10)).localeCompare(b.windowStart || (b.date || "").slice(0, 10)));
+  // Yours first (Ken, Oct 8: "old actions, non actions, and actions not for me"; Oct 10 audit: Julie's Actions opened on
+  // Larisa's Robuchon to-do and Ken & Larisa's free cancellation): a deadline is yours when it names you, or is booked
+  // under your name, or names no one; yours that ask something come first. Others' fold into one row per person.
+  const deadlineOwner = (i: (typeof deadlines)[number]) =>
+    i.forWhom && !/^everyone$/i.test(i.forWhom) ? i.forWhom : bookedByName(i)?.split(/\s+/)[0] || null;
+  const isMyDeadline = (i: (typeof deadlines)[number]) => {
+    if (i.forWhom && !/^everyone$/i.test(i.forWhom)) return isFor(i, me);
+    const actor = bookedByName(i)?.split(/\s+/)[0];
+    return actor ? samePerson(actor, me) : true;
+  };
+  const myDeadlines = deadlines.filter(isMyDeadline).sort((a, b) => Number(!asksSomething(a)) - Number(!asksSomething(b)));
+  const othersDeadlines = new Map<string, typeof deadlines>();
+  for (const i of deadlines.filter((d) => !isMyDeadline(d))) {
+    const who = deadlineOwner(i) || "Someone else";
+    othersDeadlines.set(who, [...(othersDeadlines.get(who) || []), i]);
+  }
+
+  // One deadline, as a card — whose it is said from where you stand ("Yours (Julie & Andy)", as on Home)
+  const renderDeadline = (i: (typeof deadlines)[number], mine: boolean) => {
+    const time = deadlineTimeWords(i, tz);
+    const named = i.forWhom && !/^everyone$/i.test(i.forWhom) ? (isFor(i, me) ? `Yours (${i.forWhom})` : `For ${i.forWhom}`) : bookedWords(i, me);
+    return (
+      <li key={i.id} className={mine ? "bg-[#fff8ec] rounded-xl border border-[#e8c98f]" : "bg-white rounded-xl border border-[#e0d8cc]"}>
+        <button onClick={() => onNavigate?.(`/day/${(i.date || "").slice(0, 10)}#item-${i.id}`)}
+          className="w-full text-left p-3.5 pb-2">
+          <div className="text-sm text-[#3a3128]"><span className={mine ? "text-[#8a5a1a]" : "text-[#6b5d4a]"}>{deadlineWhen(i, todayYmd)}</span> · {i.title}</div>
+          {/* Whose it is: the people it names, else whose name the booking is under (round 10) */}
+          {(named || time) && <div className="text-xs text-[#6b5d4a] mt-1">{[named, time].filter(Boolean).join(" · ")}</div>}
+          {isFreeCancel(i) && <div className="text-xs text-[#6b5d4a] mt-0.5">{FREE_CANCEL_WORDS}</div>}
+        </button>
+        {asksSomething(i) && canTickDeadline(i) && (
+          <div className="px-3.5 pb-1.5">
+            <button onClick={async () => { if (await mark(deadlineKey(i), i.title, true)) ticked(i.title, () => { mark(deadlineKey(i), i.title, false); }); }}
+              className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Done ✓</button>
+          </div>
+        )}
+      </li>
+    );
+  };
 
   // One to-do, as a card — yours, or in someone else's list opened in place
   const renderTodo = (a: PlanningAction, firstEarlier = false) => {
@@ -306,7 +358,10 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                           the trip's lead) — never in her sheet (Ken, Oct 9: they could never finish here) */}
                       {canTick(a) && (
                         <button
-                          onClick={() => (a.sheetRowRef ? mark(todoKey(a), a.action, true) : handleToggleDone(a))}
+                          onClick={async () => {
+                            const ok = a.sheetRowRef ? await mark(todoKey(a), a.action, true) : await handleToggleDone(a);
+                            if (ok) ticked(a.action, () => { if (a.sheetRowRef) mark(todoKey(a), a.action, false); else handleToggleDone({ ...a, status: "done" }); });
+                          }}
                           className="-m-3 p-3 shrink-0"
                           aria-label={`Mark ${a.action} as done`}
                         >
@@ -462,33 +517,26 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           </p>
         )}
 
-        {/* ── Deadlines from the Guide ── */}
+        {/* ── Deadlines from the Guide: yours first, others' folded by whose they are ── */}
         {deadlines.length > 0 && (
           <div className="mb-6">
             <div className="text-xs text-[#8a5a1a] uppercase tracking-wider font-medium mb-2">Deadlines in the next two weeks</div>
-            <ul className="space-y-2">
-              {deadlines.map((i) => {
-                const time = deadlineTimeWords(i, tz);
-                return (
-                  <li key={i.id} className="bg-[#fff8ec] rounded-xl border border-[#e8c98f]">
-                    <button onClick={() => onNavigate?.(`/day/${(i.date || "").slice(0, 10)}#item-${i.id}`)}
-                      className="w-full text-left p-3.5 pb-2">
-                      <div className="text-sm text-[#3a3128]"><span className="text-[#8a5a1a]">{deadlineWhen(i, todayYmd)}</span> · {i.title}</div>
-                      {/* Whose it is: the people it names, else whose name the booking is under (round 10) */}
-                      {(i.forWhom || time || bookedByName(i)) && (
-                        <div className="text-xs text-[#6b5d4a] mt-1">{[i.forWhom && !/^everyone$/i.test(i.forWhom) ? `For ${i.forWhom}` : bookedWords(i, me), time].filter(Boolean).join(" · ")}</div>
-                      )}
-                      {isFreeCancel(i) && <div className="text-xs text-[#6b5d4a] mt-0.5">{FREE_CANCEL_WORDS}</div>}
-                    </button>
-                    {asksSomething(i) && canTickDeadline(i) && (
-                      <div className="px-3.5 pb-1.5">
-                        <button onClick={() => mark(deadlineKey(i), i.title, true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Done ✓</button>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            {myDeadlines.length > 0 ? (
+              <ul className="space-y-2">{myDeadlines.map((i) => renderDeadline(i, true))}</ul>
+            ) : (
+              <p className="text-sm text-[#6b5d4a]">None of them are yours.</p>
+            )}
+            {[...othersDeadlines.entries()].map(([who, list]) => (
+              <div key={who} className="mt-2">
+                <button onClick={() => setOpenOthersDeadlines((s) => { const n = new Set(s); if (n.has(who)) n.delete(who); else n.add(who); return n; })}
+                  aria-expanded={openOthersDeadlines.has(who)}
+                  className="w-full min-h-[44px] text-left text-sm text-[#514636] flex items-center justify-between">
+                  <span>{who}'s deadline{list.length === 1 ? "" : "s"} · {list.length}</span>
+                  <span aria-hidden>{openOthersDeadlines.has(who) ? "⌄" : "›"}</span>
+                </button>
+                {openOthersDeadlines.has(who) && <ul className="space-y-2 mt-1">{list.map((i) => renderDeadline(i, false))}</ul>}
+              </div>
+            ))}
           </div>
         )}
 
