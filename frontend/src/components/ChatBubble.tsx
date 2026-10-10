@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactNode, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
@@ -319,6 +319,24 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // The phone's Back steps Scout down to its bar (or closes it when there's no conversation yet)
   useBackToClose(open, () => minimizeRef.current());
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
+  // A first word from Scout for this person, with one question to tap — shown only before anything's been said
+  // (Oct 10: Julie's packing quip; services/scoutHello.ts decides who and until when)
+  const [hello, setHello] = useState<{ words: string; ask: string; last?: boolean } | null>(null);
+  const helloRef = useRef(hello);
+  helloRef.current = hello;
+  // (answered here: a sync already on its way doesn't bring it back)
+  const helloAnswered = useRef(false);
+  const [helloNote, setHelloNote] = useState<string | null>(null);
+  // "Later" brings it back after a while (at most three offers); "No thanks" ends it; asking something else first is a
+  // quiet "Later" — Ken, Oct 10: "people are in a hurry … there should be a show me later option"
+  const answerHello = useCallback((answer: "later" | "no", quiet = false) => {
+    helloAnswered.current = true;
+    setHello(null);
+    setHelloNote(quiet ? null : answer === "later"
+      ? "I'll offer it again later. You can also ask me what to pack any time."
+      : "No problem. If you change your mind, ask me what to pack.");
+    api.post("/chat/hello", { answer }).catch(() => { /* kept on this phone for now; offered again next time */ });
+  }, []);
   // One-time tips, at the moment they help (Oct 2): the camera, for people already talking with Scout; Sources, under
   // the first answer that has them. Using the thing puts its tip away too.
   const [cameraTip, cameraTipDone] = useOnceTip("scout-camera");
@@ -511,8 +529,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         const token = localStorage.getItem("wander_token");
         const r = await fetch(`/api/chat/history?tripId=${encodeURIComponent(tripForChat)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
         if (!r.ok) return;
-        const j = await r.json() as { messages: ChatMessage[]; freshAt: string | null };
+        const j = await r.json() as { messages: ChatMessage[]; freshAt: string | null; hello?: { words: string; ask: string } };
         if (!live || sendingRef.current || !Array.isArray(j.messages)) return;
+        if (!helloAnswered.current) setHello(j.hello && typeof j.hello.words === "string" && typeof j.hello.ask === "string" ? j.hello : null);
         // (nothing new: the conversation isn't redrawn — it would jump someone reading it back to the end)
         setMessages((prev) => {
           const next = mergeConversation(prev, j.messages, j.freshAt);
@@ -551,6 +570,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const bubbles = box.querySelectorAll<HTMLElement>("[data-msg]");
     // Nothing said yet: the greeting and suggestions from the top
     if (!bubbles.length && !box.querySelector("[data-thinking]")) { box.scrollTop = 0; return; }
+    // Scout's first word below a conversation is the latest thing — shown from its first words (scrolled to the very
+    // end, it began mid-sentence on an iPhone's half-height panel: "useful. I have a short list…")
+    const hello = box.querySelector<HTMLElement>("[data-scout-hello-block]");
+    if (hello && !box.querySelector("[data-thinking]")) {
+      box.scrollTop = hello.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 8;
+      return;
+    }
     const lastBubble = bubbles[bubbles.length - 1];
     if (lastBubble?.dataset.msg === "assistant" && lastBubble.offsetHeight > box.clientHeight * 0.6) {
       box.scrollTop += lastBubble.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
@@ -559,11 +585,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
   }, []);
 
-  useEffect(() => { scrollToLatest(); }, [messages, sending, scrollToLatest]);
+  // (Scout's first word arriving is a new latest thing too)
+  useEffect(() => { scrollToLatest(); }, [messages, sending, scrollToLatest, hello]);
 
   // The sheet's size on a phone, and the space the keyboard leaves (the visible part of the screen)
   const [size, setSize] = useState<"half" | "full">("half");
-  const [vp, setVp] = useState<{ h: number; kb: number } | null>(null);
+  // h: the visible height; kb: the keyboard's height; while typing, top: where the visible part of the screen starts
+  // (the panel is placed from that, never from the page's height — see the effect below); page: the page's height
+  const [vp, setVp] = useState<{ h: number; kb: number; top: number | null; page: number } | null>(null);
   // Which answer was just copied (Copy under each answer — Ken, Oct 4: a long answer he wanted elsewhere couldn't be
   // selected or copied)
   const [copied, setCopied] = useState<number | null>(null);
@@ -579,7 +608,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     if (!open) return;
     const vv = window.visualViewport;
     if (!vv) return;
-    let last: { h: number; kb: number } | null = null;
+    let last: { h: number; kb: number; top: number | null; page: number } | null = null;
     // The keyboard is up only while a box in Scout is being typed in. An iPhone can go on reporting a keyboard-sized
     // screen after the keyboard has gone (Ken, Oct 9: after typing a note, Scout's panel opened above the top of the
     // screen, lifted over a keyboard that wasn't there) — so without typing, it's the page's own full height.
@@ -590,13 +619,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const update = () => {
       const layoutH = document.documentElement.clientHeight || window.innerHeight;
       const typing = typingHere();
+      // While typing, the panel is placed from where the visible part of the screen starts and how tall it is — the
+      // page's own height can be misreported by an iPhone (Ken, Oct 10: typing to Scout, its panel went off the screen
+      // and the tab bar floated mid-screen — placed from the page's height, the panel lands too high by the error)
       const next = typing
-        ? { h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)) }
-        : { h: Math.round(Math.max(vv.height, layoutH)), kb: 0 };
+        ? { h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)), top: Math.round(vv.offsetTop), page: Math.round(layoutH) }
+        : { h: Math.round(Math.max(vv.height, layoutH)), kb: 0, top: null, page: Math.round(layoutH) };
       // (only a real change — a long press to select an answer moves the viewport a little, and every update scrolled
       // the conversation to its end and put the cursor back in the box, which took the selection away: Ken, Oct 4,
       // "a long press gives tactile feedback but doesn't actually select anything")
-      if (last && last.h === next.h && last.kb === next.kb) return;
+      if (last && last.h === next.h && last.kb === next.kb && last.top === next.top && last.page === next.page) return;
       const keyboardMoved = !last || last.kb !== next.kb;
       last = next;
       setVp(next);
@@ -661,6 +693,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         setOpen(true);
         if (detail?.prefill) setInput(detail.prefill);
       });
+      // …unless Scout has a first word for this person: it opens to read, so the keyboard doesn't cover the offer and
+      // its Later / No thanks (Ken, Oct 10: "a first impression cannot cause confusion")
+      if (helloRef.current && !detail?.prefill) return;
       const el = inputRef.current;
       if (el) {
         el.focus();
@@ -682,6 +717,12 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const text = retryText || input.trim() || (sendFiles.length ? (onlyPictures ? "What does this say?" : sendFiles.length === 1 ? "What's in this?" : "What's in these?") : "");
     const sendPhoto = sendFiles.length > 0;
     if (!text || sending || sendingRef.current) return;
+    // Scout's first word: its question asked, it's done; something else asked first, it's put off for later
+    if (helloRef.current) {
+      if (text === helloRef.current.ask) { helloAnswered.current = true; setHello(null); }
+      else answerHello("later", true);
+    }
+    setHelloNote(null);
     // Sent while the voice button still listens: stop it, and late words don't refill the box (Ken, Oct 1: one
     // dictated question reached Scout twice, a second apart — Send, then the mic's own send as it stopped)
     if (recognitionRef.current) {
@@ -797,7 +838,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setSending(false);
       abortRef.current = null;
     }
-  }, [input, sending, context, onDataChanged, messages, files]);
+  }, [input, sending, context, onDataChanged, messages, files, answerHello]);
 
   // Files added — dragged in, pasted or chosen — shown above the box until they're sent or taken off. A picture is
   // shrunk on the phone (and an iPhone HEIC photo becomes a JPEG on the way); anything else goes as it is, up to 10 MB.
@@ -1102,16 +1143,51 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const keyboardUp = (vp?.kb ?? 0) > 80;
   // On an iPad (wide): above the bottom bar, so it never covers the bar's Scout button (it sat 24 pt from the screen's
   // foot, over the bar's right end, held sideways); and above the on-screen keyboard when that's up
-  const sheetStyle = wide ? {
-    bottom: keyboardUp ? `${(vp?.kb ?? 0) + 12}px` : "calc(env(safe-area-inset-bottom, 0px) + 68px)",
-    height: keyboardUp ? `${Math.round(Math.min(500, visibleH - 24))}px` : "min(500px, calc(100dvh - 150px))",
-  } : {
-    bottom: vp?.kb ?? 0,
+  // While typing, the sheet's foot sits at the foot of the visible part of the screen (vp.top + vp.h), whatever the
+  // page's height is reported as
+  const typingTop = vp?.top ?? null;
+  const phoneH = keyboardUp
     // With the keyboard up the half sheet keeps a strip of the page in view (the full one uses it all)
-    height: keyboardUp
-      ? (size === "full" ? Math.round(visibleH - 8) : Math.round(Math.min(visibleH - 8, Math.max(260, visibleH * 0.72))))
-      : size === "full" ? Math.round(visibleH * 0.9) : Math.round(visibleH * 0.58),
-  };
+    ? (size === "full" ? Math.round(visibleH - 8) : Math.round(Math.min(visibleH - 8, Math.max(260, visibleH * 0.72))))
+    : size === "full" ? Math.round(visibleH * 0.9) : Math.round(visibleH * 0.58);
+  const wideKbH = Math.round(Math.min(500, visibleH - 24));
+  const sheetStyle: CSSProperties = wide ? (keyboardUp && typingTop !== null
+    ? { top: `${typingTop + visibleH - wideKbH - 12}px`, bottom: "auto", height: `${wideKbH}px` }
+    : {
+      bottom: keyboardUp ? `${(vp?.kb ?? 0) + 12}px` : "calc(env(safe-area-inset-bottom, 0px) + 68px)",
+      height: keyboardUp ? `${wideKbH}px` : "min(500px, calc(100dvh - 150px))",
+    }) : typingTop !== null
+    ? { top: typingTop + visibleH - phoneH, bottom: "auto", height: phoneH }
+    : { bottom: 0, height: phoneH };
+  // The dimmed page behind covers the visible part of the screen too while typing (it covered only the page's own
+  // height, which left the tab bar bright and floating — Ken's screenshot, Oct 10)
+  const dimStyle: CSSProperties | undefined = typingTop !== null && vp
+    ? { top: Math.min(0, typingTop), bottom: "auto", height: Math.max(vp.page, typingTop + visibleH) - Math.min(0, typingTop) }
+    : undefined;
+  // Scout's first word for this person (services/scoutHello.ts): the words, its question to tap, and Later / No thanks —
+  // or, once answered, one line saying what happens now
+  const helloBlock = hello ? (
+    <div data-scout-hello-block className="text-left">
+      <p data-scout-hello className="rounded-2xl px-3.5 py-2 bg-[#f0ebe3] text-[#3a3128] text-base leading-relaxed">{hello.words}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1">
+        <button
+          onClick={() => sendMessage(hello.ask, true)}
+          disabled={sending || !online}
+          className="min-h-[44px] px-3 rounded-full border border-[#514636] bg-white text-sm text-[#3a3128] text-left disabled:opacity-50"
+        >
+          {hello.ask}
+        </button>
+        {/* (the third offer is the last: no "Later" on it) */}
+        {!hello.last && (
+          <button onClick={() => answerHello("later")} className="min-h-[44px] px-3 text-sm text-[#6b5d4a] underline underline-offset-2">Later</button>
+        )}
+        <button onClick={() => answerHello("no")} className="min-h-[44px] px-3 text-sm text-[#6b5d4a] underline underline-offset-2">No thanks</button>
+      </div>
+    </div>
+  ) : helloNote ? (
+    // (said as Scout says things — it read as a stray line, run into the introduction, on the empty screen)
+    <p data-scout-hello-note className="text-left rounded-2xl px-3.5 py-2 bg-[#f0ebe3] text-[#3a3128] text-base leading-relaxed">{helloNote}</p>
+  ) : null;
   const onSheetTouchStart = (e: React.TouchEvent) => { dragStart.current = e.touches[0].clientY; };
   const onSheetTouchEnd = (e: React.TouchEvent) => {
     if (dragStart.current === null) return;
@@ -1139,6 +1215,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       {/* The page behind: lightly dimmed at half height (still readable), tap it to make Scout small */}
       <div
         className={`fixed inset-0 z-[60] sm:hidden ${size === "full" || keyboardUp ? "bg-black/20" : "bg-black/10"}`}
+        style={dimStyle}
         onClick={minimize}
       />
 
@@ -1197,11 +1274,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         {/* Messages */}
         <div ref={scrollRef} role="log" aria-live="polite" className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-3 min-h-0">
           {messages.length === 0 && (
-            <div className="text-center text-[#6b5d4a] text-sm py-8">
+            <div className={`text-center text-[#6b5d4a] text-sm ${helloBlock ? "py-3" : "py-8"}`}>
               <p>I'm Scout, your travel companion.</p>
+              {/* A first word for this person comes before the introduction, with its question right under it — the
+                  question sat below the fold behind the introduction on an iPhone (Julie's screen, Oct 10) */}
+              {helloBlock && <div className="mt-3">{helloBlock}</div>}
               {/* What it actually knows (round 12 delight audit: "I know your whole trip" overclaimed) */}
               {/* Said to whoever holds the phone (round 13: Ken read "Ken's rail sheet", Larisa "Larisa's Guide") */}
-              <p className="mt-1">I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. I can read a photo or a file too, like a menu, a ticket or a PDF. Paste it in, tap the paperclip, or on a Mac drag it here.</p>
+              <p className={helloBlock ? "mt-4" : "mt-1"}>I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. I can read a photo or a file too, like a menu, a ticket or a PDF. Paste it in, tap the paperclip, or on a Mac drag it here.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
               {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.</p>}
               {/* Tap one to ask it */}
@@ -1379,6 +1459,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               </div>
             </div>
           ))}
+          {/* Scout's first word, when there's already a conversation: after it, the latest thing said */}
+          {messages.length > 0 && !sending && helloBlock}
           {sending && (
             <div className="flex justify-start" data-thinking role="status" aria-busy="true">
               <div className="bg-[#f0ebe3] rounded-2xl px-3.5 py-2 text-sm text-[#514636]">

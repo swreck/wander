@@ -2,6 +2,11 @@ import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 import { noteMatches, sharedWords } from "../services/tripNotes/view.js";
+import { keptWords } from "../services/tripNotes/kept.js";
+import { settingsOf, tidyLater } from "./tripNotes.js";
+import { helloFor, answerHello } from "../services/scoutHello.js";
+import { PACKING } from "../services/packing.js";
+import { createHash } from "crypto";
 import { logChange } from "../services/changeLog.js";
 import { syncTripDates } from "../services/syncTripDates.js";
 import { requireAuth, parseAccessCodes, type AuthRequest } from "../middleware/auth.js";
@@ -923,6 +928,25 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "keep_in_my_notes",
+    description: "Keep what the person tells you about the trip in their Notes (the Notes tab), word for word, on the day it's about. Their notes are the trip's story — later summaries are made from them. Use it when they tell you something that happened, what they saw or learned, who they met, or why the day went as it did ('we came here because our guide drove us…', 'the potter's family has fired kilns for ten generations'), or ask you to note or remember something. Not for questions, and not for plans (that's add_same_day_plan — when they tell both, do both). Only they see it unless they ask for the trip to see it.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        words: { type: "string", description: "Their own words about it, exactly as they said them — never your summary or rewording. Leave out only words said to you ('Scout, note that')." },
+        date: { type: "string", description: "YYYY-MM-DD, the trip day it's about (today unless they say otherwise)" },
+        shareWithTrip: { type: "boolean", description: "Only when they ask for everyone on the trip to see it" },
+      },
+      required: ["tripId", "words", "date"],
+    },
+  },
+  {
+    name: "packing_tips",
+    description: "The checked list of things Americans most often say they wish they'd brought to Japan, each with why and, for rules (medicines, luggage on the bullet train, plugs), the official source. Use when someone asks what to pack or bring, or asks for the packing list Scout offered Julie ('I want that too').",
+    input_schema: { type: "object" as const, properties: { tripId: { type: "string" } }, required: ["tripId"] },
+  },
+  {
     name: "get_todos",
     description: "List the trip's to-dos on the Actions screen: those from the Actions tab of Larisa's Guide and those added in Wander, with who each is for and whether it's done.",
     input_schema: { type: "object" as const, properties: { tripId: { type: "string" } }, required: ["tripId"] },
@@ -1447,6 +1471,8 @@ export async function executeTool(
   toolName: string,
   input: any,
   user: { code: string; displayName: string; travelerId?: string },
+  // what the person said in this conversation, newest first, word for word (keep_in_my_notes keeps only their words)
+  said?: string[],
 ): Promise<{ result: any; actionDescription?: string; placeCards?: any[]; navigate?: { path: string; label: string; go: boolean; headline?: string }; route?: { label: string; apple: string; google: string; search?: string } }> {
   // Larisa's own items (her ideas, stops, hotels, days) come from her Guide; the next read of it
   // would silently undo any change Scout made to them, losing what the person meant. So Scout
@@ -3585,6 +3611,54 @@ export async function executeTool(
         rule: "Quote their words exactly when you use them; say whose note it is; never add to or summarize away what they wrote unless asked to summarize.",
       } };
     }
+    // Ken, Oct 10: telling Scout what happened today ("we came to this town because our guide drove us…") had nowhere
+    // to go. Kept in their Notes, every word theirs: a note once kept "themes" instead of what he said (ChatGPT, before
+    // Wander), so the words Scout passes are kept only when they are the person's own; otherwise all they said is kept.
+    case "keep_in_my_notes": {
+      const me = (user as any).travelerId as string | undefined;
+      if (!me) return { result: { error: "Notes are kept per person — this sign-in has no person." } };
+      if (!(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: input.tripId, travelerId: me } } }))) {
+        return { result: { error: "That trip isn't one of yours." } };
+      }
+      const date = typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : null;
+      if (!date) return { result: { error: "Which day is it about? Pass the date as YYYY-MM-DD." } };
+      if (!String(input.words || "").trim()) return { result: { error: "There's nothing to keep yet — what would they like noted?" } };
+      const words = keptWords(String(input.words || ""), said || []);
+      if (!words) return { result: { error: "Those aren't words they said in this conversation. Pass their own words exactly as they said them (a part of their message is fine) — never your summary or rewording." } };
+      const day = await prisma.day.findFirst({
+        where: { tripId: input.tripId, date: { gte: new Date(`${date}T00:00:00Z`), lt: new Date(new Date(`${date}T00:00:00Z`).getTime() + 86400_000) } },
+        select: { city: { select: { name: true } } },
+      });
+      // (the same words told again — a resend, a retry — are the same note)
+      const clientId = `scout-${createHash("sha256").update(`${date}|${words}`).digest("hex").slice(0, 40)}`;
+      const already = await prisma.tripNote.findUnique({ where: { travelerId_clientId: { travelerId: me, clientId } } });
+      const note = already || await prisma.tripNote.create({
+        data: {
+          tripId: input.tripId, travelerId: me, authorName: user.displayName, clientId,
+          original: words, text: words, source: "scout",
+          visibility: input.shareWithTrip === true ? "trip" : "private",
+          dayDate: date, city: day?.city?.name || null,
+        },
+      });
+      // "Tidy my dictation" (Ken, Oct 10: like Wispr Flow — his exact words kept, misspeaking and haste fixed so it reads
+      // clearly): what's said to Scout is often spoken, so with their switch on it's tidied as a spoken note is — the
+      // original stays, marked "tidied", one tap shows every word as said
+      if (!already && (await settingsOf(me)).tidy) tidyLater(note.id, note.text);
+      return {
+        result: {
+          kept: true, alreadyKept: !!already, day: plainDay(date), words: note.text,
+          whoSees: note.visibility === "trip" ? "everyone on the trip" : "only them",
+          where: "their Notes tab",
+          say: "One short line: it's in their Notes for that day, and who sees it. Don't repeat their words back.",
+        },
+        actionDescription: `In your Notes for ${plainDay(date)}${note.visibility === "trip" ? " (shared with the trip)" : ""}`,
+      };
+    }
+
+    case "packing_tips": {
+      return { result: PACKING };
+    }
+
     case "get_todos": {
       const todos = await prisma.planningAction.findMany({ where: { tripId: input.tripId }, orderBy: { createdAt: "asc" } });
       // Her Actions tab's "Both" is Andy and Larisa (its two status columns); "Both" added in Wander is everyone
@@ -4356,8 +4430,11 @@ router.get("/history", async (req: AuthRequest, res) => {
   });
   // (a question and its answer are saved together, at one moment: the question first)
   rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.role === "user" ? -1 : 1) - (b.role === "user" ? -1 : 1));
+  // (a first word from Scout for this person, if there is one — services/scoutHello.ts)
+  const hello = await helloFor(tripId, travelerId, req.user?.displayName || "").catch(() => null);
   res.json({
     freshAt: fresh.getTime() ? fresh.toISOString() : null,
+    ...(hello ? { hello } : {}),
     messages: rows.map((m) => {
       if (m.role === "user") {
         // "what's this? (with menu.png, plan.pdf)" — the files went with it; their names, not the files, were kept
@@ -4370,6 +4447,13 @@ router.get("/history", async (req: AuthRequest, res) => {
         ...(Array.isArray(t.routes) && t.routes.length ? { routes: t.routes } : {}) };
     }),
   });
+});
+/** Scout's first word put off ("Later" — or something else asked first) or declined ("No thanks") — services/scoutHello */
+router.post("/hello", async (req: AuthRequest, res) => {
+  const travelerId = req.user?.travelerId;
+  const answer = req.body?.answer;
+  if (!travelerId || (answer !== "later" && answer !== "no")) { res.status(400).json({ error: "Later or No thanks?" }); return; }
+  res.json({ ok: await answerHello(travelerId, req.user?.displayName || "", answer) });
 });
 /** "Start fresh" on one device starts fresh on all of them — a marker; what was said stays saved */
 router.post("/fresh", async (req: AuthRequest, res) => {
@@ -4722,8 +4806,9 @@ RULES:
 45. Letting people in: the trip's planners do it from Wander's People screen (Settings → People on this trip). "+ Add someone": type the name, pick the trip, and Wander shows a QR code for that person's iPhone camera (or "Send as a message"); on their phone it opens in Safari, where they tap Let's go, set up Face ID, and are then shown how to put Wander on the Home Screen. If someone's Home Screen icon won't sign them in, they haven't set up Face ID yet: open their link in Safari, Let's go, then Settings → Face ID. Someone already in Wander from another trip just gets this trip too. For a new phone: "New phone? New link" next to their name. You can't make or show links in chat — say so plainly and point there. If the asker isn't a planner, say Ken or Larisa can do it. Don't guess anyone's pronouns — use their name.
 46d. Showing things: you can move Wander's screen with show_in_wander (it changes nothing). When someone asks to see, open, show or be taken to something — "show me our first day in Kyoto", "the day Andy and Julie arrive", "open tomorrow", "Tokyo ideas", "show me the deadlines" (that's Actions), "who's on the trip" (People) — work out the exact date or city from the Guide, call it with go=true, and reply in one short line that says what they're looking at ("Here's Wed, Oct 14 — Julie & Andy land at Narita at 3:00 PM."). Your panel steps down to a small bar while they look, so they can ask a follow-up; always pass a headline — the answer itself in a few words for that bar ("Oct 29 · still open: Shiraume or Four Seasons"). When you're talking about one line of that day (the Backroads meeting, a dinner), pass item with a few of its words so the screen scrolls to it. "Ideas I marked" / "what Julie's in on" / "Julie's maybes" → target "ideas" (the Maybes screen) with markedBy set to that person's name (the asker's own name for "I"). "Take me back" / "go back" → target "back". When your answer is about one specific day, also call it with go=false so a button appears. If what they asked for doesn't exist in the plan (a city with no stay, a date outside the trip), say so in words first ("The trip ends Thu, Oct 29 — Nov 3 isn't part of it.") and offer the nearest real day as a button — never invent one, and never answer with only "tap below". Phrases like "been to by now" mean what the plan says up to today; say that you know the plan, not what they actually did. Everything you write before and after a tool call is shown together as one answer — so after a tool call, don't repeat yourself; add only what's new, or nothing.
 46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?", "do we need to reconfirm anything?", "where does the tour start?", "are we going to X?") gets an answer, not a draft — at most offer in words ("Want me to draft a note to Larisa?"). Never do this when the asker is Larisa herself.
-46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed — say both in one short line. Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Remove" beside their own note in Maybes — someone else's note is theirs to take back.
-46e. Trip notes (the Notes tab): each person's own words, kept exactly — private unless they share a note with the trip. "What did I write about…", "my notes from Kyoto" → get_my_notes, and quote their words exactly, saying whose note it is. When someone asks what a person "wrote", "said" or "noted" about something, look in get_my_notes (their shared notes) AND the Guide, and give both — a shared note is something they wrote. Never say "that's all they wrote" unless you looked in both. You never see or mention anyone's private notes but the asker's. You don't write notes: when someone wants to note something down, tell them the Notes tab keeps every word exactly as they say or type it.
+46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed. Say where it is in a few words ("On today for everyone."). Say her Guide is unchanged only when they ask whether it changes — the day screen already says where each line came from, and told every time it reads like software reporting (Ken, Oct 10). Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Remove" beside their own note in Maybes — someone else's note is theirs to take back.
+46e. Trip notes (the Notes tab): each person's own words, kept exactly — private unless they share a note with the trip. "What did I write about…", "my notes from Kyoto" → get_my_notes, and quote their words exactly, saying whose note it is. When someone asks what a person "wrote", "said" or "noted" about something, look in get_my_notes (their shared notes) AND the Guide, and give both — a shared note is something they wrote. Never say "that's all they wrote" unless you looked in both. You never see or mention anyone's private notes but the asker's. Keeping notes: when someone tells you about the trip — what happened, what they saw or learned, who they met, why the day went as it did ("we came here because our guide drove us, so we saw Arita too") — or asks you to note or remember something, keep it with keep_in_my_notes: their own words exactly as they said them (a part of their message is fine — never your summary, never tidied), on the day it's about. Their notes are the trip's story. When what they told you also puts a new stop on a day, do both (add_same_day_plan too). Reply in one short line that says where it is and who sees it ("In your Notes for today — just you."); never repeat their words back. Add one more sentence only when something in the plan is touched by what they told you (a booked train or table the change affects) — nothing else, no recap of the day. A question on its own isn't a note. It's theirs to change or take out on the Notes tab.
+46f. Packing: "what should I pack / bring", "anything I might not think to pack", or the packing list Scout offered Julie ("I want that too", "can I have Julie's packing list") → packing_tips, and answer only from what it returns: its items in its order, at most seven, one plain sentence each. Where the Guide shows it for this person's own days, tie an item to them in a few words (shoes off → the nights they're at a ryokan; a big suitcase → their bullet-train days) — never invent a tie, and leave it out when the Guide doesn't show one. Add no items of your own and no general travel advice. Say a rule's source when you give it (medicines, luggage). End with one line inviting them to say how they travel so you can tailor it. Asked for more than the list, say so, and label anything you find online as found online.
 46c. To-dos (the Actions screen): "remind us to…" / "add a to-do…" → add_todo (added in Wander; her Guide unchanged — say so in a few words). "We did it" / "that's done" → set_todo_done. "Take that off the list" → remove_todo, only for one added in Wander; one from Larisa's Guide stays until she takes it out of her sheet (it can still be ticked off). Use get_todos to find it. On screen: Actions → "+ Add", the tick beside each, and "Take out" on those added in Wander.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
 52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
@@ -4759,8 +4844,10 @@ RULES:
         }
       } catch { /* no saved history — answer this question on its own */ }
     }
+    // What the person said in this conversation, newest first — the only words keep_in_my_notes may keep
+    const theirWords = [message, ...messages.filter((m) => m.role === "user" && typeof m.content === "string").map((m) => m.content as string).reverse()];
     // Append tripId hint to the user message so the model can't miss it
-    const augmentedMessage = `${fileWords}${tripId
+    const augmentedMessage =`${fileWords}${tripId
       ? `${message}\n\n[System: The active trip ID is ${tripId}. Use it for any tool calls. Do not ask the user for it.]`
       : message}`;
     const actions: string[] = [];
@@ -4916,7 +5003,7 @@ RULES:
         const toolBlock = block as Anthropic.ToolUseBlock;
         console.log(`Chat tool call: ${toolBlock.name}`, JSON.stringify(toolBlock.input).slice(0, 200));
         try {
-          const { result, actionDescription, placeCards: cards, navigate, route } = await executeTool(toolBlock.name, toolBlock.input, user);
+          const { result, actionDescription, placeCards: cards, navigate, route } = await executeTool(toolBlock.name, toolBlock.input, user, theirWords);
           if (route && !routes.some((w) => w.apple === route.apple) && routes.length < 3) routes.push(route);
           if (actionDescription) actions.push(actionDescription);
           if (cards) placeCards.push(...cards);

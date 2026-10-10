@@ -41,7 +41,8 @@ async function save(id: string, t: Tour) {
   try { localStorage.setItem(localKey(id), JSON.stringify(t)); } catch { /* private window */ }
   try {
     const cur = (await api.get<{ preferences?: Record<string, unknown> | null }>(`/auth/travelers/${id}`))?.preferences || {};
-    await api.patch(`/auth/travelers/${id}`, { preferences: { ...cur, tour: merged(t, ((cur as any).tour || { offers: 0 }) as Tour) } });
+    // (only the tour is sent — Wander keeps the rest as it is; a copy read a moment ago could undo a newer choice)
+    await api.patch(`/auth/travelers/${id}`, { preferences: { tour: merged(t, ((cur as any).tour || { offers: 0 }) as Tour) } });
   } catch { /* no signal: this phone's copy holds until next time */ }
 }
 

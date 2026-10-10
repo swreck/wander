@@ -72,7 +72,7 @@ export default function ProfilePage() {
   const { showToast } = useToast();
 
   // Preferences state
-  const [traveler, setTraveler] = useState<TravelerData | null>(null);
+  const [, setTraveler] = useState<TravelerData | null>(null);
   const [interests, setInterests] = useState<Record<string, boolean>>({});
   const [savingPrefs, setSavingPrefs] = useState(false);
 
@@ -188,10 +188,8 @@ export default function ProfilePage() {
       const selectedInterests = Object.entries(interests)
         .filter(([, on]) => on)
         .map(([key]) => key);
-      const prefs = {
-        ...(traveler?.preferences && typeof traveler.preferences === "object" ? traveler.preferences : {}),
-        interests: selectedInterests,
-      };
+      // (only interests are sent — Wander keeps the rest of their choices as they are)
+      const prefs = { interests: selectedInterests };
       const updated = await api.patch<TravelerData>(`/auth/travelers/${user.travelerId}`, { preferences: prefs });
       setTraveler(updated);
       showToast("Got it");

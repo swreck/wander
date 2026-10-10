@@ -8,7 +8,7 @@ import { useState, useEffect, Fragment } from "react";
 import { api } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { guideData, type TripGuideData } from "../lib/guideData";
-import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName, bookedWords, voiceFor, isFreeCancel, FREE_CANCEL_WORDS, isFor } from "../lib/guideDisplay";
+import { deadlineOver, deadlineTimeWords, deadlineWhen, bookedByName, bookedWords, voiceFor, isFreeCancel, FREE_CANCEL_WORDS, isFor, samePerson } from "../lib/guideDisplay";
 import { useAuth } from "../contexts/AuthContext";
 import { sourcesData, railAudience, beforeTravelSteps, sourceWordsFor, type OtherSource } from "../lib/sources";
 import { checklistTitle } from "./RailSheet";
@@ -226,7 +226,8 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   const INITIALS: Record<string, string> = { LF: "Larisa", KR: "Ken", AB: "Andy", JD: "Julie" };
   const whoFor = (a: PlanningAction): string[] | null =>
     a.owner === "Both" ? (a.sheetRowRef ? ["Andy", "Larisa"] : null) : a.owner.split(/\s*[/&,]\s*/).map((o) => INITIALS[o] || o);
-  const isMine = (a: PlanningAction) => { const w = whoFor(a); return !w || (!!me && w.some((n) => n.toLowerCase() === me.toLowerCase())); };
+  // (her lists name first names — "Andy" is "Andy B": Oct 10, his own to-dos didn't count as his)
+  const isMine = (a: PlanningAction) => { const w = whoFor(a); return !w || w.some((n) => samePerson(n, me)); };
   // Done: in her sheet (its column says so), ticked in Wander, or marked done in Wander (her to-dos, Oct 9)
   const markOf = (a: PlanningAction) => (a.sheetRowRef ? marks.get(todoKey(a)) : undefined);
   const isDone = (a: PlanningAction) => a.status === "done" || !!markOf(a);
@@ -284,7 +285,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   const canTickDeadline = (i: Parameters<typeof bookedByName>[0] & { forWhom?: string | null }) => {
     if (isPlanner) return true;
     const actor = bookedByName(i)?.split(/\s+/)[0];
-    return actor ? !!me && actor.toLowerCase() === me.toLowerCase() : !!i.forWhom && !/^everyone$/i.test(i.forWhom) && isFor(i, me);
+    return actor ? samePerson(actor, me) : !!i.forWhom && !/^everyone$/i.test(i.forWhom) && isFor(i, me);
   };
   const doneDeadlines = (guide?.items || []).filter((i) => i.kind === "deadline" && !!deadlineMark(i));
   const deadlines = (guide?.items || [])
@@ -335,7 +336,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               const INITIALS: Record<string, string> = { LF: "Larisa", KR: "Ken", AB: "Andy", JD: "Julie" };
                               const who = a.owner === "Both" ? (a.sheetRowRef ? ["Andy", "Larisa"] : null) : a.owner.split(/\s*[/&,]\s*/).map((o) => INITIALS[o] || o);
                               if (!who) return "For everyone";
-                              const named = who.map((n) => (me && n.toLowerCase() === me.toLowerCase() ? "you" : n));
+                              const named = who.map((n) => (samePerson(n, me) ? "you" : n));
                               const ordered = named.includes("you") && named.length > 1 ? ["you", ...named.filter((n) => n !== "you")] : named;
                               return `For ${ordered.join(" & ")}`;
                             })()}

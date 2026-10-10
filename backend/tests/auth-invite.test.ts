@@ -453,4 +453,15 @@ describe("Traveler Preferences", () => {
     expect(res.status).toBe(200);
     expect(res.body.preferences.dietary).toBe("vegetarian");
   });
+
+  // Oct 10: a save that sent one setting replaced them all (the unused welcome screen sent only interests)
+  it("saving one setting keeps the others", async () => {
+    if (!travelerId) return;
+    const res = await request(app)
+      .patch(`/api/auth/travelers/${travelerId}`)
+      .set("Authorization", `Bearer ${plannerToken}`)
+      .send({ preferences: { interests: ["onsen"] } });
+    expect(res.status).toBe(200);
+    expect(res.body.preferences).toMatchObject({ interests: ["onsen"], dietary: "vegetarian", travelStyle: "early bird" });
+  });
 });
