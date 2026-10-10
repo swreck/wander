@@ -25,7 +25,7 @@ import {
   nightOf, isFor, isLanding, deadlineOnDate, deadlineOver, deadlineTimeWords, deadlineWhen,
   leaveForAirport, isPlanningNote, isFragment, partyOf, myNight, leavingOn, stayMapsQuery,
   checkoutBeforeFirst, leaveBeforeCheckout, checkinAfterLanding, leadItem, withCheckoutWho, minutesToClock, lateLeaveWords,
-  ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, planLineEndSaid, saidAgain, sameThing, currentUnownedLine, mealUnderWay, outvoted, namesMe, linksIn, besideHotel, voiceFor, tabLabel,
+  ownerlessInSplit, tabsDiffer, linkLabel, currentPlanLine, planLineEnd, planLineEndSaid, saidAgain, sameThing, currentUnownedLine, mealUnderWay, outvoted, namesMe, notLandedYet as beforeMyLanding, linksIn, besideHotel, voiceFor, tabLabel,
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
@@ -529,6 +529,7 @@ import PhraseCard from "../components/PhraseCard";
 import EveningQuestion from "../components/EveningQuestion";
 import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
 import { CityTitle, warmCityPhoto, photoWanted } from "../components/CityArrival";
+import DayForecast from "../components/DayForecast";
 import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
 import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwner";
@@ -889,11 +890,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     const id = location.hash.startsWith("#item-") ? location.hash.slice(6) : null;
     if (!id || scrolledFor.current === `${date}:${id}`) return;
     scrolledFor.current = `${date}:${id}`;
-    requestAnimationFrame(() => {
-      document.getElementById(`item-${id}`)?.scrollIntoView({ block: "center" });
-      setHighlight(id);
-      setTimeout(() => setHighlight(null), 2500);
-    });
+    // (opened first, then brought into view — scrolled first, the card opened under the reader and the day below it
+    // moved; verify 6)
+    setHighlight(id);
+    setTimeout(() => setHighlight(null), 2500);
+    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`item-${id}`)?.scrollIntoView({ block: "center" })));
   }, [state, location.hash, date, otherSources]);
 
   async function addChoice() {
@@ -1141,42 +1142,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const myTonight = myNight(night, me);
   // "The hotel" in her plan: tonight's one stay for you, or unknown
   const tonightHotel = myTonight.stays.length === 1 ? stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)) : null;
-  // Her forecast for the stay, one quiet line in the city band (day review, Oct 4: "weather — one quiet line"). A small
-  // picture from her words only (charm item C5): rain she expects → a cloud with rain; rain 0 → a plain sun; nothing said
-  // about rain → sun and a cloud.
-  const weather = forecast ? (() => {
-    const t = forecast.title;
-    const dry = /\brain\s*0(\.0+)?\s*(in|mm)?\s*(,|$)/i.test(t);
-    const rainy = /\brain\b/i.test(t) && !dry;
-    return (
-      <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-px" aria-hidden>
-          {rainy ? (
-            <>
-              <path d="M7 15a4 4 0 0 1 .4-8A5 5 0 0 1 17 8a3.5 3.5 0 0 1 0 7H7z" stroke="#7a8aa0" fill="#e8eef5" />
-              <path d="M9 18l-1 2M13 18l-1 2M17 18l-1 2" stroke="#7a8aa0" />
-            </>
-          ) : dry ? (
-            <>
-              <circle cx="12" cy="12" r="4.5" stroke="#c9a14a" fill="#f6e7bf" />
-              <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" stroke="#c9a14a" />
-            </>
-          ) : (
-            <>
-              <circle cx="9" cy="9" r="3.5" stroke="#c9a14a" fill="#f6e7bf" />
-              <path d="M9 2.5v1.5M9 14v1.5M2.5 9H4M14 9h1.5M4.4 4.4l1 1M12.6 12.6l1 1M4.4 13.6l1-1M12.6 5.4l1-1" stroke="#c9a14a" />
-              <path d="M11 19a3.5 3.5 0 0 1 .3-7 4.5 4.5 0 0 1 8.4 1.6A3 3 0 0 1 19.5 19H11z" stroke="#9aa3ad" fill="#f4f6f8" />
-            </>
-          )}
-        </svg>
-        {/* her words, without the column names doubling them ("lows low 60s" → "low 60s"; tester t1); a range never
-            breaks across lines ("72-" / "76" — tester k1) */}
-        <span>{t.replace(/^Larisa's forecast:\s*/, `${v.Her} forecast: `)
-          .replace(/\blows (low\b)/i, "$1").replace(/\bhighs (high\b)/i, "$1").replace(/\brain ((?:little|light|some|no|heavy) rain\b)/i, "$1")
-          .replace(/\brain\s*0(\.0+)?\s*(in|mm)?\s*(?=,|$)/i, "no rain").replace(/(\d)-(\.?\d)/g, "$1‑$2")}</span>
-      </p>
-    );
-  })() : null;
+  // The day's weather in the city band: the live forecast for where you are (components/DayForecast — Ken, Oct 10: "It
+  // should be your best internet forecast available at run time"); her pre-trip line only when there's none
+  const forecastCity = trip?.cities.find((c) => c.name === cityName) || null;
+  const weather = (forecastCity?.latitude != null || forecast) ? (
+    <DayForecast lat={forecastCity?.latitude} lon={forecastCity?.longitude} date={date} zone={tripZone} place={cityName}
+      herLine={forecast?.title || null} her={v.Her} />
+  ) : null;
   // Each booking said once, under her line for it (day review, Oct 4: Oct 29's flight three times, Oct 15's Yazawa and
   // Oct 25's Shiraume three times — her line, then the booking again under "Also in her Guide"): a booking at the same
   // time naming the same thing (saidAgain), and a check-out beside her line that says "check out" at that hotel
@@ -1434,9 +1406,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // (…and on your landing day, not before you land — verify 4: Julie's "Arriving in Tokyo" played at 2 PM
                   // for her 3 PM landing)
                   const landsAt = dayItems.filter((i) => isLanding(i) && !!i.time && isFor(i, me) && (!i.timeZone || i.timeZone === tripZone)).map((i) => toMin(i.time!))[0] ?? null;
+                  // (…and never before you've landed in Japan, whichever day is opened — verify 6: in the air with the
+                  // phone on Japan time, tapping Tokyo on the map opened Oct 13 and used up the photo before landing)
                   const notThereYet = isToday && cityDates[0] <= today && ((landsAt !== null && tripNow < landsAt)
                     || (cityDates[0] === today && (arriveBy !== null ? tripNow < arriveBy : leaving.length > 0 && !arrivedForTonight(dayItems, me, tripNow, null))));
-                  return <CityTitle cityId={cityId} cityName={cityName} dateWords={longDate(date)} photo={away && !!cityId} auto={away && date <= today && inCityNow && !notThereYet} />;
+                  return <CityTitle cityId={cityId} cityName={cityName} dateWords={longDate(date)} photo={away && !!cityId} auto={away && date <= today && inCityNow && !notThereYet && !beforeMyLanding(items, me, tripZone)} />;
                 })()}
                 {(planBlocks.length > 0 || dayItems.length > 0) && (
                   <div className="shrink-0 -mb-2">
@@ -1529,7 +1503,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               // On Now, the landing is past news four hours later (delight audit: it led Now all evening) — not sooner:
               // immigration, bags and the bus or train from Narita take hours, and at 90 minutes the way to the hotel went
               // while Julie was still on her way (round 15)
-              if (now && due && tripNow > toMin(land.time!) + 240) return null;
+              // (three hours: at 6:30 PM it still filled Julie's first screen and her 7 PM dinner was below it; verify 6)
+              if (now && due && tripNow > toMin(land.time!) + 180) return null;
               // Only when the day has someone else's lines (round r1: Ken & Larisa's Oct 6 said "the others' plan" with
               // no one else in Japan)
               const others = dayItems.some((i) => i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me));
@@ -2334,6 +2309,9 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   // A short line opened in place (day design, Oct 8); the line that's now opens by itself, and stays open once opened
   const [open, setOpen] = useState(autoOpen);
   useEffect(() => { if (autoOpen) setOpen(true); }, [autoOpen]);
+  // …and the line you tapped on Home stays open after its brief mark fades (verify 6: it closed by itself 2.5 s later and
+  // the day jumped 158 pt under the reader)
+  useEffect(() => { if (highlight) setOpen(true); }, [highlight]);
   // (on a Japan date you're still at home, a line naming no one isn't yours either — journeys check, Oct 10: Ken & Larisa's
   // 8 PM Tapas dinner stood at full strength on Julie's Oct 13, like her own flight)
   const named = !!i.forWhom && !/^everyone$/i.test(i.forWhom);
