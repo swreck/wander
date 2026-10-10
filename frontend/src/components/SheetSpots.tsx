@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor, tabLabel } from "../lib/guideDisplay";
-import { sheetLinks, spotHref, type SheetLinks } from "../lib/sheetLinks";
+import { sheetLinks, savedSheetLinks, spotHref, type SheetLinks } from "../lib/sheetLinks";
 
 /**
  * `label`: the line's own source words ("From your Guide — the Dining Resos tab") become the link to the spot, with its
@@ -24,7 +24,8 @@ export default function SheetSpots({ tripId, spots, label, className = "", whole
   /** the tab and cell are already said just above (a find): not again after "Open your sheet ↗" */
   placeSaid?: boolean;
 }) {
-  const [links, setLinks] = useState<SheetLinks | null>(null);
+  // (this phone's copy at once — the line is a link in its first drawing; re-audit 2)
+  const [links, setLinks] = useState<SheetLinks | null>(() => (tripId ? savedSheetLinks(tripId) : null));
   const v = voiceFor(useAuth().user?.displayName);
   useEffect(() => {
     if (!tripId) return;

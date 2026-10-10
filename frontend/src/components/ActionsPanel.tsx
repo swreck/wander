@@ -198,6 +198,14 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   async function mark(key: string, label: string, done: boolean): Promise<boolean> {
     try {
       await setMark(tripId, key, label, done);
+      // (on screen the moment it's saved, with the message — re-audit 2: on a slow phone the message came 0.8 s before the
+      // line changed, while the list was asked for again)
+      setMarks((cur) => {
+        const next = new Map(cur);
+        if (done) next.set(key, { key, label, byName: me || "You", at: new Date().toISOString() });
+        else next.delete(key);
+        return next;
+      });
       return true;
     } catch {
       showToast(navigator.onLine ? "That tick didn't stick — try again?" : "No signal — that tick didn't save. Try again when you're back online.", "error");
@@ -241,6 +249,15 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
     a.owner === "Both" ? (a.sheetRowRef ? ["Andy", "Larisa"] : null) : a.owner.split(/\s*[/&,]\s*/).map((o) => INITIALS[o] || o);
   // (her lists name first names — "Andy" is "Andy B": Oct 10, his own to-dos didn't count as his)
   const isMine = (a: PlanningAction) => { const w = whoFor(a); return !w || w.some((n) => samePerson(n, me)); };
+  // Which of her lists a to-do came from, in people's names and from where you stand: "In her “AB / JD Actions” list" →
+  // "In her list for Andy & Julie"; to Larisa, "your" (journeys check, Oct 10: initials a first-timer can't read, and
+  // Larisa's own screen called her list "her" list). Initials no one has stay as written.
+  const listWords = (notes: string) => notes.replace(/^In her “([^”]+)” list$/, (_, words: string) => {
+    const who = words.replace(/\s*actions?\s*$/i, "").split(/\s*[/&,]\s*/).map((o) => INITIALS[o.trim()] || o.trim());
+    const known = who.every((n) => Object.values(INITIALS).includes(n));
+    const her = voiceFor(me).mine ? "your" : "her";
+    return known ? `In ${her} list for ${who.join(" & ")}` : `In ${her} “${words}” list`;
+  });
   // Done: in her sheet (its column says so), ticked in Wander, or marked done in Wander (her to-dos, Oct 9)
   const markOf = (a: PlanningAction) => (a.sheetRowRef ? marks.get(todoKey(a)) : undefined);
   const isDone = (a: PlanningAction) => a.status === "done" || !!markOf(a);
@@ -340,7 +357,8 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
         {asksSomething(i) && canTickDeadline(i) && (
           <div className="px-3.5 pb-1.5">
             <button onClick={async () => { if (await mark(deadlineKey(i), i.title, true)) ticked(i.title, () => { mark(deadlineKey(i), i.title, false); }); }}
-              className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Done ✓</button>
+              // (says what it does — "Done ✓" read as already done; re-audit 2)
+              className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Mark it done</button>
           </div>
         )}
       </li>
@@ -471,7 +489,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                             className={`text-sm text-[#6b5d4a] mt-2 leading-relaxed bg-[#faf8f5] rounded-lg px-3 py-2 ${a.sheetRowRef ? "" : "cursor-text"}`}
                             onClick={() => { if (!a.sheetRowRef) { setEditingId(a.id); setEditNotes(a.notes || ""); } }}
                           >
-                            {a.notes}
+                            {listWords(a.notes)}
                           </p>
                         ) : a.sheetRowRef ? null : (
                           <button
@@ -776,7 +794,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       {!a.sheetRowRef && <span className="text-xs text-[#6b5d4a]">{whoAdded(a)}</span>}
                       {canTakeOut(a) && <span className="ml-auto text-xs">{takeOut(a)}</span>}
                     </div>
-                    {a.notes && <p className="text-[13px] text-[#6b5d4a] ml-7 mt-0.5">{a.notes}</p>}
+                    {a.notes && <p className="text-[13px] text-[#6b5d4a] ml-7 mt-0.5">{listWords(a.notes)}</p>}
                   </div>
                 ))}
               </div>

@@ -49,6 +49,13 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
   const [message, setMessage] = useState("");
   const [justFinished, setJustFinished] = useState(false);
   const [failures, setFailures] = useState(0);
+  // ("Face ID is ready" says so for a moment, then the card goes — it floats over Home)
+  const [doneShown, setDoneShown] = useState(true);
+  useEffect(() => {
+    if (!justFinished) return;
+    const t = setTimeout(() => setDoneShown(false), 4000);
+    return () => clearTimeout(t);
+  }, [justFinished]);
 
   useEffect(() => {
     deviceSupportsPasskeys().then(setSupported);
@@ -110,8 +117,14 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
   if (variant === "card") {
     if (supported !== true || dismissed || !myTurn) return null;
     if (readyHere && !justFinished) return null;
+    if (justFinished && !doneShown) return null;
+    // Just above the tab bar, over Home rather than in it: it's decided a moment after Home draws (whether this phone has
+    // Face ID), and arriving at the top it pushed Andy's flight card down 170 pt (journeys check, Oct 10). One ask per
+    // visit keeps it from ever sharing the place with the welcome.
     return (
-      <div className="mb-4 p-4 bg-white rounded-xl border border-[#e0d8cc]" role="region" aria-label="Face ID sign-in">
+      <div role="dialog" aria-label="Face ID sign-in" className="fixed inset-x-0 z-40 mx-auto max-w-md px-4 animate-[slideUp_0.3s_ease-out]"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 68px)" }}>
+      <div className="p-4 bg-white rounded-xl border border-[#e0d8cc] shadow-lg">
         {justFinished ? (
           <p className="text-sm text-[#3a3128]">Face ID is ready. From now on, just look at your phone.</p>
         ) : (
@@ -137,6 +150,7 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
             {message && <p className="text-sm text-[#6b5d4a] mt-2">{message}</p>}
           </>
         )}
+      </div>
       </div>
     );
   }

@@ -252,6 +252,12 @@ export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZon
       away.push({ who, text: `On the plane — ${landingWords(land)} ${ZONE_WORDS[tripZone] || "local time"} (${yours} your time)` });
       continue;
     }
+    // On a day screen, a phone on the flight's own clock already has the take-off on the flight's line: tonight is the
+    // plane and the landing (re-audit 2: Julie's Oct 13 said "12:00 PM California time" and "Take off Wed 4:00 AM Japan time")
+    if (!phoneClock && !!f.timeZone && f.timeZone !== tripZone && phoneZone() === f.timeZone) {
+      away.push({ who, text: `On the plane overnight — ${landingWords(land)}${land.time ? ` ${ZONE_WORDS[tripZone] || "local time"}` : ""}` });
+      continue;
+    }
     // (after that time, by the schedule — round 11: still "Take off …" below a card saying "Take-off was due …")
     const takeOff = f.time && f.timeZone && f.timeZone !== tripZone
       ? `${Date.now() >= zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).getTime() ? "Take-off was due" : "Take off"} ${zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" })} ${ZONE_WORDS[tripZone] || "local time"}`
@@ -406,6 +412,9 @@ export function landingTitle(i: GuideItem, me: string | null | undefined, title:
  * page, "12:00 PM California time" sat among the day's Japan times as if it were noon there). */
 export function departureInTripZone(i: GuideItem, tripZone: string): string | null {
   if (i.kind !== "flight" || isLanding(i) || !i.date || !i.time || !i.timeZone || i.timeZone === tripZone) return null;
+  // (not on a phone already on the flight's own clock — there it's the same take-off said twice; re-audit 2: Julie's
+  // Oct 13 read "12:00 PM California time" and "Take-off was due Wed, Oct 14, 4:00 AM Japan time")
+  try { if (Intl.DateTimeFormat().resolvedOptions().timeZone === i.timeZone) return null; } catch { /* say it */ }
   const departs = zonedMoment(ymd(i.date), mins(i.time) ?? 0, i.timeZone);
   // Its own words, with the date (round 9: "That's Wed 4:00 AM" under "Lands at … 3:00 PM" read as the landing);
   // after that time, by the schedule (round 11: still "Takes off" hours after)
@@ -683,11 +692,14 @@ export function bookedWords(i: GuideItem, me: string | null | undefined): string
 }
 
 /** A question her Guide asks of the person looking ("1 day to Mashiko-Julie interested?", "X, if Julie isn't interested") */
-export function askedOf(i: GuideItem, me: string | null | undefined, today?: string): boolean {
+export function askedOf(i: GuideItem, me: string | null | undefined, today?: string, items?: GuideItem[], tripZone = "Asia/Tokyo"): boolean {
   if (!me) return false;
   // Only while it's still ahead — on or after its day the question is moot (delight audit: "1 day to Shigaraki - Julie
   // interested?" 30 minutes before the van left)
   if (today && i.date && ymd(i.date) <= today) return false;
+  // …and only on a day they can be there: never on a Japan date they're still at home (Ken, Oct 10: "is Julie even in
+  // Japan when the event happens?" — Mashiko on Oct 13 "X, if Julie isn't interested", while she flies that day)
+  if (items && i.date && homeOnJapanDate(items, me, ymd(i.date), tripZone)) return false;
   // Not on a line for someone else, and never from Wander's own notes quoting her (round 12: Ken & Larisa's Mashiko card
   // said "A question for you" to Julie because its "Still open in the Guide: … if Julie isn't interested" quoted her)
   if (i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me)) return false;
@@ -723,6 +735,18 @@ export function askedLine(i: GuideItem, me: string | null | undefined): string |
   const asks = new RegExp(`\\b${who}\\b[^.\\n]{0,20}\\binterested\\?|\\bif ${who} (isn't|is not|wants?)\\b`, "i");
   const line = `${i.title}\n${own}`.split("\n").find((l) => asks.test(l));
   return line ? line.trim().replace(/^[-•·]\s*/, "").slice(0, 160) : null;
+}
+
+/** A line in her own voice ("AI estimates our arrival … and your arrival") shown to someone else is quoted and said to be
+ *  hers — read bare, "our arrival" was Andy's (journeys check, Oct 10). To her, or a line already saying whose, as it is. */
+export function inHerVoice(line: string, me: string | null | undefined, owner: string | null | undefined): string {
+  return speaksAsHer(line, me, owner) ? `${owner || "Larisa"}'s note: “${line.trim()}”` : line;
+}
+/** Her line speaks in her own voice ("our", "your", "we") and the person looking isn't her */
+export function speaksAsHer(line: string, me: string | null | undefined, owner: string | null | undefined): boolean {
+  if (me && samePerson(owner || "Larisa", me)) return false;
+  if (!/\b(our|we|we're|we'll|us|your|you|you're|you'll)\b/i.test(line)) return false;
+  return !/^(Larisa|her|Ken|Andy|Julie|Still open|Tabs differ|For |“)/i.test(line.trim());
 }
 
 /** That question in parts, for saying it plainly (Oct 10 re-audit): what she asks about (the line's own name, without

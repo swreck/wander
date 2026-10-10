@@ -45,7 +45,9 @@ const cellsOf = (line: string) => line.trim().replace(/^\|/, "").replace(/\|$/, 
 function renderMarkdown(text: string): ReactNode {
   // A bold heading at a line's start that runs straight into its text ("**In your carry-on**Larisa's…" — the break is
   // lost where cited pieces join) gets its own line (Ken's demo, Oct 1)
-  const lines = text.replace(/(^|\n)(\*\*[^*\n]+\*\*)(?=[^\s:.,;—-])/g, "$1$2\n").split("\n");
+  // (a link written as "[JR Central](https://…)" is its name — the address showed as code in the answer; journeys check,
+  // Oct 10. Where it came from is under Sources, as read-aloud says it)
+  const lines = text.replace(/\[([^\]\n]+)\]\((https?:[^)\s]+)\)/g, "$1").replace(/(^|\n)(\*\*[^*\n]+\*\*)(?=[^\s:.,;—-])/g, "$1$2\n").split("\n");
   const out: ReactNode[] = [];
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];

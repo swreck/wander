@@ -21,18 +21,18 @@ import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData"
 import { guideOwnerOf } from "../lib/tellGuideOwner";
 import { ownFirstDay } from "../lib/leavingSoon";
 import { savedCopy } from "../lib/tripNotes";
-import { sourcesData, railAudience, legIsFor, isBookedTrain, colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, herTab, withTwelveHour, railNoteFor, type OtherSource, type Checklist, type RailRow } from "../lib/sources";
+import { sourcesData, savedSources, railAudience, legIsFor, isBookedTrain, colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, herTab, withTwelveHour, railNoteFor, type OtherSource, type Checklist, type RailRow } from "../lib/sources";
 import { checklistTitle, DifferLine, TicketWarnings } from "./RailSheet";
 import { warmCityPhoto } from "./CityArrival";
 import { tripCountryOf } from "../lib/cityColors";
-import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
+import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMarks";
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
   freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEndSaid, currentUnownedLine,
   withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords, landingStatus, checkinAfterLanding, zoneWords, landingTitle, bookedByName, bookedWords, askedOf, nowMinutesOn, phoneIsElsewhere, tripClockMinutes, homeOnJapanDate, partiesOf, zonedMoment, scheduledLanding, openQuestionsOn, besideHotel, voiceFor, noGroupWords, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, sameThing, differWordsFor,
-  samePerson, travelerToday, deadlineIsMine, startsSomething,
+  samePerson, travelerToday, deadlineIsMine, startsSomething, speaksAsHer,
 } from "../lib/guideDisplay";
 
 interface DayChoice { id: string; date: string; time: string | null; text: string; addedBy: string; fromGuideIdea?: boolean }
@@ -148,8 +148,8 @@ function ItemLine({ i, me, stays, date, day, onOpen, picks, all, tz, railSaysIt,
         {other && <span className="block text-xs text-[#6b5d4a] mt-0.5">For {other}</span>}
         {!other && splitDay && i.forWhom && !/^everyone$/i.test(i.forWhom) && <span className="block text-xs text-[#514636] mt-0.5">Yours · {i.forWhom}</span>}
         {noGroup && <span className="block text-xs text-[#6b5d4a] mt-0.5">{noGroupWords(i, v)}</span>}
-        {askedOf(i, me, phoneToday()) && <span className="block text-xs text-[#8a5a1a] mt-0.5">A question for you in Larisa's Guide — tap to tell her your answer.</span>}
-        {askedOf(i, me, phoneToday()) && sources?.length && /\?/.test(i.title) ? (() => { const n = railNoteFor(i.title, sources, me); return n ? <span className="block text-xs text-[#514636] mt-0.5">{n}</span> : null; })() : null}
+        {askedOf(i, me, phoneToday(), all, tz) && <span className="block text-xs text-[#8a5a1a] mt-0.5">A question for you in Larisa's Guide — tap to tell her your answer.</span>}
+        {askedOf(i, me, phoneToday(), all, tz) && sources?.length && /\?/.test(i.title) ? (() => { const n = railNoteFor(i.title, sources, me); return n ? <span className="block text-xs text-[#514636] mt-0.5">{n}</span> : null; })() : null}
         {/* A meal her Guide says isn't booked says so here too (round 12: "Ippudo Ramen" alone read as a booking) */}
         {i.kind === "meal" && /no reservation/i.test(i.detail || "") && <span className="block text-xs text-[#6b5d4a] mt-0.5">No reservation</span>}
         {/* Two places booked for one time: say so here too, never pick one */}
@@ -174,7 +174,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const [phoneDay, setToday] = useState(phoneToday());
   const [, setNow] = useState(nowMinutes());
   // Other sources (Ken's rail sheet): the ticket pickup and today's trains
-  const [otherSources, setOtherSources] = useState<OtherSource[]>([]);
+  // (this phone's copy at once; on a first open Home waits a moment for it with her Guide — journeys check, Oct 10:
+  // Larisa's Home drew, then the rail sheet's lines arrived and pushed her day down 125 pt)
+  const [otherSources, setOtherSources] = useState<OtherSource[]>(() => savedSources(tripId) || []);
   useEffect(() => {
     let cancelled = false;
     sourcesData(tripId).then((d) => { if (!cancelled) setOtherSources(d.sources); }).catch(() => { /* Home still shows her Guide */ });
@@ -192,7 +194,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, phoneDay]);
   // Her other tabs' text — so "her Guide doesn't say" is only said when none of her tabs does
-  const [notesByTab, setNotesByTab] = useState<NotesByTab>({});
+  // (this phone's copy at once, and never "her Guide doesn't say" before her tabs are known — journeys check, Oct 10: on
+  // landing Julie first read "Getting from Narita to Imperial Hotel: her Guide doesn't say", then her notes replaced it)
+  const [notesByTab, setNotesByTab] = useState<NotesByTab | null>(() => savedSheetNotes(tripId) ?? null);
   useEffect(() => {
     let cancelled = false;
     sheetNotes(tripId).then((n) => { if (!cancelled) setNotesByTab(n); });
@@ -202,8 +206,16 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    const railKnown = savedSources(tripId) !== undefined;
+    const rail = sourcesData(tripId).then((s) => s.sources).catch(() => null);
     guideData(tripId)
-      .then((d) => { if (!cancelled) setData(d); })
+      .then(async (d) => {
+        // (a first open: the rail sheet drawn with her Guide, not a moment after — at most 3 s more)
+        const s = railKnown ? null : await Promise.race([rail, new Promise<null>((r) => setTimeout(() => r(null), 3000))]);
+        if (cancelled) return;
+        if (s) setOtherSources(s);
+        setData(d);
+      })
       .catch(() => { /* Home still shows the calendar */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -212,8 +224,11 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   // Same-day plans people added in Wander, for today and tomorrow
   useEffect(() => {
     let cancelled = false;
+    // (this phone's copy at once — plans added in Wander arrived after Home drew and moved it)
+    const key = `wander:day-choices-all:${tripId}`;
+    try { const kept = localStorage.getItem(key); if (kept) setChoices(JSON.parse(kept)); } catch { /* unreadable */ }
     const load = () => api.get<DayChoice[]>(`/day-choices/${tripId}`)
-      .then((c) => { if (!cancelled) setChoices(c); })
+      .then((c) => { try { localStorage.setItem(key, JSON.stringify(c)); } catch { /* full */ } if (!cancelled) setChoices(c); })
       .catch(() => { /* not essential */ });
     load();
     window.addEventListener("wander:data-changed", load);
@@ -398,11 +413,13 @@ export default function TripGlance({ tripId }: { tripId: string }) {
               <button onClick={() => openDay(ymd(i.date), i.id)} className="w-full text-left py-1.5 min-h-[44px]">
                 <span className={`block text-sm ${passed ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>
                   {/* Under "Just passed" the heading says it once (round 9: "JUST PASSED / Passed · …") */}
-                  {passed && title === "Just passed" ? null : <><span className="text-[#8a5a1a]">{passed ? "Passed" : deadlineWhen(i, today)}</span> · </>}{i.title}
+                  {passed && title !== "Deadlines coming up" && title !== "Deadlines in the next few days" ? null : <><span className="text-[#8a5a1a]">{passed ? "Passed" : deadlineWhen(i, today)}</span> · </>}{i.title}
                 </span>
                 {/* Whose booking it is, when no one's name is on the line (round 9: Julie asked "do I have to call a
-                    restaurant in Tokyo?" about Larisa's Robuchon booking) */}
-                {(who || time || bookedBy(i)) && <span className="block text-xs text-[#6b5d4a] mt-0.5">{[who || bookedWords(i, me), time].filter(Boolean).join(" · ")}</span>}
+                    restaurant in Tokyo?" about Larisa's Robuchon booking) — for charges that have started, whose name
+                    it's booked under, not anyone's to-do (re-audit 2) */}
+                {(who || time || bookedBy(i)) && <span className="block text-xs text-[#6b5d4a] mt-0.5">{[passed && startsSomething(i) ? bookedWords(i, me) : who || bookedWords(i, me), passed && startsSomething(i) ? null : time].filter(Boolean).join(" · ")}</span>}
+                {passed && startsSomething(i) && <span className="block text-xs text-[#6b5d4a] mt-0.5">These charges apply now — nothing to do; it stays booked.</span>}
                 {!passed && isFreeCancel(i) && <span className="block text-xs text-[#6b5d4a] mt-0.5">{FREE_CANCEL_WORDS}</span>}
                 {passed && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title) && (
                   <span className="block text-xs text-[#6b5d4a] mt-0.5">{cantTell}</span>
@@ -482,7 +499,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
             ? (n === 1 ? "You leave tomorrow" : `You leave in ${n} days`)
             : (n === 1 ? "The trip starts tomorrow" : `The trip starts in ${n} days`)}
         </h2>
-        <button onClick={() => openDay(myFirst)} className="w-full text-left mt-1">
+        {/* (to the day at your own first line — your flight — not its top, where the others' plans come first; journeys
+            check, Oct 10: Julie's flight was the seventh card, below the fold) */}
+        <button onClick={() => openDay(myFirst, firstItems[0]?.id)} className="w-full text-left mt-1">
           <p className="text-base text-[#3a3128]">{dayLabel(myFirst)}</p>
           {firstItems.length > 0 && <ul className="mt-1">{firstItems.slice(0, 2).map((i) => <ItemLine key={i.id} i={i} me={me} stays={data.stays} date={myFirst} all={data.items} tz={tz} />)}</ul>}
           <span className="inline-flex items-center min-h-[44px] text-sm text-[#514636]">See the day ›</span>
@@ -500,7 +519,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         {pickups.length > 0 && <div className="mt-2 pt-2 border-t border-[#efe9df]">{pickups.map((p) => pickupLink(p, `${dayLabel(p.c.date)} · `))}</div>}
         {/* A passed one goes under its own heading, as during the trip (round 8: "Ended" sat under "coming up") */}
         <DeadlineList list={deadlinesAhead(today, 14).filter((i) => !deadlineOver(i, tz))} title="Deadlines coming up" />
-        <DeadlineList list={deadlinesAhead(today, 14).filter((i) => deadlineOver(i, tz))} title="Just passed" />
+        {/* (charges that have started aren't "passed" — they're in effect; re-audit 2: Larisa's Home said "Just passed") */}
+        <DeadlineList list={deadlinesAhead(today, 14).filter((i) => deadlineOver(i, tz) && !startsSomething(i))} title="Just passed" />
+        <DeadlineList list={deadlinesAhead(today, 14).filter((i) => deadlineOver(i, tz) && startsSomething(i))} title="Now in effect" />
         {freshLine}
       </section>
     );
@@ -692,7 +713,12 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   // Her detailed plan's first line for you, when it comes before the Itinerary's (round 13: at 9 AM on Oct 27 Andy read
   // "Tomorrow · 8:00 PM · her Guide lists two places" — Oct 28 starts with the 8:00 AM private van)
   const tomorrowPlanFirst = planOn(tomorrow).timed.filter((b) => isFor(b, me) || !b.forWhom).sort((a, b) => a.time!.localeCompare(b.time!))[0];
-  const planLeadsTomorrow = !!tomorrowPlanFirst && (!tomorrowLead?.time || tomorrowPlanFirst.time! < tomorrowLead.time);
+  // …and your first booked train when it comes before both (journeys check, Oct 10: Ken's Home the evening before said
+  // "Tomorrow · Check out · Miyako Hotel Hakata" with the 10:36 NOZOMI unmentioned)
+  const tomorrowTrains = tomorrow <= last ? trainsOn(tomorrow).sort((a, b) => colOf(a.r.cols, /^depart/).padStart(5, "0").localeCompare(colOf(b.r.cols, /^depart/).padStart(5, "0"))) : [];
+  const firstTrainAt = tomorrowTrains[0] ? colOf(tomorrowTrains[0].r.cols, /^depart/).padStart(5, "0") : null;
+  const trainLeadsTomorrow = !!firstTrainAt && (!tomorrowLead?.time || firstTrainAt < tomorrowLead.time) && (!tomorrowPlanFirst?.time || firstTrainAt < tomorrowPlanFirst.time);
+  const planLeadsTomorrow = !trainLeadsTomorrow && !!tomorrowPlanFirst && (!tomorrowLead?.time || tomorrowPlanFirst.time! < tomorrowLead.time);
   const tomorrowLeave = tomorrowFlight && !planOn(tomorrow).all.some((b) => /haruka|airport|\bKIX\b|transfer/i.test(b.title)) ? leaveForAirport(tomorrowFlight, cityOn(tomorrow) || cityOn(today)) : null;
   // (not one marked done in Wander — Oct 9; only yours — Oct 10 re-audit: Larisa's Robuchon reminder sat in Julie's and
   // Andy's Today card on their flight day, as on their day screens before)
@@ -729,7 +755,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           const airport = landedToday.title.replace(/^Land at /i, "").split(" · ")[0].replace(/\s*\([A-Z]{3}\)$/, "");
           const online = typeof navigator === "undefined" || navigator.onLine !== false;
           // Her own hotel notes, quoted with their tab — never "doesn't say" when a tab does (delight audit)
-          const ways = airportWaysTo(notesByTab, hotel.name);
+          const ways = notesByTab ? airportWaysTo(notesByTab, hotel.name) : [];
           return (
             <div className="mt-2 rounded-lg bg-[#f6f1e8] px-3 py-2">
               {ways.length
@@ -737,7 +763,10 @@ export default function TripGlance({ tripId }: { tripId: string }) {
                     <p className="text-sm text-[#3a3128]">Getting from {airport} to {hotel.name} — {v.her} hotel notes say:</p>
                     {ways.map((w) => <p key={w.text} className="text-sm text-[#514636] mt-0.5">“{w.text}” <span className="text-xs text-[#6b5d4a]">({v.her} “{w.tab}” tab)</span></p>)}
                   </>
-                : <p className="text-sm text-[#3a3128]">Getting from {airport} to {hotel.name}: {v.her} Guide doesn't say.</p>}
+                : notesByTab
+                ? <p className="text-sm text-[#3a3128]">Getting from {airport} to {hotel.name}: {v.her} Guide doesn't say.</p>
+                // (her tabs not known yet on this phone: nothing claimed either way)
+                : <p className="text-sm text-[#3a3128]">Getting from {airport} to {hotel.name}:</p>}
               <div className="flex flex-wrap gap-x-5">
                 {online
                   ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${airport} to ${hotel.name}?` } }))}
@@ -771,7 +800,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           // (a cell of her Itinerary row, quoted — "Her note" made a room type read as advice; round 12)
           // (and whose it is, when it's someone else's — round 13: Andy's Oct 14 read "Day trip from Tokyo to Mashiko"
           // with nothing saying it was Ken & Larisa's)
-          <p key={i.id} className="text-[13px] text-[#514636] mt-1">In {v.her} Itinerary for today: “{i.title}”
+          // (her own voice — "our arrival … your arrival" — names her; journeys check, Oct 10)
+          <p key={i.id} className="text-[13px] text-[#514636] mt-1">{speaksAsHer(i.title, me, owner) ? `${owner || "Larisa"}'s words in her Itinerary for today` : `In ${v.her} Itinerary for today`}: “{i.title}”
             {i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me) && <span className="text-[#6b5d4a]"> — {whose(i, me)}</span>}</p>
         ))}
         {/* Ken's rail sheet: today's pickup, then your trains still to come today, with seats */}
@@ -948,7 +978,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
                     <span className="block text-xs text-[#6b5d4a] mt-0.5 no-underline">
                       {/* Whose booking, when no one's name is on it (round 10: Andy, just landed, was told "Today is the
                           last day" to reconfirm Larisa's dinner) */}
-                      {[whose(i, me) || bookedWords(i, me), over ? (startsSomething(i) ? "These charges apply now" : `Ended ${time || "today"}`) : i.windowStart ? [deadlineWhen(i, today), time].filter(Boolean).join(", ") : time].filter(Boolean).join(" · ")}
+                      {/* (charges that have started: whose name it's booked under, never anyone's "to do" — re-audit 2) */}
+                      {[over && startsSomething(i) ? bookedWords(i, me) : whose(i, me) || bookedWords(i, me), over ? (startsSomething(i) ? "These charges apply now — nothing to do; it stays booked" : `Ended ${time || "today"}`) : i.windowStart ? [deadlineWhen(i, today), time].filter(Boolean).join(", ") : time].filter(Boolean).join(" · ")}
                       {over && /reconfirm|confirm|call|book|pay|send|submit|register/i.test(i.title) && `. ${cantTell}`}
                     </span>
                   </span>
@@ -985,6 +1016,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
             {tomorrowFlight
               // The night before a flight: the flight itself, and when to leave (Wander's estimate)
               ? `${clock(tomorrowFlight.time)}${zoneTag(tomorrowFlight)} · ${tomorrowFlight.title}${tomorrowLeave ? ` — leave about ${minutesToClock(tomorrowLeave.minutes)} (Wander's estimate)` : ""}`
+              : trainLeadsTomorrow
+              ? `${twelveHour(colOf(tomorrowTrains[0].r.cols, /^depart/))} · ${colOf(tomorrowTrains[0].r.cols, /^train$/)} · ${colOf(tomorrowTrains[0].r.cols, /^route$/)}`
               : planLeadsTomorrow
               ? `${timeLabel(tomorrowPlanFirst!, on(tomorrow))} · ${tomorrowPlanFirst!.title}`
               : tomorrowLead
@@ -1002,15 +1035,19 @@ export default function TripGlance({ tripId }: { tripId: string }) {
               same dinner from her other tab) */}
           {(() => {
             const n = tomorrowItems.filter((x, k) => !tomorrowItems.slice(0, k).some((y) => !!y.time && y.time === x.time && sameThing(x.title, y.title))).length;
-            // (a flight or her first plan line leads instead of an Itinerary line: none of the others is said yet)
-            const more = !tomorrowFlight && planLeadsTomorrow ? n : n - 1;
+            // (her plan's other timed stops and your trains count too — journeys check, Oct 10: "Tsukiji Outer Market and
+            // 2 more" for a day of six stops; a stop her Itinerary also lists counts once)
+            const planStops = planOn(tomorrow).timed.filter((b) => (isFor(b, me) || !b.forWhom) && !tomorrowItems.some((g) => saidAgain(b, g))).length;
+            // (a flight, a train or her first plan line leads instead of an Itinerary line: none of the others is said yet)
+            const more = n + planStops + tomorrowTrains.length - 1;
             return more > 0 ? <span className="text-xs text-[#6b5d4a]"> and {more} more</span> : null;
           })()}
         </button>
       )}
 
       <DeadlineList list={deadlinesAhead(tomorrow, 3).filter((i) => !deadlineOnDate(i, today) && !deadlineOver(i, tz))} title="Deadlines in the next few days" />
-      <DeadlineList list={deadlinesAhead(tomorrow, 3).filter((i) => !deadlineOnDate(i, today) && deadlineOver(i, tz))} title="Just passed" />
+      <DeadlineList list={deadlinesAhead(tomorrow, 3).filter((i) => !deadlineOnDate(i, today) && deadlineOver(i, tz) && !startsSomething(i))} title="Just passed" />
+      <DeadlineList list={deadlinesAhead(tomorrow, 3).filter((i) => !deadlineOnDate(i, today) && deadlineOver(i, tz) && startsSomething(i))} title="Now in effect" />
       {freshLine}
     </section>
   );
