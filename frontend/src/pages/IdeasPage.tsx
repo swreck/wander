@@ -16,7 +16,7 @@ import { queuedBodies, phonePerson } from "../lib/offlineStore";
 import { useAuth } from "../contexts/AuthContext";
 import type { Experience, Trip } from "../lib/types";
 import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
-import { mapsLink, voiceFor, linkLabel, partyOf, homeOnJapanDate } from "../lib/guideDisplay";
+import { mapsLink, voiceFor, linkLabel, partyOf, homeOnJapanDate, notLandedYet } from "../lib/guideDisplay";
 import { maybesChanged, type SeenRow } from "../lib/maybesNews";
 
 interface Note { id: string; experienceId: string; content: string; visibility?: string; traveler: { displayName: string }; createdAt: string; _pending?: boolean }
@@ -178,7 +178,9 @@ export default function IdeasPage() {
 
   // Which city: the one asked for, else where you are today, else the first
   const today = phoneToday();
-  const todayCityId = guide?.days.find((d) => ymd(d.date) === today)?.cityId || null;
+  // (not "today" for you before your plane lands — verify 6: "Tokyo · today" all of Oct 13 while Julie was at home)
+  const away = !!guide && notLandedYet(guide.items || [], user?.displayName, guide.trip.timeZone || "Asia/Tokyo");
+  const todayCityId = away ? null : guide?.days.find((d) => ymd(d.date) === today)?.cityId || null;
   // …else the next city on your way that has any (Sweep A: on Oct 10 Andy and Julie, still at home, opened "Maybes ·
   // Osaka" — the first city with ideas, not on their trip until the end; their first is Tokyo)
   const nextCityId = (() => {

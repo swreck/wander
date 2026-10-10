@@ -82,6 +82,19 @@ Ken's question, and three fresh testers walking the whole trip as Ken, Larisa, A
   A train's "Green" class says "Green Car (JR's first class)". On Home a free-cancellation date is "Last day … Nothing
   to do unless plans change", not a gold "Deadline". The whole-trip page says a flight's clock ("12:00 PM California
   time").
+- (follow-up, from a third fresh check) No arrival photo before you've landed, whichever day is opened (in the air with
+  the phone on Japan time, tapping Tokyo on the map opened Oct 13 and used up the photo). "Green" says "Green Car (JR's
+  first class)" on the Next tab's train card and every train row too. Before you land, Notes doesn't call Tokyo "where
+  you are" and Maybes doesn't call it "today". A line tapped on Home opens on its day and stays open (it closed by
+  itself after 2.5 s and the day jumped 158 pt), opened before it's brought into view, so nothing moves.
+- (Ken, Oct 10) The day's weather is the live forecast for where you are (Open-Meteo, °F, chance of rain, and when it
+  was fetched — with its day when that wasn't today), kept on the phone for no signal. Her sheet's pre-trip line shows
+  only when there's no live forecast, labelled "Her pre-trip estimate". (Next tab and day screens, the city band.)
+- Actions quotes her Actions tab's heading as written: "Her “LT actions” list" (it isn't a person's list).
+- Scout no longer has the train-status tool: it read an old, empty route list and told Scout "No train segments in your
+  itinerary". For delays Scout looks up the railway's own status page and says it found it online.
+- On landing day, "Getting from Narita to the hotel" leaves Next three hours after landing (was four).
+- SPEC sections: Day screen (weather), Actions, Scout tools. SPEC UPDATE NEEDED.
 - SPEC sections: Next, Home, Day screen, Notes, Maybes, Whole trip, Actions, Scout. SPEC UPDATE NEEDED.
 
 ## 2026-10-10 — The Second Audit's Fixes: a Still Day, No Freeze on Opening, One Ask at a Time

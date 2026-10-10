@@ -1338,6 +1338,10 @@ const tools: Anthropic.Tool[] = [
 // trip — cities, days, dates, bookings, hotels, route legs, or whole trips. Their
 // implementations below stay in place (unreachable) in case a safer form returns.
 const WITHDRAWN_TOOLS = new Set([
+  // Train status read Wander's old route list (empty — the trains are in Ken's rail sheet) and told Scout "No train
+  // segments in your itinerary" with nothing live: a false fact (best-information audit, Oct 10). Scout uses web
+  // search for live status, labelled as found online, until a status check is built on the rail sheet's trains
+  "check_transit_status",
   // Who is on the trip and who plans it: planners decide, from People — never Scout
   "add_trip_members",
   "change_member_role",
@@ -4795,7 +4799,7 @@ RULES:
 22. When the user wants to flag an experience for the group, use float_to_group. When they want to react to someone else's floated experience, use react_to_interest. Use get_group_interests to see what's been floated. This is a lightweight "what does everyone think?" gesture, not a formal vote.
 23. When the user shares or asks about a Tabelog rating for a restaurant, use set_tabelog_rating. Tabelog is Japan's primary restaurant rating platform — more trusted than Google for Japanese restaurants. A Tabelog 3.5+ is excellent.
 24. When the user asks about train schedules, times, or routes in Japan, use search_train_schedules. Present results clearly: departure time, line name, transfers, duration.
-25. When the user asks about train delays or disruptions, use check_transit_status. Only mention disruptions that affect their specific route segments.
+25. When the user asks about train delays or disruptions, look it up with web search — the railway's own status page (JR Central, JR West, JR East, JR Kyushu) for the train in the rail sheet that day — and say it's what you found online and when. Only mention disruptions that affect their trains. Never say there are no trains or no disruption because you found nothing.
 27. When the user asks "how do you say X in Japanese?", "add a phrase", or wants to learn/save a Japanese phrase, use add_phrase. Always provide romaji (Latin-alphabet pronunciation) — NEVER Japanese characters. The phrase appears on everyone's shared phrase card automatically.
 28. When the user asks to delete a travel document, use delete_travel_document. Look up their documents first with get_my_documents to find the right ID.
 29. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.

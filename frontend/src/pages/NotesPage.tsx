@@ -19,7 +19,7 @@ import {
   saveNote, waitingNotes, changeWaitingNote, savedCopy, keepCopy, readDraft, keepDraft, exportText, tripToday, dayWords, sendCopy,
   newClientId, wordCount, JAPAN_OVERALL, BACKROADS, placeOf, readView, keepView, type TripNote, type NoteSettings, type SaveBody, type NotesView,
 } from "../lib/tripNotes";
-import { isLanding, isFor } from "../lib/guideDisplay";
+import { isLanding, isFor, notLandedYet } from "../lib/guideDisplay";
 
 type DayOption = { date: string; city: string | null; guided: boolean };
 /** A place a note can be about, with the trip days it covers (for its order and its heading) */
@@ -55,6 +55,7 @@ export default function NotesPage() {
   const [place, setPlace] = useState<string | null>(null);
   // the day this person lands in Japan (Julie & Andy are home until Oct 14)
   const [landsOn, setLandsOn] = useState<string | null>(null);
+  const [stillAway, setStillAway] = useState(false);
   const [shareWithTrip, setShareWithTrip] = useState(false);
   const [usedVoice, setUsedVoice] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -124,6 +125,8 @@ export default function NotesPage() {
         // (your first landing in Japan, from her Guide's flights)
         const lands = (g?.items || []).filter((i) => isLanding(i) && i.date && i.forWhom && isFor(i, me)).map((i) => String(i.date).slice(0, 10)).sort()[0];
         setLandsOn(lands || null);
+        // (and whether your plane is still to land — Japan's date is already your landing date while you wait at home)
+        setStillAway(notLandedYet(g?.items || [], me, g?.trip.timeZone || "Asia/Tokyo"));
       }).catch(() => { /* no days: "No particular day" */ });
       return daysReady.current;
     };
@@ -244,7 +247,8 @@ export default function NotesPage() {
     return [{ name: JAPAN_OVERALL, first: null, last: null }, ...list];
   }, [days]);
   // Where you are: once you've landed and it's a trip day, today's town; before that, after it, or at home, Japan overall
-  const inJapan = !!landsOn && today >= landsOn && days.some((d) => d.date === today);
+  // (not before your plane lands — verify 6: "Tokyo — where you are" at 8 AM in California, the morning Julie flies)
+  const inJapan = !!landsOn && today >= landsOn && !stillAway && days.some((d) => d.date === today);
   const herePlace = (inJapan && cityOf(today)) || JAPAN_OVERALL;
   // (a note started from a day — Scout's evening question — is about that day's town)
   const dayPlace = params.get("day") ? cityOf(params.get("day")) : null;

@@ -51,7 +51,11 @@ function StatusWords({ readiness, s, today, className, pickupBy, resv }: { readi
 const shortWhen = (ymd: string) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
 /** "Tix pick up — Shin-Osaka" → "Ticket pickup — Shin-Osaka" (its tab name stays in the source line) */
-export const checklistTitle = (tab: string) => tab.replace(/^OLD\s*[—–-]\s*/i, "").replace(/^tix\s*pick\s*-?\s*up/i, "Ticket pickup");
+/** A train's class as a person says it: "Green" alone is a Green Car seat — JR's first class (Sweep B read "Green" as a
+ *  word on its own; verify 6: the Next card still said it) */
+export const classWords = (c: string) => (/^green$/i.test(c.trim()) ? "Green Car (JR's first class)" : c);
+
+export const checklistTitle =(tab: string) => tab.replace(/^OLD\s*[—–-]\s*/i, "").replace(/^tix\s*pick\s*-?\s*up/i, "Ticket pickup");
 
 /**
  * A train in the day itself, at its time (look "card") or under her line for it (look "nested"): one compact line —
@@ -105,7 +109,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [], autoOpen = fa
   const arrive = colOf(r.cols, /^arrive/);
   const route = colOf(r.cols, /^route$/);
   const mode = colOf(r.cols, /^mode$/);
-  const cls = colOf(r.cols, /^class$/);
+  const cls = classWords(colOf(r.cols, /^class$/));
   const seat = colOf(r.cols, /^car/);
   const resv = colOf(r.cols, RESERVATION_COL);
   const ticket = colOf(r.cols, /^ticket/);
@@ -138,8 +142,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [], autoOpen = fa
   // What's inside a train or leg when it's opened: the rest of its row in the sheet, and where it's from
   const details = (
     <>
-      {/* ("Green" alone means a Green Car seat — JR's first class; Sweep B read it as a word on its own) */}
-      {booked && cls && cls !== "—" && <p className="text-sm text-[#514636] mt-1">{/^green$/i.test(cls.trim()) ? "Green Car (JR's first class)" : cls}</p>}
+      {booked && cls && cls !== "—" && <p className="text-sm text-[#514636] mt-1">{cls}</p>}
       <p className="text-xs text-[#6b5d4a] mt-0.5">{booked ? "Booked" : "No booking needed"}{onlyFor ? ` · “${onlyFor}”, the sheet says` : ""}</p>
       {/^\d+$/.test(pax) && <p className="text-sm text-[#514636] mt-1">{pax} {pax === "1" ? "person" : "people"}</p>}
       {!booked && resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}
@@ -480,7 +483,7 @@ export function NextTrain({ sources, date, nowMinutes, isMine, quiet = false }: 
           {riding ? `On this train now, by the schedule · arriving ${twelveHour(colOf(c, /^arrive/))}` : `Next train · ${inWords}`}
         </p>
         <p className="text-lg leading-snug mt-1">{twelveHour(colOf(c, /^depart/))} · {colOf(c, /^train$/)} · {colOf(c, /^route$/)}</p>
-        <p className="text-sm text-white/85 mt-1 [overflow-wrap:anywhere]">{[colOf(c, /^class$/), colOf(c, /^car/)].filter(Boolean).join(" · ")}</p>
+        <p className="text-sm text-white/85 mt-1 [overflow-wrap:anywhere]">{[classWords(colOf(c, /^class$/)), colOf(c, /^car/)].filter(Boolean).join(" · ")}</p>
         {colOf(c, RESERVATION_COL) && <p className="text-sm text-white/80">Reservation #{colOf(c, RESERVATION_COL)}</p>}
         {/* (rebooked on a new card: said here too, never the cancelled booking's number) */}
         {(() => { const rb = rebookSaid(next.r, s, me); return rb.words ? <p className={`text-sm mt-1 ${rb.settled ? "text-white/85" : "text-[#f3d9a8]"}`}>{rb.words}</p> : null; })()}
