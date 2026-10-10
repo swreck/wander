@@ -48,12 +48,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Toast container — bottom center */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none">
+      {/* Toast container — just above the tab bar, the screen's width less a margin (Oct 10 re-audit: it sat on the tab bar,
+          and anchored at the middle it could only be half the screen wide — four lines for one sentence) */}
+      <div className="fixed inset-x-0 z-[100] flex flex-col items-center gap-2 px-4 pointer-events-none"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 68px)" }}>
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium pointer-events-auto flex items-center gap-3
+            className={`max-w-md px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium pointer-events-auto flex items-center gap-3
               animate-[slideUp_0.3s_ease-out] transition-opacity
               ${toast.type === "error"
                 ? "bg-red-600 text-white"

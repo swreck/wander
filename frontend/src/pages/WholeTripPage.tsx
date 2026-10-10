@@ -12,12 +12,15 @@ import type { Trip } from "../lib/types";
 import { guideData, type TripGuideData } from "../lib/guideData";
 import { sourcesData, isBookedTrain, colOf, twelveHour, type OtherSource } from "../lib/sources";
 import { useAuth } from "../contexts/AuthContext";
-import { ymd, clock, isLanding, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor } from "../lib/guideDisplay";
+import { ymd, clock, isLanding, isFor, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor } from "../lib/guideDisplay";
 
 const dayWords = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 const shortDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const nightsBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
-const forWords = (f: string | null | undefined) => (f && !/^everyone$/i.test(f) ? `For ${f}` : "");
+// (your own lines said as yours, as Home and Actions say them — Oct 10 re-audit: Julie's and Andy's own flight and deadline
+// read "For Julie & Andy" here)
+const forWords = (f: string | null | undefined, me?: string | null) =>
+  (f && !/^everyone$/i.test(f) ? (me && isFor({ forWhom: f }, me) ? `Yours (${f})` : `For ${f}`) : "");
 
 export default function WholeTripPage() {
   const navigate = useNavigate();
@@ -134,7 +137,7 @@ export default function WholeTripPage() {
                     <li key={s.id}>
                       <button onClick={() => navigate(`/day/${inD}`)} className={row}>
                         <span className="block text-sm text-[#3a3128] font-medium">{s.name}</span>
-                        <span className="block text-[13px] text-[#514636]">{shortDate(inD)} → {shortDate(outD)} · {n} night{n === 1 ? "" : "s"}{forWords(s.forWhom) ? ` · ${forWords(s.forWhom)}` : ""}</span>
+                        <span className="block text-[13px] text-[#514636]">{shortDate(inD)} → {shortDate(outD)} · {n} night{n === 1 ? "" : "s"}{forWords(s.forWhom) ? ` · ${forWords(s.forWhom, me)}` : ""}</span>
                         {(s.checkInTime || s.checkOutTime) && <span className="block text-xs text-[#6b5d4a]">{[s.checkInTime && `Check-in ${clock(s.checkInTime)}`, s.checkOutTime && `check-out ${clock(s.checkOutTime)}`].filter(Boolean).join(" · ")}</span>}
                         {conf && <span className="block text-xs text-[#6b5d4a] [overflow-wrap:anywhere]">Confirmation {confirmationWords(conf)}</span>}
                         {cancelBy(s.name).map((c) => (
@@ -157,7 +160,7 @@ export default function WholeTripPage() {
                   <li key={m.id}>
                     <button onClick={() => navigate(`/day/${ymd(m.date)}#item-${m.id}`)} className={row}>
                       <span className="block text-sm text-[#3a3128]"><span className="font-medium">{dayWords(ymd(m.date))}{m.time ? ` · ${clock(m.time)}` : ""}</span> · {m.title}</span>
-                      {forWords(m.forWhom) && <span className="block text-xs text-[#514636]">{forWords(m.forWhom)}</span>}
+                      {forWords(m.forWhom) && <span className="block text-xs text-[#514636]">{forWords(m.forWhom, me)}</span>}
                       {!m.time && <span className="block text-xs text-[#6b5d4a]">No time in {v.guide}</span>}
                       {m.confirmation && <span className="block text-xs text-[#6b5d4a] [overflow-wrap:anywhere]">Confirmation {confirmationWords(m.confirmation)}</span>}
                       {tabsDiffer(m).map((d) => <span key={d} className="block text-xs text-[#8a5a1a] mt-0.5">{differWordsFor(d, v)}</span>)}
@@ -174,7 +177,7 @@ export default function WholeTripPage() {
                 {[...flights.map((f) => ({ key: f.id, date: ymd(f.date), time: f.time || "", el: (
                     <>
                       <span className="block text-sm text-[#3a3128]"><span className="font-medium">{dayWords(ymd(f.date))}{f.time ? ` · ${clock(f.time)}` : ""}</span> · {f.title}</span>
-                      {forWords(f.forWhom) && <span className="block text-xs text-[#514636]">{forWords(f.forWhom)}</span>}
+                      {forWords(f.forWhom) && <span className="block text-xs text-[#514636]">{forWords(f.forWhom, me)}</span>}
                       {(f.detail || "").match(/^Lands at [^\n]+/m)?.[0] && <span className="block text-xs text-[#6b5d4a]">{(f.detail || "").match(/^Lands at [^\n]+/m)![0]}</span>}
                     </>) })),
                   ...trains.map(({ s, r }) => ({ key: `${s.id}-${r.row}`, date: r.date!, time: colOf(r.cols, /^depart/).padStart(5, "0"), el: (
@@ -197,7 +200,7 @@ export default function WholeTripPage() {
                     <li key={d.id}>
                       <button onClick={() => navigate(`/day/${ymd(d.date)}#item-${d.id}`)} className={row}>
                         <span className={`block text-sm ${past ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}><span className="font-medium">{dayWords(ymd(d.date))}</span> · {d.title}</span>
-                        {forWords(d.forWhom) && <span className="block text-xs text-[#514636]">{forWords(d.forWhom)}</span>}
+                        {forWords(d.forWhom) && <span className="block text-xs text-[#514636]">{forWords(d.forWhom, me)}</span>}
                         <span className="block text-xs text-[#6b5d4a]">{past ? (isFreeCancel(d) ? "That's passed — nothing to do; it stays booked." : "That date has passed.") : isFreeCancel(d) ? FREE_CANCEL_WORDS : ""}</span>
                       </button>
                     </li>

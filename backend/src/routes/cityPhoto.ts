@@ -8,6 +8,7 @@
  * No sign-in needed (an <img> can't send one); a city id is a long random id, and nothing else is reachable here.
  */
 import { Router } from "express";
+import { createHash } from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 
@@ -28,22 +29,41 @@ function photoFor(cityId: string): Promise<Photo | null> {
   return asking.get(cityId)!;
 }
 
-/** A photo that can stand for the city this trip (autumn): a view of the place, not another season's decorations or
- *  snow. True when it can't be judged (no key, an error) — the photo then stands as it would have. */
-async function fitsTheSeason(bytes: Buffer, type: string, cityName: string): Promise<boolean> {
-  if (!process.env.ANTHROPIC_API_KEY || !/^image\/(jpeg|png|webp|gif)$/.test(type)) return true;
+/** A photo that can stand for the city this trip (autumn): a view of the place, nothing in it saying another season.
+ *  Claude looks at the whole picture and names what it sees before judging (Oct 10 re-audit: a one-word glance by a
+ *  small model passed Fukuoka Tower with Christmas trees and Santa figures along its foot, and Okayama's winter garden).
+ *  True: fits. False: doesn't, or couldn't be judged (an error, a decline) — never shown on a guess. With no key at all
+ *  (local work) every photo stands. */
+const SEASON_SCHEMA = {
+  type: "object",
+  properties: {
+    seen: { type: "string", description: "What in the photo tells the season or an occasion, briefly — or that it isn't a view of a place" },
+    fits: { type: "boolean" },
+  },
+  required: ["seen", "fits"],
+  additionalProperties: false,
+};
+export async function fitsTheSeason(bytes: Buffer, type: string, cityName: string): Promise<boolean> {
+  if (!process.env.ANTHROPIC_API_KEY) return true;
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) return false;
   try {
     const r = await new Anthropic().messages.create({
-      model: "claude-haiku-4-5-20251001", max_tokens: 5, temperature: 0,
+      model: "claude-opus-5", max_tokens: 16000,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "medium", format: { type: "json_schema", schema: SEASON_SCHEMA } },
       messages: [{ role: "user", content: [
         { type: "image", source: { type: "base64", media_type: type as "image/jpeg", data: bytes.toString("base64") } },
-        { type: "text", text: `This photo will greet travelers arriving in ${cityName}, Japan, in October. Answer NO if it shows Christmas or New Year decorations, Santa, snow, or it isn't a view of a place (a close-up of food, a portrait, a sign). Otherwise answer YES. One word.` },
+        { type: "text", text: `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, Japan, in mid-to-late October. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait or a sign) and nothing in it belongs to another season: no Christmas trees, Santa figures, Christmas or New Year decorations or illuminations; no snow or ice; no bare leafless trees or brown dormant lawns (winter); no cherry blossoms (spring). Green trees or autumn color are fine. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".` },
       ] }],
     });
-    const said = r.content.filter((c): c is Anthropic.TextBlock => c.type === "text").map((c) => c.text).join("").trim();
-    return !/^no\b/i.test(said);
-  } catch {
-    return true;
+    if (r.stop_reason === "refusal" || r.stop_reason === "max_tokens") return false;
+    const text = r.content.filter((c): c is Anthropic.TextBlock => c.type === "text").map((c) => c.text).join("");
+    const said = JSON.parse(text) as { seen: string; fits: boolean };
+    console.log(`[city-photo] ${cityName}: ${said.fits ? "fits" : "doesn't fit"} — ${said.seen}`);
+    return said.fits === true;
+  } catch (err) {
+    console.warn(`[city-photo] ${cityName}: couldn't judge the photo —`, err instanceof Error ? err.message : err);
+    return false;
   }
 }
 
@@ -67,16 +87,16 @@ async function lookUp(cityId: string): Promise<Photo | null> {
       .filter((r: any) => r.photos?.[0]?.photo_reference && r.geometry?.location && kmFrom(r.geometry.location) <= 12)
       .filter((r: any) => !(r.types || []).some((t: string) => NOT_A_SIGHT.has(t)))
       .sort((a: any, b: any) => (b.user_ratings_total || 0) - (a.user_ratings_total || 0));
-    // The best-known sight's photo — unless it plainly shows another season or isn't a view of the place (Oct 10 audit:
-    // Hakata's was Fukuoka Tower with Santas and a Christmas tree, in October); then the next sight's. A quick look by
-    // Claude, once per city while it's kept; if the look can't be had, the first photo stands.
+    // The best-known sight's photo — unless it shows another season or isn't a view of the place (Oct 10 audit: Hakata's
+    // was Fukuoka Tower with Santas and a Christmas tree, in October); then the next sight's. A careful look by Claude,
+    // once per city while it's kept. None that fits: no photo (Oct 10 re-audit: the first one used to stand anyway).
     let best: any = null, bytes: Buffer | null = null, type = "image/jpeg";
-    for (const s of sights.slice(0, 4)) {
-      const img = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${s.photos[0].photo_reference}&key=${key}`);
+    for (const s of sights.slice(0, 5)) {
+      // (1200 wide: a phone's full screen, at a third less to send than 1600 — it has to be ready before the day draws)
+      const img = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${s.photos[0].photo_reference}&key=${key}`);
       if (!img.ok) continue;
       const b = Buffer.from(await img.arrayBuffer());
       const t = img.headers.get("content-type") || "image/jpeg";
-      if (!best) { best = s; bytes = b; type = t; }
       if (await fitsTheSeason(b, t, city.name)) { best = s; bytes = b; type = t; break; }
     }
     const p = best?.photos?.[0];
@@ -94,7 +114,8 @@ async function lookUp(cityId: string): Promise<Photo | null> {
 router.get("/:cityId/info", async (req, res) => {
   const photo = await photoFor(req.params.cityId);
   res.set("Cache-Control", photo ? "private, max-age=86400" : "no-store");
-  res.json(photo ? { image: `/api/city-photo/${req.params.cityId}/image`, place: photo.place, credit: photo.credit } : { image: null });
+  // (the picture's address names this photo — a phone keeps an image a week, and kept showing one Wander had replaced)
+  res.json(photo ? { image: `/api/city-photo/${req.params.cityId}/image?v=${createHash("sha1").update(photo.bytes).digest("hex").slice(0, 10)}`, place: photo.place, credit: photo.credit } : { image: null });
 });
 
 router.get("/:cityId/image", async (req, res) => {

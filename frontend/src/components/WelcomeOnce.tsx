@@ -11,9 +11,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { voiceFor } from "../lib/guideDisplay";
 import { api } from "../lib/api";
 import { showMeAround } from "./ShowMeAround";
-import { isIPhoneSafari, isHomeScreenApp } from "./AddToHomeScreen";
-import { signedInWithPasskeyHere } from "../lib/passkeys";
-import { takeVisitAsk, isLeavingCardSettled, onLeavingCardSettled } from "../lib/visitAsks";
+import { takeVisitAsk, isLeavingCardSettled, onLeavingCardSettled, isFaceIdCardSettled, onFaceIdCardSettled } from "../lib/visitAsks";
 
 type Tour = { offers: number; lastAt?: string; status?: "taken" | "declined" };
 const MAX_OFFERS = 3;
@@ -54,12 +52,6 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
   const [tour, setTour] = useState<Tour | null>(() => (id ? readLocal(id) : null));
   const [showing, setShowing] = useState(false);
   const counted = useRef(false);
-  // (in iPhone Safari, until Face ID is set up, Home's next card is "Set up Face ID")
-  const [settingUpHere] = useState(() => {
-    let putOff = false;
-    try { putOff = localStorage.getItem("wander:faceid-card-dismissed") === "1"; } catch { /* private window */ }
-    return isIPhoneSafari() && !isHomeScreenApp() && !signedInWithPasskeyHere() && !putOff;
-  });
 
   // What Wander has for this person (another device's answer counts here too) — nothing is offered until it's known, or
   // until a few seconds without signal (tour check, Oct 4: a new phone asked again before her "No thanks" arrived)
@@ -91,6 +83,14 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
     const giveUp = setTimeout(() => setLeavingDone(true), 8000);
     return () => { off(); clearTimeout(giveUp); };
   }, [leavingDone]);
+  // …and for the "Set up Face ID" card, which comes before it (Oct 10 re-audit: both showed together in iPhone Safari)
+  const [faceIdDone, setFaceIdDone] = useState(isFaceIdCardSettled);
+  useEffect(() => {
+    if (faceIdDone) return;
+    const off = onFaceIdCardSettled(() => setFaceIdDone(true));
+    const giveUp = setTimeout(() => setFaceIdDone(true), 8000);
+    return () => { off(); clearTimeout(giveUp); };
+  }, [faceIdDone]);
 
   // Due now: not taken, not declined, fewer than three offers, and the last one long enough ago. Counted once, as shown.
   const due = !!tour && !tour.status && tour.offers < MAX_OFFERS && (!tour.lastAt || Date.now() - Date.parse(tour.lastAt) >= AGAIN_AFTER);
@@ -103,7 +103,7 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
     if (open) { counted.current = true; setShowing(true); }
   }, [tour, showing]);
   useEffect(() => {
-    if (!id || !tour || !due || !checked || !leavingDone || counted.current) return;
+    if (!id || !tour || !due || !checked || !leavingDone || !faceIdDone || counted.current) return;
     // (the leaving card had this visit: not offered, not counted)
     if (!takeVisitAsk("tour")) return;
     counted.current = true;
@@ -112,7 +112,7 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
     setTour(next);
     setShowing(true);
     save(id, next);
-  }, [id, tour, due, checked, leavingDone]);
+  }, [id, tour, due, checked, leavingDone, faceIdDone]);
 
   if (!me || !id || !tour || !showing) return null;
   const v = voiceFor(me, owner);
@@ -132,9 +132,9 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
           <p className="text-sm text-[#514636] mt-1">
             {v.mine
               ? "This is your Guide, day by day, on everyone's phone. Wander reads it and never changes it."
-              // (nothing to set up — not "nothing to do": Ken has six tickets to collect; delight audit). In iPhone Safari
-              // there is one thing — Face ID, just below — so it says that instead (Oct 2: the two cards contradicted).
-              : `This is ${owner || "Larisa"}'s plan for the trip, day by day, on your phone. ${settingUpHere ? "One thing to set up: Face ID, just below." : "There's nothing to set up — it's here when you want it."}`}
+              // (nothing to set up — not "nothing to do": Ken has six tickets to collect; delight audit). The Face ID card
+              // has its own visit now (Oct 10 re-audit), so "Face ID, just below" is never said beside it.
+              : `This is ${owner || "Larisa"}'s plan for the trip, day by day, on your phone. There's nothing to set up — it's here when you want it.`}
           </p>
           <p className="text-sm text-[#514636] mt-1">Want a quick look at the buttons along the bottom? Six short steps.</p>
         </>

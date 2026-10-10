@@ -11,12 +11,22 @@ import { api } from "./api";
 export type NotesByTab = Record<string, { rowIndex: number; text: string }[]>;
 
 const cache: Record<string, Promise<NotesByTab>> = {};
+const key = (tripId: string) => `wander:sheet-notes:${tripId}`;
+
+/** This phone's last copy (undefined if it has none) — the day draws with it at once, nothing drops in later */
+export function savedSheetNotes(tripId: string): NotesByTab | undefined {
+  try { const raw = localStorage.getItem(key(tripId)); return raw ? (JSON.parse(raw) as NotesByTab) : undefined; } catch { return undefined; }
+}
 
 export function sheetNotes(tripId: string): Promise<NotesByTab> {
   if (!cache[tripId]) {
     cache[tripId] = api.get<{ byTab?: NotesByTab }>(`/sheets-sync/notes/${tripId}`)
-      .then((r) => r?.byTab || {})
-      .catch(() => { delete cache[tripId]; return {}; });
+      .then((r) => {
+        const by = r?.byTab || {};
+        try { localStorage.setItem(key(tripId), JSON.stringify(by)); } catch { /* storage full or private */ }
+        return by;
+      })
+      .catch(() => { delete cache[tripId]; return savedSheetNotes(tripId) || {}; });
   }
   return cache[tripId];
 }

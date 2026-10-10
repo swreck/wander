@@ -380,9 +380,11 @@ export function landingStatus(landing: GuideItem, items: GuideItem[], tripZone: 
     return `Takes off${from} ${theirs} ${ZONE_WORDS[flight!.timeZone] || ""} — that's ${here(departs)} ${zoneWord}`.replace(/\s+—/, " —");
   }
   if (at < lands) {
+    // In the air, what matters is the landing — the take-off is on its flight's own line (Oct 10 re-audit: Julie's Next
+    // read "Take-off was due at 12:00 PM California time" and below it "take-off … was Wed 4:00 AM Japan time", one
+    // take-off said two ways; round 8: "due to take off … 4:00 AM" at 9 AM read as if take-off were still ahead)
     return departs
-      // (round 8: "due to take off … 4:00 AM" at 9 AM read as if take-off were still ahead)
-      ? `Should be in the air now — take-off${from} was ${here(departs)} ${zoneWord} by the schedule; due to land at ${landsAt}`
+      ? `Should be in the air now, by the schedule — due to land at ${landsAt}`
       : `Due to land at ${landsAt}`;
   }
   if (at.getTime() < lands.getTime() + 12 * 3600_000) return `Was due to land at ${landsAt} — that's the schedule; a delay wouldn't show here`;
@@ -721,6 +723,23 @@ export function askedLine(i: GuideItem, me: string | null | undefined): string |
   const asks = new RegExp(`\\b${who}\\b[^.\\n]{0,20}\\binterested\\?|\\bif ${who} (isn't|is not|wants?)\\b`, "i");
   const line = `${i.title}\n${own}`.split("\n").find((l) => asks.test(l));
   return line ? line.trim().replace(/^[-•·]\s*/, "").slice(0, 160) : null;
+}
+
+/** That question in parts, for saying it plainly (Oct 10 re-audit): what she asks about (the line's own name, without
+ *  "Maybe:" or the asking words), the cell that asks — null when the name itself asks ("1 day to Shigaraki - Julie
+ *  interested?") — and the row's other cells as she wrote them ("Ceramics town day trip", "Interested: Larisa") */
+export function askedParts(i: GuideItem, me: string | null | undefined): { subject: string; cell: string | null; rest: string[] } | null {
+  const line = askedLine(i, me);
+  if (!line || !me) return null;
+  const who = firstNameOf(me).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const asks = new RegExp(`\\b${who}\\b[^.\\n]{0,20}\\binterested\\?|\\bif ${who} (isn't|is not|wants?)\\b`, "i");
+  const inName = asks.test(i.title);
+  const subject = (inName ? i.title.replace(new RegExp(`\\s*[-–—:,]?\\s*${who}\\b[^.\\n]{0,20}\\binterested\\?\\s*$`, "i"), "") : i.title)
+    .replace(/^maybe:\s*/i, "").trim() || i.title;
+  if (inName) return { subject, cell: null, rest: [] };
+  const cells = line.split(/\s+·\s+/);
+  const cell = cells.find((c) => asks.test(c)) || line;
+  return { subject, cell, rest: cells.filter((c) => c !== cell) };
 }
 
 /** A title that says nothing on its own: "2 nights", "1/2 day", "see above - 1/2 day" (round 10: a bare

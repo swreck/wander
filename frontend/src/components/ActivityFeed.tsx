@@ -38,7 +38,7 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
   }, [tripId]);
 
   if (feed.length === 0) return null;
-  const shown = latestPicksOnly(feed);
+  const shown = netMarks(latestPicksOnly(feed));
 
   const typeIcon = (type: string) => {
     switch (type) {
@@ -103,6 +103,33 @@ export default function ActivityFeed({ tripId }: { tripId: string }) {
       )}
     </div>
   );
+}
+
+/**
+ * A tick and its Undo say nothing changed (Oct 10 re-audit: everyone's Home showed "Julie marked 'Train to Hotel' done"
+ * and "…not done yet" as two lines). Same person, same line, within half an hour: ticked then undone — neither shows;
+ * marked again — only the latest. The feed arrives newest first.
+ */
+function netMarks(feed: FeedItem[]): FeedItem[] {
+  const markOf = (i: FeedItem) => {
+    const m = i.description.match(/^marked "(.+)" (done|not done yet)$/);
+    return m ? { key: `${i.userDisplayName}|${m[1]}`, done: m[2] === "done" } : null;
+  };
+  const dropped = new Set<string>();
+  const out: FeedItem[] = [];
+  feed.forEach((item, k) => {
+    if (dropped.has(item.id)) return;
+    const mine = markOf(item);
+    if (mine) {
+      const before = feed.slice(k + 1).find((o) => !dropped.has(o.id) && markOf(o)?.key === mine.key);
+      if (before && new Date(item.createdAt).getTime() - new Date(before.createdAt).getTime() <= 30 * 60_000) {
+        dropped.add(before.id);
+        if (!mine.done && markOf(before)!.done) return;
+      }
+    }
+    out.push(item);
+  });
+  return out;
 }
 
 /**
