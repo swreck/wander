@@ -2,6 +2,67 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-10 — What's Behind You Folds Away; Dinner Keeps Its Name; Larisa Is "You"
+
+Ken's question, and three fresh testers walking the whole trip as Ken, Larisa, Andy and Julie, each on a fixed rubric.
+
+### Fixed
+- Ken, in the evening at the Hakata hotel, tapped Next and was told about the local train to Hakata. Once you've reached
+  tonight's place (the evening, tonight's check-in time, or the booked train here has arrived), the morning's check-out
+  and the lines with no time that only got you here fold into one quiet "Earlier today: … ›" row on Next and the day,
+  and leave Home. The check-out goes once your first booked train has left. (Next tab, day screen, Home's Today.)
+- Larisa was "her" and "she" in her own view, in about 20 places: the day summaries ("her tabs", "Ken and Larisa have a
+  Nagoya day"), "Her Dining Resos tab lists this…", "the one she added most recently". To her they now say "your" and
+  "you". Every day summary says "you" to the person reading it when it names them ("You and Ken have…", "with you and
+  Andy still at home"). (Day screen: the summary, line details, two-versions note.)
+- The two-versions note no longer names her cells ("Wander follows A46… A44 has other times"): "Wander follows the one
+  she added most recently; the other has different times".
+- On Robuchon night the restaurant on top changed at 6:00 PM, lost its confirmation, and was gone by 6:30. A booked meal
+  under way is now "Now · LeTable de Joel Robuchon - 1F, booked for 6:00 PM" with its confirmation, for two hours, ahead
+  of her plan's line at that hour. (Home, Next.)
+- At dinner on Oct 28, Next said "NOW — 8:00 PM · Cafe Ensou" (the Shigaraki lunch café her Dining Resos tab also lists at
+  8 PM) under "Now · Enyuan Kobayashi". A line her other tab puts at another hour, while this hour's line agrees, is
+  never Next or Now; it stays in the day with its difference said, listed after. (Home, Next.)
+- Oct 29 at 2 PM, on the HARUKA, Ken was told "Now · Arrive KIX, until about 2:30". While you're on a booked train, her
+  plan's "now" line waits. Her "Arrive KIX" line says "Timed for the train in her tab — the booked train arrives 2:50 PM"
+  on the day screen too.
+- Julie and Andy's "12:00 PM California time" flight sat in Ken's midday on Home; it's at 4:00 AM Wednesday for him and is
+  now listed after the evening.
+- The rebooked HARUKA's details said "collect at an e5489 machine" under "car and seats are on the paper tickets". Once
+  tickets are in hand (rebooked paper tickets, or after the pickup day) the collection steps are left out.
+- "Rebooked on the new card" → "on Ken's new card"; "its OLD — Rail Detail tab" → "its Rail Detail tab"; "REBOOK —
+  ACTION" → "rebooking"; "OLD — Pickup Plan" → "Pickup Plan"; links to two of her tabs no longer show cell names
+  ("A57:B57"); Actions says "Other to-dos in her sheet (marked “LT”)"; "(Japan's date)" → ", Japan time"; "On this Japan
+  date you're still at home" → "You're still at home".
+- On California mornings before their flight, Andy and Julie were asked "Anything worth remembering from today? / Not
+  tonight" (Japan's evening) — the morning Julie flies, right under "You leave today". Scout's evening question is never
+  asked on a Japan date you're still at home, nor on a visit something else has asked, nor during a booked dinner; when
+  it asks, the tour offer waits for another visit.
+- Julie's Oct 13 said "The others · Julie & Andy depart SFO, Ken & Larisa arrive in Tokyo": a line naming you is never
+  "the others'".
+- "Larisa's words: “You land at Narita”" — Wander's sentence quoted as hers. Only her own words are quoted as hers.
+- Maybes opened on "Osaka" for Andy and Julie at home. It opens on the next city ahead of you that has ideas (Tokyo).
+- Shigaraki's "that “you” is her map's, not you": now "a picture in her tab puts it under “You & Julie (morning)” — your
+  name is in it" for Julie, "(her picture's words)" for others.
+- "Wander placed this plan on this day; a picture in the tab dates it differently ›" read as a warning: "Why this plan is
+  on this day (a picture in her tab shows another) ›".
+- A note written at home was stamped with Japan's date and the phone's clock: it says "written Sat, Oct 10, 9:00 PM your
+  time".
+- Evenings: no "check in any time from 3:00 PM" at 8 PM, and Home drops tonight's check-in row once you're there.
+- The whole trip page gave Hotel Granvia Okayama the Imperial Hotel's confirmation and cancel-by dates (it matched hotels
+  on "Hotel"). Hotels are matched by the words that name them.
+- "Send this day" left out the booked trains (Oct 11 was only "Sleeping at: Nagoya Marriott"); they're in it, in time
+  order.
+- Notes jumped 300 pt when the story question arrived after the list; it's in the first drawing or waits for another
+  visit.
+- With no signal, Home offered Ken the first-time welcome he'd seen three times. Wander keeps the answer on the phone and
+  never offers it on a guess.
+- The arrival photo for a new city played before you'd left the old one (Nagoya's at 8:30 AM in Hakata). On a travel
+  day it waits until the booked train in has arrived, or you've reached tonight's place.
+- Scout said the Robuchon cancellation charges "started yesterday" on the day they started. Its deadline status now says
+  the day in words ("that's TODAY").
+- SPEC sections: Next, Home, Day screen, Notes, Maybes, Whole trip, Actions, Scout. SPEC UPDATE NEEDED.
+
 ## 2026-10-10 — The Second Audit's Fixes: a Still Day, No Freeze on Opening, One Ask at a Time
 
 A second independent check, signed in as each real person, found what the first round hadn't fixed. All of it:

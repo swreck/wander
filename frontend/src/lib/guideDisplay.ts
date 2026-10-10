@@ -438,6 +438,13 @@ export function homeOnJapanDate(items: GuideItem[], me: string | null | undefine
   return date < departJapanDay ? flight : null;
 }
 
+/** Her line names you in its own words ("Julie & Andy depart SFO, Ken & Larisa arrive in Tokyo") — never "the others'"
+ *  to you (Sweep A: Julie's Oct 13 read "The others · Julie & Andy depart SFO…") */
+export function namesMe(text: string, me: string | null | undefined): boolean {
+  const first = (me || "").trim().split(/\s+/)[0];
+  return !!first && /^[A-Za-z]+$/.test(first) && new RegExp(`\\b${first}\\b`, "i").test(text);
+}
+
 /** The phone's own time zone ("America/Los_Angeles"), or null if the browser won't say. */
 function phoneZone(): string | null {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
@@ -737,6 +744,27 @@ export function askedLine(i: GuideItem, me: string | null | undefined): string |
   return line ? line.trim().replace(/^[-•·]\s*/, "").slice(0, 160) : null;
 }
 
+/** You've reached tonight's place today: tonight's check-in time (yours) has come, or it's evening (Ken, Oct 10: "given
+ *  the time of day … you would know that I was already in Hakata at the hotel"). `nowMin`: minutes into today, trip time. */
+export function arrivedForTonight(dayLines: GuideItem[], me: string | null | undefined, nowMin: number, lastTrainArrives: number | null = null): boolean {
+  // (never while you're still flying in, or within 90 minutes of landing — Julie's check-in is 2:00 PM, her landing 3:00 PM;
+  // nor while a booked train of yours today hasn't arrived)
+  const landing = dayLines.find((i) => isLanding(i) && !!i.time && isFor(i, me));
+  if (landing && nowMin < (mins(landing.time) ?? 0) + 90) return false;
+  if (lastTrainArrives !== null && nowMin < lastTrainArrives) return false;
+  if (nowMin >= 18 * 60) return true;
+  return dayLines.some((i) => i.kind === "checkin" && !!i.time && isFor(i, me) && nowMin >= (mins(i.time) ?? Infinity));
+}
+/** A line with no time that only gets you to tonight's city ("Karatsu to Hakata 1.5 hrs", "Karatsu → Hakata · Local
+ *  train") — behind you once you've arrived */
+export function getsYouTo(title: string, city: string): boolean {
+  if (!city) return false;
+  // (her sheet's own arrows too: "Hakata - > Nagoya")
+  const m = title.match(/(?:→|-\s*>|\bto\b)\s*([^·(,\n]+)/i);
+  const dest = (m?.[1] || "").trim();
+  return !!dest && (sameThing(dest, city) || new RegExp(`\\b${city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(dest));
+}
+
 /** A line in her own voice ("AI estimates our arrival … and your arrival") shown to someone else is quoted and said to be
  *  hers — read bare, "our arrival" was Andy's (journeys check, Oct 10). To her, or a line already saying whose, as it is. */
 export function inHerVoice(line: string, me: string | null | undefined, owner: string | null | undefined): string {
@@ -929,6 +957,35 @@ export function currentPlanLine(blocks: GuideItem[], nowMin: number, me: string 
 }
 
 /**
+ * A line another of her tabs puts at another time, while a line at this very time agrees across her tabs — it's never
+ * "Next" or "Now"; it stays in the day with its difference said (Sweep A, Oct 28 at 8 PM: Next read "NOW — 8:00 PM ·
+ * Cafe Ensou", the Shigaraki lunch café her Dining Resos tab also lists at 8 PM, under "Now · Enyuan Kobayashi")
+ */
+export function outvoted(i: GuideItem, items: GuideItem[]): boolean {
+  // (the other tab's time, when it's another time — "has “Café ENSOU lunch” at 1:00–2:30 PM")
+  const at = (i.detail || "").match(/(?:^|\n)Tabs differ: .+ has .+ at (\d{1,2}):(\d{2})(?:\s*[–-]\s*\d{1,2}:\d{2})?\s*([AP]M)/);
+  if (!i.time || !at) return false;
+  if ((Number(at[1]) % 12 + (at[3] === "PM" ? 12 : 0)) * 60 + Number(at[2]) === hm(i.time)) return false;
+  return items.some((o) => o !== i && o.time === i.time && ["meal", "block", "reservation", "tour"].includes(o.kind)
+    && !/(^|\n)Tabs differ: /.test(o.detail || "") && !sameThing(o.title, i.title));
+}
+
+/**
+ * Your booked meal, under way: from its booked time for two hours, until a later timed line of yours starts. It leads
+ * "Now" over her plan line at the same hour — the booking is what you hold (Sweep B, Oct 17: at 5:45 Larisa's Next was
+ * "LeTable de Joel Robuchon - 1F · Confirmation DDTGKE"; at 6:05 her plan's "Gastronomy “Joël Robuchon” (Ebisu)" took
+ * over with no confirmation, and at 6:30 the dinner was gone from Home).
+ */
+export function mealUnderWay(items: GuideItem[], nowMin: number, me: string | null | undefined): GuideItem | undefined {
+  const mine = items.filter((i) => !!i.time && isFor(i, me));
+  const meal = mine.filter((i) => i.kind === "meal" && hm(i.time!) <= nowMin && nowMin < hm(i.time!) + 120 && !outvoted(i, items))
+    .sort((a, b) => hm(b.time!) - hm(a.time!))[0];
+  if (!meal) return undefined;
+  const laterStarted = mine.some((i) => i !== meal && !["meal", "deadline"].includes(i.kind) && hm(i.time!) > hm(meal.time!) && hm(i.time!) <= nowMin);
+  return laterStarted ? undefined : meal;
+}
+
+/**
  * The line under way right now that names no one while the group is split (Maruni Toryo 10:35–11:35 on
  * Oct 28) — said as "now", with its group left unsaid. Round 7: at 10:40 Home and Now said nothing at all.
  */
@@ -975,12 +1032,48 @@ export function voiceFor(me: string | null | undefined, owner: string | null | u
     checkWith: mine ? "worth a second look" : `worth checking with ${name}`,
     /** Words Wander wrote about her Guide ("the stop her tab lists", "her Itinerary tab agrees", "Larisa's Guide"),
      *  said to her as "your …" — her own cell text is never touched, only these phrasings */
-    say: (text: string) => !mine ? text : text
-      .replace(new RegExp(`\\b${name}'s (Guide|plan|note|notes|tab|tabs|Itinerary|Activities tab|estimate)\\b`, "g"), "your $1")
-      .replace(/\bher (Guide|tab's|tab|tabs|Itinerary|Activities tab|Dining Resos|day tab|plan|estimate|other tabs|“)/g, "your $1")
-      .replace(/\bHer (Guide|tab|tabs|Itinerary|plan|“)/g, "Your $1")
-      .replace(/worth checking with [A-Z][a-z]+/g, "worth a second look"),
+    say: (text: string) => !mine ? text : capitalPut(text
+      .replace(/worth checking with [A-Z][a-z]+/g, "worth a second look")
+      .replace(new RegExp(`\\b${name}'s\\b`, "g"), `${PUT}your`)
+      .replace(new RegExp(`\\b${name} (${Object.keys(BASE_VERB).join("|")})\\b`, "g"), (_m, verb) => `${PUT}you ${BASE_VERB[verb]}`)
+      .replace(new RegExp(`\\b(for|with|to|by|from|of) ${name}\\b`, "g"), "$1 you")
+      .replace(/\b([Hh])er (Guide|tab's|tabs?|Itinerary|Activities tab|Dining Resos|Rail|Backroads|day tab|plan|estimate|other tabs|lines?|notes?|travel line|hotel notes|forecast|pictures?|maps?|words|“)/g, (_m, h, what) => `${h === "H" ? "Your" : "your"} ${what}`)
+      .replace(/\b([Ss])he (added|wrote|put|made|lists|marks|notes|names|gives|says|calls|has|is|was)\b/g, (_m, s, verb) => `${s === "S" ? "You" : "you"} ${BASE_VERB[verb] || verb}`)),
   };
+}
+
+/** A verb after "Larisa" / "she", as it reads after "you" ("Larisa notes is likely kaiseki" → "you note …") */
+const BASE_VERB: Record<string, string> = {
+  notes: "note", marks: "mark", lists: "list", names: "name", gives: "give", says: "say", calls: "call", adds: "add",
+  writes: "write", wants: "want", plans: "plan", has: "have", is: "are", was: "were",
+};
+
+/** A "you"/"your" Wander put in place of a name gets a capital where it opens a sentence ("Larisa's line marks…" →
+ *  "Your line marks…"); every other word, hers included, is left exactly as it was */
+const PUT = "\u0001";
+const capitalPut = (t: string) => t
+  .replace(new RegExp(`(^|[.!?]\\s+|—\\s+|:\\s+|“)${PUT}y`, "g"), "$1Y")
+  .split(PUT).join("");
+
+/**
+ * Wander's own sentences that name the travellers ("Ken, Larisa, Andy and Julie check out…", "with Julie and Andy still
+ * at home"), said to one of them: their name in the list becomes "you" (Sweep B, Oct 10: Larisa read "Ken and Larisa
+ * have a Nagoya day" atop her own day — "it sounds like it's talking about me to someone else"). Only lists of the trip's
+ * people are reworded ("the MIHO Museum and Larisa" is not a list of people); a verb after a list is already plural, so
+ * it reads right after "you".
+ */
+export function namesToYou(text: string, me: string | null | undefined, people: string[]): string {
+  const who = (me || "").trim().split(/\s+/)[0];
+  const names = [...new Set([who, ...people.map((p) => p.trim().split(/\s+/)[0])])].filter((n) => /^[A-Z][a-z]+$/.test(n || ""));
+  if (!who || !names.includes(who)) return text;
+  const NAME = `(?:${names.join("|")})`;
+  const list = new RegExp(`\\b${NAME}(?:, ${NAME})*,? (?:and|&) ${NAME}\\b`, "g");
+  return capitalPut(text.replace(list, (whole) => {
+    const inList = whole.split(/,? (?:and|&) |, /);
+    if (!inList.includes(who)) return whole;
+    const others = inList.filter((n) => n !== who);
+    return `${PUT}you${others.length === 1 ? ` and ${others[0]}` : `, ${others.slice(0, -1).join(", ")} and ${others[others.length - 1]}`}`;
+  }));
 }
 
 /** A "tabs differ" note in words: "Her tabs differ — …", or "Her tab says two things — …" when both are in one tab
@@ -1009,13 +1102,16 @@ export const PICTURE_GROUP = /^A picture in her tab lists this under “([^”]+
 export const pictureGroupOf = (i: { detail?: string | null }) => (i.detail || "").match(PICTURE_GROUP)?.[1] || null;
 /** Her picture's "You" isn't the reader (round 15: on Andy's phone "lists it under “You & Julie”" read as Andy). Who it
  *  is stays unnamed, as Scout is told (round 13) — said only that it isn't you. */
-export const pictureYou = (g: string, v: ReturnType<typeof voiceFor>) => (!v.mine && /\byou\b/i.test(g) ? " — that “you” is her map’s, not you" : "");
+/** Sweep A (Oct 10): "that “you” is her map's, not you" asked Julie to untangle three "you"s, and never said her own name
+ *  was there — now: when your name is in its heading, it says so; otherwise the heading is marked as her picture's words. */
+export const pictureYou = (g: string, v: ReturnType<typeof voiceFor>, me?: string | null) =>
+  (namesMe(g, me) ? " — your name is in it" : !v.mine && /\byou\b/i.test(g) ? ` (${v.her} picture's words)` : "");
 
-/** "Her Guide doesn't name the group for this line" — or, when a picture in her tab does, what's true: her table doesn't,
- *  and the picture's own words (round 13: Wander said her Guide didn't name it; her Kyoto map lists "You & Julie") */
-export function noGroupWords(i: { detail?: string | null }, v: ReturnType<typeof voiceFor>): string {
+/** "Her Guide doesn't name the group for this line" — or, when a picture in her tab does, the picture's own words
+ *  (round 13: Wander said her Guide didn't name it; her Kyoto map lists "You & Julie") */
+export function noGroupWords(i: { detail?: string | null }, v: ReturnType<typeof voiceFor>, me?: string | null): string {
   const g = pictureGroupOf(i);
-  return g ? `${v.Her} plan's table doesn't name the group; a picture in ${v.her} tab lists it under “${g}”${pictureYou(g, v)}`
+  return g ? `${v.Her} plan names no group here; a picture in ${v.her} tab puts it under “${g}”${pictureYou(g, v, me)}`
     : `${v.Her} Guide doesn't name the group for this line`;
 }
 
@@ -1106,7 +1202,8 @@ export function freshness(importedAt: string | undefined | null, now = new Date(
   const read = new Date(importedAt);
   const days = Math.floor((now.getTime() - read.getTime()) / 86400000);
   const when = read.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tripZone });
-  const zone = phoneIsElsewhere(tripZone) ? ` (${ZONE_WORDS[tripZone] ? `${ZONE_WORDS[tripZone].replace(/ time$/, "")}'s date` : "the trip's date"})` : "";
+  // (", Japan time" — Sweep A: "(Japan's date)" read as a puzzle)
+  const zone = phoneIsElsewhere(tripZone) ? `, ${ZONE_WORDS[tripZone] || "the trip's time"}` : "";
   return { text: `Larisa's Guide, as Wander last read it on ${when}${zone}`, old: days > 7, days };
 }
 

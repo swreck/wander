@@ -12,7 +12,7 @@ import type { Trip } from "../lib/types";
 import { guideData, type TripGuideData } from "../lib/guideData";
 import { sourcesData, isBookedTrain, colOf, twelveHour, type OtherSource } from "../lib/sources";
 import { useAuth } from "../contexts/AuthContext";
-import { ymd, clock, isLanding, isFor, startsSomething, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor } from "../lib/guideDisplay";
+import { ymd, clock, isLanding, isFor, startsSomething, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor, distinctWords } from "../lib/guideDisplay";
 
 const dayWords = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 const shortDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -62,8 +62,13 @@ export default function WholeTripPage() {
   const deadlines = items.filter((i) => i.kind === "deadline").sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)));
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: data?.trip.timeZone || "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   // A stay's cancel-by lines: her deadlines that name it ("Free cancellation ends · Imperial Hotel")
-  const cancelBy = (name: string) => { const key = name.split(/[\s,]+/)[0].toLowerCase(); return deadlines.filter((d) => isFreeCancel(d) && d.title.toLowerCase().includes(key)); };
-  const checkinOf = (name: string) => items.find((i) => i.kind === "checkin" && i.confirmation && i.title.toLowerCase().includes(name.split(/[\s,]+/)[0].toLowerCase()));
+  // (by the words that name the hotel — never "Hotel" or the city: Sweep C, Oct 10: "Hotel Granvia Okayama" matched on
+  // "hotel" and took the Imperial Hotel's confirmation and its cancel-by dates)
+  const cityWords = new Set((data?.trip.cities || []).flatMap((c) => distinctWords(c.name)));
+  const nameWords = (s: string) => distinctWords(s).filter((w) => !/^(hotel|hotels|ryokan|resort|free|cancellation|ends|check|checkin)$/.test(w) && !cityWords.has(w));
+  const namesStay = (text: string, name: string) => { const have = new Set(nameWords(text)); return nameWords(name).some((w) => have.has(w)); };
+  const cancelBy = (name: string) => deadlines.filter((d) => isFreeCancel(d) && namesStay(d.title, name));
+  const checkinOf = (name: string) => items.find((i) => i.kind === "checkin" && i.confirmation && namesStay(i.title, name));
 
   const section = "mt-7";
   const h2 = "text-xs uppercase tracking-wide text-[#6b5d4a] mb-2";

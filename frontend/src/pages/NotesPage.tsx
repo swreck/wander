@@ -45,6 +45,8 @@ export default function NotesPage() {
   const [state, setState] = useState<"loading" | "ready" | "unreachable">("loading");
   const [settings, setSettings] = useState<NoteSettings | null>(null);
   const [storyAnswer, setStoryAnswer] = useState<string | null>(null);
+  // the settings came after the notes were drawn: the story question waits for another visit (it would push them down)
+  const settingsLate = useRef(false);
 
   // The note being written
   const [text, setText] = useState("");
@@ -134,9 +136,14 @@ export default function NotesPage() {
         setTripName(trip.name);
         // the notes and the days together (notes waited ~3 s on the days — tester t4)
         const days = loadDays(id);
+        // (the settings come with the notes, so the story question is in the first drawing or not at all this visit —
+        // Sweep C: arriving after the list, it pushed every note down 300 pt)
+        const settingsP = api.get<NoteSettings>("/trip-notes/settings").catch(() => null);
         await load(id);
+        const s = await Promise.race([settingsP, new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
+        if (s) setSettings(s);
+        else settingsP.then((x) => { if (x) { settingsLate.current = true; setSettings(x); } });
         setState("ready");
-        api.get<NoteSettings>("/trip-notes/settings").then(setSettings).catch(() => { /* asked later */ });
         await days;
       } catch {
         const copy = id ? savedCopy(id) : null;
@@ -393,6 +400,16 @@ export default function NotesPage() {
 
   const myCount = notes.filter((n) => n.mine).length;
   const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  // (a note filed on a trip day that wasn't the phone's own date when it was written — at home, before the trip — says
+  // when it was written by the phone's clock, with its date; Sweep A: "Sun, Oct 11 · 8:18 AM" paired Japan's date with
+  // California's clock, a moment that never happened for her)
+  const whenOf = (n: { createdAt: string; dayDate?: string | null }) => {
+    const d = new Date(n.createdAt);
+    const phoneDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return n.dayDate && n.dayDate !== phoneDay
+      ? `written ${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}, ${timeOf(n.createdAt)} your time`
+      : timeOf(n.createdAt);
+  };
 
   return (
     <div className="min-h-[100dvh] bg-[#faf8f5] pb-28">
@@ -483,7 +500,7 @@ export default function NotesPage() {
             </section>
 
             {/* Asked once, after a first note: may others' trip stories use what this person says about places? */}
-            {settings && settings.storyUse === null && myCount > 0 && !storyLater && (
+            {settings && settings.storyUse === null && myCount > 0 && !storyLater && !settingsLate.current && (
               // (its own card with a heading, apart from the Saved line — under it, the question read as more of the
               // same and Ken answered it only after he went looking; Oct 2)
               <section className="mt-4 rounded-xl border-2 border-[#e8c98f] bg-[#fff8ec] p-3" aria-labelledby="story-q">
@@ -599,7 +616,7 @@ export default function NotesPage() {
                             {n.dayDate
                               ? <button onClick={() => navigate(`/day/${n.dayDate}`)} className="underline underline-offset-2">{dayWords(n.dayDate)}</button>
                               : new Date(n.createdAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                            {` · ${timeOf(n.createdAt)} · ${n.visibility === "trip" ? (n.mine ? "Shared with the trip" : "shared with the trip") : "Just you"}`}
+                            {` · ${whenOf(n)} · ${n.visibility === "trip" ? (n.mine ? "Shared with the trip" : "shared with the trip") : "Just you"}`}
                             {n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : ""}
                             {n.editedAt ? " · changed" : ""}
                           </p>

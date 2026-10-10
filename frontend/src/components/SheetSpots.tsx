@@ -88,7 +88,8 @@ export default function SheetSpots({ tripId, spots, label, className = "", whole
         return (
           <span key={s.tab}>
             {n > 0 && <span className="text-[#6b5d4a]"> · </span>}
-            <a href={href} target="_blank" rel="noreferrer" className={linkClass}>{shownTab(s.tab)}{range ? ` ${range}` : ""} ↗</a>
+            {/* (the tab by name; its cells only for a screen reader — Sweep A: "A57:B57 ↗ · Itinerary Q67 ↗" read as code) */}
+            <a href={href} target="_blank" rel="noreferrer" aria-label={`The ${shownTab(s.tab)} tab${range ? `, ${range}` : ""}, in ${whose}`} className={linkClass}>{shownTab(s.tab)} ↗</a>
           </span>
         );
       })}
