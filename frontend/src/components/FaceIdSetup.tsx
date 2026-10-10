@@ -22,6 +22,7 @@ import {
   isAlreadyOnDevice,
   isUserCancel,
 } from "../lib/passkeys";
+import { takeVisitAsk, onLeavingCardSettled, faceIdCardSettled } from "../lib/visitAsks";
 
 const DISMISS_KEY = "wander:faceid-card-dismissed";
 
@@ -52,6 +53,19 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
   useEffect(() => {
     deviceSupportsPasskeys().then(setSupported);
   }, []);
+
+  // On Home, one ask per visit (lib/visitAsks): after the "You leave in N days" card has decided, this card takes the
+  // visit's ask — or waits for another visit; either way the tour offer then knows (Oct 10 re-audit: two asks at once)
+  const [myTurn, setMyTurn] = useState(variant !== "card");
+  useEffect(() => {
+    if (variant !== "card" || supported === null) return;
+    if (!supported || dismissed || readyHere) { faceIdCardSettled(); return; }
+    return onLeavingCardSettled(() => {
+      if (takeVisitAsk("faceid")) setMyTurn(true);
+      faceIdCardSettled();
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, supported]);
 
   function finished() {
     setReadyHere(true);
@@ -94,7 +108,7 @@ export default function FaceIdSetup({ variant }: { variant: "card" | "settings" 
   const text = STEP_TEXT[step];
 
   if (variant === "card") {
-    if (supported !== true || dismissed) return null;
+    if (supported !== true || dismissed || !myTurn) return null;
     if (readyHere && !justFinished) return null;
     return (
       <div className="mb-4 p-4 bg-white rounded-xl border border-[#e0d8cc]" role="region" aria-label="Face ID sign-in">

@@ -38,3 +38,20 @@ export function onLeavingCardSettled(f: () => void): () => void {
   waiting.add(f);
   return () => { waiting.delete(f); };
 }
+
+/** The "Set up Face ID" card comes next, after the leaving card and before the tour offer: how they'll get in matters
+ *  more than a tour (Oct 10 re-audit: in iPhone Safari the tour offer and the Face ID card showed together, and in the
+ *  Home Screen app the Face ID card sat under the leaving card). It takes the visit's ask as "faceid" when it shows. */
+let faceIdSettled = false;
+const faceIdWaiting = new Set<() => void>();
+export function faceIdCardSettled() {
+  faceIdSettled = true;
+  for (const f of [...faceIdWaiting]) f();
+  faceIdWaiting.clear();
+}
+export const isFaceIdCardSettled = () => faceIdSettled;
+export function onFaceIdCardSettled(f: () => void): () => void {
+  if (faceIdSettled) { f(); return () => {}; }
+  faceIdWaiting.add(f);
+  return () => { faceIdWaiting.delete(f); };
+}

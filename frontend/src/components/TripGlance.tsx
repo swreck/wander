@@ -23,6 +23,8 @@ import { ownFirstDay } from "../lib/leavingSoon";
 import { savedCopy } from "../lib/tripNotes";
 import { sourcesData, railAudience, legIsFor, isBookedTrain, colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, herTab, withTwelveHour, railNoteFor, type OtherSource, type Checklist, type RailRow } from "../lib/sources";
 import { checklistTitle, DifferLine, TicketWarnings } from "./RailSheet";
+import { warmCityPhoto } from "./CityArrival";
+import { tripCountryOf } from "../lib/cityColors";
 import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMarks";
 import {
@@ -178,6 +180,17 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     sourcesData(tripId).then((d) => { if (!cancelled) setOtherSources(d.sources); }).catch(() => { /* Home still shows her Guide */ });
     return () => { cancelled = true; };
   }, [tripId]);
+  // Today's city's first-time photo, on the phone before its day is opened — the day shows it only if it's ready when
+  // the day is drawn (Oct 10 re-audit: it landed over a day being read). A moment after Home, so it never slows Home.
+  useEffect(() => {
+    if (!data) return;
+    const day = data.days.find((d) => ymd(d.date) === phoneDay);
+    const city = data.trip.cities.find((c) => c.id === day?.cityId);
+    if (!city || (city.country && city.country !== tripCountryOf(data.trip.cities))) return;
+    const t = setTimeout(() => warmCityPhoto(city.id), 1500);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, phoneDay]);
   // Her other tabs' text — so "her Guide doesn't say" is only said when none of her tabs does
   const [notesByTab, setNotesByTab] = useState<NotesByTab>({});
   useEffect(() => {
@@ -586,7 +599,10 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   // Saryo Tesshin" above "day 6 - hike, train to kyoto", the day's real business floating below a dinner 10 hours off)
   // (her "day 8 - hike, brunch (…)" is read as a meal for its "brunch" — a line headed like her day ("day 7 -", "Kyoto
   // day 3 -") is the day's line whatever its kind; round 13: Oct 24 and 25 weren't quoted)
-  const itineraryLines = todays.filter((i) => !i.time && /itinerary/i.test(i.source) && (["plan", "tour", "note"].includes(i.kind) || /^(\w+\s)?day\s*\d+\s*-/i.test(i.title)) && !besideHotel(i) && !/\binterested\?/i.test(i.title) && !/^see above\b/i.test(i.title));
+  // (not on a Japan date you're still at home on: her line is the others' day, so it goes below "The rest is the others'
+  // plan" — Oct 10 re-audit: Julie's Oct 13 led with "In her Itinerary for today: “Nagoya to Tokyo”" above her own flight)
+  const stillHome = !!homeOnJapanDate(data.items, me, today, tz);
+  const itineraryLines = stillHome ? [] : todays.filter((i) => !i.time && /itinerary/i.test(i.source) && (["plan", "tour", "note"].includes(i.kind) || /^(\w+\s)?day\s*\d+\s*-/i.test(i.title)) && !besideHotel(i) && !/\binterested\?/i.test(i.title) && !/^see above\b/i.test(i.title));
   // A landing stays all day (round 8: at 6 PM Home had dropped it, leaving "After landing · Check in" hanging)
   // (a note beside a hotel in her Itinerary — a room type — stays on the day screen, not Home's short list)
   // (a "… interested?" question is moot on its own day — off Home's list; the day screen keeps it; delight audit)
@@ -678,8 +694,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const tomorrowPlanFirst = planOn(tomorrow).timed.filter((b) => isFor(b, me) || !b.forWhom).sort((a, b) => a.time!.localeCompare(b.time!))[0];
   const planLeadsTomorrow = !!tomorrowPlanFirst && (!tomorrowLead?.time || tomorrowPlanFirst.time! < tomorrowLead.time);
   const tomorrowLeave = tomorrowFlight && !planOn(tomorrow).all.some((b) => /haruka|airport|\bKIX\b|transfer/i.test(b.title)) ? leaveForAirport(tomorrowFlight, cityOn(tomorrow) || cityOn(today)) : null;
-  // (not one marked done in Wander — Oct 9)
-  const todayDeadlines = data.items.filter((i) => deadlineOnDate(i, today) && !doneMarks.has(deadlineKey(i)));
+  // (not one marked done in Wander — Oct 9; only yours — Oct 10 re-audit: Larisa's Robuchon reminder sat in Julie's and
+  // Andy's Today card on their flight day, as on their day screens before)
+  const todayDeadlines = data.items.filter((i) => deadlineOnDate(i, today) && !doneMarks.has(deadlineKey(i)) && deadlineIsMine(i, data.items, me));
   const guidedToday = data.days.find((d) => ymd(d.date) === today)?.dayType === "guided";
   const guidedDays = data.days.filter((d) => d.dayType === "guided").map((d) => ymd(d.date)).sort();
 

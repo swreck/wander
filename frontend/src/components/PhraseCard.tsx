@@ -79,7 +79,7 @@ const COUNTRY_PHRASES: Record<string, CountryPhrases> = {
 };
 
 // Map city/country names to phrase keys
-function detectCountries(tripName: string, cities: { name: string; country?: string }[]): string[] {
+function detectCountries(tripName: string, cities: { name: string; country?: string | null }[]): string[] {
   const found = new Set<string>();
   const text = [tripName, ...cities.map(c => c.country || ""), ...cities.map(c => c.name)].join(" ").toLowerCase();
 
@@ -93,15 +93,17 @@ function detectCountries(tripName: string, cities: { name: string; country?: str
 
 // ── Component ──────────────────────────────────────────────────
 
-/** inHeader: a button in the Now screen's header, instead of floating over the day's cards */
-export default function PhraseCard({ inHeader = false }: { inHeader?: boolean } = {}) {
+/** inHeader: a button in the Now screen's header, instead of floating over the day's cards. trip: the trip the screen
+ *  already has, so the button is there in the header's first drawing (Oct 10: it arrived 1.5 s after the Next tab drew,
+ *  widened the header row and moved the whole day down) */
+export default function PhraseCard({ inHeader = false, trip }: { inHeader?: boolean; trip?: { name: string; cities: { name: string; country?: string | null }[] } | null } = {}) {
   const { user } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   // The phone's Back closes the phrases instead of leaving Wander
   useBackToClose(open, () => setOpen(false));
-  const [tripCountries, setTripCountries] = useState<string[]>([]);
-  const [activeCountry, setActiveCountry] = useState<string>("");
+  const [tripCountries, setTripCountries] = useState<string[]>(() => (trip ? detectCountries(trip.name || "", trip.cities || []) : []));
+  const [activeCountry, setActiveCountry] = useState<string>(() => (trip ? detectCountries(trip.name || "", trip.cities || [])[0] || "" : ""));
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Detect trip countries

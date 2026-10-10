@@ -14,6 +14,43 @@ const HOLD_MS = 3100;
 
 type Shown = { src: string | null; place: string | null; credit: string | null };
 
+const seen = (cityId: string) => { try { return !!localStorage.getItem(seenKey(cityId)); } catch { return true; } };
+
+/** Photos on the phone and ready to show, by city — asked for ahead of the day (Home warms today's city; the day screen
+ *  asks while its own lines load). The first-time photo shows only if it's ready when the day is first drawn: one that
+ *  arrived after landed over a day being read (Oct 10 re-audit: 0.5–0.8 s after the day's first lines, for ~3.8 s). */
+const readyPhotos = new Map<string, Shown>();
+const warming = new Map<string, Promise<void>>();
+type Info = { image: string | null; place?: string | null; credit?: string | null };
+// (its details kept on the phone too — the picture itself the phone keeps a week — so opening the day again needn't ask)
+const infoKey = (cityId: string) => `wander:city-photo-info:${cityId}`;
+/** This city's first-time photo is still to be shown and isn't ready yet — the day may give it a moment */
+export const photoWanted = (cityId: string | null | undefined) => !!cityId && !seen(cityId) && !readyPhotos.has(cityId);
+export function warmCityPhoto(cityId: string | null | undefined): Promise<void> {
+  if (!cityId || readyPhotos.has(cityId) || seen(cityId) || (typeof navigator !== "undefined" && navigator.onLine === false)) return Promise.resolve();
+  if (!warming.has(cityId)) {
+    const controller = new AbortController();
+    const giveUp = setTimeout(() => controller.abort(), 15000);
+    let kept: Info | null = null;
+    try { kept = JSON.parse(localStorage.getItem(infoKey(cityId)) || "null"); } catch { /* unreadable */ }
+    const info: Promise<Info | null> = kept?.image ? Promise.resolve(kept)
+      : fetch(`/api/city-photo/${encodeURIComponent(cityId)}/info`, { signal: controller.signal })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((i: Info | null) => { if (i?.image) { try { localStorage.setItem(infoKey(cityId), JSON.stringify(i)); } catch { /* full */ } } return i; });
+    warming.set(cityId, info
+      .then((info) => {
+        if (!info?.image) return;
+        const img = new Image();
+        img.src = info.image;
+        // (decoded, not just fetched — so it shows in the same moment as the day, not a beat after)
+        return img.decode().then(() => { readyPhotos.set(cityId, { src: info.image!, place: info.place || null, credit: info.credit || null }); });
+      })
+      .catch(() => { /* no photo this time — the day just opens */ })
+      .finally(() => { clearTimeout(giveUp); warming.delete(cityId); }));
+  }
+  return warming.get(cityId)!;
+}
+
 export default function CityArrival({ cityId, cityName, dateWords, auto = true, replay = 0 }: {
   cityId: string | null | undefined; cityName: string; dateWords: string;
   /** shown by itself the first time a day in this city opens (only once you've arrived) */
@@ -21,10 +58,11 @@ export default function CityArrival({ cityId, cityName, dateWords, auto = true, 
   /** each new number shows it again, asked for */
   replay?: number;
 }) {
-  const [shown, setShown] = useState<Shown | null>(null);
+  // The first time, by itself — in the day's very first drawing, or not this visit
+  const [shown, setShown] = useState<Shown | null>(() => (auto && cityId && readyPhotos.has(cityId) && !seen(cityId) ? readyPhotos.get(cityId)! : null));
   const [fading, setFading] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const shownAt = useRef(0);
+  const shownAt = useRef(Date.now());
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   const linger = (ms: number) => {
     timers.current.push(setTimeout(() => setFading(true), ms));
@@ -33,37 +71,18 @@ export default function CityArrival({ cityId, cityName, dateWords, auto = true, 
 
   useEffect(() => () => clearTimers(), []);
 
-  // The first time, by itself
   useEffect(() => {
-    if (!auto || !cityId || !cityName || typeof navigator === "undefined" || navigator.onLine === false) return;
-    try { if (localStorage.getItem(seenKey(cityId))) return; } catch { return; }
-    let alive = true;
-    // Only if it's there almost at once: by 2.6 s people are reading the day, and a photo landing over it covered it
-    // (Oct 10 audit). Too late, it isn't marked seen — the picture is on the phone by then, and the next visit shows it
-    // at once. The city's name above the day brings it any time.
-    const opened = Date.now();
-    const READY_MS = 1200;
-    const controller = new AbortController();
-    const giveUp = setTimeout(() => controller.abort(), 2200);
-    fetch(`/api/city-photo/${encodeURIComponent(cityId)}/info`, { signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((info: { image: string | null; place?: string | null; credit?: string | null } | null) => {
-        if (!alive || !info?.image) return;
-        const img = new Image();
-        img.onload = () => {
-          if (!alive || Date.now() - opened > READY_MS) return;
-          try { localStorage.setItem(seenKey(cityId), "1"); } catch { /* storage off: may show again, harmless */ }
-          shownAt.current = Date.now();
-          setFading(false);
-          setShown({ src: info.image!, place: info.place || null, credit: info.credit || null });
-          linger(HOLD_MS);
-        };
-        img.src = info.image;
-      })
-      .catch(() => { /* no splash — the day just opens */ })
-      .finally(() => clearTimeout(giveUp));
-    return () => { alive = false; controller.abort(); clearTimeout(giveUp); clearTimers(); };
-  }, [cityId, cityName, auto]);
+    if (!auto || !cityId) return;
+    if (shown && shown.src && readyPhotos.get(cityId) === shown) {
+      try { localStorage.setItem(seenKey(cityId), "1"); } catch { /* storage off: may show again, harmless */ }
+      linger(HOLD_MS);
+      return;
+    }
+    // Not ready in time: not shown and not marked seen — it's asked for now, so the next visit shows it at once. The
+    // city's name above the day brings it any time.
+    warmCityPhoto(cityId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cityId, auto]);
 
   // Asked for again: the city's name at once, its photo as soon as it comes (with no signal, the name, briefly)
   useEffect(() => {

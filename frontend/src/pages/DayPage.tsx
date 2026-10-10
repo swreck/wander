@@ -13,7 +13,7 @@
  * keep, so every day opens with no signal, and refreshes when the signal returns.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { queuedBodies, dropQueued } from "../lib/offlineStore";
@@ -29,18 +29,24 @@ import {
   landingStatus, phoneIsElsewhere, homeOnJapanDate, departureInTripZone, landingTitle,
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
-  samePerson, travelerToday, askedLine, othersPartysJob, startsSomething,
+  samePerson, travelerToday, askedParts, othersPartysJob, startsSomething,
 } from "../lib/guideDisplay";
 import { sourcesData, savedSources, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, isSettledStatus, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings, RailLeg } from "../components/RailSheet";
 import SheetSpots from "../components/SheetSpots";
 import SendOut, { dayText, bookingText } from "../components/SendOut";
 import { directionsHref } from "../lib/directions";
-import { appleGuides, type GuidesByDay } from "../lib/appleGuides";
-import { guidePictures, type GuidePicture } from "../lib/guidePictures";
+import { appleGuides, savedAppleGuides, type GuidesByDay } from "../lib/appleGuides";
+import { guidePictures, savedGuidePictures, type GuidePicture } from "../lib/guidePictures";
 import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import PictureViewer from "../components/PictureViewer";
-import { sheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
+import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
+
+/** How long a first open waits for the rest of the day (rail sheet, summaries…) after her Guide, when the phone has no
+ *  copy of them yet — they're asked for together, so on a normal signal they come with the Guide and this is never hit */
+const EXTRAS_WAIT_MS = 4000;
+/** …and the most a day waits for its city's first-time photo, so it comes with the day rather than over it */
+const PHOTO_GRACE_MS = 400;
 
 /** A spreadsheet time ("18:00:00") as a person reads it; her own words ("~8:30–9:15", "Morning") as written */
 function planTime(b: GuideItem): string {
@@ -50,6 +56,18 @@ function planTime(b: GuideItem): string {
   if (hms && (hms[3] || hms[1].length === 2)) return clock(`${hms[1].padStart(2, "0")}:${hms[2]}`);
   if (t) return t;
   return b.time ? clock(b.time) : "";
+}
+
+/**
+ * What a deadline whose time has passed means now — the same words on its short line and when opened (Oct 10 re-audit:
+ * the short line on Next and the day said "Started · … charges start" over "Ended", contradicting itself about money).
+ * A closed free-cancellation window asks nothing of anyone (delight audit: Julie read "Ended" and wondered what she'd
+ * missed); charges that started are in effect, not over.
+ */
+function passedWords(i: GuideItem, time: string | null | undefined): string {
+  if (/free cancel|cancel(lation)? free|last day to cancel/i.test(i.title) && !/reconfirm/i.test(i.title)) return "Free cancellation has ended. Nothing to do — it stays booked.";
+  if (startsSomething(i)) return "These charges apply now. Nothing to do — it stays booked.";
+  return `Ended ${time || ""}`.trim() + ".";
 }
 
 // Lines that are moves, not places ("Taxi north", "Leave Shiraume", "Shower/change/rest") get no Maps link
@@ -496,7 +514,7 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
 import PhraseCard from "../components/PhraseCard";
 import EveningQuestion from "../components/EveningQuestion";
 import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
-import { CityTitle } from "../components/CityArrival";
+import { CityTitle, warmCityPhoto, photoWanted } from "../components/CityArrival";
 import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
 import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwner";
@@ -577,6 +595,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const [tripId, setTripId] = useState<string | null>(null);
   const [choices, setChoices] = useState<DayChoice[]>([]);
   const [choicesChecked, setChoicesChecked] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [draftTime, setDraftTime] = useState("");
@@ -593,7 +612,15 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const [summariesByDay, setDaySummaries] = useState<Record<string, string>>({});
   const scrolledFor = useRef<string | null>(null);
 
-  // Load (and reload when the signal comes back, so a saved copy doesn't linger)
+  // The rail sheet wasn't known when the day had to be drawn (a first open on a very slow signal): said, not silently missing
+  const [sourcesPending, setSourcesPending] = useState<"no" | "coming" | "no-signal">("no");
+
+  // Load (and reload when the signal comes back, so a saved copy doesn't linger).
+  // Everything the day draws comes together: her Guide, the rail sheet, Wander's summaries, her other tabs, her maps and
+  // pictures, and the day's plans added in Wander are asked for at once, and the day is drawn in one step when all are
+  // known — this phone's saved copies when it has them, else what comes back, waiting at most EXTRAS_WAIT_MS. (Oct 10
+  // re-audit: the day drew, then the summary and the 10:36 NOZOMI arrived and pushed it down 200–400 pt — even with the
+  // day seen before, since the saved copies were put in a moment after the first drawing; for that moment, no train.)
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -601,8 +628,48 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         let id = localStorage.getItem("wander:last-trip-id");
         if (!id) id = (await api.get<Trip | null>("/trips/active"))?.id || null;
         if (!id) { if (!cancelled) setState("unreachable"); return; }
-        const d = await guideData(id);
-        if (!cancelled) { setTripId(id); setData(d); setState("ready"); }
+        const tid = id;
+        const got: { sources?: OtherSource[]; summaries?: Record<string, string>; notes?: NotesByTab; maps?: GuidesByDay; pictures?: GuidePicture[] } = {};
+        // (the Next tab's day is worked out from her Guide; the phone's date is its best guess until then)
+        const firstDate = now ? phoneToday() : /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
+        const saved = { sources: savedSources(tid), summaries: savedDaySummaries(tid), notes: savedSheetNotes(tid), maps: savedAppleGuides(tid), pictures: savedGuidePictures(tid) };
+        const plansSaved = !firstDate || localStorage.getItem(`wander:day-plans:${tid}:${firstDate}`) !== null;
+        const haveAll = (["sources", "summaries", "notes", "maps", "pictures"] as const).every((k) => saved[k] !== undefined) && plansSaved;
+        // (with this phone's copies, her Guide comes first and the rest refresh after — on a slow signal they'd only slow it)
+        const asked = haveAll ? null : Promise.allSettled([
+          sourcesData(tid).then((d) => { got.sources = d.sources; }),
+          daySummaries(tid).then((s) => { got.summaries = s; }),
+          sheetNotes(tid).then((n) => { got.notes = n; }),
+          appleGuides(tid).then((g) => { got.maps = g; }),
+          guidePictures(tid).then((p) => { got.pictures = p; }),
+          // (kept where the plans' own loader below reads its saved copy first)
+          firstDate ? api.get<DayChoice[]>(`/day-choices/${tid}?date=${firstDate}`).then((c) => { try { localStorage.setItem(`wander:day-plans:${tid}:${firstDate}`, JSON.stringify(c)); } catch { /* full */ } }) : null,
+        ]);
+        const d = await guideData(tid);
+        // The city's first-time photo, asked for now — it shows only if it's ready when the day is drawn (Oct 10 re-audit:
+        // landing a moment later, it covered a day being read). When it's due — you're in that city, it hasn't been shown
+        // on this phone — the day gives it at most PHOTO_GRACE_MS, once per city.
+        const dayDate = firstDate || phoneToday();
+        const dayCity = d.trip.cities.find((c) => c.id === d.days.find((x) => ymd(x.date) === dayDate)?.cityId);
+        // (only a city of the trip's country has one — Julie's San Francisco days don't)
+        const photoCity = dayCity && (!dayCity.country || dayCity.country === tripCountryOf(d.trip.cities)) ? dayCity.id : undefined;
+        const photo = warmCityPhoto(photoCity);
+        const cityDates = d.days.filter((x) => x.cityId === photoCity).map((x) => ymd(x.date)).sort();
+        const photoDue = photoWanted(photoCity) && dayDate <= phoneToday() && cityDates[0] <= phoneToday() && phoneToday() <= cityDates[cityDates.length - 1];
+        const known = () => (["sources", "summaries", "notes", "maps", "pictures"] as const).every((k) => got[k] !== undefined || saved[k] !== undefined)
+          && (!firstDate || localStorage.getItem(`wander:day-plans:${tid}:${firstDate}`) !== null);
+        if (asked && !known()) await Promise.race([asked, new Promise((r) => setTimeout(r, EXTRAS_WAIT_MS))]);
+        if (photoDue && photoWanted(photoCity)) await Promise.race([photo, new Promise((r) => setTimeout(r, PHOTO_GRACE_MS))]);
+        if (cancelled) return;
+        // (one step: React draws all of these together)
+        setTripId(tid); setData(d);
+        setOtherSources(got.sources ?? saved.sources ?? []);
+        setSourcesPending(got.sources === undefined && saved.sources === undefined ? "coming" : "no");
+        setDaySummaries(got.summaries ?? saved.summaries ?? {});
+        setNotesByTab(got.notes ?? saved.notes ?? {});
+        setMapsByDay(got.maps ?? saved.maps ?? {});
+        setPictures(got.pictures ?? saved.pictures ?? []);
+        setState("ready");
       } catch {
         if (!cancelled) setState((s) => (s === "ready" ? s : "unreachable"));
       }
@@ -655,7 +722,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const day = days.find((d) => ymd(d.date) === date);
 
   // Same-day plans added in Wander for this date
-  useEffect(() => {
+  // (before the screen paints: this phone's copy is in the day's first drawing, so nothing drops in a moment later)
+  useLayoutEffect(() => {
     if (!tripId || !date) return;
     let cancelled = false;
     // Plans saved with no signal wait on this phone — shown, marked as waiting, even after Wander was
@@ -693,36 +761,31 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     try { saved = JSON.parse(localStorage.getItem(copyKey) || "[]"); } catch { /* unreadable */ }
     setChoices(saved);
     setChoicesChecked(false);
+    // "Checking for plans…" only when the answer is slow — on a normal signal it came and went in a moment and the
+    // lines under it moved up (Oct 10: the Next tab's "Tonight" shifted 1.5 s after the day drew)
+    setChecking(false);
+    const slow = setTimeout(() => { if (!cancelled) setChecking(true); }, 1200);
     load();
     window.addEventListener("wander:data-changed", load);
-    return () => { cancelled = true; window.removeEventListener("wander:data-changed", load); };
+    return () => { cancelled = true; clearTimeout(slow); window.removeEventListener("wander:data-changed", load); };
   }, [tripId, date]);
 
-  // The rail sheet (a saved copy when there's no signal); nothing shows if the trip has no other source
+  // After the day is drawn: Wander's answers replace this phone's copies only when they say something different (no jump
+  // when nothing changed). The rail sheet (nothing shows if the trip has no other source); her other tabs' text, so "her
+  // Guide doesn't say" is only said when none of her tabs does; her Apple Maps guides and pictures (Oct 2); summaries.
   useEffect(() => {
     if (!tripId) return;
     let cancelled = false;
-    // (the phone's saved copy at once; Wander's when it says something different — no jump when nothing changed)
-    setOtherSources((cur) => (cur.length ? cur : savedSources(tripId)));
-    sourcesData(tripId).then((d) => { if (!cancelled) setOtherSources((cur) => (JSON.stringify(cur) === JSON.stringify(d.sources) ? cur : d.sources)); }).catch(() => { /* the Guide still shows */ });
-    return () => { cancelled = true; };
-  }, [tripId]);
-  // Her other tabs' text — so "her Guide doesn't say" is only said when none of her tabs does
-  useEffect(() => {
-    if (!tripId) return;
-    let cancelled = false;
-    sheetNotes(tripId).then((n) => { if (!cancelled) setNotesByTab(n); });
-    return () => { cancelled = true; };
-  }, [tripId]);
-  // Her Apple Maps guides, by day (Oct 2)
-  useEffect(() => {
-    if (!tripId) return;
-    let cancelled = false;
-    appleGuides(tripId).then((g) => { if (!cancelled) setMapsByDay(g); });
-    guidePictures(tripId).then((p) => { if (!cancelled) setPictures(p); });
-    // (this phone's saved copy at once; Wander's only if it says something different — no jump when nothing changed)
-    setDaySummaries((cur) => (Object.keys(cur).length ? cur : savedDaySummaries(tripId)));
-    daySummaries(tripId).then((s) => { if (!cancelled) setDaySummaries((cur) => (JSON.stringify(cur) === JSON.stringify(s) ? cur : s)); });
+    const same = <T,>(next: T) => (cur: T) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next);
+    sourcesData(tripId)
+      .then((d) => { if (!cancelled) setOtherSources(same(d.sources)); })
+      .then(() => { if (!cancelled) setSourcesPending("no"); })
+      // (the Guide still shows; with no copy on this phone, the day says its trains will come with signal)
+      .catch(() => { if (!cancelled) setSourcesPending((p) => (p === "no" ? p : "no-signal")); });
+    sheetNotes(tripId).then((n) => { if (!cancelled) setNotesByTab(same(n)); });
+    appleGuides(tripId).then((g) => { if (!cancelled) setMapsByDay(same(g)); });
+    guidePictures(tripId).then((p) => { if (!cancelled) setPictures(same(p)); });
+    daySummaries(tripId).then((s) => { if (!cancelled) setDaySummaries(same(s)); });
     return () => { cancelled = true; };
   }, [tripId]);
   // Deadlines marked done in Wander by the person they're for (Oct 9) — "Don't miss" stops asking, the card says done
@@ -1238,7 +1301,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         <div className="flex items-center gap-1">
           {now ? (
             // Quick Japanese phrases, up here — floating over the day they covered its cards
-            <div className="min-w-[44px]"><PhraseCard inHeader /></div>
+            <div className="min-w-[44px]"><PhraseCard inHeader trip={trip} /></div>
           ) : (
             <button
               // Step back to where they came from (Home, Ideas), so Back afterwards doesn't reopen this day
@@ -1446,6 +1509,15 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 words from her lines, said as Wander's; shown only while her day is what it was written from. First under
                 the band (day review, Oct 4: "first the day in a few sentences, then what you can't get wrong, then the day
                 by the clock"). Not on the Next tab: there the next stop leads. */}
+            {/* The rail sheet wasn't on this phone when the day was drawn (a first open on a very slow signal) — said, so
+                nobody reads the day as having no train (Oct 10 re-audit) */}
+            {sourcesPending !== "no" && (
+              <p role="status" className="text-sm text-[#514636] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2 mb-3">
+                {sourcesPending === "coming"
+                  ? "Still getting the train times from the rail sheet — they'll show in this day in a moment."
+                  : "The rail sheet's train times aren't on this phone yet — they'll show here once you have signal."}
+              </p>
+            )}
             {!now && summariesByDay[date] && (
               <section aria-label="This day in brief" className="mb-4">
                 <p className="text-[15px] leading-relaxed text-[#3a3128]">{summariesByDay[date]}</p>
@@ -1897,7 +1969,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 
             {/* Same-day plans added in Wander — the group's own, beside the Guide */}
             <section className="mt-5">
-              {!choicesChecked && <p className="text-sm text-[#6b5d4a] mb-2" role="status">Checking for plans added in Wander…</p>}
+              {!choicesChecked && checking && <p className="text-sm text-[#6b5d4a] mb-2" role="status">Checking for plans added in Wander…</p>}
               {untimedOwn.length > 0 && (
                 <>
                   <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Added in Wander</h2>
@@ -2034,6 +2106,36 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 }
 
 /** One line of the Guide for this day. */
+/**
+ * Her Guide asking the person looking something — said as a plain question from her own cells, with her asking words
+ * quoted and the day she put them on (Oct 10 re-audit: "Her words: “X, if Julie isn't interested · Ceramics town day trip ·
+ * Interested: Larisa”" never said plainly what was asked), what the rail sheet already says about it (Julie's Mashiko and
+ * its "Ken + Larisa only"), and a way to answer: a message to her, already started — or, where the phone can't share,
+ * copied, and said so (it copied silently).
+ */
+function AskedQuestion({ i, me, owner, sources, className = "" }: { i: GuideItem; me: string | null; owner?: string | null; sources?: OtherSource[]; className?: string }) {
+  const [told, setTold] = useState<string | null>(null);
+  const p = askedParts(i, me);
+  if (!p) return null;
+  const who = owner || "Larisa";
+  const her = voiceFor(me, owner).her;
+  const when = i.date ? new Date(`${ymd(i.date)}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : null;
+  const rail = sources?.length ? railNoteFor(i.title, sources, me) : null;
+  return (
+    <div className={className}>
+      <p className="text-sm text-[#8a5a1a]">
+        {who} is asking whether you're interested in {p.subject}
+        {p.cell ? <> — {her} Guide has it{when ? ` on ${when}` : ""}: “{p.cell}”</> : when ? ` (${when})` : ""}.
+      </p>
+      {p.rest.length > 0 && <p className="text-xs text-[#6b5d4a] mt-0.5">Also in that row: {p.rest.join(" · ")}</p>}
+      {rail && <p className="text-sm text-[#514636] mt-0.5">{rail}</p>}
+      <button onClick={async () => setTold(await sendToGuideOwner(who, `Hi ${who} — about “${i.title}” in your Guide: `))}
+        className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Tell {owner || "her"} your answer ›</button>
+      {told && <p role="status" className="text-sm text-[#3a3128]">{told}</p>}
+    </div>
+  );
+}
+
 function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false, doneMark }: {
   /** a deadline marked done in Wander by the person it's for (Oct 9): said as done, not amber */
   doneMark?: Mark;
@@ -2157,7 +2259,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
     // (a fact from a picture or a tab other than her Itinerary and Dining Resos says where, even short)
     const elsewhereFrom = !/^Itinerary|^Dining Resos/.test(i.source) ? friendlySource(i.source, me) : null;
     const timing = deadline && (over || windowWords || time)
-      ? (over ? `Ended ${time || ""}`.trim() : [windowWords, time].filter(Boolean).join(" · ")) : null;
+      ? (over ? passedWords(i, time) : [windowWords, time].filter(Boolean).join(" · ")) : null;
     const leaveBy = earlyCheckout && !split ? leaveBeforeCheckout(i, day) : null;
     const inJapan = departureInTripZone(i, tripZone);
     return (
@@ -2204,17 +2306,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
                 })}
               </ul>
             )}
-            {askedOf(i, me, today) && (
-              <>
-                <p className="text-sm text-[#8a5a1a] mt-1">A question for you in {owner ? `${owner}'s` : "her"} Guide.</p>
-                {/* (her words, so it's clear what's asked — Oct 10 audit) */}
-                {askedLine(i, me) && <p className="text-sm text-[#3a3128] mt-0.5">Her words: “{askedLine(i, me)}”</p>}
-                {/* (with what the rail sheet already says about it — Julie's Mashiko question and its "Ken + Larisa only") */}
-                {(() => { const n = sources?.length ? railNoteFor(i.title, sources, me) : null; return n ? <p className="text-sm text-[#514636] mt-0.5">{n}</p> : null; })()}
-                <button onClick={() => sendToGuideOwner(owner || "Larisa", `Hi ${owner || "Larisa"} — about “${i.title}” in your Guide: `)}
-                  className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Tell {owner || "her"} your answer ›</button>
-              </>
-            )}
+            {askedOf(i, me, today) && <AskedQuestion i={i} me={me} owner={owner} sources={sources} className="mt-1" />}
             {phone && <GuideText text={phone} className="text-sm text-[#6b5d4a] mt-1" />}
             {mapAt && (
               <a href={mapAt} target={q ? undefined : "_blank"} rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Map ↗</a>
@@ -2249,27 +2341,12 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           {/* Her Guide asking the person looking (round 12: "1 day to Mashiko-Julie interested?" shown to Julie, with
               nothing saying what to do about it) — Wander can't answer for her; the answer goes to Larisa */}
           {/* …with a way to answer: a message to her, already started (delight audit: tapping it did nothing) */}
-          {askedOf(i, me, today) && (
-            <div className="mt-0.5">
-              <p className="text-sm text-[#8a5a1a]">A question for you in {owner ? `${owner}'s` : "her"} Guide.</p>
-              {askedLine(i, me) && <p className="text-sm text-[#3a3128] mt-0.5">Her words: “{askedLine(i, me)}”</p>}
-              {/* (under the question itself only — round 13: it repeated under "Maybe: Mashiko") */}
-              {/* (any question put to them, not only one whose words end in "?" — Oct 4 copy: the Mashiko question lives on as
-                  "X, if Julie isn't interested" in her Activities tab, and lost the rail sheet's "Ken + Larisa only") */}
-              {(() => { const n = sources?.length ? railNoteFor(i.title, sources, me) : null; return n ? <p className="text-sm text-[#514636] mt-0.5">{n}</p> : null; })()}
-              <button onClick={() => sendToGuideOwner(owner || "Larisa", `Hi ${owner || "Larisa"} — about “${i.title}” in your Guide: `)}
-                className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Tell {owner || "her"} your answer ›</button>
-            </div>
-          )}
+          {/* (under the question itself only — round 13: it repeated under "Maybe: Mashiko") */}
+          {askedOf(i, me, today) && <AskedQuestion i={i} me={me} owner={owner} sources={sources} className="mt-0.5" />}
           {doneWords && <p className="text-sm mt-1 text-[#3f5a2a]">{doneWords}</p>}
           {deadline && !doneWords && (over || windowWords || time) && (
             <p className={`text-sm mt-1 ${othersJob ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>
-              {/* A free-cancellation window that closed asks nothing of anyone — said so (delight audit: Julie read "Ended"
-                  beside "Until 11:59 PM Japan time" and wondered what she'd missed) */}
-              {over && /free cancel|cancel(lation)? free|last day to cancel/i.test(i.title) && !/reconfirm/i.test(i.title)
-                ? "Free cancellation has ended. Nothing to do — it stays booked."
-                : over && startsSomething(i) ? "These charges apply now. Nothing to do — it stays booked."
-                : over ? `Ended ${time || ""}`.trim() + "." : [windowWords, time].filter(Boolean).join(" · ")}
+              {over ? passedWords(i, time) : [windowWords, time].filter(Boolean).join(" · ")}
               {!over && isFreeCancel(i) && ` ${FREE_CANCEL_WORDS}`}
               {/* Never tell Larisa to ask Larisa (round 9) */}
               {couldBeDone && (owner && me && owner.toLowerCase() !== me.toLowerCase() ? ` Wander can't tell whether it was done — ask ${owner} if you're not sure.` : " Wander can't tell whether it was done.")}

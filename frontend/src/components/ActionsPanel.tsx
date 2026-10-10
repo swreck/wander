@@ -314,7 +314,10 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
     const actor = bookedByName(i)?.split(/\s+/)[0];
     return actor ? samePerson(actor, me) : true;
   };
-  const myDeadlines = deadlines.filter(isMyDeadline).sort((a, b) => Number(!asksSomething(a)) - Number(!asksSomething(b)));
+  // (one that asks nothing — free cancellation ending, charges starting — never leads: it's a quiet line below what you
+  // have to do; Oct 10 re-audit: everyone's Actions opened on "Free cancellation ends · Nothing to do unless plans change")
+  const myDeadlines = deadlines.filter((i) => isMyDeadline(i) && asksSomething(i));
+  const myQuietDeadlines = deadlines.filter((i) => isMyDeadline(i) && !asksSomething(i));
   const othersDeadlines = new Map<string, typeof deadlines>();
   for (const i of deadlines.filter((d) => !isMyDeadline(d))) {
     const who = deadlineOwner(i) || "Someone else";
@@ -391,6 +394,8 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               const INITIALS: Record<string, string> = { LF: "Larisa", KR: "Ken", AB: "Andy", JD: "Julie" };
                               const who = a.owner === "Both" ? (a.sheetRowRef ? ["Andy", "Larisa"] : null) : a.owner.split(/\s*[/&,]\s*/).map((o) => INITIALS[o] || o);
                               if (!who) return "For everyone";
+                              // (initials no one in the trip has: said as her sheet marks it — Oct 10 re-audit, "For LT")
+                              if (who.every((n) => /^[A-Z]{2,3}$/.test(n))) return `Marked “${who.join(" / ")}” in ${voiceFor(me).her} sheet`;
                               const named = who.map((n) => (samePerson(n, me) ? "you" : n));
                               const ordered = named.includes("you") && named.length > 1 ? ["you", ...named.filter((n) => n !== "you")] : named;
                               return `For ${ordered.join(" & ")}`;
@@ -524,7 +529,22 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
             {myDeadlines.length > 0 ? (
               <ul className="space-y-2">{myDeadlines.map((i) => renderDeadline(i, true))}</ul>
             ) : (
-              <p className="text-sm text-[#6b5d4a]">None of them are yours.</p>
+              <p className="text-sm text-[#6b5d4a]">Nothing you need to do by a deadline.</p>
+            )}
+            {myQuietDeadlines.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-[#6b5d4a]">Nothing to do unless plans change:</p>
+                <ul>
+                  {myQuietDeadlines.map((i) => (
+                    <li key={i.id}>
+                      <button onClick={() => onNavigate?.(`/day/${(i.date || "").slice(0, 10)}#item-${i.id}`)}
+                        className="w-full text-left min-h-[44px] py-1 text-sm text-[#514636]">
+                        <span className="text-[#6b5d4a]">{deadlineWhen(i, todayYmd)}</span> · {i.title} ›
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {[...othersDeadlines.entries()].map(([who, list]) => (
               <div key={who} className="mt-2">
@@ -618,7 +638,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                   <div key={who}>
                     <button onClick={() => setOpenList(openList === who ? null : who)} aria-expanded={openList === who}
                       className="w-full text-left min-h-[44px] px-3.5 rounded-xl border border-[#efe8dc] bg-white/60 text-sm text-[#6b5d4a]">
-                      {who}'s to-dos · {list.length} {openList === who ? "‹" : "›"}
+                      {/* (initials no one in the trip has — "LT" — said as her sheet has them, not as a person we know;
+                          Oct 10 re-audit: "LT's to-dos" meant nothing to Julie and Andy, nor to Ken) */}
+                      {(whoFor(list[0]) || []).every((n) => /^[A-Z]{2,3}$/.test(n)) ? `To-dos marked “${who}” in ${voiceFor(me).her} sheet` : `${who}'s to-dos`} · {list.length} {openList === who ? "‹" : "›"}
                     </button>
                     {openList === who && <div className="space-y-2 mt-2">{list.map((a) => renderTodo(a))}</div>}
                   </div>

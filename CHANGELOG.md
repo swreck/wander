@@ -2,6 +2,56 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-10 — The Second Audit's Fixes: a Still Day, No Freeze on Opening, One Ask at a Time
+
+A second independent check, signed in as each real person, found what the first round hadn't fixed. All of it:
+
+### Fixed
+- **The day screen moved under the reader, and the 10:36 NOZOMI was briefly missing** (it drew, then the summary and
+  the train arrived and pushed it down 200–400 pt — even on a day opened before). Everything the day draws (her Guide,
+  the rail sheet, Wander's summaries, her other tabs, her maps and pictures, plans added in Wander) is asked for at once
+  and drawn in one step; the phone keeps a copy of each. On a very slow first open the day waits up to 4 s, then says
+  "Still getting the train times from the rail sheet…" rather than look trainless. The Next tab's Phrases button no
+  longer arrives late and moves the header. Day screen, Next tab.
+- **"Started · … charges start" over "Ended"** on Next and the day's short line: both now say "These charges apply now.
+  Nothing to do — it stays booked." (A closed free-cancellation window: "Free cancellation has ended…")
+- **Julie's and Andy's Home on their flight day** listed Larisa's Robuchon reminder, and "Nagoya to Tokyo" above their
+  own flight. Home's Today card lists only your deadlines; on a Japan date you're still at home, her lines sit under
+  "The rest is the others' plan."
+- **Opening the app froze Home** (up to 1 s at a time, 2–9 s in all) while the map worked out where its names and lines
+  go. That work now happens in the background (a worker), and the finished map is kept on the phone with the view it
+  settled on: reopening draws it at once, nothing worked out. The map looks exactly as before. Home.
+- **Hakata's arrival photo was a Christmas scene; Okayama's a winter garden.** The photo check now looks at the whole
+  picture (Christmas or New Year decorations, snow, bare trees, brown lawns, cherry blossoms) and names what it sees;
+  if no photo of the city's sights fits October, there's no photo. Hakata's is now Ohori Park.
+- **The arrival photo landed over a day being read.** It shows only in the day's very first drawing (asked for ahead:
+  Home readies today's city's photo); otherwise it waits for the next visit. Phones can't keep showing a replaced photo.
+- **Actions led with "Free cancellation ends… Nothing to do"** for everyone. Deadlines that ask nothing sit below as a
+  quiet line ("Nothing to do unless plans change"); "LT's to-dos" (initials no one on the trip has) reads "To-dos marked
+  “LT” in her sheet"; a tick and its Undo no longer show in Recent activity; the tick confirmation sits above the tab
+  bar, the screen's width (it covered the tab bar in a half-width box).
+- **Julie's question read like spreadsheet cells.** Now: "Larisa is asking whether you're interested in Mashiko
+  (ceramics town) — her Guide has it on Tue, Oct 13: “X, if Julie isn't interested”." "Tell Larisa your answer" says
+  "Copied — paste it…" when the phone copies instead of sharing (it used to do so silently).
+- **Two asks at once on a first visit** (Safari: the tour offer and "Set up Face ID"; the Home Screen app: the leaving
+  card and "Set up Face ID"). One per visit, in order: the leaving card, then Face ID, then the tour.
+- Small: in the air, Next says the take-off once (it said it in California and Japan time); Scout's packing answer names
+  days by date (not Backroads' "Day 4") and each place once; a note told to Scout about a shop in Arita is filed under
+  Arita (not the day's city); "The whole trip on one page" says "Yours (Julie & Andy)" for your own lines.
+- SPEC sections: Home (Today card, map, asks), Day screen / Next, Actions, arrival photo, Scout (packing, notes).
+  SPEC UPDATE NEEDED.
+
+## 2026-10-10 — The Leaving Card Never Pops Over What You're Doing
+
+### Fixed
+- Ken: "conflict in the UI since both are early and unexpected info… Overlap, race condition". On a slow signal the
+  "You leave in N days" card came seconds late — over Scout's packing offer if Julie had tapped Scout, or over Home she'd
+  started reading. Now it shows only if it's ready before she's touched anything, with nothing else open; otherwise on
+  her next visit (not used up). It reads the phone's saved copy of the trip at once, so a slow signal doesn't delay it.
+- Tapping Scout in the first second after opening Wander lost Julie's packing offer for that visit (opening Scout cut
+  off the read bringing it, and the next read waited 15 s). A cut-off read is redone at once.
+- SPEC sections: Home (leaving card), Scout. SPEC UPDATE NEEDED.
+
 ## 2026-10-10 — The Independent Audit's Fixes
 
 An independent check, signed in as each real person, found what the day's work hadn't fixed or had missed. All of it:
