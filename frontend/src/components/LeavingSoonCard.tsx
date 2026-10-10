@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { takeVisitAsk, leavingCardSettled } from "../lib/visitAsks";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import { guideData, type GuideItem } from "../lib/guideData";
+import { guideData, savedGuideData, type GuideItem } from "../lib/guideData";
 import { ymd, clock, partyOf, zonedMoment, zoneWords } from "../lib/guideDisplay";
 import { ownFirstDay, firstLeg, laterParties, dateIn, phoneToday, daysBetween, namesOf, factFor, type LeavingFact } from "../lib/leavingSoon";
 
@@ -42,9 +42,20 @@ export default function LeavingSoonCard({ tripId, hold = false }: { tripId: stri
     // (one ask per visit — lib/visitAsks: the tour offer waits for this card's decision)
     if (!me || hold) { leavingCardSettled(); return; }
     let alive = true;
+    // Never over something she's already doing (Ken, Oct 10: "conflict in the UI since both are early and unexpected
+    // info… Overlap, race condition"): on a slow signal the card came seconds late — over Scout's packing offer if she'd
+    // tapped Scout, or over Home she'd started reading. It comes only if it's ready within a moment of opening, before
+    // she's touched anything, with nothing else open; otherwise it waits for her next visit (not marked seen).
+    const openedAt = Date.now();
+    let touched = false;
+    const touch = () => { touched = true; };
+    window.addEventListener("pointerdown", touch, { capture: true });
+    window.addEventListener("keydown", touch, { capture: true });
+    const busy = () => touched || Date.now() - openedAt > 2500 || !!document.querySelector("[data-chat-panel], [role='dialog']");
     (async () => {
-      let data: Awaited<ReturnType<typeof guideData>> | null = null;
-      try { data = await guideData(tripId); } catch { return; }
+      // (the phone's saved copy at once when there is one — flights and dates rarely change; else Wander's)
+      let data: Awaited<ReturnType<typeof guideData>> | null = savedGuideData(tripId);
+      if (!data) { try { data = await guideData(tripId); } catch { return; } }
       if (!alive || !data?.trip?.startDate) return;
       const now = new Date();
       const first = ymd(data.trip.startDate);
@@ -73,13 +84,19 @@ export default function LeavingSoonCard({ tripId, hold = false }: { tripId: stri
       if (!next || !alive) return;
       try { if (localStorage.getItem(next.key)) return; } catch { /* unreadable: the visit's own memory below */ }
       if (seenThisVisit.has(next.key)) return;
+      // (she's already doing something, or something else is open — the next visit, not marked as seen)
+      if (busy()) return;
       // (another ask already has this visit — the card waits for the next one, not marked as seen)
       if (!takeVisitAsk("leaving")) return;
       seenThisVisit.add(next.key);
       try { localStorage.setItem(next.key, new Date().toISOString()); } catch { /* full or private */ }
       setShown(next);
-    })().finally(() => leavingCardSettled());
-    return () => { alive = false; };
+    })().finally(() => {
+      leavingCardSettled();
+      window.removeEventListener("pointerdown", touch, { capture: true });
+      window.removeEventListener("keydown", touch, { capture: true });
+    });
+    return () => { alive = false; window.removeEventListener("pointerdown", touch, { capture: true }); window.removeEventListener("keydown", touch, { capture: true }); };
   }, [tripId, me, travelerId, hold]);
 
   useEffect(() => {

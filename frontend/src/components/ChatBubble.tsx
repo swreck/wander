@@ -522,9 +522,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   useEffect(() => {
     if (!tripForChat) return;
     let live = true;
+    // (a read cut off by Scout opening or closing is read again at once, not 15 s later — Oct 10: Julie tapping Scout in
+    // the first second lost her packing offer for the whole visit; the answer on its way was dropped and the next read
+    // waited out the 15 s)
+    let inFlight = false;
     const sync = async () => {
       if (sendingRef.current || Date.now() - syncedAt.current < 15_000 || navigator.onLine === false) return;
       syncedAt.current = Date.now();
+      inFlight = true;
       try {
         const token = localStorage.getItem("wander_token");
         const r = await fetch(`/api/chat/history?tripId=${encodeURIComponent(tripForChat)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -538,12 +543,12 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           const same = next.length === prev.length && next.every((m, i) => m.role === prev[i].role && m.text === prev[i].text);
           return same ? prev : next;
         });
-      } catch { /* this phone's own copy stays */ }
+      } catch { /* this phone's own copy stays */ } finally { inFlight = false; }
     };
     sync();
     const onShow = () => { if (document.visibilityState === "visible") sync(); };
     document.addEventListener("visibilitychange", onShow);
-    return () => { live = false; document.removeEventListener("visibilitychange", onShow); };
+    return () => { live = false; if (inFlight) syncedAt.current = 0; document.removeEventListener("visibilitychange", onShow); };
   }, [tripForChat, open]);
 
   // The bottom bar's Scout tab lights up while the panel is open

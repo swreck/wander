@@ -74,6 +74,12 @@ async function load(tripId: string): Promise<TripGuideData> {
   }
 }
 
+/** This phone's last copy, at once (null if none) — for what rarely changes and must come without waiting (the
+ *  "You leave in N days" card: on a slow signal it came seconds late, over whatever she'd started; Oct 10) */
+export function savedGuideData(tripId: string): TripGuideData | null {
+  try { const raw = localStorage.getItem(savedKey(tripId)); return raw ? { ...(JSON.parse(raw) as TripGuideData), fromSavedCopy: true } : null; } catch { return null; }
+}
+
 /** Start (or reuse) loading a trip's Guide data. A failed load is forgotten so the next call retries. */
 export function guideData(tripId: string): Promise<TripGuideData> {
   let p = cache.get(tripId);
