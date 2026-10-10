@@ -658,7 +658,8 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                       className="w-full text-left min-h-[44px] px-3.5 rounded-xl border border-[#efe8dc] bg-white/60 text-sm text-[#6b5d4a]">
                       {/* (initials no one in the trip has — "LT" — said as her sheet has them, not as a person we know;
                           Oct 10 re-audit: "LT's to-dos" meant nothing to Julie and Andy, nor to Ken) */}
-                      {(whoFor(list[0]) || []).every((n) => /^[A-Z]{2,3}$/.test(n)) ? `To-dos marked “${who}” in ${voiceFor(me).her} sheet` : `${who}'s to-dos`} · {list.length} {openList === who ? "‹" : "›"}
+                      {/* (the plain words first, her mark after — Sweep A: "To-dos marked 'LT'" was a puzzle to open with) */}
+                      {(whoFor(list[0]) || []).every((n) => /^[A-Z]{2,3}$/.test(n)) ? `Other to-dos in ${voiceFor(me).her} sheet (marked “${who}”)` : `${who}'s to-dos`} · {list.length} {openList === who ? "‹" : "›"}
                     </button>
                     {openList === who && <div className="space-y-2 mt-2">{list.map((a) => renderTodo(a))}</div>}
                   </div>

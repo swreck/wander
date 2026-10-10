@@ -326,9 +326,14 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       const chargesFrom = CHARGES_FROM.test(i.title) && timeMin === null;
       const chargesStart = zonedMoment(last, 0, zone);
       const dayBefore = new Date(`${last}T00:00:00Z`); dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+      // (the day in words from the asker's today — Sweep B, Oct 10: on the 10th Scout said the Robuchon charges "started
+      // yesterday"; they start on the 10th — left to work it out from two dates, it counted wrong)
+      const todayHere = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(opts.now);
+      const daysAgo = Math.round((Date.parse(`${todayHere}T00:00:00Z`) - Date.parse(`${last}T00:00:00Z`)) / 86400000);
+      const fromWords = daysAgo === 0 ? "TODAY" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
       const status = chargesFrom
         ? opts.now >= chargesStart
-          ? `PASSED — charges apply from ${last}; the free window ended with ${dayBefore.toISOString().slice(0, 10)}; say so gently`
+          ? `PASSED — charges apply from ${last} (that's ${fromWords}${daysAgo === 0 ? " — say they start today, never \"yesterday\"" : ""}); the free window ended with ${dayBefore.toISOString().slice(0, 10)}; say so gently`
           : `OPEN NOW — free through the end of ${dayBefore.toISOString().slice(0, 10)} ${zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`}; charges start ${last}${phoneWords(chargesStart)}`
         : opts.now > end
         ? "PASSED — it's over; say so gently"

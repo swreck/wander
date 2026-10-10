@@ -16,7 +16,7 @@ import { queuedBodies, phonePerson } from "../lib/offlineStore";
 import { useAuth } from "../contexts/AuthContext";
 import type { Experience, Trip } from "../lib/types";
 import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
-import { mapsLink, voiceFor, linkLabel, partyOf } from "../lib/guideDisplay";
+import { mapsLink, voiceFor, linkLabel, partyOf, homeOnJapanDate } from "../lib/guideDisplay";
 import { maybesChanged, type SeenRow } from "../lib/maybesNews";
 
 interface Note { id: string; experienceId: string; content: string; visibility?: string; traveler: { displayName: string }; createdAt: string; _pending?: boolean }
@@ -179,9 +179,19 @@ export default function IdeasPage() {
   // Which city: the one asked for, else where you are today, else the first
   const today = phoneToday();
   const todayCityId = guide?.days.find((d) => ymd(d.date) === today)?.cityId || null;
+  // …else the next city on your way that has any (Sweep A: on Oct 10 Andy and Julie, still at home, opened "Maybes ·
+  // Osaka" — the first city with ideas, not on their trip until the end; their first is Tokyo)
+  const nextCityId = (() => {
+    if (!guide) return null;
+    const tz = guide.trip.timeZone || "Asia/Tokyo";
+    const ahead = [...guide.days].map((d) => ({ date: ymd(d.date), cityId: d.cityId })).filter((d) => d.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .filter((d) => !homeOnJapanDate(guide.items || [], user?.displayName, d.date, tz));
+    return ahead.find((d) => cities.some((c) => c.id === d.cityId))?.cityId || null;
+  })();
   const cityId = params.get("city") && cities.some((c) => c.id === params.get("city"))
     ? params.get("city")!
-    : cities.find((c) => c.id === todayCityId)?.id || cities[0]?.id || null;
+    : cities.find((c) => c.id === todayCityId)?.id || nextCityId || cities[0]?.id || null;
   const city = cities.find((c) => c.id === cityId) || null;
 
   // The city's notes (the group's, and your own private ones)

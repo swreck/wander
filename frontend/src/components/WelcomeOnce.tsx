@@ -56,6 +56,9 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
   // What Wander has for this person (another device's answer counts here too) — nothing is offered until it's known, or
   // until a few seconds without signal (tour check, Oct 4: a new phone asked again before her "No thanks" arrived)
   const [checked, setChecked] = useState(false);
+  // …and only offered when Wander answered, or this phone has kept an answer (never on a guess with no signal)
+  const [heard, setHeard] = useState(false);
+  const [hadLocal] = useState(() => { try { return !!id && (!!localStorage.getItem(localKey(id)) || localStorage.getItem("wander:welcome-seen") === "1"); } catch { return false; } });
   useEffect(() => {
     if (!id) return;
     let live = true;
@@ -68,6 +71,10 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
         const local = readLocal(id);
         const both = merged(local, saved || { offers: 0 });
         if ((both.status && both.status !== saved?.status) || both.offers > (saved?.offers || 0)) save(id, both);
+        // (kept on this phone too, so a visit with no signal knows — Sweep C: offline, Ken was offered the first-time
+        // welcome he'd seen three times)
+        else try { localStorage.setItem(localKey(id), JSON.stringify(both)); } catch { /* private window */ }
+        if (live) setHeard(true);
       })
       .catch(() => { /* this phone's copy */ })
       .finally(() => { if (live) { clearTimeout(giveUp); setChecked(true); } });
@@ -103,7 +110,7 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
     if (open) { counted.current = true; setShowing(true); }
   }, [tour, showing]);
   useEffect(() => {
-    if (!id || !tour || !due || !checked || !leavingDone || !faceIdDone || counted.current) return;
+    if (!id || !tour || !due || !checked || !(heard || hadLocal) || !leavingDone || !faceIdDone || counted.current) return;
     // (the leaving card had this visit: not offered, not counted)
     if (!takeVisitAsk("tour")) return;
     counted.current = true;
@@ -112,7 +119,7 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
     setTour(next);
     setShowing(true);
     save(id, next);
-  }, [id, tour, due, checked, leavingDone, faceIdDone]);
+  }, [id, tour, due, checked, heard, hadLocal, leavingDone, faceIdDone]);
 
   if (!me || !id || !tour || !showing) return null;
   const v = voiceFor(me, owner);

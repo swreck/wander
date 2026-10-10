@@ -13,8 +13,11 @@ const longDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en
 
 /** A day as text: her plan in her order, with its times as she wrote them and whose each line is; the bookings that
  *  day; where they sleep. No confirmation numbers — a day goes to friends, not front desks. */
-export function dayText({ date, city, overview, plan, others, sleep, owner }: {
+export function dayText({ date, city, overview, plan, others, sleep, owner, trains = [] }: {
   date: string; city: string; overview: GuideItem[]; plan: GuideItem[]; others: GuideItem[]; sleep: string[]; owner: string;
+  /** the day's booked trains from the rail sheet ("HH:MM" and its words) — in time order with the rest (Sweep C: Oct 11's
+   *  message was only "Sleeping at: Nagoya Marriott"; the 10:36 NOZOMI 22 was left out) */
+  trains?: { time: string; text: string }[];
 }): string {
   const line = (i: GuideItem) => {
     const t = i.timeText || (i.time ? clock(i.time) : "");
@@ -26,7 +29,14 @@ export function dayText({ date, city, overview, plan, others, sleep, owner }: {
   const out = [`${longDay(date)} — ${city}`];
   if (overview.length) out.push("", ...overview.map((o) => o.title));
   const timed = [...plan, ...others.filter((o) => o.time && ["meal", "tour", "flight", "train", "checkin", "meeting"].includes(o.kind))];
-  if (timed.length) out.push("", ...timed.map(line));
+  // (her lines in her order; each train at its time among them — a line with no time keeps its place after the one before)
+  let carry = "";
+  const keyed = [
+    ...timed.map((i) => ({ key: (carry = i.time || carry), text: line(i) })),
+    ...trains.map((t) => ({ key: t.time.padStart(5, "0"), text: `${clock(t.time.padStart(5, "0"))}  ${t.text}` })),
+  ];
+  const ordered = !trains.length ? keyed : keyed.map((k, n) => ({ ...k, n })).sort((a, b) => a.key.localeCompare(b.key) || a.n - b.n);
+  if (ordered.length) out.push("", ...ordered.map((k) => k.text));
   if (sleep.length) out.push("", `Sleeping at: ${sleep.join(" / ")}`);
   out.push("", `— from ${owner}'s plan for the trip`);
   return out.join("\n");

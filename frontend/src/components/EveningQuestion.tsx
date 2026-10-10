@@ -6,7 +6,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { guideData, savedGuideData, type GuideItem, type TripGuideData } from "../lib/guideData";
-import { isFor, isLanding } from "../lib/guideDisplay";
+import { isFor, isLanding, homeOnJapanDate, mealUnderWay } from "../lib/guideDisplay";
+import { visitAsk, takeVisitAsk } from "../lib/visitAsks";
 import { savedCopy, tripToday } from "../lib/tripNotes";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -24,12 +25,20 @@ function askFor(g: TripGuideData, tripId: string, me: string | null): string | n
   // …nor the evening you land (Julie's first night: it stood where the way to the hotel should be; round 15)
   const mine = (g.items || []).filter((i: GuideItem) => i.date && String(i.date).slice(0, 10) === today && isFor(i, me));
   const landedToday = mine.some(isLanding);
+  // …nor on a Japan date you're still at home for — before your flight, Japan's evening is your morning (Sweep A: at
+  // 6:30 AM in California, the morning Julie flies, it asked "Anything worth remembering from today? / Not tonight"
+  // right under the "You leave today" card)
+  const stillHome = !!homeOnJapanDate(g.items || [], me, today, tz);
+  // …nor on a visit something else has already asked in (one ask per visit — lib/visitAsks)
+  const otherAsk = !!visitAsk() && visitAsk() !== "evening";
   // …nor while tonight's plan still has something to come — it's for winding down (it asked ten minutes before the
   // yakiniku dinner; round 15)
   const nowMin = hour * 60 + Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, minute: "numeric" }).format(new Date()));
   const stillAhead = mine.some((i: GuideItem) => ["block", "meal", "tour"].includes(i.kind) && i.time
-    && Number(i.time.slice(0, 2)) * 60 + Number(i.time.slice(3, 5)) > nowMin);
-  return tripDays.includes(today) && today !== lastDay && hour >= 18 && !dismissed && !wroteToday && !landedToday && !stillAhead ? today : null;
+    && Number(i.time.slice(0, 2)) * 60 + Number(i.time.slice(3, 5)) > nowMin)
+    // …or a booked dinner under way (at 7 PM, mid-yakiniku, it asked under "Now · Yakiniku Yazawa")
+    || !!mealUnderWay((g.items || []).filter((i: GuideItem) => i.date && String(i.date).slice(0, 10) === today), nowMin, me);
+  return tripDays.includes(today) && today !== lastDay && hour >= 18 && !dismissed && !wroteToday && !landedToday && !stillAhead && !stillHome && !otherAsk ? today : null;
 }
 
 export default function EveningQuestion({ tripId, className = "" }: { tripId: string | null | undefined; className?: string }) {
@@ -44,6 +53,9 @@ export default function EveningQuestion({ tripId, className = "" }: { tripId: st
     const g = savedGuideData(tripId);
     return g ? askFor(g, tripId, me) : null;
   });
+
+  // (shown: it's this visit's ask — the tour offer waits for another visit)
+  useEffect(() => { if (ask) takeVisitAsk("evening"); }, [ask]);
 
   useEffect(() => {
     if (!tripId) return;
