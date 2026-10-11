@@ -62,6 +62,25 @@ export function metres(a: { lat: number; lng: number }, b: { lat: number; lng: n
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+export const pinKey = (p: { lat: number; lng: number }) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+
+/**
+ * Her pins that sit far from the whole trip — more than 40 km from every town on it and 25 km from every other pin of
+ * hers. Oct 11: her "Sannenzaka-dori Street" pin was in Wakayama, 100 km from Kyoto (Google matched a street of the same
+ * name), and the walking-directions button would have sent Andy there. A real far pin — her Nagoya hotel in the
+ * Tokoname layer, Hakata Station — is near a town of the trip, so it stays.
+ */
+export function strayKeys(pins: { lat: number; lng: number }[], towns: { lat: number; lng: number }[]): Set<string> {
+  const out = new Set<string>();
+  if (!towns.length) return out;
+  for (const p of pins) {
+    if (towns.some((t) => metres(p, t) <= 40_000)) continue;
+    if (pins.some((o) => pinKey(o) !== pinKey(p) && metres(p, o) <= 25_000)) continue;
+    out.add(pinKey(p));
+  }
+  return out;
+}
+
 /** "about 300 m" / "about 1.4 km" — rounded, never more exact than a straight line deserves */
 export function distanceWords(m: number): string {
   if (m < 100) return "under 100 m";

@@ -10,13 +10,44 @@ import ScoutSources, { hasSources, citesGuide, type AnswerSources } from "./Scou
 import OnceTip, { useOnceTip } from "./OnceTip";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { phoneReport } from "../lib/phoneReport";
+import { whereAmI } from "../lib/whereAmI";
 
 /** Phone numbers in an answer can be tapped to call */
 let phoneKey = 0;
-function phones(text: string): ReactNode[] {
+function telLinks(text: string): ReactNode[] {
   return withPhoneLinks(text).map((p) => p.tel
     ? <a key={`tel-${phoneKey++}`} href={`tel:${p.tel}`} className="inline-block py-3 -my-3 underline underline-offset-2 whitespace-nowrap">{p.text}</a>
     : p.text);
+}
+
+/**
+ * Web addresses in an answer can be tapped too, shown by a short name — Larisa's map link was plain text nobody could tap
+ * (verify11, Oct 11). Every link reaching here is one Scout opened or was given (chat.ts asks it to open or drop any other).
+ */
+const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)|https?:\/\/[^\s<>()"“”]+/g;
+function linkName(url: string): string {
+  try {
+    const u = new URL(url);
+    if (/(^|\.)google\.[a-z.]+$/.test(u.hostname) && u.pathname.startsWith("/maps/d/")) return "Open her Google map";
+    if (/(^|\.)maps\.apple(\.com)?$/.test(u.hostname)) return "Open in Apple Maps";
+    return u.hostname.replace(/^www\./, "");
+  } catch { return url; }
+}
+function phones(text: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let at = 0;
+  for (const m of text.matchAll(LINK)) {
+    let url = m[2] ?? m[0];
+    let tail = "";
+    // (a sentence's own full stop or comma isn't part of the address)
+    if (!m[2]) { const t = url.match(/[.,;:!?]+$/); if (t) { tail = t[0]; url = url.slice(0, -tail.length); } }
+    out.push(...telLinks(text.slice(at, m.index)));
+    out.push(<a key={`url-${phoneKey++}`} href={url} target="_blank" rel="noopener noreferrer" className="inline-block py-3 -my-3 underline underline-offset-2 font-medium">{m[1] ?? linkName(url)} ↗</a>);
+    if (tail) out.push(tail);
+    at = (m.index ?? 0) + m[0].length;
+  }
+  out.push(...telLinks(text.slice(at)));
+  return out;
 }
 
 /** Inline **bold** and *italic* (a lone asterisk showed on screen as-is), with phone numbers to tap */
@@ -46,9 +77,10 @@ const cellsOf = (line: string) => line.trim().replace(/^\|/, "").replace(/\|$/, 
 function renderMarkdown(text: string): ReactNode {
   // A bold heading at a line's start that runs straight into its text ("**In your carry-on**Larisa's…" — the break is
   // lost where cited pieces join) gets its own line (Ken's demo, Oct 1)
-  // (a link written as "[JR Central](https://…)" is its name — the address showed as code in the answer; journeys check,
-  // Oct 10. Where it came from is under Sources, as read-aloud says it)
-  const lines = text.replace(/\[([^\]\n]+)\]\((https?:[^)\s]+)\)/g, "$1").replace(/(^|\n)(\*\*[^*\n]+\*\*)(?=[^\s:.,;—-])/g, "$1$2\n").split("\n");
+  // (a link written as "[JR Central](https://…)" shows as its name, tapped to open — the address showed as code in the
+  // answer; journeys check, Oct 10; see phones())
+  // (an address set apart from its full stop — "…?mid=… . It opens" — keeps the stop beside its link)
+  const lines = text.replace(/(https?:\/\/[^\s<>()"“”]+) ([.,;])(?=\s|$)/g, "$1$2").replace(/(^|\n)(\*\*[^*\n]+\*\*)(?=[^\s:.,;—-])/g, "$1$2\n").split("\n");
   const out: ReactNode[] = [];
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
@@ -119,7 +151,7 @@ interface ChatMessage {
   routes?: { label: string; apple: string; google: string; search?: string }[];
   /** A line standing in for an answer Wander may still have (the phone lost the line): the question and when it went —
    *  kept on the phone, so the look for the saved answer goes on after the app is reopened */
-  waitingFor?: { q: string; sentAt: number; files?: boolean; askId?: string };
+  waitingFor?: { q: string; sentAt: number; files?: boolean; askId?: string; earlier?: string[] };
   /** The phone's own tag for a question it sent — Wander saves it with the question and its answer */
   askId?: string;
 }
@@ -223,16 +255,21 @@ const newAskId = () => {
 
 /** Wander's saved answer to this question, asked at sentAt — or null. A question sent with files is saved as "… (with
  *  menu (1).png)" (verify8: a file name with brackets was never matched). */
-async function findSavedAnswer(tripId: string | undefined, q: string, sentAt: number, before = Infinity, askId?: string): Promise<ChatMessage | null> {
+async function findSavedAnswer(tripId: string | undefined, q: string, sentAt: number, before = Infinity, askId?: string, earlier: string[] = []): Promise<ChatMessage | null> {
   if (!tripId) return null;
   const token = localStorage.getItem("wander_token");
   // (asked with its tag: Wander gives the answer to exactly this question — words and times can't tell menu page 1's
   // "What does this say?" from page 2's, nor survive a phone clock that runs fast; verify10)
+  // (…and to the same question's earlier tries it took over — Try again on a bad line lost the answer the first try
+  // got, saved under the first try's tag; verify11)
   if (askId) {
-    const r = await fetch(`/api/chat/answer?tripId=${encodeURIComponent(tripId)}&askId=${encodeURIComponent(askId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    if (!r.ok) return null;
-    const j = await r.json() as { answer: ChatMessage | null };
-    return j.answer || null;
+    for (const id of [askId, ...earlier.filter((e) => e !== askId)]) {
+      const r = await fetch(`/api/chat/answer?tripId=${encodeURIComponent(tripId)}&askId=${encodeURIComponent(id)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!r.ok) continue;
+      const j = await r.json() as { answer: ChatMessage | null };
+      if (j.answer) return j.answer;
+    }
+    return null;
   }
   // (a line from before questions had tags: by its words, nearest its time)
   const r = await fetch(`/api/chat/history?tripId=${encodeURIComponent(tripId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -608,7 +645,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   onDataChangedRef.current = onDataChanged;
   // (the tag of the question whose files retryFilesRef holds — a photo can be sent again only while it's on the phone)
   const retryAskRef = useRef<string | null>(null);
-  const startLook = useCallback((waitAt: string, q: string, sentAt: number, noSignal: boolean, status: number | null, askId?: string, files?: boolean) => {
+  const startLook = useCallback((waitAt: string, q: string, sentAt: number, noSignal: boolean, status: number | null, askId?: string, files?: boolean, earlier: string[] = []) => {
     if (looksRef.current.has(waitAt)) return;
     const me = { stop: false };
     looksRef.current.set(waitAt, me);
@@ -651,7 +688,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         // (the next time these same words were sent from this phone, if they were — its answer isn't this one's)
         const later = messagesRef.current.filter((m) => m.role === "user" && sameWords(m.text, q) && !!m.at && Date.parse(m.at) > sentAt + 1000)
           .map((m) => Date.parse(m.at!)).sort((a, b) => a - b)[0];
-        const found = await findSavedAnswer(tripRef.current, q, sentAt, later ?? Infinity, askId).catch(() => null);
+        const found = await findSavedAnswer(tripRef.current, q, sentAt, later ?? Infinity, askId, earlier).catch(() => null);
         if (me.stop) { done(); tell("asked-again"); return; }
         if (found) {
           settle(found, "");
@@ -694,7 +731,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // A line still waiting when the app was reopened goes on looking (verify8 FAIL 1)
   useEffect(() => {
     if (!tripForChat) return;
-    for (const m of messages) if (m.waitingFor && m.at) startLook(m.at, m.waitingFor.q, m.waitingFor.sentAt, navigator.onLine === false, null, m.waitingFor.askId, m.waitingFor.files);
+    for (const m of messages) if (m.waitingFor && m.at) startLook(m.at, m.waitingFor.q, m.waitingFor.sentAt, navigator.onLine === false, null, m.waitingFor.askId, m.waitingFor.files, m.waitingFor.earlier);
     // (once the trip is known — the lines that were waiting when the app opened)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripForChat]);
@@ -937,6 +974,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     // (a photo or file sent without words is "What does this say?" every time — a second photo is a new question, not the
     // first asked again; only Try again re-sends the same one; verify9)
     const takesOver = (w: NonNullable<ChatMessage["waitingFor"]>) => sameWords(w.q, text) && (!!retryText || (!w.files && sendFiles.length === 0));
+    // The tags of this same question's earlier tries that never got an answer on screen (the last half hour): the new
+    // try looks for their answers too — Try again on a bad line lost the answer the first try got (verify11). An earlier
+    // try that WAS answered isn't one ("What's next?" at 2 PM isn't 5 PM's answer).
+    const earlier = [...new Set(messages.flatMap((m, i) => {
+      if (m.role !== "user" || !m.askId || !m.at || Date.now() - Date.parse(m.at) > 30 * 60_000 || !sameWords(m.text, text)) return [];
+      if (!retryText && (m.files?.length || sendFiles.length)) return [];
+      const next = messages[i + 1];
+      if (next && next.role === "assistant" && !next.error && !next.waitingFor) return [];
+      return [m.askId, ...(next?.waitingFor?.askId ? [next.waitingFor.askId] : []), ...(next?.waitingFor?.earlier ?? [])];
+    }))];
     if (messages.some((m) => m.waitingFor && takesOver(m.waitingFor))) {
       for (const m of messages) if (m.waitingFor && takesOver(m.waitingFor) && m.at) { const l = looksRef.current.get(m.at); if (l) l.stop = true; }
       const typedAgain = !retryText || asNew;
@@ -975,7 +1022,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const peek = { found: null as ChatMessage | null, cut: undefined as ReturnType<typeof setTimeout> | undefined };
     const peeking = setInterval(() => {
       if (Date.now() - sentAt < 30_000 || peek.found) return;
-      void findSavedAnswer(context?.tripId, text, sentAt, Infinity, askId).then((f) => {
+      void findSavedAnswer(context?.tripId, text, sentAt, Infinity, askId, earlier).then((f) => {
         if (!f || peek.found || abortRef.current !== controller) return;
         peek.found = f;
         // (30 s: a reply 20 s behind its saved copy was cut at 15 and lost "Show me"; verify10)
@@ -1005,10 +1052,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         localTime: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
       };
 
+      // Where the phone is, for "what's near me?" — only when the question needs it or Wander may already know
+      const here = offlineAtSend ? null : await whereAmI(text);
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers,
-        body: JSON.stringify({ message: text, context, history, clientTime, askId, ...(sendFiles.length ? { attachments: sendFiles.map((f) => ({ mediaType: f.mimeType, data: f.data, name: f.name })) } : {}) }),
+        body: JSON.stringify({ message: text, context, history, clientTime, askId, ...(here ? { here } : {}), ...(sendFiles.length ? { attachments: sendFiles.map((f) => ({ mediaType: f.mimeType, data: f.data, name: f.name })) } : {}) }),
         signal: controller.signal,
       });
 
@@ -1056,6 +1106,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
       // (sent with no signal already, it never went: said plainly at once — verify9: "If your question got through…" stayed
       // up minutes after the signal was back, for a question that couldn't have)
+      // (…unless an earlier try of it may have got through: then the promise to show that answer stands — Try again in the
+      // tunnel cancelled it; verify11)
+      if (offlineAtSend && earlier.length && context?.tripId) {
+        const waitAt = new Date().toISOString();
+        setMessages((prev) => [...prev, { role: "assistant", text: NO_SIGNAL_WAIT, error: true, at: waitAt, waitingFor: { q: text, sentAt, askId, earlier, ...(sendFiles.length ? { files: true } : {}) } }]);
+        setFailed(true);
+        setLastFailedText(text);
+        startLook(waitAt, text, sentAt, true, null, askId, sendFiles.length > 0, earlier);
+        return;
+      }
       if (offlineAtSend) {
         setMessages((prev) => [...prev, { role: "assistant", text: `No signal right now, so I can't answer. Today's plan from ${herGuideRef.current} is still under Next.`, error: true }]);
         setFailed(true);
@@ -1072,10 +1132,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const status = typeof err?.status === "number" ? err.status : null;
       if (context?.tripId && (offline || status === null || (status >= 502 && status <= 504))) {
         const waitAt = new Date().toISOString();
-        setMessages((prev) => [...prev, { role: "assistant", text: offline ? NO_SIGNAL_WAIT : DROPPED, error: true, at: waitAt, waitingFor: { q: text, sentAt, askId, ...(sendFiles.length ? { files: true } : {}) } }]);
+        setMessages((prev) => [...prev, { role: "assistant", text: offline ? NO_SIGNAL_WAIT : DROPPED, error: true, at: waitAt, waitingFor: { q: text, sentAt, askId, ...(earlier.length ? { earlier } : {}), ...(sendFiles.length ? { files: true } : {}) } }]);
         setFailed(true);
         setLastFailedText(text);
-        startLook(waitAt, text, sentAt, offline, status, askId, sendFiles.length > 0);
+        startLook(waitAt, text, sentAt, offline, status, askId, sendFiles.length > 0, earlier);
         return;
       }
       setMessages((prev) => [...prev, { role: "assistant", text: errorMsg, error: true }]);

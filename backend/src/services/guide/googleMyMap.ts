@@ -10,7 +10,7 @@
  */
 import { createHash } from "crypto";
 import prisma from "../db.js";
-import { closeness, distanceWords, type AppleGuide } from "./appleGuides.js";
+import { closeness, distanceWords, pinKey, type AppleGuide } from "./appleGuides.js";
 
 export interface MyMapPlace { name: string; note: string | null; lat: number; lng: number }
 export interface MyMapLayer { name: string; places: MyMapPlace[] }
@@ -125,15 +125,17 @@ export function startMyMapReader(everyMs = 3 * 3600_000): void {
 export const saidDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "Asia/Tokyo" });
 
 /** Lines for Scout: the link, then each of her layers by her name, its pins with her notes, and what's close to what */
-export function myMapLines(m: MyMap): string[] {
+export function myMapLines(m: MyMap, stray: Set<string> = new Set()): string[] {
   const out: string[] = [];
   // (the date as people say it — Scout once said "read it on Oct 2 — sorry, Oct 11", mixing it with her Apple guides')
   out.push(`[Her Google map${m.title ? ` "${m.title}"` : ""} — anyone with this link can open it: ${viewLink(m.mid)} . Wander read it ${saidDate(m.readAt)}; her map may have changed since. Its layers are named by her; a layer's name is not a date.]`);
   for (const l of m.layers) {
     if (!l.places.length) continue;
     out.push(`Layer "${l.name}":`);
-    for (const p of l.places) out.push(`- ${p.name}${p.note ? ` — her note: "${p.note.slice(0, 300)}"` : ""}`);
-    const asGuide = { name: l.name, link: "", readAt: m.readAt, date: null, tab: null, places: l.places.map((p) => ({ name: p.name, address: null, lat: p.lat, lng: p.lng })) } as AppleGuide;
+    for (const p of l.places) out.push(`- ${p.name}${p.note ? ` — her note: "${p.note.slice(0, 300)}"` : ""}${stray.has(pinKey(p))
+      ? " [her pin for this sits far from every town and place of the trip — likely dropped in the wrong spot by Google's search. Never use it to say where this is or to send anyone there; say her pin looks misplaced and suggest checking with Larisa]" : ""}`);
+    const located = l.places.filter((p) => !stray.has(pinKey(p)));
+    const asGuide = { name: l.name, link: "", readAt: m.readAt, date: null, tab: null, places: located.map((p) => ({ name: p.name, address: null, lat: p.lat, lng: p.lng })) } as AppleGuide;
     const c = closeness(asGuide);
     if (c.length > 1) {
       out.push("  What's close to what in this layer (straight-line distance between her pins — not a walking time):");

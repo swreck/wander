@@ -491,7 +491,8 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   const gm = await myMapOf(tripId);
   if (gm) {
     say(out, "\nHER GOOGLE MAP (a map Larisa made in Google My Maps, apart from her sheet — her map, not her sheet; layers are named by her, not dated):");
-    const lines = myMapLines(gm);
+    const { strayPinsOf } = await import("./nearby.js");
+    const lines = myMapLines(gm, await strayPinsOf(tripId).catch(() => new Set<string>()));
     let layer = "";
     for (const l of lines) {
       const m = l.match(/^Layer "(.*)":$/);
