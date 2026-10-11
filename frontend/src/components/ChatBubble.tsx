@@ -1853,7 +1853,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           )}
           {/* (once, for someone already talking with Scout — a first-timer reads it in Scout's hello above) */}
           {cameraTip && online && messages.length > 0 && !files.length && !filesReading && (
-            <OnceTip onClose={cameraTipDone} className="mb-2">
+            // (touch-none: a swipe on this notice moved the page behind Scout; its ✕ still taps — verify13)
+            <OnceTip onClose={cameraTipDone} className="mb-2 touch-none">
               Tap the paperclip to send Scout a photo or a file, like a menu, a ticket or a PDF. You can paste one into the box too, or on a Mac drag it in. Scout will read it.
             </OnceTip>
           )}

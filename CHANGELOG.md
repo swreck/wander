@@ -21,6 +21,12 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   may be right). Directions still never use such a pin; someone standing near one sees it among "nearby".
 - "Toward your hotel" only for places within 30° of the hotel's direction (Ginza Itoya, due north with the hotel
   north-west, was "toward the hotel").
+- (later the same morning, from a second check) Once location is allowed, Wander reads it when the app opens or comes
+  back to the front, so the first question after opening has it too. A "near me" question in a station, where a fresh
+  reading doesn't come, carries the last one from the past ten minutes with its age instead of "unknown". Fewer
+  questions bring up the location box by mistake ("is it easy to get around?", "the area code") and more real ones get
+  it ("what's good to eat here?", "anything close?", "how far is it to my hotel?"). The paperclip tip in Scout's panel
+  no longer passes a swipe to the page behind.
 - SPEC sections: AI chat (Scout's panel, Scout's context). SPEC UPDATE NEEDED.
 
 ## 2026-10-11 — "What's Near Me?" From Larisa's Pins; Her Misplaced Pin Is Never a Destination
