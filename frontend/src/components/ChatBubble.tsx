@@ -9,6 +9,7 @@ import { withPhoneLinks } from "../lib/guideDisplay";
 import ScoutSources, { hasSources, citesGuide, type AnswerSources } from "./ScoutSources";
 import OnceTip, { useOnceTip } from "./OnceTip";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
+import { phoneReport } from "../lib/phoneReport";
 
 /** Phone numbers in an answer can be tapped to call */
 let phoneKey = 0;
@@ -116,6 +117,9 @@ interface ChatMessage {
   files?: { name: string; thumb?: string }[];
   /** Directions Scout offered, from wherever the phone is ("Walk to Tokyodo Main Showroom", "Taxi to …") */
   routes?: { label: string; apple: string; google: string; search?: string }[];
+  /** A line standing in for an answer Wander may still have (the phone lost the line): the question and when it went —
+   *  kept on the phone, so the look for the saved answer goes on after the app is reopened */
+  waitingFor?: { q: string; sentAt: number };
 }
 
 /**
@@ -200,16 +204,52 @@ const CUT_OFF = "That answer got cut off before it reached this phone. Want me t
 // Oct 11: three questions asked twice — every first one was answered and saved; the phone had said "I couldn't get an
 // answer"). Said while this phone looks for the saved answer.
 const DROPPED = "The connection dropped while I was answering — I'm still on it, and the answer will show up here.";
+// …and when the phone has no signal at all (a tunnel): the question may have gone before the signal did
+const NO_SIGNAL_WAIT = "No signal right now. If your question got through before the signal went, I'll show the answer here once you're back.";
+// How long a question can go on being looked for: past Scout's own 150-second limit, so a long answer or a stalled line
+// still finds what Wander saved (verify8: a 100-second answer showed "couldn't")
+const LOOK_FOR_MS = 200_000;
+const LOOK_AFTER_RELOAD_MS = 15 * 60_000;
+const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
+
+/** Wander's saved answer to this question, asked at sentAt — or null. A question sent with files is saved as "… (with
+ *  menu (1).png)" (verify8: a file name with brackets was never matched). */
+async function findSavedAnswer(tripId: string | undefined, q: string, sentAt: number): Promise<ChatMessage | null> {
+  if (!tripId) return null;
+  const token = localStorage.getItem("wander_token");
+  const r = await fetch(`/api/chat/history?tripId=${encodeURIComponent(tripId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!r.ok) return null;
+  const j = await r.json() as { messages: ChatMessage[] };
+  const list = Array.isArray(j.messages) ? j.messages : [];
+  const isQ = (t: string) => sameWords(t, q) || t.replace(/\s+/g, " ").trim().startsWith(`${q.replace(/\s+/g, " ").trim()} (with `);
+  // (this question, saved since it was sent — its answer is saved with it; the phone's clock may run a little apart)
+  for (let i = list.length - 2; i >= 0; i--) {
+    const qm = list[i], a = list[i + 1];
+    if (qm.role === "user" && a.role === "assistant" && isQ(qm.text) && qm.at && Date.parse(qm.at) >= sentAt - 30_000) return a;
+  }
+  return null;
+}
 
 function loadMessages(): ChatMessage[] {
   try {
     const raw = localStorage.getItem(chatKey());
     const msgs: ChatMessage[] = raw ? JSON.parse(raw) : [];
-    // A question with no answer (the app closed mid-reply) says so, instead of just sitting there
-    if (msgs.length && msgs[msgs.length - 1].role === "user") msgs.push({ role: "assistant", text: CUT_OFF, error: true });
+    // A question with no answer (the app closed mid-reply): Wander goes on and saves the answer, so a recent one is looked
+    // for (verify8, Oct 11: iOS often reloads a Home Screen app after another app is used — the answer never showed);
+    // an old one says it was cut off
+    const recent = (t: number) => Number.isFinite(t) && Date.now() - t < LOOK_AFTER_RELOAD_MS;
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === "user") {
+      const sentAt = Date.parse(last.at || "");
+      msgs.push(recent(sentAt)
+        ? { role: "assistant", text: DROPPED, error: true, at: new Date().toISOString(), waitingFor: { q: last.text, sentAt } }
+        : { role: "assistant", text: CUT_OFF, error: true });
+    }
     for (const m of msgs) if (m.role === "assistant" && (m.text === CUT_OFF || /^(No signal right now|That took over 45 seconds|That took too long|I couldn't get an answer just now)/.test(m.text))) m.error = true;
-    // (still looking when the app closed: the conversation read from Wander brings the answer if it was saved)
-    for (const m of msgs) if (m.role === "assistant" && m.text === DROPPED) { m.text = "I couldn't get an answer just now. Want me to try again?"; m.error = true; }
+    // (a line still waiting when the app closed goes on waiting, if it's recent; else it says so)
+    for (const m of msgs) if (m.role === "assistant" && (m.text === DROPPED || m.text === NO_SIGNAL_WAIT) && !(m.waitingFor && recent(m.waitingFor.sentAt))) {
+      m.text = "I couldn't get an answer just now. Want me to try again?"; m.error = true; delete m.waitingFor;
+    }
     return msgs;
   } catch { return []; }
 }
@@ -365,8 +405,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const [sending, setSending] = useState(false);
   const [listening, setListening] = useState(false);
   // A cut-off question from last time can be asked again with one tap
-  const [failed, setFailed] = useState(() => messages.length > 1 && messages[messages.length - 1].text === CUT_OFF);
-  const [lastFailedText, setLastFailedText] = useState(() => (messages.length > 1 && messages[messages.length - 1].text === CUT_OFF ? messages[messages.length - 2].text : ""));
+  // (a question still being looked for after the app reopened keeps its Try again)
+  const [failed, setFailed] = useState(() => messages.length > 1 && (messages[messages.length - 1].text === CUT_OFF || !!messages[messages.length - 1].waitingFor));
+  const [lastFailedText, setLastFailedText] = useState(() => {
+    const last = messages[messages.length - 1];
+    if (messages.length > 1 && last.waitingFor) return last.waitingFor.q;
+    return messages.length > 1 && last.text === CUT_OFF ? messages[messages.length - 2].text : "";
+  });
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
   const navigate = useNavigate();
@@ -517,8 +562,58 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // One question at a time, known the instant it's sent (the `sending` state a callback holds can be from before)
   const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
-  // Each question sent counts up: a look for a dropped answer stops once another question has gone
-  const recoverRef = useRef(0);
+  // Looking for answers the phone lost the line to (verify8, Oct 11: the look lived only inside one send, so a reload,
+  // asking again, a stalled line or a long answer all ended in "couldn't" though Wander had the answer). Each waiting
+  // line in the conversation has its own look, keyed by the line's time; it ends when the answer is found, when the
+  // same question is asked again (that ask replaces it), or well past Scout's own time limit.
+  const looksRef = useRef(new Map<string, { stop: boolean }>());
+  const lastFailedRef = useRef(lastFailedText);
+  lastFailedRef.current = lastFailedText;
+  const tripRef = useRef<string | undefined>(context?.tripId);
+  tripRef.current = context?.tripId;
+  const herGuideRef = useRef("Larisa's Guide");
+  herGuideRef.current = /^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide";
+  const startLook = useCallback((waitAt: string, q: string, sentAt: number, noSignal: boolean, status: number | null) => {
+    if (looksRef.current.has(waitAt)) return;
+    const me = { stop: false };
+    looksRef.current.set(waitAt, me);
+    const tell = (result: string) => phoneReport("scout-drop", { result, secs: Math.round((Date.now() - sentAt) / 1000), noSignal, status: status ?? 0 });
+    const noSignalNow = () => `No signal right now, so I can't answer. Today's plan from ${herGuideRef.current} is still under Next.`;
+    // (the conversation read back from Wander — the app coming to the front — may have brought the answer already:
+    // then the waiting line just goes, never the answer twice)
+    const settle = (found: ChatMessage | null, instead: string) => setMessages((prev) => {
+      const isWait = (m: ChatMessage) => m.at === waitAt && !!m.waitingFor;
+      if (found && prev.some((m) => m.role === "assistant" && m.text === found.text)) return prev.filter((m) => !isWait(m));
+      return prev.map((m) => (isWait(m) ? (found ? { ...found } : { role: "assistant" as const, text: instead, error: true }) : m));
+    });
+    const done = () => { looksRef.current.delete(waitAt); };
+    void (async () => {
+      if (noSignal) {
+        // (up to ten minutes for the signal to come back)
+        const gaveUp = Date.now() + 600_000;
+        while (navigator.onLine === false && Date.now() < gaveUp) {
+          await new Promise((r) => setTimeout(r, 2000));
+          if (me.stop) { done(); tell("asked-again"); return; }
+        }
+        if (navigator.onLine === false) { settle(null, noSignalNow()); done(); tell("still-no-signal"); return; }
+      }
+      const until = Math.max(sentAt + LOOK_FOR_MS, Date.now() + 45_000);
+      while (Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 4000));
+        if (me.stop) { done(); tell("asked-again"); return; }
+        const found = await findSavedAnswer(tripRef.current, q, sentAt).catch(() => null);
+        if (me.stop) { done(); tell("asked-again"); return; }
+        if (found) {
+          settle(found, "");
+          if (sameWords(lastFailedRef.current, q)) { setFailed(false); setLastFailedText(""); }
+          done(); tell("answer-found");
+          return;
+        }
+      }
+      settle(null, navigator.onLine === false ? noSignalNow() : "I couldn't get an answer just now. Want me to try again?");
+      done(); tell("not-found");
+    })();
+  }, []);
 
   // Persist messages to localStorage
   useEffect(() => {
@@ -529,6 +624,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // front (at most every 15 seconds; never while an answer is on its way). See mergeConversation.
   const syncedAt = useRef(0);
   const tripForChat = context?.tripId;
+  // A line still waiting when the app was reopened goes on looking (verify8 FAIL 1)
+  useEffect(() => {
+    if (!tripForChat) return;
+    for (const m of messages) if (m.waitingFor && m.at) startLook(m.at, m.waitingFor.q, m.waitingFor.sentAt, navigator.onLine === false, null);
+    // (once the trip is known — the lines that were waiting when the app opened)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripForChat]);
   useEffect(() => {
     if (!tripForChat) return;
     let live = true;
@@ -762,6 +864,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       return;
     }
 
+    // The same question asked again (typed, or Try again) takes over from a line still waiting for it: that look stops and
+    // the waiting line goes — never "couldn't" beside a new ask (verify8 FAIL 4). Typed again, the earlier copy of the
+    // question goes with it, so it doesn't sit there twice.
+    if (messages.some((m) => m.waitingFor && sameWords(m.waitingFor.q, text))) {
+      for (const m of messages) if (m.waitingFor && sameWords(m.waitingFor.q, text) && m.at) { const l = looksRef.current.get(m.at); if (l) l.stop = true; }
+      const typedAgain = !retryText || asNew;
+      setMessages((prev) => prev.filter((m, i) => !(m.waitingFor && sameWords(m.waitingFor.q, text))
+        && !(typedAgain && m.role === "user" && sameWords(m.text, text) && !!prev[i + 1]?.waitingFor && sameWords(prev[i + 1].waitingFor!.q, text))));
+    }
+
     if (!retryText || asNew) {
       if (!retryText) setInput("");
       if (inputRef.current) inputRef.current.style.height = "auto";
@@ -781,9 +893,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const controller = new AbortController();
     abortRef.current = controller;
     const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
-    // (a newer question, or "Try again", ends any look for an earlier dropped answer)
-    const asked = ++recoverRef.current;
     const sentAt = Date.now();
+    // A stalled line gives no error until the 150-second limit, while Wander may already have saved the answer: after 30
+    // seconds, look for it every 8 and show it as soon as it's there (verify8 FAIL 2)
+    const peek = { found: null as ChatMessage | null };
+    const peeking = setInterval(() => {
+      if (Date.now() - sentAt < 30_000 || peek.found) return;
+      void findSavedAnswer(context?.tripId, text, sentAt).then((f) => {
+        if (f && !peek.found && abortRef.current === controller) { peek.found = f; controller.abort(); }
+      }).catch(() => { /* still waiting on the line itself */ });
+    }, 8000);
 
     try {
       // Only today's conversation (on this phone's calendar): yesterday's "today" isn't today
@@ -815,6 +934,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       });
 
       clearTimeout(timeoutId);
+      clearInterval(peeking);
 
       if (!res.ok) throw Object.assign(new Error(`Request failed: ${res.status}`), { status: res.status });
       const data = await res.json();
@@ -841,72 +961,42 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       }
     } catch (err: any) {
       clearTimeout(timeoutId);
+      clearInterval(peeking);
+      // (a stalled line, and the answer was already saved: shown as if it had come — the stalled request is let go)
+      if (peek.found) {
+        const found = peek.found;
+        setMessages((prev) => (prev.some((m) => m.role === "assistant" && m.text === found.text) ? prev : [...prev, { ...found }]));
+        phoneReport("scout-drop", { result: "answer-found-while-stalled", secs: Math.round((Date.now() - sentAt) / 1000), noSignal: false, status: 0 });
+        return;
+      }
       const isTimeout = err?.name === "AbortError";
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
-      const errorMsg = offline
-        ? `No signal right now, so I can't answer. Today's plan from ${/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.`
-        : isTimeout
+      const errorMsg = isTimeout
         ? "That took too long — over two minutes. Want me to try again?"
         : "I couldn't get an answer just now. Want me to try again?";
-      // With signal, the question may well have reached Wander, which answers and saves it even after the phone has
-      // lost the line: say so, and look for the saved answer for a while ("Try again" stays there meanwhile)
-      // (Wander itself said no — an error it sent back — means nothing was saved: said at once. Only a broken line, the
-      // long wait, or Railway's own gateway giving up (502–504) can leave an answer still being made)
+      // The question may well have reached Wander, which answers and saves it even after the phone has lost the line:
+      // say so, and look for the saved answer ("Try again" stays there meanwhile) — a broken line, the long wait, no
+      // signal at all (a tunnel: wait for it, then look), or Railway's own gateway giving up (502–504). Wander itself
+      // saying no — an error it sent back — means nothing was saved: said at once.
       const status = typeof err?.status === "number" ? err.status : null;
-      const tripId = context?.tripId;
-      if (!offline && tripId && (status === null || (status >= 502 && status <= 504))) {
+      if (context?.tripId && (offline || status === null || (status >= 502 && status <= 504))) {
         const waitAt = new Date().toISOString();
-        setMessages((prev) => [...prev, { role: "assistant", text: DROPPED, error: true, at: waitAt }]);
+        setMessages((prev) => [...prev, { role: "assistant", text: offline ? NO_SIGNAL_WAIT : DROPPED, error: true, at: waitAt, waitingFor: { q: text, sentAt } }]);
         setFailed(true);
         setLastFailedText(text);
-        const same = (a: string) => a.replace(/\s+/g, " ").trim() === text.replace(/\s+/g, " ").trim();
-        // (the conversation read back from Wander — the app coming to the front — may have brought the answer already:
-        // then the waiting line just goes, never the answer twice)
-        const settle = (found: ChatMessage | null) => setMessages((prev) => {
-          const isWait = (m: ChatMessage) => m.at === waitAt && m.text === DROPPED;
-          if (found && prev.some((m) => m.role === "assistant" && m.text === found.text)) return prev.filter((m) => !isWait(m));
-          return prev.map((m) => (isWait(m) ? (found ? { ...found } : { role: "assistant" as const, text: errorMsg, error: true }) : m));
-        });
-        void (async () => {
-          const until = sentAt + 90_000;
-          while (Date.now() < until) {
-            await new Promise((r) => setTimeout(r, 4000));
-            if (recoverRef.current !== asked) { settle(null); return; }
-            try {
-              const token = localStorage.getItem("wander_token");
-              const r = await fetch(`/api/chat/history?tripId=${encodeURIComponent(tripId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-              if (!r.ok) continue;
-              const j = await r.json() as { messages: ChatMessage[] };
-              const list = Array.isArray(j.messages) ? j.messages : [];
-              // (this question, saved since it was sent — its answer is saved with it; the phone's clock may run a
-              // little apart from Wander's)
-              let found: ChatMessage | null = null;
-              for (let i = list.length - 2; i >= 0; i--) {
-                const q = list[i], a = list[i + 1];
-                if (q.role === "user" && a.role === "assistant" && same(q.text) && q.at && Date.parse(q.at) >= sentAt - 30_000) { found = a; break; }
-              }
-              if (recoverRef.current !== asked) { settle(null); return; }
-              if (found) {
-                settle(found);
-                setFailed(false);
-                setLastFailedText("");
-                return;
-              }
-            } catch { /* still no line: look again */ }
-          }
-          if (recoverRef.current === asked) settle(null);
-        })();
+        startLook(waitAt, text, sentAt, offline, status);
         return;
       }
       setMessages((prev) => [...prev, { role: "assistant", text: errorMsg, error: true }]);
       setFailed(true);
       setLastFailedText(text);
     } finally {
+      clearInterval(peeking);
       sendingRef.current = false;
       setSending(false);
       abortRef.current = null;
     }
-  }, [input, sending, context, onDataChanged, messages, files, answerHello]);
+  }, [input, sending, context, onDataChanged, messages, files, answerHello, startLook]);
 
   // Files added — dragged in, pasted or chosen — shown above the box until they're sent or taken off. A picture is
   // shrunk on the phone (and an iPhone HEIC photo becomes a JPEG on the way); anything else goes as it is, up to 10 MB.

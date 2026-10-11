@@ -4479,6 +4479,9 @@ router.post("/fresh", async (req: AuthRequest, res) => {
 });
 
 router.post("/", async (req: AuthRequest, res) => {
+  // (the question is saved as of when it arrived, its answer just after — so each answer stays under its own question
+  // in the order they were asked, even when a later, quicker one finishes first; verify8, Oct 11)
+  const askedAt = new Date();
   try {
     const { context, history, clientTime, image } = req.body;
     // Files dragged in, pasted or chosen (services/attachments.ts) — with or without words
@@ -5073,9 +5076,9 @@ RULES:
     if (tripId && req.user?.travelerId && finalReply) {
       prisma.chatMessage.createMany({
         data: [
-          { tripId, travelerId: req.user.travelerId, role: "user", content: files.names.length ? `${message} (with ${files.names.join(", ")})` : message },
+          { tripId, travelerId: req.user.travelerId, role: "user", createdAt: askedAt, content: files.names.length ? `${message} (with ${files.names.join(", ")})` : message },
           // (its place cards, screens and directions too, so the answer looks the same on every device — Oct 4)
-          { tripId, travelerId: req.user.travelerId, role: "assistant", content: finalReply, ...(hasSources ? { sources: sources as any } : {}),
+          { tripId, travelerId: req.user.travelerId, role: "assistant", createdAt: new Date(askedAt.getTime() + 1), content: finalReply, ...(hasSources ? { sources: sources as any } : {}),
             ...(placeCards.length || shows.length || routes.length ? { toolUse: { places: placeCards, shows, routes } as any } : {}) },
         ],
       }).catch(() => { /* non-critical — don't fail the response */ });

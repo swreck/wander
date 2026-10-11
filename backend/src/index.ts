@@ -53,6 +53,7 @@ import maybeRoutes from "./routes/maybes.js";
 import { bodyTripGuard } from "./middleware/tripGuard.js";
 import tripNoteRoutes from "./routes/tripNotes.js";
 import cityPhotoRoutes from "./routes/cityPhoto.js";
+import phoneReportRoutes from "./routes/phoneReports.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -172,6 +173,7 @@ app.use("/api/action-marks", actionMarkRoutes);
 app.use("/api/maybes", maybeRoutes);
 app.use("/api/trip-notes", tripNoteRoutes);
 app.use("/api/city-photo", cityPhotoRoutes);
+app.use("/api/phone-reports", phoneReportRoutes);
 app.use("/api/sources", sourceRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
