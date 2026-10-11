@@ -368,7 +368,11 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     // (by the evening in Japan the day's travel is behind them — verify10: "the others travel from Hakata to Nagoya
     // today" at 11 PM Japan time)
     const jpHour = Number(new Date().toLocaleString("en-US", { timeZone: tz, hour: "numeric", hour12: false })) % 24;
-    if (from && to && from !== to) return jpHour >= 18 ? `the others are in ${to} tonight, after the trip from ${from}` : `the others travel from ${from} to ${to} today`;
+    // (…or from the day's booked train's arrival, when there is one — verify11: still "travel … today" at 5:55 PM after
+    // the NOZOMI 22 got in at 1:55 PM)
+    const lastArrive = rail.flatMap((x) => x.s.rail.filter((r) => r.date === date && isBookedTrain(r)).map((r) => colOf(r.cols, /^arrive/)).filter(Boolean)).sort().pop();
+    const arrived = lastArrive ? Date.now() >= zonedMoment(date, toMin(lastArrive.padStart(5, "0")), tz).getTime() : jpHour >= 18;
+    if (from && to && from !== to) return arrived ? `the others are in ${to} ${jpHour >= 18 ? "tonight" : "now"}, after the trip from ${from}` : `the others travel from ${from} to ${to} today`;
     return `the others are in ${to || "Japan"}`;
   };
   // Whose Guide it is — she is never told to ask herself (round 9: "ask Larisa if you're not sure", to Larisa)

@@ -30,6 +30,25 @@ describe("pieces of an answer", () => {
     expect(groups).toEqual(["Dinner is 6:30 PM at Ristorante Dono.", "Here it is."]);
     expect(pieces[1].citations).toHaveLength(1);
   });
+
+  it("pieces that meet after a colon, a full stop or before a bracket get their space (verify11)", () => {
+    const { groups } = piecesOfStep([
+      { type: "text", text: "That day, in her order:" },
+      { type: "text", text: "6:45 AM leave Shiraume, Starbucks about 8:30.", citations: [loc(2, 3, "x")] },
+      { type: "text", text: "9:15 taxi back. 4 people in Green Class" },
+      { type: "text", text: "(Oct 29, Kyoto → KIX)", citations: [loc(2, 3, "y")] },
+      { type: "text", text: ", then 8:30" },
+    ]);
+    expect(groups).toEqual(["That day, in her order: 6:45 AM leave Shiraume, Starbucks about 8:30. 9:15 taxi back. 4 people in Green Class (Oct 29, Kyoto → KIX), then 8:30"]);
+  });
+
+  it("citation markup written out as words never shows — the words inside stay (Oct 11, an answer to Andy)", () => {
+    const { groups, pieces } = piecesOfStep([
+      { type: "text", text: 'I\'d hold off — <ricite index="1-503">her pin looks misplaced</ricite>, and <cite index="2-1">her plan has it Oct 27</cite>.' },
+    ]);
+    expect(groups).toEqual(["I'd hold off — her pin looks misplaced, and her plan has it Oct 27."]);
+    expect(pieces[0].text).not.toMatch(/cite/);
+  });
 });
 
 describe("resolving a citation to the source recorded with its line", () => {

@@ -37,15 +37,25 @@ export interface AnswerPiece { text: string; citations: any[] }
  * group joins its pieces with the same spacing rule as answer steps (chat.ts joinAnswerPieces): a space only
  * after a finished sentence, before a capital.
  */
+/**
+ * Citation markup Scout sometimes writes out as words — `<ricite index="1-503">…</ricite>`, `<cite index="2-1">` — is
+ * never shown: the tags go, the words inside stay (Oct 11: an answer to Andy showed them; real citations arrive apart)
+ */
+export const withoutCiteTags = (s: string) => s.replace(/[<(]\/?[a-z]{0,8}cite\b[^>]*>/gi, "");
+
 export function piecesOfStep(content: any[]): { groups: string[]; pieces: AnswerPiece[] } {
   const groups: string[] = [];
   const pieces: AnswerPiece[] = [];
   let current: string | null = null;
   for (const b of content) {
     if (b?.type === "text") {
-      const t = b.text || "";
-      current = current === null ? t : current + (/[.!?]\**$/.test(current) && /^[A-Z*]/.test(t) ? " " : "") + t;
-      pieces.push({ text: b.text || "", citations: Array.isArray(b.citations) ? b.citations : [] });
+      const t = withoutCiteTags(b.text || "");
+      // (a space where a sentence or a colon ends and the next piece begins — "in her order:6:45 AM", "about 8:30.9:15"
+      // and "Green Class(Oct 29" ran together where cited pieces met; verify11)
+      const was: string = current ?? "";
+      const gap: boolean = (/[.!?:;]\**$/.test(was) && /^[A-Za-z0-9*“"(]/.test(t)) || (/[A-Za-z]$/.test(was) && /^\(/.test(t));
+      current = current === null ? t : current + (gap ? " " : "") + t;
+      pieces.push({ text: t, citations: Array.isArray(b.citations) ? b.citations : [] });
     } else if (current !== null) {
       groups.push(current);
       current = null;

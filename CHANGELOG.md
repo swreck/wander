@@ -2,6 +2,34 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-11 — "What's Near Me?" From Larisa's Pins; Her Misplaced Pin Is Never a Destination
+
+### Added
+- Scout answers "what's nearby?", "anything good around here?" and "how far is my hotel?" from where the phone is: the
+  closest of Larisa's pinned places (her Google map and her Apple Maps guides), each with how far in the words people
+  use ("about 400 m — roughly 4 blocks", "1.5 miles"), which way, and "toward your hotel" when it is (her own pin for
+  the hotel). Straight lines, never a walking time. Far from all of her places (Nagoya tonight, California) Scout says
+  so plainly and names the closest. Ken asked Oct 11. Where: Scout's panel.
+- The phone sends its location with a Scout question only when the question is about what's near or around them, or
+  when location is already allowed for Wander — no location prompt for other questions. Said no: Scout says it can't
+  see where they are and asks what they're near. The location is used for that answer only and never saved.
+
+### Fixed
+- A pin of hers that sits far from every town and place of the trip (her "Sannenzaka-dori Street" pin is in Wakayama,
+  100 km from Kyoto — Google matched a street of the same name) is never used for directions or "nearby", and Scout
+  says the pin looks misplaced. Before, Scout's walking-directions button would have gone there.
+- Citation markup Scout occasionally writes out as words (`<ricite index="…">`) never shows in an answer.
+- Try again (or the same question typed again) on a bad line no longer loses the answer the first try got: the new try
+  looks for the earlier tries' answers too (tries of the same words in the last half hour that never got an answer).
+  Try again in a tunnel keeps the promise to show the answer once the signal is back. (Since this morning's deploy the
+  first try's answer could end in "I couldn't get an answer".)
+- Web addresses in Scout's answers can be tapped, shown by a short name — Larisa's map is "Open her Google map ↗"; a
+  link Scout names ("JR Central") is that name, tapped to open. Before, her map's address was plain text.
+- Home, for Julie and Andy: "Right now in Japan" says the others "are in Nagoya now" once the day's booked train has
+  arrived, not only from 6 PM.
+- Words no longer run together where Scout's sourced pieces meet ("in her order:6:45 AM", "about 8:30.9:15").
+- SPEC sections: AI chat (Scout's context, directions, Scout's panel); Home. SPEC UPDATE NEEDED.
+
 ## 2026-10-11 — Scout Knows Larisa's Google Map; Every Question Carries Its Own Tag
 
 ### Added
