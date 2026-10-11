@@ -365,7 +365,11 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     const leaving = data.stays.find((s) => ymd(s.checkOutDate) === date);
     const from = leaving ? data.trip.cities?.find((c) => c.id === leaving.cityId)?.name : null;
     const to = cityOn(date);
-    return from && to && from !== to ? `the others travel from ${from} to ${to} today` : `the others are in ${to || "Japan"}`;
+    // (by the evening in Japan the day's travel is behind them — verify10: "the others travel from Hakata to Nagoya
+    // today" at 11 PM Japan time)
+    const jpHour = Number(new Date().toLocaleString("en-US", { timeZone: tz, hour: "numeric", hour12: false })) % 24;
+    if (from && to && from !== to) return jpHour >= 18 ? `the others are in ${to} tonight, after the trip from ${from}` : `the others travel from ${from} to ${to} today`;
+    return `the others are in ${to || "Japan"}`;
   };
   // Whose Guide it is — she is never told to ask herself (round 9: "ask Larisa if you're not sure", to Larisa)
   const owner = guideOwnerOf(data.trip.tagline);
@@ -1008,7 +1012,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           <ul className="mt-1">
             {todayDeadlines.map((i) => {
               const over = deadlineOver(i, tz);
-              const time = deadlineTimeWords(i, tz);
+              // (the time left out because the deadline's own words say it — "Until 11:59 PM Japan time" — words Home
+              // doesn't show: then those words; verify9/10, Ken's "Last day" said no time while Julie's did)
+              const time = deadlineTimeWords(i, tz) || (i.detail || "").match(/^Until [^\n]+/m)?.[0] || null;
               return (
                 <li key={i.id} className="flex gap-3 py-1.5">
                   {/* (a free-cancellation window asks nothing — said quietly, as Actions says it; Sweep C / verify 4: a gold

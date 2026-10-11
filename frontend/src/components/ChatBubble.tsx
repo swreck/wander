@@ -119,7 +119,9 @@ interface ChatMessage {
   routes?: { label: string; apple: string; google: string; search?: string }[];
   /** A line standing in for an answer Wander may still have (the phone lost the line): the question and when it went —
    *  kept on the phone, so the look for the saved answer goes on after the app is reopened */
-  waitingFor?: { q: string; sentAt: number; files?: boolean };
+  waitingFor?: { q: string; sentAt: number; files?: boolean; askId?: string };
+  /** The phone's own tag for a question it sent — Wander saves it with the question and its answer */
+  askId?: string;
 }
 
 /**
@@ -213,12 +215,26 @@ const LOOK_FOR_MS = 200_000;
 // line turned to "couldn't" without looking, under an answer Wander had)
 const LOOK_AFTER_RELOAD_MS = 24 * 3600_000;
 const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
+/** A fresh tag for a question this phone sends */
+const newAskId = () => {
+  try { if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID(); } catch { /* older phones */ }
+  return `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+};
 
 /** Wander's saved answer to this question, asked at sentAt — or null. A question sent with files is saved as "… (with
  *  menu (1).png)" (verify8: a file name with brackets was never matched). */
-async function findSavedAnswer(tripId: string | undefined, q: string, sentAt: number, before = Infinity): Promise<ChatMessage | null> {
+async function findSavedAnswer(tripId: string | undefined, q: string, sentAt: number, before = Infinity, askId?: string): Promise<ChatMessage | null> {
   if (!tripId) return null;
   const token = localStorage.getItem("wander_token");
+  // (asked with its tag: Wander gives the answer to exactly this question — words and times can't tell menu page 1's
+  // "What does this say?" from page 2's, nor survive a phone clock that runs fast; verify10)
+  if (askId) {
+    const r = await fetch(`/api/chat/answer?tripId=${encodeURIComponent(tripId)}&askId=${encodeURIComponent(askId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!r.ok) return null;
+    const j = await r.json() as { answer: ChatMessage | null };
+    return j.answer || null;
+  }
+  // (a line from before questions had tags: by its words, nearest its time)
   const r = await fetch(`/api/chat/history?tripId=${encodeURIComponent(tripId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (!r.ok) return null;
   const j = await r.json() as { messages: ChatMessage[] };
@@ -252,7 +268,8 @@ function loadMessages(): ChatMessage[] {
     if (last && last.role === "user") {
       const sentAt = Date.parse(last.at || "");
       msgs.push(recent(sentAt)
-        ? { role: "assistant", text: DROPPED, error: true, at: new Date().toISOString(), waitingFor: { q: last.text, sentAt } }
+        ? { role: "assistant", text: DROPPED, error: true, at: new Date().toISOString(),
+            waitingFor: { q: last.text, sentAt, ...(last.files?.length ? { files: true } : {}), ...(last.askId ? { askId: last.askId } : {}) } }
         : { role: "assistant", text: CUT_OFF, error: true });
     }
     for (const m of msgs) if (m.role === "assistant" && (m.text === CUT_OFF || /^(No signal right now|That took over 45 seconds|That took too long|I couldn't get an answer just now)/.test(m.text))) m.error = true;
@@ -416,10 +433,12 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const [listening, setListening] = useState(false);
   // A cut-off question from last time can be asked again with one tap
   // (a question still being looked for after the app reopened keeps its Try again)
-  const [failed, setFailed] = useState(() => messages.length > 1 && (messages[messages.length - 1].text === CUT_OFF || !!messages[messages.length - 1].waitingFor));
+  // (…but not a photo's: the photo isn't kept on the phone, so Try again would send the words alone; verify10)
+  const [failed, setFailed] = useState(() => messages.length > 1 && (messages[messages.length - 1].text === CUT_OFF
+    || (!!messages[messages.length - 1].waitingFor && !messages[messages.length - 1].waitingFor!.files)));
   const [lastFailedText, setLastFailedText] = useState(() => {
     const last = messages[messages.length - 1];
-    if (messages.length > 1 && last.waitingFor) return last.waitingFor.q;
+    if (messages.length > 1 && last.waitingFor) return last.waitingFor.files ? "" : last.waitingFor.q;
     return messages.length > 1 && last.text === CUT_OFF ? messages[messages.length - 2].text : "";
   });
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -585,10 +604,18 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   tripRef.current = context?.tripId;
   const herGuideRef = useRef("Larisa's Guide");
   herGuideRef.current = /^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide";
-  const startLook = useCallback((waitAt: string, q: string, sentAt: number, noSignal: boolean, status: number | null) => {
+  const onDataChangedRef = useRef(onDataChanged);
+  onDataChangedRef.current = onDataChanged;
+  // (the tag of the question whose files retryFilesRef holds — a photo can be sent again only while it's on the phone)
+  const retryAskRef = useRef<string | null>(null);
+  const startLook = useCallback((waitAt: string, q: string, sentAt: number, noSignal: boolean, status: number | null, askId?: string, files?: boolean) => {
     if (looksRef.current.has(waitAt)) return;
     const me = { stop: false };
     looksRef.current.set(waitAt, me);
+    // (Try again on a photo sends the photo — only while this phone still has it: after a reload, or once another
+    // question has gone, it would send the words alone; verify10)
+    const canRetry = () => !files || (!!askId && retryAskRef.current === askId && retryFilesRef.current.length > 0);
+    const couldnt = () => (canRetry() ? "I couldn't get an answer just now. Want me to try again?" : "I couldn't get an answer just now — send the photo again and I'll read it.");
     const tell = (result: string) => phoneReport("scout-drop", { result, secs: Math.round((Date.now() - sentAt) / 1000), noSignal, status: status ?? 0 });
     const noSignalNow = () => `No signal right now, so I can't answer. Today's plan from ${herGuideRef.current} is still under Next.`;
     // (the conversation read back from Wander — the app coming to the front — may have brought the answer already:
@@ -601,7 +628,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const done = () => { looksRef.current.delete(waitAt); };
     // ("Want me to try again?" always comes with its button — after Never mind too, or another failure's button
     // would be taken over; verify9)
-    const offerAgain = () => { if (!lastFailedRef.current || sameWords(lastFailedRef.current, q)) { setFailed(true); setLastFailedText(q); } };
+    const offerAgain = () => { if (canRetry() && (!lastFailedRef.current || sameWords(lastFailedRef.current, q))) { setFailed(true); setLastFailedText(q); } };
     void (async () => {
       if (noSignal) {
         // (up to ten minutes for the signal to come back)
@@ -615,22 +642,27 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         setMessages((prev) => prev.map((m) => (m.at === waitAt && m.waitingFor && m.text === NO_SIGNAL_WAIT ? { ...m, text: DROPPED } : m)));
       }
       const until = Math.max(sentAt + LOOK_FOR_MS, Date.now() + 45_000);
+      // (the first look at once — reopened, the answer is often already saved; verify10 saw it beside "still on it")
+      let first = true;
       while (Date.now() < until) {
-        await new Promise((r) => setTimeout(r, 4000));
+        if (!first) await new Promise((r) => setTimeout(r, 4000));
+        first = false;
         if (me.stop) { done(); tell("asked-again"); return; }
         // (the next time these same words were sent from this phone, if they were — its answer isn't this one's)
         const later = messagesRef.current.filter((m) => m.role === "user" && sameWords(m.text, q) && !!m.at && Date.parse(m.at) > sentAt + 1000)
           .map((m) => Date.parse(m.at!)).sort((a, b) => a - b)[0];
-        const found = await findSavedAnswer(tripRef.current, q, sentAt, later ?? Infinity).catch(() => null);
+        const found = await findSavedAnswer(tripRef.current, q, sentAt, later ?? Infinity, askId).catch(() => null);
         if (me.stop) { done(); tell("asked-again"); return; }
         if (found) {
           settle(found, "");
           if (sameWords(lastFailedRef.current, q)) { setFailed(false); setLastFailedText(""); }
+          // (it may have added something — a note, a plan: the screens read again; verify10)
+          onDataChangedRef.current?.();
           done(); tell("answer-found");
           return;
         }
       }
-      settle(null, navigator.onLine === false ? noSignalNow() : "I couldn't get an answer just now. Want me to try again?");
+      settle(null, navigator.onLine === false ? noSignalNow() : couldnt());
       offerAgain(); done(); tell("not-found");
     })();
   }, []);
@@ -651,11 +683,18 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setFailed(false);
       setLastFailedText("");
     }
+    // (…and a waiting line whose question is gone — Start fresh on another device — goes too, its look stopped;
+    // verify10 saw "I'm still on it" under no question)
+    const orphan = (m: ChatMessage, i: number) => !!m.waitingFor && !messages.slice(0, i).some((p) => p.role === "user" && sameWords(p.text, m.waitingFor!.q));
+    if (messages.some(orphan)) {
+      for (const [i, m] of messages.entries()) if (orphan(m, i) && m.at) { const l = looksRef.current.get(m.at); if (l) l.stop = true; }
+      setMessages((prev) => prev.filter((m, i) => !orphan(m, i)));
+    }
   }, [messages, failed, lastFailedText]);
   // A line still waiting when the app was reopened goes on looking (verify8 FAIL 1)
   useEffect(() => {
     if (!tripForChat) return;
-    for (const m of messages) if (m.waitingFor && m.at) startLook(m.at, m.waitingFor.q, m.waitingFor.sentAt, navigator.onLine === false, null);
+    for (const m of messages) if (m.waitingFor && m.at) startLook(m.at, m.waitingFor.q, m.waitingFor.sentAt, navigator.onLine === false, null, m.waitingFor.askId, m.waitingFor.files);
     // (once the trip is known — the lines that were waiting when the app opened)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripForChat]);
@@ -905,12 +944,15 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         && !(typedAgain && m.role === "user" && sameWords(m.text, text) && !!prev[i + 1]?.waitingFor && takesOver(prev[i + 1].waitingFor!))));
     }
 
+    // (this question's own tag — Wander saves it with the question and the answer, so a lost answer is found by it alone)
+    const askId = newAskId();
     if (!retryText || asNew) {
       if (!retryText) setInput("");
       if (inputRef.current) inputRef.current.style.height = "auto";
-      setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString(), ...(sendFiles.length ? { files: sendFiles.map((f) => ({ name: f.name, ...(f.thumb ? { thumb: f.thumb } : {}) })) } : {}) }]);
+      setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString(), askId, ...(sendFiles.length ? { files: sendFiles.map((f) => ({ name: f.name, ...(f.thumb ? { thumb: f.thumb } : {}) })) } : {}) }]);
     }
     retryFilesRef.current = sendFiles;
+    retryAskRef.current = askId;
     setSentWith(!sendFiles.length ? null : onlyPictures ? (sendFiles.length > 1 ? "pictures" : "picture") : "file");
     if (!retryText) { setFiles([]); setFileNote(null); }
     sendingRef.current = true;
@@ -933,10 +975,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const peek = { found: null as ChatMessage | null, cut: undefined as ReturnType<typeof setTimeout> | undefined };
     const peeking = setInterval(() => {
       if (Date.now() - sentAt < 30_000 || peek.found) return;
-      void findSavedAnswer(context?.tripId, text, sentAt).then((f) => {
+      void findSavedAnswer(context?.tripId, text, sentAt, Infinity, askId).then((f) => {
         if (!f || peek.found || abortRef.current !== controller) return;
         peek.found = f;
-        peek.cut = setTimeout(() => { if (abortRef.current === controller) controller.abort(); }, 15_000);
+        // (30 s: a reply 20 s behind its saved copy was cut at 15 and lost "Show me"; verify10)
+        peek.cut = setTimeout(() => { if (abortRef.current === controller) controller.abort(); }, 30_000);
       }).catch(() => { /* still waiting on the line itself */ });
     }, 8000);
 
@@ -965,7 +1008,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const res = await fetch("/api/chat", {
         method: "POST",
         headers,
-        body: JSON.stringify({ message: text, context, history, clientTime, ...(sendFiles.length ? { attachments: sendFiles.map((f) => ({ mediaType: f.mimeType, data: f.data, name: f.name })) } : {}) }),
+        body: JSON.stringify({ message: text, context, history, clientTime, askId, ...(sendFiles.length ? { attachments: sendFiles.map((f) => ({ mediaType: f.mimeType, data: f.data, name: f.name })) } : {}) }),
         signal: controller.signal,
       });
 
@@ -1029,10 +1072,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const status = typeof err?.status === "number" ? err.status : null;
       if (context?.tripId && (offline || status === null || (status >= 502 && status <= 504))) {
         const waitAt = new Date().toISOString();
-        setMessages((prev) => [...prev, { role: "assistant", text: offline ? NO_SIGNAL_WAIT : DROPPED, error: true, at: waitAt, waitingFor: { q: text, sentAt, ...(sendFiles.length ? { files: true } : {}) } }]);
+        setMessages((prev) => [...prev, { role: "assistant", text: offline ? NO_SIGNAL_WAIT : DROPPED, error: true, at: waitAt, waitingFor: { q: text, sentAt, askId, ...(sendFiles.length ? { files: true } : {}) } }]);
         setFailed(true);
         setLastFailedText(text);
-        startLook(waitAt, text, sentAt, offline, status);
+        startLook(waitAt, text, sentAt, offline, status, askId, sendFiles.length > 0);
         return;
       }
       setMessages((prev) => [...prev, { role: "assistant", text: errorMsg, error: true }]);

@@ -97,7 +97,9 @@ export function closeness(g: AppleGuide): { place: string; near: { name: string;
 export function guideLines(g: AppleGuide, day: string | null): string[] {
   const out: string[] = [];
   const unnamed = g.places.filter((p) => !p.name || p.lat == null).length;
-  out.push(`[Her Apple Maps guide "${g.name}"${day ? ` — for ${day}` : ""}${g.tab ? `, the day of her "${g.tab}" tab` : ""}. Read ${g.readAt.slice(0, 10)}; her map may have changed since. NOT in visiting order — her day tab's order is the plan.]`);
+  // (the date as people say it, so it's never mixed with her Google map's — Oct 11)
+  const read = new Date(g.readAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "Asia/Tokyo" });
+  out.push(`[Her Apple Maps guide "${g.name}"${day ? ` — for ${day}` : ""}${g.tab ? `, the day of her "${g.tab}" tab` : ""}. Wander read it ${read}; her map may have changed since. NOT in visiting order — her day tab's order is the plan.]`);
   for (const p of located(g)) out.push(`- ${p.name}${p.address ? ` · ${p.address}` : ""}`);
   if (unnamed) out.push(`- (${unnamed} more on her map that Apple shows no name or address for)`);
   const c = closeness(g);

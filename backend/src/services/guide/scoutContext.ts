@@ -9,6 +9,7 @@
 import prisma from "../db.js";
 import { deadlineKey, listMarks } from "../actionMarks.js";
 import { appleGuidesOf, guideLines } from "./appleGuides.js";
+import { myMapOf, myMapLines, viewLink } from "./googleMyMap.js";
 import { tripDocumentsOf, dayWords, placeIn, whose } from "./tripDocuments.js";
 
 /** A deadline whose own words say charges START that day ("cancellation charges start", "60% charge from this date") */
@@ -484,6 +485,21 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       const lines = guideLines(g, g.date ? weekday(g.date) : null);
       const at = lines.findIndex((l) => l.startsWith("  What's close"));
       lines.forEach((l, i) => say(out, l, src(at >= 0 && i >= at)));
+    }
+  }
+  // Her Google map ("My Maps", Oct 11) — every location of the trip, in layers she named; read every few hours
+  const gm = await myMapOf(tripId);
+  if (gm) {
+    say(out, "\nHER GOOGLE MAP (a map Larisa made in Google My Maps, apart from her sheet — her map, not her sheet; layers are named by her, not dated):");
+    const lines = myMapLines(gm);
+    let layer = "";
+    for (const l of lines) {
+      const m = l.match(/^Layer "(.*)":$/);
+      if (m) layer = m[1];
+      const worked = l.startsWith("  ");
+      const ps = gm.layers.find((x) => x.name === layer)?.places || [];
+      say(out, l, { type: "map", app: "google", guide: layer ? `Layer “${layer}”` : gm.title || "Her Google map", link: viewLink(gm.mid), readAt: gm.readAt,
+        places: ps.map((p) => ({ name: p.name, address: null })), ...(worked ? { worked: true } : {}) });
     }
   }
   // Documents someone gave Wander (Backroads' itinerary, Oct 4) — their words, by day and page, never her Guide

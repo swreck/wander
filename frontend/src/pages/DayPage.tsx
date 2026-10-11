@@ -2059,13 +2059,17 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   const fromHere = (route: string) => { const from = route.split(/→|-\s*>/)[0] || ""; return !!cityName && route !== from && new RegExp(`\\b${cityName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(from); };
                   const doneLegs = arrived ? railMine.filter(({ r }) => { const route = colOf(r.cols, /^route$/); return !isBookedTrain(r) && !/evening|night|dinner|late/i.test(colOf(r.cols, /^depart/))
                     && (hereWords.some((w) => getsYouTo(route, w)) || (fromHere(route) && railMine.some((x) => getsYouTo(colOf(x.r.cols, /^route$/), cityName)))); }) : [];
-                  const doneKeys = new Set([...doneIds, ...doneLegs.map((x) => `leg-${railKey(x)}`)]);
+                  // (…and a booked train that has arrived — at 8 PM in Nagoya the morning's NOZOMI 22 still stood as a full card
+                  // after the fold; verify9 + verify10)
+                  const doneTrains = arrived ? booked.filter(({ r }) => { const a = railMin(colOf(r.cols, /^arrive/)); return a !== null && tripNow >= a; }) : [];
+                  const doneKeys = new Set([...doneIds, ...doneLegs.map((x) => `leg-${railKey(x)}`), ...doneTrains.map((x) => `train-${railKey(x)}`)]);
                   const isDone = (n: ReactNode) => !!n && typeof n === "object" && "key" in n && doneKeys.has(String((n as { key: unknown }).key));
                   const earlier = out.filter(isDone);
                   if (!earlier.length) return out;
                   const allLeadDone = restLead.every((i) => doneIds.has(i.id));
                   const rest = out.filter((n) => !isDone(n) && !(allLeadDone && !!n && typeof n === "object" && "key" in n && (n as { key: unknown }).key === "untimed-note"));
-                  const names = [...listItems.filter((i) => doneIds.has(i.id)).map((i) => itemTitle(i, stays, date)), ...doneLegs.map(({ r }) => [colOf(r.cols, /^route$/), colOf(r.cols, /^mode$/)].filter(Boolean).join(" · "))];
+                  const names = [...listItems.filter((i) => doneIds.has(i.id)).map((i) => itemTitle(i, stays, date)), ...doneLegs.map(({ r }) => [colOf(r.cols, /^route$/), colOf(r.cols, /^mode$/)].filter(Boolean).join(" · ")),
+                    ...doneTrains.map(({ r }) => [colOf(r.cols, /^train$/), colOf(r.cols, /^route$/)].filter(Boolean).join(" · "))];
                   return [
                     <li key="earlier-today">
                       <button onClick={() => setShowEarlier((s) => !s)} aria-expanded={showEarlier}

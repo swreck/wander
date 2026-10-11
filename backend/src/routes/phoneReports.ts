@@ -13,11 +13,13 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 const router = Router();
 router.use(requireAuth);
 
-const RESULT = /^[a-z][a-z-]{0,39}$/;
+// (only the words the app itself says — verify10 put "dinner-at-jiro-bring-cash" in by hand)
+const oneOf = (...words: string[]) => (v: unknown) => typeof v === "string" && words.includes(v);
 const NUM = (v: unknown) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) < 100_000;
 const FIELDS: Record<string, Record<string, (v: unknown) => boolean>> = {
-  tabbar: { result: (v) => typeof v === "string" && RESULT.test(v), short: NUM, page: NUM, phone: NUM, at: (v) => typeof v === "string" && /^\/[\w/-]{0,40}$/.test(v) },
-  "scout-drop": { result: (v) => typeof v === "string" && RESULT.test(v), secs: NUM, noSignal: (v) => typeof v === "boolean", status: NUM },
+  tabbar: { result: oneOf("measured-again-fixed-it", "bar-placed-at-real-bottom"), short: NUM, page: NUM, phone: NUM,
+    at: oneOf("/", "/now", "/ideas", "/notes", "/people", "/settings", "/whole-trip", "/history", "/profile", "/guide", "/day", "/checklist", "/city", "/story") },
+  "scout-drop": { result: oneOf("answer-found", "answer-found-while-stalled", "not-found", "asked-again", "still-no-signal"), secs: NUM, noSignal: (v) => typeof v === "boolean", status: NUM },
 };
 // (a phone acting normally sends a few a day; more than 30 in 10 minutes from one person is not a phone)
 const sent = new Map<string, number[]>();

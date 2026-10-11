@@ -22,7 +22,7 @@ type SourceView =
   | { type: "added"; by: string; text: string }
   | { type: "web"; title: string; url: string; quote: string }
   | { type: "sheet"; source: string; owner: string; authorship: string | null; label: string; cells: CellWords[] }
-  | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean }
+  | { type: "map"; guide: string; link: string; readAt: string; places: { name: string; address: string | null }[]; worked?: boolean; app?: "google" }
   // A document someone gave Wander (Backroads' itinerary): whose words, where in it, the words
   | { type: "document"; document: string; from: string; version: string; place: string; quote: string; aside?: string };
 
@@ -205,7 +205,8 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
     return (
       <div>
         <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">
-          {s.worked ? `Worked out by Wander from ${v.her} Apple Maps guide` : `${v.Her} Apple Maps guide`} — not {guide}
+          {/* (her Google map — "My Maps", Oct 11 — or an Apple Maps guide) */}
+          {s.worked ? `Worked out by Wander from ${v.her} ${s.app === "google" ? "Google map" : "Apple Maps guide"}` : `${v.Her} ${s.app === "google" ? "Google map" : "Apple Maps guide"}`} — not {guide}
         </p>
         {s.worked && <p className="text-sm text-[#3a3128]">Straight-line distances between the places on {v.her} map, not walking times.</p>}
         <p className="text-sm text-[#3a3128]">“{s.guide}”, as Wander read it {read}: {s.places.map((p) => p.name).join(" · ")}</p>

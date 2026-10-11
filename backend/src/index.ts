@@ -54,6 +54,7 @@ import { bodyTripGuard } from "./middleware/tripGuard.js";
 import tripNoteRoutes from "./routes/tripNotes.js";
 import cityPhotoRoutes from "./routes/cityPhoto.js";
 import phoneReportRoutes from "./routes/phoneReports.js";
+import { startMyMapReader } from "./services/guide/googleMyMap.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -206,4 +207,6 @@ app.listen(PORT, async () => {
   try { await seedTravelers(); } catch (e: any) { console.error("[seed] Error:", e.message); }
   // Other sources (Ken's rail sheet): read again every few minutes, read-only
   startSourceRefresher();
+  // Larisa's Google map: read again every few hours, read-only (googleMyMap.ts)
+  startMyMapReader();
 });

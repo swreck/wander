@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-11 — Scout Knows Larisa's Google Map; Every Question Carries Its Own Tag
+
+### Added
+- Larisa's Google map (her "My Maps" map with every location of the trip, in layers she named) is something Scout
+  knows: anyone asking for "Larisa's map", "her detailed map" or "her Google map" gets the link (it opens in Google Maps),
+  and Scout uses her pins for "where is…", what's close to what (straight-line, never minutes) and directions when her
+  sheet gives no address. A layer's name is hers, never a date. Wander reads her map again every few hours, read-only
+  (its public export — nothing can change her map), and keeps the last good reading. Ken asked Oct 11; Larisa had set
+  it to "anyone with the link can view". Where: Scout; Sources says "Her Google map".
+
+### Fixed
+- Scout's recovery of an answer the line dropped now asks Wander for the answer to exactly that question — each
+  question carries a tag from the phone, saved with it and its answer. Words and times couldn't tell menu page 1's
+  "What does this say?" from page 2's (a second photo's answer was lost even with no dropped line) or survive a phone
+  clock running fast.
+- Try again on a photo only while the photo is still on the phone; otherwise "send the photo again and I'll read it".
+- After Start fresh on another device, no waiting line or Try again is left with no question above it.
+- An answer found after the line dropped refreshes the screens (a note Scout added shows at once).
+- Home: Julie's and Andy's "Right now in Japan" says "the others are in Nagoya tonight, after the trip from Hakata"
+  from 6 PM Japan time (it said they "travel today" at 11 PM); the "Last day" of a free cancellation says until when
+  ("Until 11:59 PM Japan time").
+- Next: a booked train that has arrived folds into "Earlier today" once you've reached tonight's place.
+- Scout calls her "LT actions" list a heading, never a person.
+- SPEC sections: AI chat (Scout's sources, Scout's panel); Home; Next. SPEC UPDATE NEEDED.
+
 ## 2026-10-11 — Scout's Recovery, Finished: Later Reopens, Two Photos, Typed With No Signal
 
 A second fresh check (verify9) of the Scout work found what was still missing, and one problem the last deploy caused.

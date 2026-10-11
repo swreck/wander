@@ -143,7 +143,8 @@ export default function BottomNav({ pendingChanges }: Props) {
     let healedAt = 0;
     // (what it did, told to Wander's server — the only way to know the fix acted on a real phone: phoneReport)
     let healedShort = 0, placedFor = 0;
-    const tell = (result: string, short: number) => phoneReport("tabbar", { result, short, page: window.innerHeight, phone: screen.height, at: location.pathname });
+    // (the screen by its first part only — "/day", never a date or a name)
+    const tell = (result: string, short: number) => phoneReport("tabbar", { result, short, page: window.innerHeight, phone: screen.height, at: `/${location.pathname.split("/")[1] || ""}` });
     let wait: ReturnType<typeof setTimeout> | undefined;
     const typing = () => {
       const a = document.activeElement as HTMLElement | null;

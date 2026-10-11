@@ -19,6 +19,7 @@ import { addDayChoice, removeDayChoice, listDayChoices, plainDay } from "../serv
 import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
+import { myMapPlaces } from "../services/guide/googleMyMap.js";
 import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
 import { createMaybe, setIn, removeFromMaybes, putBackOnMaybes, MaybeError } from "../services/maybes.js";
 import { validAttachments, attachmentBlocks } from "../services/attachments.js";
@@ -3425,7 +3426,8 @@ export async function executeTool(
         }));
         // (the place on her Apple Maps guide of that name — "UMENO VASE SHOP" — when her sheet gives no pin or address;
         // the same name rule, and only one place: a different branch on her map is never swapped in)
-        const onMap = pin || address ? null : one((await appleGuidesOf(tripId)).flatMap((g) => g.places)
+        // (…or on her Google map — Oct 11 — the same rule)
+        const onMap = pin || address ? null : one([...(await appleGuidesOf(tripId)).flatMap((g) => g.places), ...(await myMapPlaces(tripId)).map((p) => ({ name: p.name, lat: p.lat, lng: p.lng }))]
           .filter((p) => p.name && p.lat != null && p.lng != null && (() => { const n = nameOf(p.name!); return n === want || (n.includes(want) && words(want) * 2 >= words(n)); })())
           .map((p) => `${p.lat},${p.lng}`));
         // (a hotel's address from its booking — "back to the Imperial" — when no line of hers gives one)
@@ -3679,7 +3681,8 @@ export async function executeTool(
       // (her initials, one or several — "AB / JD" is Andy & Julie; initials no one has, like "LT", stay as she wrote them)
       const INITIALS: Record<string, string> = { LF: "Larisa", KR: "Ken", AB: "Andy", JD: "Julie" };
       const forWhom = (t: { owner: string; sheetRowRef: string | null }) =>
-        t.owner === "Both" ? (t.sheetRowRef ? "Andy & Larisa" : "everyone") : t.owner.split(/\s*[\/&,]\s*/).map((o) => INITIALS[o] || o).join(" & ");
+        // (initials no one has are her list's heading, never a person — Scout said "marked for LT"; Ken: "There is no LT")
+        t.owner === "Both" ? (t.sheetRowRef ? "Andy & Larisa" : "everyone") : t.owner.split(/\s*[\/&,]\s*/).map((o) => INITIALS[o] || `her “${o} actions” list (a heading in her Actions tab, not a person)`).join(" & ");
       // (her to-dos ticked in Wander by the person they're for — Oct 9 — are done, said with who and when)
       const marks = new Map((await listMarks(input.tripId).catch(() => [])).map((m) => [m.key, m]));
       return { result: { todos: todos.map((t) => {
@@ -4452,15 +4455,34 @@ router.get("/history", async (req: AuthRequest, res) => {
     messages: rows.map((m) => {
       if (m.role === "user") {
         // "what's this? (with menu.png, plan.pdf)" — the files went with it; their names, not the files, were kept
-        const w = m.content.match(/^([\s\S]*?) \(with ([^()]+)\)$/);
+        // (a file name may have brackets of its own — "menu (1).png"; verify8)
+        const w = m.content.match(/^([\s\S]*?) \(with (.+)\)$/);
         return { role: "user", text: w ? w[1] : m.content, at: m.createdAt.toISOString(), ...(w ? { files: w[2].split(", ").map((name) => ({ name })) } : {}) };
       }
-      const t = (m.toolUse || {}) as { places?: unknown[]; shows?: unknown[]; routes?: unknown[] };
-      return { role: "assistant", text: m.content, at: m.createdAt.toISOString(), ...(m.sources ? { sources: m.sources } : {}),
-        ...(Array.isArray(t.places) && t.places.length ? { places: t.places } : {}), ...(Array.isArray(t.shows) && t.shows.length ? { shows: t.shows } : {}),
-        ...(Array.isArray(t.routes) && t.routes.length ? { routes: t.routes } : {}) };
+      return asAnswer(m);
     }),
   });
+});
+/** A saved answer as a phone shows it: words, sources, place cards, screens, directions */
+function asAnswer(m: { content: string; createdAt: Date; sources: unknown; toolUse: unknown }) {
+  const t = (m.toolUse || {}) as { places?: unknown[]; shows?: unknown[]; routes?: unknown[] };
+  return { role: "assistant", text: m.content, at: m.createdAt.toISOString(), ...(m.sources ? { sources: m.sources } : {}),
+    ...(Array.isArray(t.places) && t.places.length ? { places: t.places } : {}), ...(Array.isArray(t.shows) && t.shows.length ? { shows: t.shows } : {}),
+    ...(Array.isArray(t.routes) && t.routes.length ? { routes: t.routes } : {}) };
+}
+/** The saved answer to one question, by the tag the phone gave it (verify10, Oct 11: matching by words and time took
+ *  menu page 1's answer for page 2's — every wordless photo is "What does this say?"). { answer } or { answer: null }. */
+router.get("/answer", async (req: AuthRequest, res) => {
+  const tripId = typeof req.query.tripId === "string" ? req.query.tripId : "";
+  const askId = typeof req.query.askId === "string" && /^[\w-]{8,64}$/.test(req.query.askId) ? req.query.askId : "";
+  const travelerId = req.user?.travelerId;
+  if (!tripId || !askId || !travelerId) { res.status(400).json({ error: "tripId and askId" }); return; }
+  const fresh = await freshSince(tripId, travelerId);
+  const m = await prisma.chatMessage.findFirst({
+    where: { tripId, travelerId, role: "assistant", createdAt: { gt: fresh }, toolUse: { path: ["askId"], equals: askId } },
+    select: { content: true, sources: true, toolUse: true, createdAt: true },
+  });
+  res.json({ answer: m ? asAnswer(m) : null });
 });
 /** Scout's first word put off ("Later" — or something else asked first) or declined ("No thanks") — services/scoutHello */
 router.post("/hello", async (req: AuthRequest, res) => {
@@ -4484,6 +4506,8 @@ router.post("/", async (req: AuthRequest, res) => {
   const askedAt = new Date();
   try {
     const { context, history, clientTime, image } = req.body;
+    // (the phone's tag for this question — a random id it made; anything else is ignored)
+    const askId = typeof req.body?.askId === "string" && /^[\w-]{8,64}$/.test(req.body.askId) ? req.body.askId as string : null;
     // Files dragged in, pasted or chosen (services/attachments.ts) — with or without words
     const sent = validAttachments(req.body.attachments);
     if (sent === null) { res.status(400).json({ error: "Those files couldn't be sent — there may be too many, or they're too large together." }); return; }
@@ -4724,6 +4748,7 @@ PHOTOS: when a photo comes with the question (a menu, a sign, a ticket, a screen
 GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing. When directions says her Guide has no address for the place, say so plainly and that the button only searches Maps for the name — never present a searched place as hers.
 HER PICTURES: every picture in her tabs is given with all its words, as Wander read them ("Its words, as Wander read them") — use them: who goes where, times, places, what's on her illustrated day maps. A picture can be OLDER than her tab's text: her DAY BY DAY lines are the plan. When a picture's date, time, order or who-goes differs from them, give the plan first and then say her picture shows something else ("her map picture in that tab still shows Tokyodo at 2:15") — never quote a picture's time as the plan. When a picture says something her plan doesn't (who a stop is for, a van's return time), say it as her picture's.
 HER APPLE MAPS GUIDES: maps Larisa made in Apple Maps, one per day (the HER APPLE MAPS GUIDES lines), apart from her sheet. Call each "her Apple Maps guide for <day>" — never "her Guide" or "her tab" (her Guide is the sheet), and say it may have changed since Wander read it. Their places are NOT in visiting order: her day tab's order is the plan, and you never reorder her day or suggest a new order unless asked — even then, say it's your suggestion and her plan is the order she wrote. Use the "What's close to what" lines to say which places are close together and which need a train or taxi — always as straight-line distance between her map's places ("about 300 m apart in a straight line"), and say a river, a big station or a hill can make the walk longer. Never turn a distance into minutes — "a couple of minutes on foot" or "a short 5-minute walk" is a walking time you don't have; only her own words give times. A place on her map but not in her day tab, or in her day tab but not on her map, or a different branch or address on each: say both, with where each comes from, and suggest checking with Larisa — never pick one silently. Distances exist only between places on her maps; for anything else say Wander doesn't have its location.
+HER GOOGLE MAP: one map Larisa made in Google My Maps with every location of the trip, in layers she named (the HER GOOGLE MAP lines), apart from her sheet. Anyone asking for "Larisa's map", "her detailed map", "her Google map", "the map with all the places" or the like gets its link — the one in those lines, written out in full so it can be tapped — and one plain sentence of what's on it; it opens in Google Maps on their phone. Call it "her Google map" — never "her Guide" or "her tab" — and say Wander last read it on the date given (her map may have changed since). A layer's name is hers, not a date: say which day a layer's places are for only when her day plan puts those places on that day, and quote the layer's name as she wrote it ("her layer 'Ginza - Day 0'"). Her pins say where a place is: use them for "where is…", for what's close to what (straight-line, as with her Apple Maps guides — never minutes), and for directions when her sheet gives no address. A pin's note is her words: quote it. A place on her map but not in her day plan, or a different branch or spot on each: say both and where each comes from — never pick one silently.
 BACKROADS' ITINERARY (the section headed BACKROADS' ITINERARY, when there is one): Backroads' own day-by-day words for the Backroads week, given to Wander by Ken — their general itinerary for this trip, not one for your exact departure. Cite it and call it "Backroads' itinerary" (never "her Guide" or "her tab"), with the day ("Backroads' itinerary for Day 4, Wed, Oct 21 says…"). Use it for what each Backroads day holds — where to meet and what to bring, the rides and hikes and their distances, which meals are included, how the trip ends. Larisa's Guide has their dates and bookings: when the two differ on a time, a place or a meal, say both, with where each comes from, and never pick one. Its days are dated by Wander from Day 1 = the day her Guide meets Backroads. Say once, when it matters, that Backroads' leaders and their app (sent about a week before the trip) have the details for their departure, and that their plan can change on the trip. Its words about food (soy and bonito in nearly everything, no substitutions in Japan) are Backroads' — say them as theirs.
 WHERE IN HER SHEET: when someone asks where something is in Larisa's sheet ("which tab has…", "where did I put…", "where does it say…"), answer with the tab, named as she named it, and her words there, cited. Then say in one short sentence that "Sources" under this answer opens that spot in her sheet. If her Guide has it in more than one tab, name each, and cite each. Say where you found it — never that it's the only place or that no other tab has it: her pictures and long tabs can hold more than your copy shows. If it isn't in the copy you have, say so; never guess a tab.
 
@@ -5076,10 +5101,13 @@ RULES:
     if (tripId && req.user?.travelerId && finalReply) {
       prisma.chatMessage.createMany({
         data: [
-          { tripId, travelerId: req.user.travelerId, role: "user", createdAt: askedAt, content: files.names.length ? `${message} (with ${files.names.join(", ")})` : message },
+          // (the phone's own tag for this question goes with both rows, so a phone that lost the line asks for the
+          // answer to exactly this question — never one with the same words; verify10, Oct 11)
+          { tripId, travelerId: req.user.travelerId, role: "user", createdAt: askedAt, content: files.names.length ? `${message} (with ${files.names.join(", ")})` : message,
+            ...(askId ? { toolUse: { askId } as any } : {}) },
           // (its place cards, screens and directions too, so the answer looks the same on every device — Oct 4)
           { tripId, travelerId: req.user.travelerId, role: "assistant", createdAt: new Date(askedAt.getTime() + 1), content: finalReply, ...(hasSources ? { sources: sources as any } : {}),
-            ...(placeCards.length || shows.length || routes.length ? { toolUse: { places: placeCards, shows, routes } as any } : {}) },
+            ...(placeCards.length || shows.length || routes.length || askId ? { toolUse: { places: placeCards, shows, routes, ...(askId ? { askId } : {}) } as any } : {}) },
         ],
       }).catch(() => { /* non-critical — don't fail the response */ });
     }
