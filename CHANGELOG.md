@@ -28,6 +28,9 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 - Home, for Julie and Andy: "Right now in Japan" says the others "are in Nagoya now" once the day's booked train has
   arrived, not only from 6 PM.
 - Words no longer run together where Scout's sourced pieces meet ("in her order:6:45 AM", "about 8:30.9:15").
+- "How far is my hotel?" gets the distance to tonight's hotel (last night's on a moving day) whenever they're within
+  100 km of it — Ken, at the Marriott, was told "I can't measure the distance": the hotel line was only written when
+  her places were near.
 - SPEC sections: AI chat (Scout's context, directions, Scout's panel); Home. SPEC UPDATE NEEDED.
 
 ## 2026-10-11 — Scout Knows Larisa's Google Map; Every Question Carries Its Own Tag
