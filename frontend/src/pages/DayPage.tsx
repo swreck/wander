@@ -1600,13 +1600,22 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {(() => {
               const routes = railMine.filter((x) => placedTrains.has(railKey(x)) && isBookedTrain(x.r)).map((x) => ends(x.r)).filter((p) => p.length > 1 && p.some((e) => distinctWords(e).length > 0));
               const toldByTrain = (t: string) => routes.some((p) => p.every((e) => distinctWords(e).length === 0 || sameThing(e, t)));
+              // (…nor when one of the day's own lines already names that trip, both places the same way — Oct 8's
+              // "Hakata → Karatsu: about 1¼–1½ hr by subway/JR Chikuhi Line" is her Itinerary's own line; verify9)
+              const ownLines = [...dayItems, ...planBlocks].filter((x) => x.kind !== "stop").map((x) => x.title.toLowerCase());
+              const toldByLine = (t: string) => [...t.matchAll(/\b([A-Z][A-Za-z]{3,})\s*-+\s*>\s*([A-Z][A-Za-z]{3,})/g)]
+                // (and says how long or how — a bare "Okayama → Bizen" leaves her "~40 min local train" worth saying)
+                .some(([, a, b]) => ownLines.some((l) => {
+                  const i = l.indexOf(a.toLowerCase()), j = l.indexOf(b.toLowerCase(), i + 1);
+                  return i >= 0 && j > i && /\b(\d|hrs?|min|by|train|subway|line|bus|taxi|shinkansen)\b/.test(l.slice(j + b.length, j + b.length + 80));
+                }));
               const mine = distinctWords([...dayItems, ...planBlocks].filter((x) => isFor(x, me)).map((x) => `${x.title} ${x.detail || ""}`).join(" "));
               const notes = stopNotes.flatMap((s) => {
                 const home = distinctWords(stopCity(s) || "");
                 return (s.detail || "").split("\n").map((l) => l.match(/^Larisa's travel note: (.+)$/)?.[1]).filter((t): t is string => !!t)
                   // (by the places it names — her capitalised words — never "local" in "local train" meeting "Haruka-local")
                   .filter((t) => (t.match(/\b[A-Z][A-Za-z]{3,}\b/g) || []).map((w) => w.toLowerCase()).some((w) => !home.includes(w) && mine.includes(w)))
-                  .filter((t) => !toldByTrain(t))
+                  .filter((t) => !toldByTrain(t) && !toldByLine(t))
                   .map((t) => ({ key: `${s.id}-${t}`, t }));
               });
               return notes.map(({ key, t }) => (

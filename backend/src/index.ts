@@ -107,6 +107,8 @@ if (!process.env.VITEST) {
 
 // (Scout takes files dragged in or pasted — a few PDFs and pictures with one question; services/attachments.ts)
 app.use("/api/chat", express.json({ limit: "25mb" }));
+// (a phone's report is a few numbers — never read more; verify9 sent 9 MB and it was read)
+app.use("/api/phone-reports", express.json({ limit: "2kb" }));
 app.use(express.json({ limit: "10mb" })); // Reduced from 50mb
 
 // API routes
