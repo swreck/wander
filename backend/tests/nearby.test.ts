@@ -44,6 +44,15 @@ describe("what's near them", () => {
     expect(lines).not.toMatch(/^- Kiln Cafe/m);
   });
 
+  it("says how far their hotel is even when none of her places is near — and not from the other side of the world (Ken at the Marriott, Oct 11)", () => {
+    const atHotel = nearbyLines({ lat: 34.98095, lng: 136.02326, acc: 20, age: 3 }, [pins[4]], [hotel]).join("\n");
+    expect(atHotel).toContain("Their hotel tonight, Riverside Hotel (her pin): right where they are (under 150 m)");
+    expect(atHotel).toContain("None of Larisa's other pinned places is near them. The closest is Far Museum");
+    const nearby20km = nearbyLines({ lat: 35.16, lng: 136.02326, acc: 20, age: 3 }, [pins[4]], [hotel]).join("\n");
+    expect(nearby20km).toMatch(/Their hotel tonight, Riverside Hotel \(her pin\): about 19\.\d km — 12 miles to the south/);
+    expect(nearbyLines({ lat: 37.77, lng: -122.42, acc: 15, age: 2 }, pins, [hotel]).join("\n")).not.toMatch(/Their hotel/);
+  });
+
   it("says why it doesn't know where they are", () => {
     expect(nearbyLines({ none: "denied" }, pins, []).join(" ")).toMatch(/said no to sharing their location/);
     expect(nearbyLines({ none: "not-asked" }, pins, []).join(" ")).toMatch(/didn't send it/);

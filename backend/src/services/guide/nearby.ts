@@ -80,7 +80,15 @@ export function nearbyLines(here: Here, pins: Pin[], anchors: Anchor[]): string[
   const rough = here.acc != null && here.acc > 300 ? `, rough — within about ${Math.round(here.acc / 100) * 100} m` : "";
   const old = here.age != null && here.age > 300 ? `, as of ${Math.round(here.age / 60)} minutes ago` : "";
   out.push(`WHERE THEY ARE (the phone's location${rough}${old}; never saved). Distances below are straight lines from them — not routes or walking times:`);
-  const anchor = anchors.map((a) => ({ ...a, m: metres(here, a), deg: bearing(here, a) })).filter((a) => a.m <= 5000).sort((a, b) => a.m - b.m)[0];
+  // Their hotel (tonight's, or last night's on a moving day), said whenever they're in its part of the country — Ken at
+  // the Marriott asked "How far is my hotel?" and Scout couldn't say: the line was only written when her places were
+  // near (Oct 11). Not from California: tonight's hotel there is someone else's night.
+  const hotel = anchors.map((a) => ({ ...a, m: metres(here, a), deg: bearing(here, a) })).filter((a) => a.m <= 100_000).sort((a, b) => a.m - b.m)[0];
+  const hotelLine = hotel
+    ? `- Their hotel ${hotel.when === "tonight" ? "tonight" : "from last night"}, ${hotel.name} (her pin): ${hotel.m < 150 ? "right where they are (under 150 m) — they're at it" : `${farWords(hotel.m)} to the ${compass(hotel.deg)}`}.`
+    : null;
+  // (…and "toward their hotel" only when it's close enough to walk toward)
+  const anchor = hotel && hotel.m <= 5000 ? hotel : undefined;
   const seen: Pin[] = [];
   const ranked = pins
     .map((p) => ({ ...p, m: metres(here, p), deg: bearing(here, p) }))
@@ -92,13 +100,13 @@ export function nearbyLines(here: Here, pins: Pin[], anchors: Anchor[]): string[
       seen.push(p);
       return true;
     });
+  if (hotelLine) out.push(hotelLine);
   if (!ranked.length) return [...out, "- None of her places has a map point Wander knows."];
   if (ranked[0].m > 30_000) {
     const p = ranked[0];
-    out.push(`- None of Larisa's pinned places is near them. The closest is ${p.name} (${p.from}), ${farWords(p.m)} to the ${compass(p.deg)}${p.m > 300_000 ? " — they may not be in Japan yet" : ""}. Say so plainly; never call anything "nearby".`);
+    out.push(`- None of Larisa's ${hotelLine ? "other " : ""}pinned places is near them. The closest is ${p.name} (${p.from}), ${farWords(p.m)} to the ${compass(p.deg)}${p.m > 300_000 ? " — they may not be in Japan yet" : ""}. Say so plainly; never call anything "nearby".`);
     return out;
   }
-  if (anchor) out.push(`- Their hotel ${anchor.when === "tonight" ? "tonight" : "from last night"}, ${anchor.name} (her pin): ${farWords(anchor.m)} to the ${compass(anchor.deg)}.`);
   const list = ranked.filter((p, i) => i < 2 || p.m <= 3000).slice(0, 8);
   for (const p of list) {
     // (right where they are, a direction means nothing)
