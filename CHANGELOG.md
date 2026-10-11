@@ -2,6 +2,33 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-11 — Scout Keeps Looking for the Answer; "via Meitetsu" on the Tokoname Morning; Honest Weather Lines
+
+A fresh check of the morning's deploy found Scout's recovery worked only in the simplest case, plus a few smaller gaps.
+
+### Fixed
+- Scout, when the phone loses the line mid-answer, now keeps looking for Wander's saved answer however the moment
+  plays out: the app reopened (iOS often reloads a Home Screen app after another app is used), a line that stalls
+  instead of breaking (the saved answer shows as soon as it's there, without waiting out the 150-second limit), a long
+  answer (looked for past Scout's own limit), the same question asked again or "Try again" (that ask takes over —
+  never "I couldn't get an answer" beside it), a different question asked meanwhile (the first answer still arrives),
+  a photo whose file name has brackets. With no signal at all (a tunnel), it says "No signal right now. If your question
+  got through before the signal went, I'll show the answer here once you're back" and looks once the signal returns.
+  Wander now saves each question as of when it was asked, so answers stay under their own questions in order.
+  Where: Scout's panel.
+- Ken's Tokoname morning: Next said "Nagoya → Tokoname · Local train · no booking" and never "Meitetsu" — her
+  "Nagoya -> Tokoname (~40 min) via Meitetsu" was hidden as if the rail sheet's unbooked leg already said it. Only a
+  booked train now counts as saying her travel note. Where: Next and the day screen.
+- The day's weather: a day that's over shows no forecast (Oct 7 said "Forecast for Okayama" on Oct 11); on a phone
+  not on Japan time, when the forecast was fetched is said on the phone's own clock, "your time". Where: the day
+  screen and Next, the city band.
+
+### Added
+- Wander's server is told, in one short line, when the tab bar finds iOS's screen keyboard-short and what it did, and
+  when Scout finds (or doesn't find) an answer the line dropped — numbers and short words only, never anyone's words,
+  nothing shown on screen. So a real phone's ordinary use shows whether these fixes act (POST /api/phone-reports).
+- SPEC sections: AI chat (Scout's panel); Next/day screen (travel notes, weather). SPEC UPDATE NEEDED.
+
 ## 2026-10-11 — The Tab Bar Stays at the Bottom; Scout Finds an Answer the Line Dropped; No False "Tabs Differ"
 
 ### Fixed

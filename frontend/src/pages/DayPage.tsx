@@ -1594,8 +1594,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 told about tomorrow's Bizen (day review, Oct 4); the whole note stays folded at the bottom */}
             {/* (not when a train or leg in the day already goes between the places it names — Oct 8's "PT1: Okayama -> Hakata"
                 and "PT2: Hakata -> Karatsu" above the NOZOMI 9 and the local that say it; day review, Oct 8) */}
+            {/* (only a BOOKED train says it — an unbooked leg from the rail sheet says only "Local train", and her "Nagoya ->
+                Tokoname (~40 min) via Meitetsu" was hidden behind it: Meitetsu, a separate station at Nagoya, appeared
+                nowhere on Ken's Tokoname morning; verify8, Oct 11) */}
             {(() => {
-              const routes = railMine.filter((x) => placedTrains.has(railKey(x))).map((x) => ends(x.r)).filter((p) => p.length > 1 && p.some((e) => distinctWords(e).length > 0));
+              const routes = railMine.filter((x) => placedTrains.has(railKey(x)) && isBookedTrain(x.r)).map((x) => ends(x.r)).filter((p) => p.length > 1 && p.some((e) => distinctWords(e).length > 0));
               const toldByTrain = (t: string) => routes.some((p) => p.every((e) => distinctWords(e).length === 0 || sameThing(e, t)));
               const mine = distinctWords([...dayItems, ...planBlocks].filter((x) => isFor(x, me)).map((x) => `${x.title} ${x.detail || ""}`).join(" "));
               const notes = stopNotes.flatMap((s) => {

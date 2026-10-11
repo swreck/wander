@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { loadMaybeNews } from "../lib/maybesNews";
+import { phoneReport } from "../lib/phoneReport";
 
 interface Props {
   pendingChanges?: number;
@@ -140,6 +141,9 @@ export default function BottomNav({ pendingChanges }: Props) {
   useEffect(() => {
     if ((navigator as any).standalone !== true) return;
     let healedAt = 0;
+    // (what it did, told to Wander's server — the only way to know the fix acted on a real phone: phoneReport)
+    let healedShort = 0, placedFor = 0;
+    const tell = (result: string, short: number) => phoneReport("tabbar", { result, short, page: window.innerHeight, phone: screen.height, at: location.pathname });
     let wait: ReturnType<typeof setTimeout> | undefined;
     const typing = () => {
       const a = document.activeElement as HTMLElement | null;
@@ -161,14 +165,19 @@ export default function BottomNav({ pendingChanges }: Props) {
       // (the keyboard really is up: leave the bar where it is until typing ends)
       if (typing()) return;
       const short = screen.height - window.innerHeight;
-      if (short < 40) { setPlacedAt(null); healedAt = 0; return; }
+      if (short < 40) {
+        if (healedShort) { tell("measured-again-fixed-it", healedShort); healedShort = 0; }
+        setPlacedAt(null); healedAt = 0; placedFor = 0; return;
+      }
       if (healedAt !== window.innerHeight) {
         healedAt = window.innerHeight;
+        healedShort = short;
         heal();
         clearTimeout(wait);
         wait = setTimeout(check, 250);
         return;
       }
+      if (placedFor !== window.innerHeight) { placedFor = window.innerHeight; healedShort = 0; tell("bar-placed-at-real-bottom", short); }
       setPlacedAt(screen.height - (navRef.current?.offsetHeight || 90));
     };
     const soon = () => { clearTimeout(wait); wait = setTimeout(check, 350); };

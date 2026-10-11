@@ -14,20 +14,29 @@ export default function DayForecast({ lat, lon, date, zone, place, herLine, her 
   /** her sheet's line for the stay ("Larisa's forecast: lows 57-63, highs 72-76, rain 0-.1 in"), if any */
   herLine: string | null; her: string;
 }) {
-  const [f, setF] = useState<F | null>(() => savedForecast(lat, lon, date));
+  // (a day that's over has no forecast — Oct 7, viewed Oct 11, said "Forecast for Okayama"; verify8)
+  const past = date < new Date().toLocaleDateString("en-CA", { timeZone: zone });
+  const [f, setF] = useState<F | null>(() => (past ? null : savedForecast(lat, lon, date)));
   const [tried, setTried] = useState(false);
   useEffect(() => {
+    if (past) return;
     let live = true;
     setF(savedForecast(lat, lon, date));
     forecastFor(lat, lon, date, zone).then((x) => { if (live) { if (x) setF(x); setTried(true); } });
     return () => { live = false; };
-  }, [lat, lon, date, zone]);
+  }, [lat, lon, date, zone, past]);
 
   // (when it was fetched — with its day when that wasn't today, so a copy kept from yesterday never reads as this
-  // morning's; best-information audit, Oct 10)
-  const dayOf = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: zone });
-  const fetched = f ? new Date(f.at).toLocaleString("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit",
-    ...(dayOf(new Date(f.at)) !== dayOf(new Date()) ? { weekday: "short" } : {}) }) : "";
+  // morning's; best-information audit, Oct 10). On a phone that isn't on the trip's clock (Julie and Andy at home), on
+  // the phone's own clock and said so — "12:45 PM" was Japan's, unlabelled (verify8, Oct 11)
+  const phoneZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const otherClock = !!phoneZone && phoneZone !== zone;
+  const shownZone = otherClock ? phoneZone : zone;
+  const dayOf = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: shownZone });
+  const fetched = f ? `${new Date(f.at).toLocaleString("en-US", { timeZone: shownZone, hour: "numeric", minute: "2-digit",
+    ...(dayOf(new Date(f.at)) !== dayOf(new Date()) ? { weekday: "short" } : {}) })}${otherClock ? " your time" : ""}` : "";
+
+  if (past) return null;
   const icon = (kind: "rain" | "sun" | "part") => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-px" aria-hidden>
       {kind === "rain" ? (
