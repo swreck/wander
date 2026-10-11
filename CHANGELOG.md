@@ -2,6 +2,27 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-11 — Location Asked Only When It Matters; No Waiting for It; Scout's Panel Keeps Its Swipes
+
+### Fixed
+- The phone asks for location only for a question about where they are ("what's near me?", "anything good around
+  here?", "is there an ATM around?", "how far is my hotel?") — no longer for any question with "close", "far" or "here"
+  in it ("when does the pool close?", "how far is Nikko from Tokyo?", "here's a photo of the menu"), which brought up
+  the iPhone's location box in the middle of an unrelated question. Where: Scout's panel.
+- Once location is allowed, an ordinary Scout question never waits for a location reading: it carries what the phone
+  knew in the last ten minutes and reads it again in the background. A "near me" question asked within a minute of
+  another uses the position it has. (Before, every question could wait up to 2.5 s in a station or basement.)
+- A swipe on Scout's panel moves only the panel, even with a short conversation — it moved the page behind (Ken,
+  iPhone, Oct 11).
+- Larisa's map link reads "Open the Google map" (she saw "her" map for her own); a web address inside bold text can be
+  tapped.
+- A pin of hers far from every town of the trip is no longer called misplaced outright: Scout is told how far it is from
+  the nearest town and weighs it against her plan (a Kyoto street pinned outside Kyoto is misplaced; a day trip's pin
+  may be right). Directions still never use such a pin; someone standing near one sees it among "nearby".
+- "Toward your hotel" only for places within 30° of the hotel's direction (Ginza Itoya, due north with the hotel
+  north-west, was "toward the hotel").
+- SPEC sections: AI chat (Scout's panel, Scout's context). SPEC UPDATE NEEDED.
+
 ## 2026-10-11 — "What's Near Me?" From Larisa's Pins; Her Misplaced Pin Is Never a Destination
 
 ### Added

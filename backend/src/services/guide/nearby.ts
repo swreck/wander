@@ -12,12 +12,12 @@ import { metres, appleGuidesOf, strayKeys, pinKey } from "./appleGuides.js";
 import { myMapOf } from "./googleMyMap.js";
 
 /** Her pins (Google map and Apple Maps guides) that sit far from the whole trip — never used to say where a place is */
-export async function strayPinsOf(tripId: string): Promise<Set<string>> {
+export async function strayPinsOf(tripId: string): Promise<Map<string, { m: number; town: string | null }>> {
   const pins: { lat: number; lng: number }[] = [];
   for (const l of (await myMapOf(tripId).catch(() => null))?.layers ?? []) pins.push(...l.places);
   for (const g of await appleGuidesOf(tripId).catch(() => [])) for (const p of g.places) if (p.lat != null && p.lng != null) pins.push({ lat: p.lat, lng: p.lng });
-  const towns = (await prisma.city.findMany({ where: { tripId, hidden: false, latitude: { not: null }, longitude: { not: null } }, select: { latitude: true, longitude: true } }))
-    .map((c) => ({ lat: c.latitude!, lng: c.longitude! }));
+  const towns = (await prisma.city.findMany({ where: { tripId, hidden: false, latitude: { not: null }, longitude: { not: null } }, select: { name: true, latitude: true, longitude: true } }))
+    .map((c) => ({ lat: c.latitude!, lng: c.longitude!, name: c.name }));
   return strayKeys(pins, towns);
 }
 
@@ -113,7 +113,8 @@ export function nearbyLines(here: Here, pins: Pin[], anchors: Anchor[]): string[
     let way = p.m < 150 ? "" : `to the ${compass(p.deg)}`;
     if (way && anchor && anchor.m > 300) {
       const off = Math.abs(((p.deg - anchor.deg + 540) % 360) - 180);
-      if (off <= 35) way += p.m <= anchor.m * 1.3 ? ", toward their hotel" : ", past their hotel";
+      // (30°: Ginza Itoya, due north with the hotel north-west, was "toward the hotel" at 35°; verify12)
+      if (off <= 30) way += p.m <= anchor.m * 1.3 ? ", toward their hotel" : ", past their hotel";
     }
     out.push(`- ${p.name} — ${farWords(p.m)}${way ? ` ${way}` : ""} · ${p.from}${p.note ? ` · her note: "${p.note.slice(0, 160)}"` : ""}`);
   }
@@ -133,9 +134,10 @@ export async function nearbyFor(tripId: string, here: Here, now = new Date()): P
   for (const g of await appleGuidesOf(tripId).catch(() => [])) {
     for (const p of g.places) if (p.name && p.lat != null && p.lng != null) pins.push({ name: p.name, lat: p.lat, lng: p.lng, note: null, from: `her Apple Maps guide "${g.name}"` });
   }
-  // (a pin far from the whole trip — her Sannenzaka in Wakayama — is never "near" anyone)
+  // (a pin far from the whole trip — her Sannenzaka in Wakayama — is never "near" anyone… unless they're standing near it:
+  // then it's a real place off the route, a day trip's, and theirs to see; verify12)
   const stray = await strayPinsOf(tripId);
-  for (let i = pins.length - 1; i >= 0; i--) if (stray.has(pinKey(pins[i]))) pins.splice(i, 1);
+  for (let i = pins.length - 1; i >= 0; i--) if (stray.has(pinKey(pins[i])) && metres(here, pins[i]) > 30_000) pins.splice(i, 1);
   const today = japanToday(now);
   const stays = await prisma.accommodation.findMany({ where: { tripId }, select: { name: true, checkInDate: true, checkOutDate: true } });
   const anchors: Anchor[] = [];

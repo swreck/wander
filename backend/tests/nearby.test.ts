@@ -69,23 +69,24 @@ describe("what's near them", () => {
   });
 
   it("knows a pin far from the whole trip (a street of the same name 100 km away) — and keeps a real far one", () => {
-    const towns = [{ lat: 35.012, lng: 135.768 }, { lat: 35.182, lng: 136.905 }];
+    const towns = [{ lat: 35.012, lng: 135.768, name: "Kyoto" }, { lat: 35.182, lng: 136.905, name: "Nagoya" }];
     const kyoto = [{ lat: 34.9984, lng: 135.7808 }, { lat: 34.9983, lng: 135.7808 }];
     const wrongSpot = { lat: 34.2257, lng: 135.1712 };
     const hotelNearTown = { lat: 35.1709, lng: 136.8832 };
     const stray = strayKeys([...kyoto, wrongSpot, hotelNearTown], towns);
-    expect([...stray]).toEqual([pinKey(wrongSpot)]);
-    expect(strayKeys([wrongSpot], [])).toEqual(new Set());
+    expect([...stray.keys()]).toEqual([pinKey(wrongSpot)]);
+    expect(stray.get(pinKey(wrongSpot))?.town).toBe("Kyoto");
+    expect(strayKeys([wrongSpot], []).size).toBe(0);
   });
 
   it("tells Scout her misplaced pin is misplaced, and leaves it out of what's close to what", () => {
     const wrongSpot = { name: "Old Lane", note: null, lat: 34.2257, lng: 135.1712 };
     const m = { mid: "TestMapId_12345", title: "T", readAt: "2030-01-11T03:00:00.000Z", hash: "x",
       layers: [{ name: "Day 2", places: [{ name: "Pagoda", note: null, lat: 34.9929, lng: 135.785 }, { name: "Tea House", note: null, lat: 34.9984, lng: 135.7808 }, wrongSpot] }] };
-    const lines = myMapLines(m, new Set([pinKey(wrongSpot)])).join("\n");
-    expect(lines).toMatch(/- Old Lane \[her pin for this sits far from every town and place of the trip/);
+    const lines = myMapLines(m, new Map([[pinKey(wrongSpot), { m: 100_300, town: "Kyoto" }]])).join("\n");
+    expect(lines).toMatch(/- Old Lane \[her pin for this sits far from every town of the trip and her other pins — about 100\.3 km from Kyoto, the nearest\. If her plan puts this place somewhere else .* never route anyone by this pin\]/);
     expect(lines).not.toMatch(/Old Lane: nothing else/);
-    expect(lines).not.toMatch(/km/);
+    expect(lines.replace(/\[her pin[^\]]*\]/, "")).not.toMatch(/km/);
   });
 
   it("keeps distances round", () => {
