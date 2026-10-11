@@ -2,6 +2,28 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-11 — Scout's Recovery, Finished: Later Reopens, Two Photos, Typed With No Signal
+
+A second fresh check (verify9) of the Scout work found what was still missing, and one problem the last deploy caused.
+
+### Fixed
+- (Caused by the last deploy) A long answer still arriving could be cut short by the check for a stalled line, losing
+  "Show me", the screens' refresh and the action chips. Found saved, the real reply now gets 15 seconds more; only a
+  truly stuck line gets the saved copy, and showing it also refreshes the screens.
+- Reopened long after a dropped answer (iOS drops a pocketed app): Scout looks once and shows the answer, instead of
+  "couldn't" under it.
+- Two photos sent without words (both "What does this say?"): each keeps its own answer; a second photo is never taken
+  for the first asked again.
+- Typed with no signal at all: said plainly at once ("No signal right now, so I can't answer…"); when the signal goes
+  mid-answer and comes back, "No signal" turns to "I'm still on it".
+- "Want me to try again?" always comes with its Try again button; Try again leaves when its question isn't on screen
+  (Start fresh on another device).
+- Past Oct 8 no longer says Hakata → Karatsu three times: her stay's travel note is left out when the day's own line
+  already names that trip and says how long or how.
+- The phone-report route takes only the fields the app sends, in their own shapes, small bodies only, at most 30 per
+  person in 10 minutes.
+- Where: Scout's panel; the day screen. SPEC sections: AI chat (Scout's panel). SPEC UPDATE NEEDED.
+
 ## 2026-10-11 — Scout Keeps Looking for the Answer; "via Meitetsu" on the Tokoname Morning; Honest Weather Lines
 
 A fresh check of the morning's deploy found Scout's recovery worked only in the simplest case, plus a few smaller gaps.
