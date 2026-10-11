@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { loadMaybeNews } from "../lib/maybesNews";
 
@@ -128,13 +128,76 @@ export default function BottomNav({ pendingChanges }: Props) {
     return () => window.removeEventListener("wander:actions-attention", handler);
   }, []);
 
+  // The bar floated mid-screen (Ken's iPhone, iOS 27, Oct 11 8:43 AM Japan, 33 min after typing a note): a Home Screen
+  // app's iOS keeps the page's screen keyboard-short after the keyboard has been up, until the app is force-quit, and
+  // "bottom: 0" sits on that false bottom (his screenshot: 244 pt short of 874). Two steps, only in that state — an
+  // iPhone Home Screen app, upright, no box being typed in, the page's height well short of the phone's: first ask iOS
+  // to measure the page again (the page's scroll put back); if it's still short, the bar places itself from the top by
+  // the phone's own height. Everywhere else it's exactly as before. Nothing here reads or changes what Scout's panel
+  // uses (Oct 9: a page-wide bar change broke Scout).
+  const navRef = useRef<HTMLElement>(null);
+  const [placedAt, setPlacedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if ((navigator as any).standalone !== true) return;
+    let healedAt = 0;
+    let wait: ReturnType<typeof setTimeout> | undefined;
+    const typing = () => {
+      const a = document.activeElement as HTMLElement | null;
+      return !!a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.isContentEditable);
+    };
+    const heal = () => {
+      const root = document.getElementById("root");
+      if (!root) return;
+      const y = window.scrollY;
+      root.style.display = "none";
+      void root.offsetHeight;
+      root.style.display = "";
+      void root.offsetHeight;
+      window.scrollTo(0, y);
+    };
+    const check = () => {
+      // (an iPad, or a phone on its side: as before)
+      if (screen.width >= 700 || window.innerWidth !== screen.width) { setPlacedAt(null); return; }
+      // (the keyboard really is up: leave the bar where it is until typing ends)
+      if (typing()) return;
+      const short = screen.height - window.innerHeight;
+      if (short < 40) { setPlacedAt(null); healedAt = 0; return; }
+      if (healedAt !== window.innerHeight) {
+        healedAt = window.innerHeight;
+        heal();
+        clearTimeout(wait);
+        wait = setTimeout(check, 250);
+        return;
+      }
+      setPlacedAt(screen.height - (navRef.current?.offsetHeight || 90));
+    };
+    const soon = () => { clearTimeout(wait); wait = setTimeout(check, 350); };
+    const onShow = () => { if (document.visibilityState === "visible") soon(); };
+    check();
+    window.addEventListener("resize", soon);
+    window.addEventListener("focusout", soon);
+    window.addEventListener("pageshow", soon);
+    window.addEventListener("orientationchange", soon);
+    document.addEventListener("visibilitychange", onShow);
+    return () => {
+      clearTimeout(wait);
+      window.removeEventListener("resize", soon);
+      window.removeEventListener("focusout", soon);
+      window.removeEventListener("pageshow", soon);
+      window.removeEventListener("orientationchange", soon);
+      document.removeEventListener("visibilitychange", onShow);
+    };
+  // (and on every screen change — Ken's was on Next, after a note typed on Notes)
+  }, [location.pathname]);
+
   // Hide on login and join pages; everywhere else the same four tabs, always
   if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
 
   return (
     <nav
+      ref={navRef}
       className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e0d8cc]"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", ...(placedAt != null ? { top: placedAt, bottom: "auto" } : {}) }}
     >
       <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
         {tabs.map((tab) => {

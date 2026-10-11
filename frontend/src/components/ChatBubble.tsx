@@ -196,6 +196,10 @@ const chatKey = () => {
 };
 
 const CUT_OFF = "That answer got cut off before it reached this phone. Want me to try again?";
+// The phone lost the connection mid-answer, but Wander's server goes on and saves the answer (Ken on the Shinkansen,
+// Oct 11: three questions asked twice — every first one was answered and saved; the phone had said "I couldn't get an
+// answer"). Said while this phone looks for the saved answer.
+const DROPPED = "The connection dropped while I was answering — I'm still on it, and the answer will show up here.";
 
 function loadMessages(): ChatMessage[] {
   try {
@@ -204,6 +208,8 @@ function loadMessages(): ChatMessage[] {
     // A question with no answer (the app closed mid-reply) says so, instead of just sitting there
     if (msgs.length && msgs[msgs.length - 1].role === "user") msgs.push({ role: "assistant", text: CUT_OFF, error: true });
     for (const m of msgs) if (m.role === "assistant" && (m.text === CUT_OFF || /^(No signal right now|That took over 45 seconds|That took too long|I couldn't get an answer just now)/.test(m.text))) m.error = true;
+    // (still looking when the app closed: the conversation read from Wander brings the answer if it was saved)
+    for (const m of msgs) if (m.role === "assistant" && m.text === DROPPED) { m.text = "I couldn't get an answer just now. Want me to try again?"; m.error = true; }
     return msgs;
   } catch { return []; }
 }
@@ -511,6 +517,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // One question at a time, known the instant it's sent (the `sending` state a callback holds can be from before)
   const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Each question sent counts up: a look for a dropped answer stops once another question has gone
+  const recoverRef = useRef(0);
 
   // Persist messages to localStorage
   useEffect(() => {
@@ -773,6 +781,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const controller = new AbortController();
     abortRef.current = controller;
     const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+    // (a newer question, or "Try again", ends any look for an earlier dropped answer)
+    const asked = ++recoverRef.current;
+    const sentAt = Date.now();
 
     try {
       // Only today's conversation (on this phone's calendar): yesterday's "today" isn't today
@@ -805,7 +816,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
       clearTimeout(timeoutId);
 
-      if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+      if (!res.ok) throw Object.assign(new Error(`Request failed: ${res.status}`), { status: res.status });
       const data = await res.json();
       retryFilesRef.current = [];
 
@@ -837,6 +848,56 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         : isTimeout
         ? "That took too long — over two minutes. Want me to try again?"
         : "I couldn't get an answer just now. Want me to try again?";
+      // With signal, the question may well have reached Wander, which answers and saves it even after the phone has
+      // lost the line: say so, and look for the saved answer for a while ("Try again" stays there meanwhile)
+      // (Wander itself said no — an error it sent back — means nothing was saved: said at once. Only a broken line, the
+      // long wait, or Railway's own gateway giving up (502–504) can leave an answer still being made)
+      const status = typeof err?.status === "number" ? err.status : null;
+      const tripId = context?.tripId;
+      if (!offline && tripId && (status === null || (status >= 502 && status <= 504))) {
+        const waitAt = new Date().toISOString();
+        setMessages((prev) => [...prev, { role: "assistant", text: DROPPED, error: true, at: waitAt }]);
+        setFailed(true);
+        setLastFailedText(text);
+        const same = (a: string) => a.replace(/\s+/g, " ").trim() === text.replace(/\s+/g, " ").trim();
+        // (the conversation read back from Wander — the app coming to the front — may have brought the answer already:
+        // then the waiting line just goes, never the answer twice)
+        const settle = (found: ChatMessage | null) => setMessages((prev) => {
+          const isWait = (m: ChatMessage) => m.at === waitAt && m.text === DROPPED;
+          if (found && prev.some((m) => m.role === "assistant" && m.text === found.text)) return prev.filter((m) => !isWait(m));
+          return prev.map((m) => (isWait(m) ? (found ? { ...found } : { role: "assistant" as const, text: errorMsg, error: true }) : m));
+        });
+        void (async () => {
+          const until = sentAt + 90_000;
+          while (Date.now() < until) {
+            await new Promise((r) => setTimeout(r, 4000));
+            if (recoverRef.current !== asked) { settle(null); return; }
+            try {
+              const token = localStorage.getItem("wander_token");
+              const r = await fetch(`/api/chat/history?tripId=${encodeURIComponent(tripId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+              if (!r.ok) continue;
+              const j = await r.json() as { messages: ChatMessage[] };
+              const list = Array.isArray(j.messages) ? j.messages : [];
+              // (this question, saved since it was sent — its answer is saved with it; the phone's clock may run a
+              // little apart from Wander's)
+              let found: ChatMessage | null = null;
+              for (let i = list.length - 2; i >= 0; i--) {
+                const q = list[i], a = list[i + 1];
+                if (q.role === "user" && a.role === "assistant" && same(q.text) && q.at && Date.parse(q.at) >= sentAt - 30_000) { found = a; break; }
+              }
+              if (recoverRef.current !== asked) { settle(null); return; }
+              if (found) {
+                settle(found);
+                setFailed(false);
+                setLastFailedText("");
+                return;
+              }
+            } catch { /* still no line: look again */ }
+          }
+          if (recoverRef.current === asked) settle(null);
+        })();
+        return;
+      }
       setMessages((prev) => [...prev, { role: "assistant", text: errorMsg, error: true }]);
       setFailed(true);
       setLastFailedText(text);
