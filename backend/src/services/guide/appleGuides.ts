@@ -70,13 +70,16 @@ export const pinKey = (p: { lat: number; lng: number }) => `${p.lat.toFixed(5)},
  * name), and the walking-directions button would have sent Andy there. A real far pin — her Nagoya hotel in the
  * Tokoname layer, Hakata Station — is near a town of the trip, so it stays.
  */
-export function strayKeys(pins: { lat: number; lng: number }[], towns: { lat: number; lng: number }[]): Set<string> {
-  const out = new Set<string>();
+export function strayKeys(pins: { lat: number; lng: number }[], towns: { lat: number; lng: number; name?: string }[]): Map<string, { m: number; town: string | null }> {
+  // (each with its nearest town and how far — a lone real place off the route, a day trip's pin, is far too, so Scout
+  // weighs it against her plan rather than being told it's misplaced; verify12)
+  const out = new Map<string, { m: number; town: string | null }>();
   if (!towns.length) return out;
   for (const p of pins) {
     if (towns.some((t) => metres(p, t) <= 40_000)) continue;
     if (pins.some((o) => pinKey(o) !== pinKey(p) && metres(p, o) <= 25_000)) continue;
-    out.add(pinKey(p));
+    const near = towns.map((t) => ({ m: metres(p, t), town: t.name ?? null })).sort((a, b) => a.m - b.m)[0];
+    out.set(pinKey(p), near);
   }
   return out;
 }

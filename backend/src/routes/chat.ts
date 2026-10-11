@@ -3429,7 +3429,7 @@ export async function executeTool(
         // (…or on her Google map — Oct 11 — the same rule)
         // (never a pin far from the whole trip — her Sannenzaka pin sat in Wakayama, 100 km from Kyoto; Oct 11)
         const { strayPinsOf } = await import("../services/guide/nearby.js");
-        const stray = pin || address ? new Set<string>() : await strayPinsOf(tripId);
+        const stray = pin || address ? new Map<string, unknown>() : await strayPinsOf(tripId);
         const onMap = pin || address ? null : one([...(await appleGuidesOf(tripId)).flatMap((g) => g.places), ...(await myMapPlaces(tripId)).map((p) => ({ name: p.name, lat: p.lat, lng: p.lng }))]
           .filter((p) => p.name && p.lat != null && p.lng != null && !stray.has(`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`) && (() => { const n = nameOf(p.name!); return n === want || (n.includes(want) && words(want) * 2 >= words(n)); })())
           .map((p) => `${p.lat},${p.lng}`));

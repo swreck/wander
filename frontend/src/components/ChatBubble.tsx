@@ -28,7 +28,7 @@ const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)|https?:\/\/[^\s<>()"“”]
 function linkName(url: string): string {
   try {
     const u = new URL(url);
-    if (/(^|\.)google\.[a-z.]+$/.test(u.hostname) && u.pathname.startsWith("/maps/d/")) return "Open her Google map";
+    if (/(^|\.)google\.[a-z.]+$/.test(u.hostname) && u.pathname.startsWith("/maps/d/")) return "Open the Google map"; // (Larisa read "her" map for her own; verify12)
     if (/(^|\.)maps\.apple(\.com)?$/.test(u.hostname)) return "Open in Apple Maps";
     return u.hostname.replace(/^www\./, "");
   } catch { return url; }
@@ -59,7 +59,8 @@ function inline(content: string): ReactNode[] {
     const m = remaining.match(/\*\*(.+?)\*\*|\*([^*\s](?:[^*]*[^*\s])?)\*/);
     if (m && m.index !== undefined) {
       if (m.index > 0) parts.push(...phones(remaining.slice(0, m.index)));
-      parts.push(m[1] !== undefined ? <strong key={key++}>{m[1]}</strong> : <em key={key++}>{m[2]}</em>);
+      // (an address inside bold can be tapped too; verify12)
+      parts.push(m[1] !== undefined ? <strong key={key++}>{phones(m[1])}</strong> : <em key={key++}>{phones(m[2])}</em>);
       remaining = remaining.slice(m.index + m[0].length);
       continue;
     }
@@ -1582,7 +1583,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         </div>
 
         {/* Messages */}
-        <div ref={scrollRef} role="log" aria-live="polite" className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-3 min-h-0">
+        <div ref={scrollRef} role="log" aria-live="polite" className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 min-h-0">
+          {/* (always a pixel taller than the panel, so the conversation can always scroll and a swipe on it stays in it —
+              a short conversation couldn't, and iOS moved the page behind Scout instead; Ken, Oct 11) */}
+          <div className="space-y-3 min-h-[calc(100%+1px)]">
           {messages.length === 0 && (
             <div className={`text-center text-[#6b5d4a] text-sm ${helloBlock ? "py-3" : "py-8"}`}>
               <p>I'm Scout, your travel companion.</p>
@@ -1837,6 +1841,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               </button>
             </div>
           )}
+          </div>
         </div>
 
         {/* Input */}

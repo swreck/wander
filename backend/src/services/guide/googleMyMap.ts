@@ -125,15 +125,20 @@ export function startMyMapReader(everyMs = 3 * 3600_000): void {
 export const saidDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "Asia/Tokyo" });
 
 /** Lines for Scout: the link, then each of her layers by her name, its pins with her notes, and what's close to what */
-export function myMapLines(m: MyMap, stray: Set<string> = new Set()): string[] {
+export function myMapLines(m: MyMap, stray: Map<string, { m: number; town: string | null }> = new Map()): string[] {
   const out: string[] = [];
   // (the date as people say it — Scout once said "read it on Oct 2 — sorry, Oct 11", mixing it with her Apple guides')
   out.push(`[Her Google map${m.title ? ` "${m.title}"` : ""} — anyone with this link can open it: ${viewLink(m.mid)} . Wander read it ${saidDate(m.readAt)}; her map may have changed since. Its layers are named by her; a layer's name is not a date.]`);
   for (const l of m.layers) {
     if (!l.places.length) continue;
     out.push(`Layer "${l.name}":`);
-    for (const p of l.places) out.push(`- ${p.name}${p.note ? ` — her note: "${p.note.slice(0, 300)}"` : ""}${stray.has(pinKey(p))
-      ? " [her pin for this sits far from every town and place of the trip — likely dropped in the wrong spot by Google's search. Never use it to say where this is or to send anyone there; say her pin looks misplaced and suggest checking with Larisa]" : ""}`);
+    for (const p of l.places) {
+      const far = stray.get(pinKey(p));
+      // (far from every town and every other pin of hers: misplaced — her Sannenzaka lane sat in Wakayama — or a real
+      // place off the route, a day trip's; her plan tells which, so Scout weighs it, and nobody is sent there by this pin)
+      out.push(`- ${p.name}${p.note ? ` — her note: "${p.note.slice(0, 300)}"` : ""}${far
+        ? ` [her pin for this sits far from every town of the trip and her other pins — ${distanceWords(far.m)}${far.town ? ` from ${far.town}` : ""}, the nearest. If her plan puts this place somewhere else (a Kyoto street pinned outside Kyoto), the pin is likely misplaced: say so and suggest checking with Larisa. If her plan sends them there (a day trip), it may be right. Either way, never route anyone by this pin]` : ""}`);
+    }
     const located = l.places.filter((p) => !stray.has(pinKey(p)));
     const asGuide = { name: l.name, link: "", readAt: m.readAt, date: null, tab: null, places: located.map((p) => ({ name: p.name, address: null, lat: p.lat, lng: p.lng })) } as AppleGuide;
     const c = closeness(asGuide);
