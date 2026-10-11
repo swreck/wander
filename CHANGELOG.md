@@ -2,6 +2,33 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-11 — The Tab Bar Stays at the Bottom; Scout Finds an Answer the Line Dropped; No False "Tabs Differ"
+
+### Fixed
+- The tab bar floated mid-screen (Ken's iPhone on Next, 8:43 AM Japan, half an hour after typing a note). An iPhone
+  Home Screen app keeps its screen keyboard-short after the keyboard has been up, until the app is closed — an iOS
+  behavior, on iOS 27 too — and the bar sat on that false bottom. Now, only in that state (iPhone Home Screen app,
+  upright, nothing being typed), Wander first asks the iPhone to measure the page again (where you were reading stays
+  put); if the screen is still short, the bar places itself at the phone's real bottom. Everywhere else the bar is as
+  it was; Scout's panel is untouched. Where: the tab bar, every screen. Only a real iPhone can confirm it.
+- Scout said "I couldn't get an answer just now" for questions it had answered (Ken on the Shinkansen: three
+  questions asked twice — every first one answered and saved; the phone had lost the line). Now, when the line drops
+  mid-answer (or the wait runs out, or Railway's gateway gives up), Scout says "The connection dropped while I was
+  answering — I'm still on it, and the answer will show up here", looks for the saved answer for up to a minute and a
+  half, and shows it — once. "Try again" stays there meanwhile. An error Wander itself sends back is said at once, as
+  before. Where: Scout's panel.
+- Her new day tab for Oct 7 ("107 Bizen") made every line that day say "her tabs say two different things" — the
+  Itinerary's "Okayama → Bizen" at 8:30 shared a town's name with breakfast at the Okayama hotel, the Bizen studio, and
+  the rest, though both tabs have the 8:30 train. A day's own towns (its city, its travel legs' ends) no longer make two
+  lines "the same thing"; a line that is the same trip (both towns, the same way) at another time still differs, and a
+  distinctive name (the HARUKA, Cafe Ensou) still does. One cell holding two plans with two times ("9:30a Bizen Tour +
+  2p Kibido…") is read as two. Where: the day screen, Next, Home, Scout (her Guide's lines).
+
+### Changed
+- Larisa's Guide: the "-7" copy (Oct 11) — Cafe Ensou on Oct 28 at 1 PM (her Shigaraki tab agrees now), the Shigaraki
+  question gone, her "DONE" notes, the Oct 7 Bizen tab. Day summaries for Oct 7, 9, 17, 28 and 29 rewritten and read.
+- SPEC sections: Navigation (tab bar); AI chat (Scout's panel); Guide reading (tabs differ). SPEC UPDATE NEEDED.
+
 ## 2026-10-10 — What's Behind You Folds Away; Dinner Keeps Its Name; Larisa Is "You"
 
 Ken's question, and three fresh testers walking the whole trip as Ken, Larisa, Andy and Julie, each on a fixed rubric.

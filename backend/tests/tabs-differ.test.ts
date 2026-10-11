@@ -118,6 +118,49 @@ describe("tabs differ", () => {
     expect(b2.detail || "").not.toContain("puts it in");
   });
 
+  // Oct 11: her new "107 Bizen" day tab — every line naming Okayama or Bizen was marked as disagreeing with the
+  // Itinerary's "Okayama → Bizen" at 8:30, though both tabs have the 8:30 train
+  const bizenDay = () => {
+    const tab = "107 Bizen · Wednesday, October 7 — Bizen/Imbe day";
+    const leg = line({ date: "2030-01-07", kind: "travel", time: "08:30", title: "Okayama → Bizen", city: "Okayama",
+      detail: "10/7 @ 9:30a Bizen Tour - Trip Advisor + 10/7 @2p Kibido…Yosuke Kimura\nLarisa's travel note: Okayama -> Bizen (~40 min local train)",
+      source: "Itinerary · travel (row 18)" });
+    const blocks = [
+      ["07:00", "Breakfast at your Okayama hotel"],
+      ["08:30", "JR Ako Line from Okayama → Imbe"],
+      ["09:30", "Inside the Bizen Studio: 2-Hour Master Demo & Guided Walk"],
+      ["12:45", "Flexible time for browsing Bizen pottery in Imbe"],
+      ["13:40", "Start making your way to Bizen KIBIDO"],
+      ["14:00", "Confirmed visit with Yosuke Kimura at Bizen KIBIDO, 714 Imbe"],
+      ["16:30", "Begin heading back toward Imbe Station and take the JR Ako Line back to Okayama"],
+      ["17:30", "Back in Okayama, approximately"],
+    ].map(([time, title]) => line({ date: "2030-01-07", kind: "block", time, title, city: "Okayama", source: tab }));
+    return { leg, blocks };
+  };
+
+  it("a day's own towns don't make two lines the same thing (her Bizen day: no false \"tabs differ\")", () => {
+    const { leg, blocks } = bizenDay();
+    markTabsDiffer([leg, ...blocks] as any);
+    for (const b of blocks) expect(b.detail || "", b.title).not.toContain("Tabs differ");
+    expect(leg.detail).not.toContain("Tabs differ");
+  });
+
+  it("…but the same trip at another time still differs (both towns, the same way)", () => {
+    const { leg } = bizenDay();
+    const train = line({ date: "2030-01-07", kind: "block", time: "10:00", title: "Train Okayama → Bizen", city: "Okayama", source: "107 Bizen · Day" });
+    const back = line({ date: "2030-01-07", kind: "block", time: "16:30", title: "Train Bizen → Okayama", city: "Okayama", source: "107 Bizen · Day" });
+    markTabsDiffer([leg, train, back] as any);
+    expect(train.detail).toContain('Tabs differ: her Itinerary tab has "Okayama → Bizen" at 8:30 AM.');
+    expect(back.detail || "").not.toContain("Tabs differ");
+  });
+
+  it("…and a distinctive name still counts on a day with legs (the Haruka, with a Kyoto → KIX leg that day)", () => {
+    const block = line({ kind: "block", time: "12:30", timeText: "~12:30–1:00", title: "Board reserved HARUKA", city: "Kyoto", source: "Kyoto Thu, 0129 (Flight Home) · Day 5" });
+    const legKix = line({ kind: "travel", time: "13:30", title: "Kyoto → KIX", city: "Kyoto", detail: "Book 1:30p Haruka from Kyoto to KIX - DONE", source: "Japan-Oct26-Itinerary (row 67)" });
+    markTabsDiffer([block, legKix] as any);
+    expect(block.detail).toContain("Tabs differ: her Itinerary tab");
+  });
+
   it("saying it twice adds one note, not two", () => {
     const block = line({ kind: "block", time: "12:30", title: "Board reserved HARUKA", source: "Kyoto Thu · Day 5" });
     const flight = line({ kind: "flight", time: "18:35", title: "UA34", detail: "Larisa's travel note: 1:30-2:00p Haruka from Kyoto to KIX" });

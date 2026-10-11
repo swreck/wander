@@ -328,10 +328,31 @@ export function stopNoteOf(sectionTitle: string): string | null {
  */
 export function markTabsDiffer(items: Item[]): void {
   const note = (i: Item, line: string) => { if (!(i.detail || "").includes(line)) i.detail = [i.detail, line].filter(Boolean).join("\n"); };
+  // A day's own towns don't make two lines the same thing (Oct 11, her new "107 Bizen" tab: every line naming Okayama
+  // or Bizen — breakfast at the Okayama hotel, the Bizen studio — was marked as disagreeing with the Itinerary's
+  // "Okayama → Bizen" at 8:30, though both tabs have the 8:30 train). The day's city and the ends of its travel legs
+  // are left out of the comparison; a line that is itself the same trip (both towns, same way) still is compared.
+  const LEG = /\s*(?:→|->|–>)\s*/;
+  const legEnds = (t: string): [string[], string[]] | null => {
+    const parts = t.split("\n")[0].split(LEG);
+    return parts.length >= 2 ? [distinctWords(parts[0]), distinctWords(parts[parts.length - 1])] : null;
+  };
+  const townsOn = new Map<string, Set<string>>();
+  for (const i of items) {
+    if (!i.date) continue;
+    const towns = townsOn.get(i.date) || new Set<string>();
+    if (i.city) for (const w of distinctWords(i.city)) towns.add(w);
+    const ends = ["travel", "train", "flight"].includes(i.kind) ? legEnds(i.title) : null;
+    if (ends) for (const w of [...ends[0], ...ends[1]]) towns.add(w);
+    townsOn.set(i.date, towns);
+  }
   for (const b of items) {
     if (b.kind !== "block" || !b.time || !b.date) continue;
     const words = distinctWords(b.title);
     if (!words.length) continue;
+    const towns = townsOn.get(b.date) || new Set<string>();
+    const ownWords = words.filter((w) => !towns.has(w));
+    const bEnds = legEnds(b.title);
     const blockSaid = `"${b.title}" at ${b.timeText || clock12(b.time)}`;
     for (const o of items) {
       if (o === b || o.date !== b.date || o.kind === "block" || ["checkout", "checkin", "deadline", "weather", "stop"].includes(o.kind)) continue;
@@ -363,17 +384,20 @@ export function markTabsDiffer(items: Item[]): void {
       }
       // Another tab's line for the same thing, at another time
       const oWords = distinctWords(o.title);
-      if (o.time && words.some((w) => oWords.includes(w)) && Math.abs(toMinutes(o.time) - toMinutes(b.time)) >= 30) {
+      const oEnds = legEnds(o.title);
+      const sameTrip = !!oEnds && !!bEnds && oEnds[0].some((w) => bEnds[0].includes(w)) && oEnds[1].some((w) => bEnds[1].includes(w));
+      if (o.time && (sameTrip || ownWords.some((w) => oWords.includes(w))) && Math.abs(toMinutes(o.time) - toMinutes(b.time)) >= 30) {
         note(b, `Tabs differ: her ${tabOf(o.source)} tab has "${o.title.split("\n")[0]}" at ${clock12(o.time)}.`);
         note(o, `Tabs differ: her ${tabOf(b.source)} tab has ${blockSaid}.`);
         continue;
       }
       // A note on another tab's line that names it with a time ("1:30-2:00p Haruka from Kyoto to KIX")
-      for (const seg of (o.detail || "").split(/\n| — |; /)) {
+      // (one cell, two plans: "10/7 @ 9:30a Bizen Tour - Trip Advisor + 10/7 @2p Kibido…Yosuke Kimura" — each its own)
+      for (const seg of (o.detail || "").split(/\n| — |; | \+ /)) {
         // Her words only — never Wander's own notes ("Tabs differ: …", "Time from the … tab") or a chain
         // reaction follows ("Depart Shigaraki" matched the tab name inside another line's note)
         if (/^(Tabs differ:|Time from the |The .+ tab lists |Wander matched |Times are Larisa's|Address:)/.test(seg.trim())) continue;
-        if (!words.some((w) => distinctWords(seg).includes(w))) continue;
+        if (!ownWords.some((w) => distinctWords(seg).includes(w))) continue;
         // A time has minutes or an am/pm ("1:30-2:00p", "8p") — never a bare number ("Michelin 1 star")
         const t = seg.match(/\b(\d{1,2}):(\d{2})\s*(?:(a|p)\.?m?\b)?(?:\s*[-–]\s*\d{1,2}(?::\d{2})?\s*(a|p)\.?m?\b)?/i)
           || seg.match(/\b(\d{1,2})()\s*(a|p)\.?m?\b/i);
