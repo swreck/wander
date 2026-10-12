@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-12 (late night) — Packing Rain Said Only As Sure As the Forecasts Are
+
+### Fixed
+- Packing tips called rain "likely" from one forecast model alone: Mon, Oct 19 at the Nikko lake hotel read "68%"
+  from Europe's model while Japan's showed almost none and the US model none. Each rain day is now checked against
+  Europe's, Japan's and the US forecasts; Scout says "likely" only when all three show rain, otherwise "may", and says
+  the forecasts disagree. Where: Scout (packing_tips); services/packingWeather.ts. SPEC sections: AI chat.
+
 ## 2026-10-12 (night) — Papers: Receipts, Tickets and Bills, Kept by Day
 
 ### Added

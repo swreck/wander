@@ -38,7 +38,9 @@ export interface StayWeather {
   /** "forecast" (all within a week), "early outlook" (all beyond), or "forecast to <day>, then early outlook" */
   outlook: string;
   highs: string; lows: string; coldestLow: number; warmestHigh: number;
-  wetDays: { day: string; chance: number; inches: number; outlook: "forecast" | "early outlook" }[];
+  /** models: "agree" when Europe's, Japan's and the US forecasts all show rain that day; "disagree" when one shows
+   *  little or none (then it only may rain); "unknown" when the comparison couldn't be read */
+  wetDays: { day: string; chance: number; inches: number; outlook: "forecast" | "early outlook"; models: "agree" | "disagree" | "unknown" }[];
 }
 
 /** The stays this person sleeps in from today on (her Guide's "who" — empty means everyone), with their forecast */
@@ -81,13 +83,27 @@ export async function packingWeather(tripId: string, person: string, today: stri
       const sure = (day: string): "forecast" | "early outlook" => (away(day) <= 7 ? "forecast" : "early outlook");
       const days = d.time as string[];
       const lastSure = [...days].reverse().find((day) => sure(day) === "forecast");
+      // (the default above follows one model; the "68%" for the lake on Mon, Oct 19 was Europe's 13 mm while Japan's
+      // model had 1.4 mm and the US model none — said as "likely" all the same. So: do all three show rain? Oct 12)
+      const rainIn: Record<string, number[]> = {};
+      try {
+        const ctl2 = new AbortController();
+        const t2 = setTimeout(() => ctl2.abort(), 8000);
+        const m = (await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&models=ecmwf_ifs025,jma_seamless,gfs_seamless&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${from}&end_date=${to}`, { signal: ctl2.signal })).json())?.daily;
+        clearTimeout(t2);
+        (m?.time as string[] | undefined)?.forEach((day, i) => {
+          const xs = ["ecmwf_ifs025", "jma_seamless", "gfs_seamless"].map((k) => m[`precipitation_sum_${k}`]?.[i]);
+          if (xs.every((x) => typeof x === "number")) rainIn[day] = xs;
+        });
+      } catch { /* compared nowhere — "unknown", said as the default alone */ }
+      const models = (day: string): "agree" | "disagree" | "unknown" => (!rainIn[day] ? "unknown" : rainIn[day].every((x) => x >= 0.04) ? "agree" : "disagree");
       out.push({
         stay: s.name, town: s.city.name.split(/\s+-\s+|\s*\(|,/)[0].trim(),
         nights: from === to ? say(from) : `${say(from)} – ${say(to)}`, firstNight: from, daysAway: away(from),
         at: s.latitude != null || pin || found ? "the hotel itself" : "the town (Wander doesn't know where the hotel is)",
         outlook: !lastSure ? "early outlook" : lastSure === days[days.length - 1] ? "forecast" : `forecast to ${say(lastSure)}, then early outlook`,
         highs: range(hi), lows: range(lo), coldestLow: Math.min(...lo), warmestHigh: Math.max(...hi),
-        wetDays: days.map((day, i) => ({ day: say(day), chance: d.precipitation_probability_max?.[i] ?? 0, inches: Math.round((d.precipitation_sum?.[i] ?? 0) * 10) / 10, outlook: sure(day) }))
+        wetDays: days.map((day, i) => ({ day: say(day), chance: d.precipitation_probability_max?.[i] ?? 0, inches: Math.round((d.precipitation_sum?.[i] ?? 0) * 10) / 10, outlook: sure(day), models: models(day) }))
           .filter((w) => w.chance >= 60 || w.inches >= 0.4),
       });
     } catch { /* no forecast for this stay — left out, never guessed */ }
