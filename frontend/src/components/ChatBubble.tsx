@@ -10,7 +10,7 @@ import ScoutSources, { hasSources, citesGuide, type AnswerSources } from "./Scou
 import OnceTip, { useOnceTip } from "./OnceTip";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { phoneReport } from "../lib/phoneReport";
-import { whereAmI } from "../lib/whereAmI";
+import { whereAmI, hereNow, type Here } from "../lib/whereAmI";
 
 /** Phone numbers in an answer can be tapped to call */
 let phoneKey = 0;
@@ -150,6 +150,10 @@ interface ChatMessage {
   files?: { name: string; thumb?: string }[];
   /** Directions Scout offered, from wherever the phone is ("Walk to Tokyodo Main Showroom", "Taxi to …") */
   routes?: { label: string; apple: string; google: string; search?: string }[];
+  /** Scout needed where they are and couldn't see it: a "Use my location" button under the answer (Oct 12) */
+  askHere?: boolean;
+  /** A question sent again with where the phone is, after "Use my location" — said under it, on this phone */
+  withHere?: boolean;
   /** A line standing in for an answer Wander may still have (the phone lost the line): the question and when it went —
    *  kept on the phone, so the look for the saved answer goes on after the app is reopened */
   waitingFor?: { q: string; sentAt: number; files?: boolean; askId?: string; earlier?: string[] };
@@ -800,6 +804,17 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       return;
     }
     const lastBubble = bubbles[bubbles.length - 1];
+    // An answer with "Use my location": down to the button, as long as the answer's first line stays in view (verify15:
+    // on the half-height panel the button sat below the fold under "tap Use my location below")
+    const here = lastBubble?.dataset.msg === "assistant" ? lastBubble.querySelector<HTMLElement>("[data-here-button]") : null;
+    if (here) {
+      const view = box.getBoundingClientRect();
+      const top = lastBubble.getBoundingClientRect().top - view.top - 8;
+      const below = here.getBoundingClientRect().bottom - view.bottom + 12;
+      // (the least move that shows both; when both can't show, the first line wins)
+      box.scrollTop += below <= top ? Math.min(Math.max(0, below), top) : top;
+      return;
+    }
     if (lastBubble?.dataset.msg === "assistant" && lastBubble.offsetHeight > box.clientHeight * 0.6) {
       box.scrollTop += lastBubble.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
     } else {
@@ -932,8 +947,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   }, []);
 
   // retryText: resend a question already on screen. asNew: a tapped example question — show it as theirs.
-  const sendMessage = useCallback(async (retryText?: string, asNew = false) => {
-    const sendFiles = retryText ? retryFilesRef.current : files;
+  // given: where the phone is, read for "Use my location" — the question goes again, words only, with it.
+  const sendMessage = useCallback(async (retryText?: string, asNew = false, given?: Here) => {
+    const sendFiles = given ? [] : retryText ? retryFilesRef.current : files;
     // sent with no words: a photo is read and translated; anything else, what it is and why it matters
     const onlyPictures = sendFiles.length > 0 && sendFiles.every((f) => f.mimeType.startsWith("image/"));
     const text = retryText || input.trim() || (sendFiles.length ? (onlyPictures ? "What does this say?" : sendFiles.length === 1 ? "What's in this?" : "What's in these?") : "");
@@ -997,7 +1013,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     if (!retryText || asNew) {
       if (!retryText) setInput("");
       if (inputRef.current) inputRef.current.style.height = "auto";
-      setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString(), askId, ...(sendFiles.length ? { files: sendFiles.map((f) => ({ name: f.name, ...(f.thumb ? { thumb: f.thumb } : {}) })) } : {}) }]);
+      setMessages((prev) => [...prev, { role: "user", text, at: new Date().toISOString(), askId, ...(given ? { withHere: true } : {}), ...(sendFiles.length ? { files: sendFiles.map((f) => ({ name: f.name, ...(f.thumb ? { thumb: f.thumb } : {}) })) } : {}) }]);
     }
     retryFilesRef.current = sendFiles;
     retryAskRef.current = askId;
@@ -1054,7 +1070,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       };
 
       // Where the phone is, for "what's near me?" — only when the question needs it or Wander may already know
-      const here = offlineAtSend ? null : await whereAmI(text);
+      const here = given ?? (offlineAtSend ? null : await whereAmI(text));
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -1078,6 +1094,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         ...prev,
         { role: "assistant", text: data.reply, actions: data.actions, places: data.places, shows, headline, at: new Date().toISOString(),
           ...(Array.isArray(data.routes) && data.routes.length ? { routes: data.routes } : {}),
+          ...(data.askHere === true ? { askHere: true } : {}),
           ...(hasSources(data.sources) ? { sources: data.sources } : {}) },
       ]);
       // "Show me…": Scout moves the screen there (its answer stays in the conversation)
@@ -1150,6 +1167,38 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       abortRef.current = null;
     }
   }, [input, sending, context, onDataChanged, messages, files, answerHello, startLook]);
+
+  // "Use my location" under an answer that needed it (Oct 12): the phone is asked — the iPhone's box comes up when it
+  // hasn't been allowed since Wander opened — and the same question goes again with where it is. No position: said
+  // plainly, and the button stays for another try.
+  const [locating, setLocating] = useState(false);
+  // (the newest sendMessage: a question typed while the iPhone's box was up may still be answering when the box is
+  // answered — the location question waits its turn and then goes, with the conversation as it is by then; verify15:
+  // it was dropped without a word)
+  const sendLatest = useRef(sendMessage);
+  sendLatest.current = sendMessage;
+  const shareLocation = useCallback(async (question: string) => {
+    if (locating || sendingRef.current) return;
+    setLocating(true);
+    const got = await hereNow();
+    if ("lat" in got) {
+      for (const t0 = Date.now(); sendingRef.current && Date.now() - t0 < 180_000;) await new Promise((r) => setTimeout(r, 300));
+      setLocating(false);
+      void sendLatest.current(question, true, got);
+      return;
+    }
+    setLocating(false);
+    // (said once; a second "no" in the same opening says how to change it — the same line again read as broken;
+    // verify15. iOS asks again when Wander is opened afresh — K4.)
+    const NO = "Your iPhone didn't share where you are. Tell me what you're near, like a station, a shop or your hotel, and I'll go from there.";
+    const STILL_NO = "Your iPhone isn't sharing your location with Wander right now. To change that, swipe Wander away, open it again, and tap Use my location. Or tell me what you're near.";
+    const NO_FIX = "Your iPhone couldn't find where you are just now. That happens in stations and underground. Tell me what you're near, or tap Use my location again in a minute.";
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      const said = got.none === "denied" ? (last?.text === NO || last?.text === STILL_NO ? STILL_NO : NO) : NO_FIX;
+      return last?.quiet && last.text === said ? prev : [...prev, { role: "assistant", text: said, at: new Date().toISOString(), quiet: true }];
+    });
+  }, [locating]);
 
   // Files added — dragged in, pasted or chosen — shown above the box until they're sent or taken off. A picture is
   // shrunk on the phone (and an iPhone HEIC photo becomes a JPEG on the way); anything else goes as it is, up to 10 MB.
@@ -1520,9 +1569,20 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
 
+  // The answer that carries "Use my location": the latest one, while nothing's been asked since (the phone's own small
+  // replies — "couldn't find where you are" — don't count, so it stays for another try)
+  const hereAt = (() => {
+    for (let j = messages.length - 1; j >= 0; j--) {
+      const m = messages[j];
+      if (m.role === "user") return -1;
+      if (!m.quiet && !m.error) return m.askHere ? j : -1;
+    }
+    return -1;
+  })();
+
   return (
     <>
-      {sourcesOf && <ScoutSources sources={sourcesOf} tripId={context.tripId} onClose={() => setSourcesOf(null)} />}
+      {sourcesOf &&<ScoutSources sources={sourcesOf} tripId={context.tripId} onClose={() => setSourcesOf(null)} />}
       {/* The page behind: lightly dimmed at half height (still readable), tap it to make Scout small */}
       <div
         className={`fixed inset-0 z-[60] sm:hidden ${size === "full" || keyboardUp ? "bg-black/20" : "bg-black/10"}`}
@@ -1638,7 +1698,26 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                             : <span key={k} className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-2 py-1 text-[13px]">📄 {f.name}</span>)}
                         </span>
                       )}
-                      <div className="whitespace-pre-wrap">{renderMarkdown(body)}</div>
+                      {(() => {
+                        // "Use my location" — on the latest answer only, until something else is asked — right under
+                        // the paragraph that says to tap it, so it's in view with it however long the rest runs
+                        // (verify17: a 76-word answer put it below the panel's edge)
+                        const q = msg.askHere && i === hereAt ? messages.slice(0, i).reverse().find((m) => m.role === "user")?.text : undefined;
+                        if (!q) return <div className="whitespace-pre-wrap">{renderMarkdown(body)}</div>;
+                        const paras = body.split(/\n\s*\n/);
+                        const at = Math.max(0, paras.findIndex((p) => /use my location/i.test(p)));
+                        const rest = paras.slice(at + 1).join("\n\n");
+                        return (
+                          <>
+                            <div className="whitespace-pre-wrap">{renderMarkdown(paras.slice(0, at + 1).join("\n\n"))}</div>
+                            <button data-here-button onClick={() => void shareLocation(q)} disabled={locating || sending || !online}
+                              className="mt-2 min-h-[44px] px-3 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636] disabled:opacity-60">
+                              {locating ? "Finding where you are…" : "📍 Use my location"}
+                            </button>
+                            {rest && <div className="mt-2 whitespace-pre-wrap">{renderMarkdown(rest)}</div>}
+                          </>
+                        );
+                      })()}
                       {draft && (
                         <div className="mt-2 rounded-xl bg-white border border-[#e0d8cc] p-3">
                           <p className="text-xs text-[#6b5d4a]">Message for {draft[1]}</p>
@@ -1697,12 +1776,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                           <a href={w.apple} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636]">{w.label} ↗</a>
                           <a href={w.google} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Google Maps ↗</a>
                         </div>
-                        {/* (her Guide gives no address for it: the map app only searches the name — said, never hidden) */}
-                        {w.search && <p className="text-[13px] text-[#8a5a1a] mt-0.5">{/^larisa$/i.test(user?.displayName || "") ? "Your" : "Larisa's"} Guide has no address for this, so Maps will search for “{w.search}”. Check it's the right one before you go.</p>}
+                        {/* (nothing of hers gives where it is: the map app only searches — said, never hidden. Not "her Guide has
+                            no address": a place found online isn't hers, and Scout may have given the address itself; verify15) */}
+                        {w.search && <p className="text-[13px] text-[#8a5a1a] mt-0.5">Maps will search for “{w.search}”. Check it's the right place before you go.</p>}
                       </div>
                     ))}
                   </div>
                 )}
+                {msg.withHere && <p className="mt-1 text-[13px] opacity-80">📍 with my location</p>}
                 {msg.shows && msg.shows.some((s) => s.path !== "back") && (
                   <div className="mt-2 flex flex-col items-start gap-1.5">
                     {/* "Back" already happened when it was said — as a button later it would jump somewhere unexpected */}
