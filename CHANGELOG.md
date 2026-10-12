@@ -2,6 +2,37 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-12 (night) — Papers: Receipts, Tickets and Bills, Kept by Day
+
+### Added
+- Papers. A receipt, a bill, a ticket or a booking can be kept in Wander instead of carried: "Keep a paper" in Notes
+  (take a photo, choose one, or a PDF), or send it to Scout and say "keep this". Wander reads it and files it under the
+  trip day it belongs to ("Kept 'Yōyōkaku bill, Karatsu' under Oct 9 · Karatsu" — a stay sits on its last night), with
+  a one-line description and the total as printed; never a card, confirmation or passport number in the words. Seen by
+  whoever kept it; Ken's and Larisa's are visible to each other (Ken, Oct 12). Shown in Notes (newest days first) and at
+  the end of that day's page; tapping one opens it in the phone's own viewer (zoom, share, save). Remove: the person who
+  kept it; nothing is deleted. Scout knows the papers a person may see ("what did the ryokan cost?"). Where: Notes,
+  day pages, Scout; new /api/papers routes, trip_papers table, keep_paper / remove_paper tools.
+- In Notes, "Keep a paper" sits in one row under the writing box ("3 kept ↓"); the list itself comes after the notes,
+  so nothing moves as it loads. Keeping one like a paper already kept that day says so.
+- Scout answers questions about a stay from her Guide and the papers together (Ken: "what was the name of the ryokan…
+  When were we at the ryokan, what did we pay at the Ryokan per night"): asks which when more than one place fits, says
+  what a bill's total was for, and never makes a price per night the paper doesn't show (a ryokan bill often lists only
+  dinner and drinks, the room paid when booked).
+
+### Changed
+- Packing tips carry the weather where that person will actually sleep (Ken, Oct 12: "Adjust your packing tips for
+  this. Don't say obvious things. Be helpful."). From the live forecast at each of their hotels, from their own first
+  night: up to three items tied to their dates and to what her Guide and Backroads have them doing (Nikko's cold, wet
+  biking and hiking days against Tokyo's warmth), then the checked list, seven in all. Nothing Backroads already tells
+  them (rain gear, layers, gloves), no umbrella to pack (convenience stores sell them), anything past a week said as
+  "may". Where: Scout (Julie's packing offer, and anyone asking what to pack); packing_tips tool, services/packingWeather.ts.
+
+### Fixed
+- The bottom bar floating mid-screen on the iPhone (Ken, Oct 12 8:50 PM): iOS had shortened the page without any of
+  the events the bar's own repair waits for. Scrolling now makes the bar check again and sit at the phone's real bottom.
+- SPEC sections: Notes, day page, AI chat. SPEC UPDATE NEEDED.
+
 ## 2026-10-12 (evening) — Places Near You, and a Buzz When Scout Answers
 
 ### Added

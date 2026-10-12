@@ -534,6 +534,7 @@ import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
 import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwner";
 import { loadMarks, savedMarks, deadlineKey, markDay, type Mark } from "../lib/actionMarks";
+import { DayPapers } from "../components/Papers";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -2206,6 +2207,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 )}
               </section>
             )}
+
+            {/* Papers kept for this day — receipts, tickets, bills (Ken, Oct 12): reference, at the end */}
+            {tripId && date && <DayPapers tripId={tripId} date={date} />}
 
             {/* How current this is */}
             {status?.current && (() => {

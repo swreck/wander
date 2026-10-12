@@ -20,6 +20,7 @@ import {
   newClientId, wordCount, JAPAN_OVERALL, BACKROADS, placeOf, readView, keepView, type TripNote, type NoteSettings, type SaveBody, type NotesView,
 } from "../lib/tripNotes";
 import { isLanding, isFor, notLandedYet } from "../lib/guideDisplay";
+import { PapersKeep, PapersList } from "../components/Papers";
 
 type DayOption = { date: string; city: string | null; guided: boolean };
 /** A place a note can be about, with the trip days it covers (for its order and its heading) */
@@ -523,6 +524,9 @@ export default function NotesPage() {
             )}
             {storyAnswer && <p className="mt-3 text-sm text-[#3f5a2a]" role="status">{storyAnswer}</p>}
 
+            {/* ── Papers: receipts, tickets, bills, kept by day (Ken, Oct 12) ── */}
+            {tripId && <PapersKeep tripId={tripId} />}
+
             {/* ── Waiting for signal ── */}
             {waiting.length > 0 && (
               <section className="mt-5">
@@ -716,6 +720,9 @@ export default function NotesPage() {
                 <button onClick={() => navigate("/settings#notes")} className="underline underline-offset-2 min-h-[44px]">Open Settings</button>
               </p>
             </section>
+
+            {/* ── The papers kept (after the notes, so nothing above them moves as they load; verify21) ── */}
+            {tripId && <PapersList tripId={tripId} />}
           </>
         )}
       </main>
