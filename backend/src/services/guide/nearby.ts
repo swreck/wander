@@ -73,8 +73,9 @@ export function nearbyLines(here: Here, pins: Pin[], anchors: Anchor[]): string[
   if ("none" in here) {
     const why = here.none === "denied"
       ? "they've said no to sharing their location with Wander (the iPhone's Settings can change that)"
-      : here.none === "unavailable" ? "the phone couldn't tell where it is just now" : "the phone didn't send it with this question";
-    return [`WHERE THEY ARE: not known — ${why}. For "what's near me", ask what they're near (a place, their hotel, a station) and use her pins' closeness.`];
+      // (in their words, not the phone's: "didn't send it with this question" read as technical to a first-timer; verify15)
+      : here.none === "unavailable" ? "the phone couldn't tell where it is just now" : "they haven't shared their location since opening Wander";
+    return [`WHERE THEY ARE: not known — ${why}. For "what's near me", ask what they're near (a place, their hotel, a station) and use her pins' closeness${here.none === "denied" ? "" : "; offer_location puts a \"Use my location\" button under your answer"}.`];
   }
   const out: string[] = [];
   const rough = here.acc != null && here.acc > 300 ? `, rough — within about ${Math.round(here.acc / 100) * 100} m` : "";

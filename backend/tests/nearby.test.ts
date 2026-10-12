@@ -55,7 +55,10 @@ describe("what's near them", () => {
 
   it("says why it doesn't know where they are", () => {
     expect(nearbyLines({ none: "denied" }, pins, []).join(" ")).toMatch(/said no to sharing their location/);
-    expect(nearbyLines({ none: "not-asked" }, pins, []).join(" ")).toMatch(/didn't send it/);
+    // (Oct 12: in their words — "didn't send it with this question" read as technical; and the button is offered,
+    // never after they've said no)
+    expect(nearbyLines({ none: "not-asked" }, pins, []).join(" ")).toMatch(/haven't shared their location since opening Wander.*offer_location/);
+    expect(nearbyLines({ none: "denied" }, pins, []).join(" ")).not.toMatch(/offer_location/);
   });
 
   it("says a rough or old fix is rough or old", () => {

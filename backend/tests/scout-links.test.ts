@@ -3,7 +3,7 @@
  * made-up page behind it). Seen = what Scout was given or found, never what it wrote itself. No database, no API.
  */
 import { describe, it, expect } from "vitest";
-import { linkKey, linksIn, unseenLinks, markUnseen, seenIn, LINK_CHECK_NOTE } from "../src/services/links.js";
+import { linkKey, linksIn, unseenLinks, markUnseen, seenIn, LINK_CHECK_NOTE, promisesButton } from "../src/services/links.js";
 
 describe("links in an answer", () => {
   it("finds plain and markdown links, without trailing punctuation", () => {
@@ -45,6 +45,21 @@ describe("what counts as seen", () => {
   it("a page opened in this very step counts", () => {
     const fetched = { type: "web_fetch_tool_result", content: { url: "https://www.westjr.co.jp/global/en/howto/train-reservation/receive/" } };
     expect(unseenLinks("https://www.westjr.co.jp/global/en/howto/train-reservation/receive/", seenIn("", [], [fetched]))).toEqual([]);
+  });
+});
+
+describe("a button Scout promises (verify16, Oct 12: \"The button below routes you there\" with no button)", () => {
+  it("is caught when the answer points to one", () => {
+    for (const t of ["The button below routes you there from where you're standing.", "Take exit 2; the walking button below goes to Tokoname Station.",
+      "Tap below to open it.", "There's a button below for the route.", "Use the Apple Maps button below.",
+      "Tap the Walk button for the route."]) expect(promisesButton(t)).toBe(true);
+  });
+  it("isn't, for a draft's own Send button, \"Use my location below\", or \"below\" meaning something else", () => {
+    for (const t of ["Message for Larisa: \"Can you check the Kyoto dinner time?\" — tap the button below to send it.",
+      "Tap Use my location below and I'll find the closest one.", "Her plan has you below the castle at 2 PM.",
+      "Temperatures drop below 10°C at night, so bring a jacket.", "Tap Sources under this answer to see her cell.",
+      "The buttons on the ticket machine are in English; the fare is shown below the map.",
+      "Tap the Copy button to paste it into your notes.", "Tap the Use my location button and I'll look."]) expect(promisesButton(t)).toBe(false);
   });
 });
 

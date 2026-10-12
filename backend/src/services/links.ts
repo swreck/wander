@@ -49,3 +49,14 @@ export function markUnseen(answer: string, unseen: string[]): string {
   for (const u of unseen) out = out.split(u).join(`${u} (Wander couldn't check this link — Scout didn't open it)`);
   return out;
 }
+
+/** The answer points to a button under it ("the button below routes you there", "tap below") — the phone draws one only
+ *  for a tool's result, or for a "Message for …:" draft written in the answer itself (its Send button). Like a link
+ *  Scout never saw, a button that isn't there is something it said that isn't so (verify16, Oct 12). */
+export function promisesButton(text: string): boolean {
+  if (/^\s*\**Message for [\p{L}' -]{1,30}:/mu.test(text)) return false;
+  // ("tap the Walk button" too — verify17; never the buttons every answer has: Copy, Sources, Read aloud, Send, and
+  // "Use my location", which has its own guard)
+  return /\bbuttons?\s+(?:just |right )?(?:below|under (?:this|my|the) answer)\b|\btap (?:on )?(?:it |here )?below\b/i.test(text)
+    || /\btap (?:on )?the (?!copy\b|sources\b|read aloud\b|send\b|use my location\b)[\w'’ ]{1,30}? button\b/i.test(text);
+}

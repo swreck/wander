@@ -23,7 +23,7 @@ import { myMapPlaces } from "../services/guide/googleMyMap.js";
 import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
 import { createMaybe, setIn, removeFromMaybes, putBackOnMaybes, MaybeError } from "../services/maybes.js";
 import { validAttachments, attachmentBlocks } from "../services/attachments.js";
-import { unseenLinks, markUnseen, seenIn, LINK_CHECK_NOTE } from "../services/links.js";
+import { unseenLinks, markUnseen, seenIn, LINK_CHECK_NOTE, promisesButton } from "../services/links.js";
 import { listMarks, setMark, todoKey, deadlineKey } from "../services/actionMarks.js";
 import { piecesOfStep, answerSources, type AnswerPiece, type CitedDocument } from "../services/guide/answerSources.js";
 
@@ -868,6 +868,13 @@ const tools: Anthropic.Tool[] = [
       },
       required: ["tripId", "place", "way"],
     },
+  },
+  // ── Where they are, when Scout can't see it (Oct 12: iOS forgets a Home Screen app's location answer between
+  // launches, so on a fresh open this is how a "near me" question in any wording gets their location) ──────────────
+  {
+    name: "offer_location",
+    description: "Put a \"Use my location\" button under your answer. One tap shares where their phone is and asks you the same question again. Use it only when WHERE THEY ARE says their location isn't known and your answer depends on where they're standing right now: what's near them, the nearest or closest anything, which way or how far to somewhere, \"I'm lost\". Never when you already have their location or when they've said no to sharing it, and never for a question that doesn't need it.",
+    input_schema: { type: "object" as const, properties: {}, required: [] },
   },
   // ── Notes on ideas (Wander's own; the Guide is never changed) ──────────────
   {
@@ -3410,8 +3417,11 @@ export async function executeTool(
         // "ART AQUARIUM MUSEUM GINZA" isn't Ginza: Scout's words must be at least half of her name for it)
         const words = (s: string) => s.split(" ").filter(Boolean).length;
         const nameOf = (t: string) => flat(t.replace(/\([^)]*\)/g, " ").replace(/^[^:]*:\s*/, ""));
-        const named = (await prisma.guideItem.findMany({ where: { tripId }, select: { title: true, link: true, detail: true } }))
-          .filter((i) => { const n = nameOf(i.title); return n === want || (n.includes(want) && words(want) * 2 >= words(n)); });
+        // (a place named exactly so beats longer names that hold it — Oct 12: her "Tokoname Station Bicycle Parking" pin
+        // beside "Tokoname Station" made two places, and the button only searched Maps)
+        const exactFirst = <T,>(xs: T[], name: (x: T) => string) => { const e = xs.filter((x) => name(x) === want); return e.length ? e : xs; };
+        const named = exactFirst((await prisma.guideItem.findMany({ where: { tripId }, select: { title: true, link: true, detail: true } }))
+          .filter((i) => { const n = nameOf(i.title); return n === want || (n.includes(want) && words(want) * 2 >= words(n)); }), (i) => nameOf(i.title));
         // (only when her lines agree on one place: "Ginza" names many, and a button to the first would be wrong)
         const one = (xs: (string | null | undefined)[]) => { const u = [...new Set(xs.filter(Boolean) as string[])]; return u.length === 1 ? u[0] : null; };
         const pin = one(named.map((i) => { const m = i.link?.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/); return m ? `${m[1]},${m[2]}` : null; }));
@@ -3430,8 +3440,8 @@ export async function executeTool(
         // (never a pin far from the whole trip — her Sannenzaka pin sat in Wakayama, 100 km from Kyoto; Oct 11)
         const { strayPinsOf } = await import("../services/guide/nearby.js");
         const stray = pin || address ? new Map<string, unknown>() : await strayPinsOf(tripId);
-        const onMap = pin || address ? null : one([...(await appleGuidesOf(tripId)).flatMap((g) => g.places), ...(await myMapPlaces(tripId)).map((p) => ({ name: p.name, lat: p.lat, lng: p.lng }))]
-          .filter((p) => p.name && p.lat != null && p.lng != null && !stray.has(`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`) && (() => { const n = nameOf(p.name!); return n === want || (n.includes(want) && words(want) * 2 >= words(n)); })())
+        const onMap = pin || address ? null : one(exactFirst([...(await appleGuidesOf(tripId)).flatMap((g) => g.places), ...(await myMapPlaces(tripId)).map((p) => ({ name: p.name, lat: p.lat, lng: p.lng }))]
+          .filter((p) => p.name && p.lat != null && p.lng != null && !stray.has(`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`) && (() => { const n = nameOf(p.name!); return n === want || (n.includes(want) && words(want) * 2 >= words(n)); })()), (p) => nameOf(p.name!))
           .map((p) => `${p.lat},${p.lng}`));
         // (a hotel's address from its booking — "back to the Imperial" — when no line of hers gives one)
         const stay = pin || address || onMap ? null : one((await prisma.accommodation.findMany({ where: { tripId, address: { not: null } }, select: { name: true, address: true } }))
@@ -3453,8 +3463,9 @@ export async function executeTool(
       const searchOnly = !herPlace;
       return {
         result: searchOnly
-          ? { ok: true, shown: `a button that opens directions, but her Guide has no address or map place for this, so Maps will only SEARCH for "${where}"`,
-              say: "Tell them plainly that her Guide has no address for this place, so the button searches Maps for the name — check that the place Maps finds is the right one before setting off. Don't call it her place." }
+          ? { ok: true, shown: `a button that opens directions, but nothing of hers gives an address or map place for this, so Maps will only SEARCH for "${where}"`,
+              // (verify15: a place found online got "her Guide has no address", as if it were hers)
+              say: "Tell them plainly that the button searches Maps for this, so they should check the place Maps finds is the right one before setting off. Say her Guide has no address for it only when it's one of her places; a place you found online is never hers." }
           : { ok: true, shown: `a button that opens ${way === "walk" ? "walking" : way === "train" ? "train and subway" : "driving (for a taxi)"} directions from where they are standing to the place in her Guide (Apple Maps, and Google Maps)` },
         route: {
           label: `${how.verb} ${dest.split(",")[0]}`,
@@ -4466,12 +4477,12 @@ router.get("/history", async (req: AuthRequest, res) => {
     }),
   });
 });
-/** A saved answer as a phone shows it: words, sources, place cards, screens, directions */
+/** A saved answer as a phone shows it: words, sources, place cards, screens, directions, "Use my location" */
 function asAnswer(m: { content: string; createdAt: Date; sources: unknown; toolUse: unknown }) {
-  const t = (m.toolUse || {}) as { places?: unknown[]; shows?: unknown[]; routes?: unknown[] };
+  const t = (m.toolUse || {}) as { places?: unknown[]; shows?: unknown[]; routes?: unknown[]; askHere?: unknown };
   return { role: "assistant", text: m.content, at: m.createdAt.toISOString(), ...(m.sources ? { sources: m.sources } : {}),
     ...(Array.isArray(t.places) && t.places.length ? { places: t.places } : {}), ...(Array.isArray(t.shows) && t.shows.length ? { shows: t.shows } : {}),
-    ...(Array.isArray(t.routes) && t.routes.length ? { routes: t.routes } : {}) };
+    ...(Array.isArray(t.routes) && t.routes.length ? { routes: t.routes } : {}), ...(t.askHere === true ? { askHere: true } : {}) };
 }
 /** The saved answer to one question, by the tag the phone gave it (verify10, Oct 11: matching by words and time took
  *  menu page 1's answer for page 2's — every wordless photo is "What does this say?"). { answer } or { answer: null }. */
@@ -4760,11 +4771,11 @@ add the romaji on its own line after; asked what something means or says ("what 
 Japanese into English (a menu, a sign, a screen) is unchanged — that's for them, in English.
 STEP BY STEP: when someone is doing a task on a screen right now — sending screenshots, saying "next", "one step", "now what" — give only the next step (or the number of steps they ask for), in a line each, then stop. No background, no what-comes-after, no warnings unless the step itself could go wrong. Read their screenshot first: the next step is what's on that screen.
 PHOTOS: when a photo comes with the question (a menu, a sign, a ticket, a screen), read it carefully. Translate Japanese (or any other language) into plain English when that's what they need — line by line for a menu or sign, with the Japanese kept beside each line when they might show it to someone. Say what you read from the photo as from the photo ("Your photo shows…"), never as the Guide; when the photo and her Guide meet (a ticket's train and the rail sheet, a restaurant's name and her booking), say both and whether they match. Words you can't make out: say so — never guess a time, a price, a platform or an ingredient. Food and allergies (Andy is allergic to alliums — onion, garlic, leek, chive): point out what the photo shows that may contain them, give the Japanese words to show a server (玉ねぎ・ねぎ・にんにく), and say plainly that a menu photo can't prove what's in a dish — confirm with the staff. A photo isn't kept: if they ask about it again later without sending it, say to send it again.
-GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing. When directions says her Guide has no address for the place, say so plainly and that the button only searches Maps for the name — never present a searched place as hers.
+GETTING THERE: whenever someone asks how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day, name the stop and its time from the DAY BY DAY lines, quote her own Transit words for that leg when her plan has them (cited), and — when the stop is a real place — call directions with the place as she names it, its town, and the way: the way they asked for; otherwise the way her plan names for that leg; otherwise call it twice, walk and train. Do this for "what's next?" too, even if they didn't ask how. Never write turn-by-turn steps or travel times of your own, and don't say you can't: just say the button below gives the route from where they're standing. When directions says it can only search Maps, say so plainly — and that her Guide has no address for it only when it's one of her places — never present a searched place as hers.
 HER PICTURES: every picture in her tabs is given with all its words, as Wander read them ("Its words, as Wander read them") — use them: who goes where, times, places, what's on her illustrated day maps. A picture can be OLDER than her tab's text: her DAY BY DAY lines are the plan. When a picture's date, time, order or who-goes differs from them, give the plan first and then say her picture shows something else ("her map picture in that tab still shows Tokyodo at 2:15") — never quote a picture's time as the plan. When a picture says something her plan doesn't (who a stop is for, a van's return time), say it as her picture's.
 HER APPLE MAPS GUIDES: maps Larisa made in Apple Maps, one per day (the HER APPLE MAPS GUIDES lines), apart from her sheet. Call each "her Apple Maps guide for <day>" — never "her Guide" or "her tab" (her Guide is the sheet), and say it may have changed since Wander read it. Their places are NOT in visiting order: her day tab's order is the plan, and you never reorder her day or suggest a new order unless asked — even then, say it's your suggestion and her plan is the order she wrote. Use the "What's close to what" lines to say which places are close together and which need a train or taxi — always as straight-line distance between her map's places ("about 300 m apart in a straight line"), and say a river, a big station or a hill can make the walk longer. Never turn a distance into minutes — "a couple of minutes on foot" or "a short 5-minute walk" is a walking time you don't have; only her own words give times. A place on her map but not in her day tab, or in her day tab but not on her map, or a different branch or address on each: say both, with where each comes from, and suggest checking with Larisa — never pick one silently. Distances exist only between places on her maps; for anything else say Wander doesn't have its location.
 HER GOOGLE MAP: one map Larisa made in Google My Maps with every location of the trip, in layers she named (the HER GOOGLE MAP lines), apart from her sheet. Anyone asking for "Larisa's map", "her detailed map", "her Google map", "the map with all the places" or the like gets its link — the one in those lines, written out in full so it can be tapped — and one plain sentence of what's on it; it opens in Google Maps on their phone. Call it "her Google map" — never "her Guide" or "her tab" — and say Wander last read it on the date given (her map may have changed since). A layer's name is hers, not a date: say which day a layer's places are for only when her day plan puts those places on that day, and quote the layer's name as she wrote it ("her layer 'Ginza - Day 0'"). Her pins say where a place is: use them for "where is…", for what's close to what (straight-line, as with her Apple Maps guides — never minutes), and for directions when her sheet gives no address. A pin's note is her words: quote it. A place on her map but not in her day plan, or a different branch or spot on each: say both and where each comes from — never pick one silently.
-WHAT'S NEAR THEM: "what's nearby?", "anything good around here?", "how far is my hotel?" — answer from the WHERE THEY ARE lines (with this question). Lead with the closest one or two of Larisa's places that fit what they asked, by her names, each with how far and which way in the words given ("about 400 m — roughly 4 blocks", "1.5 miles", "toward your hotel"); a line or two, and more only if they ask. Say where each comes from in a few words (her Google map, her Apple Maps guide) and quote her note when it helps. Distances are straight lines: say "about", never a walking or travel time, and mention a river, a big station or a hill only when it obviously matters. If those lines say her places aren't near them, say so plainly and name the closest — never call a far place nearby. If the location is rough or old, say so in a few words. A layer's name still isn't a date. If WHERE THEY ARE says it's not known, say you can't see where they are right now (and why, as given) and ask what they're near.
+WHAT'S NEAR THEM: "what's nearby?", "anything good around here?", "how far is my hotel?" — answer from the WHERE THEY ARE lines (with this question). Lead with the closest one or two of Larisa's places that fit what they asked, by her names, each with how far and which way in the words given ("about 400 m — roughly 4 blocks", "1.5 miles", "toward your hotel"); a line or two, and more only if they ask. Say where each comes from in a few words (her Google map, her Apple Maps guide) and quote her note when it helps. Distances are straight lines: say "about", never a walking or travel time (when a directions button goes with the answer, say it gives the time — never that you can't), and mention a river, a big station or a hill only when it obviously matters. If those lines say her places aren't near them, say so plainly and name the closest — never call a far place nearby. If the location is rough or old, say so in a few words. A layer's name still isn't a date. If WHERE THEY ARE says it's not known, say you can't see where they are right now (and why, as given) and ask what they're near — and, unless they've said no to sharing it, call offer_location so a "Use my location" button sits under your answer (say "or tap Use my location below" in the same sentence; the tap asks you again by itself, so never tell them to ask again). Keep that answer to a sentence or two, so the button is in view; the full answer comes after the tap. Never measure "a walk" or "nearby" from their hotel or anywhere else in its place, unless they've said they're there. This goes for any question whose answer depends on where they're standing, however it's worded: the nearest or closest anything, which way or how far to somewhere, "I'm lost", "where can I get coffee?" when today's plan doesn't settle it.
 BACKROADS' ITINERARY (the section headed BACKROADS' ITINERARY, when there is one): Backroads' own day-by-day words for the Backroads week, given to Wander by Ken — their general itinerary for this trip, not one for your exact departure. Cite it and call it "Backroads' itinerary" (never "her Guide" or "her tab"), with the day ("Backroads' itinerary for Day 4, Wed, Oct 21 says…"). Use it for what each Backroads day holds — where to meet and what to bring, the rides and hikes and their distances, which meals are included, how the trip ends. Larisa's Guide has their dates and bookings: when the two differ on a time, a place or a meal, say both, with where each comes from, and never pick one. Its days are dated by Wander from Day 1 = the day her Guide meets Backroads. Say once, when it matters, that Backroads' leaders and their app (sent about a week before the trip) have the details for their departure, and that their plan can change on the trip. Its words about food (soy and bonito in nearly everything, no substitutions in Japan) are Backroads' — say them as theirs.
 WHERE IN HER SHEET: when someone asks where something is in Larisa's sheet ("which tab has…", "where did I put…", "where does it say…"), answer with the tab, named as she named it, and her words there, cited. Then say in one short sentence that "Sources" under this answer opens that spot in her sheet. If her Guide has it in more than one tab, name each, and cite each. Say where you found it — never that it's the only place or that no other tab has it: her pictures and long tabs can hold more than your copy shows. If it isn't in the copy you have, say so; never guess a tab.
 
@@ -4914,6 +4925,8 @@ RULES:
     const shows: { path: string; label: string; go: boolean; headline?: string }[] = [];
     // Directions Scout offered ("Walk to Tokyodo Main Showroom", "Taxi to …")
     const routes: { label: string; apple: string; google: string; search?: string }[] = [];
+    // "Use my location" under the answer (offer_location) — only when the phone said where it is wasn't known
+    let askHere = false;
     let finalReply = "";
     // What this answer used, across every step, logged once at the end — real cost, not a guess
     const used = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0, searches: 0, steps: 0 };
@@ -4984,6 +4997,7 @@ RULES:
     const fetchedPages: { url: string; title: string }[] = [];
     let askedAgainForWords = false;
     let askedAgainForLinks = false;
+    let askedAgainForButton = false;
     const startedAt = Date.now();
 
     for (let turn = 0; turn < 8; turn++) {
@@ -5049,6 +5063,19 @@ RULES:
           answerPieces.length = 0;
           continue;
         }
+        // …or unless it promises a button below that isn't there (verify16, Oct 12: Ken in Tokoname station got "The
+        // button below routes you there from where you're standing" — directions was never called, so no button; he'd
+        // scroll for it). Once: put it there, or take the words out. ("Use my location" has its own guard below.)
+        const herePromise = !!here && "none" in here && here.none !== "denied" && /\buse my location\b/i.test(finalReply);
+        if (promisesButton(finalReply) && !routes.length && !shows.length && !askHere && !herePromise && !askedAgainForButton && turn < 6) {
+          askedAgainForButton = true;
+          console.log("Scout promised a button it never made — asking it to make it or drop the words");
+          messages.push({ role: "assistant", content: response.content });
+          messages.push({ role: "user", content: [{ type: "text", text: "(Wander) Your answer says there's a button below it, but no tool you called puts one there. If the answer needs directions, call directions now; to point to a screen, call show_in_wander. Otherwise take the button out of your words. Then write your whole answer again, as your reply to the question — don't mention this check." }] });
+          finalReply = "";
+          answerPieces.length = 0;
+          continue;
+        }
         if (unseen.length) finalReply = markUnseen(finalReply, unseen);
         break;
       }
@@ -5056,11 +5083,22 @@ RULES:
       // Process tool calls
       const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      let screenOnlyOk = toolUseBlocks.every((b) => ["show_in_wander", "directions"].includes((b as Anthropic.ToolUseBlock).name));
+      let screenOnlyOk = toolUseBlocks.every((b) => ["show_in_wander", "directions", "offer_location"].includes((b as Anthropic.ToolUseBlock).name));
 
       for (const block of toolUseBlocks) {
         const toolBlock = block as Anthropic.ToolUseBlock;
         console.log(`Chat tool call: ${toolBlock.name}`, JSON.stringify(toolBlock.input).slice(0, 200));
+        // (the button only where tapping it can help: the phone sent no position and they haven't said no — with a
+        // position it would ask for what Scout already has; after a no, the tap only fails)
+        if (toolBlock.name === "offer_location") {
+          const can = !!here && "none" in here && here.none !== "denied";
+          if (can) askHere = true;
+          else screenOnlyOk = false;
+          toolResults.push({ type: "tool_result", tool_use_id: toolBlock.id, content: JSON.stringify(can
+            ? { ok: true, shown: "a \"Use my location\" button under your answer; one tap shares where their phone is and asks you this question again" }
+            : { error: here && "lat" in here ? "You already have where they are (WHERE THEY ARE). Answer from it." : here && "none" in here && here.none === "denied" ? "They've said no to sharing their location, so the button can't help. Ask what they're near; the iPhone's Settings can change it." : "Their phone sent nothing about where it is, so the button can't help. Ask what they're near." }) });
+          continue;
+        }
         try {
           const { result, actionDescription, placeCards: cards, navigate, route } = await executeTool(toolBlock.name, toolBlock.input, user, theirWords);
           if (route && !routes.some((w) => w.apple === route.apple) && routes.length < 3) routes.push(route);
@@ -5100,6 +5138,10 @@ RULES:
     // still let a plain "what time should we leave for the airport?" end in a draft, and the app turns
     // that line into a Send button. Never for Larisa herself.
     finalReply = withoutUnaskedDraft(finalReply, message, history, req.user?.displayName);
+    // The words and the button agree: an answer that says "tap Use my location" has the button whenever it can help
+    // (Oct 12: "Is there somewhere to sit down for a coffee?" said it and never called offer_location — a button that
+    // wasn't there)
+    if (!askHere && here && "none" in here && here.none !== "denied" && /\buse my location\b/i.test(finalReply)) askHere = true;
 
     // Where the answer came from — its citations as Scout wrote them, each resolved to the source recorded
     // with the line it points at; the parts with none are Scout's own words. Shown only when someone taps
@@ -5124,7 +5166,7 @@ RULES:
             ...(askId ? { toolUse: { askId } as any } : {}) },
           // (its place cards, screens and directions too, so the answer looks the same on every device — Oct 4)
           { tripId, travelerId: req.user.travelerId, role: "assistant", createdAt: new Date(askedAt.getTime() + 1), content: finalReply, ...(hasSources ? { sources: sources as any } : {}),
-            ...(placeCards.length || shows.length || routes.length || askId ? { toolUse: { places: placeCards, shows, routes, ...(askId ? { askId } : {}) } as any } : {}) },
+            ...(placeCards.length || shows.length || routes.length || askHere || askId ? { toolUse: { places: placeCards, shows, routes, ...(askHere ? { askHere } : {}), ...(askId ? { askId } : {}) } as any } : {}) },
         ],
       }).catch(() => { /* non-critical — don't fail the response */ });
     }
@@ -5136,6 +5178,7 @@ RULES:
       ...(placeCards.length > 0 && { places: placeCards }),
       ...(shows.length > 0 && { shows }),
       ...(routes.length > 0 && { routes }),
+      ...(askHere && { askHere }),
       ...(hasSources && { sources }),
     });
   } catch (err: any) {

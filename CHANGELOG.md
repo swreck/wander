@@ -2,6 +2,46 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-12 — "Use my location" Under Scout's Answer
+
+### Added
+- When Scout needs to know where someone is and can't see it, its answer carries a "📍 Use my location" button. One tap
+  brings up the iPhone's location box when it's needed and asks the same question again with where the phone is; the
+  question shows again with "📍 with my location" under it. This works for any wording, because Scout decides when an
+  answer depends on where they are standing ("is there somewhere to sit down for a coffee?", "we got turned around and
+  need the station"). iOS forgets a Home Screen app's location answer each time it's opened, so this is the usual way
+  on a fresh open. If they say no, or the phone can't find itself (a station, underground), a short reply says so and
+  the button stays for another try; a second "no" in the same opening says how to change it (swipe Wander away and open
+  it again). Never offered once they've said no, when Scout already has their location, or for a question that doesn't
+  need it. An answer that says "tap Use my location" always has the button. Scout keeps that answer to a sentence or
+  two, and the panel shows the answer down to the button. A question typed while the iPhone's box is up doesn't lose
+  the tap: the location question goes after it. Where: Scout's panel; Scout's new offer_location tool.
+
+### Fixed
+- A rough new location reading (a station's 1.8 km cell-tower guess) no longer replaces a sharp one from the last five
+  minutes when the sharp one sits inside it.
+- A "near me" question asked just under ten minutes after the last reading carries that reading instead of "unknown".
+- Once location is allowed, a question waits at most 10 seconds for the phone (was 20 when the phone never answered).
+- More ways of asking where they are get the phone's location at once: "near us", "the nearest train station",
+  "closest thing on Larisa's map", "how far to the Marriott", "I'm lost", "where exactly are we", "within a short walk".
+  "While we're here", "is Kyoto nearby Osaka" and "within walking distance of Tokyo Station" no longer bring up the
+  location box. Wordings that also fit ordinary questions ("which way…", "where can I get…", "walk back to the hotel")
+  are left to the "Use my location" button, so "Where can I get a Suica card?" never asks for their location.
+- The note under a directions button that only searches Maps says just that ("Maps will search for … Check it's the
+  right place before you go."). It said "Larisa's Guide has no address for this" even under a place found online.
+- Scout says "you haven't shared your location since opening Wander" in place of "your phone didn't send it".
+- An answer that says there's a button below it now always has one: when Scout writes "the button below routes you
+  there" without making the button, Wander asks it once to make the button or take the words out (Ken's Tokoname
+  station question, in a check).
+- A question that merely ends in "here" ("Is tap water safe to drink here?", "When do Andy and Julie get here?") no
+  longer brings up the location box; nor do "nearby our Kyoto hotel", "festivals in the area while we're in Kyoto" or
+  "where do we go from here". "What's good to eat here?", "around here" and "from here" still do.
+- Scout no longer measures "a walk" from the hotel when it can't see where someone is, and when a directions button
+  goes with an answer it says the button gives the walking time.
+- Directions to a place she pinned go to her pin when another of her pins has a longer name holding it ("Tokoname
+  Station" beside "Tokoname Station Bicycle Parking" made the button only search Maps).
+- SPEC sections: AI chat (Scout's panel, Scout's tools). SPEC UPDATE NEEDED.
+
 ## 2026-10-11 — Location Asked Only When It Matters; No Waiting for It; Scout's Panel Keeps Its Swipes
 
 ### Fixed
