@@ -6,7 +6,13 @@
  * Kept on the phone (by place and date) so the day draws it at once and it still shows with no signal; fetched again
  * when the copy is more than an hour old.
  */
-export interface DayForecast { lo: number; hi: number; rain: number | null; code: number | null; at: string }
+import { api } from "./api";
+
+export interface DayForecast {
+  lo: number; hi: number; rain: number | null; code: number | null; at: string;
+  /** From Wander's server (dayForecastFor): where — that night's hotel, or the town — and how sure */
+  place?: string; atHotel?: boolean; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook";
+}
 
 const KEY = "wander:forecast";
 const FRESH = 60 * 60_000;
@@ -48,6 +54,42 @@ export async function forecastFor(lat: number | null | undefined, lon: number | 
     return saved; // no signal: this phone's copy, however old
   }
 }
+
+/**
+ * The day's forecast where you sleep that night, from Wander's server (Oct 13 2026, Ken's weather plan): the night's
+ * hotel — the Ritz-Carlton on Lake Chuzenji, not Nikko town ~2,000 ft below, 5–10°F warmer — and how sure it is (more
+ * than a week out, an early outlook; rain checked against Europe's, Japan's and the US models). Kept on the phone by
+ * trip and day, like the forecast above, so it draws at once and still shows with no signal.
+ */
+const dayKey = (tripId: string, date: string) => `trip:${tripId}|${date}`;
+export function savedDayForecast(tripId: string, date: string): DayForecast | null {
+  return readAll()[dayKey(tripId, date)] || null;
+}
+export async function dayForecastFor(tripId: string, date: string): Promise<DayForecast | null> {
+  const saved = savedDayForecast(tripId, date);
+  if (saved && Date.now() - Date.parse(saved.at) < FRESH) return saved;
+  try {
+    const { weather: w } = await api.get<{ weather: (DayForecast & { place: string; atHotel: boolean }) | null }>(`/weather/trip/${tripId}/day/${date}`);
+    if (!w) return saved;
+    const f: DayForecast = { hi: w.hi, lo: w.lo, rain: w.rain, code: w.code, at: w.at, place: w.place, atHotel: w.atHotel, models: w.models, outlook: w.outlook };
+    try {
+      const all = readAll();
+      all[dayKey(tripId, date)] = f;
+      const keys = Object.keys(all);
+      for (const k of keys.slice(0, Math.max(0, keys.length - 40))) delete all[k];
+      localStorage.setItem(KEY, JSON.stringify(all));
+    } catch { /* storage full or private: fetched again next time */ }
+    return f;
+  } catch {
+    return saved; // no signal: this phone's copy, however old
+  }
+}
+
+/** On a day the main forecast gives a real chance of rain, what the other forecasts say: none of them shows rain to
+ *  speak of ("drier"), some do and some don't ("split"), or null when they agree or weren't compared. Said which way —
+ *  "disagree" alone didn't answer "will it rain?", and on Oct 19 all three showed only a trace (verify25) */
+export const rainDisputed = (f: DayForecast): "drier" | "split" | null =>
+  (f.rain ?? 0) < 30 ? null : f.models === "dry" ? "drier" : f.models === "split" ? "split" : null;
 
 /** Rain likely: a 40%+ chance, or a rainy sky in the weather code (drizzle, rain, showers, thunder) */
 export const rainLikely = (f: DayForecast) => (f.rain ?? 0) >= 40 || (f.code !== null && ((f.code >= 51 && f.code <= 67) || (f.code >= 80 && f.code <= 99)));

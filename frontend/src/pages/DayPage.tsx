@@ -1147,7 +1147,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // should be your best internet forecast available at run time"); her pre-trip line only when there's none
   const forecastCity = trip?.cities.find((c) => c.name === cityName) || null;
   const weather = (forecastCity?.latitude != null || forecast) ? (
-    <DayForecast lat={forecastCity?.latitude} lon={forecastCity?.longitude} date={date} zone={tripZone} place={cityName}
+    <DayForecast tripId={tripId} lat={forecastCity?.latitude} lon={forecastCity?.longitude} date={date} zone={tripZone} place={cityName}
       herLine={forecast?.title || null} her={v.Her} />
   ) : null;
   // Each booking said once, under her line for it (day review, Oct 4: Oct 29's flight three times, Oct 15's Yazawa and

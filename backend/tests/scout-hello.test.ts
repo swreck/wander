@@ -109,6 +109,16 @@ describe("Scout's first word for Julie", () => {
     // (start over for the next test)
     await prisma.traveler.update({ where: { id: julieId }, data: { preferences: {} } });
   });
+  it("an offer is taken the moment its question is asked, before the answer is saved (verify25)", async () => {
+    const { offerAsked } = await import("../src/services/scoutHello.js");
+    expect((await helloFor(tripId, andyId, "Andy B", BEFORE))?.ask).toBe("What should I pack for the weather?");
+    await offerAsked(andyId, "Andy B", "What should I pack for the weather?", BEFORE);
+    expect(await helloFor(tripId, andyId, "Andy B", BEFORE)).toBeNull();
+    // (another question takes nothing)
+    await prisma.traveler.update({ where: { id: andyId }, data: { preferences: {} } });
+    await offerAsked(andyId, "Andy B", "Where's dinner tonight?", BEFORE);
+    expect((await helloFor(tripId, andyId, "Andy B", BEFORE))?.ask).toBe("What should I pack for the weather?");
+  });
   it("once she's asked both, they're gone", async () => {
     const h = (await helloFor(tripId, julieId, "Julie Q.", BEFORE))!;
     await prisma.chatMessage.create({ data: { tripId, travelerId: julieId, role: "user", content: h.ask } });
