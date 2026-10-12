@@ -2,6 +2,19 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday morning in Japan) — Scout Offers Andy and Julie the Weather Packing Tips
+
+### Added
+- A one-time offer in Scout for Julie and Andy, until 8 AM Tuesday in California (Ken, Oct 12: "Yes… Don't just do the
+  obvious… data is good"). Its words come from their own forecast when Scout opens: "The forecast for your hotels is
+  in. At the Ritz-Carlton, Nikko (Sun, Oct 18 – Tue, Oct 20), the highs look like 57–66°F, against 73–75°F at the
+  Imperial Hotel in Tokyo. Want the few things worth packing for that?" One tap asks "What should I pack for the
+  weather?"; Later and No thanks as before. Offers now come one at a time, in order: Julie's earlier packing-list offer
+  first, then this one. Where: Scout's panel; services/scoutHello.ts. SPEC sections: AI chat.
+
+### Changed
+- Weather packing items never say a stop is simply mild or warm, or to bring ordinary clothes for it.
+
 ## 2026-10-12 (late night) — Packing Rain Said Only As Sure As the Forecasts Are
 
 ### Fixed

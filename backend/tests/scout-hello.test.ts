@@ -41,22 +41,41 @@ describe("Scout's first word for Julie", () => {
     expect(h?.ask).toMatch(/pack/i);
     expect(await helloFor(tripId, julieId, "Julie Q.", AFTER)).toBeNull();
   });
-  it("nobody else gets it — Andy included", async () => {
-    expect(await helloFor(tripId, andyId, "Andy B", BEFORE)).toBeNull();
-    expect(await helloFor(tripId, andyId, "Andy", BEFORE)).toBeNull();
+  it("nobody else gets it — Andy gets only the weather offer (Ken, Oct 12)", async () => {
+    expect((await helloFor(tripId, andyId, "Andy B", BEFORE))?.ask).toBe("What should I pack for the weather?");
+    expect((await helloFor(tripId, andyId, "Andy", BEFORE))?.ask).toBe("What should I pack for the weather?");
+    expect(await helloFor(tripId, andyId, "Andy B", AFTER)).toBeNull();
+    expect(await helloFor(tripId, andyId, "Larisa", BEFORE)).toBeNull();
     expect(await helloFor(tripId, andyId, "Julie (old April account)", BEFORE)).toBeNull();
     expect(await helloFor(tripId, andyId, "Julianne", BEFORE)).toBeNull();
     // (her account as renamed on Oct 10: "Julie")
     expect((await helloFor(tripId, julieId, "Julie", BEFORE))?.ask).toMatch(/pack/i);
   });
-  it("it comes with the conversation Scout loads (Julie's only)", async () => {
+  it("it comes with the conversation Scout loads", async () => {
     const live = Date.now() < Date.parse("2026-10-13T15:00:00Z");
     const j = await request(app).get(`/api/chat/history?tripId=${tripId}`).set("Authorization", `Bearer ${julie}`);
     expect(j.status).toBe(200);
-    if (live) expect(j.body.hello?.ask).toMatch(/pack/i);
+    if (live) expect(j.body.hello?.ask).toBe("What should I pack that I might not think of?");
     else expect(j.body.hello).toBeUndefined();
     const a = await request(app).get(`/api/chat/history?tripId=${tripId}`).set("Authorization", `Bearer ${andy}`);
-    expect(a.body.hello).toBeUndefined();
+    if (live) {
+      expect(a.body.hello?.ask).toBe("What should I pack for the weather?");
+      // (no hotels on this trip: the plain words, never a made-up forecast)
+      expect(a.body.hello?.words).toBe("The forecast for your hotels is in now, stop by stop. Want the few things it changes in what to pack?");
+    } else expect(a.body.hello).toBeUndefined();
+  });
+  it("Julie's offers come one at a time: the list, then the weather once she's asked for the list", async () => {
+    const first = (await helloFor(tripId, julieId, "Julie Q.", BEFORE))!;
+    expect(first.ask).toBe("What should I pack that I might not think of?");
+    const m = await prisma.chatMessage.create({ data: { tripId, travelerId: julieId, role: "user", content: first.ask } });
+    expect((await helloFor(tripId, julieId, "Julie Q.", BEFORE))?.ask).toBe("What should I pack for the weather?");
+    // ("Later" on the weather one rests the weather one — the list stays asked)
+    await answerHello(julieId, "Julie Q.", "later", BEFORE);
+    const t = await prisma.traveler.findUnique({ where: { id: julieId }, select: { preferences: true } });
+    expect((t!.preferences as any).scoutHello["packing-weather"].laters).toBe(1);
+    expect((t!.preferences as any).scoutHello.packing).toBeUndefined();
+    await prisma.chatMessage.delete({ where: { id: m.id } });
+    await prisma.traveler.update({ where: { id: julieId }, data: { preferences: {} } });
   });
   it("Later: back after a while, at most three offers, the last without Later (Ken: \"a show me later option\")", async () => {
     const at = (h: number) => new Date(BEFORE.getTime() + h * 3600_000);
@@ -69,7 +88,8 @@ describe("Scout's first word for Julie", () => {
     await answerHello(julieId, "Julie Q.", "later", at(7));
     expect((await helloFor(tripId, julieId, "Julie Q.", at(13.5)))?.last).toBe(true); // the third offer is the last
     await answerHello(julieId, "Julie Q.", "later", at(14));
-    expect(await helloFor(tripId, julieId, "Julie Q.", at(21))).toBeNull();          // three offers: done
+    // (three offers: the list is done — the weather offer is next)
+    expect((await helloFor(tripId, julieId, "Julie Q.", at(21)))?.ask).toBe("What should I pack for the weather?");
     // (her other choices are kept as they were)
     await prisma.traveler.update({ where: { id: julieId }, data: { preferences: { tour: { offers: 1 } } } });
   });
@@ -77,17 +97,24 @@ describe("Scout's first word for Julie", () => {
     const r = await request(app).post("/api/chat/hello").set("Authorization", `Bearer ${julie}`).send({ answer: "no" });
     expect(r.status).toBe(200);
     // (answered for real only while the offer runs — until Oct 13 ends in Japan)
-    if (Date.now() < Date.parse("2026-10-13T15:00:00Z")) expect(await helloFor(tripId, julieId, "Julie Q.", BEFORE)).toBeNull();
+    if (Date.now() < Date.parse("2026-10-13T15:00:00Z")) expect((await helloFor(tripId, julieId, "Julie Q.", BEFORE))?.ask).toBe("What should I pack for the weather?");
     const t = await prisma.traveler.findUnique({ where: { id: julieId }, select: { preferences: true } });
     expect((t!.preferences as any).tour).toEqual({ offers: 1 });
-    const a = await request(app).post("/api/chat/hello").set("Authorization", `Bearer ${andy}`).send({ answer: "later" });
+    // (someone with no offer can't answer one)
+    const l = (await prisma.traveler.findFirst({ where: { displayName: "Larisa Q." } })) || await prisma.traveler.create({ data: { displayName: "Larisa Q." } });
+    await prisma.tripMember.create({ data: { tripId, travelerId: l.id, role: "member" } }).catch(() => {});
+    const larisa = signToken({ code: "Larisa Q.", displayName: "Larisa Q.", travelerId: l.id });
+    const a = await request(app).post("/api/chat/hello").set("Authorization", `Bearer ${larisa}`).send({ answer: "later" });
     expect(a.body.ok).toBe(false);
     // (start over for the next test)
     await prisma.traveler.update({ where: { id: julieId }, data: { preferences: {} } });
   });
-  it("once she's asked, it's gone", async () => {
+  it("once she's asked both, they're gone", async () => {
     const h = (await helloFor(tripId, julieId, "Julie Q.", BEFORE))!;
     await prisma.chatMessage.create({ data: { tripId, travelerId: julieId, role: "user", content: h.ask } });
+    const w = (await helloFor(tripId, julieId, "Julie Q.", BEFORE))!;
+    expect(w.ask).not.toBe(h.ask);
+    await prisma.chatMessage.create({ data: { tripId, travelerId: julieId, role: "user", content: w.ask } });
     expect(await helloFor(tripId, julieId, "Julie Q.", BEFORE)).toBeNull();
   });
 });
