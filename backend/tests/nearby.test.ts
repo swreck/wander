@@ -3,7 +3,7 @@
  * that's toward their hotel — or plainly that nothing of hers is near. Pure logic on made-up places; no database.
  */
 import { describe, it, expect } from "vitest";
-import { parseHere, nearbyLines, pinFor, farWords, type Pin, type Anchor } from "../src/services/guide/nearby.js";
+import { parseHere, nearbyLines, pinFor, farWords, buttonPlace, movingLine, type Pin, type Anchor, type NearPlace } from "../src/services/guide/nearby.js";
 import { strayKeys, pinKey } from "../src/services/guide/appleGuides.js";
 import { myMapLines } from "../src/services/guide/googleMyMap.js";
 
@@ -96,5 +96,29 @@ describe("what's near them", () => {
     expect(farWords(90)).toMatch(/under 150 m/);
     expect(farWords(12_000)).toBe("about 12.0 km — 7.5 miles");
     expect(farWords(8_300_000)).toBe("about 8,300 km (5,157 miles)");
+  });
+});
+
+// Oct 12: places_near_me (Ken: "Yes" to the phone's position going to Google) and a phone on a train
+describe("places near them, from Google", () => {
+  const p = (name: string, m: number, open: boolean | null, ratings: number | null): NearPlace =>
+    ({ name, lat: 0, lng: 0, m, way: "north", words: `about ${m} m`, open, rating: null, ratings, area: null });
+  it("the walking button goes to the closest open place — a well-reviewed one only when it's barely farther", () => {
+    // (Tokoname: the open pharmacy at 400 m, not the well-reviewed one at 650 m)
+    expect(buttonPlace([p("Showado", 350, null, 2), p("Kyowa", 400, true, 0), p("Sugi Drug", 650, true, 16)]).name).toBe("Kyowa");
+    // (Kanayama: a hotspot called "Wi-Fi" with one review, open unknown, never beats a real café that's open)
+    expect(buttonPlace([p("Doutor", 20, true, 446), p("Wi-Fi", 70, null, 1)]).name).toBe("Doutor");
+    expect(buttonPlace([p("Tiny cafe", 30, true, 0), p("Tully's", 80, true, 282)]).name).toBe("Tully's");
+    expect(buttonPlace([p("Closed one", 30, false, 50), p("Open one", 300, true, 3)]).name).toBe("Open one");
+  });
+  it("says when they're moving fast, and not at walking pace", () => {
+    expect(movingLine({ lat: 35, lng: 136, acc: 20, age: 0, spd: 18 })).toMatch(/moving at about 65 km\/h, likely on a train/);
+    expect(movingLine({ lat: 35, lng: 136, acc: 20, age: 0, spd: 1.4 })).toBeNull();
+    expect(movingLine({ lat: 35, lng: 136, acc: 20, age: 0 })).toBeNull();
+    expect(nearbyLines({ lat: 35, lng: 136, acc: 20, age: 0, spd: 20 }, [], []).join(" ")).toMatch(/likely on a train/);
+  });
+  it("keeps the phone's speed only in a sane range", () => {
+    expect(parseHere({ lat: 35, lng: 136, acc: 20, age: 0, spd: 18 })).toMatchObject({ spd: 18 });
+    expect(parseHere({ lat: 35, lng: 136, acc: 20, age: 0, spd: 9999 })).not.toHaveProperty("spd");
   });
 });

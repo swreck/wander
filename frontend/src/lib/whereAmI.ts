@@ -7,7 +7,8 @@
  * my location" button (hereNow), which asks the phone and sends the same question again. Never saved by Wander.
  */
 export type Here =
-  | { lat: number; lng: number; acc: number | null; age: number | null }
+  // spd: metres a second, when the phone knows it — Scout says when they're on a train (Ken, Oct 12)
+  | { lat: number; lng: number; acc: number | null; age: number | null; spd?: number | null }
   | { none: "denied" | "unavailable" | "not-asked" };
 
 // (only words that are about where they are — verify12: "close" in "when does the pool close?", "far" in "how far is
@@ -45,9 +46,9 @@ const NEAR_WORDS = new RegExp([
 const NOT_HERE = /\bwhile (?:we'?re|we are|i'?m|i am) (?:around|here|there)\b|\bwhere (?:do|should|will|can) (?:we|i) go from here\b/gi;
 export const isNearQuestion = (q: string) => !/\bnearby [A-Z]/.test(q) && NEAR_WORDS.test(q.replace(NOT_HERE, ""));
 
-type Reading = { lat: number; lng: number; acc: number | null; at: number };
+type Reading = { lat: number; lng: number; acc: number | null; at: number; spd?: number | null };
 let last: Reading | null = null;
-const asHere = (r: Reading): Here => ({ lat: r.lat, lng: r.lng, acc: r.acc, age: Math.max(0, Math.round((Date.now() - r.at) / 1000)) });
+const asHere = (r: Reading): Here => ({ lat: r.lat, lng: r.lng, acc: r.acc, age: Math.max(0, Math.round((Date.now() - r.at) / 1000)), ...(r.spd != null ? { spd: r.spd } : {}) });
 const recent = (ms: number) => (last && Date.now() - last.at < ms ? last : null);
 const metres = (a: Reading, b: Reading) => {
   const k = Math.PI / 180, x = (b.lng - a.lng) * k * Math.cos(((a.lat + b.lat) / 2) * k), y = (b.lat - a.lat) * k;
@@ -60,6 +61,12 @@ const metres = (a: Reading, b: Reading) => {
 function keep(r: Reading): Reading {
   const prev = last;
   if (prev && r.acc != null && r.acc > 300 && prev.acc != null && prev.acc <= 100 && r.at - prev.at < 5 * 60_000 && metres(prev, r) <= r.acc) return prev;
+  // (no speed from the phone — usual for a quick, low-power reading: from two sharp readings 5 s to 5 min apart)
+  const dt = prev ? (r.at - prev.at) / 1000 : 0;
+  if (r.spd == null && prev && r.acc != null && r.acc <= 100 && prev.acc != null && prev.acc <= 100 && dt >= 5 && dt <= 300) {
+    // (only movement beyond both readings' own uncertainty counts — standing still, they wander by tens of metres)
+    r = { ...r, spd: Math.round((Math.max(0, metres(prev, r) - prev.acc - r.acc) / dt) * 10) / 10 };
+  }
   last = r;
   return r;
 }
@@ -75,7 +82,9 @@ function read(timeout: number, cap: number): Promise<Here> {
     navigator.geolocation.getCurrentPosition(
       (p) => {
         const acc = Number.isFinite(p.coords.accuracy) ? Math.round(p.coords.accuracy) : null;
-        finish(asHere(keep({ lat: p.coords.latitude, lng: p.coords.longitude, acc, at: p.timestamp || Date.now() })));
+        // (speed: null, or negative, when the phone doesn't know it)
+        const spd = typeof p.coords.speed === "number" && Number.isFinite(p.coords.speed) && p.coords.speed >= 0 ? Math.round(p.coords.speed * 10) / 10 : null;
+        finish(asHere(keep({ lat: p.coords.latitude, lng: p.coords.longitude, acc, at: p.timestamp || Date.now(), spd })));
       },
       (e) => finish({ none: e.code === 1 ? "denied" : "unavailable" }),
       { enableHighAccuracy: false, timeout, maximumAge: 60_000 },

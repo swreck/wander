@@ -11,6 +11,7 @@ import OnceTip, { useOnceTip } from "./OnceTip";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { phoneReport } from "../lib/phoneReport";
 import { whereAmI, hereNow, type Here } from "../lib/whereAmI";
+import { canOfferBuzz, declineBuzz, turnOnBuzz, keepBuzzCurrent } from "../lib/buzz";
 
 /** Phone numbers in an answer can be tapped to call */
 let phoneKey = 0;
@@ -630,6 +631,21 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const t = setTimeout(() => setWaitedLong(true), LONG_WAIT_MS);
     return () => clearTimeout(t);
   }, [sending]);
+  // "Buzz me when it's ready" (lib/buzz.ts — Ken, Oct 12): offered once per phone, the first time an answer takes a while,
+  // while they're still looking; it stays until they decide. After "Turn on", every slow answer buzzes by itself.
+  const [buzz, setBuzz] = useState<"none" | "offer" | "asking" | "on" | "off" | "failed">("none");
+  useEffect(() => {
+    if (!sending || buzz !== "none") return;
+    const t = setTimeout(() => { if (canOfferBuzz()) setBuzz("offer"); }, 5000);
+    return () => clearTimeout(t);
+  }, [sending, buzz]);
+  useEffect(() => {
+    if (buzz !== "on" && buzz !== "off" && buzz !== "failed") return;
+    const t = setTimeout(() => setBuzz("none"), 8000);
+    return () => clearTimeout(t);
+  }, [buzz]);
+  // (a phone that already allowed it keeps its address current each time Wander opens, signed in)
+  useEffect(() => { if (user?.travelerId) keepBuzzCurrent(); }, [user?.travelerId]);
   // One question at a time, known the instant it's sent (the `sending` state a callback holds can be from before)
   const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -824,6 +840,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
 
   // (Scout's first word arriving is a new latest thing too)
   useEffect(() => { scrollToLatest(); }, [messages, sending, scrollToLatest, hello]);
+  // (…and the buzz offer appearing under "Going through the trip" — only then: it sat just below the fold while they
+  // waited (verify19), and moving on every tap threw a reader under a long answer back to its top (verify20))
+  useEffect(() => { if (buzz === "offer" && sendingRef.current) scrollToLatest(); }, [buzz, scrollToLatest]);
 
   // The sheet's size on a phone, and the space the keyboard leaves (the visible part of the screen)
   const [size, setSize] = useState<"half" | "full">("half");
@@ -933,6 +952,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       // …unless Scout has a first word for this person: it opens to read, so the keyboard doesn't cover the offer and
       // its Later / No thanks (Ken, Oct 10: "a first impression cannot cause confusion")
       if (helloRef.current && !detail?.prefill) return;
+      // (opened from "Scout answered" on the lock screen: to read the answer — no keyboard over it)
+      if (detail?.read) return;
       const el = inputRef.current;
       if (el) {
         el.focus();
@@ -1409,6 +1430,23 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     return () => window.removeEventListener("wander:ask-scout", ask);
   }, [sendMessage]);
 
+  // "Scout answered" tapped (sw.ts): Scout opens on the answer — Wander opened by it (?scout=open, which leaves the address
+  // at once), or already open (a message from the service worker)
+  useEffect(() => {
+    const openToRead = () => window.dispatchEvent(new CustomEvent("wander-open-chat", { detail: { read: true } }));
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("scout") === "open") {
+        url.searchParams.delete("scout");
+        window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+        setTimeout(openToRead, 300);
+      }
+    } catch { /* no address */ }
+    const fromWorker = (e: MessageEvent) => { if (e.data?.type === "open-scout") openToRead(); };
+    navigator.serviceWorker?.addEventListener("message", fromWorker);
+    return () => navigator.serviceWorker?.removeEventListener("message", fromWorker);
+  }, []);
+
   // A question in the link — wander.up.railway.app/?ask=… — from a Siri shortcut ("Hey Siri, Ask Scout", Ken, Oct 5): Scout
   // opens and asks it. The question leaves the address at once, so a reload or Back never asks it twice.
   useEffect(() => {
@@ -1876,6 +1914,36 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                   <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
                 </span>
               </div>
+            </div>
+          )}
+          {/* "Buzz me when it's ready" — once per phone, while a slow answer is on its way (lib/buzz.ts) */}
+          {buzz !== "none" && (
+            <div data-buzz-offer className="rounded-xl border border-[#e0d8cc] bg-white px-3.5 py-2.5 text-sm text-[#514636]">
+              {buzz === "offer" || buzz === "asking" ? (
+                <>
+                  {/* (true before the answer lands and after — it often stays until they choose; verify19) */}
+                  <p>Want your phone to buzz when an answer is ready? Then you can put it away while you wait.</p>
+                  {/* (a tap here doesn't take focus from the typing box: that read as the keyboard closing, and the
+                      conversation jumped to the top of a long answer — "All set" landed out of sight; verify20) */}
+                  <div className="mt-1.5 flex gap-2" onMouseDown={(e) => e.preventDefault()}>
+                    <button disabled={buzz === "asking"} onClick={async () => { setBuzz("asking"); setBuzz(await turnOnBuzz()); }}
+                      className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white disabled:opacity-60">
+                      {buzz === "asking" ? "Turning on…" : "Turn on"}
+                    </button>
+                    <button disabled={buzz === "asking"} onClick={() => { declineBuzz(); setBuzz("none"); }}
+                      className="min-h-[44px] px-3 rounded-lg text-[#6b5d4a]">
+                      No thanks
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p role="status">
+                  {/* (failed: the phone said yes, Wander couldn't finish — keepBuzzCurrent tries again at each opening) */}
+                  {buzz === "on" ? "All set. Your phone will buzz when an answer is ready, even when it's locked."
+                    : buzz === "off" ? "OK, no buzz. To change that later: the iPhone's Settings, then Notifications, then Wander."
+                    : "Wander couldn't finish turning that on. It will try again the next time you open Wander."}
+                </p>
+              )}
             </div>
           )}
           {/* Start fresh — at the end of the conversation, out of the crowded header; it asks first */}
