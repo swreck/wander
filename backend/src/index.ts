@@ -54,6 +54,7 @@ import { bodyTripGuard } from "./middleware/tripGuard.js";
 import tripNoteRoutes from "./routes/tripNotes.js";
 import cityPhotoRoutes from "./routes/cityPhoto.js";
 import phoneReportRoutes from "./routes/phoneReports.js";
+import pushRoutes from "./routes/push.js";
 import { startMyMapReader } from "./services/guide/googleMyMap.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -177,6 +178,7 @@ app.use("/api/maybes", maybeRoutes);
 app.use("/api/trip-notes", tripNoteRoutes);
 app.use("/api/city-photo", cityPhotoRoutes);
 app.use("/api/phone-reports", phoneReportRoutes);
+app.use("/api/push", pushRoutes);
 app.use("/api/sources", sourceRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces

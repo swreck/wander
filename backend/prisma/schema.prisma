@@ -661,8 +661,24 @@ model Traveler {
   loginEvents         LoginEvent[]
   dayChoices          DayChoice[]
   tripNotes           TripNote[]
+  pushSubscriptions   PushSubscription[]
 
   @@map("travelers")
+}
+
+/// A phone's address for "Scout answered" notifications (Oct 12, Ken: a buzz when an answer is ready, like ChatGPT's).
+/// One per phone that said Allow; dropped when the phone's push service says it's gone.
+model PushSubscription {
+  id         String   @id @default(cuid())
+  travelerId String   @map("traveler_id")
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }
 
 model TripMember {

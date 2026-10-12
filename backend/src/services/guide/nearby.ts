@@ -22,7 +22,8 @@ export async function strayPinsOf(tripId: string): Promise<Map<string, { m: numb
 }
 
 export type Here =
-  | { lat: number; lng: number; acc: number | null; age: number | null }
+  // spd: metres a second, when the phone knows it (Ken asked from a moving train, Oct 12)
+  | { lat: number; lng: number; acc: number | null; age: number | null; spd?: number | null }
   | { none: "denied" | "unavailable" | "not-asked" };
 
 /** What the phone sent, or null when it sent nothing usable */
@@ -33,7 +34,70 @@ export function parseHere(x: unknown): Here | null {
   const num = (v: unknown, lo: number, hi: number) => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
   const lat = num(o.lat, -90, 90), lng = num(o.lng, -180, 180);
   if (lat == null || lng == null) return null;
-  return { lat, lng, acc: num(o.acc, 0, 100_000), age: num(o.age, 0, 86_400) };
+  const spd = num(o.spd, 0, 150);
+  return { lat, lng, acc: num(o.acc, 0, 100_000), age: num(o.age, 0, 86_400), ...(spd != null ? { spd } : {}) };
+}
+
+/**
+ * Real places of a kind near the phone, closest first, from Google (Ken, Oct 12: "Yes" to sending the phone's position
+ * to Google for this — rounded to about 100 m, only for "what's near" questions, never stored). Measured by Wander from
+ * where they actually are, in the same words as her pins. Before, Scout searched the web: places by town, a mile or two
+ * off, with no distance, and ~25 s (Ken's coffee question on a train).
+ */
+export interface NearPlace { name: string; lat: number; lng: number; m: number; way: string; words: string; open: boolean | null; rating: number | null; ratings: number | null; area: string | null }
+export async function placesNear(here: { lat: number; lng: number }, kind: string, key: string): Promise<NearPlace[] | null> {
+  // (rounded before it leaves Wander: 3 decimals is ~110 m north–south, ~90 m east–west in Japan)
+  const at = `${here.lat.toFixed(3)},${here.lng.toFixed(3)}`;
+  const base = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${at}&keyword=${encodeURIComponent(kind.slice(0, 80))}&language=en&key=${key}`;
+  // (closest first; failing that, everything within 2 km, sorted here — Google's closest-first search gave up on
+  // "pharmacy" in Tokoname twice in ten tries, "DEADLINE_EXCEEDED")
+  const urls = [`${base}&rankby=distance`, `${base}&radius=2000`];
+  let data: any = null;
+  for (let attempt = 0; attempt < urls.length && !(data?.status === "OK" || data?.status === "ZERO_RESULTS"); attempt++) {
+    const url = urls[attempt];
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 5000);
+    try { data = await (await fetch(url, { signal: ctl.signal })).json(); } catch { data = null; } finally { clearTimeout(t); }
+  }
+  if (data?.status !== "OK" && data?.status !== "ZERO_RESULTS") {
+    // (Google's reason only — never where they are)
+    console.warn(`[places-near] Google said ${data?.status ?? "nothing"}${data?.error_message ? `: ${data.error_message}` : ""}`);
+    return null;
+  }
+  {
+    const live = (data.results || []).filter((r: any) => r?.business_status !== "CLOSED_PERMANENTLY" && r?.geometry?.location);
+    // (all kept, with their review counts — Tokoname's station pharmacy has one review; Scout weighs them, and the walking
+    // button goes to a place with real reviews: placesNear's caller)
+    // (sorted by distance before the six are kept: the 2 km search lists by prominence)
+    return live
+      .map((r: any) => {
+        const p = { lat: r.geometry.location.lat as number, lng: r.geometry.location.lng as number };
+        const m = metres(here, p);
+        // (close by, in metres: "under 150 m" for all of them hid which is closest)
+        const words = m < 150 ? `about ${Math.max(20, Math.round(m / 10) * 10)} m` : farWords(m);
+        return { name: String(r.name), ...p, m, way: compass(bearing(here, p)), words,
+          open: typeof r.opening_hours?.open_now === "boolean" ? r.opening_hours.open_now : null,
+          rating: typeof r.rating === "number" ? r.rating : null, ratings: typeof r.user_ratings_total === "number" ? r.user_ratings_total : null,
+          area: typeof r.vicinity === "string" ? r.vicinity : null };
+      })
+      .sort((a: NearPlace, b: NearPlace) => a.m - b.m)
+      .slice(0, 6);
+  }
+}
+
+/** The one the walking button goes to: the closest place known to be open — or one with real reviews only a little
+ *  farther (a hotspot called "Wi-Fi" with one review sat among Kanayama's cafés; in Tokoname the open pharmacy at 400 m
+ *  beats a well-reviewed one at 650 m) */
+export function buttonPlace(found: NearPlace[]): NearPlace {
+  const open = found.find((p) => p.open === true) || found.find((p) => p.open !== false) || found[0];
+  const reviewed = found.find((p) => p.open !== false && (p.ratings ?? 0) >= 5);
+  return reviewed && reviewed.m <= open.m + 150 ? reviewed : open;
+}
+
+/** "They're moving" — said to Scout when the phone reports a speed a walk can't reach (over ~25 km/h) */
+export function movingLine(here: Here): string | null {
+  if ("none" in here || here.spd == null || here.spd < 7) return null;
+  return `They're moving at about ${Math.round((here.spd * 3.6) / 5) * 5} km/h, likely on a train or in a car, so where they are is changing fast: say so in a few words, and when today's plan makes clear where they're heading, favour places near there.`;
 }
 
 export interface Pin { name: string; lat: number; lng: number; from: string; note: string | null }
@@ -81,6 +145,8 @@ export function nearbyLines(here: Here, pins: Pin[], anchors: Anchor[]): string[
   const rough = here.acc != null && here.acc > 300 ? `, rough — within about ${Math.round(here.acc / 100) * 100} m` : "";
   const old = here.age != null && here.age > 300 ? `, as of ${Math.round(here.age / 60)} minutes ago` : "";
   out.push(`WHERE THEY ARE (the phone's location${rough}${old}; never saved). Distances below are straight lines from them — not routes or walking times:`);
+  const moving = movingLine(here);
+  if (moving) out.push(`- ${moving}`);
   // Their hotel (tonight's, or last night's on a moving day), said whenever they're in its part of the country — Ken at
   // the Marriott asked "How far is my hotel?" and Scout couldn't say: the line was only written when her places were
   // near (Oct 11). Not from California: tonight's hotel there is someone else's night.

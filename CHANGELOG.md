@@ -2,6 +2,24 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-12 (evening) — Places Near You, and a Buzz When Scout Answers
+
+### Added
+- "Is there somewhere to sit down for a coffee?", "a pharmacy I can walk to?": when Larisa's pins have nothing of that
+  kind near them, Scout looks for the closest real ones near the phone (Google Places) and answers like "Doutor Coffee,
+  about 20 m to the north-east, open now", said as found on Google, with a walking button to the closest open one
+  (Google's exact point). Answers in about 7–15 seconds instead of ~25 (it was a web search, by town, a mile or two
+  off, with no distances). The phone's position goes to Google only for these questions, rounded to about 100 m, never
+  stored (Ken approved Oct 12). Where: Scout; new places_near_me tool.
+- When the phone is moving fast (a train), Scout says so and that "near" is changing, and offers no walking button
+  (the place is behind them). Scout no longer points to a Shinkansen food cart (the Tokaido line ended it in Oct 2023).
+- "Scout answered" on the lock screen, with the phone's buzz, for any answer that takes 8 seconds or more. Each phone is
+  asked once, ever, the first time an answer takes a while ("Want your phone to buzz when an answer is ready?" · Turn
+  on / No thanks). Tapping the notification opens Scout on the answer. The lock screen shows the answer's first line,
+  unless it holds a booking code or a long number ("Your answer is ready. Tap to read it."). iPhone: from the Home Screen icon only (Apple's
+  rule for web apps). Where: Scout's panel; new /api/push routes, push_subscriptions table, service worker.
+- SPEC sections: AI chat (Scout's tools, Scout's panel), notifications. SPEC UPDATE NEEDED.
+
 ## 2026-10-12 — "Use my location" Under Scout's Answer
 
 ### Added

@@ -146,6 +146,30 @@ registerRoute(
 );
 
 
+// ── "Scout answered" (lib/buzz.ts, backend services/push.ts — Ken, Oct 12: a buzz when an answer is ready) ──
+// Every push shows (Apple withdraws a web app's notifications if one doesn't); the newest replaces the last.
+self.addEventListener('push', (event: PushEvent) => {
+  let d: { title?: string; body?: string; tag?: string; url?: string } = {};
+  try { d = event.data?.json() ?? {}; } catch { /* plain text or nothing */ }
+  event.waitUntil(self.registration.showNotification(d.title || 'Scout answered', {
+    body: d.body || 'Your answer is ready.',
+    tag: d.tag || 'scout-answer',
+    icon: '/icons/icon-192.png',
+    data: { url: d.url || '/?scout=open' },
+  }));
+});
+// Tapped: Wander in front with Scout open — the open window if there is one, else a new one
+self.addEventListener('notificationclick', (event: NotificationEvent) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/?scout=open';
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const win = wins[0] as WindowClient | undefined;
+    if (win) { await win.focus(); win.postMessage({ type: 'open-scout' }); return; }
+    await self.clients.openWindow(url);
+  })());
+});
+
 // ── Offline capture queue: sync when connectivity returns ──
 // POST/PATCH requests that fail offline are queued in IndexedDB by the app layer
 // and replayed via the sync event below.
