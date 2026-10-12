@@ -62,6 +62,24 @@ async function weatherWords(tripId: string, displayName: string, now: Date): Pro
   return words;
 }
 
+/** The offers' forecast words made ahead — at start, then every 50 minutes while an offer runs — so nobody's first open
+ *  waits on a cold lookup (cold, it took 3.2 s of the 4 s Scout's opening allows) */
+export function startHelloWarmer() {
+  // (not inside the backend suite's workers — the local test server sets VITEST too, and should warm like production)
+  if (process.env.VITEST_WORKER_ID) return;
+  const warm = async () => {
+    const now = new Date();
+    const live = PLANNED.filter((p) => p.wordsNow && now.getTime() < Date.parse(p.until));
+    if (!live.length) { clearInterval(timer); return; }
+    const trips = await prisma.trip.findMany({ where: { status: "active" }, select: { id: true, tripMembers: { select: { traveler: { select: { displayName: true } } } } } });
+    for (const t of trips) for (const m of t.tripMembers) for (const p of live) {
+      if (p.who.test(m.traveler.displayName)) { wordsKept.delete(`${t.id}|${m.traveler.displayName}`); await p.wordsNow!(t.id, m.traveler.displayName, now).catch(() => null); }
+    }
+  };
+  const timer = setInterval(() => { warm().catch(() => {}); }, 50 * 60_000);
+  setTimeout(() => { warm().catch(() => {}); }, 5000);
+}
+
 async function answeredOf(travelerId: string): Promise<Record<string, Answered>> {
   const t = await prisma.traveler.findUnique({ where: { id: travelerId }, select: { preferences: true } });
   return ((t?.preferences as any) || {}).scoutHello || {};
