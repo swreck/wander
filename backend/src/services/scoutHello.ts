@@ -18,7 +18,7 @@ export type Hello = { words: string; ask: string; last: boolean };
 // (who: her account — "Julie", as she knows herself (renamed from "Julie D." on Oct 10), or a first name and an initial;
 // never the old April test account, "Julie (old April account)")
 type Planned = { key: string; who: RegExp; until: string; words: string; ask: string; wordsNow?: (tripId: string, displayName: string, now: Date) => Promise<string | null> };
-type Answered = { laters?: number; lastAt?: string; status?: "no" };
+type Answered = { laters?: number; lastAt?: string; status?: "no" | "asked" };
 
 const PLANNED: Planned[] = [
   {
@@ -92,7 +92,7 @@ async function currentOffer(travelerId: string, displayName: string, now: Date, 
   for (const p of PLANNED) {
     if (!p.who.test(displayName) || now.getTime() >= Date.parse(p.until)) continue;
     const a = answered[p.key] || {};
-    if (a.status === "no" || (a.laters || 0) >= MAX_OFFERS) continue;
+    if (a.status === "no" || a.status === "asked" || (a.laters || 0) >= MAX_OFFERS) continue;
     const asked = await prisma.chatMessage.findFirst({ where: { ...(tripId ? { tripId } : {}), travelerId, role: "user", content: { startsWith: p.ask } }, select: { id: true } });
     if (asked) continue;
     return { p, a, answered, resting: !!a.lastAt && now.getTime() - Date.parse(a.lastAt) < AGAIN_AFTER };
@@ -109,6 +109,16 @@ export async function helloFor(tripId: string, travelerId: string, displayName: 
     ? await Promise.race([c.p.wordsNow(tripId, displayName, now).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 4000))])
     : null;
   return { words: made || c.p.words, ask: c.p.ask, last: (c.a.laters || 0) >= MAX_OFFERS - 1 };
+}
+
+/** An offer's question has just been asked: the offer is taken at once, before its answer is saved */
+export async function offerAsked(travelerId: string, displayName: string, text: string, now = new Date()): Promise<void> {
+  const p = PLANNED.find((x) => x.who.test(displayName) && now.getTime() < Date.parse(x.until) && text.startsWith(x.ask));
+  if (!p) return;
+  const t = await prisma.traveler.findUnique({ where: { id: travelerId }, select: { preferences: true } });
+  const prefs = ((t?.preferences as any) || {}) as Record<string, any>;
+  const all = (prefs.scoutHello || {}) as Record<string, Answered>;
+  await prisma.traveler.update({ where: { id: travelerId }, data: { preferences: { ...prefs, scoutHello: { ...all, [p.key]: { ...(all[p.key] || {}), status: "asked", lastAt: now.toISOString() } } } } });
 }
 
 /** "Later" (or asking something else first) or "No thanks" — kept with the person, so every phone knows */

@@ -2,6 +2,30 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday in Japan) — The Day's Forecast Where You Sleep, and a Note About Japan's Warning App
+
+### Changed
+- Each day page's forecast line is for the hotel you sleep in that night, from Wander's server (Ken's weather plan,
+  Oct 12–13): "Forecast at the Ritz-Carlton, Nikko: 48‑66°F, 68% chance of rain, but the forecasts disagree". The
+  town's forecast only when there's no stay that night. Nikko's lake hotel runs 5–10°F colder than Nikko town, which
+  the line used before. More than 7 days out the line says "Early outlook". When the main forecast gives a 30%+ chance
+  of rain, Europe's, Japan's and the US models are compared: "though other forecasts show little rain" when none of
+  them shows any to speak of, "but the forecasts disagree" when some do. Not before a person's own first night (Andy
+  and Julie's Oct 13 is Tokyo's forecast, not the Imperial's: they're on the plane). The phone keeps a copy
+  for no signal, and falls back to the town's forecast straight from Open-Meteo if Wander can't answer. Where: day
+  pages (city band); new GET /api/weather/trip/:tripId/day/:date, services/dayWeather.ts. SPEC sections: day page.
+  SPEC UPDATE NEEDED.
+
+### Added
+- A quiet note on Home for Larisa, Andy and Julie, under the day's own card (Ken, Oct 13: "Messages should be gentle"):
+  Ken got an alert pointing him to Safety tips, the free warning app from Japan's Tourism Agency (earthquake, typhoon
+  and heavy-rain warnings in English); he installed it, and you're with him; "Here's how" shows three steps and an App
+  Store button; "Got it" puts it away for good on every phone. Until the trip ends. Where: Home; SafetyTipsNote.tsx.
+
+### Fixed
+- Scout's packing answer said the day pages show the town's forecast; they show the hotel's now, and it no longer says so.
+- Scout's offer is taken the moment its question is asked: reopened mid-answer, it showed again and could be asked twice.
+
 ## 2026-10-13 (Tuesday morning in Japan) — Scout Offers Andy and Julie the Weather Packing Tips
 
 ### Added

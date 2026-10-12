@@ -4,7 +4,7 @@ import prisma from "../services/db.js";
 import { noteMatches, sharedWords } from "../services/tripNotes/view.js";
 import { keptWords } from "../services/tripNotes/kept.js";
 import { settingsOf, tidyLater } from "./tripNotes.js";
-import { helloFor, answerHello } from "../services/scoutHello.js";
+import { helloFor, answerHello, offerAsked } from "../services/scoutHello.js";
 import { PACKING } from "../services/packing.js";
 import { createHash } from "crypto";
 import { logChange } from "../services/changeLog.js";
@@ -3726,7 +3726,7 @@ export async function executeTool(
           asOf: `the live forecast (Open-Meteo), read ${today}`,
           stays,
           // (verify23: rain 8 days out said as fact, "hotels lend them", items of five sentences, "25°F colder" worked out)
-          how: "From this, at most three items, each ONE sentence: what the forecast shows for their own nights or days (with the dates as given here, weekday and all), tied to what Backroads' itinerary or her Guide has them doing that day, and what to pack for it. Worth an item, and only these: the coldest stop against where they start, in ONE item (give both ranges, never a difference you work out); the days rain shows when they'll be outside (biking, a hike); one very wet stretch. Never an item that only says a stop is mild or warm, or tells them to bring ordinary clothes for it ('light clothes', 'a short-sleeve layer'): that's obvious, and Ken (Oct 12): \"Don't just do the obvious. That's worse than nothing.\" Fewer weather items is better than an obvious one. Certainty goes day by day: a rain day may be called likely, with its chance, only when it's marked 'forecast' AND its models 'agree'; when its models 'disagree' (Europe's, Japan's and the US forecasts don't all show rain), it only 'may' rain, and say the forecasts disagree, with no chance given as if settled; one marked 'early outlook' is more than a week away and only 'may' rain. Say once that the numbers are for the hotel itself when 'at' says so (the day pages show the town's forecast, which can differ). Backroads' own notes already tell them to bring rain gear, warm layers and gloves: never mention any of those, even in passing, and nothing as obvious as 'check the forecast'. One item may be, on its own and about nothing else: no need to pack an umbrella, since convenience stores sell them for under ¥1,000. Temperatures in °F as given. Backroads' days by their date (\"Mon, Oct 19\"), never its numbers (\"Day 2\"). Nothing of your own about the hotels (what they have or lend) or about what dries overnight.",
+          how: "From this, at most three items, each ONE sentence: what the forecast shows for their own nights or days (with the dates as given here, weekday and all), tied to what Backroads' itinerary or her Guide has them doing that day, and what to pack for it. Worth an item, and only these: the coldest stop against where they start, in ONE item (give both ranges, never a difference you work out); the days rain shows when they'll be outside (biking, a hike); one very wet stretch. Never an item that only says a stop is mild or warm, or tells them to bring ordinary clothes for it ('light clothes', 'a short-sleeve layer'): that's obvious, and Ken (Oct 12): \"Don't just do the obvious. That's worse than nothing.\" Fewer weather items is better than an obvious one. Certainty goes day by day: a rain day may be called likely, with its chance, only when it's marked 'forecast' AND its models 'agree'; when its models 'disagree' (Europe's, Japan's and the US forecasts don't all show rain), it only 'may' rain, and say the forecasts disagree, with no chance given as if settled; one marked 'early outlook' is more than a week away and only 'may' rain. Say once that the numbers are for the hotel itself when 'at' says so. Backroads' own notes already tell them to bring rain gear, warm layers and gloves: never mention any of those, even in passing, and nothing as obvious as 'check the forecast'. One item may be, on its own and about nothing else: no need to pack an umbrella, since convenience stores sell them for under ¥1,000. Temperatures in °F as given. Backroads' days by their date (\"Mon, Oct 19\"), never its numbers (\"Day 2\"). Nothing of your own about the hotels (what they have or lend) or about what dries overnight.",
         };
       } catch (e: any) { console.warn("[packing] weather unavailable:", e?.message); }
       return { result: weather ? { ...PACKING, weather } : PACKING };
@@ -4589,6 +4589,9 @@ router.post("/", async (req: AuthRequest, res) => {
       res.status(400).json({ error: "message is required" });
       return;
     }
+    // (an offer's question, asked: the offer is taken now, not when the answer is saved — reopened mid-answer, Scout
+    // showed it again and a second tap asked twice; verify25)
+    if (req.user?.travelerId) offerAsked(req.user.travelerId, req.user.displayName || "", message).catch(() => {});
     // A photo with the question (Oct 2: a menu, a sign, a ticket — read and translated): one picture, as the phone
     // shrank it. Never kept — only "(with a photo)" goes into the saved conversation.
     const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];

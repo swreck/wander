@@ -56,6 +56,7 @@ import cityPhotoRoutes from "./routes/cityPhoto.js";
 import phoneReportRoutes from "./routes/phoneReports.js";
 import pushRoutes from "./routes/push.js";
 import paperRoutes from "./routes/papers.js";
+import weatherRoutes from "./routes/weather.js";
 import { startMyMapReader } from "./services/guide/googleMyMap.js";
 import { startHelloWarmer } from "./services/scoutHello.js";
 
@@ -184,6 +185,7 @@ app.use("/api/city-photo", cityPhotoRoutes);
 app.use("/api/phone-reports", phoneReportRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/papers", paperRoutes);
+app.use("/api/weather", weatherRoutes);
 app.use("/api/sources", sourceRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces

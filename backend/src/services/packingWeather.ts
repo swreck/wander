@@ -31,6 +31,46 @@ async function hotelPoint(query: string): Promise<{ lat: number; lng: number } |
   return p;
 }
 
+/** Her pins (Google map and Apple Maps guides), for finding a hotel's own point */
+export async function pinsOf(tripId: string): Promise<Pin[]> {
+  const pins: Pin[] = [];
+  const map = await myMapOf(tripId).catch(() => null);
+  for (const l of map?.layers ?? []) for (const p of l.places) pins.push({ name: p.name, lat: p.lat, lng: p.lng, note: null, from: "her Google map" });
+  for (const g of await appleGuidesOf(tripId).catch(() => [])) for (const p of g.places) if (p.name && p.lat != null && p.lng != null) pins.push({ name: p.name, lat: p.lat, lng: p.lng, note: null, from: "her Apple Maps guide" });
+  return pins;
+}
+
+type StayRow = { name: string; latitude: number | null; longitude: number | null; city: { name: string; latitude: number | null; longitude: number | null } };
+/** Where a stay is: its own point, her pin for it, Google's for its name — or, failing those, its town's (atHotel false) */
+export async function stayPoint(s: StayRow, pins: Pin[]): Promise<{ lat: number; lng: number; atHotel: boolean } | null> {
+  const pin = pinFor(s.name, pins);
+  // (the hotel itself — the Ritz-Carlton Nikko is on Lake Chuzenji, ~4,200 ft, 6–9°F colder than Nikko town's point)
+  const found = s.latitude == null && !pin ? await hotelPoint(`${s.name} ${s.city.name.split(/\s+-\s+|\s*\(|,/)[0]} Japan`) : null;
+  const lat = s.latitude ?? pin?.lat ?? found?.lat ?? s.city.latitude, lng = s.longitude ?? pin?.lng ?? found?.lng ?? s.city.longitude;
+  if (lat == null || lng == null) return null;
+  return { lat, lng, atHotel: s.latitude != null || !!pin || !!found };
+}
+
+/** Do Europe's, Japan's and the US forecasts all show rain, day by day? The default follows one model: the "68%" for the
+ *  lake on Mon, Oct 19 was Europe's 13 mm while Japan's model had 1.4 mm and the US model none (Oct 12). "unknown" when
+ *  the comparison couldn't be read (Japan's model reaches about 11 days) */
+export type ModelRain = "wet" | "dry" | "split" | "unknown";
+export async function modelsAgree(lat: number, lng: number, from: string, to: string): Promise<(day: string) => ModelRain> {
+  const rainIn: Record<string, number[]> = {};
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
+    const m = (await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&models=ecmwf_ifs025,jma_seamless,gfs_seamless&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${from}&end_date=${to}`, { signal: ctl.signal })).json())?.daily;
+    clearTimeout(t);
+    (m?.time as string[] | undefined)?.forEach((day, i) => {
+      const xs = ["ecmwf_ifs025", "jma_seamless", "gfs_seamless"].map((k) => m[`precipitation_sum_${k}`]?.[i]);
+      if (xs.every((x) => typeof x === "number")) rainIn[day] = xs;
+    });
+  } catch { /* compared nowhere — "unknown", said as the default alone */ }
+  // (wet: all three show rain, 1 mm or more; dry: none does; split: some do — a dry day isn't a disagreement)
+  return (day: string) => { const xs = rainIn[day]; if (!xs) return "unknown"; const n = xs.filter((x) => x >= 0.04).length; return n === 3 ? "wet" : n === 0 ? "dry" : "split"; };
+}
+
 export interface StayWeather {
   stay: string; town: string; nights: string; firstNight: string; daysAway: number;
   /** whose point the numbers are for — the hotel's own, or the town's when Wander doesn't know where the hotel is */
@@ -53,21 +93,16 @@ export async function packingWeather(tripId: string, person: string, today: stri
   const stays = (await prisma.accommodation.findMany({ where: { tripId }, select: { name: true, forWhom: true, checkInDate: true, checkOutDate: true, latitude: true, longitude: true, city: { select: { name: true, latitude: true, longitude: true } } }, orderBy: { checkInDate: "asc" } }))
     .filter((s) => s.checkInDate && s.checkOutDate && ymd(s.checkOutDate) > start && (!s.forWhom || /everyone/i.test(s.forWhom) || s.forWhom.toLowerCase().includes(me)));
   if (!stays.length) return [];
-  const pins: Pin[] = [];
-  const map = await myMapOf(tripId).catch(() => null);
-  for (const l of map?.layers ?? []) for (const p of l.places) pins.push({ name: p.name, lat: p.lat, lng: p.lng, note: null, from: "her Google map" });
-  for (const g of await appleGuidesOf(tripId).catch(() => [])) for (const p of g.places) if (p.name && p.lat != null && p.lng != null) pins.push({ name: p.name, lat: p.lat, lng: p.lng, note: null, from: "her Apple Maps guide" });
+  const pins = await pinsOf(tripId);
   const last = addDays(today, 15);   // (Open-Meteo's 16 days)
   // (all stays at once — one after another took over 4 s cold, and Scout's offer to Julie fell back to its plain words)
   const out = (await Promise.all(stays.map(async (s): Promise<StayWeather | null> => {
     const from = ymd(s.checkInDate!) > start ? ymd(s.checkInDate!) : start;
     const to = addDays(ymd(s.checkOutDate!), -1) < last ? addDays(ymd(s.checkOutDate!), -1) : last;
     if (from > to) return null;
-    const pin = pinFor(s.name, pins);
-    // (the hotel itself — the Ritz-Carlton Nikko is on Lake Chuzenji, ~4,200 ft, 6–9°F colder than Nikko town's point)
-    const found = s.latitude == null && !pin ? await hotelPoint(`${s.name} ${s.city.name.split(/\s+-\s+|\s*\(|,/)[0]} Japan`) : null;
-    const lat = s.latitude ?? pin?.lat ?? found?.lat ?? s.city.latitude, lng = s.longitude ?? pin?.lng ?? found?.lng ?? s.city.longitude;
-    if (lat == null || lng == null) return null;
+    const point = await stayPoint(s, pins);
+    if (!point) return null;
+    const { lat, lng } = point;
     try {
       const ctl = new AbortController();
       const t = setTimeout(() => ctl.abort(), 8000);
@@ -85,25 +120,16 @@ export async function packingWeather(tripId: string, person: string, today: stri
       const lastSure = [...days].reverse().find((day) => sure(day) === "forecast");
       // (the default above follows one model; the "68%" for the lake on Mon, Oct 19 was Europe's 13 mm while Japan's
       // model had 1.4 mm and the US model none — said as "likely" all the same. So: do all three show rain? Oct 12)
-      const rainIn: Record<string, number[]> = {};
-      try {
-        const ctl2 = new AbortController();
-        const t2 = setTimeout(() => ctl2.abort(), 8000);
-        const m = (await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&models=ecmwf_ifs025,jma_seamless,gfs_seamless&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${from}&end_date=${to}`, { signal: ctl2.signal })).json())?.daily;
-        clearTimeout(t2);
-        (m?.time as string[] | undefined)?.forEach((day, i) => {
-          const xs = ["ecmwf_ifs025", "jma_seamless", "gfs_seamless"].map((k) => m[`precipitation_sum_${k}`]?.[i]);
-          if (xs.every((x) => typeof x === "number")) rainIn[day] = xs;
-        });
-      } catch { /* compared nowhere — "unknown", said as the default alone */ }
-      const models = (day: string): "agree" | "disagree" | "unknown" => (!rainIn[day] ? "unknown" : rainIn[day].every((x) => x >= 0.04) ? "agree" : "disagree");
+      const models = await modelsAgree(lat, lng, from, to);
       return {
         stay: s.name, town: s.city.name.split(/\s+-\s+|\s*\(|,/)[0].trim(),
         nights: from === to ? say(from) : `${say(from)} – ${say(to)}`, firstNight: from, daysAway: away(from),
-        at: s.latitude != null || pin || found ? "the hotel itself" : "the town (Wander doesn't know where the hotel is)",
+        at: point.atHotel ? "the hotel itself" : "the town (Wander doesn't know where the hotel is)",
         outlook: !lastSure ? "early outlook" : lastSure === days[days.length - 1] ? "forecast" : `forecast to ${say(lastSure)}, then early outlook`,
         highs: range(hi), lows: range(lo), coldestLow: Math.min(...lo), warmestHigh: Math.max(...hi),
-        wetDays: days.map((day, i) => ({ day: say(day), chance: d.precipitation_probability_max?.[i] ?? 0, inches: Math.round((d.precipitation_sum?.[i] ?? 0) * 10) / 10, outlook: sure(day), models: models(day) }))
+        wetDays: days.map((day, i) => ({ day: say(day), chance: d.precipitation_probability_max?.[i] ?? 0, inches: Math.round((d.precipitation_sum?.[i] ?? 0) * 10) / 10, outlook: sure(day),
+          // (a rain day: likely only when all three show rain)
+          models: ((m: ModelRain) => (m === "wet" ? "agree" : m === "unknown" ? "unknown" : "disagree"))(models(day)) as "agree" | "disagree" | "unknown" }))
           .filter((w) => w.chance >= 60 || w.inches >= 0.4),
       };
     } catch { return null; /* no forecast for this stay — left out, never guessed */ }

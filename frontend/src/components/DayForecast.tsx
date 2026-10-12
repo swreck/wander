@@ -7,24 +7,34 @@
  * Drawn from this phone's copy at once; the line keeps its height while a first fetch is out, so nothing moves.
  */
 import { useEffect, useState } from "react";
-import { forecastFor, savedForecast, rainLikely, clearSky, type DayForecast as F } from "../lib/forecast";
+import { forecastFor, savedForecast, dayForecastFor, savedDayForecast, rainDisputed, rainLikely, clearSky, type DayForecast as F } from "../lib/forecast";
 
-export default function DayForecast({ lat, lon, date, zone, place, herLine, her }: {
+/** "the Ritz-Carlton, Nikko", "the Imperial Hotel" — and "Shirakabeso", "Shiraume" as they are */
+const theHotel = (s: string) => (/^the /i.test(s) || !/hotel|ritz|four seasons|six senses|marriott|hyatt|hilton|westin|peninsula|mandarin|conrad|andaz|intercontinental|\baman\b/i.test(s) ? s : `the ${s}`);
+
+export default function DayForecast({ tripId, lat, lon, date, zone, place, herLine, her }: {
+  /** with the trip: the forecast where this person sleeps that night, from Wander's server (lib/forecast dayForecastFor) */
+  tripId?: string | null;
   lat: number | null | undefined; lon: number | null | undefined; date: string; zone: string; place: string;
   /** her sheet's line for the stay ("Larisa's forecast: lows 57-63, highs 72-76, rain 0-.1 in"), if any */
   herLine: string | null; her: string;
 }) {
   // (a day that's over has no forecast — Oct 7, viewed Oct 11, said "Forecast for Okayama"; verify8)
   const past = date < new Date().toLocaleDateString("en-CA", { timeZone: zone });
-  const [f, setF] = useState<F | null>(() => (past ? null : savedForecast(lat, lon, date)));
+  // (first drawn from this phone's copy — the hotel's, else the town's from before, so the line is there at once)
+  const savedNow = () => (tripId && savedDayForecast(tripId, date)) || savedForecast(lat, lon, date);
+  const [f, setF] = useState<F | null>(() => (past ? null : savedNow()));
   const [tried, setTried] = useState(false);
   useEffect(() => {
     if (past) return;
     let live = true;
-    setF(savedForecast(lat, lon, date));
-    forecastFor(lat, lon, date, zone).then((x) => { if (live) { if (x) setF(x); setTried(true); } });
+    setF(savedNow());
+    // (the hotel's forecast from Wander; if Wander can't give one, the town's straight from Open-Meteo as before)
+    (tripId ? dayForecastFor(tripId, date).then((x) => x || forecastFor(lat, lon, date, zone)) : forecastFor(lat, lon, date, zone))
+      .then((x) => { if (live) { if (x) setF(x); setTried(true); } });
     return () => { live = false; };
-  }, [lat, lon, date, zone, past]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId, lat, lon, date, zone, past]);
 
   // (when it was fetched — with its day when that wasn't today, so a copy kept from yesterday never reads as this
   // morning's; best-information audit, Oct 10). On a phone that isn't on the trip's clock (Julie and Andy at home), on
@@ -60,11 +70,16 @@ export default function DayForecast({ lat, lon, date, zone, place, herLine, her 
   );
 
   if (f) {
+    // (where: that night's hotel when Wander knows it, else the town; how sure: past a week it's an early outlook, and a
+    // rain chance the other forecasts don't share is said so — Ken's weather plan, Oct 13)
+    const disputed = rainDisputed(f);
+    const lead = f.outlook === "early outlook" ? "Early outlook" : "Forecast";
+    const where = f.place ? (f.atHotel ? `at ${theHotel(f.place)}` : `for ${f.place}`) : `for ${place}`;
     return (
       <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
-        {icon(rainLikely(f) ? "rain" : clearSky(f) ? "sun" : "part")}
+        {icon(disputed ? "part" : rainLikely(f) ? "rain" : clearSky(f) ? "sun" : "part")}
         <span>
-          Forecast for {place}: {f.lo}‑{f.hi}°F{f.rain !== null ? `, ${f.rain}% chance of rain` : ""}
+          {lead} {where}: {f.lo}‑{f.hi}°F{f.rain !== null ? `, ${f.rain}% chance of rain` : ""}{disputed === "drier" ? ", though other forecasts show little rain" : disputed === "split" ? ", but the forecasts disagree" : ""}
           <span className="text-xs text-[#6b5d4a]"> · Open-Meteo, {fetched}</span>
         </span>
       </p>

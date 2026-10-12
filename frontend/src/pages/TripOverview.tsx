@@ -24,6 +24,7 @@ import TripGlance from "../components/TripGlance";
 import EveningQuestion from "../components/EveningQuestion";
 import WelcomeOnce from "../components/WelcomeOnce";
 import LeavingSoonCard from "../components/LeavingSoonCard";
+import SafetyTipsNote from "../components/SafetyTipsNote";
 import MaybesLine from "../components/MaybesLine";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
 import { voiceFor } from "../lib/guideDisplay";
@@ -698,6 +699,9 @@ export default function TripOverview() {
         {/* Something new on Maybes from someone else — one quiet line (Oct 2 2026) */}
         {trip && <MaybesLine tripId={trip.id} />}
         <TripGlance tripId={trip.id} />
+        {/* Safety tips, Japan's warning app — a quiet note for Larisa, Andy and Julie from Ken (Oct 13 2026); after
+            the day's own news (Andy's "You leave tomorrow" and his flight came second when it sat above) */}
+        <SafetyTipsNote />
 
         {/* Elsewhere, the Face ID offer sits right under Today — it only shows until it's set up or dismissed. Above
             Today it arrived a moment late and shoved the day's plan half a screen down (round 6). */}
