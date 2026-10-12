@@ -876,6 +876,25 @@ const tools: Anthropic.Tool[] = [
     description: "Put a \"Use my location\" button under your answer. One tap shares where their phone is and asks you the same question again. Use it only when WHERE THEY ARE says their location isn't known and your answer depends on where they're standing right now: what's near them, the nearest or closest anything, which way or how far to somewhere, \"I'm lost\". Never when you already have their location or when they've said no to sharing it, and never for a question that doesn't need it.",
     input_schema: { type: "object" as const, properties: {}, required: [] },
   },
+  // ── Papers kept from the trip (Oct 12, Ken: receipts and the like, by date, instead of carrying paper) ──────────────
+  {
+    name: "keep_paper",
+    description: "Keep the photo, picture or PDF they sent with THIS message as a paper of the trip — a receipt, a bill, a ticket, a booking — filed under the trip day it belongs to, so they needn't carry it. Use it when they ask to keep, save or file it (\"keep this\", \"save this receipt\"). Read it first. Give a title of a few words (\"Yōyōkaku bill\"), the trip day as YYYY-MM-DD (the day it was issued or paid; for a stay, its last night — the day before check-out — so it sits with where they stayed; the DAY BY DAY lines say where they were), and one or two plain sentences: what it is, the dates it covers (said as \"Oct 8–10\"), what the charges are for (a ryokan bill with no room charge on it: say the room isn't on it), the total as printed. Never a card, confirmation, reservation or passport number, a guest's name or a room number in the title or summary. Only the person and, for Ken and Larisa, each other, see it.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: { type: "string" },
+        date: { type: "string", description: "YYYY-MM-DD, a day of the trip" },
+        summary: { type: "string" },
+      },
+      required: ["title", "date", "summary"],
+    },
+  },
+  {
+    name: "remove_paper",
+    description: "Take a paper out of sight (nothing is deleted), when the person who kept it asks — by the id in THEIR PAPERS. Only the person who kept it can.",
+    input_schema: { type: "object" as const, properties: { paperId: { type: "string" } }, required: ["paperId"] },
+  },
   // ── Places of a kind near them (Oct 12, Ken: "Yes" to the phone's position going to Google for this) ──────────────
   {
     name: "places_near_me",
@@ -3696,7 +3715,21 @@ export async function executeTool(
     }
 
     case "packing_tips": {
-      return { result: PACKING };
+      // (with the live forecast where this person sleeps, stay by stay — Ken, Oct 12: "Adjust your packing tips for this.
+      // Don't say obvious things. Be helpful." — services/packingWeather.ts)
+      let weather: unknown = null;
+      try {
+        const { packingWeather } = await import("../services/packingWeather.js");
+        const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);   // (Japan's date)
+        const stays = await packingWeather(String(input.tripId || ""), user.displayName || "", today);
+        if (stays.length) weather = {
+          asOf: `the live forecast (Open-Meteo), read ${today}`,
+          stays,
+          // (verify23: rain 8 days out said as fact, "hotels lend them", items of five sentences, "25°F colder" worked out)
+          how: "From this, at most three items, each ONE sentence: what the forecast shows for their own nights or days (with the dates as given here, weekday and all), tied to what Backroads' itinerary or her Guide has them doing that day, and what to pack for it. Worth an item: the coldest stop against where they start (give both ranges, never a difference you work out); the days rain shows when they'll be outside (biking, a hike); one very wet or very warm stretch. Certainty goes day by day: a rain day marked 'forecast' may be called likely, with its chance; one marked 'early outlook' is more than a week away and only 'may' rain. Say once that the numbers are for the hotel itself when 'at' says so (the day pages show the town's forecast, which can differ). Backroads' own notes already tell them to bring rain gear, warm layers and gloves: never mention any of those, even in passing, and nothing as obvious as 'check the forecast'. One item may be, on its own and about nothing else: no need to pack an umbrella, since convenience stores sell them for under ¥1,000. Temperatures in °F as given. Backroads' days by their date (\"Mon, Oct 19\"), never its numbers (\"Day 2\"). Nothing of your own about the hotels (what they have or lend) or about what dries overnight.",
+        };
+      } catch (e: any) { console.warn("[packing] weather unavailable:", e?.message); }
+      return { result: weather ? { ...PACKING, weather } : PACKING };
     }
 
     case "get_todos": {
@@ -4766,6 +4799,16 @@ router.post("/", async (req: AuthRequest, res) => {
       } catch (e: any) { console.warn("[scout] nearby unavailable:", e.message); }
     }
 
+    // The papers this person may see (services/papers.ts — Ken, Oct 12): what each is, never the file
+    let paperLinesNow: string[] = [];
+    if (tripId && req.user?.travelerId) {
+      try {
+        const { paperLines } = await import("../services/papers.js");
+        const lines = await paperLines(tripId, req.user.travelerId);
+        if (lines.length) paperLinesNow = ["THEIR PAPERS (receipts, tickets and bills kept in Wander that this person may see; as read when kept):", ...lines];
+      } catch (e: any) { console.warn("[scout] papers unavailable:", e.message); }
+    }
+
     // Build system prompt with page context
     const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
 
@@ -4797,6 +4840,7 @@ GETTING THERE: whenever someone asks how to get somewhere, the way to the next s
 HER PICTURES: every picture in her tabs is given with all its words, as Wander read them ("Its words, as Wander read them") — use them: who goes where, times, places, what's on her illustrated day maps. A picture can be OLDER than her tab's text: her DAY BY DAY lines are the plan. When a picture's date, time, order or who-goes differs from them, give the plan first and then say her picture shows something else ("her map picture in that tab still shows Tokyodo at 2:15") — never quote a picture's time as the plan. When a picture says something her plan doesn't (who a stop is for, a van's return time), say it as her picture's.
 HER APPLE MAPS GUIDES: maps Larisa made in Apple Maps, one per day (the HER APPLE MAPS GUIDES lines), apart from her sheet. Call each "her Apple Maps guide for <day>" — never "her Guide" or "her tab" (her Guide is the sheet), and say it may have changed since Wander read it. Their places are NOT in visiting order: her day tab's order is the plan, and you never reorder her day or suggest a new order unless asked — even then, say it's your suggestion and her plan is the order she wrote. Use the "What's close to what" lines to say which places are close together and which need a train or taxi — always as straight-line distance between her map's places ("about 300 m apart in a straight line"), and say a river, a big station or a hill can make the walk longer. Never turn a distance into minutes — "a couple of minutes on foot" or "a short 5-minute walk" is a walking time you don't have; only her own words give times. A place on her map but not in her day tab, or in her day tab but not on her map, or a different branch or address on each: say both, with where each comes from, and suggest checking with Larisa — never pick one silently. Distances exist only between places on her maps; for anything else say Wander doesn't have its location.
 HER GOOGLE MAP: one map Larisa made in Google My Maps with every location of the trip, in layers she named (the HER GOOGLE MAP lines), apart from her sheet. Anyone asking for "Larisa's map", "her detailed map", "her Google map", "the map with all the places" or the like gets its link — the one in those lines, written out in full so it can be tapped — and one plain sentence of what's on it; it opens in Google Maps on their phone. Call it "her Google map" — never "her Guide" or "her tab" — and say Wander last read it on the date given (her map may have changed since). A layer's name is hers, not a date: say which day a layer's places are for only when her day plan puts those places on that day, and quote the layer's name as she wrote it ("her layer 'Ginza - Day 0'"). Her pins say where a place is: use them for "where is…", for what's close to what (straight-line, as with her Apple Maps guides — never minutes), and for directions when her sheet gives no address. A pin's note is her words: quote it. A place on her map but not in her day plan, or a different branch or spot on each: say both and where each comes from — never pick one silently.
+PAPERS: they can keep a receipt, a bill, a ticket or a booking in Wander instead of carrying the paper. When they send a photo, picture or PDF and ask to keep or save it, read it and call keep_paper; when they send one that's plainly a receipt or ticket without saying, answer what they asked and offer once to keep it. The papers they may see are in THEIR PAPERS: answer from them ("what did the ryokan cost?", "where's the Nikko ticket?") and say they're in Notes and on that day's page. Put a paper together with her Guide: the Guide says where they stayed and when; a paper says what was paid there. Say what a total was for (a ryokan bill may list only dinner, drinks and service — the room paid when booked): never turn a bill into a price per night unless its room charges are on it, and when her Guide gives the room price, give that as hers. When a question could mean more than one place ("the ryokan", "the hotel"), ask which, naming each by town and dates ("Yōyōkaku in Karatsu, Oct 8–10, or Shirakabeso on the Izu Peninsula, Oct 21–22?") — unless the conversation already settles it. Never read out a card, confirmation, reservation or passport number from a paper.
 WHAT'S NEAR THEM: "what's nearby?", "anything good around here?", "how far is my hotel?" — answer from the WHERE THEY ARE lines (with this question). Lead with the closest one or two of Larisa's places that fit what they asked, by her names, each with how far and which way in the words given ("about 400 m — roughly 4 blocks", "1.5 miles", "toward your hotel"); a line or two, and more only if they ask. Say where each comes from in a few words (her Google map, her Apple Maps guide) and quote her note when it helps. Distances are straight lines: say "about", never a walking or travel time (when a directions button goes with the answer, say it gives the time — never that you can't), and mention a river, a big station or a hill only when it obviously matters. If those lines say her places aren't near them, say so plainly and name the closest — never call a far place nearby. When they ask for a kind of place (coffee, a pharmacy, ramen, an ATM, somewhere to sit) and her places have none of it near them, call places_near_me (not a web search): it gives the closest real ones with how far and which way, and a walking button to the closest. On a train, never point to food or drink sold on board: the Tokaido Shinkansen (NOZOMI, HIKARI, KODAMA) stopped its on-board cart in October 2023 (Green Car passengers can order to their seat by phone) — say to pick something up at the station before boarding or at the next stop, and claim nothing else about what is or isn't on board. If the location is rough or old, say so in a few words. A layer's name still isn't a date. If WHERE THEY ARE says it's not known, say you can't see where they are right now (and why, as given) and ask what they're near — and, unless they've said no to sharing it, call offer_location so a "Use my location" button sits under your answer (say "or tap Use my location below" in the same sentence; the tap asks you again by itself, so never tell them to ask again). Keep that answer to a sentence or two, so the button is in view; the full answer comes after the tap. Never measure "a walk" or "nearby" from their hotel or anywhere else in its place, unless they've said they're there. This goes for any question whose answer depends on where they're standing, however it's worded: the nearest or closest anything, which way or how far to somewhere, "I'm lost", "where can I get coffee?" when today's plan doesn't settle it.
 BACKROADS' ITINERARY (the section headed BACKROADS' ITINERARY, when there is one): Backroads' own day-by-day words for the Backroads week, given to Wander by Ken — their general itinerary for this trip, not one for your exact departure. Cite it and call it "Backroads' itinerary" (never "her Guide" or "her tab"), with the day ("Backroads' itinerary for Day 4, Wed, Oct 21 says…"). Use it for what each Backroads day holds — where to meet and what to bring, the rides and hikes and their distances, which meals are included, how the trip ends. Larisa's Guide has their dates and bookings: when the two differ on a time, a place or a meal, say both, with where each comes from, and never pick one. Its days are dated by Wander from Day 1 = the day her Guide meets Backroads. Say once, when it matters, that Backroads' leaders and their app (sent about a week before the trip) have the details for their departure, and that their plan can change on the trip. Its words about food (soy and bonito in nearly everything, no substitutions in Japan) are Backroads' — say them as theirs.
 WHERE IN HER SHEET: when someone asks where something is in Larisa's sheet ("which tab has…", "where did I put…", "where does it say…"), answer with the tab, named as she named it, and her words there, cited. Then say in one short sentence that "Sources" under this answer opens that spot in her sheet. If her Guide has it in more than one tab, name each, and cite each. Say where you found it — never that it's the only place or that no other tab has it: her pictures and long tabs can hold more than your copy shows. If it isn't in the copy you have, say so; never guess a tab.
@@ -4899,7 +4943,7 @@ RULES:
 46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?", "do we need to reconfirm anything?", "where does the tour start?", "are we going to X?") gets an answer, not a draft — at most offer in words ("Want me to draft a note to Larisa?"). Never do this when the asker is Larisa herself.
 46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed. Say where it is in a few words ("On today for everyone."). Say her Guide is unchanged only when they ask whether it changes — the day screen already says where each line came from, and told every time it reads like software reporting (Ken, Oct 10). Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Remove" beside their own note in Maybes — someone else's note is theirs to take back.
 46e. Trip notes (the Notes tab): each person's own words, kept exactly — private unless they share a note with the trip. "What did I write about…", "my notes from Kyoto" → get_my_notes, and quote their words exactly, saying whose note it is. When someone asks what a person "wrote", "said" or "noted" about something, look in get_my_notes (their shared notes) AND the Guide, and give both — a shared note is something they wrote. Never say "that's all they wrote" unless you looked in both. You never see or mention anyone's private notes but the asker's. Keeping notes: when someone tells you about the trip — what happened, what they saw or learned, who they met, why the day went as it did ("we came here because our guide drove us, so we saw Arita too") — or asks you to note or remember something, keep it with keep_in_my_notes: their own words exactly as they said them (a part of their message is fine — never your summary, never tidied), on the day it's about. Their notes are the trip's story. When what they told you also puts a new stop on a day, do both (add_same_day_plan too). Reply in one short line that says where it is and who sees it ("In your Notes for today — just you."); never repeat their words back. Add one more sentence only when something in the plan is touched by what they told you (a booked train or table the change affects) — nothing else, no recap of the day. A question on its own isn't a note. It's theirs to change or take out on the Notes tab.
-46f. Packing: "what should I pack / bring", "anything I might not think to pack", or the packing list Scout offered Julie ("I want that too", "can I have Julie's packing list") → packing_tips, and answer only from what it returns: its items in its order, at most seven, one plain sentence each. Where the Guide shows it for this person's own days, tie an item to them in a few words (shoes off → the nights they're at a ryokan; a big suitcase → their bullet-train days) — never invent a tie, and leave it out when the Guide doesn't show one. Follow each item's tieTo exactly (a rule for some trains is never stretched to others), and name each place or date once in the whole answer — never the same inns or the same place in two items (once one item has said "Shirakabeso on the Izu Peninsula", a later one says "the bullet train on Wed, Oct 21", not "to the Izu Peninsula" again). Name a day by its date ("Wed, Oct 21"), never by Backroads' day number ("Day 4") — that isn't a date they know. Add no items of your own and no general travel advice. Say a rule's source when you give it (medicines, luggage). End with one line inviting them to say how they travel so you can tailor it. Asked for more than the list, say so, and label anything you find online as found online.
+46f. Packing: "what should I pack / bring", "anything I might not think to pack", or the packing list Scout offered Julie ("I want that too", "can I have Julie's packing list") → packing_tips, and answer only from what it returns: its items in its order, at most seven, each ONE plain sentence (about 30 words at most; the whole answer under about 220 words, someone reading on a phone while they pack). When it returns weather (the live forecast where they'll sleep), lead with up to three weather items made exactly as its "how" says — their own dates and places, never what Backroads already tells them — then the list's items, seven in all. A weather follow-up after it ("will it really rain in Nikko?") answers first from that same forecast, for the hotel, day by day as forecast or early outlook; a forecast found online is for the town, said as found online for the town, and never replaces it. Their days are "your" days ("your hiking day"), never "their", and named by date, never "Day 3". Where the Guide shows it for this person's own days, tie an item to them in a few words (shoes off → the nights they're at a ryokan; a big suitcase → their bullet-train days) — never invent a tie, never count or describe their nights beyond what's given ("most of your nights"), and leave it out when the Guide doesn't show one. Follow each item's tieTo exactly (a rule for some trains is never stretched to others), and name each place or date once in the whole answer — never the same inns or the same place in two items (once one item has said "Shirakabeso on the Izu Peninsula", a later one says "the bullet train on Wed, Oct 21", not "to the Izu Peninsula" again). Name a day by its date ("Wed, Oct 21"), never by Backroads' day number ("Day 4") — that isn't a date they know. Add no items of your own and no general travel advice. Never promise what a hotel or inn will do, and keep each item's own checks ("ask the inn first"). Say a rule's source when you give it (medicines, luggage). End with exactly one line inviting them to say how they travel so you can tailor it. Asked for more than the list, say so, and label anything you find online as found online.
 46c. To-dos (the Actions screen): "remind us to…" / "add a to-do…" → add_todo (added in Wander; her Guide unchanged — say so in a few words). "We did it" / "that's done" → set_todo_done. "Take that off the list" → remove_todo, only for one added in Wander; one from Larisa's Guide stays until she takes it out of her sheet (it can still be ticked off). Use get_todos to find it. On screen: Actions → "+ Add", the tick beside each, and "Take out" on those added in Wander.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
 52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
@@ -4981,6 +5025,7 @@ RULES:
       liveLines.length ? `(What her Guide's deadlines and flights stand at right now is in the document "${LIVE_TITLE}".)` : "",
       ...otherFreshness,
       ...nearLines,
+      ...paperLinesNow,
       notesLine,
       "",
       "CURRENT CONTEXT:",
@@ -5148,6 +5193,40 @@ RULES:
                 shown: moving ? "no walking button: they're moving fast, so these are near where they were a moment ago" : `a walking-directions button to ${first.name}${first.open === true ? " (open now)" : ""}`,
                 say: "Lead with the closest one or two (open ones first), each with how far and which way in the words given; say they're from Google, not her Guide. Never a walking time — the button gives it. For another of them, call directions with its name exactly as given.",
               };
+            }
+          }
+          if ((out as any)?.error) screenOnlyOk = false;
+          toolResults.push({ type: "tool_result", tool_use_id: toolBlock.id, content: JSON.stringify(out) });
+          continue;
+        }
+        // Papers (services/papers.ts): the files sent with this very message, kept under the day Scout read on them
+        if (toolBlock.name === "keep_paper" || toolBlock.name === "remove_paper") {
+          const input = (toolBlock.input || {}) as Record<string, unknown>;
+          const P = await import("../services/papers.js");
+          let out: unknown;
+          if (!tripId || !req.user?.travelerId) out = { error: "No trip to keep it in." };
+          else if (toolBlock.name === "remove_paper") {
+            const p = await prisma.tripPaper.findUnique({ where: { id: String(input.paperId || "") }, select: { travelerId: true, title: true, tripId: true } });
+            if (!p || p.tripId !== tripId) out = { error: "No such paper in THEIR PAPERS." };
+            else if (p.travelerId !== req.user.travelerId) out = { error: "Only the person who kept it can remove it — say so." };
+            else { await prisma.tripPaper.update({ where: { id: String(input.paperId) }, data: { hidden: true } }); actions.push(`Removed the paper "${p.title}"`); out = { ok: true }; }
+          } else {
+            // (the phone sends each picture's small copy beside it; the files themselves were checked above)
+            const raw = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
+            const files = [...(photo ? [{ mediaType: photo.mediaType, data: photo.data }] : []), ...sent.map((a, i) => ({ ...a, thumb: raw[i]?.thumb }))]
+              .map((f) => P.paperFile(f)).filter((f): f is import("../services/papers.js").PaperFile => typeof f !== "string");
+            const days = await P.tripDays(tripId);
+            const date = typeof input.date === "string" && days.some((d) => d.date === input.date) ? input.date : null;
+            const title = String(input.title || "").trim().slice(0, 120) || "A paper";
+            if (!files.length) out = { error: "Nothing they sent with this message can be kept (a photo, a picture or a PDF). Ask them to attach it here and say keep it." };
+            else {
+              for (const [i, file] of files.entries()) {
+                await P.keepPaper({ tripId, travelerId: req.user.travelerId, authorName: req.user.displayName || "", file, dayDate: date,
+                  title: files.length > 1 ? `${title} (${i + 1} of ${files.length})` : title, summary: String(input.summary || "").trim().slice(0, 600) });
+              }
+              const town = days.find((d) => d.date === date)?.town;
+              actions.push(`Kept "${title}"${date ? ` under ${new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}${town ? ` · ${town}` : ""}` : ""}`);
+              out = { ok: true, kept: files.length, day: date, town: town || null, say: "Tell them in a sentence what you kept and the day it's under, and that it's in Notes and on that day's page." };
             }
           }
           if ((out as any)?.error) screenOnlyOk = false;

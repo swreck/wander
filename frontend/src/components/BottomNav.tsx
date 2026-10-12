@@ -188,9 +188,13 @@ export default function BottomNav({ pendingChanges }: Props) {
     window.addEventListener("focusout", soon);
     window.addEventListener("pageshow", soon);
     window.addEventListener("orientationchange", soon);
+    // (and when they scroll, which anyone does on seeing it: Ken's day page, Oct 12 8:50 PM Japan — the bar mid-screen and
+    // no report at all, so iOS had shrunk the page without any of the events above; once scrolling stops, checked again)
+    window.addEventListener("scroll", soon, { passive: true });
     document.addEventListener("visibilitychange", onShow);
     return () => {
       clearTimeout(wait);
+      window.removeEventListener("scroll", soon);
       window.removeEventListener("resize", soon);
       window.removeEventListener("focusout", soon);
       window.removeEventListener("pageshow", soon);

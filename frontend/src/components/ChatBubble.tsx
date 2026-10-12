@@ -1096,7 +1096,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       const res = await fetch("/api/chat", {
         method: "POST",
         headers,
-        body: JSON.stringify({ message: text, context, history, clientTime, askId, ...(here ? { here } : {}), ...(sendFiles.length ? { attachments: sendFiles.map((f) => ({ mediaType: f.mimeType, data: f.data, name: f.name })) } : {}) }),
+        body: JSON.stringify({ message: text, context, history, clientTime, askId, ...(here ? { here } : {}), ...(sendFiles.length ? { attachments: sendFiles.map((f) => ({ mediaType: f.mimeType, data: f.data, name: f.name, ...(f.thumb ? { thumb: f.thumb } : {}) })) } : {}) }),
         signal: controller.signal,
       });
 

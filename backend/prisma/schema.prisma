@@ -127,6 +127,8 @@ model Trip {
   sources           TripSource[]
   // Trip notes (Oct 1 2026): each person's own words, kept exactly
   tripNotes         TripNote[]
+  // Papers kept from the trip (Oct 12 2026): receipts, tickets, bills
+  tripPapers        TripPaper[]
 
   @@map("trips")
 }
@@ -662,8 +664,35 @@ model Traveler {
   dayChoices          DayChoice[]
   tripNotes           TripNote[]
   pushSubscriptions   PushSubscription[]
+  tripPapers          TripPaper[]
 
   @@map("travelers")
+}
+
+/// A paper kept from the trip — a receipt, a ticket, a bill — so it needn't be carried (Ken, Oct 12: "documents that I'm
+/// not sure I want to throw away, but I don't want to carry paper. and I want to associate with the date"). Seen by whoever
+/// kept it, and between Ken and Larisa both ways ("Anything I put in should be visible to Larisa and Vice versa. Everyone
+/// else should be private to themselves"). The file as the phone sent it (a picture shrunk on the phone, or a PDF).
+model TripPaper {
+  id         String   @id @default(cuid())
+  tripId     String   @map("trip_id")
+  travelerId String   @map("traveler_id")
+  authorName String   @map("author_name")
+  dayDate    String?  @map("day_date")                 // the trip day it belongs to, "2026-10-10"
+  title      String                                    // "Yōyōkaku bill"
+  summary    String                                    // what it is, as read: "2 nights Oct 8–10; kaiseki for two on Oct 9; ¥40,794 paid by card"
+  fileName   String?  @map("file_name")
+  mimeType   String   @map("mime_type")
+  bytes      Bytes
+  thumb      Bytes?                                    // a small JPEG made on the phone (pictures only)
+  hidden     Boolean  @default(false)                  // "Remove": out of sight for everyone, never deleted
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, travelerId])
+  @@map("trip_papers")
 }
 
 /// A phone's address for "Scout answered" notifications (Oct 12, Ken: a buzz when an answer is ready, like ChatGPT's).

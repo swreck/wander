@@ -55,6 +55,7 @@ import tripNoteRoutes from "./routes/tripNotes.js";
 import cityPhotoRoutes from "./routes/cityPhoto.js";
 import phoneReportRoutes from "./routes/phoneReports.js";
 import pushRoutes from "./routes/push.js";
+import paperRoutes from "./routes/papers.js";
 import { startMyMapReader } from "./services/guide/googleMyMap.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -111,6 +112,8 @@ if (!process.env.VITEST) {
 app.use("/api/chat", express.json({ limit: "25mb" }));
 // (a phone's report is a few numbers — never read more; verify9 sent 9 MB and it was read)
 app.use("/api/phone-reports", express.json({ limit: "2kb" }));
+// (a paper: a photo or a PDF up to 10 MB, sent as text — Oct 12)
+app.use("/api/papers", express.json({ limit: "15mb" }));
 app.use(express.json({ limit: "10mb" })); // Reduced from 50mb
 
 // API routes
@@ -179,6 +182,7 @@ app.use("/api/trip-notes", tripNoteRoutes);
 app.use("/api/city-photo", cityPhotoRoutes);
 app.use("/api/phone-reports", phoneReportRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/papers", paperRoutes);
 app.use("/api/sources", sourceRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
