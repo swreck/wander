@@ -1,248 +1,143 @@
-=== CHECK YOUR OWN WORK WITH A FRESH AGENT (PERMANENT — Ken, Oct 10 2026) ===
-After any batch of work, and BEFORE telling Ken it's done, run a fresh independent agent — one with no history of the
-session — to verify the work as the real people use it. Fix what it finds; only then report. Ken: "you should have run
-the fresh agent to check your own work. Do that in future." Don't pause to show him findings unless a decision is his.
+# Wander — how we work on it
 
-How to check (each is a rule, not a suggestion):
-1. "Fixed" is defined first, in Ken's own words, and the check measures exactly that — and fails on the old code before
-   it passes on the new. A check that passes on both proves nothing.
-2. Sign in as each real person by their real account name (Ken, Larisa, Andy, Julie) for any personal view — never a
-   stand-in whose name or situation differs from theirs (Oct 10: "Andy B"/"Julie D." broke their views for a week while
-   every check passed as "Andy"/"Julie").
-3. "What X sees" is shown only from X's real view, or labelled a preview with how it differs.
-4. Say plainly what was only simulated (iPhone keyboard/viewport, things a test server can't produce) and what only
-   Ken's phone can confirm — never "fixed" for those.
-5. Keep trip-data/HANDOFF.md's top current as work goes, so Ken's intent survives a compacted session.
-=== END RULE ===
+Ken's instructions for every project are in ~/.claude/CLAUDE.md. This file holds Wander's product truths and Wander's
+engineering. Where it differs from the global file it says so with [Overrides global: …]. Each rule has one home.
+Ken's words are quoted and dated; anything marked (Claude) is my judgement beside them. This repo is PUBLIC: no ids,
+links, keys, booking codes or people's personal details here. Those live in trip-data/ (git-ignored) or private memory.
+A git hook blocks commits that add them. After a compaction or /clear, read trip-data/HANDOFF.md's CURRENT block first.
 
-=== WANDER DOC DRIFT RULE (PERMANENT) ===
-SPEC.md is the canonical product specification for Wander.
-Do not modify SPEC.md automatically during feature work or refactors.
+@rules/engineering.md
 
-After implementing any feature add/remove/behavior change:
-- Append a dated entry to CHANGELOG.md.
-- Include:
-  (a) what changed (behavior, not just code),
-  (b) where it lives in the UI (screen/panel/button location),
-  (c) which SPEC.md sections are impacted.
-- Include a line: "SPEC UPDATE NEEDED" if behavior now differs from SPEC.md.
-=== END RULE ===
+## 1. What Wander is
 
-=== TONE AUDIT RULE (PERMANENT) ===
-Wander's voice is a thoughtful, warm travel companion — never software.
-This rule applies when writing new strings AND when auditing existing ones.
-It is not optional. It does not drift. Apply it every time, every string.
+Ken (Apr 11 2026, reconfirmed Sep 27): "Wander is a value-add front end to Larisa's Japan Guide."
+Ken (Oct 1 2026): "be creative… friends travelling to a new location with new culture, style, foods… hand built for
+the individuals instead of mass appeal… 10 or more exciting yet safe-to-implement ideas."
+Ken's ambition (Sep 27; my close paraphrase, his exact words weren't recorded): Wander seduces people, Larisa included,
+into seeing it as a parallel tool that earns its place as the main window into the plan through its charm, its ease
+and its usefulness. Larisa is the final judge, comparing it with her own sheet.
 
-**The test:** Could this string appear unchanged in Jira, a banking app, or
-a form builder? If yes, it's wrong for Wander. Rewrite it.
+The people: Ken and Larisa (she owns the Guide, her Google Sheet), Andy and Julie. Accounts are named Ken, Larisa,
+Andy, Julie. Ken (Oct 10): "They see themselves as andy and Julie. The initial was yours. And the initial seems to have
+caused a problem". They carry iPhone 16 or later. Ken (Oct 3): "pretty sure all are 16 or later. And not SE."
 
-### Three tiers of strings
+## 2. Downstream of Larisa's Guide (HARD RULE, Sep 27 2026)
 
-**1. Messages that speak to the user (MUST sound human)**
-Toasts, errors, empty states, confirmations, status messages, completion
-messages, offline notices, sync results. These are the app's voice. They
-must sound like a friend who's good at travel — not software reporting
-a status change.
+Her sheet is the master. Wander reads it and never changes it. Ken (Oct 2): "The ONLY reason for non-live connections
+is the danger of you changing something or deleting something or destroying something she created."
+- Never reach her online Google Sheet. Ken's words for it: "never reach her online sheet". Read only the snapshot
+  copies Ken exports into trip-data/. Changing that is Ken's call alone.
+- Her view-only share links (Apple Maps guides, her Google map) may be read; say so first. Ken's own rail sheet is
+  read live, read-only.
+- Never use the Google Drive connector for Wander. Nothing in Wander writes to any sheet.
+- Scout never deletes or restructures the trip. The tools in WITHDRAWN_TOOLS (backend/src/routes/chat.ts) stay
+  withdrawn. Wander's own additions (notes, maybes, spur-of-the-moment plans, lookups) are editable.
+  Ken (Sep 27): "May change while on the road, but it's the right start."
+- Lightweight planning only, inside her plan's open space. Ken (Sep 27): "which of 3 restaurants", "what Andy and Ken
+  do on the spur of the moment while Larisa and Julie are at a ceramics demonstration". Days, cities, hotels and tours
+  are her Guide's job. Ken: "no non-Wander workflows".
+- The trip freeze is Ken's to set and lift. Inside it I fix real bugs, wrong time/place/yours-vs-theirs, Scout honesty
+  failures, and what he asks for.
 
-Wrong → Right:
-- "Save failed" → "That didn't stick — give it another try"
-- "Changes saved" → "Got it" (or just a visual check — no words needed)
-- "Import complete" → "All set — take a look"
-- "Trip complete" → "Welcome home"
-- "No reservations yet" → "Nothing booked yet"
-- "Couldn't save changes" → "That didn't save — try again?"
-- "Are you sure you want to delete X? This cannot be undone." → "Remove X from your trip?"
-- "Loading..." → Context-specific: "Finding your trip..." or just a spinner
-- "Saved offline — will process when back online" → "Saved for now — I'll finish when you're back online"
-- "Decision cancelled" → "Cleared"
-- "Extraction failed" → "Couldn't make sense of that — try pasting the text directly?"
-- "Location confirmed" → "Found it" or just show on map
-- "Ratings updated" → "Updated" or silent visual confirmation
+## 3. Faithfulness with judgement
 
-**2. Functional labels (clarity first, warmth where natural)**
-Form field labels, button text, input placeholders. "Notes," "Depart,"
-"Save," "Cancel" are fine — they're scannable UI, not conversation.
-But when a label could be warmer without losing clarity, prefer warm:
-- "Add Reservation" → "Add a reservation"
-- "Update location & ratings" → "Look this up"
-- "Restaurant or activity name" → "What's it called?"
+Ken (Oct 2): "everything in the spreadsheet is data". And: "Larisa has spent a great deal of time on that spreadsheet. She is precise and intentional. Everything
+earning a place in the spreadsheet is important… every word, image, and number [is] 'data' that is valuable… the
+mindset is 'anything in the spreadsheet' (or any other source given to Wander like my Rail reservation spreadsheet) is
+worth knowing and being ready for both asking and enriching responses."
+Ken (Oct 4): "I want to reinforce that this smart parsing of her unstructured (sometimes random) entries are the power
+you bring. That intent and requirement should stay durable across sessions please."
+Ken (Oct 4, on a new copy): "an early test of your ability to smoothly import a new version… unstructured information
+you need to parse accurately."
+Ken (Oct 10): "Faithfulness continues to be Key. But your judgement as head of engineering with faithfulness as a goal
+is just as important. Perhaps more because 'you are the head of engineering creating a great product that has
+faithfulness at its core.' This optimization would be clear to a human."
+- (Claude) What happened Oct 10: her pre-trip forecast showed as the day's weather for days. Ask two questions of every
+  fact on screen: is her word kept exactly, and is this the best a traveler can have right now? Show both when they
+  differ (live first, hers labelled hers). Never trust "accepted" on an import: a sentence she typed in the hotel
+  column became a second hotel (Oct 4). Fix the reader with a general rule tested on her real cells; never her sheet.
+- Ken approved (Oct 11): everything she wrote is data Wander holds and Scout can answer from; how much screen work each
+  piece gets is proportionate. I work out her meaning from her cells and ask Ken only when two readings would give a
+  different time, place or booking. Conflicts between her tabs are shown, never silently resolved.
+- Before asking Ken about her sheet, read the cell. Ken (Oct 10): "There is no lt. why do you keep asking?" ("LT
+  actions" is a heading in her Actions tab.)
+- Personal information. Ken (Oct 4): "unless the info passes through the vault in a safe way, Wander should not surprise
+  people by surfacing their personal info."
 
-**3. Accessibility labels (clarity only)**
-Aria-labels and title attributes serve screen readers. Clarity and
-accuracy matter here, not personality.
+## 4. Scout never lies (Sep 29 2026)
 
-### Patterns to always avoid
-- **Database terms in UI:** "confirmed," "pending," "resolved," "segment,"
-  "zone," "reorder" — users don't think in schema
-- **Programmer shorthand:** "e.g.," "#," abbreviations with parenthetical
-  examples — write like a person, not a spec
-- **Passive completion:** "Reservation added," "Order applied," "Notes saved"
-  — either use present tense ("Got it") or skip the toast entirely
-- **Legal/formal warnings:** "This cannot be undone," "Are you sure?" —
-  just say what will happen plainly
-- **One-word status toasts:** "Saved," "Copied," "Deleted," "Retracted"
-  — either add enough warmth to sound human or use silent visual feedback
+Ken: "one scout error when asked when or where something is happening can overwhelm multiple correct answers."
+Ken (Oct 2): "if they go to the airport on the wrong day because of Wander, I will never hear the end of it"
+Ken (Oct 2, directions): "Scout cannot lie… we could end up in the wrong place"
+Scout may honestly not know. It never states a time, place, booking or fact it can't support. It gives the Guide's
+answer with its tab; the web when the Guide is silent, labelled as found online, not the plan; plain words for what's
+unknown. (Claude) Oct 4: past his rail sheet it described a JR West page it never opened and gave a dead link. The
+web is where it lied, so links and website steps are only ones it has seen.
+- Sources. Ken (Sep 30): "make sure we're not trying to surface the sources unless they're requested." Ken (Oct 2): "be
+  sure the source button goes to the right tab and right cells… a button to open it". Recorded at answer time.
+- "What's near me?". Ken (Oct 11): "the two closest places that attracted Larisa are X about 4 blocks from you and Y a
+  1.5 mile walk in the direction of your hotel". Her pins first, blocks and miles, direction; straight-line only.
+- Exams are written from her text before building, never from Wander's output. Rerun the exams a change can affect
+  after any change to the reader, Scout's context or its prompt. Read every answer word for word. When Scout passes
+  one, write a harder one. An honesty failure is a blocker.
+- Spending. Ken (Sep 29): "use api when needed. Use synthetic Prisma data when checking bugs or plumbing or user
+  interface." Name the exams and the rough question count before a run; each question once; full runs only before a
+  deploy; stop at once if Ken raises cost.
+- Voice: a Backroads guide, knowledgeable and warm. Ken (Apr) on those guides: "some of the best employees in any job
+  I've ever seen." The test: would a world-class trip guide say this, in this tone, at this moment?
 
-### When auditing existing code
-Run every user-visible string through the test above. Fix violations in
-the same pass — don't just flag them for later. Group fixes by file to
-minimize churn.
+## 5. Words in the app
 
-### When changing how a feature works
-Search for every user-facing string that *describes* the changed feature
-— onboarding tips, quick start text, guide pages, tooltips, chat system
-prompts, first-time cards. These strings don't reference the feature in
-code; they describe it in words. That semantic connection is easy to miss
-because it's not a dependency graph — it's meaning. Look anyway.
-=== END RULE ===
+The test: could this string appear unchanged in Jira, a banking app, or a form builder? If yes, it's wrong for Wander.
+Rewrite it. Ken (Oct 2): "remember to use table for two, and don't use ambiguous nouns." The full tone rule, with its
+three tiers and examples, is in rules/tone.md. Read it before writing or changing any words people see, and when
+auditing them.
 
-=== SCOUT ACCURACY RULE (PERMANENT — Ken, Sep 29 2026) ===
-To a traveler, one wrong answer about WHEN or WHERE something is happening outweighs many right
-ones. Scout never lies: it may honestly not know, but it never states a time, place, booking or fact
-it can't support. With Larisa's Guide (every tab) plus web search, Scout should be extremely
-competent at helping a confused traveler: the Guide's answer with its tab, the web when the Guide is
-silent (labelled as found online, not the plan), and plain words for what's unknown. Conflicts
-between tabs are shown, never silently resolved.
+## 6. Ken's product decisions (each stands until he changes it)
 
-Testing: exams are written from her text before building, never from Wander's output. Rerun them after
-any change to the reader, Scout's context or its prompt. Once Scout passes one, write a harder one.
-An honesty failure is a blocker.
-=== END RULE ===
+- Day screen (Oct 4, Oct 8): first the day in a few sentences, then what you can't get wrong today, then the day by the
+  clock in ONE list in the order it's lived; reference last; never category sections. Chips may filter that list in
+  place. Each fact once. Before changing it, run day-risk-check.mjs and lost-facts.mjs (trip-data/session-tools). Ken (Oct 8): "the general principle is an absolute yes to your ideas… create an agent that is an expert in user
+  experience and discuss options… you are the head of engineering, so you can sequence it"
+- Next goes by the clock. Ken (Oct 10, Hakata): "given the time of day that you know, I would think you would realize
+  that when I tapped on next, you would know that I was already in Hakata at the hotel, and so when I tapped on next,
+  it would not tell me we were taking a local train to Hakata."
+- Maybes: Ken (Oct 2): "a shared list of maybes", light enough for "tea or ice cream?". No polls, votes or alerts.
+  Ken (Oct 3): "I should be able to remove items on any list, e.g., Maybes… I know we're going to TeamLab in Kyoto, so
+  I can remove it as a maybe for Tokyo." Then: "remove is NOT for everyone. It is for the person who added it and me."
+  Remove hides for everyone and never deletes.
+- Scout takes any file. Ken (Oct 4): "Yes on all the builds. Learn from Maria is needed. User should just drag (Mac) or
+  paste (iOS) anything and Scout should parse and make sense if it: picture with text, pdf, text, etc. And build a UI
+  expert agent so you have a fresh opinion to discuss the order and layout of each day page and build it. Continue"
+- Trip notes are kept word for word, the original always kept. Ken (Oct 1) called notes and summaries "a major topic
+  for me". Ken (Oct 8): "I like notes function. It will become source info for an ai assisted summary later. I'm sure I
+  want it integrated with the activities from Larisa's spreadsheet." Telling Scout something counts as a note. The
+  summaries design is in memory (project_trip_notes_and_summaries).
+- Invitations live inside Wander. Ken (Sep 28) on links pasted in chat: "does nothing. it just scrolls away."
+- Scout's mic: tap to start, tap to stop, words wait in the box (Oct 1). No auto-send, no hold-to-talk.
+- Ken (Oct 3): "stop the map" (no more spending on the Home map's polish). Ask him before building Scout streaming,
+  before using "Team Fun", and never bring back the travelerProfiles nudges (they invent facts).
+- Old April trips are placeholders. Ken (Sep 27): "No need to worry about keeping existing data in Wander. No one is
+  using the old version. That data was placeholder data to learn how to create an effective Wander."
+- The design standard. Ken (Apr): "UX for non-technical users resulting in delight without having to be trained".
 
-=== REACT HOOKS SAFETY CHECK (PERMANENT) ===
-Before committing any change to a React component that has early returns
-(loading guards, null checks, conditional redirects):
+## 7. Head of engineering: Wander specifics (Ken, Oct 11)
 
-1. Find every hook call in the component (useState, useEffect, useMemo,
-   useCallback, useContext, useRef, custom hooks).
-2. Verify ALL of them are ABOVE every early return statement.
-3. If you added or moved a hook, re-verify.
+The charter is in the global file. In Wander, these are also Ken's:
+- Anything that would change Larisa's Guide being the master.
+- What Larisa, Andy and Julie are told, and when.
+- Any new kind of the travelers' personal data (location, photos, documents). Raise it in one line before building.
 
-React requires the same hooks to run in the same order on every render.
-An early return before a hook means that hook runs on some renders but
-not others — this crashes the app. This is not a runtime-testable bug;
-it's a structural error visible in the source code. Check by reading.
-=== END RULE ===
+Mine, for example: Scout's "Use my location" button, so "what's near me?" works for any wording.
+Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engineering.md.
 
-## Product Intent
+## 8. Docs
 
-**Why this exists:** Ken plans complex, multi-week international trips with family and friends (Larisa, Andy, Julie, Kyler). These trips involve dozens of experiences across multiple cities, and the gap between "research" (finding interesting places) and "execution" (knowing where to go today, right now) is where plans fall apart. Wander bridges that gap.
-
-**Core workflow:** Capture interesting places (from articles, friends, blogs) → organize by city/day → see everything on a map → build daily itineraries with realistic travel times → execute during the trip with real-time "what's next" awareness.
-
-**Key design decisions:**
-- Map-centric — every screen is built around a persistent map. Lists and panels layer on top. The map never disappears.
-- The itinerary is sacred — nothing moves, changes, or disappears without explicit user action. No AI reorganization.
-- Capture never blocks — saving an experience is instant; enrichment (geocoding, ratings, AI context) happens asynchronously
-- Collaborative but not social — small trusted groups share a trip, not public sharing
-- AI cultural context cards — Claude generates brief, respectful cultural context for destinations (not tourist tips, but genuine understanding)
-- Real transit data — actual train schedules, not estimates
-- Offline-first mutation queue — actions taken without connectivity sync when back online
-- Cloudinary for all images
-
-**What makes this app "Ken's":** The travel philosophy embedded in the non-negotiable principles (SPEC.md), the emphasis on calm execution over flashy discovery, the refusal to let AI reorganize plans, and the specific group of travelers it's built for. The SPEC.md document is the definitive product voice — a future AI should read it to understand not just what to build but *how the product should feel*.
-
-**Critical document:** `SPEC.md` is the canonical product specification (v3.0). It contains every architectural, UX, and behavioral decision. CLAUDE.md captures development workflow; SPEC.md captures product truth.
-
-## WANDER DEVELOPMENT PROTOCOL
-
-### CHANGELOG AUTOMATION RULE
-
-Every time you implement, modify, or remove a feature in the Wander codebase you must:
-
-1. Append an entry to CHANGELOG.md.
-
-2. The entry format must be:
-
-## YYYY-MM-DD
-
-### Added
-- description
-
-### Changed
-- description
-
-### Fixed
-- description
-
-### Removed
-- description
-
-3. Only include the sections that apply.
-
-4. Write entries in plain language describing the user-visible or architectural change.
-
-5. If a feature affects behavior defined in SPEC.md, note that explicitly.
-
-6. Never overwrite previous changelog entries. Only append.
-
-7. If multiple changes happen in one session, group them under the same date block.
-
-8. When starting a new session, read the last entry in CHANGELOG.md before implementing new work.
-
-### TESTING RULE (MANDATORY)
-
-Every implementation session must include testing before presenting work as complete. "Done" means tested, not just coded.
-
-**Standard flow for any feature or fix:**
-1. Implement the change
-2. Type-check both frontend (`frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.app.json`) and backend (`cd backend && npx tsc --noEmit`). NOTE: `cd frontend && npx tsc --noEmit` checks NOTHING (frontend/tsconfig.json has `"files": []`). The real frontend check has ~146 pre-existing error lines (as of Sep 2026); compare before/after with line numbers stripped and never add new ones.
-3. Run the full test suite (`cd backend && npm test`) — all tests must pass
-4. If the change touches a new category of behavior (new entity operations, new API patterns, edge cases), write new chaos tests before calling it done
-5. Update CHANGELOG.md
-6. Only THEN present the work as complete
-
-**Chaos testing philosophy:**
-- Chaos tests simulate real users who change their minds, overlap dates, delete things, work simultaneously, and generally behave unpredictably
-- New features that involve data mutation (create, update, delete, move, hide) need chaos tests covering: normal operation, idempotent re-application, edge cases (invalid IDs, already-deleted items, empty inputs), and interaction with existing features
-- AI chat tools are especially important to chaos-test because users ask unpredictable things and the AI decides which tools to call
-
-**Test execution (CRITICAL — survives context compression):**
-- ALWAYS run tests in FOREGROUND with `timeout: 600000`. Never use `run_in_background: true` for tests.
-- Use `cd backend && npx vitest run 2>&1 | tail -30` to get the summary.
-- NEVER pipe through `tee | grep` (stalls due to line buffering).
-- NEVER run multiple test suites simultaneously (each creates a Neon branch).
-- If you started tests in background, STOP and switch to foreground.
-
-**Test database safety:**
-- Tests run on an isolated Neon database branch (created automatically before tests, deleted after). Production data is never touched.
-- The branch isolation is handled by `tests/vitest-global-setup.ts` (creates branch, writes URL to temp file) and `tests/vitest-setup.ts` (reads URL in workers). No manual cleanup needed.
-- If `NEON_API_KEY` is not set, tests fall back to the production DB with a warning. Ensure the key is set in `.env`.
-
-**Neon branch connectivity (CRITICAL — do not remove the pg warmup):**
-- `tests/vitest-setup.ts` contains a `pg` Client SELECT 1 probe that MUST run before Prisma code. DO NOT REMOVE IT.
-- Neon branch endpoints report "active" via API and DNS resolves, but Prisma's Rust query engine cannot connect until `pg` has warmed the connection FROM THE SAME WORKER PROCESS.
-- Without this probe, 336/353 tests fail with PrismaClientInitializationError ("Can't reach database server").
-- `pg` is a devDependency installed specifically for this purpose.
-- If tests mass-fail with connection errors, check `vitest-setup.ts` first.
-
-### AI CHAT PARITY RULE
-
-**OVERRIDE (Sep 27, 2026 — Ken's decision): Wander is downstream of Larisa's Guide.** Her Google Sheet is the master plan; Wander reads it and never changes it. Scout must never delete or restructure the trip, and nothing in Wander may write to a sheet. Tools withdrawn from Scout (listed in `WITHDRAWN_TOOLS` in chat.ts; implementations kept but unreachable): delete_experience, bulk_delete_experiences, delete_city, delete_day, delete_reservation, delete_accommodation, delete_route_segment, delete_decision, shift_trip_dates, bulk_update_days, update_day_date, update_city_dates, reassign_day, reorder_cities, hide_city, create_trip, activate_trip, set_trip_anchor. Do not re-add them. Parity below applies only to Wander's own additions (Ken's notes, lookups, spur-of-the-moment choices), never to Guide-derived data.
-
-The AI chat assistant should be able to perform any data operation the UI can. When adding a new UI action that creates, updates, or deletes data, also add a corresponding chat tool in `backend/src/routes/chat.ts`. This includes:
-1. A tool definition in the `tools` array (name, description, input_schema)
-2. A `case` in the `executeTool` switch
-3. A numbered rule in the system prompt explaining when to use it
-
-Current tool count: 53. Categories:
-- **Trip lifecycle**: create_trip, update_trip, shift_trip_dates, get_trip_summary
-- **City CRUD**: add_city, update_city, update_city_dates, delete_city, reorder_cities, hide_city, restore_city, list_hidden_cities
-- **Day operations**: create_day, delete_day, get_day_details, get_all_days, update_day_notes, update_day_date, reassign_day, share_day_plan, bulk_update_days
-- **Experience CRUD**: add_experience, update_experience, delete_experience, bulk_delete_experiences, promote_experience, demote_experience, move_experience, reorder_experiences, search_experiences, get_city_experiences, get_cultural_context, get_ratings
-- **Reservations**: add_reservation, update_reservation, delete_reservation
-- **Accommodations**: add_accommodation, update_accommodation, delete_accommodation
-- **Route segments**: add_route_segment, update_route_segment, delete_route_segment
-- **Traveler documents**: save_travel_document, save_travel_documents_bulk, update_travel_document, delete_travel_document, get_my_documents, get_shared_documents, check_travel_readiness
-- **Decisions**: create_decision, add_decision_option, cast_decision_vote, resolve_decision, get_open_decisions
-
-- **Ratings**: set_tabelog_rating, get_ratings
-- **Transit**: check_transit_status, search_train_schedules
-- **Travel**: get_travel_time
-- **Import**: import_recommendations
-- **Places**: lookup_place
-- **Search**: web_search
-- **Phrases**: add_phrase
-- **History**: get_change_log
-
-Intentionally excluded from chat: delete_trip (too destructive), client-side preferences (localStorage), map interactions (not data operations), screenshot capture (requires image upload).
+- SPEC.md is the canonical product spec (v3.0, March 2026). Never edit it during feature work. Where Ken's later
+  decisions differ (sheet is master, Scout can't change the Guide, show what changed), his decisions win.
+- After any change in behaviour, add an entry at the TOP of CHANGELOG.md under the date: what changed (behaviour), where
+  it lives in the UI, which SPEC sections it touches, and "SPEC UPDATE NEEDED" when behaviour now differs from SPEC.
+  Use Added / Changed / Fixed / Removed headings as they apply. Never rewrite old entries.
+- Chat parity: "anything that can be done by the visual UI should be able to be done by the agent" (Apr), now only for
+  Wander's own additions. When a UI action changes Wander-owned data, Scout gets a matching
+  tool (definition, executeTool case, numbered prompt rule), and the reverse. Never for Guide-derived data.
