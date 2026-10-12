@@ -58,23 +58,23 @@ export async function packingWeather(tripId: string, person: string, today: stri
   for (const l of map?.layers ?? []) for (const p of l.places) pins.push({ name: p.name, lat: p.lat, lng: p.lng, note: null, from: "her Google map" });
   for (const g of await appleGuidesOf(tripId).catch(() => [])) for (const p of g.places) if (p.name && p.lat != null && p.lng != null) pins.push({ name: p.name, lat: p.lat, lng: p.lng, note: null, from: "her Apple Maps guide" });
   const last = addDays(today, 15);   // (Open-Meteo's 16 days)
-  const out: StayWeather[] = [];
-  for (const s of stays) {
+  // (all stays at once — one after another took over 4 s cold, and Scout's offer to Julie fell back to its plain words)
+  const out = (await Promise.all(stays.map(async (s): Promise<StayWeather | null> => {
     const from = ymd(s.checkInDate!) > start ? ymd(s.checkInDate!) : start;
     const to = addDays(ymd(s.checkOutDate!), -1) < last ? addDays(ymd(s.checkOutDate!), -1) : last;
-    if (from > to) continue;
+    if (from > to) return null;
     const pin = pinFor(s.name, pins);
     // (the hotel itself — the Ritz-Carlton Nikko is on Lake Chuzenji, ~4,200 ft, 6–9°F colder than Nikko town's point)
     const found = s.latitude == null && !pin ? await hotelPoint(`${s.name} ${s.city.name.split(/\s+-\s+|\s*\(|,/)[0]} Japan`) : null;
     const lat = s.latitude ?? pin?.lat ?? found?.lat ?? s.city.latitude, lng = s.longitude ?? pin?.lng ?? found?.lng ?? s.city.longitude;
-    if (lat == null || lng == null) continue;
+    if (lat == null || lng == null) return null;
     try {
       const ctl = new AbortController();
       const t = setTimeout(() => ctl.abort(), 8000);
       const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${from}&end_date=${to}`, { signal: ctl.signal });
       clearTimeout(t);
       const d = (await r.json())?.daily;
-      if (!d?.time?.length) continue;
+      if (!d?.time?.length) return null;
       const hi = (d.temperature_2m_max as number[]).map(Math.round), lo = (d.temperature_2m_min as number[]).map(Math.round);
       const range = (xs: number[]) => (Math.min(...xs) === Math.max(...xs) ? `${xs[0]}°F` : `${Math.min(...xs)}–${Math.max(...xs)}°F`);
       const away = (day: string) => Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
@@ -97,7 +97,7 @@ export async function packingWeather(tripId: string, person: string, today: stri
         });
       } catch { /* compared nowhere — "unknown", said as the default alone */ }
       const models = (day: string): "agree" | "disagree" | "unknown" => (!rainIn[day] ? "unknown" : rainIn[day].every((x) => x >= 0.04) ? "agree" : "disagree");
-      out.push({
+      return {
         stay: s.name, town: s.city.name.split(/\s+-\s+|\s*\(|,/)[0].trim(),
         nights: from === to ? say(from) : `${say(from)} – ${say(to)}`, firstNight: from, daysAway: away(from),
         at: s.latitude != null || pin || found ? "the hotel itself" : "the town (Wander doesn't know where the hotel is)",
@@ -105,8 +105,8 @@ export async function packingWeather(tripId: string, person: string, today: stri
         highs: range(hi), lows: range(lo), coldestLow: Math.min(...lo), warmestHigh: Math.max(...hi),
         wetDays: days.map((day, i) => ({ day: say(day), chance: d.precipitation_probability_max?.[i] ?? 0, inches: Math.round((d.precipitation_sum?.[i] ?? 0) * 10) / 10, outlook: sure(day), models: models(day) }))
           .filter((w) => w.chance >= 60 || w.inches >= 0.4),
-      });
-    } catch { /* no forecast for this stay — left out, never guessed */ }
-  }
+      };
+    } catch { return null; /* no forecast for this stay — left out, never guessed */ }
+  }))).filter((x): x is StayWeather => !!x);
   return out;
 }

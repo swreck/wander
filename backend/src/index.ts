@@ -57,6 +57,7 @@ import phoneReportRoutes from "./routes/phoneReports.js";
 import pushRoutes from "./routes/push.js";
 import paperRoutes from "./routes/papers.js";
 import { startMyMapReader } from "./services/guide/googleMyMap.js";
+import { startHelloWarmer } from "./services/scoutHello.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -215,4 +216,6 @@ app.listen(PORT, async () => {
   startSourceRefresher();
   // Larisa's Google map: read again every few hours, read-only (googleMyMap.ts)
   startMyMapReader();
+  // Scout's offers made from the forecast: their words ready before anyone opens Scout (scoutHello.ts)
+  startHelloWarmer();
 });
