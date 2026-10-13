@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 11:05 AM in Japan) — Your Seat, From the Ticket You Kept
+
+### Added
+- A train's card shows the car and seat from a ticket kept in Papers for that day that names the same train: "Car 9,
+  seat 11-D, on the ticket you kept" (Larisa: "on the ticket Ken kept"). Ken, on the NOZOMI 6: "I know Scout knows my
+  seat, and I can't read it, and it's not showing up." Where: Next's train card, the day's train. RailSheet KeptSeat,
+  lib/papers seatOnTicket.
+
 ## 2026-10-13 (Tuesday, 10:50 AM in Japan) — The Page Under Scout Holds Still; Phrases Scout Adds Are Shown
 
 ### Fixed

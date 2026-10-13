@@ -9,6 +9,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { voiceFor } from "../lib/guideDisplay";
 import { colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, isBookedTrain, isSettledStatus, withTwelveHour, readWords, dateInText, differWords, herTab, RESERVATION_COL, type OtherSource, type RailRow, type Checklist, type RailDiffer } from "../lib/sources";
 import GuideText from "./GuideText";
+import { papersOf, seatOnTicket } from "../lib/papers";
+import { api } from "../lib/api";
 
 /**
  * A leg's status as the sheet wrote it. When it names a day already past ("collect at Shin-Osaka Oct 6", seen on
@@ -89,6 +91,28 @@ export function rebookSaid(r: RailRow, s: OtherSource, me: string | null): { wor
   return { words: `${whose.charAt(0).toUpperCase()}${whose.slice(1)} says to cancel and rebook this one — not done yet (its ${tab} tab).`, settled: false };
 }
 
+/** A train's car and seat from a ticket someone kept in Papers (lib/papers seatOnTicket) — nothing when there's none */
+// (the trip the papers are in: the one Home last opened, else the active one — a phone that opened Next first had none)
+let activeTrip: Promise<string | null> | null = null;
+const tripIdNow = (): Promise<string | null> => {
+  try { const id = localStorage.getItem("wander:last-trip-id"); if (id) return Promise.resolve(id); } catch { /* private */ }
+  activeTrip ??= api.get<{ id?: string } | null>("/trips/active").then((t) => t?.id || null).catch(() => { activeTrip = null; return null; });
+  return activeTrip;
+};
+function KeptSeat({ train, date, dark = false }: { train: string; date: string; dark?: boolean }) {
+  const [words, setWords] = useState<string | null>(null);
+  useEffect(() => {
+    if (!train || !date) return;
+    let live = true;
+    const load = () => tripIdNow().then((tripId) => tripId ? papersOf(tripId, date) : null)
+      .then((r) => { if (live && r) setWords(seatOnTicket(r.papers, train, date)?.words ?? null); }).catch(() => { /* no signal */ });
+    load();
+    window.addEventListener("wander:papers-changed", load);
+    return () => { live = false; window.removeEventListener("wander:papers-changed", load); };
+  }, [train, date]);
+  return words ? <p className={`text-sm mt-0.5 font-medium ${dark ? "text-white" : "text-[#3a3128]"}`}>{words}</p> : null;
+}
+
 export function RailLeg(props:{ r: RailRow; s: OtherSource; today: string; pickupBy?: string | null; look: "card" | "nested"; differs?: RailDiffer[]; autoOpen?: boolean; past?: boolean }) {
   return <Leg {...props} />;
 }
@@ -162,6 +186,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [], autoOpen = fa
   // Always in sight, open or not: her Guide's other time for it, a "?" leg's question, a check before boarding
   const mustSee = (
     <>
+      {booked && <KeptSeat train={train} date={r.date ?? today} />}
       {rebookWords && <p className={`text-sm mt-0.5 ${rebookTone}`}>{rebookWords}</p>}
       {differs.map((d) => <DifferLine key={`${d.row}-${d.guideSource}`} d={d} />)}
       {status === "?" && <p className="text-sm text-[#8a5a1a] mt-0.5">The rail sheet marks this leg “?”{notes ? `: ${withTwelveHour(notes)}` : "."}</p>}
@@ -241,6 +266,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [], autoOpen = fa
               <p className="text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">{[cls, seat, resv && resv !== "—" ? `Reservation #${resv}` : ""].filter((x) => x && x !== "—").join(" · ")}</p>
             )}
             {onlyFor && <p className="text-xs text-[#514636] mt-0.5">“{onlyFor}”, the sheet says</p>}
+            {booked && <KeptSeat train={train} date={r.date ?? today} />}
             {rebookWords && <p className={`text-sm mt-0.5 ${rebookTone}`}>{rebookWords}</p>}
             {/* Where her Guide has this train at another time — said here, with the train (not on today's screen, where it's
                 said at the top) */}
@@ -290,6 +316,7 @@ function Leg({ r, s, today, pickupBy, look = "list", differs = [], autoOpen = fa
         <div className="flex-1 min-w-0">
           <p className="text-[15px] leading-snug text-[#3a3128]">{booked ? `${train} · ${route}` : `${route}${mode ? ` · ${mode}` : ""}`}</p>
           {onlyFor && <p className="text-xs text-[#514636] mt-0.5">“{onlyFor}”, the sheet says</p>}
+          {booked && <KeptSeat train={train} date={r.date ?? today} />}
           {rebookWords && <p className={`text-sm mt-0.5 ${rebookTone}`}>{rebookWords}</p>}
           {(booked || /^\d+$/.test(pax)) && <p className="text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">{[booked ? cls : "", booked ? seat : "", /^\d+$/.test(pax) ? `${pax} ${pax === "1" ? "person" : "people"}` : ""].filter((x) => x && x !== "—").join(" · ")}</p>}
           {resv && resv !== "—" && <p className="text-sm text-[#514636]">Reservation #{resv}</p>}
@@ -484,6 +511,8 @@ export function NextTrain({ sources, date, nowMinutes, isMine, quiet = false }: 
         </p>
         <p className="text-lg leading-snug mt-1">{twelveHour(colOf(c, /^depart/))} · {colOf(c, /^train$/)} · {colOf(c, /^route$/)}</p>
         <p className="text-sm text-white/85 mt-1 [overflow-wrap:anywhere]">{[classWords(colOf(c, /^class$/)), colOf(c, /^car/)].filter(Boolean).join(" · ")}</p>
+        {/* (the car and seat on a ticket kept in Papers — Ken, on the NOZOMI 6: "I know Scout knows my seat") */}
+        <KeptSeat train={colOf(c, /^train$/)} date={date} dark />
         {colOf(c, RESERVATION_COL) && <p className="text-sm text-white/80">Reservation #{colOf(c, RESERVATION_COL)}</p>}
         {/* (rebooked on a new card: said here too, never the cancelled booking's number) */}
         {(() => { const rb = rebookSaid(next.r, s, me); return rb.words ? <p className={`text-sm mt-1 ${rb.settled ? "text-white/85" : "text-[#f3d9a8]"}`}>{rb.words}</p> : null; })()}
