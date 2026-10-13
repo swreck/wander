@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday late morning in Japan) — A Paper's Send That Breaks Partway Is Sent Again
+
+### Fixed
+- Keeping a paper failed with "Wander couldn't keep it just now — the signal may have dropped" while Ken had full bars
+  (Oct 13 10:01 JST; the server saw the send cut off partway through the photo; his second try worked). Wander now
+  sends it again by itself, up to three tries, waiting while it's in the background; a send cut off partway keeps
+  nothing, so it can't make two. If all three break: "The paper didn't finish sending. Try again in a moment." The
+  signal is blamed only when the phone says it's offline. Each retry's outcome goes to the server's log (numbers
+  only) so the cause shows next time. Where: Notes "Keep a paper"; lib/papers.ts, phone reports.
+
 ## 2026-10-13 (Tuesday in Japan) — The Day's Forecast Where You Sleep, and a Note About Japan's Warning App
 
 ### Changed
