@@ -22,9 +22,57 @@ export interface DayForecast {
   place?: string; atHotel?: boolean; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook";
   /** the town of that night's stay, to name the line when there are two */
   town?: string;
+  /** the hours rain is likeliest, [from, to) on Japan's clock — a day up to 3 days out with a real chance (rainWhen) */
+  wet?: [number, number][];
+  /** hours one model alone sees showers in, outside those (rainWhen) */
+  showers?: [number, number][];
   /** the day's other place, when her plan names one: a day trip ("day") or where a travel day starts ("morning") —
    *  Ken, Oct 13: "both weathers should be there" */
-  also?: { place: string; when: "day" | "morning"; lo: number; hi: number; rain: number | null; inches?: number | null; code: number | null; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook" };
+  also?: { place: string; when: "day" | "morning"; lo: number; hi: number; rain: number | null; inches?: number | null; code: number | null; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook"; wet?: [number, number][]; showers?: [number, number][] };
+}
+
+/** When in the day the rain is most likely, said after the chance: ", most likely 9–11 AM and 4–8 PM" (Ken's weather
+ *  plan item 3, agreed Oct 13: the hourly rain window on the days just ahead). On today, only the hours still to come,
+ *  worked out here on the phone so a copy kept from this morning never offers rain that's already been; "" when none
+ *  is left. `now` is for tests. `part`: on a travel day, the hours they're in that place — the morning where the day
+ *  starts (to 1 PM), the afternoon where they sleep (from noon); its hours ran to 10 PM, after they'd left (verify35). */
+export function rainWhen(x: { wet?: [number, number][]; showers?: [number, number][] } | undefined, date: string, now = new Date(), part?: "morning" | "afternoon"): string {
+  if (!x?.wet?.length && !x?.showers?.length) return "";
+  const today = now.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+  if (date < today) return "";
+  const hour = date === today ? Number(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", hourCycle: "h23" })) : 0;
+  const [from, to] = part === "morning" ? [7, 13] : part === "afternoon" ? [12, 22] : [7, 22];
+  const start = Math.max(from, hour);
+  const ahead = (xs: [number, number][] | undefined) => (xs || []).map(([s, e]) => [Math.max(s, start), Math.min(e, to)] as [number, number]).filter(([s, e]) => s < e);
+  const spans = ahead(x.wet), showers = ahead(x.showers);
+  if (!spans.length && !showers.length) return "";
+  const hours = spans.reduce((n, [s, e]) => n + e - s, 0);
+  // (the day's hours, 7 AM to 10 PM — or what's left of today; not for part of a travel day)
+  const left = 22 - start;
+  // ("likely": beside "but the forecasts disagree", a bare "for the rest of the day" read oddly — verify34)
+  if (!part && hour > 7 && left >= 2 && hours >= left) return ", likely for the rest of the day";
+  if (!part && hours >= 10) return ", likely through most of the day";
+  // (a time never splits across lines: "4–8" then "PM" did at 402 pt — no-break space, and a word joiner after the dash)
+  const at = (h: number) => (h === 12 ? "noon" : `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`);
+  const span = ([s, e]: [number, number]) => {
+    // (rain under way — or from the first hour that counts — says when it ends: at 9:40 PM, "until 10 PM", not "from
+    // 9 PM"; verify35)
+    // (all of a travel day's part: "all morning" where it starts; "from noon" where they sleep)
+    if (s <= start && e >= to && part === "morning" && start === 7) return "all morning";
+    if (s <= start && e >= to && part === "afternoon" && start === 12) return "from noon";
+    // (rain running past a travel morning's 1 PM: 1 PM is where Wander stops looking, not when the rain stops — "10 AM–1
+    // PM" read as a forecast end; verify36)
+    if (part === "morning" && e >= to) return s <= start ? "for the rest of the morning" : `from ${at(s)}`;
+    if (s <= start) return `until ${at(e)}`;
+    if (e >= 22) return `from ${at(s)}`;
+    // ("9–11 AM", "4–8 PM"; "11 AM–1 PM", "10 AM–noon" when it crosses midday)
+    const same = s !== 12 && e !== 12 && (s < 12) === (e < 12);
+    return same ? `${s % 12 || 12}–⁠${at(e)}` : `${at(s)}–⁠${at(e)}`;
+  };
+  const main = !spans.length ? "" : spans.length > 2 ? `on and off ${at(spans[0][0])} to ${at(spans[spans.length - 1][1])}` : `most likely ${spans.map(span).join(" and ")}`;
+  // (and showers one model alone sees — Japan's, for Mashiko's morning on Oct 14; two spans at most, or it's a list)
+  const maybe = showers.length && showers.length <= 2 && spans.length <= 2 ? `showers possible ${showers.map(span).join(" and ")}` : "";
+  return main && maybe ? `, ${main}, with ${maybe}` : main || maybe ? `, ${main || maybe}` : "";
 }
 
 const KEY = "wander:forecast";
@@ -87,7 +135,8 @@ export async function dayForecastFor(tripId: string, date: string): Promise<DayF
     const { weather: w } = await api.get<{ weather: (DayForecast & { place: string; atHotel: boolean }) | null }>(`/weather/trip/${tripId}/day/${date}`);
     if (!w) return saved;
     const f: DayForecast = { hi: w.hi, lo: w.lo, rain: w.rain, inches: w.inches ?? null, code: w.code, at: w.at, place: w.place, atHotel: w.atHotel, models: w.models, outlook: w.outlook,
-      town: w.town, ...(w.also ? { also: { place: w.also.place, when: w.also.when, lo: w.also.lo, hi: w.also.hi, rain: w.also.rain, inches: w.also.inches ?? null, code: w.also.code, models: w.also.models, outlook: w.also.outlook } } : {}) };
+      town: w.town, ...(w.wet ? { wet: w.wet } : {}), ...(w.showers ? { showers: w.showers } : {}),
+      ...(w.also ? { also: { place: w.also.place, when: w.also.when, lo: w.also.lo, hi: w.also.hi, rain: w.also.rain, inches: w.also.inches ?? null, code: w.also.code, models: w.also.models, outlook: w.also.outlook, ...(w.also.wet ? { wet: w.also.wet } : {}), ...(w.also.showers ? { showers: w.also.showers } : {}) } } : {}) };
     try {
       const all = readAll();
       all[dayKey(tripId, date)] = f;

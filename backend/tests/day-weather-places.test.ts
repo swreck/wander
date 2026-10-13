@@ -32,5 +32,12 @@ describe("a day trip in her plan", () => {
     // (a headline word that isn't a place — verify32)
     expect(dayTripTown(["Kyoto day 2 - Rest"], "Ken")).toBeNull();
     expect(dayTripTown(["day 9 - Departure"], "Ken")).toBeNull();
+    // (two words with a plan word in them — verify33)
+    for (const t of ["Kyoto day 2 - Rest Day", "Tokyo day 3 - Free Day", "day 9 - Fly Home", "Kyoto day 1 - Arrival Day", "Tokyo day 4 - Sightseeing", "day 5 - REST", "Kyoto day 2 - Free-day", "Tokyo day 6 - Day-trip"])
+      expect(dayTripTown([t], "Ken")).toBeNull();
+    // (real places still count)
+    expect(dayTripTown(["Kyoto day 3 - Nara"], "Ken")).toBe("Nara");
+    expect(dayTripTown(["Kyoto day 5 - Uji"], "Ken")).toBe("Uji");
+    expect(dayTripTown(["Tokyo day 6 - Kita-Kamakura"], "Ken")).toBe("Kita-Kamakura");
   });
 });
