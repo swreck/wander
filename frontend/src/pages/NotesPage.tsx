@@ -90,6 +90,8 @@ export default function NotesPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [line, setLine] = useState<Record<string, string>>({});
   const [exportLine, setExportLine] = useState<string | null>(null);
+  // (with notes kept from Scout: "Export mine" first asks whether to include them — Ken, Oct 13, a journal's source)
+  const [exportChoice, setExportChoice] = useState(false);
   // whose notes, and in what order — Ken, Oct 2: "only me, all, only others; by entry date, by trip date"
   const [view, setView] = useState<NotesView>(() => readView());
   const changeView = (v: Partial<NotesView>) => setView((old) => { const next = { ...old, ...v }; keepView(next); return next; });
@@ -361,11 +363,12 @@ export default function NotesPage() {
     if (r === "failed") setLine((l) => ({ ...l, [n.id]: "This phone wouldn't share or copy them — try again?" }));
   }
 
-  async function exportAll() {
+  async function exportAll(withScout = true) {
     if (!tripId) return;
     setExportLine(null);
+    setExportChoice(false);
     try {
-      const all = await exportText(tripId);
+      const all = await exportText(tripId, withScout);
       const file = new File([all], `${tripName || "Trip"} notes — ${me}.txt`, { type: "text/plain" });
       if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: `${tripName} — trip notes` }); return; }
       const url = URL.createObjectURL(file);
@@ -381,7 +384,9 @@ export default function NotesPage() {
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const whose = notes.filter((n) => view.whose === "all" || (view.whose === "mine" ? n.mine : !n.mine));
+    // (Mine and Others' are people's own words; Scout is what Scout kept at someone's asking)
+    const fromScout = (n: TripNote) => n.source === "scout-answer";
+    const whose = notes.filter((n) => view.whose === "all" || (view.whose === "scout" ? fromScout(n) : !fromScout(n) && (view.whose === "mine" ? n.mine : !n.mine)));
     return q ? whose.filter((n) => [n.text, n.original, n.tidied || ""].some((t) => t.toLowerCase().includes(q))) : whose;
   }, [notes, query, view.whose]);
   // Newest first: one list, the newest note on top. Trip order: Japan overall first, then each place in the order the
@@ -404,6 +409,7 @@ export default function NotesPage() {
   const othersCount = notes.filter((n) => !n.mine).length;
 
   const myCount = notes.filter((n) => n.mine).length;
+  const myScoutCount = notes.filter((n) => n.mine && n.source === "scout-answer").length;
   const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   // (a note filed on a trip day that wasn't the phone's own date when it was written — at home, before the trip — says
   // when it was written by the phone's clock, with its date; Sweep A: "Sun, Oct 11 · 8:18 AM" paired Japan's date with
@@ -571,14 +577,21 @@ export default function NotesPage() {
               <div className="flex items-center gap-2">
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find words in the notes" aria-label="Find words in the notes"
                   className="flex-1 min-h-[44px] bg-white border border-[#e0d8cc] rounded-xl px-3 text-[16px] text-[#3a3128] placeholder:text-[#6b5d4a]" />
-                {myCount > 0 && <button onClick={exportAll} className="min-h-[44px] px-3 text-sm text-[#514636] underline underline-offset-2 whitespace-nowrap">Export mine</button>}
+                {myCount > 0 && <button onClick={() => (myScoutCount > 0 ? setExportChoice((c) => !c) : exportAll())} aria-expanded={myScoutCount > 0 ? exportChoice : undefined}
+                  className="min-h-[44px] px-3 text-sm text-[#514636] underline underline-offset-2 whitespace-nowrap">Export mine</button>}
               </div>
+              {exportChoice && (
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 text-sm">
+                  <button onClick={() => exportAll(false)} className="min-h-[44px] text-[#514636] underline underline-offset-2">Just my words</button>
+                  <button onClick={() => exportAll(true)} className="min-h-[44px] text-[#514636] underline underline-offset-2">With Scout's notes too</button>
+                </div>
+              )}
               {exportLine && <p className="text-sm text-[#6b5d4a] mt-1" role="status">{exportLine}</p>}
 
               {notes.length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
                   <div role="radiogroup" aria-label="Whose notes" className="flex rounded-xl bg-[#f0ebe3] p-0.5">
-                    {([["all", "Everyone's"], ["mine", "Mine"], ["others", "Others'"]] as const).map(([k, label]) => (
+                    {([["all", "Everyone's"], ["mine", "Mine"], ["others", "Others'"], ["scout", "Scout"]] as const).map(([k, label]) => (
                       <button key={k} role="radio" aria-checked={view.whose === k} onClick={() => changeView({ whose: k })}
                         className={`min-h-[44px] px-3 rounded-lg ${view.whose === k ? "bg-white text-[#3a3128] shadow-sm" : "text-[#6b5d4a]"}`}>{label}</button>
                     ))}
@@ -597,7 +610,8 @@ export default function NotesPage() {
               )}
               {notes.length > 0 && shown.length === 0 && (
                 <p className="text-sm text-[#6b5d4a] mt-4">
-                  {query.trim() ? `No ${view.whose === "mine" ? "note of yours" : view.whose === "others" ? "shared note" : "note"} has “${query.trim()}” in it.`
+                  {query.trim() ? `No ${view.whose === "mine" ? "note of yours" : view.whose === "others" ? "shared note" : view.whose === "scout" ? "note from Scout" : "note"} has “${query.trim()}” in it.`
+                    : view.whose === "scout" ? "Nothing from Scout yet. Ask Scout for a list, then say \"remember that\", and it's kept here."
                     : view.whose === "mine" ? "You haven't written a note yet — the box above is yours."
                     : othersCount === 0 ? "Nobody else has shared a note with the trip yet." : "Nothing here."}
                 </p>

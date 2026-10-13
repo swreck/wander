@@ -51,12 +51,18 @@ describe("adding", () => {
     // (the organizer never arranged theirs: the new one is simply after everything, in first order)
     expect((await mine(orgTok)).order).not.toContain(`p:${id}`);
   });
-  it("a second way of saying what's on the card isn't added, unless asked for", async () => {
-    await executeTool("add_phrase", { tripId, english: "I'm sorry, I'm not feeling well", romaji: "Gomen nasai, choshi ga warui desu" }, org());
-    const again = await executeTool("add_phrase", { tripId, english: "I'm not feeling well", romaji: "Choshi ga warui desu" }, org());
+  it("the same phrase isn't added twice — the everyday ones too — but a different one always is", async () => {
+    await executeTool("add_phrase", { tripId, english: "I'm sorry, I'm not feeling well", romaji: "Gomen nasai, chōshi ga warui desu" }, org());
+    // (the same words, other punctuation and no long-vowel mark)
+    const again = await executeTool("add_phrase", { tripId, english: "I'm sorry I'm not feeling well!", romaji: "Gomen nasai choshi ga warui desu" }, org());
     expect(again.result.alreadyOnCard).toBeTruthy();
+    // (an everyday phrase)
+    expect((await executeTool("add_phrase", { tripId, english: "Thank you", romaji: "Arigatou gozaimasu" }, org())).result.alreadyOnCard).toBeTruthy();
+    // (verify29: these were blocked as "near matches")
+    expect((await executeTool("add_phrase", { tripId, english: "Where is the toilet?", romaji: "Toire wa doko desu ka?" }, org())).result.saved).toBe(true);
+    expect((await executeTool("add_phrase", { tripId, english: "I'm allergic to peanuts", romaji: "Pinattsu arerugii desu" }, org())).result.saved).toBe(true);
     expect((await list(orgTok)).filter((p) => /not feeling well/.test(p.english))).toHaveLength(1);
-    const asked = await executeTool("add_phrase", { tripId, english: "I'm not feeling well", romaji: "Choshi ga warui desu", anotherWay: true }, org());
+    const asked = await executeTool("add_phrase", { tripId, english: "I'm sorry, I'm not feeling well", romaji: "Gomen nasai, chōshi ga warui desu", anotherWay: true }, org());
     expect(asked.result.saved).toBe(true);
   });
 });
@@ -77,11 +83,11 @@ describe("removing and putting back", () => {
   it("another person's phrase: only off your own card; they and the organizer can take it off everyone's", async () => {
     const r = await request(app).post(`/api/phrases/${(await list(otherTok)).find((p) => /not feeling well/.test(p.english))!.id}/remove`).set("Authorization", `Bearer ${otherTok}`);
     expect(r.status).toBe(403);
-    const own = await executeTool("arrange_my_phrases", { tripId, phrase: "Gomen nasai, choshi ga warui desu", action: "remove" }, other());
+    const own = await executeTool("arrange_my_phrases", { tripId, phrase: "Pinattsu arerugii desu", action: "remove" }, other());
     expect(own.result.onlyTheirCard).toBe(true);
     expect((await mine(otherTok)).hidden.some((k: string) => k.startsWith("p:"))).toBe(true);
     // (the organizer still has it)
-    expect((await list(orgTok)).find((p) => p.english === "I'm sorry, I'm not feeling well")!.removedAt).toBeNull();
+    expect((await list(orgTok)).find((p) => p.english === "I'm allergic to peanuts")!.removedAt).toBeNull();
     const st = (await list(orgTok)).find((p) => p.english === "Where is the station?")!;
     expect(st.mayRemoveForAll).toBe(true);
   });

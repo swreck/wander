@@ -50,7 +50,9 @@ Before the trip, Next shows the first day. After it, the last.`,
   {
     id: "phrases",
     title: "Japanese Phrases",
-    body: `Tap **日** at the right end of the bar along the bottom, on any screen. The card has the phrases you'll use most, like "Excuse me" and "Check, please", with how to say each one. Ask Scout how to say something and it's added to the card for everyone.`,
+    body: `Tap **日** at the right end of the bar along the bottom, on any screen. The card has the phrases you'll use most, like "Excuse me" and "Check, please", with how to say each one. Ask Scout how to say something and it's added to the card for everyone, first on yours.
+
+**Edit** on the card puts the phrases in your order (↑ and ↓) and takes off the ones you don't need. Your order is yours alone. **Put back** brings back anything you removed.`,
   },
   {
     id: "chat",
@@ -66,7 +68,9 @@ You can type, tap a question, or tap the microphone and talk. Tap it again when 
 
 Send Scout a photo or a file, like a menu, a sign, a ticket or a PDF: tap the paperclip, or paste it into the box. Ask it to keep a receipt or a ticket, and it goes in your Notes under the day it belongs to.
 
-When Scout needs to know where you are, tap **Use my location** under its answer. Under every answer are **Copy** and **Read aloud**.`,
+When Scout needs to know where you are, tap **Use my location** under its answer. Under every answer are **Copy** and **Read aloud**.
+
+Scout sees only the last few messages of today's conversation. To keep an answer, like a list of breakfast places, say "remember that": it goes in your Notes, marked "kept from Scout", and Scout uses it when you ask again.`,
   },
   {
     id: "the-guide",
@@ -89,6 +93,8 @@ Trains come from a second place: ${/^ken$/i.test(meName) ? "your rail sheet, whi
     body: `**Maybes** is the group's shared list of "maybe we should…", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. ${mine ? "Your" : "Larisa's"} ideas from ${mine ? "your" : "her"} Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. "Interested" shows everyone who's in, from ${mine ? "your" : "her"} X marks and from Wander together. A dot on the Maybes tab means something new. ${mine ? "Your" : "Larisa's"} Guide stays as it is.
 
 **Notes** keeps what you want to remember of the trip, every word as you type or say it, on the day it's about. Only you see a note unless you share it with the trip. You can also tell Scout what happened ("we came here because our guide drove us, so we saw Arita too"), and it keeps your words in your Notes for that day.
+
+Choose **Everyone's**, **Mine**, **Others'** or **Scout** to see whose notes. **Export mine** saves your notes as a text file, with or without what Scout kept for you.
 
 **Keep a paper**, under the writing box in Notes, keeps a photo of a receipt, a ticket or a booking on the day it belongs to, so you needn't carry the paper. ${mine ? "Ken sees yours, and you see his." : /^ken$/i.test(meName) ? "Larisa sees yours, and you see hers." : "Only you see yours."}`,
   },

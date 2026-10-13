@@ -154,23 +154,49 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
       .then((list) => { if (live && Array.isArray(list)) setAdded(list); })
       .catch(() => { /* no signal: the essentials only */ });
     api.get<{ order: string[]; hidden: string[] }>(`/phrases/trip/${tripId}/mine`)
-      .then((m) => { if (live && Array.isArray(m?.order) && Array.isArray(m?.hidden)) { setMine(m); try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(m)); } catch { /* private window */ } } })
+      .then((m) => {
+        if (!live || !Array.isArray(m?.order) || !Array.isArray(m?.hidden)) return;
+        saved.current = m;
+        // (never over a change still on its way to the server)
+        if (saving.current || waiting.current) return;
+        setMine(m);
+        try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(m)); } catch { /* private window */ }
+      })
       .catch(() => { /* no signal: this phone's copy */ });
     return () => { live = false; };
   }, [open, tripId]);
   // (closed, the card is out of Edit)
   useEffect(() => { if (!open) { setEditing(false); setSaveNote(null); } }, [open]);
+  // Saved one at a time, the newest last: quick taps on ↑ each sent a save, and an older one arriving last put the old
+  // order back on the server — and on the card the next time it opened (verify29: 5 taps, Sumimasen first on screen,
+  // third after reopening)
+  const saving = useRef(false);
+  const waiting = useRef<{ order: string[]; hidden: string[] } | null>(null);
+  const saved = useRef<{ order: string[]; hidden: string[] } | null>(null);
+  const sendNext = () => {
+    if (saving.current || !waiting.current || !tripId) return;
+    const send = waiting.current;
+    waiting.current = null;
+    saving.current = true;
+    api.patch(`/phrases/trip/${tripId}/mine`, send)
+      .then(() => { saved.current = send; })
+      .catch(() => {
+        // (a newer change waiting goes next; with none, the card goes back to what the server has)
+        if (waiting.current) return;
+        const back = saved.current || { order: [], hidden: [] };
+        setMine(back);
+        try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(back)); } catch { /* private window */ }
+        setSaveNote("That didn't save. Try again when you have signal?");
+      })
+      .finally(() => { saving.current = false; sendNext(); });
+  };
   const arrange = (next: { order: string[]; hidden: string[] }) => {
     if (!tripId) return;
-    const was = mine;
     setMine(next);
     setSaveNote(null);
     try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(next)); } catch { /* private window */ }
-    api.patch(`/phrases/trip/${tripId}/mine`, next).catch(() => {
-      setMine(was);
-      try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(was)); } catch { /* private window */ }
-      setSaveNote("That didn't save. Try again when you have signal?");
-    });
+    waiting.current = next;
+    sendNext();
   };
 
   // The one sheet opens when either button asks
@@ -405,7 +431,16 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
               ))}
             </div>
           )}
-          {editing && <p className="text-xs text-[#6b5d4a] pt-2 pb-1">Your order is yours alone. A phrase you added comes off everyone's card; any other comes off just yours.</p>}
+          {/* (said as it is for this person: the trip's organizer takes any added phrase off everyone's card — verify29) */}
+          {editing && <p className="text-xs text-[#6b5d4a] pt-2 pb-1">
+            {(() => {
+              const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
+              const organizer = added.some((p) => p.mayRemoveForAll && first(p.addedBy) !== first(user?.displayName || ""));
+              return organizer
+                ? "Your order is yours alone. A phrase added on the trip comes off everyone's card when you remove it; an everyday one comes off just yours."
+                : "Your order is yours alone. A phrase you added comes off everyone's card when you remove it; any other comes off just yours.";
+            })()}
+          </p>}
           {saveNote && <p className="text-xs text-[#8a5a1a] pt-1 pb-1" role="status">{saveNote}</p>}
         </div>
       </div>

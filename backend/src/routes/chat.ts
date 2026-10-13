@@ -824,7 +824,7 @@ const tools: Anthropic.Tool[] = [
   // ── Phrase tools ──────────────────────────────
   {
     name: "add_phrase",
-    description: "Add a Japanese phrase to the shared trip phrase card. Use when user says 'add a phrase', 'how do you say X in Japanese', 'I need to know how to say...'. Always provide both the English meaning and the romaji (Latin-alphabet) pronunciation. NEVER include Japanese characters — romaji only.",
+    description: "Add a Japanese phrase to the shared trip phrase card. Use when user says 'add a phrase', 'how do you say X in Japanese', 'I need to know how to say...'. Always provide both the English meaning and the romaji (Latin-alphabet) pronunciation. NEVER include Japanese characters — romaji only. First look at PHRASE CARD: when a phrase there already says the same thing (in any wording), tell them it's there and don't add another, unless they ask for another way to say it (anotherWay: true).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -996,7 +996,7 @@ const tools: Anthropic.Tool[] = [
         words: { type: "string", description: "Their own words about it, exactly as they said them — never your summary or rewording. Leave out only words said to you ('Scout, note that'). With fromScout: your own earlier answer's words, exactly as you wrote them (the whole list or the part they want)." },
         fromScout: { type: "boolean", description: "True only when they ask you to keep something YOU said — your list, your answer ('put that in my notes', 'remember that list'). It's kept marked as from Scout, never as their words. Keep the part of your answer they mean, exactly as you wrote it; don't write it anew." },
         date: { type: "string", description: "YYYY-MM-DD, the trip day it's about (today unless they say otherwise)" },
-        place: { type: "string", description: "The town it happened in, only when their own words name one ('a little shop in Arita' → 'Arita'); otherwise leave it out and the note goes under that day's city" },
+        place: { type: "string", description: "The town it happened in, only when their own words name one ('a little shop in Arita' → 'Arita'); otherwise leave it out and the note goes under that day's city. With fromScout: the trip's city your answer is about ('Kyoto' for Kyoto dinners), if it's about one" },
         shareWithTrip: { type: "boolean", description: "Only when they ask for everyone on the trip to see it" },
       },
       required: ["tripId", "words", "date"],
@@ -3434,12 +3434,14 @@ export async function executeTool(
     }
 
     case "add_phrase": {
-      // (one meaning, once: Scout put "not feeling well" on the card four ways in one morning — Ken, Oct 13)
-      const { sameMeaning, firstOnAddersCard } = await import("../services/phrasePrefs.js");
-      const onCard = await prisma.tripPhrase.findMany({ where: { tripId: input.tripId, removedAt: null } });
-      const twin = input.anotherWay === true ? null : onCard.find((p) => sameMeaning(p.english, String(input.english || "")) || sameMeaning(p.romaji, String(input.romaji || "")));
+      // (one phrase, once: Scout put "not feeling well" on the card four ways in one morning — Ken, Oct 13. The same words
+      // are refused here, the everyday ones included; whether two phrases MEAN the same is Scout's call from the PHRASE
+      // CARD line — a word-overlap test blocked "Where is the toilet?" for "Where is the station?", verify29)
+      const { samePhrase, cardPhrases, firstOnAddersCard } = await import("../services/phrasePrefs.js");
+      const onCard = (await cardPhrases(input.tripId)).filter((p) => !p.removedAt);
+      const twin = input.anotherWay === true ? null : onCard.find((p) => samePhrase(p.english, String(input.english || "")) || samePhrase(p.local, String(input.romaji || "")));
       if (twin) {
-        return { result: { alreadyOnCard: { english: twin.english, romaji: twin.romaji }, say: "Tell them it's already on the phrase card, as it is there. Add another only if they ask for a second way to say it (anotherWay: true)." } };
+        return { result: { alreadyOnCard: { english: twin.english, romaji: twin.local }, say: "Tell them it's already on the phrase card, as it is there." } };
       }
       const phrase = await prisma.tripPhrase.create({
         data: {
@@ -3784,7 +3786,11 @@ export async function executeTool(
           visibility: input.shareWithTrip === true ? "trip" : "private",
           // (where it happened, when their own words name the town — Oct 10 re-audit: a shop in Arita was filed under
           // "Hakata", that day's city; a place Scout names that their words don't is ignored)
-          dayDate: date, city: placeInWords(input.place, words) || day?.city?.name || null,
+          // (Scout's own answer about another city — "Kyoto dinners" kept in Tokyo — goes under that city, when it's one
+          // of the trip's; verify29: it was filed under Tokyo and wouldn't show under Kyoto later)
+          dayDate: date, city: (fromScout && typeof input.place === "string" && input.place.trim()
+            ? (await prisma.city.findFirst({ where: { tripId: input.tripId, name: { equals: input.place.trim(), mode: "insensitive" } }, select: { name: true } }))?.name
+            : null) || placeInWords(input.place, words) || day?.city?.name || null,
         },
       });
       // "Tidy my dictation" (Ken, Oct 10: like Wispr Flow — his exact words kept, misspeaking and haste fixed so it reads
@@ -4868,6 +4874,15 @@ router.post("/", async (req: AuthRequest, res) => {
     // she wrote" — her shared note was never looked at (Scout notes exam N5, Oct 1 2026)
     let notesLine = "";
     let keptLine = "";
+    // What's on the trip's phrase card now, so Scout never adds a second way of saying something already there
+    let phraseLine = "";
+    if (tripId) {
+      try {
+        const { cardPhrases } = await import("../services/phrasePrefs.js");
+        const card = (await cardPhrases(tripId)).filter((p) => !p.removedAt);
+        phraseLine = `PHRASE CARD (everyone's, before each person's own order): ${card.map((p) => `${p.local} (${p.english})`).join(" · ")}`;
+      } catch { /* the card can be looked at another time */ }
+    }
     if (tripId && req.user?.travelerId) {
       try {
         const me = req.user.travelerId;
@@ -5136,6 +5151,7 @@ RULES:
       ...paperLinesNow,
       notesLine,
       keptLine,
+      phraseLine,
       "",
       "CURRENT CONTEXT:",
       `- Page: ${context?.page || "unknown"}`,

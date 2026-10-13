@@ -128,7 +128,10 @@ router.get("/trip/:tripId/export", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;
   const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { name: true, timeZone: true } });
   const zone = trip?.timeZone || "Asia/Tokyo";
-  const notes = await prisma.tripNote.findMany({ where: { tripId, travelerId: me }, orderBy: { createdAt: "asc" } });
+  // (?scout=0: only their own words, without what Scout kept at their asking — Ken, Oct 13: "exporting should allow with
+  // or without Scout's notes")
+  const withScout = req.query.scout !== "0";
+  const notes = await prisma.tripNote.findMany({ where: { tripId, travelerId: me, ...(withScout ? {} : { NOT: { source: "scout-answer" } }) }, orderBy: { createdAt: "asc" } });
   const dayWords = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
   const lines: string[] = [`Trip notes — ${req.user!.displayName} — ${trip?.name || "the trip"}`, `${notes.length} note${notes.length === 1 ? "" : "s"}, every word as saved`, ""];
   let lastDay = "";

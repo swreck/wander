@@ -28,17 +28,18 @@ export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripI
   // (said in full to a screen reader: where it's measured and that it's today's)
   const where = f?.place ? (f.atHotel ? ` at ${theHotel(f.place)}` : ` in ${f.place}`) : "";
   return (
-    // (pulled up into the space Home leaves under the dates, so it reads as their next line)
-    <div className="flex items-center justify-between gap-3 -mt-4">
-
-      <p className="text-sm text-[#514636] min-w-0">
+    // (as close under the dates as the dates are under "From Larisa's Guide" — Ken, Oct 13: "reduce the space … to what
+    // is the standard between 'from Larisa's…' and dates". The line is one text line tall; "Go to today ›" keeps a
+    // fingertip's 44 pt by reaching up over the dates, which can't be tapped, never down over History and ⚙)
+    <div className="flex items-end justify-between gap-3 -mt-11 h-11">
+      <p className="text-sm leading-5 text-[#514636] min-w-0">
         {f && <>
           <span className="sr-only">Today's weather{where}: </span>
           {f.lo}‑{f.hi}°F{f.rain !== null ? `, rain ${f.rain}%` : ""}
           {disputed === "drier" ? <span className="text-[#6b5d4a]"> (other forecasts drier)</span> : disputed === "split" ? <span className="text-[#6b5d4a]"> (forecasts differ)</span> : null}
         </>}
       </p>
-      <button onClick={onGo} className="shrink-0 min-h-[44px] px-1 text-sm text-[#514636] underline underline-offset-2">
+      <button onClick={onGo} className="shrink-0 h-11 pt-6 px-1 text-sm leading-5 text-[#514636] underline underline-offset-2">
         Go to today ›
       </button>
     </div>

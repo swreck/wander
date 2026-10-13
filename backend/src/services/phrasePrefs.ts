@@ -53,13 +53,10 @@ export async function mayRemoveForAll(who: { travelerId?: string; displayName: s
   return !!who.travelerId && org?.travelerId === who.travelerId;
 }
 
-/** Words alike enough to be the same phrase ("I'm sorry, I'm not feeling well" / "I'm not feeling well") */
-export function sameMeaning(a: string, b: string): boolean {
-  const words = (s: string) => new Set(s.toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, " ").split(/\s+/).filter(Boolean));
-  const A = words(a), B = words(b);
-  if (!A.size || !B.size) return false;
-  const both = [...A].filter((w) => B.has(w)).length;
-  return both / Math.min(A.size, B.size) >= 0.8;
+/** The same phrase, letter for letter, ignoring case, punctuation, spacing and long-vowel marks ("chōshi" = "choshi") */
+export function samePhrase(a: string, b: string): boolean {
+  const flat = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  return !!flat(a) && flat(a) === flat(b);
 }
 
 /** The card as this person has it: their order first, anything new after in its first order */

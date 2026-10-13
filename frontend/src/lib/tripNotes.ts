@@ -105,20 +105,23 @@ export const BACKROADS = "Backroads";
 export const placeOf = (n: { city: string | null }) => n.city || JAPAN_OVERALL;
 
 /** How this phone shows the notes: whose, and in what order (kept on the phone) */
-export type NotesView = { whose: "all" | "mine" | "others"; order: "newest" | "trip" };
+// ("scout": what Scout kept at their asking — Ken, Oct 13: "Memory notes works. Add scout to this view")
+export type NotesView = { whose: "all" | "mine" | "others" | "scout"; order: "newest" | "trip" };
 const viewKey = () => `wander:notes-view:${person()}`;
 export function readView(): NotesView {
   try {
     const j = JSON.parse(localStorage.getItem(viewKey()) || "{}");
-    return { whose: ["all", "mine", "others"].includes(j.whose) ? j.whose : "all", order: j.order === "trip" ? "trip" : "newest" };
+    return { whose: ["all", "mine", "others", "scout"].includes(j.whose) ? j.whose : "all", order: j.order === "trip" ? "trip" : "newest" };
   } catch { return { whose: "all", order: "newest" }; }
 }
 export function keepView(v: NotesView) { try { localStorage.setItem(viewKey(), JSON.stringify(v)); } catch { /* private mode */ } }
 
 /** Every word of my notes, as text (for "Export all my notes") */
-export async function exportText(tripId: string): Promise<string> {
+// (withScout false: only their own words — Ken, Oct 13: notes are source material for a journal, "so exporting should
+// allow with or without Scout's notes")
+export async function exportText(tripId: string, withScout = true): Promise<string> {
   const token = localStorage.getItem("wander_token");
-  const res = await fetch(`/api/trip-notes/trip/${tripId}/export`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const res = await fetch(`/api/trip-notes/trip/${tripId}/export${withScout ? "" : "?scout=0"}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);
   return res.text();
 }

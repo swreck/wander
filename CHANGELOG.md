@@ -2,6 +2,27 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 3:15 PM in Japan) — Scout in Notes' View; Export With or Without; Tighter Weather Line
+
+### Added
+- Notes: a fourth choice, **Scout**, beside Everyone's / Mine / Others' — only what Scout kept at your asking; Mine and
+  Others' are people's own words. Ken (Oct 13): "Memory notes works. Add scout to this view".
+- **Export mine** asks **Just my words** or **With Scout's notes too** when you have notes kept from Scout. Ken: notes
+  are source material for a journal, "so exporting should allow with or without Scout's notes".
+- Help: the phrase card's Edit; "remember that"; the Scout choice and the export choice (verify29).
+
+### Changed
+- Home's weather line sits as close under the trip's dates as the dates under "From Larisa's Guide". Ken: "reduce the
+  space in the yellow to what is the standard between 'from Larisa's…' and dates". Go to today keeps 44 pt to tap,
+  reaching up over the dates, never over History or ⚙.
+- Scout no longer judges duplicate phrases by shared words ("Where is the toilet?" was refused for "Where is the
+  station?", verify29): the server refuses only the same phrase (everyday ones included), and Scout sees the card's
+  phrases to judge meaning. A list Scout keeps about another city goes under that city in Notes.
+
+### Fixed
+- Quick taps on ↑ could leave the old order on the server and bring it back on reopening (saves crossing): saved one at
+  a time, newest last. The Edit note says what Remove does for the trip's organizer too.
+
 ## 2026-10-13 (Tuesday, 2:55 PM in Japan) — Your Own Phrase Card; Scout Keeps What You Ask It To
 
 ### Added
