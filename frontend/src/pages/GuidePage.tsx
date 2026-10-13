@@ -94,6 +94,8 @@ Trains come from a second place: ${/^ken$/i.test(meName) ? "your rail sheet, whi
 
 **Notes** keeps what you want to remember of the trip, every word as you type or say it, on the day it's about. Only you see a note unless you share it with the trip. You can also tell Scout what happened ("we came here because our guide drove us, so we saw Arita too"), and it keeps your words in your Notes for that day.
 
+To write about another day, choose it under **Day**, or tap **+ Add a note for this day** on that day's page, or tell Scout which day it's about.
+
 Choose **Everyone's**, **Mine**, **Others'** or **Scout** to see whose notes. **Export mine** saves your notes as a text file, with or without what Scout kept for you.
 
 **Keep a paper**, under the writing box in Notes, keeps a photo of a receipt, a ticket or a booking on the day it belongs to, so you needn't carry the paper. ${mine ? "Ken sees yours, and you see his." : /^ken$/i.test(meName) ? "Larisa sees yours, and you see hers." : "Only you see yours."}`,

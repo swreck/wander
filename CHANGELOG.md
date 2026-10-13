@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 4:10 PM in Japan) — A Note for Any Day
+
+### Added
+- Each day page has **+ Add a note for this day**: Notes opens on that day and its town, ready to write. Ken (Oct 13):
+  "there also should be a button on each day page that says, add a note for this day" · "That would create another
+  way to go back to a day and then add a note there in addition to a date picker on the notes page or asking Scout to
+  assign something to a day based on a date or an activity on a date that it could look up".
+- Notes' writing box has a **Day** choice (any trip day, or "No particular day"); About follows the day's town unless
+  chosen. Scout already files a note on the day it's about ("the first ryokan"). Where: DayPage, NotesPage, help.
+  SPEC UPDATE NEEDED.
+
 ## 2026-10-13 (Tuesday, 3:45 PM in Japan) — Both Places' Weather When the Day Goes Somewhere Else
 
 ### Added

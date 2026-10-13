@@ -2137,6 +2137,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   + Add a plan for this day
                 </button>
               )}
+              {/* A note about this day, from the day itself (Ken, Oct 13: "there also should be a button on each day page that
+                  says, add a note for this day") — Notes opens on this day and its town */}
+              <button onClick={() => navigate(`/notes?day=${date}`)} className="block min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+                + Add a note for this day
+              </button>
               {notice && <p className="text-sm text-[#6b5d4a] mt-2" role="status">{notice}</p>}
             </section>
 

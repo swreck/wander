@@ -198,7 +198,8 @@ export default function NotesPage() {
   // Today on the trip's clock is the day a new note is about, when it's a trip day
   const today = tripToday(zone);
   useEffect(() => {
-    if (day || !days.length) return;
+    // (not over "No particular day", chosen in the box)
+    if (day || !days.length || noDayChosen.current) return;
     if (days.some((d) => d.date === today)) setDay(today);
   }, [days, today, day]);
 
@@ -254,7 +255,8 @@ export default function NotesPage() {
   const inJapan = !!landsOn && today >= landsOn && !stillAway && days.some((d) => d.date === today);
   const herePlace = (inJapan && cityOf(today)) || JAPAN_OVERALL;
   // (a note started from a day — Scout's evening question — is about that day's town)
-  const dayPlace = params.get("day") ? cityOf(params.get("day")) : null;
+  // (…and a day chosen in the box, other than today, likewise — the place follows the day unless one's chosen)
+  const dayPlace = day && day !== today ? cityOf(day) : params.get("day") ? cityOf(params.get("day")) : null;
   const aboutPlace = place || dayPlace || herePlace;
 
   async function save() {
@@ -453,7 +455,19 @@ export default function NotesPage() {
 
               {/* What it's about: where you are (once you're in Japan), the Backroads week, another place, or the trip as a
                   whole — the phone's own list, one tap (Ken, Oct 2) */}
-              <label className="flex items-center gap-2 mt-2 text-[13px] text-[#514636]">
+              {/* Which day it's about: today, or any trip day — a note written later about an earlier day (Ken, Oct 13: a
+                  day's "+ Add a note for this day", "a date picker on the notes page", or Scout). The place follows the day. */}
+              {days.length > 0 && (
+                <label className="flex items-center gap-2 mt-2 text-[13px] text-[#514636]">
+                  <span className="text-[#6b5d4a]">Day</span>
+                  <select value={day ?? ""} onChange={(e) => { setDay(e.target.value || null); noDayChosen.current = !e.target.value; setPlace(null); }} aria-label="Which day this note is about"
+                    className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2 text-[#3a3128]">
+                    <option value="">No particular day</option>
+                    {days.map((d) => <option key={d.date} value={d.date}>{dayWords(d.date)}{d.city ? ` · ${d.city}` : ""}{d.date === today ? " — today" : ""}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="flex items-center gap-2 mt-1 text-[13px] text-[#514636]">
                 <span className="text-[#6b5d4a]">About</span>
                 <select value={aboutPlace} onChange={(e) => setPlace(e.target.value)} aria-label="What this note is about"
                   className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2 text-[#3a3128]">
@@ -466,7 +480,7 @@ export default function NotesPage() {
                 rows={4} placeholder={listening ? "Listening — tap Stop when you're done" : "What's worth remembering?"}
                 aria-label="Your note"
                 // (answering Scout's evening question: ready to write — tester t4)
-                autoFocus={fromEvening}
+                autoFocus={fromEvening || !!params.get("day")}
                 className="mt-1 w-full min-h-[120px] bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-[16px] leading-relaxed text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 resize-none" />
               {text.trim() && <p className="text-xs text-[#6b5d4a] mt-1">{wordCount(text)} word{wordCount(text) === 1 ? "" : "s"} · kept on this phone until you save</p>}
               {listening && voiceQuiet && <p role="status" className="text-[13px] text-[#6b5d4a] mt-1">I'm not hearing any words yet. Tap Stop, then try again — or type.</p>}
