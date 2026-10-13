@@ -26,5 +26,8 @@ describe("a day trip in her plan", () => {
     expect(dayTripTown(["Day trip from Kyoto to Nara Park"], "Ken")).toBe("Nara Park");
     expect(dayTripTown(["Ginza shopping day", "Refresh at the Imperial Hotel"], "Ken")).toBeNull();
     expect(dayTripTown(["The day trip to the lake"], "Ken")).toBeNull();
+    // (her day-plan headline naming the place alone — verify31: Oct 28 Shigaraki)
+    expect(dayTripTown(["Kyoto day 4 - Shigaraki"], "Ken")).toBe("Shigaraki");
+    expect(dayTripTown(["day 2 - Ginza shopping day (Tigers, Japanese Stationary, MontBell/sporting goods)"], "Ken")).toBeNull();
   });
 });

@@ -60,6 +60,11 @@ function nightOf(stays: Stay[], me: string, date: string): Stay | undefined {
   return stays.find((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= date && ymd(s.checkOutDate) > date
     && (!s.forWhom || /everyone/i.test(s.forWhom) || s.forWhom.toLowerCase().includes(me)));
 }
+const kmBetween = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+  const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+};
 const forThem = (forWhom: string | null, me: string) => !forWhom || /everyone/i.test(forWhom) || forWhom.toLowerCase().includes(me);
 
 /** A day trip in her plan for this person that day: "Day trip from Tokyo to Mashiko", "Mashiko day trip" — its town.
@@ -70,6 +75,10 @@ export function dayTripTown(titles: string[], me = ""): string | null {
   for (const t of titles) {
     const m = t.match(/\b[Dd]ay[ -]trip\b(?:\s+from\s+[\p{L}'’ .-]+?)?\s+to\s+([\p{Lu}][\p{L}'’-]+(?:\s[\p{Lu}][\p{L}'’-]+)?)/u)
       || t.match(/\b([\p{Lu}][\p{L}'’-]+)\s+[Dd]ay[ -]trip\b/u);
+    // (or her day plan's headline naming the place alone: "Kyoto day 4 - Shigaraki" — verify31; a headline that goes on,
+    // "day 2 - Ginza shopping day (…)", isn't a place)
+    const head = !m ? t.match(/\bday\s*\d+\s*[-–—]\s*([\p{Lu}][\p{L}'’-]+(?:\s[\p{Lu}][\p{L}'’-]+)?)\s*$/u) : null;
+    if (head) return head[1];
     if (!m) continue;
     const who = t.slice(0, m.index).match(/\b([A-Z]{2,4})\s*$/)?.[1];
     if (who && initial && !who.includes(initial)) continue;
@@ -115,9 +124,9 @@ export async function dayWeather(tripId: string, person: string, date: string, t
   if (tripTown && tripTown.toLowerCase() !== town.toLowerCase()) {
     const city = await prisma.city.findFirst({ where: { tripId, name: { equals: tripTown, mode: "insensitive" } }, select: { latitude: true, longitude: true } });
     const p = city?.latitude != null && city.longitude != null ? { lat: city.latitude, lng: city.longitude } : await hotelPoint(`${tripTown} Japan`);
-    const f = p ? await forecastAt(p, date, away) : null;
-    if (f) out.also = { place: tripTown, when: "day", ...f };
-    return out;
+    // (truly elsewhere — over ~15 miles from where they sleep — so a neighborhood never counts as another place)
+    const f = p && kmBetween(p, point) > 25 ? await forecastAt(p, date, away) : null;
+    if (f) { out.also = { place: tripTown, when: "day", ...f }; return out; }
   }
   // …or a travel day: last night in another town (the morning there, tonight here)
   const last = here ? nightOf(stays, me, ymd(new Date(Date.parse(`${date}T00:00:00Z`) - 86_400_000))) : undefined;
