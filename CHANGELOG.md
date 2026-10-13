@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 11:15 PM in Japan) — Notes Keeps Your Words in View
+
+### Fixed
+- After the keyboard had been up elsewhere, iOS could leave its screen moved; in Notes the cursor then wasn't drawn and
+  the first letter threw the page to its foot, the box out of sight (Ken, 10:56 PM; swiping Wander away cured it). Now,
+  while the Notes box is being typed in on a phone, a move that throws the box out of sight with no finger on the screen
+  is put straight back and the cursor drawn again (at most six times per tap). iOS's small moves to keep the cursor above
+  the keyboard, and scrolling by hand, are untouched. The phone logs the numbers ("notes-caret") to see it act.
+  Where: NotesPage; server: routes/phoneReports.
+
 ## 2026-10-13 (Tuesday, 10:30 PM in Japan) — Scout's Box Clear of the iPhone's Keyboard Bar
 
 ### Fixed

@@ -27,6 +27,10 @@ const FIELDS: Record<string, Record<string, (v: unknown) => boolean>> = {
   // (and when the keyboard goes up or down — Ken, Oct 13 10:24: Scout's panel stuck near the top, the day bright below)
   "scout-caret": { when: oneOf("focus", "settled", "resize"), sy: NUM, vvTop: NUM, vvH: NUM, page: NUM, inner: NUM, boxTop: NUM, boxBottom: NUM,
     panelTop: NUM, panelBottom: NUM, active: (v) => typeof v === "boolean", selStart: NUM, holds: NUM },
+  // (the Notes box, tapped: where the phone thinks it is, and when Wander put the page back after iOS threw it — Ken,
+  // Oct 13 10:56 PM: no cursor, the page jumped to its bottom at the first letter)
+  "notes-caret": { when: oneOf("focus", "settled", "held"), sy: NUM, vvTop: NUM, vvH: NUM, inner: NUM, boxTop: NUM, boxBottom: NUM,
+    jump: NUM, holds: NUM },
   // (a paper's send that broke partway — Ken, Oct 13 10:01 JST: "Why? I have signal"; it worked the second time)
   paper: { result: oneOf("kept-after-retry", "failed-after-retries"), tries: NUM, kb: NUM, secs: NUM,
     online: (v) => typeof v === "boolean", hidden: (v) => typeof v === "boolean" },
