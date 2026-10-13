@@ -879,13 +879,14 @@ const tools: Anthropic.Tool[] = [
   // ── Papers kept from the trip (Oct 12, Ken: receipts and the like, by date, instead of carrying paper) ──────────────
   {
     name: "keep_paper",
-    description: "Keep the photo, picture or PDF they sent with THIS message as a paper of the trip — a receipt, a bill, a ticket, a booking — filed under the trip day it belongs to, so they needn't carry it. Use it when they ask to keep, save or file it (\"keep this\", \"save this receipt\"). Read it first. Give a title of a few words (\"Yōyōkaku bill\"), the trip day as YYYY-MM-DD (the day it was issued or paid; for a stay, its last night — the day before check-out — so it sits with where they stayed; the DAY BY DAY lines say where they were), and one or two plain sentences: what it is, the dates it covers (said as \"Oct 8–10\"), what the charges are for (a ryokan bill with no room charge on it: say the room isn't on it), the total as printed. Never a card, confirmation, reservation or passport number, a guest's name or a room number in the title or summary. Only the person and, for Ken and Larisa, each other, see it.",
+    description: "Keep the photo, picture or PDF they sent with THIS message as a paper of the trip — a receipt, a bill, a ticket, a booking — filed under the trip day it belongs to, so they needn't carry it. Use it when they ask to keep, save or file it (\"keep this\", \"save this receipt\"). Read it first. Give a title of a few words (\"Yōyōkaku bill\"), the trip day as YYYY-MM-DD (the day it was issued or paid; for a stay, its last night — the day before check-out — so it sits with where they stayed; the DAY BY DAY lines say where they were), and one or two plain sentences: what it is, the dates it covers (said as \"Oct 8–10\"), what the charges are for (a ryokan bill with no room charge on it: say the room isn't on it), the total as printed. Never a card, confirmation, reservation or passport number, a guest's name or a room number in the title or summary. Only the person and, for Ken and Larisa, each other, see it. When several files came with the message, one call per paper, each naming its own files by number in the order they were sent (files: [1], or [2, 3] for one paper's two pages). A file goes in two papers only when it shows both — one photo of tickets for two different days: keep it under each day, each paper's summary saying only its own tickets.",
     input_schema: {
       type: "object" as const,
       properties: {
         title: { type: "string" },
         date: { type: "string", description: "YYYY-MM-DD, a day of the trip" },
         summary: { type: "string" },
+        files: { type: "array", items: { type: "integer" }, description: "Which of the files sent with this message are this paper, numbered from 1 in the order sent. Needed when more than one was sent." },
       },
       required: ["title", "date", "summary"],
     },
@@ -5216,12 +5217,17 @@ RULES:
           } else {
             // (the phone sends each picture's small copy beside it; the files themselves were checked above)
             const raw = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
-            const files = [...(photo ? [{ mediaType: photo.mediaType, data: photo.data }] : []), ...sent.map((a, i) => ({ ...a, thumb: raw[i]?.thumb }))]
+            const all = [...(photo ? [{ mediaType: photo.mediaType, data: photo.data }] : []), ...sent.map((a, i) => ({ ...a, thumb: raw[i]?.thumb }))]
               .map((f) => P.paperFile(f)).filter((f): f is import("../services/papers.js").PaperFile => typeof f !== "string");
+            // (this paper's own files — Ken, Oct 13: two photos, a Yamabiko ticket and a Haruka ticket, and each was kept
+            // with both; with more than one file sent, the call says which are this paper)
+            const asked = Array.isArray(input.files) ? [...new Set((input.files as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= all.length))] : [];
+            const files = asked.length ? asked.map((n) => all[n - 1]) : all.length === 1 ? all : [];
             const days = await P.tripDays(tripId);
             const date = typeof input.date === "string" && days.some((d) => d.date === input.date) ? input.date : null;
             const title = String(input.title || "").trim().slice(0, 120) || "A paper";
-            if (!files.length) out = { error: "Nothing they sent with this message can be kept (a photo, a picture or a PDF). Ask them to attach it here and say keep it." };
+            if (!all.length) out = { error: "Nothing they sent with this message can be kept (a photo, a picture or a PDF). Ask them to attach it here and say keep it." };
+            else if (!files.length) out = { error: `${all.length} files came with this message. Call keep_paper once per paper, with files: the numbers (1 to ${all.length}, in the order sent) that are this paper.` };
             else {
               for (const [i, file] of files.entries()) {
                 await P.keepPaper({ tripId, travelerId: req.user.travelerId, authorName: req.user.displayName || "", file, dayDate: date,

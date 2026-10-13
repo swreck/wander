@@ -514,6 +514,15 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     }
   }, []);
 
+  // Where the bottom bar sits when it's placed from the screen's top (BottomNav, upright iPhone Home Screen app): the slim
+  // bar sits right on it — on its own "bottom" it floated mid-screen with it (Ken, Oct 13 10:53). Elsewhere, as before.
+  const [navTop, setNavTop] = useState<number | null>(() => (typeof window !== "undefined" ? (window as any).__wanderNavTop ?? null : null));
+  useEffect(() => {
+    const on = (e: Event) => setNavTop((e as CustomEvent).detail?.top ?? null);
+    window.addEventListener("wander:nav-top", on);
+    return () => window.removeEventListener("wander:nav-top", on);
+  }, []);
+
   // The page makes room for the bar, so it never sits on what you're looking at. Other bottom notices
   // wait while the bar shows (one floating layer at a time).
   const barShowing = docked && !open;
@@ -1541,7 +1550,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             else if (dy > 40) { setDocked(false); setReturnTo(null); }
           }}
           className="fixed inset-x-0 z-[55] bg-[#3a3128] text-white rounded-t-2xl shadow-[0_-4px_16px_rgba(0,0,0,0.18)] px-3 pt-1.5 pb-1"
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 57px)" }}
+          style={navTop != null && barHeight > 0 ? { top: navTop - barHeight, bottom: "auto" } : { bottom: "calc(env(safe-area-inset-bottom, 0px) + 57px)" }}
         >
           <button onClick={() => openPanel("read")} className="w-full min-h-[44px] text-left flex items-start gap-2 py-1.5" aria-label="Open the conversation with Scout" aria-describedby="scout-bar-words">
             <span className={`mt-[7px] w-2 h-2 rounded-full shrink-0 ${online ? "bg-green-400" : "bg-[#c8bba8]"}`} aria-hidden />

@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 11:10 AM in Japan) — Each Train Its Own Seats; Each Paper Its Own Photos; Scout's Bar Stays Down
+
+### Fixed
+- A ticket carrying two trains gave both the first train's seats: the YAMABIKO 146 home would have shown the 127's
+  "Car 10, seats 3-A and 3-B". Each train now takes the car and seats written after its own name. Where: train cards.
+- Two photos sent to Scout (a Yamabiko set and a Haruka set) were each kept with both photos. Scout now names which
+  photos are each paper; one photo of tickets for two days is kept under each day, each paper saying only its own
+  tickets. Ken's two mixed entries were put right (the wrong copies hidden, nothing deleted).
+- Scout's slim bar floated mid-screen after typing (Ken, 10:53 JST): on an upright iPhone Home Screen app the bottom bar
+  and the slim bar are now placed from the top by the phone's own screen height — normally the very same place.
+  Where: BottomNav, Scout's slim bar.
+
 ## 2026-10-13 (Tuesday, 11:05 AM in Japan) — Your Seat, From the Ticket You Kept
 
 ### Added
