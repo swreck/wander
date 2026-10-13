@@ -21,6 +21,7 @@ import {
 } from "../lib/tripNotes";
 import { isLanding, isFor, notLandedYet } from "../lib/guideDisplay";
 import { PapersKeep, PapersList } from "../components/Papers";
+import { phoneReport } from "../lib/phoneReport";
 
 type DayOption = { date: string; city: string | null; guided: boolean };
 /** A place a note can be about, with the trip days it covers (for its order and its heading) */
@@ -242,6 +243,74 @@ export default function NotesPage() {
     el.style.overflowY = el.scrollHeight > maxH ? "auto" : "hidden";
     if (el.selectionStart === el.value.length) el.scrollTop = el.scrollHeight;
   }, [text]);
+
+  // The page stays with the box while you type (Ken's iPhone, Oct 13 10:56 PM: after typing in Scout, iOS left its screen
+  // moved; in Notes the cursor wasn't drawn and the first letter threw the page to its foot, the box out of sight, until
+  // Wander was swiped away — "it will just annoy any other user, and they will never ask"). When the page moves with no
+  // finger on the screen and the box has gone out of sight, it's put straight back and the cursor drawn again — at most
+  // six times per tap. iOS's own small moves to keep the cursor above the keyboard leave the box in sight, so they stand;
+  // a scroll by hand is never undone. Phones only. What the phone saw goes to the server's log, numbers only.
+  useEffect(() => {
+    if (window.matchMedia?.("(min-width: 640px)").matches) return;
+    let heldAt: number | null = null, holds = 0, sent = 0, fingerAt = 0, putBackAt = 0, byHandOut = false;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const tell = (when: "focus" | "settled" | "held", jump = 0) => {
+      const el = boxRef.current, vv = window.visualViewport;
+      if (!el || sent >= 6) return;
+      sent++;
+      const r = el.getBoundingClientRect();
+      phoneReport("notes-caret", { when, sy: Math.round(window.scrollY), vvTop: Math.round(vv?.offsetTop ?? -1), vvH: Math.round(vv?.height ?? -1),
+        inner: window.innerHeight, boxTop: Math.round(r.top), boxBottom: Math.round(r.bottom), jump: Math.round(jump), holds });
+    };
+    const onFocus = (e: FocusEvent) => {
+      if (e.target !== boxRef.current) return;
+      heldAt = window.scrollY; holds = 0; sent = 0; byHandOut = false;
+      tell("focus");
+      clearTimeout(settle);
+      settle = setTimeout(() => tell("settled"), 900);
+    };
+    const onBlur = (e: FocusEvent) => { if (e.target === boxRef.current) heldAt = null; };
+    // (a finger on the screen, or its fling still running, or a wheel: the person is scrolling. A touch on the box itself
+    // isn't — the tap that starts typing counted for 1.5 s, and Ken's throw came at the first letter: verify42)
+    const onTouch = (e: Event) => { if (!(e.target instanceof Node && boxRef.current?.contains(e.target))) fingerAt = Date.now(); };
+    const onScroll = () => {
+      const el = boxRef.current;
+      if (heldAt === null || !el || document.activeElement !== el || holds >= 6) return;
+      // (the scroll of our own putting back)
+      if (Date.now() - putBackAt < 150) return;
+      const r = el.getBoundingClientRect();
+      const seen = window.visualViewport?.height ?? window.innerHeight;
+      const inSight = r.bottom > 0 && r.top < seen;
+      if (Date.now() - fingerAt < 1500) { heldAt = window.scrollY; byHandOut = !inSight; return; }
+      // (the box taken out of sight by hand stays the person's choice until it's back in sight — a glide's tail or a
+      // smooth scroll was stalled: verify42)
+      if (inSight) { heldAt = window.scrollY; byHandOut = false; return; }
+      if (byHandOut) { heldAt = window.scrollY; return; }
+      const jump = window.scrollY - heldAt;
+      holds++;
+      putBackAt = Date.now();
+      window.scrollTo(0, heldAt);
+      requestAnimationFrame(() => { const at = el.selectionEnd ?? el.value.length; try { el.setSelectionRange(at, at); } catch { /* ignore */ } });
+      tell("held", jump);
+    };
+    document.addEventListener("focusin", onFocus);
+    document.addEventListener("focusout", onBlur);
+    window.addEventListener("touchstart", onTouch, { passive: true });
+    window.addEventListener("touchmove", onTouch, { passive: true });
+    window.addEventListener("touchend", onTouch, { passive: true });
+    window.addEventListener("wheel", onTouch, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      clearTimeout(settle);
+      document.removeEventListener("focusin", onFocus);
+      document.removeEventListener("focusout", onBlur);
+      window.removeEventListener("touchstart", onTouch);
+      window.removeEventListener("touchmove", onTouch);
+      window.removeEventListener("touchend", onTouch);
+      window.removeEventListener("wheel", onTouch);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   // Wander's microphone: tap to start, tap to stop; the words go into the box after anything typed
   // (the app's one microphone, lib/voice.ts — shared with Scout, started on the tap itself)
