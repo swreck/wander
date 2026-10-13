@@ -859,6 +859,20 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // h: the visible height; kb: the keyboard's height; while typing, top: where the visible part of the screen starts
   // (the panel is placed from that, never from the page's height — see the effect below); page: the page's height
   const [vp, setVp] = useState<{ h: number; kb: number; top: number | null; page: number; shift: number } | null>(null);
+  // The strip the iPhone keeps for its clock and Dynamic Island (env(safe-area-inset-top); 0 elsewhere). Scout's panel
+  // never reaches into it: full size with the keyboard up, its top (and the button to make it smaller) sat 8 pt from the
+  // screen's top, under the clock, out of reach (Ken, Oct 13 11:51: "expanded scout and couldn't shrink again")
+  const [safeTop] = useState(() => {
+    if (typeof document === "undefined") return 0;
+    try {
+      const probe = document.createElement("div");
+      probe.style.cssText = "position:fixed;top:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top, 0px)";
+      document.body.appendChild(probe);
+      const v = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+      probe.remove();
+      return Math.round(v);
+    } catch { return 0; }
+  });
   // Which answer was just copied (Copy under each answer — Ken, Oct 4: a long answer he wanted elsewhere couldn't be
   // selected or copied)
   const [copied, setCopied] = useState<number | null>(null);
@@ -1619,7 +1633,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const typingTop = vp?.top ?? null;
   const phoneH = keyboardUp
     // With the keyboard up the half sheet keeps a strip of the page in view (the full one uses it all)
-    ? (size === "full" ? Math.round(visibleH - 8) : Math.round(Math.min(visibleH - 8, Math.max(260, visibleH * 0.72))))
+    // (its top always below the clock's strip, where the button to make it smaller can be reached)
+    ? (size === "full" ? Math.round(visibleH - safeTop - 8) : Math.round(Math.min(visibleH - safeTop - 8, Math.max(260, visibleH * 0.72))))
     : size === "full" ? Math.round(visibleH * 0.9) : Math.round(visibleH * 0.58);
   const wideKbH = Math.round(Math.min(500, visibleH - 24));
   const sheetStyle: CSSProperties = wide ? (keyboardUp && typingTop !== null
