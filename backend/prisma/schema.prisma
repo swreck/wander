@@ -731,6 +731,10 @@ model TripPhrase {
   romaji    String
   addedBy   String   @map("added_by")
   createdAt DateTime @default(now()) @map("created_at")
+  // "Remove" by whoever added it or the trip's organizer: off everyone's card, never deleted; Put back undoes it
+  // (Ken, Oct 13: "Need to be able to remove phrases" — the Maybes rule)
+  removedAt DateTime? @map("removed_at")
+  removedBy String?   @map("removed_by")
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 

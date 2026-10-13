@@ -2,6 +2,30 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 2:55 PM in Japan) — Your Own Phrase Card; Scout Keeps What You Ask It To
+
+### Added
+- The phrase card has **Edit**: ↑ and ↓ to move a phrase, **Remove**, and a Removed list with **Put back**. Ken (Oct 13):
+  "Need to be able to remove phrases. And to rearrange the order. No need to designate original or not." · "Anything
+  added by one adds to bottom for others no matter where placed by the person adding it. It goes to top for the one
+  who adds it." Each person's order is their own. A phrase you added (any added one, for the trip's organizer) comes
+  off everyone's card when you remove it; anything else comes off only yours (the Maybes rule). Nothing is deleted.
+  One list: no "Added on this trip", no "added by". Where: the 日 card (PhraseCard), routes/phrases.ts,
+  services/phrasePrefs.ts; trip_phrases.removed_at/removed_by. SPEC UPDATE NEEDED.
+- Scout arranges the card in words (arrange_my_phrases): "put Sumimasen first", "take Konnichiwa off it", "bring it
+  back", by the same rules. Ken: "Good job ensuring scout can reorder like a user."
+- "Remember this" for Scout's own answer: kept in your Notes word for word, marked "kept from Scout" (keep_in_my_notes
+  fromScout); Scout sees what it kept with every question and uses it when you ask for options. Ken, Oct 13: "Can you
+  remember all that for when I ask for options each day?" Where: Notes ("· kept from Scout"), Scout.
+
+### Fixed
+- Scout reached for April's "learnings" tool when asked to remember, and it never saved anything; it's withdrawn.
+- Scout promised to hold a list "as long as this conversation runs"; it sees only the last 10 messages of today's
+  conversation, and now says what lasts is your Notes.
+- Scout added "not feeling well" to the card four ways in one morning; a second way of saying what's already there is
+  added only when asked for.
+- The old phrase delete deleted for good, by anyone on the trip; it now hides by the same rule (nothing called it).
+
 ## 2026-10-13 (Tuesday, 2:25 PM in Japan) — Today's Weather Under the Dates; Help for People Already In
 
 ### Changed

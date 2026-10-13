@@ -138,7 +138,7 @@ router.get("/trip/:tripId/export", async (req: AuthRequest, res) => {
     const head = `${n.city || "Japan overall"}${day ? ` · ${dayWords(day)}` : ""}`;
     if (head !== lastDay) { lines.push(`## ${head}`, ""); lastDay = head; }
     const when = n.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: zone });
-    lines.push(`${when}${n.visibility === "trip" ? " · shared with the trip" : ""}${n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : ""}`);
+    lines.push(`${when}${n.visibility === "trip" ? " · shared with the trip" : ""}${n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : n.source === "scout-answer" ? " · kept from Scout" : ""}`);
     lines.push(n.text);
     if (n.text !== n.original) lines.push("", "As first saved:", n.original);
     if (n.tidied) lines.push("", "Tidied copy:", n.tidied);

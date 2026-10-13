@@ -136,15 +136,42 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   // The phrases added on this trip — by Scout ("add to phrases") or anyone — under the essentials. Scout told Ken "Both
   // are on the shared phrase card now" (Oct 13) and no screen showed them: they were saved and never drawn.
   const [tripId, setTripId] = useState<string | null>(null);
-  const [added, setAdded] = useState<{ id: string; english: string; romaji: string; addedBy: string }[]>([]);
+  // (removedAt: off everyone's card — sent only to those who may put it back; mayRemoveForAll: this person added it, or
+  // is the trip's organizer — the Maybes rule)
+  type Added = { id: string; english: string; romaji: string; addedBy: string; removedAt?: string | null; mayRemoveForAll?: boolean };
+  const [added, setAdded] = useState<Added[]>([]);
+  // This person's own card: phrases taken off it and their order (Ken, Oct 13: "Need to be able to remove phrases. And to
+  // rearrange the order. No need to designate original or not.") — theirs alone, kept on the server with their settings
+  // (services/phrasePrefs) and on the phone so the card draws at once. Taken off is hidden, never deleted.
+  const [mine, setMine] = useState<{ order: string[]; hidden: string[] }>({ order: [], hidden: [] });
+  const [editing, setEditing] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
   useEffect(() => {
     if (!open || !tripId) return;
     let live = true;
-    api.get<{ id: string; english: string; romaji: string; addedBy: string }[]>(`/phrases/trip/${tripId}`)
+    try { const c = JSON.parse(localStorage.getItem(`wander:phrase-mine:${tripId}`) || "null"); if (c?.order && c?.hidden) setMine(c); } catch { /* none kept */ }
+    api.get<Added[]>(`/phrases/trip/${tripId}`)
       .then((list) => { if (live && Array.isArray(list)) setAdded(list); })
       .catch(() => { /* no signal: the essentials only */ });
+    api.get<{ order: string[]; hidden: string[] }>(`/phrases/trip/${tripId}/mine`)
+      .then((m) => { if (live && Array.isArray(m?.order) && Array.isArray(m?.hidden)) { setMine(m); try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(m)); } catch { /* private window */ } } })
+      .catch(() => { /* no signal: this phone's copy */ });
     return () => { live = false; };
   }, [open, tripId]);
+  // (closed, the card is out of Edit)
+  useEffect(() => { if (!open) { setEditing(false); setSaveNote(null); } }, [open]);
+  const arrange = (next: { order: string[]; hidden: string[] }) => {
+    if (!tripId) return;
+    const was = mine;
+    setMine(next);
+    setSaveNote(null);
+    try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(next)); } catch { /* private window */ }
+    api.patch(`/phrases/trip/${tripId}/mine`, next).catch(() => {
+      setMine(was);
+      try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(was)); } catch { /* private window */ }
+      setSaveNote("That didn't save. Try again when you have signal?");
+    });
+  };
 
   // The one sheet opens when either button asks
   useEffect(() => {
@@ -242,6 +269,39 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   }
   if (!open) return null;
 
+  // The card's phrases as this person has arranged them: their order first, anything new after in its first order;
+  // the ones they took off apart (services/phrasePrefs keys the same way)
+  type Row = { key: string; local: string; pronunciation?: string; english: string; id?: string; forAll?: boolean; offForAll?: boolean };
+  const allRows: Row[] = [
+    ...activePhrases.phrases.map((p) => ({ key: `core:${activeCountry}:${p.english}`, local: p.local, pronunciation: p.pronunciation, english: p.english })),
+    ...(activeCountry === "japan" ? added.map((p) => ({ key: `p:${p.id}`, local: p.romaji, english: p.english, id: p.id, forAll: !!p.mayRemoveForAll, offForAll: !!p.removedAt })) : []),
+  ];
+  const byKey = new Map(allRows.map((r) => [r.key, r]));
+  const orderNow = [...mine.order.filter((k) => byKey.has(k)), ...allRows.map((r) => r.key).filter((k) => !mine.order.includes(k))];
+  const shown = orderNow.filter((k) => !mine.hidden.includes(k) && !byKey.get(k)!.offForAll).map((k) => byKey.get(k)!);
+  const removed = orderNow.filter((k) => mine.hidden.includes(k) || byKey.get(k)!.offForAll).map((k) => byKey.get(k)!);
+  // Remove: a phrase this person added (or any added one, for the organizer) off everyone's card; anything else off
+  // their own. Put back undoes either.
+  const setOffForAll = (id: string, off: boolean) => {
+    setAdded((list) => list.map((p) => (p.id === id ? { ...p, removedAt: off ? new Date().toISOString() : null } : p)));
+    setSaveNote(null);
+    api.post(`/phrases/${id}/${off ? "remove" : "put-back"}`, {}).catch(() => {
+      setAdded((list) => list.map((p) => (p.id === id ? { ...p, removedAt: off ? null : new Date().toISOString() } : p)));
+      setSaveNote("That didn't save. Try again when you have signal?");
+    });
+  };
+  const remove = (r: Row) => (r.id && r.forAll ? setOffForAll(r.id, true) : arrange({ order: orderNow, hidden: [...mine.hidden, r.key] }));
+  const putBack = (r: Row) => (r.offForAll && r.id ? setOffForAll(r.id, false) : arrange({ order: orderNow, hidden: mine.hidden.filter((k) => k !== r.key) }));
+  // (↑ / ↓ swap with the neighbour among the phrases shown)
+  const move = (key: string, by: -1 | 1) => {
+    const i = shown.findIndex((r) => r.key === key), j = i + by;
+    if (i < 0 || j < 0 || j >= shown.length) return;
+    const a = orderNow.indexOf(key), b = orderNow.indexOf(shown[j].key);
+    const order = [...orderNow];
+    [order[a], order[b]] = [order[b], order[a]];
+    arrange({ order, hidden: mine.hidden });
+  };
+
   // (with the screen moved, the foot sits that much lower on the page: at the screen's real foot)
   const footStyle = shift ? { bottom: `${(document.documentElement.clientHeight || window.innerHeight) - shift - screen.height}px` } : {};
   // Drawn on the page itself, above everything but Scout
@@ -262,6 +322,14 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5ddd0] shrink-0">
           <span className="text-sm font-medium text-[#3a3128]">Quick Phrases</span>
+          <span className="flex-1" />
+          {/* Arrange your own card: ↑ ↓ and Remove (dragging is unreliable in an iPhone web app) */}
+          <button
+            onClick={() => setEditing((e) => !e)}
+            className="min-h-[44px] px-3 text-sm text-[#514636] underline underline-offset-2"
+          >
+            {editing ? "Done" : "Edit"}
+          </button>
           <button
             onClick={() => setOpen(false)}
             aria-label="Close phrases"
@@ -302,26 +370,43 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
           className="flex-1 overflow-y-auto overscroll-contain px-4 py-2 space-y-1 min-h-0"
           style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
         >
-          {activePhrases.phrases.map((p, i) => (
-            <div key={i} className="py-2.5">
-              <div className="text-base font-medium text-[#3a3128]">
-                {p.local}
-                <span className="text-xs font-normal text-[#6b5d4a] ml-1.5">({p.pronunciation})</span>
+          {/* One list, in this person's order — the everyday phrases and those added on the trip alike */}
+          {shown.map((p, i) => (
+            <div key={p.key} className="py-1.5 flex items-center gap-1">
+              <div className="flex-1 min-w-0 py-1">
+                <div className="text-base font-medium text-[#3a3128]">
+                  {p.local}
+                  {p.pronunciation && <span className="text-xs font-normal text-[#6b5d4a] ml-1.5">({p.pronunciation})</span>}
+                </div>
+                <div className="text-xs text-[#6b5d4a]">{p.english}</div>
               </div>
-              <div className="text-xs text-[#6b5d4a]">{p.english}</div>
+              {editing && (
+                <>
+                  <button onClick={() => move(p.key, -1)} disabled={i === 0} aria-label={`Move ${p.english} up`}
+                    className="shrink-0 min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg text-[#514636] disabled:opacity-25 active:bg-[#f0ebe3]">↑</button>
+                  <button onClick={() => move(p.key, 1)} disabled={i === shown.length - 1} aria-label={`Move ${p.english} down`}
+                    className="shrink-0 min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg text-[#514636] disabled:opacity-25 active:bg-[#f0ebe3]">↓</button>
+                  <button onClick={() => remove(p)} aria-label={`Remove ${p.english}`}
+                    className="shrink-0 min-h-[44px] px-2 text-sm text-[#8a5a1a] active:bg-[#f0ebe3] rounded-lg">Remove</button>
+                </>
+              )}
             </div>
           ))}
-          {activeCountry === "japan" && added.length > 0 && (
+          {/* Taken off: only in Edit, each with Put back */}
+          {editing && removed.length > 0 && (
             <div className="pt-2 mt-1 border-t border-[#e5ddd0]">
-              <div className="text-xs uppercase tracking-wide text-[#6b5d4a] pt-1">Added on this trip</div>
-              {added.map((p) => (
-                <div key={p.id} className="py-2.5">
-                  <div className="text-base font-medium text-[#3a3128]">{p.romaji}</div>
-                  <div className="text-xs text-[#6b5d4a]">{p.english}{p.addedBy ? ` · added by ${p.addedBy}` : ""}</div>
+              <div className="text-xs text-[#6b5d4a] pt-1">Removed</div>
+              {removed.map((p) => (
+                <div key={p.key} className="py-1 flex items-center gap-2">
+                  <div className="flex-1 min-w-0 text-sm text-[#6b5d4a]">{p.local} <span className="text-xs">({p.english}) · {p.offForAll ? "off everyone's card" : "off your card"}</span></div>
+                  <button onClick={() => putBack(p)} aria-label={`Put back ${p.english}`}
+                    className="shrink-0 min-h-[44px] px-2 text-sm text-[#514636] underline underline-offset-2">Put back</button>
                 </div>
               ))}
             </div>
           )}
+          {editing && <p className="text-xs text-[#6b5d4a] pt-2 pb-1">Your order is yours alone. A phrase you added comes off everyone's card; any other comes off just yours.</p>}
+          {saveNote && <p className="text-xs text-[#8a5a1a] pt-1 pb-1" role="status">{saveNote}</p>}
         </div>
       </div>
     </>,

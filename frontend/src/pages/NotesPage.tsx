@@ -625,7 +625,7 @@ export default function NotesPage() {
                               ? <button onClick={() => navigate(`/day/${n.dayDate}`)} className="inline-block py-3 -my-3 underline underline-offset-2">{dayWords(n.dayDate)}</button>
                               : new Date(n.createdAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                             {` · ${whenOf(n)} · ${n.visibility === "trip" ? (n.mine ? "Shared with the trip" : "shared with the trip") : "Just you"}`}
-                            {n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : ""}
+                            {n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : n.source === "scout-answer" ? " · kept from Scout" : ""}
                             {n.editedAt ? " · changed" : ""}
                           </p>
                           {isEditing ? (
