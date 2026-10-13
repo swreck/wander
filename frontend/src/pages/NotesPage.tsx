@@ -256,7 +256,9 @@ export default function NotesPage() {
   const herePlace = (inJapan && cityOf(today)) || JAPAN_OVERALL;
   // (a note started from a day — Scout's evening question — is about that day's town)
   // (…and a day chosen in the box, other than today, likewise — the place follows the day unless one's chosen)
-  const dayPlace = day && day !== today ? cityOf(day) : params.get("day") ? cityOf(params.get("day")) : null;
+  // (the link's day only while it's still the chosen one: after a day page's note was saved, the next note — back on
+  // today — kept that day's town, "Oct 13 · Karatsu"; verify32)
+  const dayPlace = day && day !== today ? cityOf(day) : params.get("day") && day === params.get("day") ? cityOf(day) : null;
   const aboutPlace = place || dayPlace || herePlace;
 
   async function save() {

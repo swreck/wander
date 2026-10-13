@@ -2,6 +2,15 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 4:30 PM in Japan) — verify32's Fixes
+
+### Fixed
+- After a note from a day page, the next note on the same screen kept that day's town ("Oct 13 · Karatsu"); now it's
+  today and where you are. Where: NotesPage.
+- A future headline like "Kyoto day 2 - Rest" or "Departure" won't be taken for a town; a second place must also be in
+  Japan. Where: services/dayWeather.ts.
+- The rain amount stays beside its chance at 375 pt ("47% (1.91")" no longer wraps apart).
+
 ## 2026-10-13 (Tuesday, 4:10 PM in Japan) — Two-Place Weather, Fixed by verify31
 
 ### Fixed
