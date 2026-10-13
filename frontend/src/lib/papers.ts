@@ -122,8 +122,11 @@ export function seatOnTicket(papers: Paper[], train: string, date: string): { wo
   for (const p of papers) {
     if (p.dayDate !== date) continue;
     const text = `${p.title} ${p.summary}`;
-    if (!sameTrain.test(text)) continue;
-    const s = text.match(/\bcar\s*(\d{1,2})[,;]?\s*(?:seats?\s*)?(\d{1,2}\s*-?\s*[A-E](?:\s*(?:,|and|&)\s*\d{1,2}\s*-?\s*[A-E])*)/i);
+    const at = text.search(sameTrain);
+    if (at < 0) continue;
+    // (the car and seat written after this train's own name — one ticket can carry two trains: "Out: YAMABIKO 127 … Car
+    // 10, seats 3-A and 3-B. Back: YAMABIKO 146 … Car 10, seats 5-B and 5-C"; the first car on it isn't the return's)
+    const s = text.slice(at).match(/\bcar\s*(\d{1,2})[,;]?\s*(?:seats?\s*)?(\d{1,2}\s*-?\s*[A-E](?:\s*(?:,|and|&)\s*\d{1,2}\s*-?\s*[A-E])*)/i);
     if (!s) continue;
     const seat = s[2].replace(/\s*-\s*/g, "-").replace(/\s+(and|&)\s+/gi, " and ");
     return { words: `Car ${s[1]}, seat${/,|and/.test(seat) ? "s" : ""} ${seat}, on the ticket ${p.mine ? "you" : p.authorName} kept` };

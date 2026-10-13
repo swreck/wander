@@ -160,15 +160,25 @@ export default function BottomNav({ pendingChanges }: Props) {
       void root.offsetHeight;
       window.scrollTo(0, y);
     };
+    // Placed from the top by the phone's own screen height, always, on an upright iPhone Home Screen app (Ken, Oct 13
+    // 10:53: the bar and Scout's slim bar mid-screen after typing, while iOS reported the page its full height — the
+    // screen's top stayed right, its bottom came up short, and "bottom: 0" sat on that false bottom). Normally the very
+    // same place; Scout's slim bar is told where, to sit right above it.
+    const place = (top: number | null) => {
+      setPlacedAt(top);
+      (window as any).__wanderNavTop = top;
+      window.dispatchEvent(new CustomEvent("wander:nav-top", { detail: { top } }));
+    };
+    const byScreen = () => screen.height - (navRef.current?.offsetHeight || 90);
     const check = () => {
       // (an iPad, or a phone on its side: as before)
-      if (screen.width >= 700 || window.innerWidth !== screen.width) { setPlacedAt(null); return; }
+      if (screen.width >= 700 || window.innerWidth !== screen.width) { place(null); return; }
       // (the keyboard really is up: leave the bar where it is until typing ends)
       if (typing()) return;
       const short = screen.height - window.innerHeight;
       if (short < 40) {
         if (healedShort) { tell("measured-again-fixed-it", healedShort); healedShort = 0; }
-        setPlacedAt(null); healedAt = 0; placedFor = 0; return;
+        place(byScreen()); healedAt = 0; placedFor = 0; return;
       }
       if (healedAt !== window.innerHeight) {
         healedAt = window.innerHeight;
@@ -179,7 +189,7 @@ export default function BottomNav({ pendingChanges }: Props) {
         return;
       }
       if (placedFor !== window.innerHeight) { placedFor = window.innerHeight; healedShort = 0; tell("bar-placed-at-real-bottom", short); }
-      setPlacedAt(screen.height - (navRef.current?.offsetHeight || 90));
+      place(byScreen());
     };
     const soon = () => { clearTimeout(wait); wait = setTimeout(check, 350); };
     const onShow = () => { if (document.visibilityState === "visible") soon(); };
