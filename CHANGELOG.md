@@ -12,6 +12,10 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   this. On an upright iPhone Home Screen app, with nothing being typed in, the bar, the slim bar, Scout's panel and its
   dimmed backdrop are now placed for that move (0 normally: then nothing changes). The phone tells Wander's log when
   it acts ("placed-for-moved-screen"). Where: BottomNav, ChatBubble, lib/screenShift.ts. No SPEC change.
+- Scout's panel made full size with the keyboard up put its top 8 pt from the screen's top, under the iPhone's clock,
+  where its Close and "Make Scout small" buttons couldn't be reached (Ken, 11:51 JST: "expanded scout and couldn't
+  shrink again"). Its top now stays below the clock's strip at every size. Where: Scout's panel (ChatBubble). No SPEC
+  change.
 
 ## 2026-10-13 (Tuesday, 11:10 AM in Japan) — Each Train Its Own Seats; Each Paper Its Own Photos; Scout's Bar Stays Down
 
