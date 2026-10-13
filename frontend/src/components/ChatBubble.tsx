@@ -914,6 +914,33 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       document.removeEventListener("focusin", soon); document.removeEventListener("focusout", soon);
     };
   }, [open]);
+  // The page under Scout stays where it was while you type in Scout (Ken's iPhone, Oct 13 10:34: tapping the box, iOS
+  // scrolled the page underneath 380 pt to "reveal" a box that's pinned to the screen and needed no revealing — then put
+  // its Paste menu under the Dynamic Island and, with the keyboard gone, left Scout's panel high with the day bright
+  // below, all reckoned from the scrolled page). Put straight back, the panel is placed from an unscrolled page. Phones
+  // only; only while the box is being typed in; at most six times per tap. The page's own top bars are untouched —
+  // pinning the whole page would have lost their stickiness while Scout is open.
+  const pageHeldAt = useRef<number | null>(null);
+  const pageHolds = useRef(0);
+  useEffect(() => {
+    if (!open || window.matchMedia?.("(min-width: 640px)").matches) return;
+    const onFocus = (e: FocusEvent) => { if (e.target === inputRef.current) { pageHeldAt.current = window.scrollY; pageHolds.current = 0; } };
+    const onBlur = (e: FocusEvent) => { if (e.target === inputRef.current) pageHeldAt.current = null; };
+    const onScroll = () => {
+      const y = pageHeldAt.current;
+      if (y === null || document.activeElement !== inputRef.current || pageHolds.current >= 6) return;
+      if (Math.abs(window.scrollY - y) > 2) { pageHolds.current++; window.scrollTo(0, y); }
+    };
+    document.addEventListener("focusin", onFocus);
+    document.addEventListener("focusout", onBlur);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      document.removeEventListener("focusin", onFocus);
+      document.removeEventListener("focusout", onBlur);
+      window.removeEventListener("scroll", onScroll);
+      pageHeldAt.current = null;
+    };
+  }, [open]);
   // Where the iPhone thinks the box and the panel are — when the box is tapped, when the keyboard has settled, and when
   // the screen changes size (the keyboard going up or down) — numbers only, to the server's log (Ken, Oct 13: iOS's
   // Paste menu at the very top of the screen; at 10:24 Scout's panel stuck near the top with the day bright below).
@@ -929,7 +956,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       phoneReport("scout-caret", { when, sy: Math.round(window.scrollY), vvTop: Math.round(vv.offsetTop), vvH: Math.round(vv.height),
         page: Math.round(document.documentElement.clientHeight), inner: Math.round(window.innerHeight), boxTop: Math.round(r.top),
         boxBottom: Math.round(r.bottom), panelTop: Math.round(p?.top ?? -1), panelBottom: Math.round(p?.bottom ?? -1),
-        active: document.activeElement === el, selStart: el.selectionStart ?? -1 });
+        active: document.activeElement === el, selStart: el.selectionStart ?? -1, holds: pageHolds.current });
     };
     let t: ReturnType<typeof setTimeout> | null = null, rt: ReturnType<typeof setTimeout> | null = null;
     const onFocus = (e: FocusEvent) => {
