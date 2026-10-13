@@ -14,6 +14,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -300,6 +301,12 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     };
     return { first, last, tz, myFirst, on, planOn, deadlinesAhead };
   }, [data, me, doneMarks]);
+  // Where Home keeps the day's weather line, just under the trip's dates (Ken, Oct 13: "63‑74°F, rain 6%      Go to
+  // today ›" there, one line) — drawn from here, so it shows exactly when the Today card does
+  const [weatherSlot, setWeatherSlot] = useState<Element | null>(null);
+  // (the line comes with the Today card, after "Opening today…": the ? row moves down 44 pt as Home opens — layout
+  // shift 0.028 at 402 and 375, under the 0.1 bar; Oct 13)
+  useEffect(() => { setWeatherSlot(document.querySelector("[data-today-weather-slot]")); }, []);
 
   // While it loads, hold its place: the calendar used to sit at the top for half a second, then drop ~500px when this
   // arrived, under a thumb about to tap a day (round 12). A calm card in its place keeps everything below still.
@@ -769,8 +776,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     <section className={card}>
       <div>
         <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">Today · {dayLabel(today)}</h2>
-        {/* The day's weather, small, and the way into the day (Ken, Oct 13) */}
-        <TodayWeather tripId={tripId} date={today} japanToday={japanToday} onGo={() => openDay(today)} />
+        {/* The day's weather, small, and the way into the day — on Home just under the trip's dates (Ken, Oct 13) */}
+        {weatherSlot && createPortal(<TodayWeather tripId={tripId} date={today} japanToday={japanToday} onGo={() => openDay(today)} />, weatherSlot)}
         {/* A ticket this phone didn't tick at the pickup, on the morning it travels (delight audit) */}
         <TicketWarnings className="mt-2" list={untickedTickets(otherSources, today, me, (s) => railAudience(data.items, s.owner).ownerParty,
           (r, s) => { const a = railAudience(data.items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); },
