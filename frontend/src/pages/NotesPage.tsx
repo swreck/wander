@@ -197,11 +197,40 @@ export default function NotesPage() {
   zoneRef.current = zone;
   // Today on the trip's clock is the day a new note is about, when it's a trip day
   const today = tripToday(zone);
+  // (…but before 4 AM the night still belongs to the evening: the evening question opened at 11:56 PM, written at 12:01
+  // AM, moved to tomorrow as he wrote about tonight's dinner (verify37); and after a note saved at 12:01 AM the next one
+  // went under tomorrow (verify38). The one day a new note starts on, everywhere in Notes)
+  const noteDayOf = (tz: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - 4 * 3600_000));
+  const noteDay = noteDayOf(zone);
+  // (read again when Wander comes back to the front and once a minute — left open overnight, nothing drew Notes again, so
+  // the morning still had yesterday's date; verify33. It draws again only when that day changes, at 4 AM)
+  const [, setDayNow] = useState(noteDay);
+  useEffect(() => {
+    const look = () => setDayNow(noteDayOf(zoneRef.current));
+    const every = setInterval(look, 60_000);
+    document.addEventListener("visibilitychange", look);
+    window.addEventListener("focus", look);
+    return () => { clearInterval(every); document.removeEventListener("visibilitychange", look); window.removeEventListener("focus", look); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // (the day Wander set by itself, as against one picked in the box, a day page's link, or a kept draft's)
+  // (a link's day that is that day as Notes opens — Scout's evening question, today's day-page button — counts as
+  // Wander's: opened at 9:30 PM and left empty, the morning's note went under yesterday as the evening's answer; verify36)
+  const autoDay = useRef<string | null>(params.get("day") === noteDay ? noteDay : null);
   useEffect(() => {
     // (not over "No particular day", chosen in the box)
-    if (day || !days.length || noDayChosen.current) return;
-    if (days.some((d) => d.date === today)) setDay(today);
-  }, [days, today, day]);
+    if (!days.length || noDayChosen.current) return;
+    // (a day Wander set moves on with the trip's clock: Notes left open at 10 PM and picked up at 8 AM filed the morning's
+    // note under yesterday — verify33. Not while words are in the box: a note begun last night stays last night's)
+    if (day && (day !== autoDay.current || day === noteDay || text.trim())) return;
+    if (days.some((d) => d.date === noteDay)) { autoDay.current = noteDay; setDay(noteDay); }
+    else if (day) { autoDay.current = null; setDay(null); }
+    // (…and the address lets go of last night's day and the evening question)
+    const rest = new URLSearchParams(location.search);
+    if (day && (rest.has("day") || rest.has("from"))) {
+      rest.delete("day"); rest.delete("from");
+      navigate({ pathname: location.pathname, search: rest.toString() ? `?${rest}` : "" }, { replace: true });
+    }
+  }, [days, noteDay, day, text]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The box grows with the words and keeps the newest in view (as Scout's does)
   useEffect(() => {
@@ -252,13 +281,16 @@ export default function NotesPage() {
   }, [days]);
   // Where you are: once you've landed and it's a trip day, today's town; before that, after it, or at home, Japan overall
   // (not before your plane lands — verify 6: "Tokyo — where you are" at 8 AM in California, the morning Julie flies)
-  const inJapan = !!landsOn && today >= landsOn && !stillAway && days.some((d) => d.date === today);
-  const herePlace = (inJapan && cityOf(today)) || JAPAN_OVERALL;
+  // (on the note day too: at 1 AM on Oct 14 Julie, landing that afternoon, counted as landed and read "Tokyo" — verify39)
+  const inJapan = !!landsOn && noteDay >= landsOn && !stillAway && days.some((d) => d.date === noteDay);
+  const herePlace = (inJapan && cityOf(noteDay)) || JAPAN_OVERALL;
   // (a note started from a day — Scout's evening question — is about that day's town)
   // (…and a day chosen in the box, other than today, likewise — the place follows the day unless one's chosen)
   // (the link's day only while it's still the chosen one: after a day page's note was saved, the next note — back on
   // today — kept that day's town, "Oct 13 · Karatsu"; verify32)
-  const dayPlace = day && day !== today ? cityOf(day) : params.get("day") && day === params.get("day") ? cityOf(day) : null;
+  // (the note day, not the calendar's: after midnight the box is still on the evening's day, and Julie at home read
+  // "About: Tokyo" for it — verify38)
+  const dayPlace = day && day !== noteDay ? cityOf(day) : params.get("day") && day === params.get("day") ? cityOf(day) : null;
   const aboutPlace = place || dayPlace || herePlace;
 
   async function save() {
@@ -272,7 +304,7 @@ export default function NotesPage() {
     let aboutDay = day;
     if (!aboutDay && !noDayChosen.current) {
       if (!daysRef.current.length && daysReady.current) await Promise.race([daysReady.current, new Promise((r) => setTimeout(r, 3000))]);
-      const t = tripToday(zoneRef.current);
+      const t = noteDayOf(zoneRef.current);
       if (daysRef.current.some((d) => d.date === t)) { aboutDay = t; setDay(t); }
     }
     // What it's about, as chosen (or where you are); the day is the trip day it's written
@@ -308,11 +340,20 @@ export default function NotesPage() {
       setShareWithTrip(false);
       // …and about today: a kept draft about yesterday, saved this morning, left the next notes filed under yesterday
       // (tester k1)
-      const t = tripToday(zoneRef.current);
-      setDay(daysRef.current.some((d) => d.date === t) ? t : null);
+      const t = noteDayOf(zoneRef.current);
+      const next = daysRef.current.some((d) => d.date === t) ? t : null;
+      autoDay.current = next;
+      setDay(next);
       noDayChosen.current = false;
       // (the next note starts at where you are again)
       setPlace(null);
+      // …and the address forgets the day page's day and the evening question: a reload, or Back then Forward, brought
+      // the box back to "Fri, Oct 9 · Karatsu", and the next note was marked as the evening question's (verify33)
+      const rest = new URLSearchParams(location.search);
+      if (rest.has("day") || rest.has("from")) {
+        rest.delete("day"); rest.delete("from");
+        navigate({ pathname: location.pathname, search: rest.toString() ? `?${rest}` : "" }, { replace: true });
+      }
       // Kept on the phone though there's signal (a slow reply): try again shortly, and the waiting list catches up
       if ("queued" in r && navigator.onLine !== false) setTimeout(() => { replayQueue().then(() => load(tripId)).catch(() => { /* next time */ }); }, 3000);
     } catch (err) {

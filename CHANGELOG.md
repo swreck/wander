@@ -2,6 +2,36 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 4:40 PM in Japan) — When the Rain Comes (weather plan item 3)
+
+### Added
+- On a day up to 3 days ahead with a 30%+ chance of rain, the day page says when it's most likely: "90% chance of rain
+  (.09"), most likely 3–7 PM, with showers possible 8–10 AM". Also "until 10 AM", "from 6 PM", "likely through most of
+  the day", "on and off 8 AM to 6 PM". On today, only the hours still to come ("likely for the rest of the day";
+  nothing once it's past), worked out on the phone so a copy kept from the morning stays right with no signal. Each
+  place on a two-place day has its own hours.
+- How: an hour is "most likely" when the main forecast gives it a 50%+ chance, or two of Japan's, Europe's and the US
+  models put measurable rain in it; "showers possible" when one model alone puts 0.02"+ in it at a 25%+ chance (Japan's
+  own model had Mashiko's morning showers alone). Open-Meteo's hourly figures are for the hour before their time stamp
+  (verify34 caught every hour an hour late before release). Between 7 AM and 10 PM Japan time.
+- On a travel day, the town where the day starts gets its hours to 1 PM, and tonight's town from noon. Rain under way
+  says when it ends ("until 10 PM", verify35). Rain running past the 1 PM cut says "from 10 AM" or "for the rest of the
+  morning", never a made-up end (verify36).
+- Where: day page forecast lines (DayForecast). Not on Home: Ken asked for one line there. services/dayWeather.ts
+  (wetHours, showerHours), lib/forecast.ts (rainWhen). SPEC: weather section (SPEC UPDATE NEEDED).
+
+### Fixed (verify33)
+- A note could still be filed under a day it wasn't written for. After a day page's note, a reload (or Back then
+  Forward) put the box back on that day; now saving clears the day from the address. The evening question's mark is
+  cleared the same way, so the next note isn't filed as its answer.
+- Notes left open overnight kept yesterday's date for the morning's note. A date Wander set itself now moves on with
+  the trip's clock; a day picked by hand, a day page's day, or words already in the box keep theirs. Scout's evening
+  question (or today's day-page button) opened at night and left empty moves on too (verify36). Changed: before 4 AM
+  the night belongs to the evening — a new note, the next note after a save, and the overnight move all use the
+  evening's date until then, so two notes about tonight's dinner written after midnight both stay with tonight
+  (verify37, verify38). Where: NotesPage.
+- Two-word headlines with a plan word ("Rest Day", "Free Day", "Fly Home") are never taken for a town.
+
 ## 2026-10-13 (Tuesday, 4:30 PM in Japan) — verify32's Fixes
 
 ### Fixed
