@@ -112,5 +112,24 @@ async function send(tripId: string, payload: unknown, kb: number): Promise<Kept 
   }
 }
 
+/** The car and seat on a kept ticket for this train that day ("NOZOMI 6 … Car 9 seat 11-D") — Ken, Oct 13 on the
+ *  train: "I know Scout knows my seat, and I can't read it, and it's not showing up." Only a paper kept for that day
+ *  that names the same train; its words as Wander read them. */
+export function seatOnTicket(papers: Paper[], train: string, date: string): { words: string } | null {
+  const m = train.match(/^\s*([A-Za-z]+)\s*(?:No\.?\s*|#)?(\d+)\b/);
+  if (!m) return null;
+  const sameTrain = new RegExp(`\\b${m[1]}\\s*(?:no\\.?\\s*|#)?${m[2]}\\b`, "i");
+  for (const p of papers) {
+    if (p.dayDate !== date) continue;
+    const text = `${p.title} ${p.summary}`;
+    if (!sameTrain.test(text)) continue;
+    const s = text.match(/\bcar\s*(\d{1,2})[,;]?\s*(?:seats?\s*)?(\d{1,2}\s*-?\s*[A-E](?:\s*(?:,|and|&)\s*\d{1,2}\s*-?\s*[A-E])*)/i);
+    if (!s) continue;
+    const seat = s[2].replace(/\s*-\s*/g, "-").replace(/\s+(and|&)\s+/gi, " and ");
+    return { words: `Car ${s[1]}, seat${/,|and/.test(seat) ? "s" : ""} ${seat}, on the ticket ${p.mine ? "you" : p.authorName} kept` };
+  }
+  return null;
+}
+
 /** "Oct 10" */
 export const shortDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
