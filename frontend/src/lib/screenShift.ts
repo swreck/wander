@@ -11,6 +11,8 @@ export function screenShift(): number {
   if (screen.width >= 700 || window.innerWidth !== screen.width || Math.abs(vv.scale - 1) > 0.01) return 0;
   const a = document.activeElement as HTMLElement | null;
   if (a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.isContentEditable)) return 0;
+  // (any move inside the page itself, which can be several screens long — verify26: a long day page scrolled more than
+  // one screen down would otherwise have lost the bar off the screen again)
   const shift = Math.round(vv.offsetTop);
-  return shift > 1 && shift < screen.height ? shift : 0;
+  return shift > 1 && shift < Math.max(screen.height, document.documentElement.scrollHeight) ? shift : 0;
 }

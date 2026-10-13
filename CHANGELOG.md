@@ -16,6 +16,13 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   where its Close and "Make Scout small" buttons couldn't be reached (Ken, 11:51 JST: "expanded scout and couldn't
   shrink again"). Its top now stays below the clock's strip at every size. Where: Scout's panel (ChatBubble). No SPEC
   change.
+- On a long page scrolled more than one screen down, the bar could still be lost off the screen after the keyboard
+  (verify26); the allowance now covers the page's whole length. Where: lib/screenShift.ts.
+
+### Changed
+- Scout's slim bar (Scout made small) is the open panel's cream with dark words, no longer dark brown. Ken (Oct 13):
+  "change to dark is confusing. So please keep scout color same at all three sizes." Where: Scout's slim bar.
+  No SPEC change (SPEC doesn't describe the slim bar).
 
 ## 2026-10-13 (Tuesday, 11:10 AM in Japan) — Each Train Its Own Seats; Each Paper Its Own Photos; Scout's Bar Stays Down
 
