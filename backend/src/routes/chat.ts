@@ -3441,6 +3441,14 @@ export async function executeTool(
       const onCard = (await cardPhrases(input.tripId)).filter((p) => !p.removedAt);
       const twin = input.anotherWay === true ? null : onCard.find((p) => samePhrase(p.english, String(input.english || "")) || samePhrase(p.local, String(input.romaji || "")));
       if (twin) {
+        // (one they took off their own card: it's still on everyone's, so it comes back to theirs — verify30)
+        const meId = (user as any).travelerId as string | undefined;
+        const { phrasePrefsOf, savePhrasePrefs } = await import("../services/phrasePrefs.js");
+        if (meId && (await phrasePrefsOf(meId, input.tripId)).hidden.includes(twin.key)) {
+          const prefs = await phrasePrefsOf(meId, input.tripId);
+          await savePhrasePrefs(meId, input.tripId, { hidden: prefs.hidden.filter((k) => k !== twin.key) });
+          return { result: { backOnTheirCard: { english: twin.english, romaji: twin.local }, say: "It was on the card; they had taken it off theirs, and it's back on it now." }, actionDescription: `Back on your phrase card: ${twin.local}` };
+        }
         return { result: { alreadyOnCard: { english: twin.english, romaji: twin.local }, say: "Tell them it's already on the phrase card, as it is there." } };
       }
       const phrase = await prisma.tripPhrase.create({

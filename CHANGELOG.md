@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 3:45 PM in Japan) — Both Places' Weather When the Day Goes Somewhere Else
+
+### Added
+- When her plan takes you somewhere other than where you sleep, both forecasts show, each named, in the order the day
+  is lived. Ken (Oct 13): "staying at the Imperial Hotel, but the day plan is to go to Mashiko, so both weathers should
+  be there, even if it means an additional line of small text with the same standard spacing between lines. That
+  should always be true if you can identify a different location from the plan." A day trip in her plan for you ("Day
+  trip from Tokyo to Mashiko"; her initials before it — "KL day trip" — say whose) → "Mashiko: …" then "Tokyo: …"; a
+  travel day (last night in one town, tonight in another) → "Tokyo this morning: …" then "Nikko tonight: …". Where:
+  Home's line under the dates (a second line, 4 pt below), the day page's forecast (two lines). services/dayWeather.ts
+  (also, town), lib/forecast, TodayWeather, DayForecast. SPEC UPDATE NEEDED.
+
+### Fixed
+- Asking Scout to add a phrase you'd taken off your own card puts it back on yours (verify30).
+
 ## 2026-10-13 (Tuesday, 3:15 PM in Japan) — Scout in Notes' View; Export With or Without; Tighter Weather Line
 
 ### Added
