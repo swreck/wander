@@ -4,6 +4,7 @@
  * routes/papers.ts, services/papers.ts.
  */
 import { api } from "./api";
+import { phoneReport } from "./phoneReport";
 
 export interface Paper {
   id: string; title: string; summary: string; dayDate: string | null; town: string | null; authorName: string;
@@ -64,14 +65,50 @@ export async function keepPaperFile(tripId: string, file: File): Promise<{ paper
   // verify21) — and never "Reading it…" for ever: the server gives up reading at 45 s and keeps it as it is
   const d = new Date();
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return Promise.race([
+    send(tripId, { file: body, today }, Math.round(((body.data.length + (body.thumb?.length || 0)) * 0.75) / 1024)),
+    new Promise<{ error: string }>((ok) => setTimeout(() => ok({ error: "That took too long — the signal may be weak. If it was kept, it shows below in a moment; if not, try again." }), 90_000)),
+  ]);
+}
+
+type Kept = { paper: { id: string; title: string; dayDate: string | null; town: string | null; read: boolean }; alsoKept?: { by: string; title: string } | null };
+/** Send it — again, by itself, when the connection breaks partway (Ken, Oct 13 10:01 JST, full bars: "Wander couldn't
+ *  keep it just now — the signal may have dropped"; the server saw the send cut off mid-photo, and his second try
+ *  worked). A send cut off partway keeps nothing, so sending again can't make two. Up to three tries; while Wander is in
+ *  the background it waits to be back first. What happened goes to the server's log (numbers only). */
+async function send(tripId: string, payload: unknown, kb: number): Promise<Kept | { error: string }> {
+  const t0 = Date.now();
+  let hidden = false;
+  const seen = () => { if (document.visibilityState === "hidden") hidden = true; };
+  document.addEventListener("visibilitychange", seen);
+  const back = () => document.visibilityState === "visible" ? Promise.resolve() : new Promise<void>((ok) => {
+    const f = () => { if (document.visibilityState === "visible") { document.removeEventListener("visibilitychange", f); ok(); } };
+    document.addEventListener("visibilitychange", f);
+  });
+  const report = (result: "kept-after-retry" | "failed-after-retries", tries: number) => {
+    phoneReport("paper", { result, tries, kb, secs: Math.round((Date.now() - t0) / 1000), online: navigator.onLine !== false, hidden });
+  };
   try {
-    return await Promise.race([
-      api.post<{ paper: { id: string; title: string; dayDate: string | null; town: string | null; read: boolean }; alsoKept?: { by: string; title: string } | null }>(`/papers/trip/${tripId}`, { file: body, today }),
-      new Promise<{ error: string }>((ok) => setTimeout(() => ok({ error: "That took too long — the signal may be weak. If it was kept, it shows below in a moment; if not, try again." }), 90_000)),
-    ]);
-  } catch (e: any) {
-    // (Wander's own words when it answered; a dropped line says so plainly — never "Failed to fetch")
-    return { error: typeof e?.status === "number" && e?.body?.error ? e.body.error : "Wander couldn't keep it just now — the signal may have dropped. Try again in a moment." };
+    for (let tries = 1; ; tries++) {
+      try {
+        const r = await api.post<Kept>(`/papers/trip/${tripId}`, payload);
+        if (tries > 1) report("kept-after-retry", tries);
+        return r;
+      } catch (e: any) {
+        // (Wander answered: its own words, never tried again)
+        if (typeof e?.status === "number") return { error: e?.body?.error || "Wander couldn't keep that one. Try again in a moment." };
+        if (tries >= 3 || navigator.onLine === false) {
+          report("failed-after-retries", tries);
+          return { error: navigator.onLine === false
+            ? "No signal right now. Keep it again when there's signal — the paper stays on your phone meanwhile."
+            : "The paper didn't finish sending. Try again in a moment." };
+        }
+        await back();
+        await new Promise((ok) => setTimeout(ok, tries === 1 ? 1500 : 4000));
+      }
+    }
+  } finally {
+    document.removeEventListener("visibilitychange", seen);
   }
 }
 

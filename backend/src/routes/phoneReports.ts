@@ -20,6 +20,9 @@ const FIELDS: Record<string, Record<string, (v: unknown) => boolean>> = {
   tabbar: { result: oneOf("measured-again-fixed-it", "bar-placed-at-real-bottom"), short: NUM, page: NUM, phone: NUM,
     at: oneOf("/", "/now", "/ideas", "/notes", "/people", "/settings", "/whole-trip", "/history", "/profile", "/guide", "/day", "/checklist", "/city", "/story") },
   "scout-drop": { result: oneOf("answer-found", "answer-found-while-stalled", "not-found", "asked-again", "still-no-signal"), secs: NUM, noSignal: (v) => typeof v === "boolean", status: NUM },
+  // (a paper's send that broke partway — Ken, Oct 13 10:01 JST: "Why? I have signal"; it worked the second time)
+  paper: { result: oneOf("kept-after-retry", "failed-after-retries"), tries: NUM, kb: NUM, secs: NUM,
+    online: (v) => typeof v === "boolean", hidden: (v) => typeof v === "boolean" },
 };
 // (a phone acting normally sends a few a day; more than 30 in 10 minutes from one person is not a phone)
 const sent = new Map<string, number[]>();
