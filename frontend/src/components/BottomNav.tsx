@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { loadMaybeNews } from "../lib/maybesNews";
 import { phoneReport } from "../lib/phoneReport";
+import { screenShift } from "../lib/screenShift";
 
 interface Props {
   pendingChanges?: number;
@@ -169,7 +170,14 @@ export default function BottomNav({ pendingChanges }: Props) {
       (window as any).__wanderNavTop = top;
       window.dispatchEvent(new CustomEvent("wander:nav-top", { detail: { top } }));
     };
-    const byScreen = () => screen.height - (navRef.current?.offsetHeight || 90);
+    // (plus how far iOS has left the screen moved down the page — Ken's Home, Oct 13 11:29: the bar at 595 of 874, placed
+    // right for an unmoved screen; lib/screenShift. 0 normally. Told once a minute at most, to see it act on his phone.)
+    let toldShift = 0;
+    const byScreen = () => {
+      const shift = screenShift();
+      if (shift && Date.now() - toldShift > 60000) { toldShift = Date.now(); tell("placed-for-moved-screen", shift); }
+      return screen.height - (navRef.current?.offsetHeight || 90) + shift;
+    };
     const check = () => {
       // (an iPad, or a phone on its side: as before)
       if (screen.width >= 700 || window.innerWidth !== screen.width) { place(null); return; }
@@ -202,7 +210,15 @@ export default function BottomNav({ pendingChanges }: Props) {
     // no report at all, so iOS had shrunk the page without any of the events above; once scrolling stops, checked again)
     window.addEventListener("scroll", soon, { passive: true });
     document.addEventListener("visibilitychange", onShow);
+    // (the screen moved down the page, or back: placed again on the next frame, not after a pause)
+    let frame = 0;
+    const onView = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(check); };
+    window.visualViewport?.addEventListener("scroll", onView);
+    window.visualViewport?.addEventListener("resize", onView);
     return () => {
+      cancelAnimationFrame(frame);
+      window.visualViewport?.removeEventListener("scroll", onView);
+      window.visualViewport?.removeEventListener("resize", onView);
       clearTimeout(wait);
       window.removeEventListener("scroll", soon);
       window.removeEventListener("resize", soon);
