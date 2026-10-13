@@ -143,6 +143,22 @@ export function dayTripTown(titles: string[], me = ""): string | null {
   return null;
 }
 
+const inJapan = (q: { lat: number; lng: number }) => q.lat > 24 && q.lat < 46 && q.lng > 122 && q.lng < 146;
+
+/** A town in Japan that isn't where the plan has them, for Scout ("What's the weather in Kanazawa on Friday?") — the
+ *  same forecast and words as a day page, never a weather site's (Ken, Oct 13: "One unified and correct source"). Null
+ *  when the town can't be found in Japan, or there's no forecast for that day. */
+export async function townWeather(tripId: string, name: string, date: string, today: string): Promise<DayWeather | null> {
+  const away = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  if (away < 0 || away > 15 || !name.trim()) return null;
+  const city = await prisma.city.findFirst({ where: { tripId, name: { equals: name.trim(), mode: "insensitive" } }, select: { name: true, latitude: true, longitude: true } });
+  const p = city?.latitude != null && city.longitude != null ? { lat: city.latitude, lng: city.longitude } : await hotelPoint(`${name.trim()} Japan`);
+  if (!p || !inJapan(p)) return null;
+  const w = await forecastAt(p, date, away);
+  const town = short(city?.name || name.trim());
+  return w ? { place: town, atHotel: false, town, ...w } : null;
+}
+
 export async function dayWeather(tripId: string, person: string, date: string, today: string): Promise<DayWeather | null> {
   const away = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
   if (away < 0 || away > 15) return null;   // (past, or beyond Open-Meteo's 16 days)
@@ -181,7 +197,6 @@ export async function dayWeather(tripId: string, person: string, date: string, t
     const p = city?.latitude != null && city.longitude != null ? { lat: city.latitude, lng: city.longitude } : await hotelPoint(`${tripTown} Japan`);
     // (truly elsewhere — over ~15 miles from where they sleep — so a neighborhood never counts as another place)
     // (and inside Japan — "Rest Japan" found a point near Palo Alto; verify32)
-    const inJapan = (q: { lat: number; lng: number }) => q.lat > 24 && q.lat < 46 && q.lng > 122 && q.lng < 146;
     const f = p && inJapan(p) && kmBetween(p, point) > 25 ? await forecastAt(p, date, away) : null;
     if (f) { out.also = { place: tripTown, when: "day", ...f }; return out; }
   }

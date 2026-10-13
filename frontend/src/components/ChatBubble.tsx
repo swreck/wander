@@ -13,6 +13,7 @@ import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import { whereAmI, hereNow, type Here } from "../lib/whereAmI";
 import { canOfferBuzz, declineBuzz, turnOnBuzz, keepBuzzCurrent } from "../lib/buzz";
+import { keepDayForecast } from "../lib/forecast";
 
 /** Phone numbers in an answer can be tapped to call */
 let phoneKey = 0;
@@ -1194,6 +1195,12 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       if (!res.ok) throw Object.assign(new Error(`Request failed: ${res.status}`), { status: res.status });
       const data = await res.json();
       retryFilesRef.current = [];
+      // (the forecasts Scout read for its answer: kept as the day page's and Home's copy, so they show the numbers
+      // Scout just said — Ken, Oct 13: "One unified and correct source")
+      const forTrip = context?.tripId;
+      if (forTrip && Array.isArray(data.forecasts)) {
+        for (const f of data.forecasts) { try { if (f?.date && f.weather) keepDayForecast(forTrip, f.date, f.weather); } catch { /* the page fetches its own */ } }
+      }
 
       const shows = data.shows as ChatMessage["shows"];
       const goTo = shows?.find((s) => s.go);
