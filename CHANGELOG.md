@@ -2,6 +2,13 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 8:15 PM in Japan) — Kept Forecasts From an Older Wander
+
+### Fixed
+- Ken's phone showed no rain hours on Oct 14 right after the update: the old app had kept that day's forecast a minute
+  earlier, and the new one reused the copy for up to an hour. A kept copy is now reused only when it was kept by this
+  Wander; an older one is fetched again (still drawn at once, and still used with no signal). Where: lib/forecast.ts.
+
 ## 2026-10-13 (Tuesday, 4:40 PM in Japan) — When the Rain Comes (weather plan item 3)
 
 ### Added

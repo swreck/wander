@@ -16,6 +16,8 @@ export const rainInches = (x: number | null | undefined) =>
 
 export interface DayForecast {
   lo: number; hi: number; rain: number | null; code: number | null; at: string;
+  /** the shape of a copy kept on the phone (SHAPE) */
+  v?: number;
   /** the day's expected rain, inches */
   inches?: number | null;
   /** From Wander's server (dayForecastFor): where — that night's hotel, or the town — and how sure */
@@ -77,6 +79,10 @@ export function rainWhen(x: { wet?: [number, number][]; showers?: [number, numbe
 
 const KEY = "wander:forecast";
 const FRESH = 60 * 60_000;
+// (the shape of a kept copy: one kept by an older Wander is fetched again however fresh — on Oct 13 the old app kept
+// Oct 14 at 7:46 PM without the rain hours, the update came a minute later, and the new app showed that copy for an
+// hour with no hours in it; Ken's phone. Raise it whenever the server sends something new)
+const SHAPE = 2;
 
 const keyOf = (lat: number, lon: number, date: string) => `${lat.toFixed(2)},${lon.toFixed(2)}|${date}`;
 function readAll(): Record<string, DayForecast> {
@@ -94,7 +100,7 @@ export async function forecastFor(lat: number | null | undefined, lon: number | 
   if (lat == null || lon == null) return null;
   const saved = savedForecast(lat, lon, date);
   // (a copy from before the rain amount was asked for is fetched again — Oct 13)
-  if (saved && Date.now() - Date.parse(saved.at) < FRESH && "inches" in saved) return saved;
+  if (saved && Date.now() - Date.parse(saved.at) < FRESH && saved.v === SHAPE) return saved;
   try {
     const url =`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code`
       + `&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=${encodeURIComponent(zone)}&start_date=${date}&end_date=${date}`;
@@ -106,7 +112,7 @@ export async function forecastFor(lat: number | null | undefined, lon: number | 
       inches: typeof d.precipitation_sum?.[0] === "number" ? Math.round(d.precipitation_sum[0] * 100) / 100 : null, code: d.weather_code?.[0] ?? null, at: new Date().toISOString() };
     try {
       const all = readAll();
-      all[keyOf(lat, lon, date)] = f;
+      all[keyOf(lat, lon, date)] = { ...f, v: SHAPE };
       // (the newest few dozen only)
       const keys = Object.keys(all);
       for (const k of keys.slice(0, Math.max(0, keys.length - 40))) delete all[k];
@@ -130,7 +136,7 @@ export function savedDayForecast(tripId: string, date: string): DayForecast | nu
 }
 export async function dayForecastFor(tripId: string, date: string): Promise<DayForecast | null> {
   const saved = savedDayForecast(tripId, date);
-  if (saved && Date.now() - Date.parse(saved.at) < FRESH && "inches" in saved) return saved;
+  if (saved && Date.now() - Date.parse(saved.at) < FRESH && saved.v === SHAPE) return saved;
   try {
     const { weather: w } = await api.get<{ weather: (DayForecast & { place: string; atHotel: boolean }) | null }>(`/weather/trip/${tripId}/day/${date}`);
     if (!w) return saved;
@@ -139,7 +145,7 @@ export async function dayForecastFor(tripId: string, date: string): Promise<DayF
       ...(w.also ? { also: { place: w.also.place, when: w.also.when, lo: w.also.lo, hi: w.also.hi, rain: w.also.rain, inches: w.also.inches ?? null, code: w.also.code, models: w.also.models, outlook: w.also.outlook, ...(w.also.wet ? { wet: w.also.wet } : {}), ...(w.also.showers ? { showers: w.also.showers } : {}) } } : {}) };
     try {
       const all = readAll();
-      all[dayKey(tripId, date)] = f;
+      all[dayKey(tripId, date)] = { ...f, v: SHAPE };
       const keys = Object.keys(all);
       for (const k of keys.slice(0, Math.max(0, keys.length - 40))) delete all[k];
       localStorage.setItem(KEY, JSON.stringify(all));

@@ -54,7 +54,8 @@ is just as important. Perhaps more because 'you are the head of engineering crea
 faithfulness at its core.' This optimization would be clear to a human."
 - (Claude) What happened Oct 10: her pre-trip forecast showed as the day's weather for days. Ask two questions of every
   fact on screen: is her word kept exactly, and is this the best a traveler can have right now? Show both when they
-  differ (live first, hers labelled hers). Never trust "accepted" on an import: a sentence she typed in the hotel
+  differ (live first, hers labelled hers). Ken (Oct 13), when I proposed hiding a far-off rain amount: "Why hide rain if
+  a legitimate forecast has it? If it is real, use it. If not, don't. Scout does not lie." Never trust "accepted" on an import: a sentence she typed in the hotel
   column became a second hotel (Oct 4). Fix the reader with a general rule tested on her real cells; never her sheet.
 - Ken approved (Oct 11): everything she wrote is data Wander holds and Scout can answer from; how much screen work each
   piece gets is proportionate. I work out her meaning from her cells and ask Ken only when two readings would give a
@@ -129,6 +130,10 @@ The charter is in the global file. In Wander, these are also Ken's:
 - Any new kind of the travelers' personal data (location, photos, documents). Raise it in one line before building.
 
 Mine, for example: Scout's "Use my location" button, so "what's near me?" works for any wording.
+Ken (Oct 13): "Focus on what matters to users in Japan. Wander must be honest, no bugs, usable with no training and no
+manual. What it says about Japan to andy and Julie while in California is not important." (Claude) Fresh-agent rounds
+had chased what Julie's Notes said at 1 AM before she flew. Test and fix for people in Japan; edge cases at home don't
+hold a deploy.
 Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engineering.md.
 
 ## 8. Docs
