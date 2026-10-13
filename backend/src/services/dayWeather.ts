@@ -78,7 +78,8 @@ export function dayTripTown(titles: string[], me = ""): string | null {
     // (or her day plan's headline naming the place alone: "Kyoto day 4 - Shigaraki" — verify31; a headline that goes on,
     // "day 2 - Ginza shopping day (…)", isn't a place)
     const head = !m ? t.match(/\bday\s*\d+\s*[-–—]\s*([\p{Lu}][\p{L}'’-]+(?:\s[\p{Lu}][\p{L}'’-]+)?)\s*$/u) : null;
-    if (head) return head[1];
+    // (a headline word that isn't a place — "Kyoto day 2 - Rest", "Departure" — never; verify32)
+    if (head && !/^(Rest|Relax|Free|Departure|Depart|Arrival|Arrive|Travel|Packing|Shopping|Leisure|Explore|Recovery|Return|Home|Spa|Onsen|Hiking|Hike|Walk|Museums?|Temples?|Shrines?)$/i.test(head[1])) return head[1];
     if (!m) continue;
     const who = t.slice(0, m.index).match(/\b([A-Z]{2,4})\s*$/)?.[1];
     if (who && initial && !who.includes(initial)) continue;
@@ -125,7 +126,9 @@ export async function dayWeather(tripId: string, person: string, date: string, t
     const city = await prisma.city.findFirst({ where: { tripId, name: { equals: tripTown, mode: "insensitive" } }, select: { latitude: true, longitude: true } });
     const p = city?.latitude != null && city.longitude != null ? { lat: city.latitude, lng: city.longitude } : await hotelPoint(`${tripTown} Japan`);
     // (truly elsewhere — over ~15 miles from where they sleep — so a neighborhood never counts as another place)
-    const f = p && kmBetween(p, point) > 25 ? await forecastAt(p, date, away) : null;
+    // (and inside Japan — "Rest Japan" found a point near Palo Alto; verify32)
+    const inJapan = (q: { lat: number; lng: number }) => q.lat > 24 && q.lat < 46 && q.lng > 122 && q.lng < 146;
+    const f = p && inJapan(p) && kmBetween(p, point) > 25 ? await forecastAt(p, date, away) : null;
     if (f) { out.also = { place: tripTown, when: "day", ...f }; return out; }
   }
   // …or a travel day: last night in another town (the morning there, tonight here)

@@ -11,7 +11,8 @@ import { api } from "./api";
 /** The day's expected rain in inches, said right after the chance: " (.42\")" — Ken, Oct 13: "rain percentage is
  *  important, but especially in Japan, the quantity of rain matters… in parentheses right after the percentage" */
 export const rainInches = (x: number | null | undefined) =>
-  x == null ? "" : ` (${x >= 1 ? x.toFixed(2) : x === 0 ? "0" : "." + x.toFixed(2).split(".")[1]}")`;
+  // (a no-break space: at 375 pt "(1.91")" wrapped away from its "47%" — verify32)
+  x == null ? "" : ` (${x >= 1 ? x.toFixed(2) : x === 0 ? "0" : "." + x.toFixed(2).split(".")[1]}")`;
 
 export interface DayForecast {
   lo: number; hi: number; rain: number | null; code: number | null; at: string;
