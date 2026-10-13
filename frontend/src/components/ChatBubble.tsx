@@ -1633,6 +1633,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // While typing, the sheet's foot sits at the foot of the visible part of the screen (vp.top + vp.h), whatever the
   // page's height is reported as
   const typingTop = vp?.top ?? null;
+  // (on an iPhone the bar over the keyboard — ˄ ˅ ✓ — floats over the page, above what it reports as the keyboard, and
+  // covered Scout's box: Ken's screenshot, Oct 13 10:06 PM, with Paste thrown up by the clock. While typing, the box
+  // sits that much higher and the bar floats over empty cream. Measured there: the bar's top 51 pt above the panel's foot)
+  // (whenever the box is being typed in, not only when a keyboard is reported: an iPhone can report none while it's up,
+  // and the box then ended 38 pt into the bar — verify41. With no keyboard the worst is an empty band)
+  const iosBarLift = !wide && typingTop !== null && typeof navigator !== "undefined"
+    && (/iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)) ? 52 : 0;
   const phoneH = keyboardUp
     // With the keyboard up the half sheet keeps a strip of the page in view (the full one uses it all)
     // (its top always below the clock's strip, where the button to make it smaller can be reached)
@@ -2089,7 +2096,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         </div>
 
         {/* Input */}
-        <form onSubmit={handleFormSubmit} className="px-3 pt-3 pb-[max(env(safe-area-inset-bottom),12px)] border-t border-[#e5ddd0]">
+        <form onSubmit={handleFormSubmit} className="px-3 pt-3 pb-[max(env(safe-area-inset-bottom),12px)] border-t border-[#e5ddd0]"
+          style={iosBarLift ? { paddingBottom: 12 + iosBarLift } : undefined}>
           {listening && voiceQuiet && (
             <p role="status" className="text-[13px] text-[#6b5d4a] mb-2">
               I'm not hearing any words yet. Tap the red mic to stop, then try again — or type.

@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 10:30 PM in Japan) — Scout's Box Clear of the iPhone's Keyboard Bar
+
+### Fixed
+- Typing to Scout on an iPhone, the bar iOS floats over the page above the keyboard (˄ ˅ ✓) covered Scout's box, and
+  Paste appeared up by the clock (Ken's screenshot, 10:06 PM). While typing on an iPhone, the box now sits 52 pt higher
+  and the bar floats over empty space under it. Android, iPad and the keyboard down are unchanged. Where: Scout's panel
+  (ChatBubble).
+
 ## 2026-10-13 (Tuesday, 8:15 PM in Japan) — Kept Forecasts From an Older Wander
 
 ### Fixed
