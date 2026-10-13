@@ -914,6 +914,41 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       document.removeEventListener("focusin", soon); document.removeEventListener("focusout", soon);
     };
   }, [open]);
+  // Where the iPhone thinks the box and the panel are — when the box is tapped, when the keyboard has settled, and when
+  // the screen changes size (the keyboard going up or down) — numbers only, to the server's log (Ken, Oct 13: iOS's
+  // Paste menu at the very top of the screen; at 10:24 Scout's panel stuck near the top with the day bright below).
+  // Measured before anything in the keyboard area is changed; it changes nothing on screen. Six per opening at most.
+  useEffect(() => {
+    if (!open) return;
+    let sent = 0, focused = false;
+    const measure = (when: "focus" | "settled" | "resize") => {
+      const el = inputRef.current, vv = window.visualViewport;
+      if (!el || !vv || sent >= 6) return;
+      sent++;
+      const r = el.getBoundingClientRect(), p = panelRef.current?.getBoundingClientRect();
+      phoneReport("scout-caret", { when, sy: Math.round(window.scrollY), vvTop: Math.round(vv.offsetTop), vvH: Math.round(vv.height),
+        page: Math.round(document.documentElement.clientHeight), inner: Math.round(window.innerHeight), boxTop: Math.round(r.top),
+        boxBottom: Math.round(r.bottom), panelTop: Math.round(p?.top ?? -1), panelBottom: Math.round(p?.bottom ?? -1),
+        active: document.activeElement === el, selStart: el.selectionStart ?? -1 });
+    };
+    let t: ReturnType<typeof setTimeout> | null = null, rt: ReturnType<typeof setTimeout> | null = null;
+    const onFocus = (e: FocusEvent) => {
+      if (e.target !== inputRef.current || focused) return;
+      focused = true;
+      measure("focus");
+      t = setTimeout(() => measure("settled"), 900);
+    };
+    // (once the screen has stopped changing size: the panel as it was left)
+    const onResize = () => { if (rt) clearTimeout(rt); rt = setTimeout(() => measure("resize"), 600); };
+    document.addEventListener("focusin", onFocus);
+    window.visualViewport?.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("focusin", onFocus);
+      window.visualViewport?.removeEventListener("resize", onResize);
+      if (t) clearTimeout(t);
+      if (rt) clearTimeout(rt);
+    };
+  }, [open]);
   // The newest words stay in view when the keyboard comes up or the sheet changes size
   useEffect(() => {
     if (!open) return;

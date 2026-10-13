@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 10:40 AM in Japan) — A Cursor You Can See; Measuring Scout's Box on the iPhone
+
+### Fixed
+- The text cursor in every box is iOS's own blue; it was too faint to find on the beige boxes (Ken, Oct 13: "Cursor
+  there but faint!"). Where: every text box (index.css).
+
+### Added
+- Scout's panel tells the server's log, in numbers only, where the iPhone thinks its box and panel are — when the box
+  is tapped, when the keyboard settles, and when the keyboard goes up or down (Ken, Oct 13: iOS's Paste menu under the
+  Dynamic Island; Scout's panel stuck near the top with the day bright below). Nothing changes on screen; the fix is
+  built from these numbers. Where: ChatBubble; phone reports "scout-caret".
+
 ## 2026-10-13 (Tuesday late morning in Japan) — A Paper's Send That Breaks Partway Is Sent Again
 
 ### Fixed

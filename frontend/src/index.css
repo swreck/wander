@@ -26,6 +26,12 @@ body {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--scout-dock, 0px));
 }
 
+/* The text cursor in every box: iOS's own blue, the one people know — left to itself it was too faint to find on the
+   beige boxes (Ken, Oct 13: "Cursor there but faint!") */
+textarea, input, [contenteditable="true"] {
+  caret-color: #007aff;
+}
+
 /* A screen's top bar on an iPhone Home Screen app: the page already leaves the status bar's room (body, above), so the
    bar steps up into that room instead of leaving it a second time — Day, Notes, Ideas, People and Settings showed a
    59-pt empty band under the status bar (found Oct 1 2026 with Chrome's safe-area emulation). Sticky, it still covers
