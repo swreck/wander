@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 10:50 AM in Japan) — The Page Under Scout Holds Still; Phrases Scout Adds Are Shown
+
+### Fixed
+- The page jumbled after typing in Scout on the iPhone (Ken, Oct 13: iOS's Paste menu under the Dynamic Island,
+  Scout's panel left high with the day bright below, the bottom bar mid-screen — "The mixed page info is bad and
+  confusing"). His phone's numbers showed iOS scrolling the page underneath Scout 380 pt when the box was tapped, and
+  everything pinned to the screen was then placed from the scrolled page. While Scout's box is being typed in on a
+  phone, the page is put straight back. Where: Scout's panel (ChatBubble only).
+- The phrase card shows the phrases added on the trip ("Added on this trip", with who added them) under the
+  essentials. Scout said "Both are on the shared phrase card now" and no screen showed them. Where: Next → Phrases.
+
 ## 2026-10-13 (Tuesday, 10:40 AM in Japan) — A Cursor You Can See; Measuring Scout's Box on the iPhone
 
 ### Fixed

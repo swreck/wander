@@ -105,11 +105,24 @@ export default function PhraseCard({ inHeader = false, trip }: { inHeader?: bool
   const [tripCountries, setTripCountries] = useState<string[]>(() => (trip ? detectCountries(trip.name || "", trip.cities || []) : []));
   const [activeCountry, setActiveCountry] = useState<string>(() => (trip ? detectCountries(trip.name || "", trip.cities || [])[0] || "" : ""));
   const scrollRef = useRef<HTMLDivElement>(null);
+  // The phrases added on this trip — by Scout ("add to phrases") or anyone — under the essentials. Scout told Ken "Both
+  // are on the shared phrase card now" (Oct 13) and no screen showed them: they were saved and never drawn.
+  const [tripId, setTripId] = useState<string | null>(null);
+  const [added, setAdded] = useState<{ id: string; english: string; romaji: string; addedBy: string }[]>([]);
+  useEffect(() => {
+    if (!open || !tripId) return;
+    let live = true;
+    api.get<{ id: string; english: string; romaji: string; addedBy: string }[]>(`/phrases/trip/${tripId}`)
+      .then((list) => { if (live && Array.isArray(list)) setAdded(list); })
+      .catch(() => { /* no signal: the essentials only */ });
+    return () => { live = false; };
+  }, [open, tripId]);
 
   // Detect trip countries
   useEffect(() => {
     if (!user) return;
     function loadTripCountries(tripId: string) {
+      setTripId(tripId);
       api.get<any>(`/trips/${tripId}`).then((t) => {
         const countries = detectCountries(t?.name || "", t?.cities || []);
         setTripCountries(countries);
@@ -233,6 +246,17 @@ export default function PhraseCard({ inHeader = false, trip }: { inHeader?: bool
               <div className="text-xs text-[#6b5d4a]">{p.english}</div>
             </div>
           ))}
+          {activeCountry === "japan" && added.length > 0 && (
+            <div className="pt-2 mt-1 border-t border-[#e5ddd0]">
+              <div className="text-xs uppercase tracking-wide text-[#6b5d4a] pt-1">Added on this trip</div>
+              {added.map((p) => (
+                <div key={p.id} className="py-2.5">
+                  <div className="text-base font-medium text-[#3a3128]">{p.romaji}</div>
+                  <div className="text-xs text-[#6b5d4a]">{p.english}{p.addedBy ? ` · added by ${p.addedBy}` : ""}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>,
