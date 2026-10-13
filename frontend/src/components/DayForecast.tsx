@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { forecastFor, savedForecast, dayForecastFor, savedDayForecast, rainDisputed, rainLikely, clearSky, type DayForecast as F } from "../lib/forecast";
 
 /** "the Ritz-Carlton, Nikko", "the Imperial Hotel" — and "Shirakabeso", "Shiraume" as they are */
-const theHotel = (s: string) => (/^the /i.test(s) || !/hotel|ritz|four seasons|six senses|marriott|hyatt|hilton|westin|peninsula|mandarin|conrad|andaz|intercontinental|\baman\b/i.test(s) ? s : `the ${s}`);
+export const theHotel = (s: string) => (/^the /i.test(s) || !/hotel|ritz|four seasons|six senses|marriott|hyatt|hilton|westin|peninsula|mandarin|conrad|andaz|intercontinental|\baman\b/i.test(s) ? s : `the ${s}`);
 
 export default function DayForecast({ tripId, lat, lon, date, zone, place, herLine, her }: {
   /** with the trip: the forecast where this person sleeps that night, from Wander's server (lib/forecast dayForecastFor) */

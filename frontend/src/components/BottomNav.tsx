@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { loadMaybeNews } from "../lib/maybesNews";
 import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
+import PhraseCard from "./PhraseCard";
 
 interface Props {
   pendingChanges?: number;
@@ -293,6 +294,9 @@ export default function BottomNav({ pendingChanges }: Props) {
             </button>
           );
         })}
+        {/* The phrases, a small 日 at the bar's end on every screen (Ken, Oct 13: "a clear convenient but subtle way to
+            have phrase button always available"); nothing on a trip without phrases */}
+        <PhraseCard mode="bar" />
       </div>
     </nav>
   );

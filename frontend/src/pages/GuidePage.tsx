@@ -54,9 +54,13 @@ The arrows at the top move a day at a time. **‹ Back** goes back where you cam
   {
     id: "travel-days",
     title: "Next",
-    body: `The **Next** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Under it, **Get there** opens Apple Maps from where you're standing — walking, by train, or a route to show a taxi driver. Quick Japanese phrases are there too.
-
+    body: `The **Next** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Under it, **Get there** opens Apple Maps from where you're standing — walking, by train, or a route to show a taxi driver.
 Before the trip, Next shows the first day. After it, the last.`,
+  },
+  {
+    id: "phrases",
+    title: "Japanese Phrases",
+    body: `Tap **日** at the right end of the bar along the bottom, on any screen. The card has the phrases you'll use most, like "Excuse me" and "Check, please", with how to say each one. Ask Scout how to say something and it's added to the card for everyone.`,
   },
   {
     id: "chat",

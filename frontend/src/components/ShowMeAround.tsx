@@ -1,5 +1,5 @@
 /**
- * "Show me around": six steps, one for each button along the bottom — the screen dims, the button stays lit, and a
+ * "Show me around": six steps (seven with the phrases' 日), one for each button along the bottom — the screen dims, the button stays lit, and a
  * sentence or two says what it's for (Oct 2, Ken: "a little overlay you scroll through that points out 4-6 things on
  * the screen and then disappears"). Only when asked: the welcome card's "Show me around", Settings, and How Wander
  * works start it (window event "wander:show-around"). Nothing covers the trip uninvited.
@@ -21,6 +21,8 @@ const stepsFor = (mine: boolean) => {
     { tab: "Notes", text: "Write down anything you want to remember from the trip. Type or speak, and every word is kept." },
     { tab: "Actions", text: "Things to do soon, with their deadlines, like the last day to cancel a hotel for free." },
     { tab: "Scout", text: `Ask Scout anything about the trip, typed or spoken. Scout answers from ${her} Guide and shows which tab the answer came from. Scout reads photos and files too, like a menu, a sign or a PDF. Paste one in, or tap the paperclip.` },
+    // (the small 日 at the bar's end, Oct 13 — only on a trip that has phrases: shown only when it's on the screen)
+    { tab: "Phrases", optional: true, text: "Japanese phrases for the shop counter, the restaurant and the taxi, with how to say each one. Scout adds any you ask it for." },
   ];
 };
 
@@ -30,7 +32,9 @@ const same = (a: Box | null, b: Box | null) => !!a && !!b && a.left === b.left &
 export default function ShowMeAround() {
   const me = useAuth().user?.displayName ?? "";
   const mine = /^larisa$/i.test(me);
-  const steps = useMemo(() => stepsFor(mine), [mine]);
+  const all = useMemo(() => stepsFor(mine), [mine]);
+  // (the steps whose button is on the screen when the tour starts)
+  const [steps, setSteps] = useState(all);
   const [step, setStep] = useState<number | null>(null);
   const [lit, setLit] = useState<Box | null>(null);
   const [cardLeft, setCardLeft] = useState(16);
@@ -41,11 +45,12 @@ export default function ShowMeAround() {
   useEffect(() => {
     const start = () => {
       window.dispatchEvent(new Event("wander-close-chat"));
+      setSteps(all.filter((s) => !("optional" in s && s.optional) || document.querySelector(`nav [data-tour="${s.tab}"]`)));
       setStep(0);
     };
     window.addEventListener(SHOW_AROUND, start);
     return () => window.removeEventListener(SHOW_AROUND, start);
-  }, []);
+  }, [all]);
 
   // Where the lit button and the card are (kept only when they moved, so measuring never redraws in a loop)
   useLayoutEffect(() => {
