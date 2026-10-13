@@ -279,8 +279,10 @@ export default function NotesPage() {
       // (the scroll of our own putting back)
       if (Date.now() - putBackAt < 150) return;
       const r = el.getBoundingClientRect();
-      const seen = window.visualViewport?.height ?? window.innerHeight;
-      const inSight = r.bottom > 0 && r.top < seen;
+      // (the part of the page the person can see: iOS can move it — the visual viewport's own top and height; verify42)
+      const vv = window.visualViewport;
+      const seenTop = vv?.offsetTop ?? 0, seenBottom = seenTop + (vv?.height ?? window.innerHeight);
+      const inSight = r.bottom > seenTop && r.top < seenBottom;
       if (Date.now() - fingerAt < 1500) { heldAt = window.scrollY; byHandOut = !inSight; return; }
       // (the box taken out of sight by hand stays the person's choice until it's back in sight — a glide's tail or a
       // smooth scroll was stalled: verify42)
