@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 4:10 PM in Japan) — Two-Place Weather, Fixed by verify31
+
+### Fixed
+- A long first weather line on Home grew upward over the trip's dates (Oct 23 "Izu Peninsula …" at 402 pt): the lines
+  now grow downward; Go to today keeps 44 pt by reaching up over the dates.
+- "Kyoto day 4 - Shigaraki" (her day-plan headline naming the place alone) now gives Shigaraki's weather too; a second
+  place counts only when it's over ~15 miles from where you sleep, so a neighborhood never does.
+- On a travel day, from noon in Japan, Home leads with tonight's town (it led with "Nagoya this morning" at 3:47 PM).
+- Words: each line is the town's whole day, so Home just names the towns; the day page says "where the day starts" and
+  "where you sleep". Screen readers hear "Today's weather." once, not the town twice.
+
 ## 2026-10-13 (Tuesday, 4:00 PM in Japan) — How Much Rain
 
 ### Added

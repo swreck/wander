@@ -85,14 +85,14 @@ export default function DayForecast({ tripId, lat, lon, date, zone, place, herLi
           <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
             {icon(aDisputed ? "part" : rainLikely(a) ? "rain" : clearSky(a) ? "sun" : "part")}
             <span>
-              {a.outlook === "early outlook" ? "Early outlook" : "Forecast"} for {a.place}{a.when === "day" ? ", the day trip" : ", this morning"}: {a.lo}‑{a.hi}°F{a.rain !== null ? `, ${a.rain}% chance of rain${rainInches(a.inches)}` : ""}{aDisputed === "drier" ? ", though other forecasts show little rain" : aDisputed === "split" ? ", but the forecasts disagree" : ""}
+              {a.outlook === "early outlook" ? "Early outlook" : "Forecast"} for {a.place}{a.when === "day" ? ", the day trip" : ", where the day starts"}: {a.lo}‑{a.hi}°F{a.rain !== null ? `, ${a.rain}% chance of rain${rainInches(a.inches)}` : ""}{aDisputed === "drier" ? ", though other forecasts show little rain" : aDisputed === "split" ? ", but the forecasts disagree" : ""}
             </span>
           </p>
         )}
         <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
           {icon(disputed ? "part" : rainLikely(f) ? "rain" : clearSky(f) ? "sun" : "part")}
           <span>
-            {lead} {where}{a?.when === "morning" ? ", tonight" : ""}: {f.lo}‑{f.hi}°F{f.rain !== null ? `, ${f.rain}% chance of rain${rainInches(f.inches)}` : ""}{disputed === "drier" ? ", though other forecasts show little rain" : disputed === "split" ? ", but the forecasts disagree" : ""}
+            {lead} {where}{a?.when === "morning" ? ", where you sleep" : ""}: {f.lo}‑{f.hi}°F{f.rain !== null ? `, ${f.rain}% chance of rain${rainInches(f.inches)}` : ""}{disputed === "drier" ? ", though other forecasts show little rain" : disputed === "split" ? ", but the forecasts disagree" : ""}
             <span className="text-xs text-[#6b5d4a]"> · Open-Meteo, {fetched}</span>
           </span>
         </p>
