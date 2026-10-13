@@ -555,6 +555,9 @@ export default function TripOverview() {
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-36">{/* room at the bottom so nothing ends under the tab bar or Scout's bubble */}
         {/* Header and controls in one row, so Today starts near the top (delight audit: the trip's name, its source and
             its dates took a third of a small screen before Today; the designer and Andy both flagged it) */}
+        {/* The day's weather and "Go to today ›", one line under the trip's dates — filled by the Today card
+            (TripGlance → TodayWeather), only on the days it shows (Ken, Oct 13) */}
+        <div data-today-weather-slot />
         <div className="flex items-center gap-1 mb-3">
           {!hasMap && (
             <button

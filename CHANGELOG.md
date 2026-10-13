@@ -2,6 +2,19 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 2:25 PM in Japan) — Today's Weather Under the Dates; Help for People Already In
+
+### Changed
+- Home's weather moves out of the Today card to one line just under the trip's dates: "63‑73°F, rain 18%" with
+  "Go to today ›" at its right. Ken (Oct 13): "Can it be one line of: 63‑74°F, rain 6%      Go to today ›", in the
+  space between the dates and "? History ⚙ Ken". Shown only on the days the Today card is (your days in Japan), so it
+  needs no place name; a screen reader hears where it's measured. Where: Home (TripOverview slot, TodayWeather from
+  TripGlance). SPEC UPDATE NEEDED: Home carries today's weather under the trip's dates.
+- How Wander works: "Getting In" moved to the bottom as "A New Phone, or Someone New" (Ken: "They are in now and can't
+  read it unless they are in already!"); added today's weather and Go to today, the 日 phrases, the day's forecast,
+  sending Scout photos and files, keeping papers (who sees them, said per person), Use my location, Copy and Read
+  aloud. Where: How Wander works (GuidePage).
+
 ## 2026-10-13 (Tuesday, 12:30 PM in Japan) — Phrases From Every Screen; Today's Weather on Home
 
 ### Added
