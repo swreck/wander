@@ -1565,24 +1565,26 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             if (dy < -40) openPanel("read");
             else if (dy > 40) { setDocked(false); setReturnTo(null); }
           }}
-          className="fixed inset-x-0 z-[55] bg-[#3a3128] text-white rounded-t-2xl shadow-[0_-4px_16px_rgba(0,0,0,0.18)] px-3 pt-1.5 pb-1"
+          // (the open panel's own colours: Ken, Oct 13 — "change to dark is confusing. So please keep scout color same at
+          // all three sizes"; the shadow above sets it off from the page)
+          className="fixed inset-x-0 z-[55] bg-[#faf8f5] text-[#3a3128] border border-b-0 border-[#e5ddd0] rounded-t-2xl shadow-[0_-4px_16px_rgba(0,0,0,0.12)] px-3 pt-1.5 pb-1"
           style={navTop != null && barHeight > 0 ? { top: navTop - barHeight, bottom: "auto" } : { bottom: "calc(env(safe-area-inset-bottom, 0px) + 57px)" }}
         >
           <button onClick={() => openPanel("read")} className="w-full min-h-[44px] text-left flex items-start gap-2 py-1.5" aria-label="Open the conversation with Scout" aria-describedby="scout-bar-words">
-            <span className={`mt-[7px] w-2 h-2 rounded-full shrink-0 ${online ? "bg-green-400" : "bg-[#c8bba8]"}`} aria-hidden />
+            <span className={`mt-[7px] w-2 h-2 rounded-full shrink-0 ${online ? "bg-green-500" : "bg-[#c8bba8]"}`} aria-hidden />
             <span id="scout-bar-words" aria-live="polite" className="flex-1 min-w-0 text-[0.95rem] leading-snug line-clamp-2">{barText}</span>
             {/* A small handle: tap (or pull) to open the conversation */}
-            <svg className="shrink-0 mt-1 text-white/70" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg className="shrink-0 mt-1 text-[#6b5d4a]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M6 15l6-6 6 6" />
             </svg>
           </button>
           <div className="flex items-center gap-2">
             {returnTo && (
-              <button onClick={goBackToWhereIWas} className="shrink-0 min-h-[44px] px-3 rounded-xl bg-white/15 text-sm" aria-label="Back to where I was">
+              <button onClick={goBackToWhereIWas} className="shrink-0 min-h-[44px] px-3 rounded-xl bg-[#f0ebe3] text-sm text-[#3a3128]" aria-label="Back to where I was">
                 ↩ Back
               </button>
             )}
-            <button onClick={() => openPanel("type")} className="flex-1 min-w-0 min-h-[44px] px-3 rounded-xl bg-white/10 text-left text-sm text-white/80 truncate" aria-label="Ask Scout something">
+            <button onClick={() => openPanel("type")} className="flex-1 min-w-0 min-h-[44px] px-3 rounded-xl bg-[#f0ebe3] text-left text-sm text-[#6b5d4a] truncate" aria-label="Ask Scout something">
               Ask Scout…
             </button>
             {hasSpeechRecognition && (
@@ -1594,7 +1596,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                 </svg>
               </button>
             )}
-            <button onClick={() => { setDocked(false); setReturnTo(null); }} className="shrink-0 ml-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/85" aria-label="Close Scout">
+            <button onClick={() => { setDocked(false); setReturnTo(null); }} className="shrink-0 ml-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#6b5d4a]" aria-label="Close Scout">
               ✕
             </button>
           </div>
