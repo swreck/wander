@@ -135,9 +135,13 @@ Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engine
 
 - SPEC.md is the canonical product spec (v3.0, March 2026). Never edit it during feature work. Where Ken's later
   decisions differ (sheet is master, Scout can't change the Guide, show what changed), his decisions win.
+  Ken (Oct 13): "Product spec should be up to date!" (Claude) It is brought up to date as its own task, from the
+  CHANGELOG's "SPEC UPDATE NEEDED" entries, and kept current after each batch.
 - After any change in behaviour, add an entry at the TOP of CHANGELOG.md under the date: what changed (behaviour), where
   it lives in the UI, which SPEC sections it touches, and "SPEC UPDATE NEEDED" when behaviour now differs from SPEC.
   Use Added / Changed / Fixed / Removed headings as they apply. Never rewrite old entries.
 - Chat parity: "anything that can be done by the visual UI should be able to be done by the agent" (Apr), now only for
   Wander's own additions. When a UI action changes Wander-owned data, Scout gets a matching
   tool (definition, executeTool case, numbered prompt rule), and the reverse. Never for Guide-derived data.
+  Ken (Oct 13), on Scout arranging the phrase card in words: "Good job ensuring scout can reorder like a user. that is
+  big picture thinking. Keep it."
