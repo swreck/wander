@@ -16,7 +16,7 @@ const say = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US"
 
 /** Where a hotel is, by its name, from Google Places (Wander's own key) — once per hotel while the server runs */
 const points = new Map<string, { lat: number; lng: number } | null>();
-async function hotelPoint(query: string): Promise<{ lat: number; lng: number } | null> {
+export async function hotelPoint(query: string): Promise<{ lat: number; lng: number } | null> {
   if (points.has(query)) return points.get(query)!;
   const key = process.env.GOOGLE_MAPS_API_KEY;
   let p: { lat: number; lng: number } | null = null;

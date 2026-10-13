@@ -75,14 +75,28 @@ export default function DayForecast({ tripId, lat, lon, date, zone, place, herLi
     const disputed = rainDisputed(f);
     const lead = f.outlook === "early outlook" ? "Early outlook" : "Forecast";
     const where = f.place ? (f.atHotel ? `at ${theHotel(f.place)}` : `for ${f.place}`) : `for ${place}`;
+    // (and where her plan takes them that day, first, when it's somewhere else — Ken, Oct 13: "both weathers should be
+    // there"; a day trip, or where a travel day starts)
+    const a: (F & { place: string; when: "day" | "morning" }) | undefined = f.also ? { ...f.also, at: f.at } : undefined;
+    const aDisputed = a ? rainDisputed(a) : null;
     return (
-      <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
-        {icon(disputed ? "part" : rainLikely(f) ? "rain" : clearSky(f) ? "sun" : "part")}
-        <span>
-          {lead} {where}: {f.lo}‑{f.hi}°F{f.rain !== null ? `, ${f.rain}% chance of rain` : ""}{disputed === "drier" ? ", though other forecasts show little rain" : disputed === "split" ? ", but the forecasts disagree" : ""}
-          <span className="text-xs text-[#6b5d4a]"> · Open-Meteo, {fetched}</span>
-        </span>
-      </p>
+      <>
+        {a && (
+          <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
+            {icon(aDisputed ? "part" : rainLikely(a) ? "rain" : clearSky(a) ? "sun" : "part")}
+            <span>
+              {a.outlook === "early outlook" ? "Early outlook" : "Forecast"} for {a.place}{a.when === "day" ? ", the day trip" : ", this morning"}: {a.lo}‑{a.hi}°F{a.rain !== null ? `, ${a.rain}% chance of rain` : ""}{aDisputed === "drier" ? ", though other forecasts show little rain" : aDisputed === "split" ? ", but the forecasts disagree" : ""}
+            </span>
+          </p>
+        )}
+        <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
+          {icon(disputed ? "part" : rainLikely(f) ? "rain" : clearSky(f) ? "sun" : "part")}
+          <span>
+            {lead} {where}{a?.when === "morning" ? ", tonight" : ""}: {f.lo}‑{f.hi}°F{f.rain !== null ? `, ${f.rain}% chance of rain` : ""}{disputed === "drier" ? ", though other forecasts show little rain" : disputed === "split" ? ", but the forecasts disagree" : ""}
+            <span className="text-xs text-[#6b5d4a]"> · Open-Meteo, {fetched}</span>
+          </span>
+        </p>
+      </>
     );
   }
   // (no live forecast: her pre-trip line, said as hers — or the line's place kept while a first fetch is out)

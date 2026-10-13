@@ -24,24 +24,38 @@ export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripI
     return () => { live = false; };
   }, [tripId, date, over]);
 
-  const disputed = f ? rainDisputed(f) : null;
   // (said in full to a screen reader: where it's measured and that it's today's)
   const where = f?.place ? (f.atHotel ? ` at ${theHotel(f.place)}` : ` in ${f.place}`) : "";
+  // One line's words: the range, the rain, and how sure when the forecasts disagree
+  const words = (x: { lo: number; hi: number; rain: number | null; models?: DayForecast["models"] }) => {
+    const d = rainDisputed(x as DayForecast);
+    return <>{x.lo}‑{x.hi}°F{x.rain !== null ? `, rain ${x.rain}%` : ""}
+      {d === "drier" ? <span className="text-[#6b5d4a]"> (other forecasts drier)</span> : d === "split" ? <span className="text-[#6b5d4a]"> (forecasts differ)</span> : null}</>;
+  };
+  // Two places, when her plan takes them somewhere else that day (Ken, Oct 13: "staying at the Imperial Hotel, but the
+  // day plan is to go to Mashiko, so both weathers should be there, even if it means an additional line of small text
+  // with the same standard spacing between lines"): the day's place first, as the day is lived, each line named
+  const also = f?.also;
   return (
-    // (as close under the dates as the dates are under "From Larisa's Guide" — Ken, Oct 13: "reduce the space … to what
-    // is the standard between 'from Larisa's…' and dates". The line is one text line tall; "Go to today ›" keeps a
-    // fingertip's 44 pt by reaching up over the dates, which can't be tapped, never down over History and ⚙)
-    <div className="flex items-end justify-between gap-3 -mt-11 h-11">
-      <p className="text-sm leading-5 text-[#514636] min-w-0">
-        {f && <>
-          <span className="sr-only">Today's weather{where}: </span>
-          {f.lo}‑{f.hi}°F{f.rain !== null ? `, rain ${f.rain}%` : ""}
-          {disputed === "drier" ? <span className="text-[#6b5d4a]"> (other forecasts drier)</span> : disputed === "split" ? <span className="text-[#6b5d4a]"> (forecasts differ)</span> : null}
-        </>}
-      </p>
-      <button onClick={onGo} className="shrink-0 h-11 pt-6 px-1 text-sm leading-5 text-[#514636] underline underline-offset-2">
-        Go to today ›
-      </button>
-    </div>
+    <>
+      {/* (as close under the dates as the dates are under "From Larisa's Guide" — Ken, Oct 13: "reduce the space … to
+          what is the standard between 'from Larisa's…' and dates". The line is one text line tall; "Go to today ›" keeps a
+          fingertip's 44 pt by reaching up over the dates, which can't be tapped, never down over History and ⚙) */}
+      <div className="flex items-end justify-between gap-3 -mt-11 h-11">
+        <p className="text-sm leading-5 text-[#514636] min-w-0">
+          {f && (also
+            ? <><span className="sr-only">Today's weather in </span>{also.place}{also.when === "morning" ? " this morning" : ""}: {words(also)}</>
+            : <><span className="sr-only">Today's weather{where}: </span>{words(f)}</>)}
+        </p>
+        <button onClick={onGo} className="shrink-0 h-11 pt-6 px-1 text-sm leading-5 text-[#514636] underline underline-offset-2">
+          Go to today ›
+        </button>
+      </div>
+      {f && also && (
+        <p className="text-sm leading-5 text-[#514636] mt-1">
+          <span className="sr-only">and{where}, </span>{f.town || f.place}{also.when === "morning" ? " tonight" : ""}: {words(f)}
+        </p>
+      )}
+    </>
   );
 }

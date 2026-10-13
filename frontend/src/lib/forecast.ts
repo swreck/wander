@@ -12,6 +12,11 @@ export interface DayForecast {
   lo: number; hi: number; rain: number | null; code: number | null; at: string;
   /** From Wander's server (dayForecastFor): where — that night's hotel, or the town — and how sure */
   place?: string; atHotel?: boolean; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook";
+  /** the town of that night's stay, to name the line when there are two */
+  town?: string;
+  /** the day's other place, when her plan names one: a day trip ("day") or where a travel day starts ("morning") —
+   *  Ken, Oct 13: "both weathers should be there" */
+  also?: { place: string; when: "day" | "morning"; lo: number; hi: number; rain: number | null; code: number | null; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook" };
 }
 
 const KEY = "wander:forecast";
@@ -71,7 +76,8 @@ export async function dayForecastFor(tripId: string, date: string): Promise<DayF
   try {
     const { weather: w } = await api.get<{ weather: (DayForecast & { place: string; atHotel: boolean }) | null }>(`/weather/trip/${tripId}/day/${date}`);
     if (!w) return saved;
-    const f: DayForecast = { hi: w.hi, lo: w.lo, rain: w.rain, code: w.code, at: w.at, place: w.place, atHotel: w.atHotel, models: w.models, outlook: w.outlook };
+    const f: DayForecast = { hi: w.hi, lo: w.lo, rain: w.rain, code: w.code, at: w.at, place: w.place, atHotel: w.atHotel, models: w.models, outlook: w.outlook,
+      town: w.town, ...(w.also ? { also: { place: w.also.place, when: w.also.when, lo: w.also.lo, hi: w.also.hi, rain: w.also.rain, code: w.also.code, models: w.also.models, outlook: w.also.outlook } } : {}) };
     try {
       const all = readAll();
       all[dayKey(tripId, date)] = f;

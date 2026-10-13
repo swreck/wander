@@ -91,6 +91,13 @@ describe("removing and putting back", () => {
     const st = (await list(orgTok)).find((p) => p.english === "Where is the station?")!;
     expect(st.mayRemoveForAll).toBe(true);
   });
+  it("asking Scout to add a phrase you took off your card puts it back on yours (verify30)", async () => {
+    await executeTool("arrange_my_phrases", { tripId, phrase: "Sumimasen", action: "remove" }, other());
+    expect((await mine(otherTok)).hidden).toContain("core:japan:Excuse me");
+    const r = await executeTool("add_phrase", { tripId, english: "Excuse me", romaji: "Sumimasen" }, other());
+    expect(r.result.backOnTheirCard).toBeTruthy();
+    expect((await mine(otherTok)).hidden).not.toContain("core:japan:Excuse me");
+  });
   it("an everyday phrase comes off only your own card, and comes back", async () => {
     const r = await executeTool("arrange_my_phrases", { tripId, phrase: "Konnichiwa", action: "remove" }, org());
     expect(r.result.onlyTheirCard).toBe(true);
