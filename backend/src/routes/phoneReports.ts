@@ -20,6 +20,11 @@ const FIELDS: Record<string, Record<string, (v: unknown) => boolean>> = {
   tabbar: { result: oneOf("measured-again-fixed-it", "bar-placed-at-real-bottom"), short: NUM, page: NUM, phone: NUM,
     at: oneOf("/", "/now", "/ideas", "/notes", "/people", "/settings", "/whole-trip", "/history", "/profile", "/guide", "/day", "/checklist", "/city", "/story") },
   "scout-drop": { result: oneOf("answer-found", "answer-found-while-stalled", "not-found", "asked-again", "still-no-signal"), secs: NUM, noSignal: (v) => typeof v === "boolean", status: NUM },
+  // (where an iPhone thinks Scout's box is once it's tapped — Ken, Oct 13: no cursor, no spacebar cursor, iOS's Paste
+  // menu at the very top of the screen; measured before anything in the keyboard area is changed)
+  // (and when the keyboard goes up or down — Ken, Oct 13 10:24: Scout's panel stuck near the top, the day bright below)
+  "scout-caret": { when: oneOf("focus", "settled", "resize"), sy: NUM, vvTop: NUM, vvH: NUM, page: NUM, inner: NUM, boxTop: NUM, boxBottom: NUM,
+    panelTop: NUM, panelBottom: NUM, active: (v) => typeof v === "boolean", selStart: NUM },
   // (a paper's send that broke partway — Ken, Oct 13 10:01 JST: "Why? I have signal"; it worked the second time)
   paper: { result: oneOf("kept-after-retry", "failed-after-retries"), tries: NUM, kb: NUM, secs: NUM,
     online: (v) => typeof v === "boolean", hidden: (v) => typeof v === "boolean" },
