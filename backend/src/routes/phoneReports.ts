@@ -17,7 +17,9 @@ router.use(requireAuth);
 const oneOf = (...words: string[]) => (v: unknown) => typeof v === "string" && words.includes(v);
 const NUM = (v: unknown) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) < 100_000;
 const FIELDS: Record<string, Record<string, (v: unknown) => boolean>> = {
-  tabbar: { result: oneOf("measured-again-fixed-it", "bar-placed-at-real-bottom"), short: NUM, page: NUM, phone: NUM,
+  // (placed-for-moved-screen: iOS left the screen moved down the page after the keyboard, and the bar followed it —
+  // "short" is then how far; Ken's Home, Oct 13 11:29)
+  tabbar: { result: oneOf("measured-again-fixed-it", "bar-placed-at-real-bottom", "placed-for-moved-screen"), short: NUM, page: NUM, phone: NUM,
     at: oneOf("/", "/now", "/ideas", "/notes", "/people", "/settings", "/whole-trip", "/history", "/profile", "/guide", "/day", "/checklist", "/city", "/story") },
   "scout-drop": { result: oneOf("answer-found", "answer-found-while-stalled", "not-found", "asked-again", "still-no-signal"), secs: NUM, noSignal: (v) => typeof v === "boolean", status: NUM },
   // (where an iPhone thinks Scout's box is once it's tapped — Ken, Oct 13: no cursor, no spacebar cursor, iOS's Paste

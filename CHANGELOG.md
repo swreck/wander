@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 11:40 AM in Japan) — The Bars and Scout's Panel at the Screen's Foot After Typing
+
+### Fixed
+- After the keyboard had been up, the bottom bar, Scout's slim bar and Scout's panel sat high on the screen with the
+  page bright below (Ken, 11:29 JST: "After refresh, still broken!" — the bar at 595 of 874 on Home). His phone's own
+  numbers showed why: iOS leaves the screen moved down the page (288 pt at 10:56) after the keyboard goes, and
+  everything pinned to the screen is drawn that much too high; the earlier fixes measured the screen's height, never
+  this. On an upright iPhone Home Screen app, with nothing being typed in, the bar, the slim bar, Scout's panel and its
+  dimmed backdrop are now placed for that move (0 normally: then nothing changes). The phone tells Wander's log when
+  it acts ("placed-for-moved-screen"). Where: BottomNav, ChatBubble, lib/screenShift.ts. No SPEC change.
+
 ## 2026-10-13 (Tuesday, 11:10 AM in Japan) — Each Train Its Own Seats; Each Paper Its Own Photos; Scout's Bar Stays Down
 
 ### Fixed

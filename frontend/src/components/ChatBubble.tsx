@@ -10,6 +10,7 @@ import ScoutSources, { hasSources, citesGuide, type AnswerSources } from "./Scou
 import OnceTip, { useOnceTip } from "./OnceTip";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { phoneReport } from "../lib/phoneReport";
+import { screenShift } from "../lib/screenShift";
 import { whereAmI, hereNow, type Here } from "../lib/whereAmI";
 import { canOfferBuzz, declineBuzz, turnOnBuzz, keepBuzzCurrent } from "../lib/buzz";
 
@@ -857,7 +858,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const [size, setSize] = useState<"half" | "full">("half");
   // h: the visible height; kb: the keyboard's height; while typing, top: where the visible part of the screen starts
   // (the panel is placed from that, never from the page's height — see the effect below); page: the page's height
-  const [vp, setVp] = useState<{ h: number; kb: number; top: number | null; page: number } | null>(null);
+  const [vp, setVp] = useState<{ h: number; kb: number; top: number | null; page: number; shift: number } | null>(null);
   // Which answer was just copied (Copy under each answer — Ken, Oct 4: a long answer he wanted elsewhere couldn't be
   // selected or copied)
   const [copied, setCopied] = useState<number | null>(null);
@@ -873,7 +874,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     if (!open) return;
     const vv = window.visualViewport;
     if (!vv) return;
-    let last: { h: number; kb: number; top: number | null; page: number } | null = null;
+    let last: { h: number; kb: number; top: number | null; page: number; shift: number } | null = null;
     // The keyboard is up only while a box in Scout is being typed in. An iPhone can go on reporting a keyboard-sized
     // screen after the keyboard has gone (Ken, Oct 9: after typing a note, Scout's panel opened above the top of the
     // screen, lifted over a keyboard that wasn't there) — so without typing, it's the page's own full height.
@@ -888,12 +889,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       // page's own height can be misreported by an iPhone (Ken, Oct 10: typing to Scout, its panel went off the screen
       // and the tab bar floated mid-screen — placed from the page's height, the panel lands too high by the error)
       const next = typing
-        ? { h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)), top: Math.round(vv.offsetTop), page: Math.round(layoutH) }
-        : { h: Math.round(Math.max(vv.height, layoutH)), kb: 0, top: null, page: Math.round(layoutH) };
+        ? { h: Math.round(vv.height), kb: Math.max(0, Math.round(layoutH - vv.height - vv.offsetTop)), top: Math.round(vv.offsetTop), page: Math.round(layoutH), shift: 0 }
+        // (shift: how far iOS has left the screen moved down the page after the keyboard went — lib/screenShift; 0 normally)
+        : { h: Math.round(Math.max(vv.height, layoutH)), kb: 0, top: null, page: Math.round(layoutH), shift: screenShift() };
       // (only a real change — a long press to select an answer moves the viewport a little, and every update scrolled
       // the conversation to its end and put the cursor back in the box, which took the selection away: Ken, Oct 4,
       // "a long press gives tactile feedback but doesn't actually select anything")
-      if (last && last.h === next.h && last.kb === next.kb && last.top === next.top && last.page === next.page) return;
+      if (last && last.h === next.h && last.kb === next.kb && last.top === next.top && last.page === next.page && last.shift === next.shift) return;
       const keyboardMoved = !last || last.kb !== next.kb;
       last = next;
       setVp(next);
@@ -1627,11 +1629,16 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       height: keyboardUp ? `${wideKbH}px` : "min(500px, calc(100dvh - 150px))",
     }) : typingTop !== null
     ? { top: typingTop + visibleH - phoneH, bottom: "auto", height: phoneH }
+    // (the keyboard gone but the screen left moved down the page: the sheet's foot at the screen's real foot — Ken's
+    // iPhone, Oct 13: it ended at 586 of 874, the day bright below)
+    : vp?.shift ? { top: vp.shift + screen.height - phoneH, bottom: "auto", height: phoneH }
     : { bottom: 0, height: phoneH };
   // The dimmed page behind covers the visible part of the screen too while typing (it covered only the page's own
-  // height, which left the tab bar bright and floating — Ken's screenshot, Oct 10)
+  // height, which left the tab bar bright and floating — Ken's screenshot, Oct 10), and down to the screen's foot when
+  // iOS has left the screen moved
   const dimStyle: CSSProperties | undefined = typingTop !== null && vp
     ? { top: Math.min(0, typingTop), bottom: "auto", height: Math.max(vp.page, typingTop + visibleH) - Math.min(0, typingTop) }
+    : vp?.shift ? { top: 0, bottom: "auto", height: Math.max(vp.page, vp.shift + screen.height) }
     : undefined;
   // Scout's first word for this person (services/scoutHello.ts): the words, its question to tap, and Later / No thanks —
   // or, once answered, one line saying what happens now
