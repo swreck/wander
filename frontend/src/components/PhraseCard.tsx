@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import useBackToClose from "../hooks/useBackToClose";
+import { screenShift } from "../lib/screenShift";
 
 // ── Country phrase data ────────────────────────────────────────
 interface LocalPhrase {
@@ -91,20 +92,47 @@ function detectCountries(tripName: string, cities: { name: string; country?: str
   return [...found];
 }
 
+// The languages this phone last found for each trip, so the buttons draw at once
+const LANGS_KEY = "wander:phrase-langs";
+function rememberedCountries(): string[] {
+  try {
+    const id = localStorage.getItem("wander:last-trip-id");
+    const all = JSON.parse(localStorage.getItem(LANGS_KEY) || "{}");
+    return id && Array.isArray(all[id]) ? all[id].filter((k: unknown) => typeof k === "string" && k in COUNTRY_PHRASES) : [];
+  } catch { return []; }
+}
+function rememberCountries(tripId: string, countries: string[]) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LANGS_KEY) || "{}");
+    all[tripId] = countries;
+    localStorage.setItem(LANGS_KEY, JSON.stringify(all));
+  } catch { /* private window: found again next time */ }
+}
+
 // ── Component ──────────────────────────────────────────────────
 
-/** inHeader: a button in the Now screen's header, instead of floating over the day's cards. trip: the trip the screen
- *  already has, so the button is there in the header's first drawing (Oct 10: it arrived 1.5 s after the Next tab drew,
- *  widened the header row and moved the whole day down) */
-export default function PhraseCard({ inHeader = false, trip }: { inHeader?: boolean; trip?: { name: string; cities: { name: string; country?: string | null }[] } | null } = {}) {
+/** One phrase card for the whole app, opened from anywhere (Ken, Oct 13: "a clear convenient but subtle way to have
+ *  phrase button always available"). mode "sheet" (mounted once, beside the bottom bar) draws the card when asked;
+ *  "bar" is the small 日 at the bottom bar's right end, on every screen; "header" is Next's labelled "日 Phrases", where
+ *  people learn what the 日 means. Both buttons ask the one sheet ("wander-open-phrases"), so two cards never open.
+ *  trip: the trip the screen already has, so a button is there in its first drawing (Oct 10: it arrived 1.5 s after the
+ *  Next tab drew, widened the header row and moved the whole day down) */
+export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "sheet" | "bar" | "header"; inHeader?: boolean; trip?: { name: string; cities: { name: string; country?: string | null }[] } | null } = {}) {
+  const kind = mode || (inHeader ? "header" : "sheet");
   const { user } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   // The phone's Back closes the phrases instead of leaving Wander
   useBackToClose(open, () => setOpen(false));
-  const [tripCountries, setTripCountries] = useState<string[]>(() => (trip ? detectCountries(trip.name || "", trip.cities || []) : []));
-  const [activeCountry, setActiveCountry] = useState<string>(() => (trip ? detectCountries(trip.name || "", trip.cities || [])[0] || "" : ""));
+  // (first from the trip the screen has, else what this phone remembers for its trip — so the bar's 日 is there in the
+  // bar's first drawing; arriving 1–2 s later it slid all six tabs left under a thumb reaching for Scout, verify27)
+  const firstCountries = () => (trip ? detectCountries(trip.name || "", trip.cities || []) : rememberedCountries());
+  const [tripCountries, setTripCountries] = useState<string[]>(firstCountries);
+  const [activeCountry, setActiveCountry] = useState<string>(() => firstCountries()[0] || "");
   const scrollRef = useRef<HTMLDivElement>(null);
+  // How far iOS has left the screen moved down the page after a keyboard, read as the card opens (lib/screenShift) —
+  // so its foot is at the screen's foot, as the bar's and Scout's are
+  const [shift, setShift] = useState(0);
   // The phrases added on this trip — by Scout ("add to phrases") or anyone — under the essentials. Scout told Ken "Both
   // are on the shared phrase card now" (Oct 13) and no screen showed them: they were saved and never drawn.
   const [tripId, setTripId] = useState<string | null>(null);
@@ -118,13 +146,43 @@ export default function PhraseCard({ inHeader = false, trip }: { inHeader?: bool
     return () => { live = false; };
   }, [open, tripId]);
 
-  // Detect trip countries
+  // The one sheet opens when either button asks
+  useEffect(() => {
+    if (kind !== "sheet") return;
+    // (the button says which trip and languages it showed for: a button drawn before this card had read the trip opened
+    // nothing — Home and a day page, phrases-every.mjs, Oct 13)
+    const onOpen = (e: Event) => {
+      const d = (e as CustomEvent).detail as { countries?: string[]; tripId?: string | null } | undefined;
+      if (d?.countries?.length) {
+        setTripCountries((have) => (have.length ? have : d.countries!));
+        setActiveCountry((have) => (have && d.countries!.includes(have) ? have : d.countries![0]));
+      }
+      if (d?.tripId) setTripId((have) => have || d.tripId!);
+      setShift(screenShift());
+      setOpen(true);
+    };
+    window.addEventListener("wander-open-phrases", onOpen);
+    return () => window.removeEventListener("wander-open-phrases", onOpen);
+  }, [kind]);
+  // (and closes when the screen changes underneath it)
+  useEffect(() => { setOpen(false); }, [location.pathname]);
+
+  // Detect trip countries — again on each screen change, and once a moment after opening, whenever the remembered trip
+  // isn't the one already read (a phone's first opening: Home picks the trip after this first asked, and the bar's 日
+  // stayed hidden until Wander was opened again)
+  const loadedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!user) return;
+    const later = setTimeout(() => {
+      const now = localStorage.getItem("wander:last-trip-id");
+      if (now && now !== loadedFor.current) loadTripCountries(now);
+    }, 2500);
     function loadTripCountries(tripId: string) {
+      loadedFor.current = tripId;
       setTripId(tripId);
       api.get<any>(`/trips/${tripId}`).then((t) => {
         const countries = detectCountries(t?.name || "", t?.cities || []);
+        if (t?.id || t?.name) rememberCountries(tripId, countries);
         setTripCountries(countries);
         if (countries.length > 0 && !countries.includes(activeCountry)) {
           setActiveCountry(countries[0]);
@@ -132,8 +190,8 @@ export default function PhraseCard({ inHeader = false, trip }: { inHeader?: bool
       }).catch(() => {});
     }
     const lastTripId = localStorage.getItem("wander:last-trip-id");
-    if (lastTripId) loadTripCountries(lastTripId);
-    else {
+    if (lastTripId) { if (lastTripId !== loadedFor.current) loadTripCountries(lastTripId); }
+    else if (!loadedFor.current) {
       api.get<any>("/trips/active").then((t) => {
         if (t?.id) loadTripCountries(t.id);
       }).catch(() => {});
@@ -143,34 +201,23 @@ export default function PhraseCard({ inHeader = false, trip }: { inHeader?: bool
       if (id) loadTripCountries(id);
     };
     window.addEventListener("wander:data-changed", handleSwitch);
-    return () => window.removeEventListener("wander:data-changed", handleSwitch);
-  }, [user]);
+    return () => { clearTimeout(later); window.removeEventListener("wander:data-changed", handleSwitch); };
+  }, [user, location.pathname]);
 
-  if (!user || location.pathname === "/login") return null;
-  if (tripCountries.length === 0) return null;
+  if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
+  // (the bar draws before Wander knows who's signed in on a first opening — the room is kept then too)
+  if (!user) return kind === "bar" ? <span className="shrink-0 w-11" aria-hidden /> : null;
+  const activePhrases = tripCountries.length ? COUNTRY_PHRASES[activeCountry] : undefined;
+  // (the bar keeps the 日's room while the trip is still being read, and on a trip with no phrases, so its tabs never
+  // slide sideways under a thumb)
+  if (!activePhrases) return kind === "bar" ? <span className="shrink-0 w-11" aria-hidden /> : null;
 
-  const activePhrases = COUNTRY_PHRASES[activeCountry];
-  if (!activePhrases) return null;
-
-  if (!open) {
-    if (inHeader) {
-      return (
-        <button
-          onClick={() => setOpen(true)}
-          className="min-h-[44px] px-2 flex items-center gap-1 rounded-lg text-[#514636] active:bg-[#f0ebe3]"
-          aria-label={`${activePhrases.language} phrases`}
-        >
-          <span className="text-base font-bold leading-none" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
-          <span className="text-sm">Phrases</span>
-        </button>
-      );
-    }
+  const ask = () => window.dispatchEvent(new CustomEvent("wander-open-phrases", { detail: { countries: tripCountries, tripId } }));
+  if (kind === "header") {
     return (
       <button
-        onClick={() => setOpen(true)}
-        className="fixed z-30 flex items-center gap-1.5 rounded-full shadow-md transition-all active:scale-95
-          left-4 h-11 px-3.5 bg-[#f0ece5] text-[#514636] border border-[#e0d8cc]"
-        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px + var(--scout-dock, 0px))" }}
+        onClick={ask}
+        className="min-h-[44px] px-2 flex items-center gap-1 rounded-lg text-[#514636] active:bg-[#f0ebe3]"
         aria-label={`${activePhrases.language} phrases`}
       >
         <span className="text-base font-bold leading-none" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
@@ -178,12 +225,29 @@ export default function PhraseCard({ inHeader = false, trip }: { inHeader?: bool
       </button>
     );
   }
+  if (kind === "bar") {
+    // Unlabelled, so it reads as an extra beside the tabs, never a seventh tab; never shown as the current one. 44 pt wide,
+    // a full fingertip (verify27: 36 pt sat right against Scout)
+    return (
+      <button
+        onClick={ask}
+        data-tour="Phrases"
+        className="shrink-0 w-11 min-h-[48px] flex items-center justify-center rounded-lg text-[#7a6b55] active:bg-[#f0ebe3]"
+        aria-label={`${activePhrases.language} phrases`}
+        title={`${activePhrases.language} phrases`}
+      >
+        <span className="text-lg font-bold leading-none" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
+      </button>
+    );
+  }
+  if (!open) return null;
 
-  // Drawn on the page itself: inside the Now header (which blurs what's behind it) a fixed panel
-  // would be trapped in the header's box
+  // (with the screen moved, the foot sits that much lower on the page: at the screen's real foot)
+  const footStyle = shift ? { bottom: `${(document.documentElement.clientHeight || window.innerHeight) - shift - screen.height}px` } : {};
+  // Drawn on the page itself, above everything but Scout
   return createPortal(
     <>
-      <div className="fixed inset-0 bg-black/20 z-[60]" onClick={() => setOpen(false)} />
+      <div className="fixed inset-0 bg-black/20 z-[60]" style={footStyle} onClick={() => setOpen(false)} />
       <div
         className="fixed z-[60] left-1/2 -translate-x-1/2 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border border-b-0 border-[#e5ddd0] flex flex-col"
         style={{
@@ -192,6 +256,7 @@ export default function PhraseCard({ inHeader = false, trip }: { inHeader?: bool
           width: "auto",
           minWidth: "300px",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          ...footStyle,
         }}
       >
         {/* Header */}

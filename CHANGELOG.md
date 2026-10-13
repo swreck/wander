@@ -2,6 +2,24 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 12:30 PM in Japan) — Phrases From Every Screen; Today's Weather on Home
+
+### Added
+- A small 日 at the right end of the bottom bar, on every screen, opens the Japanese phrase card in one tap. Ken (Oct
+  13): "a clear convenient but subtle way to have phrase button always available". Next keeps its labelled
+  "日 Phrases", where people learn what the 日 means; both open the same one card (never two). The card closes on Back,
+  Close, a tap on the page, or a change of screen, and sits at the screen's foot when iOS has left the screen moved.
+  Where: bottom bar (BottomNav), PhraseCard (one card mounted beside the bar, App.tsx). The bar keeps the 日's room
+  from its first drawing (the phone remembers the trip's languages), so the tabs never slide (verify27). How Wander
+  works has a "Japanese Phrases" entry, Show me around a seventh step for the 日, and Scout says where the card is when
+  asked (prompt rule 27). SPEC UPDATE NEEDED: the phrase card is reached from the bottom bar on every screen, not only
+  Next.
+- Home's Today card says the day's weather in small type with a "Go to today ›" button beside it: "Weather at the
+  Imperial Hotel today: 63‑74°F, 6% chance of rain". Ken (Oct 13): "Home should have small type saying something like
+  'Today's weather: xxxx     Go to today [active button]'". The same forecast as the day page (where you sleep that
+  night), named so nobody reads another city's weather as theirs; with no forecast to be had, only the button. Where:
+  Home, Today card (TodayWeather). SPEC UPDATE NEEDED: Home's Today card carries the day's weather.
+
 ## 2026-10-13 (Tuesday, 11:40 AM in Japan) — The Bars and Scout's Panel at the Screen's Foot After Typing
 
 ### Fixed

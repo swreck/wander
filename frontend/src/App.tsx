@@ -32,6 +32,7 @@ import CaptureFAB from "./components/CaptureFAB";
 import SyncIndicator from "./components/SyncIndicator";
 import SavedCopyNotice from "./components/SavedCopyNotice";
 import BottomNav from "./components/BottomNav";
+import PhraseCard from "./components/PhraseCard";
 import ShowMeAround from "./components/ShowMeAround";
 import UpdatePrompt from "./components/UpdatePrompt";
 import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
@@ -348,7 +349,7 @@ export default function App() {
               {/* Nothing covers the trip uninvited. The daily greeting, next-up overlay, new-member
                   interest picker and evening check-in are no longer mounted (code kept): they covered
                   today's plan at the wrong moments and used out-of-date "today" logic. Home's Today
-                  and the Now tab carry what matters. The phrase card lives on the Now tab. */}
+                  and the Now tab carry what matters. */}
               <ChatOverlay />
               <CaptureToast />
               <CaptureFAB />
@@ -359,6 +360,8 @@ export default function App() {
               <SavedCopyNotice />
               <UpdatePrompt />
               <BottomNav />
+              {/* The one phrase card, opened by the bar's 日 or Next's "日 Phrases" */}
+              <PhraseCard mode="sheet" />
               {/* "Show me around" — only when asked for */}
               <ShowMeAround />
             </CaptureProvider>

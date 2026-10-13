@@ -24,6 +24,7 @@ import { savedCopy } from "../lib/tripNotes";
 import { sourcesData, savedSources, railAudience, legIsFor, isBookedTrain, colOf, twelveHour, sourceWordsFor, pickupProgress, untickedTickets, herTab, withTwelveHour, railNoteFor, type OtherSource, type Checklist, type RailRow } from "../lib/sources";
 import { checklistTitle, DifferLine, TicketWarnings } from "./RailSheet";
 import { warmCityPhoto } from "./CityArrival";
+import TodayWeather from "./TodayWeather";
 import { tripCountryOf } from "../lib/cityColors";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMarks";
@@ -768,6 +769,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     <section className={card}>
       <div>
         <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">Today · {dayLabel(today)}</h2>
+        {/* The day's weather, small, and the way into the day (Ken, Oct 13) */}
+        <TodayWeather tripId={tripId} date={today} japanToday={japanToday} onGo={() => openDay(today)} />
         {/* A ticket this phone didn't tick at the pickup, on the morning it travels (delight audit) */}
         <TicketWarnings className="mt-2" list={untickedTickets(otherSources, today, me, (s) => railAudience(data.items, s.owner).ownerParty,
           (r, s) => { const a = railAudience(data.items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); },
