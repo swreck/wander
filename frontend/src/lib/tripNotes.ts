@@ -17,7 +17,8 @@ export interface TripNote {
   tidied: string | null;
   tidyStatus: string | null;
   // ("scout": told to Scout, kept word for word — Oct 10)
-  source: "typed" | "voice" | "evening" | "scout";
+  // ("scout-answer": Scout's own answer, kept at their asking and marked so — never their words; Oct 13)
+  source: "typed" | "voice" | "evening" | "scout" | "scout-answer";
   visibility: "private" | "trip";
   storyUse: boolean | null;
   dayDate: string | null;

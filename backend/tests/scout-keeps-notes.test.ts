@@ -109,3 +109,49 @@ describe("keep_in_my_notes", () => {
     expect(exp.text).toContain("told to Scout");
   });
 });
+
+/**
+ * SCOUT KEEPS ITS OWN ANSWER WHEN ASKED (Oct 13 2026). Ken: "Can you remember all that for when I ask for options each
+ * day?" then "Put in notes" — the breakfast list Scout made from his photo was refused as "a summary", and Scout's old
+ * save_learning tool failed twice. Now, with fromScout, the part of Scout's earlier answer is kept exactly as Scout
+ * wrote it (bold marks off), marked "kept from Scout", never as his words; a new version Scout writes is refused; the
+ * old learnings tools are withdrawn.
+ */
+describe("keep_in_my_notes with fromScout", () => {
+  const ANSWER = "Here are the six breakfast options:\n- **Imperial Viking Sal**, 17F, buffet, 6:30–10:00, ¥7,800\n- **Parkside Diner**, 1F, à la carte, 7:00–10:30\n- In-room, 6:00–11:00";
+  const PART = "- Imperial Viking Sal, 17F, buffet, 6:30–10:00, ¥7,800\n- Parkside Diner, 1F, à la carte, 7:00–10:30\n- In-room, 6:00–11:00";
+  it("keeps Scout's own words exactly, marked kept from Scout, private, not tidied", async () => {
+    await prisma.traveler.update({ where: { id: meId }, data: { preferences: { notes: { tidy: true } } } });
+    const r = await executeTool("keep_in_my_notes", { tripId, words: PART, date: "2031-10-10", fromScout: true }, user(), ["Put in notes"], [ANSWER]);
+    expect(r.result.kept).toBe(true);
+    expect(r.result.markedAs).toBe("kept from Scout");
+    const n = (await notes()).at(-1)!;
+    expect(n.source).toBe("scout-answer");
+    expect(n.text).toContain("Imperial Viking Sal, 17F, buffet");
+    expect(n.text).not.toContain("**");
+    expect(n.visibility).toBe("private");
+    expect(n.tidyStatus).toBeNull();
+    await prisma.traveler.update({ where: { id: meId }, data: { preferences: {} } });
+  });
+  it("a new version of the list is refused; Scout's words without fromScout are refused with the way to do it", async () => {
+    const before = (await notes()).length;
+    const rewritten = await executeTool("keep_in_my_notes", { tripId, words: "Imperial Viking buffet on 17F from 6:30, about ¥7,800", date: "2031-10-10", fromScout: true }, user(), ["Put in notes"], [ANSWER]);
+    expect(rewritten.result.error).toMatch(/never a new version/);
+    const notFlagged = await executeTool("keep_in_my_notes", { tripId, words: PART, date: "2031-10-10" }, user(), ["Put in notes"], [ANSWER]);
+    expect(notFlagged.result.error).toMatch(/set fromScout/);
+    expect((await notes()).length).toBe(before);
+  });
+  it("on the Notes screen and in the export as kept from Scout; Scout reads it back as its own answer", async () => {
+    const list = await request(app).get(`/api/trip-notes/trip/${tripId}`).set("Authorization", `Bearer ${token}`);
+    expect((list.body.notes || list.body).some((n: { source: string }) => n.source === "scout-answer")).toBe(true);
+    const exp = await request(app).get(`/api/trip-notes/trip/${tripId}/export`).set("Authorization", `Bearer ${token}`);
+    expect(exp.text).toContain("kept from Scout");
+    const back = await executeTool("get_my_notes", { tripId, query: "Viking" }, user());
+    expect(back.result.notes[0]).toMatchObject({ by: "Scout (your own answer, kept for them)" });
+  });
+  it("the old learnings tools are withdrawn", async () => {
+    const r = await executeTool("save_learning", { content: "x" }, user());
+    expect(r.result.error).toBeTruthy();
+    expect(await prisma.learning.count({ where: { content: "x" } })).toBe(0);
+  });
+});
