@@ -14,7 +14,9 @@
 import prisma from "./db.js";
 import { pinsOf, stayPoint, modelsAgree, hotelPoint, type ModelRain } from "./packingWeather.js";
 
-type Forecast = { hi: number; lo: number; rain: number | null; code: number | null; models: ModelRain; outlook: "forecast" | "early outlook"; at: string };
+// (inches: the day's expected rain — Ken, Oct 13: "rain percentage is important, but especially in Japan, the quantity
+// of rain matters")
+type Forecast = { hi: number; lo: number; rain: number | null; inches: number | null; code: number | null; models: ModelRain; outlook: "forecast" | "early outlook"; at: string };
 export interface DayWeather extends Forecast {
   /** the stay's name, or the town's when there's no stay that night */
   place: string; atHotel: boolean;
@@ -37,13 +39,14 @@ async function forecastAt(point: { lat: number; lng: number }, date: string, awa
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 8000);
     const [r, models] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&temperature_unit=fahrenheit&timezone=Asia%2FTokyo&start_date=${date}&end_date=${date}`, { signal: ctl.signal }),
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${date}&end_date=${date}`, { signal: ctl.signal }),
       modelsAgree(point.lat, point.lng, date, date),
     ]);
     clearTimeout(t);
     const d = r.ok ? (await r.json())?.daily : null;
     if (d?.temperature_2m_max?.[0] != null) {
       w = { hi: Math.round(d.temperature_2m_max[0]), lo: Math.round(d.temperature_2m_min[0]), rain: d.precipitation_probability_max?.[0] ?? null,
+        inches: typeof d.precipitation_sum?.[0] === "number" ? Math.round(d.precipitation_sum[0] * 100) / 100 : null,
         code: d.weather_code?.[0] ?? null, models: models(date), outlook: away <= 7 ? "forecast" : "early outlook", at: new Date().toISOString() };
     }
   } catch { /* no forecast now — the phone keeps its last copy */ }

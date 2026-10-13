@@ -8,15 +8,22 @@
  */
 import { api } from "./api";
 
+/** The day's expected rain in inches, said right after the chance: " (.42\")" — Ken, Oct 13: "rain percentage is
+ *  important, but especially in Japan, the quantity of rain matters… in parentheses right after the percentage" */
+export const rainInches = (x: number | null | undefined) =>
+  x == null ? "" : ` (${x >= 1 ? x.toFixed(2) : x === 0 ? "0" : "." + x.toFixed(2).split(".")[1]}")`;
+
 export interface DayForecast {
   lo: number; hi: number; rain: number | null; code: number | null; at: string;
+  /** the day's expected rain, inches */
+  inches?: number | null;
   /** From Wander's server (dayForecastFor): where — that night's hotel, or the town — and how sure */
   place?: string; atHotel?: boolean; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook";
   /** the town of that night's stay, to name the line when there are two */
   town?: string;
   /** the day's other place, when her plan names one: a day trip ("day") or where a travel day starts ("morning") —
    *  Ken, Oct 13: "both weathers should be there" */
-  also?: { place: string; when: "day" | "morning"; lo: number; hi: number; rain: number | null; code: number | null; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook" };
+  also?: { place: string; when: "day" | "morning"; lo: number; hi: number; rain: number | null; inches?: number | null; code: number | null; models?: "wet" | "dry" | "split" | "unknown"; outlook?: "forecast" | "early outlook" };
 }
 
 const KEY = "wander:forecast";
@@ -37,15 +44,17 @@ export function savedForecast(lat: number | null | undefined, lon: number | null
 export async function forecastFor(lat: number | null | undefined, lon: number | null | undefined, date: string, zone = "Asia/Tokyo"): Promise<DayForecast | null> {
   if (lat == null || lon == null) return null;
   const saved = savedForecast(lat, lon, date);
-  if (saved && Date.now() - Date.parse(saved.at) < FRESH) return saved;
+  // (a copy from before the rain amount was asked for is fetched again — Oct 13)
+  if (saved && Date.now() - Date.parse(saved.at) < FRESH && "inches" in saved) return saved;
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code`
-      + `&temperature_unit=fahrenheit&timezone=${encodeURIComponent(zone)}&start_date=${date}&end_date=${date}`;
+    const url =`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code`
+      + `&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=${encodeURIComponent(zone)}&start_date=${date}&end_date=${date}`;
     const r = await fetch(url);
     if (!r.ok) return saved;
     const d = (await r.json())?.daily;
     if (!d || d.temperature_2m_max?.[0] == null) return saved;
-    const f: DayForecast = { hi: Math.round(d.temperature_2m_max[0]), lo: Math.round(d.temperature_2m_min[0]), rain: d.precipitation_probability_max?.[0] ?? null, code: d.weather_code?.[0] ?? null, at: new Date().toISOString() };
+    const f: DayForecast = { hi: Math.round(d.temperature_2m_max[0]), lo: Math.round(d.temperature_2m_min[0]), rain: d.precipitation_probability_max?.[0] ?? null,
+      inches: typeof d.precipitation_sum?.[0] === "number" ? Math.round(d.precipitation_sum[0] * 100) / 100 : null, code: d.weather_code?.[0] ?? null, at: new Date().toISOString() };
     try {
       const all = readAll();
       all[keyOf(lat, lon, date)] = f;
@@ -72,12 +81,12 @@ export function savedDayForecast(tripId: string, date: string): DayForecast | nu
 }
 export async function dayForecastFor(tripId: string, date: string): Promise<DayForecast | null> {
   const saved = savedDayForecast(tripId, date);
-  if (saved && Date.now() - Date.parse(saved.at) < FRESH) return saved;
+  if (saved && Date.now() - Date.parse(saved.at) < FRESH && "inches" in saved) return saved;
   try {
     const { weather: w } = await api.get<{ weather: (DayForecast & { place: string; atHotel: boolean }) | null }>(`/weather/trip/${tripId}/day/${date}`);
     if (!w) return saved;
-    const f: DayForecast = { hi: w.hi, lo: w.lo, rain: w.rain, code: w.code, at: w.at, place: w.place, atHotel: w.atHotel, models: w.models, outlook: w.outlook,
-      town: w.town, ...(w.also ? { also: { place: w.also.place, when: w.also.when, lo: w.also.lo, hi: w.also.hi, rain: w.also.rain, code: w.also.code, models: w.also.models, outlook: w.also.outlook } } : {}) };
+    const f: DayForecast = { hi: w.hi, lo: w.lo, rain: w.rain, inches: w.inches ?? null, code: w.code, at: w.at, place: w.place, atHotel: w.atHotel, models: w.models, outlook: w.outlook,
+      town: w.town, ...(w.also ? { also: { place: w.also.place, when: w.also.when, lo: w.also.lo, hi: w.also.hi, rain: w.also.rain, inches: w.also.inches ?? null, code: w.also.code, models: w.also.models, outlook: w.also.outlook } } : {}) };
     try {
       const all = readAll();
       all[dayKey(tripId, date)] = f;

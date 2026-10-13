@@ -2,6 +2,15 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-13 (Tuesday, 4:00 PM in Japan) — How Much Rain
+
+### Added
+- Every forecast says the day's expected rain in inches right after the chance: "rain 90% (.09")" on Home, "90% chance
+  of rain (.09")" on the day page. Ken (Oct 13): "rain percentage is important, but especially in Japan, the quantity
+  of rain matters, so can you in parentheses right after the percentage put the quantity of rain in inches? E.g.,
+  (.0x")". Open-Meteo's precipitation_sum. Phones' saved copies without it are fetched again. Where: TodayWeather,
+  DayForecast, lib/forecast rainInches, services/dayWeather.ts.
+
 ## 2026-10-13 (Tuesday, 4:10 PM in Japan) — A Note for Any Day
 
 ### Added

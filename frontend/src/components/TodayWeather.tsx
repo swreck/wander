@@ -8,7 +8,7 @@
  * never jumps in when the forecast arrives.
  */
 import { useEffect, useState } from "react";
-import { dayForecastFor, savedDayForecast, rainDisputed, type DayForecast } from "../lib/forecast";
+import { dayForecastFor, savedDayForecast, rainDisputed, rainInches, type DayForecast } from "../lib/forecast";
 import { theHotel } from "./DayForecast";
 
 export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripId: string; date: string; japanToday: string; onGo: () => void }) {
@@ -27,9 +27,9 @@ export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripI
   // (said in full to a screen reader: where it's measured and that it's today's)
   const where = f?.place ? (f.atHotel ? ` at ${theHotel(f.place)}` : ` in ${f.place}`) : "";
   // One line's words: the range, the rain, and how sure when the forecasts disagree
-  const words = (x: { lo: number; hi: number; rain: number | null; models?: DayForecast["models"] }) => {
+  const words = (x: { lo: number; hi: number; rain: number | null; inches?: number | null; models?: DayForecast["models"] }) => {
     const d = rainDisputed(x as DayForecast);
-    return <>{x.lo}‑{x.hi}°F{x.rain !== null ? `, rain ${x.rain}%` : ""}
+    return <>{x.lo}‑{x.hi}°F{x.rain !== null ? `, rain ${x.rain}%${rainInches(x.inches)}` : ""}
       {d === "drier" ? <span className="text-[#6b5d4a]"> (other forecasts drier)</span> : d === "split" ? <span className="text-[#6b5d4a]"> (forecasts differ)</span> : null}</>;
   };
   // Two places, when her plan takes them somewhere else that day (Ken, Oct 13: "staying at the Imperial Hotel, but the
