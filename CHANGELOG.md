@@ -4,6 +4,15 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 
 ## 2026-10-14 (Wednesday, 3:30 PM in Japan) — The Weather Stays Current While Wander Is Open; Talk Keeps Sentences Apart
 
+### Changed
+- The phrase card holds characters to recognize, as well as phrases to say. Ken (Oct 14): "Language list should
+  generally not use kanji. But in this case (and possibly future ones) the purpose is finding something on a Japanese
+  device." Scout keeps a phrase to say in romaji, and keeps the characters themselves for something to spot on a sign,
+  button or machine (a toilet's 大 / 小, a ticket machine's 大人), large, with the person's own words under it. One
+  request is one line (Scout had made "Dai", "Shou" and "Dai / Shou" from one ask). Ken's "Toilets: 大 for full flush;
+  小 for light flush" added to the card; "Dai / Shou" off it (Put back restores it). Where: the 日 card, Scout
+  (add_phrase, rule 27). SPEC UPDATE NEEDED (phrase card section).
+
 ### Fixed
 - Talking into Notes or Scout: an iPhone hears a long recording in pieces, one per pause, and Wander joined them with
   nothing between, so Ken's note read "we met todayThe wife…" and "her husbandMarried into…". Now a space always goes
