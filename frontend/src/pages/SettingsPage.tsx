@@ -66,7 +66,7 @@ export default function SettingsPage() {
           >
             <span>
               <span className="block text-sm font-medium text-[#3a3128]">Show me around</span>
-              <span className="block text-xs text-[#6b5d4a] mt-0.5">A quick look at the six buttons along the bottom of the screen</span>
+              <span className="block text-xs text-[#6b5d4a] mt-0.5">A quick look at the buttons along the bottom of the screen</span>
             </span>
             <span className="text-[#6b5d4a]" aria-hidden>›</span>
           </button>

@@ -38,7 +38,7 @@ export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripI
   // One line's words: the range, the rain, and how sure when the forecasts disagree
   const words = (x: { lo: number; hi: number; rain: number | null; inches?: number | null; models?: DayForecast["models"] }) => {
     const d = rainDisputed(x as DayForecast);
-    return <>{x.lo}‑{x.hi}°F{x.rain !== null ? `, rain ${x.rain}%${rainInches(x.inches)}` : ""}
+    return <>{x.lo}‑{x.hi}°F{x.rain !== null ? `, rain ${x.rain}%${rainInches(x.inches, x.rain)}` : ""}
       {d === "drier" ? <span className="text-[#6b5d4a]"> (other forecasts drier)</span> : d === "split" ? <span className="text-[#6b5d4a]"> (forecasts differ)</span> : null}</>;
   };
   // Two places, when her plan takes them somewhere else that day (Ken, Oct 13: "staying at the Imperial Hotel, but the

@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import useBackToClose from "../hooks/useBackToClose";
 import { screenShift } from "../lib/screenShift";
+import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 
 // ── Country phrase data ────────────────────────────────────────
 interface LocalPhrase {
@@ -138,8 +139,50 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   const [tripId, setTripId] = useState<string | null>(null);
   // (removedAt: off everyone's card — sent only to those who may put it back; mayRemoveForAll: this person added it, or
   // is the trip's organizer — the Maybes rule)
-  type Added = { id: string; english: string; romaji: string; addedBy: string; removedAt?: string | null; mayRemoveForAll?: boolean };
+  type Added = { id: string; english: string; romaji: string; pronunciation?: string | null; addedBy: string; removedAt?: string | null; mayRemoveForAll?: boolean };
   const [added, setAdded] = useState<Added[]>([]);
+  // Add (Ken, Oct 14): "'Add' allows add where person types or speaks English and scouts fill in the fine print Japanese
+  // and pronunciation. If the translation is questionable or problematic or can be done in two ways with different
+  // nuance, give an option with super brief context and tappable choice." Nothing is saved until a choice is tapped.
+  type Choice = { kind: "say" | "recognize"; english: string; romaji: string; pronunciation: string | null; note: string | null; onCardAs?: string; offYourCard?: string };
+  // (one save at a time: two quick taps on a choice put the line on everyone's card twice — verify53)
+  const choosingRef = useRef(false);
+  // (the choice being saved says "Adding…": on weak signal nothing showed the tap had landed — verify54)
+  const [savingChoice, setSavingChoice] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [asked, setAsked] = useState("");
+  const [finding, setFinding] = useState(false);
+  const [choices, setChoices] = useState<Choice[] | null>(null);
+  const [addNote, setAddNote] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+  const voiceRef = useRef<VoiceHandlers | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  // While the Add box is typed in, the card sits on the part of the screen iOS shows, above the keyboard and its floating
+  // ˄ ˅ ✓ bar — Scout's own rule (ChatBubble: an iPhone can misreport the page's height, so placed from where the
+  // visible part starts and how tall it is). Only while typing here; otherwise the card is drawn as before.
+  const [typingAt, setTypingAt] = useState<{ top: number; h: number } | null>(null);
+  useEffect(() => {
+    if (!open || !adding) { setTypingAt(null); return; }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    // (an iPhone can report no keyboard while it's up — verify41 — so there, whenever typing; elsewhere only with a
+    // keyboard really up, so a computer's or iPad's card doesn't move at a click in the box)
+    const iPhone = /iPhone|iPod/.test(navigator.userAgent);
+    const update = () => {
+      const a = document.activeElement;
+      const typing = !!a && !!sheetRef.current?.contains(a) && a.matches("textarea, input");
+      const layoutH = document.documentElement.clientHeight || window.innerHeight;
+      const keyboard = layoutH - vv.height - vv.offsetTop > 80;
+      setTypingAt(typing && (iPhone || keyboard) ? { top: Math.round(vv.offsetTop), h: Math.round(vv.height) } : null);
+    };
+    update();
+    vv.addEventListener("resize", update); vv.addEventListener("scroll", update);
+    document.addEventListener("focusin", update); document.addEventListener("focusout", update);
+    return () => {
+      vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update);
+      document.removeEventListener("focusin", update); document.removeEventListener("focusout", update);
+    };
+  }, [open, adding]);
   // This person's own card: phrases taken off it and their order (Ken, Oct 13: "Need to be able to remove phrases. And to
   // rearrange the order. No need to designate original or not.") — theirs alone, kept on the server with their settings
   // (services/phrasePrefs) and on the phone so the card draws at once. Taken off is hidden, never deleted.
@@ -166,7 +209,16 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
     return () => { live = false; };
   }, [open, tripId]);
   // (closed, the card is out of Edit)
-  useEffect(() => { if (!open) { setEditing(false); setSaveNote(null); } }, [open]);
+  useEffect(() => {
+    if (open) return;
+    setEditing(false); setSaveNote(null);
+    // (and out of Add, the microphone handed back)
+    setAdding(false); setAsked(""); setChoices(null); setAddNote(null); setFinding(false);
+    if (voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; }
+    setListening(false);
+  }, [open]);
+  // Leaving the screen hands the microphone back
+  useEffect(() => () => { if (voiceRef.current) stopVoice(voiceRef.current); }, []);
   // Saved one at a time, the newest last: quick taps on ↑ each sent a save, and an older one arriving last put the old
   // order back on the server — and on the card the next time it opened (verify29: 5 taps, Sumimasen first on screen,
   // third after reopening)
@@ -297,10 +349,10 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
 
   // The card's phrases as this person has arranged them: their order first, anything new after in its first order;
   // the ones they took off apart (services/phrasePrefs keys the same way)
-  type Row = { key: string; local: string; pronunciation?: string; english: string; id?: string; forAll?: boolean; offForAll?: boolean };
+  type Row = { key: string; local: string; pronunciation?: string | null; english: string; id?: string; forAll?: boolean; offForAll?: boolean };
   const allRows: Row[] = [
     ...activePhrases.phrases.map((p) => ({ key: `core:${activeCountry}:${p.english}`, local: p.local, pronunciation: p.pronunciation, english: p.english })),
-    ...(activeCountry === "japan" ? added.map((p) => ({ key: `p:${p.id}`, local: p.romaji, english: p.english, id: p.id, forAll: !!p.mayRemoveForAll, offForAll: !!p.removedAt })) : []),
+    ...(activeCountry === "japan" ? added.map((p) => ({ key: `p:${p.id}`, local: p.romaji, pronunciation: p.pronunciation, english: p.english, id: p.id, forAll: !!p.mayRemoveForAll, offForAll: !!p.removedAt })) : []),
   ];
   const byKey = new Map(allRows.map((r) => [r.key, r]));
   const orderNow = [...mine.order.filter((k) => byKey.has(k)), ...allRows.map((r) => r.key).filter((k) => !mine.order.includes(k))];
@@ -328,34 +380,117 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
     arrange({ order, hidden: mine.hidden });
   };
 
+  // Add: what they said in English → the line, or a choice of two or three (backend services/phraseSuggest)
+  const findJapanese = () => {
+    const english = asked.trim();
+    if (!english || !tripId || finding) return;
+    if (voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; setListening(false); }
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    setFinding(true); setChoices(null); setAddNote(null);
+    api.post<{ options: Choice[]; why?: string }>(`/phrases/suggest`, { tripId, english })
+      .then((r) => {
+        if (r?.options?.length) setChoices(r.options);
+        else setAddNote(r?.why || "I couldn't put that into Japanese. Try saying it another way?");
+      })
+      .catch(() => setAddNote(trouble()))
+      .finally(() => setFinding(false));
+  };
+  const choose = (c: Choice, at: number) => {
+    if (!tripId || choosingRef.current) return;
+    // (one they took off their own card: back on it)
+    if (c.offYourCard) {
+      arrange({ order: orderNow, hidden: mine.hidden.filter((k) => k !== c.offYourCard) });
+      setAdding(false); setAsked(""); setChoices(null);
+      setAddNote(`"${c.onCardAs}" is back on your card.`);
+      return;
+    }
+    if (c.onCardAs) return;
+    setAddNote(null);
+    choosingRef.current = true;
+    setSavingChoice(at);
+    api.post<Added>(`/phrases`, { tripId, english: c.english, romaji: c.romaji, pronunciation: c.pronunciation })
+      .then((p) => {
+        if (p?.id) setAdded((list) => (list.some((x) => x.id === p.id) ? list : [...list, { ...p, mayRemoveForAll: true }]));
+        // (first on this person's card — the server put it there; the order is read back so this card shows it)
+        api.get<{ order: string[]; hidden: string[] }>(`/phrases/trip/${tripId}/mine`).then((m) => {
+          if (!Array.isArray(m?.order)) return;
+          saved.current = m; setMine(m);
+          try { localStorage.setItem(`wander:phrase-mine:${tripId}`, JSON.stringify(m)); } catch { /* private window */ }
+        }).catch(() => {});
+        setAdding(false); setAsked(""); setChoices(null);
+        setAddNote(`Added "${c.english}", first on your card and last on everyone else's.`);
+        scrollRef.current?.scrollTo({ top: 0 });
+      })
+      .catch(() => setAddNote(trouble()))
+      .finally(() => { choosingRef.current = false; setSavingChoice(null); });
+  };
+  // (the phone's signal only when it really has none: a server or translator failure isn't the signal's fault — verify53)
+  const trouble = () => (navigator.onLine === false ? "No signal just now. Try again when you have some?" : "That didn't work. Try again in a moment?");
+  // Talk: the app's one microphone, as in Notes — what's said follows anything typed
+  const hasVoice = voiceSupported();
+  const toggleTalk = () => {
+    if (listening && voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; setListening(false); return; }
+    const typed = asked.replace(/\s+$/, "");
+    const h: VoiceHandlers = {
+      onText: (said) => { if (voiceRef.current === h) setAsked(typed ? `${typed} ${said.trimStart()}` : said); },
+      onEnd: () => { if (voiceRef.current === h) { voiceRef.current = null; setListening(false); } },
+      // (a refused microphone said nothing — verify53)
+      onError: (err) => { if (err === "not-allowed" || err === "service-not-allowed") setAddNote("Wander isn't allowed to use the microphone. You can type it instead."); },
+    };
+    voiceRef.current = h;
+    if (startVoice(h)) { setListening(true); setChoices(null); setAddNote(null); }
+    else voiceRef.current = null;
+  };
+
   // (with the screen moved, the foot sits that much lower on the page: at the screen's real foot)
   const footStyle = shift ? { bottom: `${(document.documentElement.clientHeight || window.innerHeight) - shift - screen.height}px` } : {};
+  // (typing in Add on an iPhone: on the visible part of the screen, clear of the floating ˄ ˅ ✓ bar — ChatBubble's 52 pt)
+  const iosBar = /iPhone|iPod/.test(navigator.userAgent) ? 52 : 0;
+  const typingH = typingAt ? Math.max(200, Math.min(460, typingAt.h - iosBar - 16)) : 0;
+  const placeStyle = typingAt ? { top: `${typingAt.top + typingAt.h - iosBar - typingH}px`, bottom: "auto", height: `${typingH}px`, maxHeight: `${typingH}px` } : footStyle;
   // Drawn on the page itself, above everything but Scout
   return createPortal(
     <>
       <div className="fixed inset-0 bg-black/20 z-[60]" style={footStyle} onClick={() => setOpen(false)} />
       <div
+        ref={sheetRef}
+        // (pressing any of the card's buttons keeps the cursor where it is: while Add was typed in, taking it out dropped
+        // the card from above the keyboard to the screen's foot mid-tap, and the tap landed on nothing — even ⌄)
+        onPointerDown={(e) => { if (typingAt && (e.target as HTMLElement).closest("button")) e.preventDefault(); }}
         className="fixed z-[60] left-1/2 -translate-x-1/2 bottom-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl border border-b-0 border-[#e5ddd0] flex flex-col"
         style={{
           maxHeight: "50vh",
           maxWidth: "360px",
-          width: "auto",
+          // (as wide as it may be, so the header never wraps "Quick / Phrases" beside Add and Edit/Reorder — verify53)
+          width: "min(360px, calc(100vw - 24px))",
           minWidth: "300px",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          ...footStyle,
+          ...placeStyle,
         }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5ddd0] shrink-0">
           <span className="text-sm font-medium text-[#3a3128]">Quick Phrases</span>
           <span className="flex-1" />
-          {/* Arrange your own card: ↑ ↓ and Remove (dragging is unreliable in an iPhone web app) */}
-          <button
-            onClick={() => setEditing((e) => !e)}
-            className="min-h-[44px] px-3 text-sm text-[#514636] underline underline-offset-2"
-          >
-            {editing ? "Done" : "Edit"}
-          </button>
+          {/* Add (Japanese only — the card's Add writes Japanese) and Edit/Reorder: ↑ ↓ and Remove (dragging is unreliable
+              in an iPhone web app). Each is Done while it's open. */}
+          {activeCountry === "japan" && !editing && (
+            <button
+              onClick={() => { setAdding((a) => !a); setChoices(null); setAddNote(null); setSaveNote(null); }}
+              className="min-h-[44px] px-2 text-sm text-[#514636] underline underline-offset-2"
+            >
+              {/* ("Done" read as "save this": tapped after typing, it went back with nothing added — verify53) */}
+              {adding ? "Back" : "Add"}
+            </button>
+          )}
+          {!adding && (
+            <button
+              onClick={() => setEditing((e) => !e)}
+              className="min-h-[44px] px-2 text-sm text-[#514636] underline underline-offset-2"
+            >
+              {editing ? "Done" : "Edit/Reorder"}
+            </button>
+          )}
           <button
             onClick={() => setOpen(false)}
             aria-label="Close phrases"
@@ -396,15 +531,56 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
           className="flex-1 overflow-y-auto overscroll-contain px-4 py-2 space-y-1 min-h-0"
           style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
         >
-          {/* One list, in this person's order — the everyday phrases and those added on the trip alike */}
-          {shown.map((p, i) => (
+          {adding ? (
+            // Add: in English, typed or said; Wander writes the Japanese and how to say it; a choice when it splits
+            <div className="py-1">
+              <label htmlFor="phrase-add" className="block text-sm text-[#514636]">What do you want to say? Or what do you need to find on a sign or button?</label>
+              <textarea id="phrase-add" value={asked} rows={2} maxLength={300}
+                onChange={(e) => { setAsked(e.target.value); setChoices(null); setAddNote(null); }}
+                placeholder="In English, like: Where is the train station?"
+                className="mt-1.5 w-full bg-[#f0ebe3] rounded-xl px-3 py-2 text-[16px] leading-snug text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 resize-none" />
+              <div className="flex items-center gap-2 mt-2">
+                {/* (pressing keeps the cursor in the box: taking it out dropped the card from above the keyboard to the
+                    screen's foot mid-tap, and the tap landed on nothing) */}
+                {hasVoice && (
+                  <button onClick={toggleTalk} onPointerDown={(e) => e.preventDefault()} type="button" aria-label={listening ? "Stop listening" : "Talk instead of typing"}
+                    className={`min-h-[44px] min-w-[44px] px-3 rounded-xl text-sm ${listening ? "bg-red-500 text-white animate-pulse" : "bg-[#f0ebe3] text-[#514636]"}`}>
+                    {listening ? "Stop" : "Talk"}
+                  </button>
+                )}
+                <button onClick={findJapanese} onPointerDown={(e) => e.preventDefault()} disabled={!asked.trim() || finding}
+                  className="min-h-[44px] px-3 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">
+                  {finding ? "Finding the Japanese…" : "Find the Japanese"}
+                </button>
+              </div>
+              {addNote && <p role="status" className="text-sm text-[#8a5a1a] mt-2">{addNote}</p>}
+              {/* (the choices can be two ways of saying it, or a second, related phrase — verify54) */}
+              {choices && choices.length > 1 && <p className="text-sm text-[#514636] mt-3">More than one could fit. Tap the one you want.</p>}
+              {choices?.map((c, i) => (
+                <button key={i} onClick={() => choose(c, i)} disabled={(!!c.onCardAs && !c.offYourCard) || savingChoice !== null}
+                  className="block w-full text-left mt-2 rounded-xl border border-[#e5ddd0] bg-white px-3 py-2 min-h-[44px] active:bg-[#f0ebe3] disabled:bg-transparent">
+                  <span className="block text-base font-medium text-[#3a3128]">{c.english}</span>
+                  <span className="block text-sm text-[#3a3128]">{c.romaji}{c.pronunciation && <span className="text-[#6b5d4a]"> ({c.pronunciation})</span>}</span>
+                  {c.note && <span className="block text-xs text-[#6b5d4a] mt-0.5">{c.note}</span>}
+                  <span className="block text-sm text-[#514636] underline underline-offset-2 mt-1">
+                    {savingChoice === i ? "Adding…" : c.offYourCard ? `You took "${c.onCardAs}" off your card. Put it back` : c.onCardAs ? `Already on the card, as "${c.onCardAs}"` : choices.length > 1 ? "Add this one" : "Add to the card"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {/* One list, in this person's order — the everyday phrases and those added on the trip alike. Each line's title
+              is English, what an English speaker scans for; then the Japanese and how to say it (Ken, Oct 14: "all phrases
+              titles should be English to find what is needed. Like: Hello / Konnichiwa(Koh-nee-chee-wah)") */}
+          {!adding && addNote && <p role="status" className="text-sm text-[#514636] py-1">{addNote}</p>}
+          {!adding && shown.map((p, i) => (
             <div key={p.key} className="py-1.5 flex items-center gap-1">
               <div className="flex-1 min-w-0 py-1">
-                <div className="text-base font-medium text-[#3a3128]">
+                <div className="text-base font-medium text-[#3a3128]">{p.english}</div>
+                <div className="text-sm text-[#3a3128]">
                   {p.local}
-                  {p.pronunciation && <span className="text-xs font-normal text-[#6b5d4a] ml-1.5">({p.pronunciation})</span>}
+                  {p.pronunciation && <span className="text-[#6b5d4a]"> ({p.pronunciation})</span>}
                 </div>
-                <div className="text-xs text-[#6b5d4a]">{p.english}</div>
               </div>
               {editing && (
                 <>
@@ -424,7 +600,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
               <div className="text-xs text-[#6b5d4a] pt-1">Removed</div>
               {removed.map((p) => (
                 <div key={p.key} className="py-1 flex items-center gap-2">
-                  <div className="flex-1 min-w-0 text-sm text-[#6b5d4a]">{p.local} <span className="text-xs">({p.english}) · {p.offForAll ? "off everyone's card" : "off your card"}</span></div>
+                  <div className="flex-1 min-w-0 text-sm text-[#6b5d4a]">{p.english} <span className="text-xs">({p.local}) · {p.offForAll ? "off everyone's card" : "off your card"}</span></div>
                   <button onClick={() => putBack(p)} aria-label={`Put back ${p.english}`}
                     className="shrink-0 min-h-[44px] px-2 text-sm text-[#514636] underline underline-offset-2">Put back</button>
                 </div>

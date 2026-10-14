@@ -1474,6 +1474,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   useEffect(() => () => { if (recognitionRef.current) stopVoice(recognitionRef.current); }, []);
 
   const hasSpeechRecognition = voiceSupported();
+  // (a computer with a mouse, where a file can be dragged in; not an iPhone or an iPad)
+  const onComputer = typeof navigator !== "undefined" && navigator.maxTouchPoints === 0;
 
   // Chat paste: no special handling — paste into chat just pastes as text.
   // Universal capture handles paste outside text fields.
@@ -1802,7 +1804,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               {helloBlock && <div className="mt-3">{helloBlock}</div>}
               {/* What it actually knows (round 12 delight audit: "I know your whole trip" overclaimed) */}
               {/* Said to whoever holds the phone (round 13: Ken read "Ken's rail sheet", Larisa "Larisa's Guide") */}
-              <p className={helloBlock ? "mt-4" : "mt-1"}>I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. I can read a photo or a file too, like a menu, a ticket or a PDF. Paste it in, tap the paperclip, or on a Mac drag it here.</p>
+              <p className={helloBlock ? "mt-4" : "mt-1"}>I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. I can read a photo or a file too, like a menu, a ticket or a PDF. Paste it in{onComputer ? ", tap the paperclip, or drag it here" : " or tap the paperclip"}.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
               {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.</p>}
               {/* Tap one to ask it */}
@@ -2114,7 +2116,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {cameraTip && online && messages.length > 0 && !files.length && !filesReading && (
             // (touch-none: a swipe on this notice moved the page behind Scout; its ✕ still taps — verify13)
             <OnceTip onClose={cameraTipDone} className="mb-2 touch-none">
-              Tap the paperclip to send Scout a photo or a file, like a menu, a ticket or a PDF. You can paste one into the box too, or on a Mac drag it in. Scout will read it.
+              {/* (dragging only on a computer: the Mac line read oddly on an iPhone — verify52) */}
+              Tap the paperclip to send Scout a photo or a file, like a menu, a ticket or a PDF. You can paste one into the box too{onComputer ? ", or drag it in" : ""}. Scout will read it.
             </OnceTip>
           )}
           {/* what goes with the next question (or why something couldn't be added) */}

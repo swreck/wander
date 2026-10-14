@@ -14,22 +14,22 @@ export type PhrasePrefs = { order: string[]; hidden: string[] };
 // The everyday Japanese phrases every trip's card starts with — the same list, in the same order, as the card's own
 // (frontend/src/components/PhraseCard.tsx COUNTRY_PHRASES.japan); change both together
 export const JAPAN_EVERYDAY = [
-  { english: "Hello", local: "Konnichiwa" },
-  { english: "Thank you", local: "Arigatou gozaimasu" },
-  { english: "Yes please", local: "Hai, onegaishimasu" },
-  { english: "No thank you", local: "Iie, kekkou desu" },
-  { english: "How much?", local: "Ikura desu ka?" },
-  { english: "Excuse me", local: "Sumimasen" },
-  { english: "Check please", local: "Okaikei onegaishimasu" },
+  { english: "Hello", local: "Konnichiwa", pronunciation: "Koh-nee-chee-wah" },
+  { english: "Thank you", local: "Arigatou gozaimasu", pronunciation: "Ah-ree-gah-toh go-zah-ee-mahs" },
+  { english: "Yes please", local: "Hai, onegaishimasu", pronunciation: "Hai, oh-neh-guy-shee-mahs" },
+  { english: "No thank you", local: "Iie, kekkou desu", pronunciation: "Ee-eh, kek-koh dess" },
+  { english: "How much?", local: "Ikura desu ka?", pronunciation: "Ee-koo-rah dess kah?" },
+  { english: "Excuse me", local: "Sumimasen", pronunciation: "Sue-mee-mah-sen" },
+  { english: "Check please", local: "Okaikei onegaishimasu", pronunciation: "Oh-kai-keh oh-neh-guy-shee-mahs" },
 ];
 
 /** Everything on a trip's Japanese card, in its first order: the everyday phrases, then those added on the trip (with
  *  removedAt for one taken off everyone's card) */
-export async function cardPhrases(tripId: string): Promise<{ key: string; id?: string; english: string; local: string; addedBy?: string; removedAt?: Date | null }[]> {
+export async function cardPhrases(tripId: string): Promise<{ key: string; id?: string; english: string; local: string; pronunciation?: string | null; addedBy?: string; removedAt?: Date | null }[]> {
   const added = await prisma.tripPhrase.findMany({ where: { tripId }, orderBy: { createdAt: "asc" } });
   return [
-    ...JAPAN_EVERYDAY.map((p) => ({ key: `core:japan:${p.english}`, english: p.english, local: p.local })),
-    ...added.map((p) => ({ key: `p:${p.id}`, id: p.id, english: p.english, local: p.romaji, addedBy: p.addedBy, removedAt: p.removedAt })),
+    ...JAPAN_EVERYDAY.map((p) => ({ key: `core:japan:${p.english}`, english: p.english, local: p.local, pronunciation: p.pronunciation })),
+    ...added.map((p) => ({ key: `p:${p.id}`, id: p.id, english: p.english, local: p.romaji, pronunciation: p.pronunciation, addedBy: p.addedBy, removedAt: p.removedAt })),
   ];
 }
 

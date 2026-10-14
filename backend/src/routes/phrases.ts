@@ -4,7 +4,7 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { tripMemberParam } from "../middleware/role.js";
 import { itemMemberParam } from "../middleware/role.js";
 import { tripOf } from "../middleware/tripGuard.js";
-import { phrasePrefsOf, savePhrasePrefs, mayRemoveForAll, firstOnAddersCard } from "../services/phrasePrefs.js";
+import { phrasePrefsOf, savePhrasePrefs, mayRemoveForAll, firstOnAddersCard, cardPhrases, samePhrase } from "../services/phrasePrefs.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -64,9 +64,39 @@ router.patch("/trip/:tripId/mine", async (req: AuthRequest, res) => {
   res.json(await savePhrasePrefs(me, req.params.tripId as string, { order: req.body?.order, hidden: req.body?.hidden }));
 });
 
+// POST /suggest — the card's Add: English in, the line (or a choice of two or three) out; nothing is saved until the
+// person taps one (services/phraseSuggest). Each option says when the card already has it.
+router.post("/suggest", async (req: AuthRequest, res) => {
+  const { tripId, english } = req.body || {};
+  const asked = typeof english === "string" ? english.trim() : "";
+  if (!tripId || !asked) { res.status(400).json({ error: "Say or type what you want in English first." }); return; }
+  // (a trip that isn't there costs no translation — verify53)
+  if (!(await prisma.trip.findUnique({ where: { id: String(tripId) }, select: { id: true } }))) { res.status(404).json({ error: "Trip not found" }); return; }
+  try {
+    const { suggestPhrase } = await import("../services/phraseSuggest.js");
+    const onCard = (await cardPhrases(String(tripId))).filter((p) => !p.removedAt);
+    const { options, why } = await suggestPhrase(asked, onCard.map((p) => ({ english: p.english, local: p.local })));
+    const mine = req.user?.travelerId ? await phrasePrefsOf(req.user.travelerId, String(tripId)) : { order: [], hidden: [] };
+    res.json({
+      options: options.map(({ sameAs, ...o }) => {
+        // (the same meaning, as the translator judged it from the card's lines; or the same words or English title:
+        // asked twice, the Japanese can come back worded a little differently — "tsukaemasu ka" then "haraemasu ka")
+        const twin = (sameAs ? onCard.find((p) => samePhrase(p.english, sameAs)) : undefined)
+          || onCard.find((p) => samePhrase(p.local, o.romaji) || samePhrase(p.english, o.english));
+        // (one this person took off their own card: offered back, not a dead end — verify53)
+        return { ...o, ...(twin ? (mine.hidden.includes(twin.key) ? { offYourCard: twin.key, onCardAs: twin.english } : { onCardAs: twin.english }) : {}) };
+      }),
+      ...(why ? { why } : {}),
+    });
+  } catch (e) {
+    console.warn("[phrase-suggest] failed:", (e as Error)?.message);
+    res.status(502).json({ error: "The translation didn't come back. Try again in a moment?" });
+  }
+});
+
 // POST / — add a phrase (appears at bottom for everyone)
 router.post("/", async (req: AuthRequest, res) => {
-  const { tripId, english, romaji } = req.body;
+  const { tripId, english, romaji, pronunciation } = req.body;
   if (!tripId || !english || !romaji) {
     res.status(400).json({ error: "tripId, english, and romaji are required" });
     return;
@@ -77,12 +107,18 @@ router.post("/", async (req: AuthRequest, res) => {
     res.status(404).json({ error: "Trip not found" });
     return;
   }
+  // The same line already on the card is that line, not a second one: two quick taps on Add's "Add to the card" put it
+  // on everyone's card twice (verify53)
+  const twin = (await prisma.tripPhrase.findMany({ where: { tripId, removedAt: null } }))
+    .find((p) => samePhrase(p.romaji, String(romaji)) && samePhrase(p.english, String(english)));
+  if (twin) { res.status(200).json(twin); return; }
 
   const phrase = await prisma.tripPhrase.create({
     data: {
       tripId,
       english,
       romaji,
+      ...(typeof pronunciation === "string" && pronunciation.trim() ? { pronunciation: pronunciation.trim().slice(0, 300) } : {}),
       addedBy: req.user!.displayName,
     },
   });

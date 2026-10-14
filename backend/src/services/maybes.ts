@@ -40,7 +40,9 @@ export async function createMaybe(who: Who, tripId: string, cityId: string, rawW
   if (!city || city.tripId !== tripId) throw new MaybeError(404, "City not found on this trip");
   const me = who.displayName;
   const recent = await prisma.experience.findFirst({
-    where: { tripId, cityId, createdBy: me, name: words, sheetRowRef: null, createdAt: { gte: new Date(Date.now() - 10 * 60_000) } },
+    // (only one still on the list: a maybe added, removed, then added again within the 10 minutes came back as the
+    // hidden one — "On Tokyo's maybes." and nothing there; verify52)
+    where: { tripId, cityId, createdBy: me, name: words, sheetRowRef: null, removedAt: null, createdAt: { gte: new Date(Date.now() - 10 * 60_000) } },
   });
   // (with its marks, so the phone knows the "I'm in" on it is yours — it showed "Interested: you" beside "I'm in")
   const withMarks = (id: string) => prisma.experience.findUniqueOrThrow({ where: { id }, include: { interests: { select: { displayName: true, userCode: true }, orderBy: { createdAt: "asc" } } } });
