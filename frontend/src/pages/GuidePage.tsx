@@ -70,7 +70,7 @@ Send Scout a photo or a file, like a menu, a sign, a ticket or a PDF: tap the pa
 
 When Scout needs to know where you are, tap **Use my location** under its answer. Under every answer are **Copy** and **Read aloud**.
 
-Scout sees only the last few messages of today's conversation. To keep an answer, like a list of breakfast places, say "remember that": it goes in your Notes, marked "kept from Scout", and Scout uses it when you ask again.`,
+Scout sees only the last few messages of today's conversation. To keep an answer, like a list of breakfast places, say "remember that": it goes in your Notes, marked "kept from Scout". Later, any day, ask "What was that list?" or "Bring back what we talked about" and Scout finds it in your Notes. Telling Scout something works the same way: "Remember that the food hall closes at 8."`,
   },
   {
     id: "the-guide",

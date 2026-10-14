@@ -839,13 +839,14 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: "arrange_my_phrases",
-    description: "Change the phrase card (the 日 card): take a phrase off, put one back, or move one to the top or the bottom. 'Take Konnichiwa off my phrases', 'put Sumimasen first', 'bring back Thank you', 'remove the extra not-feeling-well ones' (one call per phrase). A phrase they added (or any added phrase, for the trip's organizer) comes off everyone's card; anything else comes off only their own. The order is theirs alone. Nothing is deleted. Say which happened, as the result says.",
+    description: "Change the phrase card (the 日 card): take a phrase off, put one back, or move one to the top or the bottom. 'Take Konnichiwa off my phrases', 'put Sumimasen first', 'bring back Thank you', 'remove the extra not-feeling-well ones' (one call per phrase). Remove takes it off THEIR OWN card. Only when they clearly say everyone's ('take it off everyone's card', 'remove it for all of us') set forEveryone — it works only for a phrase they added (or any added phrase, for the trip's organizer); Ken (Oct 14): \"ensure just your card is default. I don't want Larisa or Julie to accidentally remove for andy!\" The order is theirs alone. Nothing is deleted. Say which happened, as the result says.",
     input_schema: {
       type: "object" as const,
       properties: {
         tripId: { type: "string" },
-        phrase: { type: "string", description: "The phrase as they named it, in English or in Japanese (romaji): 'Excuse me' or 'Sumimasen'" },
+        phrase: { type: "string", description: "The phrase as they named it, by its English title or its Japanese: 'Excuse me' or 'Sumimasen'" },
         action: { type: "string", enum: ["remove", "put_back", "move_to_top", "move_to_bottom"] },
+        forEveryone: { type: "boolean", description: "Remove only: true only when they clearly asked for it off everyone's card" },
       },
       required: ["tripId", "phrase", "action"],
     },
@@ -1364,7 +1365,7 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: "restore_entity",
-    description: "Bring back something that was deleted (experience, reservation, accommodation, day). Use when someone says 'undo that delete', 'bring that back', 'restore [name]'. Requires the changeLogId from get_change_log.",
+    description: "Bring back something that was deleted (experience, reservation, accommodation, day). Use only when someone names something deleted: 'undo that delete', 'restore [name]', 'I didn't mean to delete [name]'. Never for 'bring it back' about something you said or they kept — that's their Notes (rule 41b). Requires the changeLogId from get_change_log.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -3506,7 +3507,8 @@ export async function executeTool(
       // An added phrase they may take off everyone's card (they added it, or they're the trip's organizer): it goes off
       // everyone's — the Maybes rule; hidden, never deleted
       const forAll = !!hit.id && await mayRemoveForAll({ travelerId: me, displayName: user.displayName }, { tripId: input.tripId, addedBy: hit.addedBy || "" });
-      if (String(input.action) === "remove" && forAll) {
+      // (off everyone's only when asked for in so many words — otherwise their own card, as anyone's: Ken, Oct 14)
+      if (String(input.action) === "remove" && forAll && input.forEveryone === true) {
         await prisma.tripPhrase.update({ where: { id: hit.id! }, data: { removedAt: new Date(), removedBy: user.displayName } });
         return { result: { done: true, phrase: `${hit.local} (${hit.english})`, offEveryonesCard: true, say: "One short line: it's off the phrase card for everyone, and can be put back." }, actionDescription: `Off the phrase card: ${hit.local}` };
       }
@@ -3527,7 +3529,8 @@ export async function executeTool(
       await savePhrasePrefs(me, input.tripId, { order, hidden });
       const words = { remove: "Taken off your phrase card", put_back: "Back on your phrase card", move_to_top: "First on your phrase card", move_to_bottom: "Last on your phrase card" }[action as "remove"];
       return {
-        result: { done: true, phrase: `${hit.local} (${hit.english})`, onlyTheirCard: true, say: "One short line: what changed, on their own card only. 'Put back' brings a removed one back." },
+        result: { done: true, phrase: `${hit.local} (${hit.english})`, onlyTheirCard: true, say: "One short line: what changed, on their own card only. 'Put back' brings a removed one back.",
+          ...(action === "remove" && input.forEveryone === true && !forAll ? { notForEveryone: "Only the person who added it, or the trip's organizer, can take it off everyone's card; it's off theirs." } : {}) },
         actionDescription: `${words}: ${hit.local}`,
       };
     }
@@ -3763,15 +3766,24 @@ export async function executeTool(
           OR: [{ travelerId: me }, { visibility: "trip" }],
           ...(input.date && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? { dayDate: input.date } : {}),
         },
-        orderBy: { createdAt: "asc" },
+        // (newest first: bringing something back starts from the latest — rule 41b; oldest-first cut at 60 dropped the
+        // newest once someone had more — verify55)
+        orderBy: { createdAt: "desc" },
       });
       // (the same rule as the Notes screens: someone else's note is only its words as they read now — services/tripNotes/view)
-      const notes = all.filter((n) => !q || noteMatches(n, me, q)).slice(0, 60);
+      // Any of the asked words, not the whole phrase: "coffee list" missed a note of "coffee places" (verify55); the
+      // ones matching more words first, newest first among equals
+      const STOP = new Set(["the", "and", "that", "this", "what", "was", "were", "you", "for", "with", "about", "from", "thing", "list", "one", "ones", "back", "bring", "told", "said", "discussed", "remember", "earlier", "yesterday", "today"]);
+      const words = q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3 && !STOP.has(w));
+      const hits = (n: (typeof all)[number]) => (!q ? 1 : noteMatches(n, me, q) ? words.length + 1 : words.filter((w) => noteMatches(n, me, w)).length);
+      const notes = all.map((n, i) => ({ n, i, h: hits(n) })).filter((x) => x.h > 0).sort((a, b) => b.h - a.h || a.i - b.i).slice(0, 60).map((x) => x.n);
+      const keptOn = (d: Date) => plainDay(d.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }));
       return { result: {
         notes: notes.map((n) => n.travelerId === me
           // (an answer of yours they asked you to keep is yours, never quoted as their words — rule 40)
-          ? { by: n.source === "scout-answer" ? "Scout (your own answer, kept for them)" : "you", day: n.dayDate, city: n.city, shared: n.visibility === "trip", words: n.tidied || n.text, ...(n.text !== n.original ? { asFirstSaved: n.original } : {}) }
-          : { by: n.authorName, day: n.dayDate, city: n.city, shared: true, words: sharedWords(n) }),
+          ? { by: n.source === "scout-answer" ? "Scout (your own answer, kept for them)" : "you", kept: keptOn(n.createdAt), day: n.dayDate, city: n.city, shared: n.visibility === "trip", words: n.tidied || n.text, ...(n.text !== n.original ? { asFirstSaved: n.original } : {}) }
+          // (someone else's shared kept answer is still Scout's words, never theirs — verify55)
+          : { by: n.source === "scout-answer" ? `Scout (an answer kept for ${n.authorName}, shared)` : n.authorName, kept: keptOn(n.createdAt), day: n.dayDate, city: n.city, shared: true, words: sharedWords(n) }),
         rule: "Quote their words exactly when you use them; say whose note it is; never add to or summarize away what they wrote unless asked to summarize.",
       } };
     }
@@ -5187,6 +5199,7 @@ RULES:
 39. Use get_contributions_by_traveler when the user asks what someone has added, contributed, or wants to see a specific traveler's activities.
 40. "Remember this", "remember that for later", "put it in my notes", "next time we should…": it goes in their Notes with keep_in_my_notes (rule 46e) — the only memory that lasts past this conversation. When what they want kept is something YOU said (your list, your answer), set fromScout and pass that part of your earlier answer exactly as you wrote it; it's kept marked as from Scout. Then say in one short line that it's in their Notes, marked from Scout, and who sees it. Never say you'll remember something you didn't keep. Of this conversation you see only the last 10 messages, and only today's, though their screen shows more — so never promise to have anything "as long as this conversation runs"; what lasts is their Notes.
 41. What you kept for them is in KEPT FROM SCOUT (below, with TRIP NOTES). When they ask for options, a choice or a suggestion (where to eat, breakfast, what to do), look there and in their notes first (get_my_notes with the words that fit, for every word), and use what's there — say it's from what you kept for them.
+41b. Bringing it back (Ken, Oct 14: "1. Ask or tell 2. Scott responds with something useful for future 4. Remember that let's use say something later like "A that thing we discussed? Bring it back. 5. Scott brings it back by finding in notes what would have been gone."). When they ask for something from before — "that thing we discussed", "bring it back", "what was that list", "what did you tell me about…", "what did I say about…", even garbled by dictation — look in what was kept FOR THEM and their own notes FIRST (KEPT FROM SCOUT "for them", and get_my_notes with the words that fit, for every word), newest first. Bring back the one that fits best — the newest kept for them when nothing in their words points elsewhere — word for word, and say it's from their Notes and when it was kept (get_my_notes gives "kept"). Someone else's shared one only when they name whose ("Julie's coffee list"), and said as kept for that person. If two or three could fit, give the newest and name the others in a few words each ("or the Kyoto dinner list from Monday?"). When it's still in this conversation, or it's a fact in the Guide ("what did you tell me about the Backroads meeting?"), answer from that. Only when none of these has it, say so plainly, and that next time "remember that" keeps it. "Bring it back" means a removed maybe or phrase only when they name one or are clearly talking about Maybes or the phrase card, and restore_entity / restore_city only when they name something deleted or hidden.
 42. Use update_learning and delete_learning when the user wants to edit or remove a saved learning.
 43. When a planner asks "anything to review?", "pending changes?", or similar, use get_pending_approvals to show queued approval requests.
 44. Use review_approval when a planner says "approve that", "looks good", "reject that change", or similar. Pass the approvalId, the decision ("approved" or "rejected"), and optionally a note.
@@ -5199,7 +5212,7 @@ RULES:
 46f. Packing: "what should I pack / bring", "anything I might not think to pack", or the packing list Scout offered Julie ("I want that too", "can I have Julie's packing list") → packing_tips, and answer only from what it returns: its items in its order, at most seven, each ONE plain sentence (about 30 words at most; the whole answer under about 220 words, someone reading on a phone while they pack). When it returns weather (the live forecast where they'll sleep), lead with up to three weather items made exactly as its "how" says — their own dates and places, never what Backroads already tells them — then the list's items, seven in all. A weather follow-up after it ("will it really rain in Nikko?") is a weather question: get_weather (rule 46g). Their days are "your" days ("your hiking day"), never "their", and named by date, never "Day 3". Where the Guide shows it for this person's own days, tie an item to them in a few words (shoes off → the nights they're at a ryokan; a big suitcase → their bullet-train days) — never invent a tie, never count or describe their nights beyond what's given ("most of your nights"), and leave it out when the Guide doesn't show one. Follow each item's tieTo exactly (a rule for some trains is never stretched to others), and name each place or date once in the whole answer — never the same inns or the same place in two items (once one item has said "Shirakabeso on the Izu Peninsula", a later one says "the bullet train on Wed, Oct 21", not "to the Izu Peninsula" again). Name a day by its date ("Wed, Oct 21"), never by Backroads' day number ("Day 4") — that isn't a date they know. Add no items of your own and no general travel advice. Never promise what a hotel or inn will do, and keep each item's own checks ("ask the inn first"). Say a rule's source when you give it (medicines, luggage). End with exactly one line inviting them to say how they travel so you can tailor it. Asked for more than the list, say so, and label anything you find online as found online.
 46c. To-dos (the Actions screen): "remind us to…" / "add a to-do…" → add_todo (added in Wander; her Guide unchanged — say so in a few words). "We did it" / "that's done" → set_todo_done. "Take that off the list" → remove_todo, only for one added in Wander; one from Larisa's Guide stays until she takes it out of her sheet (it can still be ticked off). Use get_todos to find it. On screen: Actions → "+ Add", the tick beside each, and "Take out" on those added in Wander.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
-52. Use restore_entity when someone says "undo that delete", "bring back [name]", or "I didn't mean to remove that". First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
+52. Use restore_entity when someone says "undo that delete", "bring back [name of something deleted]", or "I didn't mean to remove that" — never for "bring it back" about something you said or they kept (rule 41b). First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
 54. Use create_day_choice when someone says "some of us might want to do X while others do Y", "we could split up", or "there are two options for the afternoon". This creates a Decision tied to a specific day so everyone can vote on what they want to do.
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;

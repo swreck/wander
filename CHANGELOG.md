@@ -2,6 +2,24 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-14 (Wednesday, 6:15 PM in Japan) — "Remember That", Then "Bring It Back"
+
+### Changed
+- Scout brings back what it kept. Ken (Oct 14): "1. Ask or tell 2. Scott responds with something useful for future 4.
+  Remember that let's use say something later like "A that thing we discussed? Bring it back. 5. Scott brings it back
+  by finding in notes what would have been gone." Asked for something from before ("that thing we discussed", "bring
+  it back", "what was that list", even garbled by dictation), Scout looks in what it kept and the person's notes first,
+  brings back the best fit word for word (the newest when nothing points elsewhere), says when it was kept, and names
+  the others in a few words. "Bring it back" means a removed maybe or phrase only when they name one. Before, "A that
+  thing we discussed? Bring it back." got a guess about removed maybes. Where: Scout (rule 41b).
+- The Notes tab's empty Scout view says "Ask Scout anything, then say "remember that", and its answer is kept here.
+  Later, ask Scout to bring it back." (was "Ask Scout for a list…"). How Wander works says the same, with an example.
+- Scout's notes search (get_my_notes) works newest first, matches any of the asked words ("coffee list" finds "coffee
+  places"), and says when each was kept; another person's shared kept answer is said as kept for them, never as theirs
+  or yours (verify55). "Bring it back" never restores a deleted trip item unless one is named.
+- Asked to take a phrase off the card, Scout takes it off the asker's own card; off everyone's only when they say so.
+  Ken (Oct 14): "ensure just your card is default. I don't want Larisa or Julie to accidentally remove for andy!"
+
 ## 2026-10-14 (Wednesday, 5:00 PM in Japan) — The Phrase Card in English First, With Add; Fixes Before Andy and Julie See Wander
 
 ### Changed

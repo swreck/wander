@@ -739,7 +739,7 @@ export default function NotesPage() {
               {notes.length > 0 && shown.length === 0 && (
                 <p className="text-sm text-[#6b5d4a] mt-4">
                   {query.trim() ? `No ${view.whose === "mine" ? "note of yours" : view.whose === "others" ? "shared note" : view.whose === "scout" ? "note from Scout" : "note"} has “${query.trim()}” in it.`
-                    : view.whose === "scout" ? "Nothing from Scout yet. Ask Scout for a list, then say \"remember that\", and it's kept here."
+                    : view.whose === "scout" ? "Nothing from Scout yet. Ask Scout anything, then say “remember that”, and its answer is kept here. Later, ask Scout to bring it back."
                     : view.whose === "mine" ? "You haven't written a note yet — the box above is yours."
                     : othersCount === 0 ? "Nobody else has shared a note with the trip yet." : "Nothing here."}
                 </p>
