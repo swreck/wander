@@ -2,6 +2,22 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-14 (Wednesday, 7:30 PM in Japan) — Ask Them What You Can Have
+
+### Added
+- Show large has "Ask them a question ›": the line's own next questions, each shown large in Japanese with its English
+  at the top, "‹ Back to the card" and "Ask another ›"; and "Ask something else" — say or type any question in English,
+  and it's shown large in Japanese, its English saying exactly what it says (not saved). Ken (Oct 14), after a ramen
+  restaurant where every main had garlic and they ordered plain rice and noodles: "think thru Ux and make it a smart
+  option for the user to ask what they want". Lines to show made by Add or Scout carry their own questions. Where: the
+  日 card's Show large (trip_phrases.follow_ups, new; POST /api/phrases/one-off). SPEC UPDATE NEEDED.
+- The allium card asks for what can be made: "Please tell me any dishes that don't have them, or that you can make
+  without them." Its questions: which dishes have nothing from the onion family; can you make this without it; is it
+  in the soup or sauce; plain rice or plain noodles would be fine.
+
+### Changed
+- A very long card is a size smaller in Show large, so all of it is in view.
+
 ## 2026-10-14 (Wednesday, 7:00 PM in Japan) — Japanese to Show, "Show Large", and Remove That Asks
 
 ### Added

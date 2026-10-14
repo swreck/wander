@@ -139,12 +139,38 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   const [tripId, setTripId] = useState<string | null>(null);
   // (removedAt: off everyone's card — sent only to those who may put it back; mayRemoveForAll: this person added it, or
   // is the trip's organizer — the Maybes rule)
-  type Added = { id: string; english: string; romaji: string; pronunciation?: string | null; script?: string | null; addedBy: string; removedAt?: string | null; mayRemoveForAll?: boolean };
+  type FollowUp = { english: string; script: string };
+  type Added = { id: string; english: string; romaji: string; pronunciation?: string | null; script?: string | null; followUps?: FollowUp[] | null; addedBy: string; removedAt?: string | null; mayRemoveForAll?: boolean };
   const [added, setAdded] = useState<Added[]>([]);
   // "Show large" (Ken, Oct 14: "plus tappable "Show large" (button resulting in larger kanji version that stays until
   // "close" button)"): the line's Japanese across the whole screen, to hold up to a server or a driver
-  const [shownLarge, setShownLarge] = useState<{ title: string; english: string; script: string } | null>(null);
-  useBackToClose(!!shownLarge, () => setShownLarge(null));
+  const [shownLarge, setShownLarge] = useState<{ title: string; english: string; script: string; followUps?: FollowUp[] | null } | null>(null);
+  useBackToClose(!!shownLarge, () => showLarge(null));
+  // …and the next question, shown large in its place (Ken, Oct 14, after a ramen menu where every main had garlic: "make
+  // it a smart option for the user to ask what they want"): one of the line's own follow-ups, or their own, said or typed
+  const [largeNow, setLargeNow] = useState<FollowUp | null>(null);
+  const [askOwn, setAskOwn] = useState(false);
+  const [ownText, setOwnText] = useState("");
+  const [ownBusy, setOwnBusy] = useState(false);
+  const [ownNote, setOwnNote] = useState<string | null>(null);
+  // (the questions fold behind one button: open, they took 40% of the screen and pushed the card's end out of sight)
+  const [asksOpen, setAsksOpen] = useState(false);
+  // (which "Ask something else" request is the live one: a late answer after Close, Cancel or another card is dropped —
+  // on weak signal it landed on the reopened allergy card; verify58)
+  const ownReq = useRef(0);
+  // Show large opened, changed or closed: everything about the last one goes at once, in the same drawing (verify58: a
+  // one-frame flash of the old question), and the microphone stops
+  const showLarge = (next: { title: string; english: string; script: string; followUps?: FollowUp[] | null } | null) => {
+    ownReq.current++;
+    setLargeNow(null); setAskOwn(false); setOwnText(""); setOwnNote(null); setOwnBusy(false); setAsksOpen(false);
+    if (voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; setListening(false); }
+    setShownLarge(next);
+  };
+  useEffect(() => {
+    setLargeNow(null); setAskOwn(false); setOwnText(""); setOwnNote(null); setOwnBusy(false); setAsksOpen(false);
+    // (the microphone never listens on for a screen that's gone)
+    if (voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; setListening(false); }
+  }, [shownLarge]);
   // (the screen stays lit while it's held up — a phone dimming mid-order is no use; where the phone allows it)
   useEffect(() => {
     if (!shownLarge) return;
@@ -160,7 +186,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   // Add (Ken, Oct 14): "'Add' allows add where person types or speaks English and scouts fill in the fine print Japanese
   // and pronunciation. If the translation is questionable or problematic or can be done in two ways with different
   // nuance, give an option with super brief context and tappable choice." Nothing is saved until a choice is tapped.
-  type Choice = { kind: "say" | "recognize" | "show"; english: string; romaji: string; pronunciation: string | null; script?: string | null; note: string | null; onCardAs?: string; offYourCard?: string };
+  type Choice = { kind: "say" | "recognize" | "show"; english: string; romaji: string; pronunciation: string | null; script?: string | null; followUps?: FollowUp[] | null; note: string | null; onCardAs?: string; offYourCard?: string };
   // (one save at a time: two quick taps on a choice put the line on everyone's card twice — verify53)
   const choosingRef = useRef(false);
   // (the choice being saved says "Adding…": on weak signal nothing showed the tap had landed — verify54)
@@ -227,7 +253,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   // (closed, the card is out of Edit)
   useEffect(() => {
     if (open) return;
-    setEditing(false); setSaveNote(null); setAskingRemove(null); setShownLarge(null);
+    setEditing(false); setSaveNote(null); setAskingRemove(null); showLarge(null);
     // (and out of Add, the microphone handed back)
     setAdding(false); setAsked(""); setChoices(null); setAddNote(null); setFinding(false);
     if (voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; }
@@ -365,10 +391,10 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
 
   // The card's phrases as this person has arranged them: their order first, anything new after in its first order;
   // the ones they took off apart (services/phrasePrefs keys the same way)
-  type Row = { key: string; local: string; pronunciation?: string | null; script?: string | null; english: string; id?: string; forAll?: boolean; offForAll?: boolean };
+  type Row = { key: string; local: string; pronunciation?: string | null; script?: string | null; followUps?: FollowUp[] | null; english: string; id?: string; forAll?: boolean; offForAll?: boolean };
   const allRows: Row[] = [
     ...activePhrases.phrases.map((p) => ({ key: `core:${activeCountry}:${p.english}`, local: p.local, pronunciation: p.pronunciation, english: p.english })),
-    ...(activeCountry === "japan" ? added.map((p) => ({ key: `p:${p.id}`, local: p.romaji, pronunciation: p.pronunciation, script: p.script, english: p.english, id: p.id, forAll: !!p.mayRemoveForAll, offForAll: !!p.removedAt })) : []),
+    ...(activeCountry === "japan" ? added.map((p) => ({ key: `p:${p.id}`, local: p.romaji, pronunciation: p.pronunciation, script: p.script, followUps: p.followUps, english: p.english, id: p.id, forAll: !!p.mayRemoveForAll, offForAll: !!p.removedAt })) : []),
   ];
   const byKey = new Map(allRows.map((r) => [r.key, r]));
   const orderNow = [...mine.order.filter((k) => byKey.has(k)), ...allRows.map((r) => r.key).filter((k) => !mine.order.includes(k))];
@@ -428,7 +454,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
     setAddNote(null);
     choosingRef.current = true;
     setSavingChoice(at);
-    api.post<Added>(`/phrases`, { tripId, english: c.english, romaji: c.romaji, pronunciation: c.pronunciation, script: c.script || null })
+    api.post<Added>(`/phrases`, { tripId, english: c.english, romaji: c.romaji, pronunciation: c.pronunciation, script: c.script || null, followUps: c.followUps || null })
       .then((p) => {
         if (p?.id) setAdded((list) => (list.some((x) => x.id === p.id) ? list : [...list, { ...p, mayRemoveForAll: true }]));
         // (first on this person's card — the server put it there; the order is read back so this card shows it)
@@ -459,6 +485,36 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
     };
     voiceRef.current = h;
     if (startVoice(h)) { setListening(true); setChoices(null); setAddNote(null); }
+    else voiceRef.current = null;
+  };
+
+  // Show large's "Ask something else": their own question in Japanese, now, not saved (backend POST /phrases/one-off)
+  const showOwn = () => {
+    const english = ownText.trim();
+    if (!english || !tripId || ownBusy || !shownLarge) return;
+    if (voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; setListening(false); }
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    setOwnBusy(true); setOwnNote(null);
+    const n = ++ownReq.current;
+    api.post<{ english?: string; script?: string; why?: string }>(`/phrases/one-off`, { tripId, english, card: { english: shownLarge.english, script: shownLarge.script } })
+      .then((r) => {
+        if (n !== ownReq.current) return; // (closed, cancelled or another card since: dropped)
+        if (r?.script && r.english) { setLargeNow({ english: r.english, script: r.script }); setAskOwn(false); setOwnText(""); }
+        else setOwnNote(r?.why || "I couldn't put that into Japanese. Try saying it another way?");
+      })
+      .catch(() => { if (n === ownReq.current) setOwnNote(trouble()); })
+      .finally(() => { if (n === ownReq.current) setOwnBusy(false); });
+  };
+  const toggleOwnTalk = () => {
+    if (listening && voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; setListening(false); return; }
+    const typed = ownText.replace(/\s+$/, "");
+    const h: VoiceHandlers = {
+      onText: (said) => { if (voiceRef.current === h) setOwnText(typed ? `${typed} ${said.trimStart()}` : said); },
+      onEnd: () => { if (voiceRef.current === h) { voiceRef.current = null; setListening(false); } },
+      onError: (err) => { if (err === "not-allowed" || err === "service-not-allowed") setOwnNote("Wander isn't allowed to use the microphone. You can type it instead."); },
+    };
+    voiceRef.current = h;
+    if (startVoice(h)) { setListening(true); setOwnNote(null); }
     else voiceRef.current = null;
   };
 
@@ -608,7 +664,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
                     <div className="mt-0.5">
                       <div lang="ja" className="text-base text-[#3a3128] whitespace-pre-line" style={{ lineBreak: "strict" }}>{p.script}</div>
                       {!editing && (
-                        <button onClick={() => setShownLarge({ title: p.english, english: p.local, script: p.script! })}
+                        <button onClick={() => showLarge({ title: p.english, english: p.local, script: p.script!, followUps: p.followUps })}
                           className="min-h-[44px] -mb-2 text-sm text-[#514636] underline underline-offset-2">Show large</button>
                       )}
                     </div>
@@ -671,19 +727,75 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
           style={{ zIndex: 10000, paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
           <div className="flex items-start justify-between gap-3 px-5 pt-4">
             <div className="min-w-0">
-              <div className="text-sm font-medium text-[#514636]">{shownLarge.title}</div>
-              <div className="text-xs text-[#6b5d4a]">{shownLarge.english}</div>
+              <div className="text-sm font-medium text-[#514636]">{largeNow ? "You're showing" : shownLarge.title}</div>
+              {/* (what the Japanese says, so they know what they're showing — Ken, Oct 14) */}
+              <div className="text-xs text-[#6b5d4a]">{(largeNow ?? shownLarge).english}</div>
             </div>
-            <button onClick={() => setShownLarge(null)} className="shrink-0 min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-base">Close</button>
+            <button onClick={() => showLarge(null)} className="shrink-0 min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-base">Close</button>
           </div>
+          {/* Their own question, said or typed (at the top, clear of the keyboard) */}
+          {askOwn && (
+            <div className="px-5 pt-3">
+              <textarea value={ownText} rows={2} maxLength={300} autoFocus aria-label="What to ask, in English"
+                onChange={(e) => { setOwnText(e.target.value); setOwnNote(null); }}
+                placeholder="In English, like: Can I have the soup without garlic?"
+                className="w-full bg-[#f0ebe3] rounded-xl px-3 py-2 text-[16px] leading-snug text-[#3a3128] placeholder:text-[#6b5d4a] outline-none resize-none" />
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {hasVoice && (
+                  <button onClick={toggleOwnTalk} onPointerDown={(e) => e.preventDefault()} type="button" aria-label={listening ? "Stop listening" : "Talk instead of typing"}
+                    className={`min-h-[44px] min-w-[44px] px-3 rounded-xl text-sm ${listening ? "bg-red-500 text-white animate-pulse" : "bg-[#f0ebe3] text-[#514636]"}`}>
+                    {listening ? "Stop" : "Talk"}
+                  </button>
+                )}
+                <button onClick={showOwn} onPointerDown={(e) => e.preventDefault()} disabled={!ownText.trim() || ownBusy}
+                  className="min-h-[44px] px-3 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">
+                  {ownBusy ? "Writing it in Japanese…" : "Show it in Japanese"}
+                </button>
+                <button onClick={() => {
+                  // (Cancel stops the microphone and drops a request still out — verify58)
+                  ownReq.current++; setOwnBusy(false);
+                  if (voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; setListening(false); }
+                  setAskOwn(false); setOwnText(""); setOwnNote(null);
+                }} className="min-h-[44px] px-2 text-sm text-[#514636]">Cancel</button>
+              </div>
+              {ownNote && <p role="status" className="text-sm text-[#8a5a1a] mt-1">{ownNote}</p>}
+            </div>
+          )}
           {/* (centred with my-auto, not items-center: a card taller than the screen scrolls from its first line instead
               of losing it above the top; a long card is a size smaller so four sentences fit a phone without scrolling) */}
-          <div className="flex-1 overflow-y-auto flex flex-col px-6 py-6">
+          <div className="flex-1 overflow-y-auto flex flex-col px-6 py-4">
             <p lang="ja" className="my-auto w-full text-[#1f1a14] font-medium whitespace-pre-line"
               // (by the screen's height too, so a phone on its side shows the whole card; strict breaks keep ー and small
               // kana off the start of a line — verify57)
-              style={{ fontSize: shownLarge.script.length > 40 ? "clamp(24px, min(7.4vw, 9vh), 56px)" : "clamp(30px, min(10vw, 12vh), 72px)", lineHeight: 1.35, lineBreak: "strict" }}>{shownLarge.script}</p>
+              // (a very long card a size smaller again, so all of it is in view for the person reading it)
+              style={{ fontSize: (largeNow ?? shownLarge).script.length > 100 ? "clamp(20px, min(6.2vw, 4.8vh), 48px)" : (largeNow ?? shownLarge).script.length > 40 ? "clamp(24px, min(7.4vw, 9vh), 56px)" : "clamp(30px, min(10vw, 12vh), 72px)", lineHeight: 1.35, lineBreak: "strict" }}>{(largeNow ?? shownLarge).script}</p>
           </div>
+          {/* Ask them: the line's own next questions, and their own (Ken, Oct 14: "make it a smart option for the user to
+              ask what they want" — every main had garlic; the useful question is what CAN be made) */}
+          {!askOwn && (
+            <div className="px-5 pt-2 pb-3 border-t border-[#e5ddd0]">
+              <div className="flex flex-wrap items-center gap-x-4">
+                {largeNow && (
+                  <button onClick={() => { setLargeNow(null); setAsksOpen(false); }} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">‹ Back to the card</button>
+                )}
+                <button onClick={() => setAsksOpen((o) => !o)} aria-expanded={asksOpen}
+                  className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+                  {asksOpen ? "Hide the questions" : largeNow ? "Ask another ›" : "Ask them a question ›"}
+                </button>
+              </div>
+              {asksOpen && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {(shownLarge.followUps || []).map((f) => (
+                    <button key={f.english} onClick={() => { setLargeNow(f); setAsksOpen(false); }}
+                      className={`min-h-[44px] px-3 py-1.5 rounded-xl text-sm text-left ${largeNow?.english === f.english ? "bg-[#514636] text-white" : "bg-[#f0ebe3] text-[#3a3128]"}`}>
+                      {f.english}
+                    </button>
+                  ))}
+                  <button onClick={() => { setAskOwn(true); setAsksOpen(false); }} className="min-h-[44px] px-3 py-1.5 rounded-xl text-sm text-[#514636] border border-[#d8cdbd]">Ask something else</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </>,

@@ -12,12 +12,15 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic();
 
-export type PhraseOption = { kind: "say" | "recognize" | "show"; english: string; romaji: string; pronunciation: string | null; script: string | null; note: string | null; sameAs?: string | null };
+export type FollowUp = { english: string; script: string };
+export type PhraseOption = { kind: "say" | "recognize" | "show"; english: string; romaji: string; pronunciation: string | null; script: string | null; followUps?: FollowUp[]; note: string | null; sameAs?: string | null };
 
 const SYSTEM = `You write lines for a traveler's Japanese phrase card. The traveler is an English speaker in Japan. They give you, in English (typed, or spoken and transcribed, so it may be messy), something they want to SAY, something they want to SHOW someone (an allergy or diet, a medical need, an address for a taxi, a request best handed over in writing), or something they want to RECOGNIZE on a sign, button, screen or machine.
 
 Reply with JSON only, no other text: {"options":[...]} or {"options":[],"why":"..."}.
-Each option: {"kind":"say"|"show"|"recognize","english":"...","romaji":"...","pronunciation":"..."|null,"script":"..."|null,"note":"..."|null,"sameAs":"..."|null}
+Each option: {"kind":"say"|"show"|"recognize","english":"...","romaji":"...","pronunciation":"..."|null,"script":"..."|null,"followUps":[{"english":"...","script":"..."}]|null,"note":"..."|null,"sameAs":"..."|null}
+
+- followUps, for something to SHOW only: the two to four questions the traveler will most likely need next, so the person they show it to can help them get what they want, each short, in English and in polite written Japanese saying the same thing. For an allergy or diet: which dishes don't have it, whether this one can be made without it, whether it's in the soup or sauce, and a plain fallback ("Plain rice would be fine"). For a taxi: none needed, or "How long will it take?". null for other kinds.
 
 - For something to SHOW: english is a short title ("Allium allergy"); script is their message in natural, polite written Japanese (kanji and kana) as a Japanese person would write it for restaurant or shop staff, saying what they asked and nothing more (no added warnings or requests); romaji is what that Japanese says, in plain English, sentence for sentence, so the traveler knows exactly what they are handing over (every item, every request, the polite close too), never a summary or a shorter version; pronunciation null.
 - script, for something to SAY: the same phrase in written Japanese when showing it would help as much as saying it (a hospital, a pharmacy, a station name); else null. Always null for something to recognize.
@@ -77,8 +80,50 @@ export function checkedOptions(raw: unknown): PhraseOption[] {
     // (something to show is an English message with its Japanese: no Japanese, nothing to show)
     if (kind === "show" && (JAPANESE.test(romaji) || !script)) continue;
     out.push({ kind, english, romaji, pronunciation: kind === "say" ? pronunciation : null, script: kind === "recognize" ? null : script || null,
+      ...(kind === "show" ? { followUps: checkedFollowUps(o?.followUps) } : {}),
       note: clip(o?.note, 60) || null, sameAs: clip(o?.sameAs, 120) || null });
   }
   if (out.length === 1) out[0].note = null;
   return out;
+}
+
+/** Follow-up questions, checked: English with no Japanese in it, Japanese with some; at most four */
+export function checkedFollowUps(raw: unknown): FollowUp[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, 4).map((f) => ({ english: clip(f?.english, 160), script: typeof f?.script === "string" ? f.script.trim().slice(0, 300) : "" }))
+    .filter((f) => f.english && !JAPANESE.test(f.english) && JAPANESE.test(f.script));
+}
+
+const ONE_OFF = `A traveler in Japan is holding their phone up to someone (a server, a shop clerk, a driver) to ask or say one thing, right now. They give it in English (typed, or spoken and transcribed, so it may be messy). Reply with JSON only: {"script":"...","english":"..."} or {"script":null,"why":"..."}.
+- script: what they want to say, in natural, polite written Japanese (kanji and kana) as a Japanese person would write it for that person. Exactly their meaning, nothing added: no fact, address, number or request they didn't give.
+- english: what that Japanese says, in plain English, sentence for sentence, so they know exactly what they're showing.
+- If the card they're showing is given (CARD), write it as the next thing said in that conversation.
+- If what they want isn't clear enough to write, return script null and "why": ONE short sentence, under 15 words, saying what to add ("Say what you'd like less of, like less salt.").
+- No em dashes.`;
+// (a sentence, never cut mid-word: "…And "less" of what, e" — verify58)
+const firstSentence = (s: unknown, max = 160) => {
+  const t = typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "";
+  const one = t.match(/^.*?[.!?](\s|$)/)?.[0]?.trim() || t;
+  return one.length <= max ? one : `${one.slice(0, one.lastIndexOf(" ", max)).replace(/[,;:]$/, "")}…`;
+};
+
+/** "Ask something else" in Show large: one thing to show, now — not saved. English says what the Japanese says. */
+export async function oneOffToShow(asked: string, card?: { english: string; script?: string | null }): Promise<{ english: string; script: string } | { why: string }> {
+  const r = await anthropic.messages.create({
+    model: "claude-opus-5",
+    max_tokens: 3000,
+    system: ONE_OFF,
+    messages: [{ role: "user", content: `${asked.slice(0, 300)}${card ? `\n\nCARD: ${card.english}${card.script ? ` (${card.script})` : ""}` : ""}` }],
+  });
+  const text = r.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();
+  try {
+    const j = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+    const script = typeof j?.script === "string" ? j.script.trim().slice(0, 600) : "";
+    const english = clip(j?.english, 600);
+    if (script && JAPANESE.test(script) && english && !JAPANESE.test(english)) return { english, script };
+    return { why: firstSentence(j?.why) || "I couldn't put that into Japanese. Try saying it another way?" };
+  } catch {
+    console.warn(`[phrase-one-off] unreadable reply (stop ${r.stop_reason}): ${text.slice(0, 300)}`);
+    return { why: "I couldn't put that into Japanese. Try saying it another way?" };
+  }
 }

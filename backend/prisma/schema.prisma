@@ -736,6 +736,10 @@ model TripPhrase {
   // the line in Japanese writing, to show someone ("Show large"), when that helps more than saying it: an allergy, a
   // diet, an address for a taxi (Ken, Oct 14: "notes should include kanji when helpful")
   script    String?
+  // questions to ask next, shown large too: [{ english, script }] — the allium card's "Which of these dishes don't have
+  // onion or garlic?" (Ken, Oct 14, after a ramen menu where every main had garlic: "make it a smart option for the user
+  // to ask what they want")
+  followUps Json?   @map("follow_ups")
   addedBy   String   @map("added_by")
   createdAt DateTime @default(now()) @map("created_at")
   // "Remove" by whoever added it or the trip's organizer: off everyone's card, never deleted; Put back undoes it

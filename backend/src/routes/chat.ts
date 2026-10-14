@@ -833,6 +833,7 @@ const tools: Anthropic.Tool[] = [
         romaji: { type: "string", description: "The Japanese line under the title: for something to say, the romaji ('Eki wa doko desu ka?'), NO Japanese characters; for characters to recognize, the characters with what each means, in their own words when they gave them, exactly ('大 for full flush; 小 for light flush')." },
         pronunciation: { type: "string", description: "For something to say: the romaji sounded out for an English speaker, syllables joined by hyphens, as the card's own ('Konnichiwa' → 'Koh-nee-chee-wah'; 'Arigatou gozaimasu' → 'Ah-ree-gah-toh go-zah-ee-mahs'). Leave out for characters to recognize." },
         script: { type: "string", description: "The line in written Japanese (kanji and kana), when showing it to someone helps: an allergy or diet ('Allium allergy' → a polite written statement), a medical need, an address for a taxi. Exactly what they said, nothing added. The card gives it a 'Show large' button. For something to SHOW, romaji is what the Japanese says in plain English, sentence for sentence, so they know exactly what they hand over (Ken, Oct 14: \"make sure the small type English always makes it clear to the user what they are giving to the Japanese reader\"), and pronunciation is left out." },
+        followUps: { type: "array", description: "For something to SHOW only: the two to four questions they'll most likely need next, so the person can help them get what they want (an allergy: which dishes don't have it; can this one be made without it; is it in the soup or sauce; a plain fallback like 'Plain rice would be fine'). Each short, English and polite written Japanese saying the same.", items: { type: "object", properties: { english: { type: "string" }, script: { type: "string" } }, required: ["english", "script"] } },
         anotherWay: { type: "boolean", description: "Only when they ask for a second way to say something already on the card" },
       },
       required: ["tripId", "english", "romaji"],
@@ -3475,6 +3476,7 @@ export async function executeTool(
           romaji: input.romaji,
           ...(typeof input.pronunciation === "string" && input.pronunciation.trim() ? { pronunciation: input.pronunciation.trim().slice(0, 300) } : {}),
           ...(typeof input.script === "string" && /[぀-ヿ㐀-鿿]/.test(input.script) ? { script: input.script.trim().slice(0, 600) } : {}),
+          ...(Array.isArray(input.followUps) && input.followUps.length ? { followUps: (await import("../services/phraseSuggest.js")).checkedFollowUps(input.followUps) } : {}),
           addedBy: user.displayName,
         },
       });
