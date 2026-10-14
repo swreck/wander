@@ -15,6 +15,8 @@ export function changeWords(name: string, description: string | null | undefined
   const lower = d.toLowerCase();
   const n = name.trim().toLowerCase();
   if (n && (lower.startsWith(`${n} `) || lower === n)) d = d.slice(name.trim().length).trim();
+  // (a maybe's line is stored "Andy: maybe — …"; shown as "You Andy: maybe — …" — verify52)
+  else if (n && lower.startsWith(`${n}:`)) d = d.slice(name.trim().length + 1).trim().replace(/^maybe\b/i, "added a maybe");
   let text = `${name} ${d}`;
   if (text.length > max) {
     const cut = text.slice(0, max);

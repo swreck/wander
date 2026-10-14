@@ -1202,12 +1202,22 @@ export function freshness(importedAt: string | undefined | null, now = new Date(
  *  part ending in "?" — each in her own words */
 export function openQuestionsIn(text: string): string[] {
   const out = new Set<string>();
+  // A question her own line marks done isn't open: "ASK KENJI TO INTEGRATE THE 2 TOURS AND FINISH 3:45-4p AT TRAIN —
+  // DONE" showed as "Still open in her Guide" on Home and the day, on the train home from Mashiko. Ken (Oct 14): "if it
+  // is done or out of date, you don't show it"
+  const lineOf = (at: number) => text.slice(text.lastIndexOf("\n", at) + 1, (text.indexOf("\n", at) + 1 || text.length + 1) - 1);
+  // (a mark, not any "done": "— DONE", "DONE — …", "(done)", "… done." at the line's end, or a tick — "Is the laundry
+  // done by 5?" is still a question)
+  const DONE = /(?:^|[—–:(\[,]\s*|\s-\s*)(?:done|completed?|resolved|sorted)\b|\b(?:done|completed?|resolved|sorted)\s*(?:[)\].!]|$)|[✓✔☑✅]/i;
   // (words on one line only, a time like "3:45-4p" kept whole — round 12: "…STARTING L" took the next line's "L",
   // and "FINISH 3:45-4p AT TRAIN" stopped at "3:45-4")
   for (const m of text.matchAll(/\b[A-Z][A-Z0-9']+(?:[ \t]+[A-Z0-9][A-Z0-9'&:-]*(?:[ap](?![a-z]))?)+(?![A-Za-z])/g)) {
-    if (m[0].split(/[ \t]+/).length >= 3 && /\b(WHERE|WHEN|WHO|WHAT|ASK|CONFIRM|CHECK|TBD|HOW)\b/.test(m[0])) out.add(m[0].trim());
+    if (m[0].split(/[ \t]+/).length >= 3 && /\b(WHERE|WHEN|WHO|WHAT|ASK|CONFIRM|CHECK|TBD|HOW)\b/.test(m[0]) && !DONE.test(lineOf(m.index ?? 0))) out.add(m[0].trim());
   }
-  for (const part of text.split(/\n| — | - |; /)) if (/\?\s*$/.test(part.trim()) && part.trim().length > 3) out.add(part.trim());
+  for (const line of text.split("\n")) {
+    if (DONE.test(line)) continue;
+    for (const part of line.split(/ — | - |; /)) if (/\?\s*$/.test(part.trim()) && part.trim().length > 3) out.add(part.trim());
+  }
   return [...out];
 }
 

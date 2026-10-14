@@ -2,6 +2,43 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-14 (Wednesday, 5:00 PM in Japan) — The Phrase Card in English First, With Add; Fixes Before Andy and Julie See Wander
+
+### Changed
+- Every line on the phrase card leads with its English title, then the Japanese and how to say it: "Hello", then
+  "Konnichiwa (Koh-nee-chee-wah)". Ken (Oct 14): "all phrases titles should be English to find what is needed". A
+  line for characters to find on a device leads with what it's for: "Toilet flush", then "大 for full flush; 小 for
+  light flush". Phrases added on the trip now keep how to say them (trip_phrases.pronunciation, new); the ones already
+  on the card were filled in. Where: the 日 card. SPEC UPDATE NEEDED (phrase card).
+- The card's buttons are "Add" and "Edit/Reorder" (was "Edit"). Ken: "'Add' allows add where person types or speaks
+  English and scouts fill in the fine print Japanese and pronunciation. If the translation is questionable or
+  problematic or can be done in two ways with different nuance, give an option with super brief context and tappable
+  choice." Add takes English typed or said (Talk), finds the Japanese and how to say it, and offers two or three ways
+  only when the Japanese really differs, each with a few words of context; tapping one adds it, first on your card.
+  One already on the card, in any wording, says so ("The check" → already there as "Check please"); one you took off
+  your own card offers "Put it back". A double tap adds it once. While typing on an iPhone the card sits above the
+  keyboard and its ˄ ˅ ✓ bar. Lines for signs and machines are only the characters and their meanings.
+  Where: the 日 card; POST /api/phrases/suggest (services/phraseSuggest.ts). SPEC UPDATE NEEDED.
+- Scout's phrases: English title, romaji and its pronunciation; asked how to say something, it gives both.
+
+### Fixed
+- "Still open in her Guide: ASK KENJI TO INTEGRATE THE 2 TOURS AND FINISH 3:45-4p AT TRAIN" showed on Home and Oct 14's
+  page though her own line ends "— DONE". Ken (Oct 14): "You don't change her sheet. You add value to it. So if it is
+  done or out of date, you don't show it." A question her line marks done ("— DONE", "DONE —", "(done)", a tick) is
+  no longer shown as open. Where: Home's Today card, the day's "Don't miss". lib/guideDisplay openQuestionsIn.
+- Scout offered twice more to draft Larisa a note after Ken's "No", and told him Wander "can't hide a line". Once
+  someone says no, it doesn't offer again; told something is done or out of date, it agrees Wander shouldn't show it.
+- Scout told Julie the Imperial room is "booked under your name"; it's under Andy's. Only the person a booking is under
+  hears "your name" (verify52).
+- A maybe removed and added again within 10 minutes said "On Tokyo's maybes." and showed nothing (verify52).
+- The landing card ("Your flight was due to land…", "Getting from Narita to…") stayed on top of the day's page all
+  evening; three hours after the landing it goes, as on Next. The landing stays in the day (verify52).
+- "45% chance of rain (0")" read as a contradiction: an amount that rounds to nothing beside a chance of 20% or more
+  is "(under .01")" (day page, Home, Scout).
+- History said "You Andy: maybe — …"; it says "You added a maybe — …".
+- Scout's tips spoke of dragging a file in "on a Mac" to iPhone users; that's said only on a computer. Settings' tour
+  line no longer counts "six buttons" (there are seven, with 日).
+
 ## 2026-10-14 (Wednesday, 3:30 PM in Japan) — The Weather Stays Current While Wander Is Open; Talk Keeps Sentences Apart
 
 ### Changed

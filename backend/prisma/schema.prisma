@@ -727,8 +727,12 @@ model TripMember {
 model TripPhrase {
   id        String   @id @default(cuid())
   tripId    String   @map("trip_id")
+  // english: the line's title, what an English speaker scans the card for (Ken, Oct 14: "all phrases titles should be
+  // English to find what is needed"); romaji: the Japanese line — romaji to say, or the characters to find on a device
   english   String
   romaji    String
+  // how to say the romaji, sounded out ("Koh-nee-chee-wah"); none for characters to find
+  pronunciation String?
   addedBy   String   @map("added_by")
   createdAt DateTime @default(now()) @map("created_at")
   // "Remove" by whoever added it or the trip's organizer: off everyone's card, never deleted; Put back undoes it

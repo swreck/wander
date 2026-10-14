@@ -16,9 +16,11 @@ export interface ForecastWords {
 
 /** The day's expected rain in inches, said right after the chance: " (.42\")" — Ken, Oct 13: "rain percentage is
  *  important, but especially in Japan, the quantity of rain matters… in parentheses right after the percentage" */
-export const rainInches = (x: number | null | undefined) =>
+export const rainInches = (x: number | null | undefined, chance?: number | null) =>
+  // (an amount that rounds to nothing beside a real chance of 20% or more is said as under .01 inch: "45% chance of
+  // rain (0 inches)" read as a contradiction — verify52, Oct 14)
   // (a no-break space: at 375 pt "(1.91")" wrapped away from its "47%" — verify32)
-  x == null ? "" : ` (${x >= 1 ? x.toFixed(2) : x === 0 ? "0" : "." + x.toFixed(2).split(".")[1]}")`;
+  x == null ? "" : ` (${x >= 1 ? x.toFixed(2) : x === 0 ? ((chance ?? 0) >= 20 ? "under .01" : "0") : "." + x.toFixed(2).split(".")[1]}")`;
 
 /** When in the day the rain is most likely, said after the chance: ", most likely 9–11 AM and 4–8 PM" (Ken's weather
  *  plan item 3, agreed Oct 13: the hourly rain window on the days just ahead). On today, only the hours still to come,
@@ -87,11 +89,11 @@ export function forecastLines(f: ForecastWords, date: string, place: string, now
   const lines: { text: string; icon: "rain" | "sun" | "part" }[] = [];
   const a = f.also;
   if (a) {
-    lines.push({ icon: icon(a), text: `${a.outlook === "early outlook" ? "Early outlook" : "Forecast"} for ${a.place}${a.when === "day" ? ", the day trip" : ", where the day starts"}: ${a.lo}‑${a.hi}°F${a.rain !== null ? `, ${a.rain}% chance of rain${rainInches(a.inches)}${rainWhen(a, date, now, a.when === "morning" ? "morning" : undefined)}` : ""}${how(a)}` });
+    lines.push({ icon: icon(a), text: `${a.outlook === "early outlook" ? "Early outlook" : "Forecast"} for ${a.place}${a.when === "day" ? ", the day trip" : ", where the day starts"}: ${a.lo}‑${a.hi}°F${a.rain !== null ? `, ${a.rain}% chance of rain${rainInches(a.inches, a.rain)}${rainWhen(a, date, now, a.when === "morning" ? "morning" : undefined)}` : ""}${how(a)}` });
   }
   // (where: that night's hotel when Wander knows it, else the town; how sure: past a week it's an early outlook, and a
   // rain chance the other forecasts don't share is said so — Ken's weather plan, Oct 13)
   const where = f.place ? (f.atHotel ? `at ${theHotel(f.place)}` : `for ${f.place}`) : `for ${place}`;
-  lines.push({ icon: icon(f), text: `${f.outlook === "early outlook" ? "Early outlook" : "Forecast"} ${where}${a?.when === "morning" ? ", where you sleep" : ""}: ${f.lo}‑${f.hi}°F${f.rain !== null ? `, ${f.rain}% chance of rain${rainInches(f.inches)}${rainWhen(f, date, now, a?.when === "morning" ? "afternoon" : undefined)}` : ""}${how(f)}` });
+  lines.push({ icon: icon(f), text: `${f.outlook === "early outlook" ? "Early outlook" : "Forecast"} ${where}${a?.when === "morning" ? ", where you sleep" : ""}: ${f.lo}‑${f.hi}°F${f.rain !== null ? `, ${f.rain}% chance of rain${rainInches(f.inches, f.rain)}${rainWhen(f, date, now, a?.when === "morning" ? "afternoon" : undefined)}` : ""}${how(f)}` });
   return lines;
 }

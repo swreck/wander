@@ -1522,7 +1522,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               // immigration, bags and the bus or train from Narita take hours, and at 90 minutes the way to the hotel went
               // while Julie was still on her way (round 15)
               // (three hours: at 6:30 PM it still filled Julie's first screen and her 7 PM dinner was below it; verify 6)
-              if (now && due && tripNow > toMin(land.time!) + 180) return null;
+              // (on the day's page too: at 9 PM Julie's page still led with the 3:00 PM landing and the way from Narita,
+              // and said the landing three times — verify52. The landing stays in the day, by the clock)
+              if (due && tripNow > toMin(land.time!) + 180) return null;
               // Only when the day has someone else's lines (round r1: Ken & Larisa's Oct 6 said "the others' plan" with
               // no one else in Japan)
               const others = dayItems.some((i) => i.forWhom && !/^everyone$/i.test(i.forWhom) && !isFor(i, me));

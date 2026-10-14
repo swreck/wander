@@ -60,6 +60,10 @@ faithfulness at its core.' This optimization would be clear to a human."
 - Ken approved (Oct 11): everything she wrote is data Wander holds and Scout can answer from; how much screen work each
   piece gets is proportionate. I work out her meaning from her cells and ask Ken only when two readings would give a
   different time, place or booking. Conflicts between her tabs are shown, never silently resolved.
+- Done or out of date isn't shown. Ken (Oct 14, on "Still open in her Guide: ASK KENJI TO INTEGRATE THE 2 TOURS…",
+  which her cell ends "— DONE", on the train home from Mashiko): "You don't change her sheet. You add value to it. So
+  if it is done or out of date, you don't show it" · "Just don't show it in wander". (Claude) Scout had told him Wander
+  can't hide a line; hiding what's done or past is Wander's job, never a change to her sheet.
 - Before asking Ken about her sheet, read the cell. Ken (Oct 10): "There is no lt. why do you keep asking?" ("LT
   actions" is a heading in her Actions tab.)
 - Personal information. Ken (Oct 4): "unless the info passes through the vault in a safe way, Wander should not surprise
@@ -119,6 +123,8 @@ auditing them.
   not use kanji. But in this case (and possibly future ones) the purpose is finding something on a Japanese device."
   And: "title is Toilet flush ( in English) because that is what an English speaker scans for. Then my line. Use that
   approach if I add anything else like this. That should be obvious to you!" (Claude) I had made "大 / 小" the title.
+  Removing a phrase asks "Just your card, or everyone's?" Ken (Oct 14): "yes, good suggestion. But ensure just your
+  card is default. I don't want Larisa or Julie to accidentally remove for andy!"
 - Scout's mic: tap to start, tap to stop, words wait in the box (Oct 1). No auto-send, no hold-to-talk.
 - Ken (Oct 3): "stop the map" (no more spending on the Home map's polish). Ask him before building Scout streaming,
   before using "Team Fun", and never bring back the travelerProfiles nudges (they invent facts).
