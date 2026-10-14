@@ -32,6 +32,7 @@ import CaptureFAB from "./components/CaptureFAB";
 import SyncIndicator from "./components/SyncIndicator";
 import SavedCopyNotice from "./components/SavedCopyNotice";
 import BottomNav from "./components/BottomNav";
+import TellKenOffer from "./components/TellKenOffer";
 import PhraseCard from "./components/PhraseCard";
 import ShowMeAround from "./components/ShowMeAround";
 import UpdatePrompt from "./components/UpdatePrompt";
@@ -360,6 +361,7 @@ export default function App() {
               <SavedCopyNotice />
               <UpdatePrompt />
               <BottomNav />
+              <TellKenOffer />
               {/* The one phrase card, opened by the bar's 日 or Next's "日 Phrases" */}
               <PhraseCard mode="sheet" />
               {/* "Show me around" — only when asked for */}

@@ -2,6 +2,27 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-14 (Wednesday, 10:00 PM in Japan) — Tell Ken
+
+### Added
+- "Tell Ken": Larisa, Andy or Julie say or type "Tell Ken…" to Scout, and Scout passes their words to Ken exactly, with
+  their name, the time, the screen they were on and any picture they attached. Ken (Oct 14): "if they would like a
+  feature added to wander or anything about the way wander works is confusing, they can speak or type at that moment
+  what they want and it will become a message to Ken to try to fix. It cannot be a nuisance, and it should be very
+  easy". Scout sends only on a clear "Tell Ken" or a yes to its offer ("Want me to pass that to Ken, word for word?"),
+  and never a personal message. Ken's phone buzzes ("Julie, about Wander") when it allows Scout's buzz. Where: Scout
+  (tell_ken tool, rule 59); Settings (tell_ken table, /api/tell-ken). SPEC UPDATE NEEDED.
+- A quiet line inside Scout for everyone but Ken, with "Start one": the first day they open Scout, two days later, and
+  three days after that; never again once they've sent one; ✕ closes it for the day. On a day it shows, the paperclip
+  tip waits.
+- Settings: for Ken, "About Wander, from the others", newest first, pictures opened in place, "Mark as read"; for the
+  others, a "Tell Ken about Wander" row that opens Scout ready to write.
+- The offer when someone seems lost: "Not finding something? Tell Ken ›" just above the bottom bar, at most once a day,
+  gone after 20 seconds. Ken (Oct 14): "perhaps even signals based on them seemingly clicking around and not getting
+  value and treating that as a trigger to offer." The signs (quick screens, Scout opened and shut with nothing asked,
+  taps on words that aren't buttons, opening How Wander works) are added up on the phone itself and never sent or kept.
+  It needs two different kinds of sign, never in the first half minute, never for Ken, and waits while Scout is open.
+
 ## 2026-10-14 (Wednesday, 7:30 PM in Japan) — Ask Them What You Can Have
 
 ### Added

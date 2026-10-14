@@ -44,9 +44,14 @@ export function answerPreview(text: string): string {
 
 /** Tell each of their phones that allowed it: Scout answered. Never throws; a phone that's gone is forgotten. */
 export async function sendAnswerReady(travelerId: string, answer: string): Promise<number> {
+  return sendToPhones(travelerId, { title: "Scout answered", body: answerPreview(answer), tag: "scout-answer", url: "/?scout=open" });
+}
+
+/** Any one notice to a person's phones (Scout's answer; "Julie, about Wander" for Ken). Never throws. */
+export async function sendToPhones(travelerId: string, note: { title: string; body: string; tag: string; url: string }): Promise<number> {
   if (!setUp()) return 0;
   const subs = await prisma.pushSubscription.findMany({ where: { travelerId } }).catch(() => []);
-  const payload = JSON.stringify({ title: "Scout answered", body: answerPreview(answer), tag: "scout-answer", url: "/?scout=open" });
+  const payload = JSON.stringify(note);
   let sent = 0;
   await Promise.all(subs.map(async (s) => {
     try {

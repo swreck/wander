@@ -8,6 +8,7 @@ import { signedInWithPasskeyHere } from "../lib/passkeys";
 import { sourcesData, type OtherSource } from "../lib/sources";
 import { voiceFor, samePerson } from "../lib/guideDisplay";
 import { showMeAround } from "../components/ShowMeAround";
+import TellKenSettings from "../components/TellKenSettings";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -72,6 +73,7 @@ export default function SettingsPage() {
           </button>
         </section>
 
+        <TellKenSettings />
         <FaceIdSetup variant="settings" />
         <NotesSettingsSection />
         <SheetSyncSection />
