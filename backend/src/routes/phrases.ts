@@ -8,6 +8,11 @@ import { phrasePrefsOf, savePhrasePrefs, mayRemoveForAll, firstOnAddersCard, car
 
 const router = Router();
 router.use(requireAuth);
+// Is the signed-in person on this trip? (the translation routes take the trip in the body)
+const onThisTrip = async (req: AuthRequest, tripId: string) => {
+  const me = req.user?.travelerId;
+  return !!me && !!(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId, travelerId: me } }, select: { tripId: true } }));
+};
 // A route naming one item is for the people on that item's trip (Oct 1 2026)
 router.param("id", itemMemberParam(tripOf.phrase));
 // A route naming a trip is for that trip's own people (Sep 30 2026)
@@ -70,8 +75,8 @@ router.post("/suggest", async (req: AuthRequest, res) => {
   const { tripId, english } = req.body || {};
   const asked = typeof english === "string" ? english.trim() : "";
   if (!tripId || !asked) { res.status(400).json({ error: "Say or type what you want in English first." }); return; }
-  // (a trip that isn't there costs no translation — verify53)
-  if (!(await prisma.trip.findUnique({ where: { id: String(tripId) }, select: { id: true } }))) { res.status(404).json({ error: "Trip not found" }); return; }
+  // (a trip that isn't there, or isn't theirs, costs no translation — verify53, verify58)
+  if (!(await onThisTrip(req, String(tripId)))) { res.status(404).json({ error: "Trip not found" }); return; }
   try {
     const { suggestPhrase } = await import("../services/phraseSuggest.js");
     const onCard = (await cardPhrases(String(tripId))).filter((p) => !p.removedAt);
@@ -94,9 +99,26 @@ router.post("/suggest", async (req: AuthRequest, res) => {
   }
 });
 
+// POST /one-off — Show large's "Ask something else": English in, the Japanese to show now and what it says; nothing
+// saved (Ken, Oct 14: "make it a smart option for the user to ask what they want")
+router.post("/one-off", async (req: AuthRequest, res) => {
+  const { tripId, english, card } = req.body || {};
+  const asked = typeof english === "string" ? english.trim() : "";
+  if (!tripId || !asked) { res.status(400).json({ error: "Say or type what you want to ask, in English." }); return; }
+  if (!(await onThisTrip(req, String(tripId)))) { res.status(404).json({ error: "Trip not found" }); return; }
+  try {
+    const { oneOffToShow } = await import("../services/phraseSuggest.js");
+    const c = card && typeof card.english === "string" ? { english: String(card.english).slice(0, 300), script: typeof card.script === "string" ? card.script.slice(0, 600) : null } : undefined;
+    res.json(await oneOffToShow(asked, c));
+  } catch (e) {
+    console.warn("[phrase-one-off] failed:", (e as Error)?.message);
+    res.status(502).json({ error: "The translation didn't come back. Try again in a moment?" });
+  }
+});
+
 // POST / — add a phrase (appears at bottom for everyone)
 router.post("/", async (req: AuthRequest, res) => {
-  const { tripId, english, romaji, pronunciation, script } = req.body;
+  const { tripId, english, romaji, pronunciation, script, followUps } = req.body;
   if (!tripId || !english || !romaji) {
     res.status(400).json({ error: "tripId, english, and romaji are required" });
     return;
@@ -121,6 +143,8 @@ router.post("/", async (req: AuthRequest, res) => {
       ...(typeof pronunciation === "string" && pronunciation.trim() ? { pronunciation: pronunciation.trim().slice(0, 300) } : {}),
       // (the Japanese writing to show someone — only real Japanese is kept)
       ...(typeof script === "string" && /[぀-ヿ㐀-鿿]/.test(script) ? { script: script.trim().slice(0, 600) } : {}),
+      // (the questions to ask next, checked as the translator's are)
+      ...(Array.isArray(followUps) && followUps.length ? { followUps: (await import("../services/phraseSuggest.js")).checkedFollowUps(followUps) } : {}),
       addedBy: req.user!.displayName,
     },
   });
