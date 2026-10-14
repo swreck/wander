@@ -7,10 +7,10 @@
  * Drawn from this phone's copy at once; the line keeps its height while a first fetch is out, so nothing moves.
  */
 import { useEffect, useState } from "react";
-import { forecastFor, savedForecast, dayForecastFor, savedDayForecast, rainDisputed, rainLikely, clearSky, rainInches, rainWhen, type DayForecast as F } from "../lib/forecast";
-
-/** "the Ritz-Carlton, Nikko", "the Imperial Hotel" — and "Shirakabeso", "Shiraume" as they are */
-export const theHotel = (s: string) => (/^the /i.test(s) || !/hotel|ritz|four seasons|six senses|marriott|hyatt|hilton|westin|peninsula|mandarin|conrad|andaz|intercontinental|\baman\b/i.test(s) ? s : `the ${s}`);
+import { forecastFor, savedForecast, dayForecastFor, savedDayForecast, FORECAST_KEPT, type DayForecast as F } from "../lib/forecast";
+// (the lines' words — the same file Scout's answers are made with)
+import { forecastLines, theHotel } from "../lib/forecastWords";
+export { theHotel };
 
 export default function DayForecast({ tripId, lat, lon, date, zone, place, herLine, her }: {
   /** with the trip: the forecast where this person sleeps that night, from Wander's server (lib/forecast dayForecastFor) */
@@ -32,7 +32,13 @@ export default function DayForecast({ tripId, lat, lon, date, zone, place, herLi
     // (the hotel's forecast from Wander; if Wander can't give one, the town's straight from Open-Meteo as before)
     (tripId ? dayForecastFor(tripId, date).then((x) => x || forecastFor(lat, lon, date, zone)) : forecastFor(lat, lon, date, zone))
       .then((x) => { if (live) { if (x) setF(x); setTried(true); } });
-    return () => { live = false; };
+    // (a newer forecast Scout just read for this day: the same numbers here at once — lib/forecast keepDayForecast)
+    const kept = (e: Event) => {
+      const d = (e as CustomEvent<{ tripId: string; date: string }>).detail;
+      if (live && tripId && d?.tripId === tripId && d.date === date) { const x = savedDayForecast(tripId, date); if (x) setF(x); }
+    };
+    window.addEventListener(FORECAST_KEPT, kept);
+    return () => { live = false; window.removeEventListener(FORECAST_KEPT, kept); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId, lat, lon, date, zone, past]);
 
@@ -70,32 +76,19 @@ export default function DayForecast({ tripId, lat, lon, date, zone, place, herLi
   );
 
   if (f) {
-    // (where: that night's hotel when Wander knows it, else the town; how sure: past a week it's an early outlook, and a
-    // rain chance the other forecasts don't share is said so — Ken's weather plan, Oct 13)
-    const disputed = rainDisputed(f);
-    const lead = f.outlook === "early outlook" ? "Early outlook" : "Forecast";
-    const where = f.place ? (f.atHotel ? `at ${theHotel(f.place)}` : `for ${f.place}`) : `for ${place}`;
-    // (and where her plan takes them that day, first, when it's somewhere else — Ken, Oct 13: "both weathers should be
-    // there"; a day trip, or where a travel day starts)
-    const a: (F & { place: string; when: "day" | "morning" }) | undefined = f.also ? { ...f.also, at: f.at } : undefined;
-    const aDisputed = a ? rainDisputed(a) : null;
+    // (where her plan takes them that day first, when it's somewhere else, then where they sleep — lib/forecastWords)
+    const lines = forecastLines(f, date, place);
     return (
       <>
-        {a && (
-          <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
-            {icon(aDisputed ? "part" : rainLikely(a) ? "rain" : clearSky(a) ? "sun" : "part")}
+        {lines.map((l, i) => (
+          <p key={i} className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
+            {icon(l.icon)}
             <span>
-              {a.outlook === "early outlook" ? "Early outlook" : "Forecast"} for {a.place}{a.when === "day" ? ", the day trip" : ", where the day starts"}: {a.lo}‑{a.hi}°F{a.rain !== null ? `, ${a.rain}% chance of rain${rainInches(a.inches)}${rainWhen(a, date, undefined, a.when === "morning" ? "morning" : undefined)}` : ""}{aDisputed === "drier" ? ", though other forecasts show little rain" : aDisputed === "split" ? ", but the forecasts disagree" : ""}
+              {l.text}
+              {i === lines.length - 1 && <span className="text-xs text-[#6b5d4a]"> · Open-Meteo, {fetched}</span>}
             </span>
           </p>
-        )}
-        <p className="flex items-start gap-1.5 text-sm text-[#514636] mt-1 min-h-[20px]">
-          {icon(disputed ? "part" : rainLikely(f) ? "rain" : clearSky(f) ? "sun" : "part")}
-          <span>
-            {lead} {where}{a?.when === "morning" ? ", where you sleep" : ""}: {f.lo}‑{f.hi}°F{f.rain !== null ? `, ${f.rain}% chance of rain${rainInches(f.inches)}${rainWhen(f, date, undefined, a?.when === "morning" ? "afternoon" : undefined)}` : ""}{disputed === "drier" ? ", though other forecasts show little rain" : disputed === "split" ? ", but the forecasts disagree" : ""}
-            <span className="text-xs text-[#6b5d4a]"> · Open-Meteo, {fetched}</span>
-          </span>
-        </p>
+        ))}
       </>
     );
   }

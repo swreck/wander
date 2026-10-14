@@ -8,7 +8,7 @@
  * never jumps in when the forecast arrives.
  */
 import { useEffect, useState } from "react";
-import { dayForecastFor, savedDayForecast, rainDisputed, rainInches, type DayForecast } from "../lib/forecast";
+import { dayForecastFor, savedDayForecast, rainDisputed, rainInches, FORECAST_KEPT, type DayForecast } from "../lib/forecast";
 import { theHotel } from "./DayForecast";
 
 export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripId: string; date: string; japanToday: string; onGo: () => void }) {
@@ -21,7 +21,13 @@ export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripI
     let live = true;
     setF(savedDayForecast(tripId, date));
     dayForecastFor(tripId, date).then((x) => { if (live && x) setF(x); });
-    return () => { live = false; };
+    // (a newer forecast Scout just read for today: the same numbers here at once — lib/forecast keepDayForecast)
+    const kept = (e: Event) => {
+      const d = (e as CustomEvent<{ tripId: string; date: string }>).detail;
+      if (live && d?.tripId === tripId && d.date === date) { const x = savedDayForecast(tripId, date); if (x) setF(x); }
+    };
+    window.addEventListener(FORECAST_KEPT, kept);
+    return () => { live = false; window.removeEventListener(FORECAST_KEPT, kept); };
   }, [tripId, date, over]);
 
   // (said in full to a screen reader: where it's measured and that it's today's)

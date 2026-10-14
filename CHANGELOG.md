@@ -2,6 +2,25 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-14 (Wednesday, 8:20 AM in Japan) — Scout's Weather Is the Day Page's Weather
+
+### Changed
+- Scout answers the weather from Wander's own forecast, the one on the day pages and Home (Ken, Oct 13: "yes. One
+  unified and correct source"). Before, it searched the web: asked "Is it going to rain in Mashiko today?" it gave a
+  Norwegian site's "2.6 mm, 24°/17° C" while the day page said 94% (.13"), most likely 10 AM–7 PM. Now it gives the day
+  page's numbers, hours and places for the person asking: both places on a day trip or a travel day, the day's place
+  first; "early outlook" only for days more than a week out. No ranges of Scout's own ("high 40s"), the day's range
+  never called tonight's, and a place's rain hours never tied to somewhere else (verify43: the Imperial's hours had
+  been said to "overlap your landing at Narita"). A town in Japan that isn't on their plan ("Kanazawa on
+  Friday?") gets Wander's forecast for it, said as not where their plan has them. Only weather outside Japan is
+  searched online. Where: Scout (get_weather, prompt rule 46g); server: services/dayWeather (townWeather).
+- The forecast Scout read for an answer becomes the phone's copy for that day, so the day page and Home show the numbers
+  Scout just said, at once if they're on screen (an older forecast never replaces a newer one). Where: ChatBubble,
+  lib/forecast keepDayForecast, DayForecast, TodayWeather.
+- The forecast's words live in one file used by both the day page and Scout (forecastWords.ts, a copy on each side; a
+  test fails if they differ). The day page's lines read exactly as before (checked against the live build, 11 views).
+- SPEC UPDATE NEEDED: Scout's weather answers (§ Scout, § weather).
+
 ## 2026-10-13 (Tuesday, 11:15 PM in Japan) — Notes Keeps Your Words in View
 
 ### Fixed
