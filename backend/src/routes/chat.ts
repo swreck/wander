@@ -3854,12 +3854,60 @@ export async function executeTool(
         if (!town) kept.push({ date, weather: w });
         // (how sure, said for every day: told only of early outlooks, Scout called four days within the week "an early
         // outlook" — weather exam, Oct 14)
+        // (and an airport in her plan for them that day, its own forecast: asked "what's the weather when we land?",
+        // Scout stretched the Imperial's rain hours over Narita, 60 km away — weather exam and verify43)
+        const airports: string[] = [];
+        if (!town) {
+          const { airportsOf } = await import("../services/stormWatch.js");
+          const { weatherAt } = await import("../services/dayWeather.js");
+          for (const a of await airportsOf(String(input.tripId || ""), user.displayName || "", date).catch(() => [])) {
+            const aw = await weatherAt(a, a.name, date, today);
+            if (aw) airports.push(plain(forecastLines(aw, date, a.name, now)[0].text));
+          }
+        }
         return { date, day: dayName(date), lines: forecastLines(w, date, w.place, now).map((l) => plain(l.text)), read: readAt(w.at),
-          ahead: w.outlook === "early outlook" ? "an early outlook: more than a week ahead, likely to change" : "a week or less" };
+          ahead: w.outlook === "early outlook" ? "an early outlook: more than a week ahead, likely to change" : "a week or less",
+          ...(airports.length ? { airports, airportsNote: "the airport's own forecast, for their flight that day (not on the day page): use it for landing or leaving" } : {}) };
       }));
+      // The storm, warning and train watch for their places (services/stormWatch — Ken's decision 2): the same lines the
+      // day page shows, for the days asked about; and whether it found anything at all through 5 days ahead
+      let watch: Record<string, unknown> | null = null;
+      if (!town) {
+        try {
+          const { stormWatch } = await import("../services/stormWatch.js");
+          const sw = await stormWatch(String(input.tripId || ""), user.displayName || "", today, now);
+          // (each day says for itself what was checked — "Nothing is up for either day" covered a Monday the chance check
+          // never reached; verify46)
+          const tw = sw.through || { warnings: null, chances: null, typhoons: null };
+          for (const d of days as any[]) {
+            if (sw.days[d.date]) d.watch = sw.days[d.date].map((l) => l.text);
+            d.stormCheck = [
+              d.date === today ? (tw.warnings ? "warnings in force now: checked" : "warnings in force now: NOT checked (couldn't read them)") : "warnings: only ever known on the day",
+              tw.chances && d.date <= tw.chances ? "chance of warning-level weather: checked" : "chance of warning-level weather: NOT checked for this day",
+              tw.typhoons && d.date <= tw.typhoons ? "typhoons: checked" : "typhoons: NOT checked for this day",
+            ].join("; ") + (sw.days[d.date] ? " — see watch" : " — nothing found in what was checked");
+          }
+          // (what was checked and how far — never a blanket "through Oct 19": chances reach about 3 days by region and 5
+          // by prefecture, and Scout told Ken Sunday was checked when it wasn't; verify45)
+          const t = sw.through || { warnings: null, chances: null, typhoons: null };
+          const checked = [
+            t.warnings ? "warnings in force now (today only: a warning is only ever for now)" : "",
+            t.chances ? `the chance of warning-level weather, through ${dayName(t.chances)}` : "",
+            t.typhoons ? `typhoons and tropical storms, through ${dayName(t.typhoons)}` : "",
+          ].filter(Boolean);
+          watch = {
+            checked: checked.length ? checked : ["nothing"],
+            ...(Object.keys(sw.days).length ? { daysWithWatch: Object.fromEntries(Object.entries(sw.days).map(([d, ls]) => [dayName(d), ls.map((l) => l.text)])) } : {}),
+            ...(!Object.keys(sw.days).length && checked.length ? { found: "Nothing near their places in what was checked." } : {}),
+            ...(sw.unknown?.length ? { couldNotCheck: sw.unknown } : {}),
+            how: "Say only what \"checked\" covers, with its own dates: a day past those dates wasn't checked for that, so say so, and lead with it (\"It's too soon to know for Wed, Oct 21: …\"), never with \"no warnings\" or \"nothing\" for that day. Anything under couldNotCheck: say Wander couldn't check it just now. Never an all-clear beyond that.",
+          };
+        } catch (e: any) { watch = { couldNotCheck: ["the storm watch"] }; console.warn("[get_weather] watch:", e?.message); }
+      }
       return {
         result: {
           days,
+          ...(watch ? { stormWatch: watch } : {}),
           source: town ? `Wander's forecast for ${town} (Open-Meteo), the same source as the day pages` : "Wander's forecast (Open-Meteo): exactly what the day page and Home show for them",
           say: town
             ? "Give the numbers exactly as the lines have them, and say in a short clause that it's not where their plan has them that day (say where it does, from DAY BY DAY). Never a weather site's numbers."
@@ -4990,6 +5038,26 @@ router.post("/", async (req: AuthRequest, res) => {
       } catch (e: any) { console.warn("[scout] papers unavailable:", e.message); }
     }
 
+    // The storm watch, when it has anything (services/stormWatch — Ken's decision 2): a typhoon heading for their hotel on
+    // a travel day is said whatever they asked about that day ("Anything I should know about the 21st?" went unwarned
+    // when it was left to get_weather — storm-watch exam, Oct 14). Nothing when all is quiet, so the prompt stays as is.
+    let watchLines: string[] = [];
+    if (tripId && req.user?.displayName) {
+      try {
+        const { stormWatch } = await import("../services/stormWatch.js");
+        // (never holding the answer up: a copy up to an hour old at once, else at most 2.5 s — a first watch took 9 s;
+        // verify45. get_weather waits for a full one when asked)
+        const sw = await Promise.race([
+          stormWatch(tripId, req.user.displayName, new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10), new Date(), true),
+          new Promise<null>((r) => setTimeout(() => r(null), 2500)),
+        ]);
+        if (!sw) throw new Error("not ready in 2.5 s");
+        const days = Object.entries(sw.days);
+        if (days.length) watchLines = ["STORM WATCH (Japan's weather agency, for this person's places — say the line for any day they ask about, as it is, even unasked; never say a train will or won't run):",
+          ...days.map(([d, ls]) => `${plainDay(d)}: ${ls.map((l) => l.text).join(" ")}`)];
+      } catch (e: any) { console.warn("[scout] storm watch unavailable:", e.message); }
+    }
+
     // Build system prompt with page context
     const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
 
@@ -5124,7 +5192,7 @@ RULES:
 46c. Telling Larisa: Wander never changes her Guide, so when someone suggests a change to the plan itself (move a day, drop or add something, a question for her), offer to draft a short message to Larisa. Only when they ask for it, or clearly want her told, add ONE line at the very END of your reply, after your full answer, exactly in this form: "Message for Larisa: <the message, 1–3 sentences, written in the asker's own voice, plain words, dates like Fri, Oct 16>". The app turns that line into a Send button that opens their Messages. A question about the plan ("do we have dinner Saturday?", "do we need to reconfirm anything?", "where does the tour start?", "are we going to X?") gets an answer, not a draft — at most offer in words ("Want me to draft a note to Larisa?"). Never do this when the asker is Larisa herself.
 46b. Same-day plans: when someone says what they're doing today or on a given day ("Ken and Andy are going to <a museum> this afternoon", "put <an activity> on Thursday at 3"), use add_same_day_plan. It shows on that day for everyone on the trip, labelled as added in Wander by them; Larisa's Guide is not changed. Say where it is in a few words ("On today for everyone."). Say her Guide is unchanged only when they ask whether it changes — the day screen already says where each line came from, and told every time it reads like software reporting (Ken, Oct 10). Use remove_same_day_plan when they drop it. Notes on an idea: add_idea_note ("note on Tsukiji: go early"), for the group or justForMe; take_back_idea_note takes back one of their own (never someone else's). On screen, only a note's author sees "Remove" beside their own note in Maybes — someone else's note is theirs to take back.
 46e. Trip notes (the Notes tab): each person's own words, kept exactly — private unless they share a note with the trip. "What did I write about…", "my notes from Kyoto" → get_my_notes, and quote their words exactly, saying whose note it is. When someone asks what a person "wrote", "said" or "noted" about something, look in get_my_notes (their shared notes) AND the Guide, and give both — a shared note is something they wrote. Never say "that's all they wrote" unless you looked in both. You never see or mention anyone's private notes but the asker's. Keeping notes: when someone tells you about the trip — what happened, what they saw or learned, who they met, why the day went as it did ("we came here because our guide drove us, so we saw Arita too") — or asks you to note or remember something, keep it with keep_in_my_notes: their own words exactly as they said them (a part of their message is fine — never your summary, never tidied), on the day it's about; or, when they ask you to keep your own answer, that answer as you wrote it with fromScout (rule 40). Their notes are the trip's story. When what they told you also puts a new stop on a day, do both (add_same_day_plan too). Reply in one short line that says where it is and who sees it ("In your Notes for today — just you."); never repeat their words back. Add one more sentence only when something in the plan is touched by what they told you (a booked train or table the change affects) — nothing else, no recap of the day. A question on its own isn't a note. It's theirs to change or take out on the Notes tab.
-46g. Weather: any question about the weather on the trip's days (today, tonight, tomorrow, "this week", "do I need an umbrella", "will it be cold in Nikko", "is it going to rain in Mashiko") → get_weather, the same forecast the day pages and Home show, and answer from it alone. Its numbers, hours and places exactly as its lines have them: say them naturally, but never change, round, average or merge them, and never add a forecast from anywhere else for the same day. No ranges or words of your own for the numbers, not even in a closing summary ("high 40s to low 60s" for 44–64°F is wrong: give the lines' numbers or none). A line's temperatures are the whole day's low and high: never call them "tonight's" or "this afternoon's". A line's hours are for its own place only: never apply the hotel's rain hours to an airport, a station or another town. Where a line says "but the forecasts disagree" or "though other forecasts show little rain", keep it. When a day has two lines (a day trip, or where a travel day starts), say both, the first one first. When a day's "ahead" says it's an early outlook, say so in a few words; a day a week or less ahead is just the forecast, with nothing said about how far ahead it is. "The forecasts disagree" or "other forecasts show little rain" only where a line says it. For a town in Japan that isn't where their plan has them that day, get_weather with town, and say in a short clause that their plan has them elsewhere. Never web_search the weather in Japan (a weather site's numbers can differ from the day page's, and then one of them looks wrong); outside Japan, web_search, said as found online. When get_weather has no forecast for a day (over, or more than 16 days ahead), say so; her pre-trip forecast in the Guide may be given then, said as hers, written before the trip. Units as the lines give them (°F, inches).
+46g. Weather: any question about the weather on the trip's days (today, tonight, tomorrow, "this week", "do I need an umbrella", "will it be cold in Nikko", "is it going to rain in Mashiko") → get_weather, the same forecast the day pages and Home show, and answer from it alone. Its numbers, hours and places exactly as its lines have them: say them naturally, but never change, round, average or merge them, and never add a forecast from anywhere else for the same day. No ranges or words of your own for the numbers, not even in a closing summary ("high 40s to low 60s" for 44–64°F is wrong: give the lines' numbers or none). A line's temperatures are the whole day's low and high: never call them "tonight's" or "this afternoon's". A line's hours are for its own place only: never apply the hotel's rain hours to an airport, a station or another town. Where a line says "but the forecasts disagree" or "though other forecasts show little rain", keep it. When a day has two lines (a day trip, or where a travel day starts), say both, the first one first. When a day's "ahead" says it's an early outlook, say so in a few words; a day a week or less ahead is just the forecast, with nothing said about how far ahead it is. "The forecasts disagree" or "other forecasts show little rain" only where a line says it. For a town in Japan that isn't where their plan has them that day, get_weather with town, and say in a short clause that their plan has them elsewhere. Never web_search the weather in Japan (a weather site's numbers can differ from the day page's, and then one of them looks wrong); outside Japan, web_search, said as found online. When get_weather has no forecast for a day (over, or more than 16 days ahead), say so; her pre-trip forecast in the Guide may be given then, said as hers, written before the trip. Units as the lines give them (°F, inches). Typhoons, storms, weather warnings, "will our train run?": get_weather too. Its stormWatch is Japan's weather agency's warnings, its chance of warning-level weather and typhoon tracks for their places: say a day's watch lines as they are, with the agency named. For any day, say only what its own "stormCheck" says was checked: a part marked NOT checked is never "nothing" or "all clear" for that day, even folded into a sentence about several days. Anything under "couldNotCheck" you must say Wander couldn't check just now. Whether a particular train runs is never yours to say: JR decides, usually the day before. Never promise to keep watching, to tell them if it changes, or what Backroads' leaders will do: you only answer when asked ("ask me again closer to the day" is true).
 46f. Packing: "what should I pack / bring", "anything I might not think to pack", or the packing list Scout offered Julie ("I want that too", "can I have Julie's packing list") → packing_tips, and answer only from what it returns: its items in its order, at most seven, each ONE plain sentence (about 30 words at most; the whole answer under about 220 words, someone reading on a phone while they pack). When it returns weather (the live forecast where they'll sleep), lead with up to three weather items made exactly as its "how" says — their own dates and places, never what Backroads already tells them — then the list's items, seven in all. A weather follow-up after it ("will it really rain in Nikko?") is a weather question: get_weather (rule 46g). Their days are "your" days ("your hiking day"), never "their", and named by date, never "Day 3". Where the Guide shows it for this person's own days, tie an item to them in a few words (shoes off → the nights they're at a ryokan; a big suitcase → their bullet-train days) — never invent a tie, never count or describe their nights beyond what's given ("most of your nights"), and leave it out when the Guide doesn't show one. Follow each item's tieTo exactly (a rule for some trains is never stretched to others), and name each place or date once in the whole answer — never the same inns or the same place in two items (once one item has said "Shirakabeso on the Izu Peninsula", a later one says "the bullet train on Wed, Oct 21", not "to the Izu Peninsula" again). Name a day by its date ("Wed, Oct 21"), never by Backroads' day number ("Day 4") — that isn't a date they know. Add no items of your own and no general travel advice. Never promise what a hotel or inn will do, and keep each item's own checks ("ask the inn first"). Say a rule's source when you give it (medicines, luggage). End with exactly one line inviting them to say how they travel so you can tailor it. Asked for more than the list, say so, and label anything you find online as found online.
 46c. To-dos (the Actions screen): "remind us to…" / "add a to-do…" → add_todo (added in Wander; her Guide unchanged — say so in a few words). "We did it" / "that's done" → set_todo_done. "Take that off the list" → remove_todo, only for one added in Wander; one from Larisa's Guide stays until she takes it out of her sheet (it can still be ticked off). Use get_todos to find it. On screen: Actions → "+ Add", the tick beside each, and "Take out" on those added in Wander.
 51. Use retract_interest when someone says "take that back", "un-flag that", or "remove my interest in [name]". Look up group interests first.
@@ -5213,6 +5281,7 @@ RULES:
       ...otherFreshness,
       ...nearLines,
       ...paperLinesNow,
+      ...watchLines,
       notesLine,
       keptLine,
       phraseLine,

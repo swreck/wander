@@ -2,6 +2,42 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-14 (Wednesday, 9:00 AM in Japan) — Storm, Warning and Train Watch
+
+### Added
+- A watch on Japan's weather agency (JMA) for each person's own places, today through 5 days ahead (Ken, Oct 13:
+  "yes"; live before the Oct 21 Shinkansen). Silent unless the agency has a Level 3+ warning in force for the town
+  they're in today (all of it, or "part of" it), a medium or high chance of warning-level weather there (by region
+  for the next day or two, then by prefecture — said as the prefecture's — as far as the agency's outlook goes, about
+  5 days), or a typhoon or tropical storm forecast within about 190 miles of them within 5 days (checked hour by hour
+  along its track, the distance to its center). Its places are the day page's (where they sleep, a day trip, a travel
+  day's start), the airports in her plan that day, and the areas a travel day's road route crosses. A day with a train
+  in it (her Guide's lines, or Backroads' words for that day) adds JR's rule: planned stops are usually announced the
+  day before, and a cancelled train is refunded in full. Where: the day page's "Don't miss", first, with
+  a link to the agency's English warning or typhoon map (or the Shinkansen's status page, in Japanese — its English
+  page sends people to the Japanese one; JR East's status pages refuse requests from outside Japan, so they aren't
+  linked). Scout: get_weather returns the watch, and when it has a line it's in what Scout sees with every question,
+  so a typhoon on a travel day is said even when asked only "anything I should know about the 21st?". When a part of
+  the agency's data can't be read, Scout says so and never gives an all-clear; it never says whether a train will run.
+- JMA's old warning file still answers but has been frozen since May 28, 2026 (the day before its overhaul); the watch
+  reads the new one (warning/data/r8) and refuses a file that has stopped updating. Server: services/stormWatch,
+  GET /api/weather/trip/:tripId/watch; dayWeather's places split out as dayPlaces (the day page's forecast unchanged).
+- SPEC UPDATE NEEDED: weather (§ day screen "Don't miss", § Scout).
+
+### Fixed
+- Days with no forecast in Scout's answers. Asked about a week, Scout made about 21 calls to Open-Meteo at once, and
+  Open-Meteo refused most ("Too many concurrent requests", "The service is overloaded"); those days read "no forecast
+  just now", and a failed day was remembered for 30 minutes. Now each place's 16 days come in three calls (all days at
+  once — the same numbers as day by day, checked), asked once however many people want it; every call waits its turn
+  (three at a time) and is tried again when Open-Meteo is busy; a failure is remembered for 2 minutes; and the forecasts
+  for each traveler are made ahead every few minutes. A cold burst of 60 person-days: 60/60 (was 0–4 of 15 per person).
+  Server: services/meteo.ts, dayWeather.ts, packingWeather.ts.
+
+### Changed
+- On a day with a flight in her plan, Scout also has the airport's own forecast ("Narita's own forecast for today:
+  63–76°F, 91% chance of rain"). Asked "what's the weather when we land?", it had stretched the hotel's rain hours
+  over Narita, 60 km away. Not on the day page. Where: Scout (get_weather).
+
 ## 2026-10-14 (Wednesday, 8:20 AM in Japan) — Scout's Weather Is the Day Page's Weather
 
 ### Changed

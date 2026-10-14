@@ -220,4 +220,6 @@ app.listen(PORT, async () => {
   startMyMapReader();
   // Scout's offers made from the forecast: their words ready before anyone opens Scout (scoutHello.ts)
   startHelloWarmer();
+  // The storm watch for each traveler, made ahead every few minutes (stormWatch.ts)
+  import("./services/stormWatch.js").then((m) => m.startWatchWarmer()).catch(() => {});
 });
