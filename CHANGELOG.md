@@ -2,6 +2,23 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-14 (Wednesday, 3:30 PM in Japan) — The Weather Stays Current While Wander Is Open; Talk Keeps Sentences Apart
+
+### Fixed
+- Talking into Notes or Scout: an iPhone hears a long recording in pieces, one per pause, and Wander joined them with
+  nothing between, so Ken's note read "we met todayThe wife…" and "her husbandMarried into…". Now a space always goes
+  between pieces, and a period when the piece before ends on an ordinary word and the next starts with a capital (the
+  iPhone's sign of a fresh start); after words a sentence seldom ends on ("to", "the", "and", "her"…) only a space, so a
+  name keeps its capital. A pause mid-sentence can still get a period ("her husband. Married into…"). The words
+  themselves are never changed. Where: Notes' Talk, Scout's microphone. lib/voice.ts joinSaid. No SPEC change.
+- Home's weather line and the day page's forecast lines kept the numbers from when the screen first drew. An iPhone
+  keeps Wander open for hours, so at 2:52 PM Home still showed 11 AM's forecast (Mashiko rain 94%) while Scout gave the
+  current one (86%). Ken: "almost same?" Now both ask again whenever the phone shows Wander again (unlocked, switched
+  back to), once more a minute later, when the signal comes back, and every 5 minutes while it's in view. A copy under 30 minutes old is reused, the same time Wander's server
+  keeps one, so the phone is never a refresh behind Scout. An older forecast never replaces a newer one that Scout read.
+  Where: Home (under the trip's dates), each day page (under the town name). lib/forecast.ts askAgainWhenSeen,
+  TodayWeather.tsx, DayForecast.tsx. SPEC: §weather (no SPEC change in behaviour beyond "current").
+
 ## 2026-10-14 (Wednesday, 9:00 AM in Japan) — Storm, Warning and Train Watch
 
 ### Added

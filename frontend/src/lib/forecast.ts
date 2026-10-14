@@ -31,7 +31,9 @@ export interface DayForecast {
 }
 
 const KEY = "wander:forecast";
-const FRESH = 60 * 60_000;
+// (as long as Wander's server keeps one — services/dayWeather.ts, 30 min — so the phone is never a refresh behind
+// what Scout reads; Ken's a18, Oct 14: Home's 94% beside Scout's 86%)
+const FRESH = 30 * 60_000;
 // (the shape of a kept copy: one kept by an older Wander is fetched again however fresh — on Oct 13 the old app kept
 // Oct 14 at 7:46 PM without the rain hours, the update came a minute later, and the new app showed that copy for an
 // hour with no hours in it; Ken's phone. Raise it whenever the server sends something new)
@@ -112,7 +114,8 @@ export function keepDayForecast(tripId: string, date: string, w: ServerDay, tell
   try {
     const all = readAll();
     const had = all[dayKey(tripId, date)];
-    if (tell && had && had.v === SHAPE && Date.parse(had.at) >= Date.parse(f.at)) return had;
+    // (either way: a re-ask now runs while the app sits open, and must never put back an older forecast than Scout's)
+    if (had && had.v === SHAPE && Date.parse(had.at) > Date.parse(f.at)) return had;
     all[dayKey(tripId, date)] = { ...f, v: SHAPE };
     const keys = Object.keys(all);
     for (const k of keys.slice(0, Math.max(0, keys.length - 40))) delete all[k];
@@ -123,3 +126,28 @@ export function keepDayForecast(tripId: string, date: string, w: ServerDay, tell
 }
 /** Said on the window when a forecast Scout read is kept: { tripId, date } */
 export const FORECAST_KEPT = "wander:forecast-kept";
+
+/** Calls `again` whenever the phone shows Wander again (unlocked, switched back to, back from another app), once more a
+ *  minute later, when the signal comes back, and every 5 minutes while it's in view. A phone keeps Wander open for hours
+ *  without drawing Home afresh: at 2:52 PM on Oct 14 Home still showed the 11 AM forecast, 94% rain beside Scout's
+ *  current 86% (Ken's a18). The minute-later ask and the signal's return cover coming back with no signal or a weak one,
+ *  when the first ask fails (verify49: still 94% for 35 minutes after the signal came back). Asking is cheap: a copy
+ *  under FRESH is reused without the network, and Wander's server keeps its own. Returns the undo, for cleanup. */
+export function askAgainWhenSeen(again: () => void): () => void {
+  let later: ReturnType<typeof setTimeout> | null = null;
+  const ask = () => { if (document.visibilityState === "visible") again(); };
+  const onShow = () => {
+    if (document.visibilityState !== "visible") return;
+    again();
+    if (later) clearTimeout(later);
+    later = setTimeout(ask, 60_000);
+  };
+  const every = setInterval(ask, 5 * 60_000);
+  document.addEventListener("visibilitychange", onShow);
+  window.addEventListener("pageshow", onShow);
+  window.addEventListener("online", ask);
+  return () => {
+    clearInterval(every); if (later) clearTimeout(later);
+    document.removeEventListener("visibilitychange", onShow); window.removeEventListener("pageshow", onShow); window.removeEventListener("online", ask);
+  };
+}
