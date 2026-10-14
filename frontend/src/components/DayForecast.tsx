@@ -7,7 +7,7 @@
  * Drawn from this phone's copy at once; the line keeps its height while a first fetch is out, so nothing moves.
  */
 import { useEffect, useState } from "react";
-import { forecastFor, savedForecast, dayForecastFor, savedDayForecast, FORECAST_KEPT, type DayForecast as F } from "../lib/forecast";
+import { forecastFor, savedForecast, dayForecastFor, savedDayForecast, FORECAST_KEPT, askAgainWhenSeen, type DayForecast as F } from "../lib/forecast";
 // (the lines' words — the same file Scout's answers are made with)
 import { forecastLines, theHotel } from "../lib/forecastWords";
 export { theHotel };
@@ -30,15 +30,19 @@ export default function DayForecast({ tripId, lat, lon, date, zone, place, herLi
     let live = true;
     setF(savedNow());
     // (the hotel's forecast from Wander; if Wander can't give one, the town's straight from Open-Meteo as before)
-    (tripId ? dayForecastFor(tripId, date).then((x) => x || forecastFor(lat, lon, date, zone)) : forecastFor(lat, lon, date, zone))
+    const ask = () => (tripId ? dayForecastFor(tripId, date).then((x) => x || forecastFor(lat, lon, date, zone)) : forecastFor(lat, lon, date, zone))
       .then((x) => { if (live) { if (x) setF(x); setTried(true); } });
+    ask();
+    // (and again when the phone shows Wander again, and every half hour while it's open — Home kept 11 AM's numbers
+    // until 2:52 PM on Oct 14, Ken's a18)
+    const stop = askAgainWhenSeen(ask);
     // (a newer forecast Scout just read for this day: the same numbers here at once — lib/forecast keepDayForecast)
     const kept = (e: Event) => {
       const d = (e as CustomEvent<{ tripId: string; date: string }>).detail;
       if (live && tripId && d?.tripId === tripId && d.date === date) { const x = savedDayForecast(tripId, date); if (x) setF(x); }
     };
     window.addEventListener(FORECAST_KEPT, kept);
-    return () => { live = false; window.removeEventListener(FORECAST_KEPT, kept); };
+    return () => { live = false; stop(); window.removeEventListener(FORECAST_KEPT, kept); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId, lat, lon, date, zone, past]);
 

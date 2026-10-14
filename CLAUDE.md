@@ -115,6 +115,10 @@ auditing them.
   want it integrated with the activities from Larisa's spreadsheet." Telling Scout something counts as a note. The
   summaries design is in memory (project_trip_notes_and_summaries).
 - Invitations live inside Wander. Ken (Sep 28) on links pasted in chat: "does nothing. it just scrolls away."
+- Phrase card: romaji, except characters to find on a Japanese device. Ken (Oct 14): "Language list should generally
+  not use kanji. But in this case (and possibly future ones) the purpose is finding something on a Japanese device."
+  And: "title is Toilet flush ( in English) because that is what an English speaker scans for. Then my line. Use that
+  approach if I add anything else like this. That should be obvious to you!" (Claude) I had made "大 / 小" the title.
 - Scout's mic: tap to start, tap to stop, words wait in the box (Oct 1). No auto-send, no hold-to-talk.
 - Ken (Oct 3): "stop the map" (no more spending on the Home map's polish). Ask him before building Scout streaming,
   before using "Team Fun", and never bring back the travelerProfiles nudges (they invent facts).
@@ -140,8 +144,9 @@ Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engine
 
 - SPEC.md is the canonical product spec (v3.0, March 2026). Never edit it during feature work. Where Ken's later
   decisions differ (sheet is master, Scout can't change the Guide, show what changed), his decisions win.
-  Ken (Oct 13): "Product spec should be up to date!" (Claude) It is brought up to date as its own task, from the
-  CHANGELOG's "SPEC UPDATE NEEDED" entries, and kept current after each batch.
+  Ken (Oct 13): "Product spec should be up to date!" and, when I listed it as a choice: "yes. Always! Should not need my
+  approval!" (Claude) Mine, never asked: brought up to date from the CHANGELOG's "SPEC UPDATE NEEDED" entries, then kept
+  current in every batch that changes behaviour.
 - After any change in behaviour, add an entry at the TOP of CHANGELOG.md under the date: what changed (behaviour), where
   it lives in the UI, which SPEC sections it touches, and "SPEC UPDATE NEEDED" when behaviour now differs from SPEC.
   Use Added / Changed / Fixed / Removed headings as they apply. Never rewrite old entries.
