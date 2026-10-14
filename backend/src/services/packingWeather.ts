@@ -95,7 +95,7 @@ export async function packingWeather(tripId: string, person: string, today: stri
     .filter((s) => s.checkInDate && s.checkOutDate && ymd(s.checkOutDate) > start && (!s.forWhom || /everyone/i.test(s.forWhom) || s.forWhom.toLowerCase().includes(me)));
   if (!stays.length) return [];
   const pins = await pinsOf(tripId);
-  const last = addDays(today, 15);   // (Open-Meteo's 16 days)
+  const last = addDays(today, 14);   // (Open-Meteo's 16 days, counted from the UTC date: a day behind Japan's before 9 AM)
   // (all stays at once — one after another took over 4 s cold, and Scout's offer to Julie fell back to its plain words)
   const out = (await Promise.all(stays.map(async (s): Promise<StayWeather | null> => {
     const from = ymd(s.checkInDate!) > start ? ymd(s.checkInDate!) : start;

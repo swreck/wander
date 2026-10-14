@@ -265,7 +265,13 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   const tab = blocks[0].source.split(" · ")[0];
   const heading = blocks[0].source.split(" · ").slice(1).join(" · ");
   // Wander's own match of an undated tab to this day — said once, as Wander's
-  const matched = (blocks.map((b) => (b.detail || "").split("\n").find((l) => l.startsWith("Wander matched this plan"))).find(Boolean)) || null;
+  const matchedRaw = (blocks.map((b) => (b.detail || "").split("\n").find((l) => l.startsWith("Wander matched this plan"))).find(Boolean)) || null;
+  // A picture in her Guide that dates this plan's day differently is her earlier plan: it isn't shown or talked about.
+  // Ken, Oct 15, on her Tokyo Day 1 tab (its picture: "Day 1 – Tue, Oct 13", the plan she wrote under it on Oct 15):
+  // "The map is old and should not be the target. Text under is correct"; and Oct 14: "if it is done or out of date,
+  // you don't show it". (The same picture heads her Day 2 and Day 3 tabs.)
+  const oldPicture = !!matchedRaw && / A picture in her .*? labels Day \d+ .*? — a different date; worth checking with Larisa\./.test(matchedRaw);
+  const matched = matchedRaw && matchedRaw.replace(/ A picture in her .*? labels Day \d+ .*? — a different date; worth checking with Larisa\./, "");
   // Her tab plans this day twice: which one Wander follows, said once, up top (Oct 2 — her revised Day 2)
   const twoVersions = (blocks.map((b) => (b.detail || "").split("\n").find((l) => /^Her tab has \d+ versions of this day's plan/.test(l))).find(Boolean)) || null;
   const noOwner = ownerlessInSplit(blocks);
@@ -296,7 +302,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       })()}
       {/* Her pictures in this day's tab — her illustrated map of these days, full screen, pinch to zoom (Oct 2: they sat
           at the top of her day tabs, out of sight in Wander) */}
-      {tripId && pictures.filter((p, i, all) => p.tab === tab && all.findIndex((q) => q.tab === tab && q.sha256 === p.sha256) === i).map((p) => (
+      {tripId && !oldPicture && pictures.filter((p, i, all) => p.tab === tab && all.findIndex((q) => q.tab === tab && q.sha256 === p.sha256) === i).map((p) => (
         <DayPicture key={p.sha256} tripId={tripId} picture={p} her={v.her} tab={tabLabel(tab)} />
       ))}
       {/* Her Apple Maps guide for the day — a map she made in Apple Maps, opened as it is now (Oct 2) */}
@@ -320,7 +326,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
         ? <p className="text-[13px] text-[#6b5d4a] mt-1">{v.say(matched)}</p>
         : <button onClick={() => setWhyOpen(true)} className="min-h-[44px] text-left text-[13px] text-[#6b5d4a]">
             {/* (a question it answers, not a warning — Sweep A: folded, "…dates it differently" read as "this day may be wrong") */}
-            {/A picture in her/.test(matched) ? `Why this plan is on this day (a picture in ${v.her} tab shows another) ›` : "Why this plan is on this day ›"}
+            Why this plan is on this day ›
           </button>)}
       <ol className="mt-2 bg-white rounded-xl border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
         {blocks.flatMap((b) => {

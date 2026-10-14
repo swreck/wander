@@ -88,11 +88,19 @@ export interface GuideContextParts {
   copy: string | null;   // which copy of her Guide these came from ("Japan Oct 2026-2")
 }
 
+/** The reader's note that a picture in her tab labels a plan's day with another date (importSnapshot.ts) */
+const OLD_PICTURE = / A picture in her .*? labels Day \d+ .*? — a different date; worth checking with Larisa\./;
+
 export async function buildGuideContextParts(tripId: string, opts: { phoneZone?: string; now?: Date } = {}): Promise<GuideContextParts> {
   const [trip, snapshot, items, stays, days, ideas, notes] = await Promise.all([
     prisma.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true, endDate: true, timeZone: true } }),
     prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true, sourceName: true, importedAt: true, report: true } }),
-    prisma.guideItem.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }] }),
+    // (a picture that dates a plan's day differently is her earlier plan, so Scout isn't handed it as something to raise —
+    // Ken, Oct 15, on her Tokyo tabs' map: "The map is old and should not be the target. Text under is correct"; with the
+    // sentence in its context Scout ended "What's the plan today?" on "worth checking with Larisa". Her pictures' own
+    // words still reach Scout under HER PICTURES, for when they ask about the picture.)
+    prisma.guideItem.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }] })
+      .then((all) => all.map((i) => (i.detail && OLD_PICTURE.test(i.detail) ? { ...i, detail: i.detail.replace(OLD_PICTURE, "") } : i))),
     prisma.accommodation.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: { checkInDate: "asc" } }),
     prisma.day.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: { date: "asc" } }),
     prisma.experience.findMany({

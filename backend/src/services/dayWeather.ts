@@ -105,7 +105,9 @@ async function pointForecast(point: { lat: number; lng: number }, today: string)
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 30_000);   // (each Open-Meteo try has its own 12 s, never counting its wait in line — services/meteo.ts)
     try {
-      const end = addDays(today, 15);
+      // (14 days on: Open-Meteo counts its 16 from the UTC date, a day behind Japan's from midnight to 9 AM, and refuses
+      // the whole request for a day past its last — Oct 15 2026, no weather anywhere in Wander from midnight to 9 AM)
+      const end = addDays(today, 14);
       const [r, models, hours] = await Promise.all([
         meteo(`https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${today}&end_date=${end}`, ctl.signal),
         modelsAgree(point.lat, point.lng, today, end),
