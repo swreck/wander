@@ -6,6 +6,7 @@
  * Ritz-Carlton Nikko is on Lake Chuzenji, ~4,200 ft, far colder than Nikko town's point), else the town's.
  */
 import prisma from "./db.js";
+import { meteo } from "./meteo.js";
 import { appleGuidesOf } from "./guide/appleGuides.js";
 import { myMapOf } from "./guide/googleMyMap.js";
 import { pinFor, type Pin } from "./guide/nearby.js";
@@ -59,8 +60,8 @@ export async function modelsAgree(lat: number, lng: number, from: string, to: st
   const rainIn: Record<string, number[]> = {};
   try {
     const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 8000);
-    const m = (await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&models=ecmwf_ifs025,jma_seamless,gfs_seamless&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${from}&end_date=${to}`, { signal: ctl.signal })).json())?.daily;
+    const t = setTimeout(() => ctl.abort(), 30_000);   // (each Open-Meteo try has its own 12 s, never counting its wait in line — services/meteo.ts)
+    const m = (await (await meteo(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&models=ecmwf_ifs025,jma_seamless,gfs_seamless&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${from}&end_date=${to}`, ctl.signal)).json())?.daily;
     clearTimeout(t);
     (m?.time as string[] | undefined)?.forEach((day, i) => {
       const xs = ["ecmwf_ifs025", "jma_seamless", "gfs_seamless"].map((k) => m[`precipitation_sum_${k}`]?.[i]);
@@ -105,8 +106,8 @@ export async function packingWeather(tripId: string, person: string, today: stri
     const { lat, lng } = point;
     try {
       const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 8000);
-      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${from}&end_date=${to}`, { signal: ctl.signal });
+      const t = setTimeout(() => ctl.abort(), 30_000);   // (each Open-Meteo try has its own 12 s, never counting its wait in line — services/meteo.ts)
+      const r = await meteo(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${from}&end_date=${to}`, ctl.signal);
       clearTimeout(t);
       const d = (await r.json())?.daily;
       if (!d?.time?.length) return null;

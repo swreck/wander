@@ -818,6 +818,19 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     window.addEventListener("wander:marks-changed", get);
     return () => { cancelled = true; window.removeEventListener("wander:marks-changed", get); };
   }, [tripId]);
+  // The storm, warning and train watch (Ken's decision 2, Oct 13: "yes" — services/stormWatch): silent unless Japan's
+  // weather agency has a warning, a chance of warning-level weather or a typhoon near this person's places; its lines
+  // lead "Don't miss" on those days. Asked again every 10 minutes while the page is open.
+  const [watch, setWatch] = useState<Record<string, { kind: string; text: string; link?: { label: string; url: string } }[]>>({});
+  useEffect(() => {
+    if (!tripId) return;
+    let cancelled = false;
+    const get = () => api.get<{ days: typeof watch }>(`/weather/trip/${tripId}/watch`)
+      .then((w) => { if (!cancelled && w?.days && typeof w.days === "object") setWatch(w.days); }).catch(() => {});
+    get();
+    const t = setInterval(get, 10 * 60_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [tripId]);
 
   // The day in the order it's lived (lib/guideDisplay.ts). Deadlines appear on every day of their
   // window; Larisa's budget and bookkeeping notes sit apart from the plan.
@@ -1275,6 +1288,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const travellers = new Set([...items.flatMap((x) => (x.forWhom || "").split(/\s*(?:&|,|\band\b)\s*/i)), owner || ""].map((s) => s.trim().toLowerCase()).filter(Boolean));
   const someoneElsesJob = (i: GuideItem) => { const a = bookedByName(i)?.split(/\s+/)[0]?.toLowerCase(); return !!a && !!me && travellers.has(a) && a !== me.trim().toLowerCase(); };
   const checks: { key: string; body: ReactNode; to?: string }[] = [
+    // (the storm watch first: a warning or a typhoon outranks everything else on the day)
+    // (only well-formed lines — an empty entry or a text that isn't words crashed the page; verify45)
+    ...(Array.isArray(watch[date]) ? watch[date] : []).filter((l) => !!l && typeof l === "object" && typeof l.text === "string" && !!l.text
+      && (!l.link || (typeof l.link === "object" && typeof l.link.url === "string" && /^https:\/\//.test(l.link.url) && typeof l.link.label === "string"))).map((l, i) => ({ key: `watch-${i}`, body: <>{l.text}{l.link && <> <a href={l.link.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{l.link.label}&nbsp;↗</a></>}</> })),
     ...(isToday ? otherSources.flatMap((s) => s.differs.filter((d) => d.date === date && differLive(d)).map((d) => ({ key: `differ-${s.id}-${d.row}-${d.guideSource}`, body: <DifferNote d={d} /> }))) : []),
     ...stopNotes.flatMap((s) => openQuestionsIn(`${s.title}\n${s.detail || ""}`)
       // only on a day whose own lines mention what it's about ("Bizen" on Oct 7; "Kenji" on Oct 14, not all of Tokyo) — and

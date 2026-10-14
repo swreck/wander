@@ -12,6 +12,7 @@
  * ("Day trip from Tokyo to Mashiko"), or a travel day's morning (last night in one town, tonight in another).
  */
 import prisma from "./db.js";
+import { meteo } from "./meteo.js";
 import { pinsOf, stayPoint, modelsAgree, hotelPoint, type ModelRain } from "./packingWeather.js";
 
 // (inches: the day's expected rain — Ken, Oct 13: "rain percentage is important, but especially in Japan, the quantity
@@ -30,7 +31,6 @@ export interface DayWeather extends Forecast {
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const short = (s: string) => s.split(/\s+-\s+|\s*\(|,/)[0].trim();
-const kept = new Map<string, { at: number; w: Forecast | null }>();
 
 const MODELS = ["jma_seamless", "ecmwf_ifs025", "gfs_seamless"] as const;
 /** When in the day rain is likeliest: an hour counts when the main forecast gives it a 50%+ chance, or two of Japan's,
@@ -68,41 +68,79 @@ export function showerHours(h: Record<string, (number | null)[] | undefined>, li
   return spans;
 }
 
-async function hourlyWet(point: { lat: number; lng: number }, date: string, signal: AbortSignal): Promise<{ wet: [number, number][]; showers: [number, number][] } | undefined> {
+/** Hour by hour for days 0–3 from `today`, one call: per day, its 24 hours in the shape wetHours reads */
+async function hourlyDays(point: { lat: number; lng: number }, today: string, signal: AbortSignal): Promise<Map<string, Record<string, (number | null)[]>> | null> {
+  const out = new Map<string, Record<string, (number | null)[]>>();
   try {
-    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lng}&hourly=precipitation,precipitation_probability&models=best_match,${MODELS.join(",")}&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${date}&end_date=${date}`, { signal });
+    const r = await meteo(`https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lng}&hourly=precipitation,precipitation_probability&models=best_match,${MODELS.join(",")}&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${today}&end_date=${addDays(today, 3)}`, signal);
     const h = r.ok ? (await r.json())?.hourly : null;
-    if (h?.time?.length !== 24) return undefined;
-    const wet = wetHours(h);
-    return { wet, showers: showerHours(h, wet) };
-  } catch { return undefined; }
+    if (!Array.isArray(h?.time)) return null;
+    const times: string[] = h.time;
+    for (let d = 0; d * 24 + 24 <= times.length; d++) {
+      const day = String(times[d * 24]).slice(0, 10);
+      out.set(day, Object.fromEntries(Object.entries(h).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as (number | null)[]).slice(d * 24, d * 24 + 24)])));
+    }
+  } catch { return null; /* no hours: kept briefly, asked again soon */ }
+  return out;
+}
+const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** Every day's forecast at one point, today through 15 days ahead, in three calls — one per kind, all days at once.
+ *  Asking day by day took three calls per day, and Open-Meteo refused the burst when Scout was asked about a week: of
+ *  21 calls at once, 16 came back "busy", and those days read as having no forecast (Oct 14). Kept 30 minutes (a
+ *  failure, 2); asked once however many people and days want it at the same moment. */
+const points = new Map<string, { at: number; days: Map<string, Forecast> | null; partial?: boolean }>();
+const asking = new Map<string, Promise<Map<string, Forecast> | null>>();
+async function pointForecast(point: { lat: number; lng: number }, today: string): Promise<Map<string, Forecast> | null> {
+  const key = `${point.lat.toFixed(3)},${point.lng.toFixed(3)}|${today}`;
+  const k = points.get(key);
+  // (a failed fetch is kept only 2 minutes — one timeout left Scout with "no forecast for Sunday" for half an hour)
+  // (and one whose rain hours or other-forecasts check failed, 2 too — verify47: "most likely 3–7 PM" stayed missing
+  // for half an hour after Open-Meteo recovered)
+  if (k && Date.now() - k.at < (k.days && !k.partial ? 30 : 2) * 60_000) return k.days;
+  if (asking.has(key)) return asking.get(key)!;
+  const go = (async () => {
+    let days: Map<string, Forecast> | null = null;
+    let partial = false;
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 30_000);   // (each Open-Meteo try has its own 12 s, never counting its wait in line — services/meteo.ts)
+    try {
+      const end = addDays(today, 15);
+      const [r, models, hours] = await Promise.all([
+        meteo(`https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${today}&end_date=${end}`, ctl.signal),
+        modelsAgree(point.lat, point.lng, today, end),
+        hourlyDays(point, today, ctl.signal),
+      ]);
+      if (!r.ok) console.warn(`[dayWeather] no forecast for ${key}: Open-Meteo ${r.status}`);
+      const d = r.ok ? (await r.json())?.daily : null;
+      const at = new Date().toISOString();
+      // (today's other-forecasts check always has an answer when it worked — Japan's model reaches about 11 days)
+      partial = hours === null || models(today) === "unknown";
+      if (Array.isArray(d?.time)) {
+        days = new Map();
+        d.time.forEach((date: string, i: number) => {
+          if (d.temperature_2m_max?.[i] == null) return;
+          const away = i;
+          const rain: number | null = d.precipitation_probability_max?.[i] ?? null;
+          const h = away <= 3 ? hours?.get(date) : undefined;
+          const wet = h && h.time?.length === 24 ? wetHours(h) : undefined;
+          days!.set(date, { hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), rain,
+            inches: typeof d.precipitation_sum?.[i] === "number" ? Math.round(d.precipitation_sum[i] * 100) / 100 : null,
+            code: d.weather_code?.[i] ?? null, models: models(date), outlook: away <= 7 ? "forecast" : "early outlook", at,
+            ...(wet && (rain ?? 0) >= 30 ? { wet, showers: showerHours(h!, wet) } : {}) });
+        });
+      }
+    } catch (e: any) { console.warn(`[dayWeather] no forecast for ${key}: ${e?.name === "AbortError" ? "timed out" : e?.message}`); /* the phone keeps its last copy */ }
+    finally { clearTimeout(t); }
+    points.set(key, { at: Date.now(), days, partial });
+    return days;
+  })().finally(() => asking.delete(key));
+  asking.set(key, go);
+  return go;
 }
 
 async function forecastAt(point: { lat: number; lng: number }, date: string, away: number): Promise<Forecast | null> {
-  const key = `${point.lat.toFixed(3)},${point.lng.toFixed(3)}|${date}`;
-  const k = kept.get(key);
-  if (k && Date.now() - k.at < 30 * 60_000) return k.w;
-  let w: Forecast | null = null;
-  try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 8000);
-    const [r, models, hours] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=Asia%2FTokyo&start_date=${date}&end_date=${date}`, { signal: ctl.signal }),
-      modelsAgree(point.lat, point.lng, date, date),
-      away <= 3 ? hourlyWet(point, date, ctl.signal) : Promise.resolve(undefined),
-    ]);
-    clearTimeout(t);
-    const d = r.ok ? (await r.json())?.daily : null;
-    if (d?.temperature_2m_max?.[0] != null) {
-      const rain: number | null = d.precipitation_probability_max?.[0] ?? null;
-      w = { hi: Math.round(d.temperature_2m_max[0]), lo: Math.round(d.temperature_2m_min[0]), rain,
-        inches: typeof d.precipitation_sum?.[0] === "number" ? Math.round(d.precipitation_sum[0] * 100) / 100 : null,
-        code: d.weather_code?.[0] ?? null, models: models(date), outlook: away <= 7 ? "forecast" : "early outlook", at: new Date().toISOString(),
-        ...(hours && (rain ?? 0) >= 30 ? { wet: hours.wet, showers: hours.showers } : {}) };
-    }
-  } catch { /* no forecast now — the phone keeps its last copy */ }
-  kept.set(key, { at: Date.now(), w });
-  return w;
+  return (await pointForecast(point, addDays(date, -away)))?.get(date) ?? null;
 }
 
 type Stay = { name: string; forWhom: string | null; checkInDate: Date | null; checkOutDate: Date | null; latitude: number | null; longitude: number | null; city: { name: string; latitude: number | null; longitude: number | null } };
@@ -159,9 +197,15 @@ export async function townWeather(tripId: string, name: string, date: string, to
   return w ? { place: town, atHotel: false, town, ...w } : null;
 }
 
-export async function dayWeather(tripId: string, person: string, date: string, today: string): Promise<DayWeather | null> {
-  const away = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
-  if (away < 0 || away > 15) return null;   // (past, or beyond Open-Meteo's 16 days)
+type Pt = { lat: number; lng: number };
+/** Where this person is on a day, as the day page's forecast sees it: where they sleep (the hotel, else the town), and
+ *  where her plan takes them when that's somewhere else — a day trip, or where a travel day starts. The storm watch
+ *  reads the same places (services/stormWatch), so the two never disagree about where someone is. */
+export async function dayPlaces(tripId: string, person: string, date: string): Promise<{
+  night: Pt & { atHotel: boolean; place: string; town: string };
+  dayTrip?: Pt & { place: string };
+  morning?: Pt & { place: string };
+} | null> {
   const me = person.split(" ")[0].toLowerCase();
   // (not before their own first night: Andy and Julie's Imperial is "Everyone, Oct 13→18", but they sleep on the plane
   // on the 13th and check in on the 14th — verify25. The town's forecast for a day they aren't there yet.)
@@ -185,9 +229,7 @@ export async function dayWeather(tripId: string, person: string, date: string, t
     town = day.city.name;
   }
   place = short(place); town = short(town);
-  const w = await forecastAt(point, date, away);
-  if (!w) return null;
-  const out: DayWeather = { place, atHotel: point.atHotel, town, ...w };
+  const out: Awaited<ReturnType<typeof dayPlaces>> = { night: { ...point, place, town } };
 
   // The day's other place. A day trip in her plan for them:
   const plans = await prisma.guideItem.findMany({ where: { tripId, date: new Date(`${date}T00:00:00Z`), kind: { in: ["plan", "block", "tour"] } }, select: { title: true, forWhom: true } });
@@ -197,15 +239,38 @@ export async function dayWeather(tripId: string, person: string, date: string, t
     const p = city?.latitude != null && city.longitude != null ? { lat: city.latitude, lng: city.longitude } : await hotelPoint(`${tripTown} Japan`);
     // (truly elsewhere — over ~15 miles from where they sleep — so a neighborhood never counts as another place)
     // (and inside Japan — "Rest Japan" found a point near Palo Alto; verify32)
-    const f = p && inJapan(p) && kmBetween(p, point) > 25 ? await forecastAt(p, date, away) : null;
-    if (f) { out.also = { place: tripTown, when: "day", ...f }; return out; }
+    if (p && inJapan(p) && kmBetween(p, point) > 25) out.dayTrip = { ...p, place: tripTown };
   }
   // …or a travel day: last night in another town (the morning there, tonight here)
   const last = here ? nightOf(stays, me, ymd(new Date(Date.parse(`${date}T00:00:00Z`) - 86_400_000))) : undefined;
   if (last && stay && short(last.city.name).toLowerCase() !== town.toLowerCase()) {
     const p = await stayPoint(last, pins);
-    const f = p ? await forecastAt(p, date, away) : null;
-    if (f) out.also = { place: short(last.city.name), when: "morning", ...f };
+    if (p) out.morning = { lat: p.lat, lng: p.lng, place: short(last.city.name) };
   }
+  return out;
+}
+
+/** The forecast at a point that isn't where they sleep — an airport on a flight day — named as given */
+export async function weatherAt(p: { lat: number; lng: number }, name: string, date: string, today: string): Promise<DayWeather | null> {
+  const away = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  if (away < 0 || away > 15 || !inJapan(p)) return null;
+  const w = await forecastAt(p, date, away);
+  return w ? { place: name, atHotel: false, town: name, ...w } : null;
+}
+
+export async function dayWeather(tripId: string, person: string, date: string, today: string): Promise<DayWeather | null> {
+  const away = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  if (away < 0 || away > 15) return null;   // (past, or beyond Open-Meteo's 16 days)
+  const at = await dayPlaces(tripId, person, date);
+  if (!at) return null;
+  const { night } = at;
+  const w = await forecastAt(night, date, away);
+  if (!w) return null;
+  const out: DayWeather = { place: night.place, atHotel: night.atHotel, town: night.town, ...w };
+  // (a day trip first; when it has no forecast, a travel day's morning, as before)
+  const f = at.dayTrip ? await forecastAt(at.dayTrip, date, away) : null;
+  if (f) { out.also = { place: at.dayTrip!.place, when: "day", ...f }; return out; }
+  const m = at.morning ? await forecastAt(at.morning, date, away) : null;
+  if (m) out.also = { place: at.morning!.place, when: "morning", ...m };
   return out;
 }
