@@ -14,9 +14,10 @@
  * Markers are drawn by Wander (an OverlayView) rather than Google's AdvancedMarker: Google ignores a map's own styling
  * when its markers are used, and the styling is what takes Google's labels off.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { APIProvider, Map as GoogleMap, useMap } from "@vis.gl/react-google-maps";
+import { APIProvider, APILoadingStatus, Map as GoogleMap, useApiLoadingStatus, useMap } from "@vis.gl/react-google-maps";
+import { phoneReport } from "../lib/phoneReport";
 import type { City, Day } from "../lib/types";
 import { getCityPastel } from "../lib/cityColors";
 import { guideData, savedGuideData } from "../lib/guideData";
@@ -115,6 +116,13 @@ function shortHash(s: string) {
 const settledView = (viewKey: string) => settledViews.get(viewKey) ?? fromPhone<Settled>(VIEWS_ON_PHONE, viewKey);
 const keepSettledView = (viewKey: string, s: Settled) => { settledViews.set(viewKey, s); toPhone(VIEWS_ON_PHONE, viewKey, s, 4); };
 
+/** Google refused the key (its error box would cover the map) */
+function WatchKey({ onFail }: { onFail: (result: "auth-failure") => void }) {
+  const status = useApiLoadingStatus();
+  useEffect(() => { if (status === APILoadingStatus.AUTH_FAILURE) onFail("auth-failure"); }, [status, onFail]);
+  return null;
+}
+
 const shortDay = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** `cities`: the cities the map shows (in Japan, located); `allCities`: the trip's whole list, for the calendar colors */
@@ -182,11 +190,18 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   const [refit, setRefit] = useState(0);
   // (when Home opened — the map may still change height in the first moment, before anyone is reading)
   const openedAt = useRef(Date.now());
+  // Google wouldn't load the map (no signal while its code downloads, or the key refused): Home goes on without it, from
+  // the trip's name — Andy, Oct 15, got Google's error box where the map goes. The phone tells the server why.
+  const [failed, setFailed] = useState(false);
+  const fail = useCallback((result: "load-failed" | "auth-failure") => {
+    setFailed((was) => { if (!was) phoneReport("map", { result, online: navigator.onLine !== false }); return true; });
+  }, []);
 
-  if (!API_KEY || stops.length === 0) return null;
+  if (!API_KEY || stops.length === 0 || failed) return null;
   return (
     <div className="relative bg-[#e8e1d2]" style={{ height }}>
-      <APIProvider apiKey={API_KEY}>
+      <APIProvider apiKey={API_KEY} onError={() => fail("load-failed")}>
+        <WatchKey onFail={fail} />
         {/* (the map built the first time is kept and used again — Ken, Oct 9: "every time I go to home, there is a delay
             in showing the map… shouldn't those be cached on the phone" — it was built from nothing on every visit) */}
         <GoogleMap

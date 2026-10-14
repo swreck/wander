@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday, 9:00 AM in Japan) — Her Old Tokyo Map Steps Aside; Morning Weather; Home Without Google's Map
+
+### Changed
+- Her Tokyo day tabs (Day 1 Ginza, Day 2 Kappabashi, Day 3 Omotesando) open with one illustrated map labelled with the
+  old dates ("Day 1 – Tue, Oct 13"); the text under it is her plan. Ken (Oct 15): "The map is old and should not be the
+  target. Text under is correct". When Wander's reading says a picture dates the day differently, the day page no longer
+  offers "See her map from this tab" or "(a picture in her tab shows another)", and Scout isn't handed that note; asked
+  about the picture, Scout says it's her earlier plan. Where: day pages Oct 15–17; Scout.
+
+### Fixed
+- No weather anywhere in Wander from midnight to 9 AM Japan time: the forecast service counts its 16 days from the
+  date in UTC and refused the whole request. Wander now asks for 15 days. Where: Home, day pages, Scout, packing.
+- Home's map when Google won't load it (Andy, Oct 15 morning: an error where the map goes): Home now opens at the
+  trip's name without the map, and the phone tells Wander's server why. Where: Home.
+
 ## 2026-10-14 (Wednesday, 10:00 PM in Japan) — Tell Ken
 
 ### Added

@@ -4,7 +4,7 @@
  * log only (routes/phoneReports.ts), so ordinary use shows whether a fix acted. Numbers and short words only; never
  * anyone's words. Never waits, never retries, never shows anything.
  */
-export function phoneReport(what: "tabbar" | "scout-drop" | "paper" | "scout-caret" | "notes-caret", fields: Record<string, number | string | boolean>): void {
+export function phoneReport(what: "tabbar" | "scout-drop" | "paper" | "scout-caret" | "notes-caret" | "map", fields: Record<string, number | string | boolean>): void {
   try {
     const token = localStorage.getItem("wander_token");
     if (!token) return;
