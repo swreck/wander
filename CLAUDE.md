@@ -123,6 +123,8 @@ auditing them.
   not use kanji. But in this case (and possibly future ones) the purpose is finding something on a Japanese device."
   And: "title is Toilet flush ( in English) because that is what an English speaker scans for. Then my line. Use that
   approach if I add anything else like this. That should be obvious to you!" (Claude) I had made "大 / 小" the title.
+  A line to show a Japanese reader has "Show large", and its small English says what the Japanese says. Ken (Oct 14):
+  "make sure the small type English always makes it clear to the user what they are giving to the Japanese reader".
   Removing a phrase asks "Just your card, or everyone's?" Ken (Oct 14): "yes, good suggestion. But ensure just your
   card is default. I don't want Larisa or Julie to accidentally remove for andy!"
 - Scout's mic: tap to start, tap to stop, words wait in the box (Oct 1). No auto-send, no hold-to-talk.

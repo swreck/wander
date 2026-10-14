@@ -96,7 +96,7 @@ router.post("/suggest", async (req: AuthRequest, res) => {
 
 // POST / — add a phrase (appears at bottom for everyone)
 router.post("/", async (req: AuthRequest, res) => {
-  const { tripId, english, romaji, pronunciation } = req.body;
+  const { tripId, english, romaji, pronunciation, script } = req.body;
   if (!tripId || !english || !romaji) {
     res.status(400).json({ error: "tripId, english, and romaji are required" });
     return;
@@ -119,6 +119,8 @@ router.post("/", async (req: AuthRequest, res) => {
       english,
       romaji,
       ...(typeof pronunciation === "string" && pronunciation.trim() ? { pronunciation: pronunciation.trim().slice(0, 300) } : {}),
+      // (the Japanese writing to show someone — only real Japanese is kept)
+      ...(typeof script === "string" && /[぀-ヿ㐀-鿿]/.test(script) ? { script: script.trim().slice(0, 600) } : {}),
       addedBy: req.user!.displayName,
     },
   });

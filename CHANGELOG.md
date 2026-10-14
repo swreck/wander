@@ -2,6 +2,26 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-14 (Wednesday, 7:00 PM in Japan) — Japanese to Show, "Show Large", and Remove That Asks
+
+### Added
+- A phrase card line can carry its Japanese writing, to show a server or a driver, with "Show large": the Japanese
+  across the whole screen until Close, the screen kept lit where the phone allows. Ken (Oct 14): "notes should include
+  kanji when helpful… plus tappable "Show large" (button resulting in larger kanji version that stays until "close"
+  button)". Add writes it when a line is more useful shown (an allergy, a diet, a medical need, an address); Scout's
+  add_phrase can too. Its small English says what the Japanese says, sentence for sentence. Ken (Oct 14): "make sure
+  the small type English always makes it clear to the user what they are giving to the Japanese reader". Never a fact
+  they didn't give (no address from memory). Ken's "Allium allergy" line added to everyone's card: "I'm allergic to the
+  onion family, like onions, green onions, garlic and garlic chives. I can't eat them in sauces, dipping sauces or
+  soups, or as extracts or powders, either. Could you please not use them in my food? Thank you." and
+  玉ねぎ・ねぎ・にんにく・ニラなどのネギ類にアレルギーがあります。ソース、たれ、スープに入っているものや、エキス・粉末も食べられません。
+  料理に使わないでいただけますか。よろしくお願いします。 Where: the 日 card (trip_phrases.script, new). SPEC UPDATE NEEDED.
+
+### Changed
+- Remove on the phrase card takes a line off your own card. For a line you added (or any added line, for the
+  organizer) it asks: "Just my card" (first), "Everyone's card", or "Keep it". Ken (Oct 14): "ensure just your card is
+  default. I don't want Larisa or Julie to accidentally remove for andy!" SPEC UPDATE NEEDED.
+
 ## 2026-10-14 (Wednesday, 6:15 PM in Japan) — "Remember That", Then "Bring It Back"
 
 ### Changed
