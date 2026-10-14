@@ -139,12 +139,28 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   const [tripId, setTripId] = useState<string | null>(null);
   // (removedAt: off everyone's card — sent only to those who may put it back; mayRemoveForAll: this person added it, or
   // is the trip's organizer — the Maybes rule)
-  type Added = { id: string; english: string; romaji: string; pronunciation?: string | null; addedBy: string; removedAt?: string | null; mayRemoveForAll?: boolean };
+  type Added = { id: string; english: string; romaji: string; pronunciation?: string | null; script?: string | null; addedBy: string; removedAt?: string | null; mayRemoveForAll?: boolean };
   const [added, setAdded] = useState<Added[]>([]);
+  // "Show large" (Ken, Oct 14: "plus tappable "Show large" (button resulting in larger kanji version that stays until
+  // "close" button)"): the line's Japanese across the whole screen, to hold up to a server or a driver
+  const [shownLarge, setShownLarge] = useState<{ title: string; english: string; script: string } | null>(null);
+  useBackToClose(!!shownLarge, () => setShownLarge(null));
+  // (the screen stays lit while it's held up — a phone dimming mid-order is no use; where the phone allows it)
+  useEffect(() => {
+    if (!shownLarge) return;
+    let lock: { release?: () => Promise<void> } | null = null;
+    let closed = false;
+    // (closed before the phone granted it: let go as soon as it arrives — else the screen stayed lit; verify56)
+    (navigator as any).wakeLock?.request?.("screen").then((l: any) => { if (closed) l?.release?.().catch?.(() => {}); else lock = l; }).catch(() => { /* not allowed: fine */ });
+    return () => { closed = true; lock?.release?.().catch?.(() => {}); };
+  }, [shownLarge]);
+  // Remove asks "Just your card, or everyone's?" for a phrase this person may take off everyone's (Ken, Oct 14: "ensure
+  // just your card is default. I don't want Larisa or Julie to accidentally remove for andy!")
+  const [askingRemove, setAskingRemove] = useState<string | null>(null);
   // Add (Ken, Oct 14): "'Add' allows add where person types or speaks English and scouts fill in the fine print Japanese
   // and pronunciation. If the translation is questionable or problematic or can be done in two ways with different
   // nuance, give an option with super brief context and tappable choice." Nothing is saved until a choice is tapped.
-  type Choice = { kind: "say" | "recognize"; english: string; romaji: string; pronunciation: string | null; note: string | null; onCardAs?: string; offYourCard?: string };
+  type Choice = { kind: "say" | "recognize" | "show"; english: string; romaji: string; pronunciation: string | null; script?: string | null; note: string | null; onCardAs?: string; offYourCard?: string };
   // (one save at a time: two quick taps on a choice put the line on everyone's card twice — verify53)
   const choosingRef = useRef(false);
   // (the choice being saved says "Adding…": on weak signal nothing showed the tap had landed — verify54)
@@ -211,7 +227,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   // (closed, the card is out of Edit)
   useEffect(() => {
     if (open) return;
-    setEditing(false); setSaveNote(null);
+    setEditing(false); setSaveNote(null); setAskingRemove(null); setShownLarge(null);
     // (and out of Add, the microphone handed back)
     setAdding(false); setAsked(""); setChoices(null); setAddNote(null); setFinding(false);
     if (voiceRef.current) { stopVoice(voiceRef.current); voiceRef.current = null; }
@@ -349,10 +365,10 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
 
   // The card's phrases as this person has arranged them: their order first, anything new after in its first order;
   // the ones they took off apart (services/phrasePrefs keys the same way)
-  type Row = { key: string; local: string; pronunciation?: string | null; english: string; id?: string; forAll?: boolean; offForAll?: boolean };
+  type Row = { key: string; local: string; pronunciation?: string | null; script?: string | null; english: string; id?: string; forAll?: boolean; offForAll?: boolean };
   const allRows: Row[] = [
     ...activePhrases.phrases.map((p) => ({ key: `core:${activeCountry}:${p.english}`, local: p.local, pronunciation: p.pronunciation, english: p.english })),
-    ...(activeCountry === "japan" ? added.map((p) => ({ key: `p:${p.id}`, local: p.romaji, pronunciation: p.pronunciation, english: p.english, id: p.id, forAll: !!p.mayRemoveForAll, offForAll: !!p.removedAt })) : []),
+    ...(activeCountry === "japan" ? added.map((p) => ({ key: `p:${p.id}`, local: p.romaji, pronunciation: p.pronunciation, script: p.script, english: p.english, id: p.id, forAll: !!p.mayRemoveForAll, offForAll: !!p.removedAt })) : []),
   ];
   const byKey = new Map(allRows.map((r) => [r.key, r]));
   const orderNow = [...mine.order.filter((k) => byKey.has(k)), ...allRows.map((r) => r.key).filter((k) => !mine.order.includes(k))];
@@ -368,7 +384,11 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
       setSaveNote("That didn't save. Try again when you have signal?");
     });
   };
-  const remove = (r: Row) => (r.id && r.forAll ? setOffForAll(r.id, true) : arrange({ order: orderNow, hidden: [...mine.hidden, r.key] }));
+  // Remove: off this person's own card — always the plain tap. Off everyone's only as a second, deliberate choice, and
+  // only for a phrase they added (or any added one, for the organizer)
+  const removeMine = (r: Row) => { setAskingRemove(null); arrange({ order: orderNow, hidden: [...mine.hidden, r.key] }); };
+  const removeForAll = (r: Row) => { setAskingRemove(null); if (r.id) setOffForAll(r.id, true); };
+  const remove = (r: Row) => (r.id && r.forAll ? setAskingRemove(r.key) : removeMine(r));
   const putBack = (r: Row) => (r.offForAll && r.id ? setOffForAll(r.id, false) : arrange({ order: orderNow, hidden: mine.hidden.filter((k) => k !== r.key) }));
   // (↑ / ↓ swap with the neighbour among the phrases shown)
   const move = (key: string, by: -1 | 1) => {
@@ -408,7 +428,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
     setAddNote(null);
     choosingRef.current = true;
     setSavingChoice(at);
-    api.post<Added>(`/phrases`, { tripId, english: c.english, romaji: c.romaji, pronunciation: c.pronunciation })
+    api.post<Added>(`/phrases`, { tripId, english: c.english, romaji: c.romaji, pronunciation: c.pronunciation, script: c.script || null })
       .then((p) => {
         if (p?.id) setAdded((list) => (list.some((x) => x.id === p.id) ? list : [...list, { ...p, mayRemoveForAll: true }]));
         // (first on this person's card — the server put it there; the order is read back so this card shows it)
@@ -485,7 +505,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
           )}
           {!adding && (
             <button
-              onClick={() => setEditing((e) => !e)}
+              onClick={() => { setEditing((e) => !e); setAskingRemove(null); }}
               className="min-h-[44px] px-2 text-sm text-[#514636] underline underline-offset-2"
             >
               {editing ? "Done" : "Edit/Reorder"}
@@ -561,6 +581,7 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
                   className="block w-full text-left mt-2 rounded-xl border border-[#e5ddd0] bg-white px-3 py-2 min-h-[44px] active:bg-[#f0ebe3] disabled:bg-transparent">
                   <span className="block text-base font-medium text-[#3a3128]">{c.english}</span>
                   <span className="block text-sm text-[#3a3128]">{c.romaji}{c.pronunciation && <span className="text-[#6b5d4a]"> ({c.pronunciation})</span>}</span>
+                  {c.script && <span lang="ja" className="block text-base text-[#3a3128] mt-0.5 whitespace-pre-line">{c.script}</span>}
                   {c.note && <span className="block text-xs text-[#6b5d4a] mt-0.5">{c.note}</span>}
                   <span className="block text-sm text-[#514636] underline underline-offset-2 mt-1">
                     {savingChoice === i ? "Adding…" : c.offYourCard ? `You took "${c.onCardAs}" off your card. Put it back` : c.onCardAs ? `Already on the card, as "${c.onCardAs}"` : choices.length > 1 ? "Add this one" : "Add to the card"}
@@ -574,23 +595,44 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
               titles should be English to find what is needed. Like: Hello / Konnichiwa(Koh-nee-chee-wah)") */}
           {!adding && addNote && <p role="status" className="text-sm text-[#514636] py-1">{addNote}</p>}
           {!adding && shown.map((p, i) => (
-            <div key={p.key} className="py-1.5 flex items-center gap-1">
-              <div className="flex-1 min-w-0 py-1">
-                <div className="text-base font-medium text-[#3a3128]">{p.english}</div>
-                <div className="text-sm text-[#3a3128]">
-                  {p.local}
-                  {p.pronunciation && <span className="text-[#6b5d4a]"> ({p.pronunciation})</span>}
+            <div key={p.key} className="py-1.5">
+              <div className="flex items-center gap-1">
+                <div className="flex-1 min-w-0 py-1">
+                  <div className="text-base font-medium text-[#3a3128]">{p.english}</div>
+                  <div className="text-sm text-[#3a3128]">
+                    {p.local}
+                    {p.pronunciation && <span className="text-[#6b5d4a]"> ({p.pronunciation})</span>}
+                  </div>
+                  {/* (the Japanese to show someone, and the way to show it large — Ken, Oct 14) */}
+                  {p.script && (
+                    <div className="mt-0.5">
+                      <div lang="ja" className="text-base text-[#3a3128] whitespace-pre-line" style={{ lineBreak: "strict" }}>{p.script}</div>
+                      {!editing && (
+                        <button onClick={() => setShownLarge({ title: p.english, english: p.local, script: p.script! })}
+                          className="min-h-[44px] -mb-2 text-sm text-[#514636] underline underline-offset-2">Show large</button>
+                      )}
+                    </div>
+                  )}
                 </div>
+                {editing && askingRemove !== p.key && (
+                  <>
+                    <button onClick={() => move(p.key, -1)} disabled={i === 0} aria-label={`Move ${p.english} up`}
+                      className="shrink-0 min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg text-[#514636] disabled:opacity-25 active:bg-[#f0ebe3]">↑</button>
+                    <button onClick={() => move(p.key, 1)} disabled={i === shown.length - 1} aria-label={`Move ${p.english} down`}
+                      className="shrink-0 min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg text-[#514636] disabled:opacity-25 active:bg-[#f0ebe3]">↓</button>
+                    <button onClick={() => remove(p)} aria-label={`Remove ${p.english}`}
+                      className="shrink-0 min-h-[44px] px-2 text-sm text-[#8a5a1a] active:bg-[#f0ebe3] rounded-lg">Remove</button>
+                  </>
+                )}
               </div>
-              {editing && (
-                <>
-                  <button onClick={() => move(p.key, -1)} disabled={i === 0} aria-label={`Move ${p.english} up`}
-                    className="shrink-0 min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg text-[#514636] disabled:opacity-25 active:bg-[#f0ebe3]">↑</button>
-                  <button onClick={() => move(p.key, 1)} disabled={i === shown.length - 1} aria-label={`Move ${p.english} down`}
-                    className="shrink-0 min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg text-[#514636] disabled:opacity-25 active:bg-[#f0ebe3]">↓</button>
-                  <button onClick={() => remove(p)} aria-label={`Remove ${p.english}`}
-                    className="shrink-0 min-h-[44px] px-2 text-sm text-[#8a5a1a] active:bg-[#f0ebe3] rounded-lg">Remove</button>
-                </>
+              {/* Remove's question, for a phrase this person may take off everyone's card: their own card is the plain,
+                  first choice; everyone's is the second (Ken: "ensure just your card is default") */}
+              {editing && askingRemove === p.key && (
+                <div className="flex flex-wrap items-center gap-2 pb-1">
+                  <button onClick={() => removeMine(p)} className="min-h-[44px] px-3 rounded-xl bg-[#514636] text-white text-sm">Just my card</button>
+                  <button onClick={() => removeForAll(p)} className="min-h-[44px] px-2 text-sm text-[#8a5a1a] underline underline-offset-2">Everyone's card</button>
+                  <button onClick={() => setAskingRemove(null)} className="min-h-[44px] px-2 text-sm text-[#514636]">Keep it</button>
+                </div>
               )}
             </div>
           ))}
@@ -613,13 +655,37 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
               const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
               const organizer = added.some((p) => p.mayRemoveForAll && first(p.addedBy) !== first(user?.displayName || ""));
               return organizer
-                ? "Your order is yours alone. A phrase added on the trip comes off everyone's card when you remove it; an everyday one comes off just yours."
-                : "Your order is yours alone. A phrase you added comes off everyone's card when you remove it; any other comes off just yours.";
+                ? "Your order is yours alone. Remove takes a phrase off your card; for one added on the trip, you can choose everyone's card instead."
+                : "Your order is yours alone. Remove takes a phrase off your card; for one you added, you can choose everyone's card instead.";
             })()}
           </p>}
           {saveNote && <p className="text-xs text-[#8a5a1a] pt-1 pb-1" role="status">{saveNote}</p>}
         </div>
       </div>
+      {/* Show large: the Japanese across the screen, until Close (Ken, Oct 14). Above everything, the card included */}
+      {shownLarge && (
+        <div role="dialog" aria-modal="true" aria-label={`${shownLarge.title}, in Japanese`}
+          // (above everything, notices and the update prompt included: nothing may cover an allergy card held up to a
+          // server — verify56)
+          className="fixed inset-0 bg-white flex flex-col"
+          style={{ zIndex: 10000, paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+          <div className="flex items-start justify-between gap-3 px-5 pt-4">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-[#514636]">{shownLarge.title}</div>
+              <div className="text-xs text-[#6b5d4a]">{shownLarge.english}</div>
+            </div>
+            <button onClick={() => setShownLarge(null)} className="shrink-0 min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-base">Close</button>
+          </div>
+          {/* (centred with my-auto, not items-center: a card taller than the screen scrolls from its first line instead
+              of losing it above the top; a long card is a size smaller so four sentences fit a phone without scrolling) */}
+          <div className="flex-1 overflow-y-auto flex flex-col px-6 py-6">
+            <p lang="ja" className="my-auto w-full text-[#1f1a14] font-medium whitespace-pre-line"
+              // (by the screen's height too, so a phone on its side shows the whole card; strict breaks keep ー and small
+              // kana off the start of a line — verify57)
+              style={{ fontSize: shownLarge.script.length > 40 ? "clamp(24px, min(7.4vw, 9vh), 56px)" : "clamp(30px, min(10vw, 12vh), 72px)", lineHeight: 1.35, lineBreak: "strict" }}>{shownLarge.script}</p>
+          </div>
+        </div>
+      )}
     </>,
     document.body,
   );

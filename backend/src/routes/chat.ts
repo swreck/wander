@@ -824,7 +824,7 @@ const tools: Anthropic.Tool[] = [
   // ── Phrase tools ──────────────────────────────
   {
     name: "add_phrase",
-    description: "Add a line to the shared trip phrase card. Use when user says 'add a phrase', 'how do you say X in Japanese', 'I need to know how to say...', or asks to keep something on the card. Every line's title is ENGLISH — what an English speaker scans the card for (rule 27). Two kinds: something to SAY — the romaji and how to sound it out, never Japanese characters; or characters to RECOGNIZE on a sign, button, screen or machine (a toilet's 大 / 小, a ticket machine's 大人 / 小人) — the characters with their meanings, no pronunciation. One request is ONE line: never split it into several. First look at PHRASE CARD: when a line there already says the same thing (in any wording), tell them it's there and don't add another, unless they ask for another way to say it (anotherWay: true).",
+    description: "Add a line to the shared trip phrase card. Use when user says 'add a phrase', 'how do you say X in Japanese', 'I need to know how to say...', or asks to keep something on the card. Every line's title is ENGLISH — what an English speaker scans the card for (rule 27). Three kinds: something to SAY — the romaji and how to sound it out, never Japanese characters in romaji; something to SHOW someone (an allergy or diet for the waiter, a medical need, where to go for a taxi) — script is the polite written Japanese, romaji is what that Japanese says in plain English sentence for sentence, no pronunciation; or characters to RECOGNIZE on a sign, button, screen or machine (a toilet's 大 / 小, a ticket machine's 大人 / 小人) — the characters with their meanings, no pronunciation. Never add a fact they didn't give (no address or phone number from memory). One request is ONE line: never split it into several. First look at PHRASE CARD: when a line there already says the same thing (in any wording), tell them it's there and don't add another, unless they ask for another way to say it (anotherWay: true).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -832,6 +832,7 @@ const tools: Anthropic.Tool[] = [
         english: { type: "string", description: "The title, in English: what it says ('Where is the station?'), or what the characters are for ('Toilet flush', 'Ticket machine fares')." },
         romaji: { type: "string", description: "The Japanese line under the title: for something to say, the romaji ('Eki wa doko desu ka?'), NO Japanese characters; for characters to recognize, the characters with what each means, in their own words when they gave them, exactly ('大 for full flush; 小 for light flush')." },
         pronunciation: { type: "string", description: "For something to say: the romaji sounded out for an English speaker, syllables joined by hyphens, as the card's own ('Konnichiwa' → 'Koh-nee-chee-wah'; 'Arigatou gozaimasu' → 'Ah-ree-gah-toh go-zah-ee-mahs'). Leave out for characters to recognize." },
+        script: { type: "string", description: "The line in written Japanese (kanji and kana), when showing it to someone helps: an allergy or diet ('Allium allergy' → a polite written statement), a medical need, an address for a taxi. Exactly what they said, nothing added. The card gives it a 'Show large' button. For something to SHOW, romaji is what the Japanese says in plain English, sentence for sentence, so they know exactly what they hand over (Ken, Oct 14: \"make sure the small type English always makes it clear to the user what they are giving to the Japanese reader\"), and pronunciation is left out." },
         anotherWay: { type: "boolean", description: "Only when they ask for a second way to say something already on the card" },
       },
       required: ["tripId", "english", "romaji"],
@@ -3465,7 +3466,7 @@ export async function executeTool(
           return { result: { backOnTheirCard: { english: twin.english, romaji: twin.local }, say: "It was on the card; they had taken it off theirs, and it's back on it now." }, actionDescription: `Back on your phrase card: ${twin.local}` };
         }
         // (verify52: "How do I say thank you?" got no way to say it, and "so I haven't added it twice" — app-speak)
-        return { result: { alreadyOnCard: { english: twin.english, romaji: twin.local, pronunciation: twin.pronunciation || null }, say: "Give them the phrase as it is on the card and how to say it (the romaji, then its pronunciation), and that it's on their phrase card under 日. Don't mention adding or not adding it." } };
+        return { result: { alreadyOnCard: { english: twin.english, romaji: twin.local, pronunciation: twin.pronunciation || null, script: twin.script || null }, say: "Give them the phrase as it is on the card and how to say it (the romaji, then its pronunciation), and that it's on their phrase card under 日. Don't mention adding or not adding it." } };
       }
       const phrase = await prisma.tripPhrase.create({
         data: {
@@ -3473,12 +3474,13 @@ export async function executeTool(
           english: input.english,
           romaji: input.romaji,
           ...(typeof input.pronunciation === "string" && input.pronunciation.trim() ? { pronunciation: input.pronunciation.trim().slice(0, 300) } : {}),
+          ...(typeof input.script === "string" && /[぀-ヿ㐀-鿿]/.test(input.script) ? { script: input.script.trim().slice(0, 600) } : {}),
           addedBy: user.displayName,
         },
       });
       await firstOnAddersCard((user as any).travelerId, input.tripId, phrase.id).catch(() => {});
       return {
-        result: { saved: true, english: phrase.english, romaji: phrase.romaji, pronunciation: phrase.pronunciation, where: "first on their phrase card; at the bottom of everyone else's" },
+        result: { saved: true, english: phrase.english, romaji: phrase.romaji, pronunciation: phrase.pronunciation, script: (phrase as any).script || null, where: "first on their phrase card; at the bottom of everyone else's" },
         actionDescription: `Added phrase: "${phrase.english}" → ${phrase.romaji}`,
       };
     }
@@ -5004,7 +5006,7 @@ router.post("/", async (req: AuthRequest, res) => {
       try {
         const { cardPhrases } = await import("../services/phrasePrefs.js");
         const card = (await cardPhrases(tripId)).filter((p) => !p.removedAt);
-        phraseLine = `PHRASE CARD (everyone's, before each person's own order): ${card.map((p) => `${p.english}: ${p.local}${p.pronunciation ? ` (${p.pronunciation})` : ""}`).join(" · ")}`;
+        phraseLine = `PHRASE CARD (everyone's, before each person's own order): ${card.map((p) => `${p.english}: ${p.local}${p.pronunciation ? ` (${p.pronunciation})` : ""}${p.script ? ` [to show: ${p.script}]` : ""}`).join(" · ")}`;
       } catch { /* the card can be looked at another time */ }
     }
     if (tripId && req.user?.travelerId) {
@@ -5185,7 +5187,7 @@ RULES:
 23. When the user shares or asks about a Tabelog rating for a restaurant, use set_tabelog_rating. Tabelog is Japan's primary restaurant rating platform — more trusted than Google for Japanese restaurants. A Tabelog 3.5+ is excellent.
 24. When the user asks about train schedules, times, or routes in Japan, use search_train_schedules. Present results clearly: departure time, line name, transfers, duration.
 25. When the user asks about train delays or disruptions, look it up with web search — the railway's own status page (JR Central, JR West, JR East, JR Kyushu) for the train in the rail sheet that day — and say it's what you found online and when. Only mention disruptions that affect their trains. Never say there are no trains or no disruption because you found nothing.
-27. When the user asks "how do you say X in Japanese?", "add a phrase", or wants to learn/save a Japanese phrase, use add_phrase. Every line's title is English, because an English speaker scans the card for that (Ken, Oct 14): "Hello", then "Konnichiwa (Koh-nee-chee-wah)". A phrase to say is romaji with its pronunciation — never Japanese characters. Asked how to say something, always give both, using the card's own pronunciation when it's on PHRASE CARD: "Arigatou gozaimasu (Ah-ree-gah-toh go-zah-ee-mahs)". The one exception is characters they need to RECOGNIZE on a sign, button, screen or machine in Japan (a toilet's 大 for full flush and 小 for light flush; a ticket machine's 大人 adult / 小人 child): then the title says what it's for ("Toilet flush") and the line under it is the characters with what each means, in their own words if they gave them, exactly ("大 for full flush; 小 for light flush"), with no pronunciation. One request is one line — never split it into several. The phrase appears on everyone's shared phrase card automatically. That card opens from 日 at the right end of the bottom bar on any screen (and from "日 Phrases" on Next). Say so if someone asks where the phrases are.
+27. When the user asks "how do you say X in Japanese?", "add a phrase", or wants to learn/save a Japanese phrase, use add_phrase. Every line's title is English, because an English speaker scans the card for that (Ken, Oct 14): "Hello", then "Konnichiwa (Koh-nee-chee-wah)". A phrase to say is romaji with its pronunciation — never Japanese characters in it. Something they'll hand to a Japanese reader (an allergy card for the waiter, a diet, a medical need, a taxi destination) is a line to SHOW: add_phrase with script = polite written Japanese, romaji = what that Japanese says in English, sentence for sentence (Ken, Oct 14: "make sure the small type English always makes it clear to the user what they are giving to the Japanese reader"); the card gives it "Show large". Asked how to say something, always give both, using the card's own pronunciation when it's on PHRASE CARD: "Arigatou gozaimasu (Ah-ree-gah-toh go-zah-ee-mahs)". The one exception is characters they need to RECOGNIZE on a sign, button, screen or machine in Japan (a toilet's 大 for full flush and 小 for light flush; a ticket machine's 大人 adult / 小人 child): then the title says what it's for ("Toilet flush") and the line under it is the characters with what each means, in their own words if they gave them, exactly ("大 for full flush; 小 for light flush"), with no pronunciation. One request is one line — never split it into several. The phrase appears on everyone's shared phrase card automatically. That card opens from 日 at the right end of the bottom bar on any screen (and from "日 Phrases" on Next). Say so if someone asks where the phrases are.
 28. When the user asks to delete a travel document, use delete_travel_document. Look up their documents first with get_my_documents to find the right ID.
 29. When the user asks about cultural etiquette, tips, or best times to visit a place, use get_cultural_context. Present the tips naturally in conversation, not as a raw list.
 30. When the user asks to share or summarize a day's plan, use share_day_plan. Return the text directly so they can copy it.

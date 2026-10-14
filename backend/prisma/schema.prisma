@@ -733,6 +733,9 @@ model TripPhrase {
   romaji    String
   // how to say the romaji, sounded out ("Koh-nee-chee-wah"); none for characters to find
   pronunciation String?
+  // the line in Japanese writing, to show someone ("Show large"), when that helps more than saying it: an allergy, a
+  // diet, an address for a taxi (Ken, Oct 14: "notes should include kanji when helpful")
+  script    String?
   addedBy   String   @map("added_by")
   createdAt DateTime @default(now()) @map("created_at")
   // "Remove" by whoever added it or the trip's organizer: off everyone's card, never deleted; Put back undoes it

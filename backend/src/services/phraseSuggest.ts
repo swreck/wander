@@ -12,12 +12,15 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic();
 
-export type PhraseOption = { kind: "say" | "recognize"; english: string; romaji: string; pronunciation: string | null; note: string | null; sameAs?: string | null };
+export type PhraseOption = { kind: "say" | "recognize" | "show"; english: string; romaji: string; pronunciation: string | null; script: string | null; note: string | null; sameAs?: string | null };
 
-const SYSTEM = `You write lines for a traveler's Japanese phrase card. The traveler is an English speaker in Japan. They give you, in English (typed, or spoken and transcribed, so it may be messy), either something they want to SAY, or something they want to RECOGNIZE on a sign, button, screen or machine.
+const SYSTEM = `You write lines for a traveler's Japanese phrase card. The traveler is an English speaker in Japan. They give you, in English (typed, or spoken and transcribed, so it may be messy), something they want to SAY, something they want to SHOW someone (an allergy or diet, a medical need, an address for a taxi, a request best handed over in writing), or something they want to RECOGNIZE on a sign, button, screen or machine.
 
 Reply with JSON only, no other text: {"options":[...]} or {"options":[],"why":"..."}.
-Each option: {"kind":"say"|"recognize","english":"...","romaji":"...","pronunciation":"..."|null,"note":"..."|null,"sameAs":"..."|null}
+Each option: {"kind":"say"|"show"|"recognize","english":"...","romaji":"...","pronunciation":"..."|null,"script":"..."|null,"note":"..."|null,"sameAs":"..."|null}
+
+- For something to SHOW: english is a short title ("Allium allergy"); script is their message in natural, polite written Japanese (kanji and kana) as a Japanese person would write it for restaurant or shop staff, saying what they asked and nothing more (no added warnings or requests); romaji is what that Japanese says, in plain English, sentence for sentence, so the traveler knows exactly what they are handing over (every item, every request, the polite close too), never a summary or a shorter version; pronunciation null.
+- script, for something to SAY: the same phrase in written Japanese when showing it would help as much as saying it (a hospital, a pharmacy, a station name); else null. Always null for something to recognize.
 
 - sameAs: when a line already ON THE CARD (given with their request) means the same thing, its title exactly as given; else null. Different wording of the same meaning counts ("The check, please" = "Check please").
 
@@ -25,6 +28,7 @@ Each option: {"kind":"say"|"recognize","english":"...","romaji":"...","pronuncia
 - romaji, for something to say: natural Japanese a traveler would use with staff or strangers, in Hepburn romaji (long vowels as "ou"/"uu" or plain, never macrons unless they gave them). NEVER Japanese characters.
 - pronunciation, for something to say: the romaji sounded out for an English speaker, every syllable written out (even ones said softly: "tsukaemasu" → "tsoo-kah-eh-mahs", never "tskah"), syllables joined by hyphens, each word capitalized only at the start of a sentence, keeping the romaji's punctuation, as on the card: "Konnichiwa" → "Koh-nee-chee-wah"; "Arigatou gozaimasu" → "Ah-ree-gah-toh go-zah-ee-mahs"; "Ikura desu ka?" → "Ee-koo-rah dess kah?"; "Sumimasen" → "Sue-mee-mah-sen".
 - For something to recognize: romaji is only the characters with what each means, short ("大 = full flush; 小 = light flush"), pronunciation null. Never a rule of thumb or advice ("red curtain is usually women"): signs vary, and a wrong guess sends someone the wrong way.
+- Never add a fact they didn't give: no street address, phone number, opening hours or name they didn't supply (for "take me to the Imperial Hotel", the hotel's name in Japanese, not an address from memory; a small inn's address from memory could send a taxi to the wrong place).
 - No em dashes anywhere; plain short words.
 - note: null when there is one option. When there are two or three, at most 6 words each telling them apart ("polite, to staff" / "casual, to a friend"; "the bill at a restaurant" / "checking in at a hotel").
 
@@ -62,12 +66,18 @@ export function checkedOptions(raw: unknown): PhraseOption[] {
   if (!Array.isArray(raw)) return [];
   const out: PhraseOption[] = [];
   for (const o of raw.slice(0, 3)) {
-    const kind = o?.kind === "recognize" ? "recognize" : "say";
-    const english = clip(o?.english, 120), romaji = clip(o?.romaji, 200), pronunciation = clip(o?.pronunciation, 300);
+    const kind = o?.kind === "recognize" ? "recognize" : o?.kind === "show" ? "show" : "say";
+    // (room for a show line's whole English: cut at 200, the allium card's would lose its last sentence — verify56)
+    const english = clip(o?.english, 120), romaji = clip(o?.romaji, 600), pronunciation = clip(o?.pronunciation, 300);
+    // (Japanese writing as written: commas and dashes inside it are left alone)
+    const script = typeof o?.script === "string" && JAPANESE.test(o.script) ? o.script.trim().slice(0, 600) : "";
     if (!english || !romaji) continue;
     if (kind === "say" && (JAPANESE.test(romaji) || JAPANESE.test(pronunciation) || !pronunciation)) continue;
     if (kind === "recognize" && !JAPANESE.test(romaji)) continue;
-    out.push({ kind, english, romaji, pronunciation: kind === "say" ? pronunciation : null, note: clip(o?.note, 60) || null, sameAs: clip(o?.sameAs, 120) || null });
+    // (something to show is an English message with its Japanese: no Japanese, nothing to show)
+    if (kind === "show" && (JAPANESE.test(romaji) || !script)) continue;
+    out.push({ kind, english, romaji, pronunciation: kind === "say" ? pronunciation : null, script: kind === "recognize" ? null : script || null,
+      note: clip(o?.note, 60) || null, sameAs: clip(o?.sameAs, 120) || null });
   }
   if (out.length === 1) out[0].note = null;
   return out;

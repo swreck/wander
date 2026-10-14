@@ -25,11 +25,11 @@ export const JAPAN_EVERYDAY = [
 
 /** Everything on a trip's Japanese card, in its first order: the everyday phrases, then those added on the trip (with
  *  removedAt for one taken off everyone's card) */
-export async function cardPhrases(tripId: string): Promise<{ key: string; id?: string; english: string; local: string; pronunciation?: string | null; addedBy?: string; removedAt?: Date | null }[]> {
+export async function cardPhrases(tripId: string): Promise<{ key: string; id?: string; english: string; local: string; pronunciation?: string | null; script?: string | null; addedBy?: string; removedAt?: Date | null }[]> {
   const added = await prisma.tripPhrase.findMany({ where: { tripId }, orderBy: { createdAt: "asc" } });
   return [
     ...JAPAN_EVERYDAY.map((p) => ({ key: `core:japan:${p.english}`, english: p.english, local: p.local, pronunciation: p.pronunciation })),
-    ...added.map((p) => ({ key: `p:${p.id}`, id: p.id, english: p.english, local: p.romaji, pronunciation: p.pronunciation, addedBy: p.addedBy, removedAt: p.removedAt })),
+    ...added.map((p) => ({ key: `p:${p.id}`, id: p.id, english: p.english, local: p.romaji, pronunciation: p.pronunciation, script: p.script, addedBy: p.addedBy, removedAt: p.removedAt })),
   ];
 }
 
