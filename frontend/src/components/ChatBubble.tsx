@@ -8,6 +8,7 @@ import { sendToGuideOwner } from "../lib/tellGuideOwner";
 import { withPhoneLinks } from "../lib/guideDisplay";
 import ScoutSources, { hasSources, citesGuide, type AnswerSources } from "./ScoutSources";
 import OnceTip, { useOnceTip } from "./OnceTip";
+import { amOrganizer, tipDue, tipShown, tipClosed, sentToKen, scoutClosedUnasked, scoutAnswered } from "../lib/tellKen";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
@@ -460,6 +461,29 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // One-time tips, at the moment they help (Oct 2): the camera, for people already talking with Scout; Sources, under
   // the first answer that has them. Using the thing puts its tip away too.
   const [cameraTip, cameraTipDone] = useOnceTip("scout-camera");
+  // "Tell Ken" (Oct 14, Ken: "occasionally remind them during the next week"): a quiet line here, three days at most,
+  // never once they've sent one, never for Ken himself (lib/tellKen)
+  const [tellKenTip, setTellKenTip] = useState(false);
+  // (counted on this phone only: opened and closed with nothing asked is one of the signs someone isn't finding what
+  // they came for — lib/tellKen; and the line is offered when the panel opens, if it's due)
+  const askedAtOpen = useRef<number | null>(null);
+  useEffect(() => {
+    const asked = messages.filter((m) => m.role === "user").length;
+    if (open) {
+      askedAtOpen.current = asked;
+      let live = true;
+      amOrganizer().then((org) => { if (live && org === false && tipDue()) setTellKenTip(true); });
+      return () => { live = false; };
+    }
+    if (askedAtOpen.current !== null && asked === askedAtOpen.current) scoutClosedUnasked();
+    askedAtOpen.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  // (one tip at a time, and on its three days this line goes first: waiting for the paperclip tip to be closed, it
+  // never came for someone who leaves that tip be — verify60; the paperclip tip has a later turn. A day counts only
+  // when the line is shown)
+  const tellKenVisible = open && tellKenTip;
+  useEffect(() => { if (tellKenVisible) tipShown(); }, [tellKenVisible]);
   const [sourcesTip, sourcesTipDone] = useOnceTip("scout-sources");
   const [input, setInput] = useState("");
   // What goes with the next question — pictures, PDFs, documents, text files, dragged in, pasted or chosen — and what
@@ -1202,6 +1226,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         for (const f of data.forecasts) { try { if (f?.date && f.weather) keepDayForecast(forTrip, f.date, f.weather); } catch { /* the page fetches its own */ } }
       }
 
+      // (a message sent to Ken: the reminders stop — lib/tellKen; and an answer arrived, so closing Scout soon after is
+      // reading it, not giving up)
+      if (Array.isArray(data.actions) && data.actions.includes("Sent to Ken")) { sentToKen(); setTellKenTip(false); }
+      scoutAnswered();
       const shows = data.shows as ChatMessage["shows"];
       const goTo = shows?.find((s) => s.go);
       const headline = (goTo?.headline || shows?.find((s) => s.headline)?.headline || "").trim() || undefined;
@@ -2113,11 +2141,23 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
             </p>
           )}
           {/* (once, for someone already talking with Scout — a first-timer reads it in Scout's hello above) */}
-          {cameraTip && online && messages.length > 0 && !files.length && !filesReading && (
+          {cameraTip && !tellKenVisible && online && messages.length > 0 && !files.length && !filesReading && (
             // (touch-none: a swipe on this notice moved the page behind Scout; its ✕ still taps — verify13)
             <OnceTip onClose={cameraTipDone} className="mb-2 touch-none">
               {/* (dragging only on a computer: the Mac line read oddly on an iPhone — verify52) */}
               Tap the paperclip to send Scout a photo or a file, like a menu, a ticket or a PDF. You can paste one into the box too{onComputer ? ", or drag it in" : ""}. Scout will read it.
+            </OnceTip>
+          )}
+          {/* "Tell Ken" (Oct 14): never with the paperclip tip; Larisa's words name her Guide */}
+          {tellKenVisible && online && !files.length && (
+            <OnceTip onClose={() => { tipClosed(); setTellKenTip(false); }} className="mb-2 touch-none">
+              {/^larisa$/i.test(user?.displayName || "")
+                ? <>Something in Wander that doesn't match your Guide, or confusing, or a wish for it? Say it here, starting with "Tell Ken". He gets your words exactly as you send them.</>
+                : <>Something in Wander confusing, or a wish for it? Say it here, starting with "Tell Ken". He gets your words exactly as you send them.</>}
+              {/* (type="button": inside the box's form, it sent "Tell Ken" to Scout with no words at all) */}
+              {" "}<button type="button" onClick={() => { setInput("Tell Ken "); inputRef.current?.focus(); }}
+                // (a full fingertip — at 56×18 pt it was hard to hit; verify60)
+                className="inline-flex items-center min-h-[44px] min-w-[44px] -my-3 px-1 underline underline-offset-2 text-[#514636]">Start one</button>
             </OnceTip>
           )}
           {/* what goes with the next question (or why something couldn't be added) */}

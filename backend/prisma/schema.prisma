@@ -129,6 +129,7 @@ model Trip {
   tripNotes         TripNote[]
   // Papers kept from the trip (Oct 12 2026): receipts, tickets, bills
   tripPapers        TripPaper[]
+  tellKen           TellKen[]
 
   @@map("trips")
 }
@@ -665,6 +666,7 @@ model Traveler {
   tripNotes           TripNote[]
   pushSubscriptions   PushSubscription[]
   tripPapers          TripPaper[]
+  tellKen             TellKen[]
 
   @@map("travelers")
 }
@@ -693,6 +695,29 @@ model TripPaper {
 
   @@index([tripId, travelerId])
   @@map("trip_papers")
+}
+
+/// "Tell Ken…" (Oct 14 2026, Ken: "if they would like a feature added to wander or anything about the way wander works
+/// is confusing, they can speak or type at that moment what they want and it will become a message to Ken to try to
+/// fix"). Their words exactly, the screen they were on, a picture only if they sent one. Read by the trip's organizer
+/// (Ken) and by his engineer; never shown to anyone else.
+model TellKen {
+  id         String    @id @default(cuid())
+  tripId     String    @map("trip_id")
+  travelerId String    @map("traveler_id")
+  authorName String    @map("author_name")
+  words      String
+  screen     String?                                  // "the Oct 15 page", "Home"
+  imageType  String?   @map("image_type")
+  image      Bytes?
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, createdAt])
+  @@map("tell_ken")
 }
 
 /// A phone's address for "Scout answered" notifications (Oct 12, Ken: a buzz when an answer is ready, like ChatGPT's).
