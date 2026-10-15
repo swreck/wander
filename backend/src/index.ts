@@ -93,9 +93,11 @@ if (!process.env.VITEST) {
     legacyHeaders: false,
     message: { error: "Too many login attempts — try again in a minute" },
   });
+  // (one person browsing makes ~250 requests a minute — photos count — and four phones on one hotel Wi-Fi share an
+  // address: 200 would have turned them away mid-page; Oct 16, measured on the test copy: 124 in 30 s)
   const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 200,
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
   });

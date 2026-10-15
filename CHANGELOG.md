@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday morning in Japan) — Budget: Change, History, and the add pop-up
+
+Ken (Oct 16): "Ok to not require the reason to pay (stay optional). But then add edit button to budget page to go back
+and add reason, change total, or change payer with a pop up, or remove item, or from that page add an entry including the
+pop up and keyboard for money with tiny pop up for dollars yen (yen default). Add log history button adding date, person,
+action only for checking details later." And: "Please add the individuals user who made change at end of record."
+
+### Added
+- Budget: "Change" on each entry (for whoever kept it, and Ken) opens a pop-up with the couple who paid, the amount, ¥ or
+  $, and what it was for, plus "Remove this entry" (asked first; removing hides it, never deletes). "+ Add entry" opens
+  the same pop-up with the cursor in the amount (the number keyboard) and ¥ chosen. The pop-up sits near the top of the
+  screen, above where an iPhone's keyboard comes up.
+- Budget: "History" lists every add, change and removal, newest first: the day and time, what was done ("Changed ¥2,150 →
+  $15"), and who did it at the end of the line. Removals from before History began (Oct 16) say who wasn't recorded.
+  New table trip_expense_logs. SPEC §9.9.
+- Scout: "the taiyaki was actually ¥1,800" changes that entry (change_expense), with the same people allowed; it never
+  adds a second one. Asked on the test copy: it changed the entry, History says Julie.
+
+### Fixed
+- Sign-out's question sat under the bottom bar (its buttons hidden when it also warned of an unsaved note; user-ken4): the
+  page leaves room for the bar and the question scrolls clear of it. It also says when words waiting in Scout's box go.
+- The bar's 日 lines up with the tabs' icons (centred, it was cut off when the bar slides down on scroll).
+- Oct 18's check-out reasoning puts her line's name in quotes ("“Meet Backroads, Courtyard by Marriott Tokyo Station” is
+  at 8:30 AM, so check out before then"); the comma in the name read as garbled grammar.
+
 ## 2026-10-16 (Friday morning in Japan) — Round Four of the Real-User Runs
 
 ### Added
@@ -23,6 +48,11 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 - A saved note says "Saved — 23 words, every one kept" (it called typed words "spoken" when the note began spoken).
 - The Safety tips card waits for the person's own setting before showing (on a fresh phone it flashed up and went for
   someone who'd put it away on another phone).
+- The server's limit on requests per address goes from 200 to 1,000 a minute. One person browsing makes about 250 a
+  minute (photos count), and four phones on one hotel Wi-Fi share an address; past the limit, pages lose pieces with
+  "Too Many Requests" (seen on the test copy, user-julie4). Scout's own limit is unchanged.
+- Play: her dinner line says it's hers ("Your Guide: “Ritz Carlton - Japanese Dinner”", "Larisa's Guide: …" to the
+  others), as the 8:30 meeting's does; its title was her words with only Backroads' quote under it (user-larisa4).
 
 ## 2026-10-16 (Friday, early morning in Japan) — Round Three of the Real-User Runs
 

@@ -93,6 +93,18 @@ function tellScreens(tripId: string, name: string) {
   try { broadcastChange(tripId, { userCode: "", displayName: name, description: "updated the budget", quiet: true }); } catch { /* no one listening */ }
 }
 
+const moneyWords = (amount: number, currency: string) => (currency === "USD" ? `$${Number(amount.toFixed(2))}` : yenWords(amount));
+/** One line of Budget's History (Ken, Oct 16: "date, person, action only") */
+async function logChange(tripId: string, expenseId: string, by: { travelerId?: string | null; displayName: string }, action: string) {
+  try { await prisma.tripExpenseLog.create({ data: { tripId, expenseId, byId: by.travelerId || null, byName: by.displayName, action } }); }
+  catch (e: any) { console.warn("[budget] history not kept:", e.message); }
+}
+/** Who may change or take away a payment: who kept it, or Ken (the trip's first member) — his rule for Maybes */
+async function mayChange(tripId: string, row: { addedById: string | null; addedByName: string }, who: { travelerId?: string | null; displayName: string }) {
+  const org = await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true } });
+  return (!!who.travelerId && (row.addedById === who.travelerId || org?.travelerId === who.travelerId)) || first(row.addedByName) === first(who.displayName);
+}
+
 /** A payment: who paid (a couple, or anyone in it), how much, in what, for what, on which day */
 export async function addExpense(input: { tripId: string; paidBy: string; amount: number; currency?: string; what?: string | null; dayDate?: string | null; addedById: string | null; addedByName: string }):
   Promise<{ id: string; party: string; yen: number; rate: number | null; approx: boolean } | { error: string }> {
@@ -106,6 +118,7 @@ export async function addExpense(input: { tripId: string; paidBy: string; amount
   if (currency === "USD") { const r = await yenPerDollar(); rate = r.rate; approx = r.approx; yen = Math.round(amount * r.rate); }
   const dayDate = typeof input.dayDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.dayDate) ? input.dayDate : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
   const row = await prisma.tripExpense.create({ data: { tripId: input.tripId, party, amount, currency, yen, rate, what: (input.what || "").trim().slice(0, 200) || null, dayDate, addedById: input.addedById, addedByName: input.addedByName } });
+  await logChange(input.tripId, row.id, { travelerId: input.addedById, displayName: input.addedByName }, `added ${moneyWords(amount, currency)} (${party})`);
   tellScreens(input.tripId, input.addedByName);
   return { id: row.id, party, yen, rate, approx };
 }
@@ -114,12 +127,66 @@ export async function addExpense(input: { tripId: string; paidBy: string; amount
 export async function removeExpense(tripId: string, id: string, who: { travelerId?: string | null; displayName: string }): Promise<boolean | "not-yours"> {
   const row = await prisma.tripExpense.findFirst({ where: { id, tripId, removedAt: null } });
   if (!row) return false;
-  const org = await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true } });
-  const may = (!!who.travelerId && (row.addedById === who.travelerId || org?.travelerId === who.travelerId)) || first(row.addedByName) === first(who.displayName);
-  if (!may) return "not-yours";
+  if (!(await mayChange(tripId, row, who))) return "not-yours";
   await prisma.tripExpense.update({ where: { id }, data: { removedAt: new Date() } });
+  await logChange(tripId, id, who, `removed ${moneyWords(row.amount, row.currency)} (${row.party})`);
   tellScreens(tripId, who.displayName);
   return true;
+}
+
+/** Changed: how much, in what, which couple paid, what for (Ken, Oct 16: "add edit button to budget page to go back and
+ *  add reason, change total, or change payer") — by who kept it, or Ken. A dollar amount keeps the rate it was kept at,
+ *  unless it's newly in dollars (then that day's). */
+export async function changeExpense(tripId: string, id: string, who: { travelerId?: string | null; displayName: string },
+  change: { amount?: number; currency?: string; paidBy?: string; what?: string | null }):
+  Promise<{ party: string; yen: number; said: string } | "not-yours" | "gone" | { error: string }> {
+  const row = await prisma.tripExpense.findFirst({ where: { id, tripId, removedAt: null } });
+  if (!row) return "gone";
+  if (!(await mayChange(tripId, row, who))) return "not-yours";
+  const parties = await partiesOf(tripId);
+  let party = row.party;
+  if (change.paidBy !== undefined && String(change.paidBy).trim()) {
+    const p = parties.find((x) => x.toLowerCase() === String(change.paidBy).trim().toLowerCase()) || partyFor(parties, String(change.paidBy));
+    if (!p) return { error: `Which couple paid? ${parties.join(" or ")}` };
+    party = p;
+  }
+  let amount = row.amount;
+  if (change.amount !== undefined) {
+    const n = Number(change.amount);
+    if (!isFinite(n) || n <= 0 || n > 10_000_000) return { error: "That amount doesn't look right — how much was it?" };
+    amount = n;
+  }
+  const currency = change.currency === undefined ? row.currency : /^(usd|\$|dollars?)$/i.test(String(change.currency)) ? "USD" : "JPY";
+  let rate: number | null = currency === "USD" ? row.rate : null;
+  if (currency === "USD" && (row.currency !== "USD" || !rate)) rate = (await yenPerDollar()).rate;
+  const yen = currency === "USD" ? Math.round(amount * (rate || 150)) : Math.round(amount);
+  const what = change.what === undefined ? row.what : (String(change.what || "").trim().slice(0, 200) || null);
+  const said: string[] = [];
+  if (amount !== row.amount || currency !== row.currency) said.push(`changed ${moneyWords(row.amount, row.currency)} → ${moneyWords(amount, currency)}`);
+  if (party !== row.party) said.push(`changed who paid: ${row.party} → ${party}`);
+  if ((what || "") !== (row.what || "")) said.push(what ? (row.what ? `changed what it was for to “${what}”` : `added what it was for: “${what}”`) : "took out what it was for");
+  if (!said.length) return { party, yen, said: "" };
+  await prisma.tripExpense.update({ where: { id }, data: { party, amount, currency, yen, rate, what } });
+  const line = `${said.join("; ")}${amount === row.amount && currency === row.currency ? ` (${moneyWords(amount, currency)})` : ""}`;
+  await logChange(tripId, id, who, line);
+  tellScreens(tripId, who.displayName);
+  return { party, yen, said: line };
+}
+
+/** Budget's History, newest first: when, who, what they did. Payments kept before History began (Oct 16) show when they
+ *  were added and taken away, from what each payment already held. */
+export async function expenseHistory(tripId: string): Promise<{ at: string; by: string; action: string }[]> {
+  const logs = await prisma.tripExpenseLog.findMany({ where: { tripId }, orderBy: { at: "desc" }, take: 300 });
+  const rows = await prisma.tripExpense.findMany({ where: { tripId } });
+  const added = new Set(logs.filter((l) => l.action.startsWith("added ")).map((l) => l.expenseId));
+  const removed = new Set(logs.filter((l) => l.action.startsWith("removed ")).map((l) => l.expenseId));
+  const before = [
+    ...rows.filter((r) => !added.has(r.id)).map((r) => ({ at: r.createdAt, by: r.addedByName, action: `added ${moneyWords(r.amount, r.currency)} (${r.party})` })),
+    ...rows.filter((r) => r.removedAt && !removed.has(r.id)).map((r) => ({ at: r.removedAt!, by: "", action: `removed ${moneyWords(r.amount, r.currency)} (${r.party})` })),
+  ];
+  return [...logs.map((l) => ({ at: l.at, by: l.byName, action: l.action })), ...before]
+    .sort((a, b) => b.at.getTime() - a.at.getTime())
+    .map((x) => ({ at: x.at.toISOString(), by: x.by, action: x.action }));
 }
 
 /** "¥12,400" */

@@ -1709,13 +1709,15 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             ...(d.length ? [d.length] : []),
             // ("Her Guide" didn't say whose to Andy — "Larisa's Guide", and "Your Guide" to her; user-ken2)
             ...(her && !named ? [`${v.Owners} Guide: “${her.title}”`] : []),
-            ...(named && d.her === "dinner" ? herDetail(her!).slice(0, 1) : []),
+            // (her dinner line says it's hers, as the meeting's does — its title was her words with nothing to say so, under
+            // Backroads' quote; user-larisa4)
+            ...(named && d.her === "dinner" ? [`${v.Owners} Guide: “${her!.title}”`, ...herDetail(her!).slice(0, 1)] : []),
             // (the hotel's own time, as the day's screen says it — Play's "Morning · Check out" said nothing of the noon in
             // her screenshot; user-larisa2)
             // (and when to be out by, first, as the day's card says it — "The hotel's own check-out time is 12:00 PM" alone
             // read to Andy as his deadline on the morning they meet Backroads at 8:30; user-andy3)
             ...(named && d.her === "checkout" && her?.time ? (() => { const by = leaveBeforeCheckout(her, dayItems);
-              return [...(by ? [`${itemTitle(by, stays, date)} is at ${timeLabel(by, dayItems)}, so check out before then`] : []), `The hotel's own check-out time is ${clock(her.time)}`]; })() : []),
+              return [...(by ? [`“${itemTitle(by, stays, date)}” is at ${timeLabel(by, dayItems)}, so check out before then`] : []), `The hotel's own check-out time is ${clock(her.time)}`]; })() : []),
           ],
           kind: KIND[d.kind || ""] }];
       });
@@ -3061,7 +3063,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             {doneWords ? <span className="block text-sm mt-0.5 text-[#3f5a2a]">{doneWords}</span>
               : timing && <span className={`block text-sm mt-0.5 ${othersJob ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>{timing}</span>}
             {/* (her 12:00 last, so her screenshot's source line below sits under her own fact — user-larisa3) */}
-            {leaveBy && <span className="block text-sm text-[#3a3128] mt-0.5">{itemTitle(leaveBy, stays, date)} is at {timeLabel(leaveBy, day)}, so check out before then.{i.time ? ` The hotel's own check-out time is ${clock(i.time)}.` : ""}</span>}
+            {leaveBy && <span className="block text-sm text-[#3a3128] mt-0.5">“{itemTitle(leaveBy, stays, date)}” is at {timeLabel(leaveBy, day)}, so check out before then.{i.time ? ` The hotel's own check-out time is ${clock(i.time)}.` : ""}</span>}
             {checkinAfterLanding(i, day) && <span className="block text-sm text-[#6b5d4a] mt-0.5">Rooms are ready from {clock(i.time)}.</span>}
             {inJapan && <span className="block text-sm text-[#514636] mt-0.5">{inJapan}</span>}
             {/* (where a flight stands right now is a "when" — in sight: "Should be in the air now… due to land at 2:50 PM") */}
@@ -3154,7 +3156,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
               ? <>
                   {/* (Wander's reasoning, said as reasoning — under her screenshot's source, "Check out before 8:30 AM" and then
                       "Check out in time for…" read as hers; her screenshot says 12:00; user-larisa1, user-larisa3) */}
-                  <p className="text-sm text-[#3a3128] mt-1">{itemTitle(by, stays, date)} is at {timeLabel(by, day)}, so check out before then.</p>
+                  <p className="text-sm text-[#3a3128] mt-1">“{itemTitle(by, stays, date)}” is at {timeLabel(by, day)}, so check out before then.</p>
                   <p className="text-xs text-[#6b5d4a] mt-0.5">The hotel's own check-out time is {clock(i.time)}.</p>
                 </>
               : <p className="text-sm text-[#6b5d4a] mt-1">The hotel's check-out time is {clock(i.time)}.</p>;

@@ -400,11 +400,14 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
       <button
         onClick={ask}
         data-tour="Phrases"
-        className="shrink-0 w-11 min-h-[48px] flex items-center justify-center rounded-lg text-[#7a6b55] active:bg-[#f0ebe3]"
+        // (in line with the tabs' icons, over an empty label line like theirs: centred, it sat lower and was cut off when
+        // the bar slides down on scroll — user-ken4)
+        className="shrink-0 w-11 min-h-[48px] py-1 flex flex-col items-center justify-center gap-0.5 rounded-lg text-[#7a6b55] active:bg-[#f0ebe3]"
         aria-label={`${activePhrases.language} phrases`}
         title={`${activePhrases.language} phrases`}
       >
-        <span className="text-lg font-bold leading-none" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
+        <span className="text-lg font-bold leading-none h-5 flex items-center" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
+        <span className="text-xs leading-tight invisible" aria-hidden>.</span>
       </button>
     );
   }

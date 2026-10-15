@@ -34,6 +34,15 @@ export async function addPayment(tripId: string, body: { paidBy: string; amount:
   try { await api.post(`/expenses/trip/${tripId}`, body); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
   catch (e: any) { return e?.message && !/^Request failed|Failed to fetch|Load failed/i.test(e.message) ? e.message : "That didn't save — try again in a moment."; }
 }
+/** Changed: only what's given (Ken, Oct 16: "go back and add reason, change total, or change payer") */
+export async function changePayment(tripId: string, id: string, body: { paidBy?: string; amount?: number; currency?: "JPY" | "USD"; what?: string }): Promise<string | null> {
+  try { await api.patch(`/expenses/trip/${tripId}/${id}`, body); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
+  catch (e: any) { return e?.message && !/^Request failed|Failed to fetch|Load failed/i.test(e.message) ? e.message : "That didn't save — try again in a moment."; }
+}
+/** Budget's History, newest first (Ken, Oct 16: "date, person, action only") */
+export async function loadHistory(tripId: string): Promise<{ at: string; by: string; action: string }[] | null> {
+  try { return (await api.get<{ history: { at: string; by: string; action: string }[] }>(`/expenses/trip/${tripId}/history`)).history; } catch { return null; }
+}
 export async function removePayment(tripId: string, id: string): Promise<string | null> {
   try { await api.delete(`/expenses/trip/${tripId}/${id}`); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
   catch (e: any) { return e?.message || "That didn't go through — try again in a moment."; }
