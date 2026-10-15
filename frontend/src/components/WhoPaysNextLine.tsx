@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loadLedger, savedLedger, yen, MONEY_CHANGED, type Ledger } from "../lib/expenses";
+import PayNextBadge from "./PayNextBadge";
 
 export default function WhoPaysNextLine({ tripId }: { tripId: string }) {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ export default function WhoPaysNextLine({ tripId }: { tripId: string }) {
         </span>
         <span className="block text-[13px]">
           <span className="text-[#6b5d4a]">Who pays next: </span>
+          {l.next && <PayNextBadge party={l.next} className="mr-1" />}
           <span className="text-[#3a3128]">{l.next || "either couple"}</span>
           {l.owes && <span className="text-[#6b5d4a]"> · {yen(l.owes.yen)} to be even</span>}
         </span>

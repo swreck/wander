@@ -2,6 +2,38 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, early morning in Japan) — What Four Real-User Runs Found
+
+Ken (Oct 16): "create 4 serial fresh agents to emulate your real users… Fix bugs and confusion reports. Deploy. Rerun
+tests until clean." Scenarios and measures written first: trip-data/users4-rubric-2026-10-16.md.
+
+### Fixed
+- Scout said "I can't see any photos from Andy for last night" while his shared, captioned photo was there (Julie's
+  run). Scout now reads the photos the asker can see — who, when, the caption, shared or just theirs — never anyone's
+  private one, and never says there are none when there are.
+- Sharing one photo in the viewer turned "Share with the trip" on for everything added after (Andy's run). The box when
+  adding is the only thing that sets it now; it reads "Share the ones I add" (beside someone's photo, "Share with the
+  trip" read as if it might share what's already there).
+- Nothing led to the trip's story during the trip (Julie and Larisa got stuck): Home has "The story so far ›".
+- Backroads' words under her own lines ("Ritz Carlton - Japanese Dinner" over "This evening we meet…") read as hers:
+  there they're introduced as "Backroads: “…”", and every Backroads moment has "Backroads' words" (one long sentence was
+  cut at three lines with no way to read it). Play's cover note says it's about the moments that follow, not the summary
+  above it. The Oct 18 meeting moment no longer shows the Courtyard's guest room (they meet in its lobby).
+- "Check out before 8:30 AM" sat under her screenshot's source as if hers (it says 12:00): now "Check out in time for
+  Meet Backroads at 8:30 AM (Wander's reading of the day)".
+- Play's "tabs differ" for Robuchon only quoted the other name at the same time; it now says the plan line's note, which
+  names the booking ("her Dining Resos tab's booking at this time is 'LeTable de Joel Robuchon - 1F'").
+- Next now says Google's hours when her time runs past them ("…start at 10 AM" for a 9:00 Kappabashi), as the list does.
+- Tapping a line on Home (tonight's dinner) no longer opens the day under the city's full-screen photo, and lands with
+  the line's name and time below the header, not under it.
+- The AJ/KL badge also sits beside "Who pays next" on Home and the budget page, so the bar's letters explain themselves.
+- To-dos: "Nothing named for you right now", and a list under a heading of hers reads "Under “LT actions” in your Actions
+  tab"; opened, its items no longer say where they're from three more times. Budget's confirm: "Remove it" / "Keep it".
+- "Time from the Tokyo Day 2 Kappabashi & Akihab tab." → "The time is from her Tokyo Day 2 Kappabashi… tab."
+- Scout's replies to ideas: a current picture of Wander (Budget, photos, Play every day), each source named right
+  (Backroads' words aren't hers), and never suggesting what's already there. Phrase-card choices are told apart in plain
+  words, not labels. Taps under 44 points made 44.
+
 ## 2026-10-16 (Friday, just after midnight in Japan) — Dictation Keeps Going, the Screen Stays On
 
 ### Fixed

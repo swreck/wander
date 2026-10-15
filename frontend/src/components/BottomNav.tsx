@@ -4,7 +4,8 @@ import { loadMaybeNews } from "../lib/maybesNews";
 import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import PhraseCard from "./PhraseCard";
-import { loadLedger, savedLedger, initialsOf, MONEY_CHANGED } from "../lib/expenses";
+import { loadLedger, savedLedger, MONEY_CHANGED } from "../lib/expenses";
+import PayNextBadge from "./PayNextBadge";
 import { api } from "../lib/api";
 
 interface Props {
@@ -302,14 +303,9 @@ export default function BottomNav({ pendingChanges }: Props) {
               className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 min-h-[48px] px-1 py-1 rounded-lg transition-colors relative ${tab.path === "__actions__" && actionsNeedAttention ? "text-amber-600" : ""}
                 ${isActive ? "text-[#514636]" : "text-[#7a6b55] hover:text-[#6b5d4a]"}`}
             >
-              {tab.path === "/money" && payNext ? (() => {
-                const who = initialsOf(payNext);
-                const color = who === "KL" ? "#6b46c1" : who === "AJ" ? "#e07020" : "#7a6b55";
-                return (
-                  <span aria-label={`${payNext} pay next`} className="inline-flex items-center justify-center h-[20px] min-w-[26px] px-1 rounded-full text-[10.5px] font-semibold tracking-[.04em] text-white"
-                    style={{ background: color }}>{who}</span>
-                );
-              })() : tab.icon}
+              {tab.path === "/money" && payNext ? (
+                <span aria-label={`${payNext} pay next`} className="inline-flex"><PayNextBadge party={payNext} /></span>
+              ) : tab.icon}
               <span className="text-xs leading-tight font-medium">{tab.label}</span>
               {/* Badge dot for pending sync changes on Home */}
               {tab.path === "/" && pendingChanges && pendingChanges > 0 ? (

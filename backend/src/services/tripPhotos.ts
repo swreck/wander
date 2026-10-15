@@ -71,7 +71,8 @@ export async function changePhoto(id: string, me: string, change: { shared?: boo
     ...(typeof change.shared === "boolean" ? { shared: change.shared } : {}),
     ...(change.caption !== undefined ? { caption: (change.caption || "").trim().slice(0, 300) || null } : {}),
   } });
-  if (typeof change.shared === "boolean") await rememberShare(me, change.shared);
+  // (one photo shared or kept back is about that photo — the box when adding says what new ones do; user-andy1, Oct 16:
+  // sharing one in the viewer turned "Share with the trip" on for everything he added after)
   return { tripId: row.tripId, others: row.shared || change.shared === true };
 }
 

@@ -75,8 +75,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // person signs out) they go. On a phone handed to someone else they showed the last person's things with no signal
   // (privacy testers, Oct 1 2026: after sign-out, and after "Switch to Andy"). Pictures of places and the app itself
   // stay; the four's own photos and the lists of them go (tourist75, Oct 15 2026).
-  function forgetPhoneCopies() {
-    try { Object.keys(localStorage).filter((k) => k.startsWith("wander:photos:")).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
+  function forgetPhoneCopies(ids: (string | null | undefined)[] = []) {
+    // (and everything kept for the person leaving — their Scout chat, words left unsent in Scout's box, their notes'
+    // copy: anything named with their id. user-ken1, Oct 16: after Ken signed out, his whole Scout chat and an unsent
+    // draft were still on the phone Andy then used — not shown to Andy, but not his to keep there)
+    const theirs = ids.filter((x): x is string => !!x && x.length > 3);
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith("wander:photos:") || k === "wander-chat" || k.startsWith("wander-chat:") || theirs.some((id) => k.includes(id)))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch { /* storage unavailable */ }
     if (typeof caches !== "undefined") {
       caches.keys().then((names) => Promise.all(names.filter((n) => n.startsWith("wander-api") || n.startsWith("wander-days") || n.startsWith("wander-photos")).map((n) => caches.delete(n)))).catch(() => { /* nothing kept */ });
       // (a photo still on its way at sign-out lands after that and makes the store again — tourist77: Andy's private one
@@ -86,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
   function keepToken(token: string) {
     const before = whoIs(localStorage.getItem("wander_token"));
-    if (before && before !== whoIs(token)) forgetPhoneCopies();
+    if (before && before !== whoIs(token)) forgetPhoneCopies([before, savedMe()?.travelerId]);
     localStorage.setItem("wander_token", token);
   }
 
@@ -125,10 +133,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // (who is leaving, read before their sign-in is gone — so what the phone kept for them goes too)
+    const leaving = [whoIs(localStorage.getItem("wander_token")), savedMe()?.travelerId, user?.travelerId];
     localStorage.removeItem("wander_token");
     localStorage.removeItem("wander_user");
     localStorage.removeItem("wander_me");
-    forgetPhoneCopies();
+    forgetPhoneCopies(leaving);
     setUser(null);
   }
 

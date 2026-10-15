@@ -32,7 +32,7 @@ function Thumb({ id, who }: { id: string; who: string }) {
   if (!url) return <span className={`block shrink-0 ${SHOT} bg-[#f0ebe3]`} aria-label="Loading a picture" />;
   return (
     <>
-      <button type="button" onClick={() => setFull(true)} className={`block shrink-0 ${SHOT} overflow-hidden border border-[#e0d8cc] shadow-sm`} aria-label={`See ${who}'s picture full screen`}>
+      <button type="button" onClick={() => setFull(true)} className={`block shrink-0 ${SHOT} overflow-hidden border border-[#e0d8cc] shadow-sm`} aria-label={`See ${who === "You" ? "your" : `${who}'s`} picture full screen`}>
         <img src={url} alt="" className="w-full h-full object-cover object-top" />
       </button>
       {full && <PictureViewer src={url} alt={`A picture ${who} posted`} onClose={() => setFull(false)} />}

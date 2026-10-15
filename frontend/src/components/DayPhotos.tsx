@@ -52,7 +52,7 @@ export function PhotoViewer({ photos: all, start, me, onClose }: { photos: TripP
         {words !== null ? (
           <form onSubmit={(e) => { e.preventDefault(); saveWords(); }} className="flex items-center gap-2 mt-2">
             <input autoFocus value={words} maxLength={300} onChange={(e) => setWords(e.target.value)} placeholder="What it is, or what happened"
-              className="flex-1 min-w-0 rounded-lg bg-white/15 px-3 py-2 text-[16px] text-white placeholder:text-white/60 outline-none focus:bg-white/20" />
+              className="flex-1 min-w-0 min-h-[44px] rounded-lg bg-white/15 px-3 py-2 text-[16px] text-white placeholder:text-white/60 outline-none focus:bg-white/20" />
             <button type="submit" disabled={busy} className="min-h-[44px] px-2 text-[15px] font-medium">Save</button>
             <button type="button" onClick={() => setWords(null)} className="min-h-[44px] px-1 text-[15px] text-white/80">Cancel</button>
           </form>
@@ -118,7 +118,9 @@ export default function DayPhotos({ tripId, date, canAdd, trip }: { tripId: stri
         {canAdd && (
           <label className="flex items-center gap-2 text-[13px] text-[#514636] min-h-[44px] cursor-pointer">
             <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} className="w-5 h-5 accent-[#514636]" />
-            Share with the trip
+            {/* (what this box does: the photos you add next — beside Andy's photo, "Share with the trip" read to Julie as if
+                it might share what's already there; user-julie1) */}
+            Share the ones I add
           </label>
         )}
       </div>

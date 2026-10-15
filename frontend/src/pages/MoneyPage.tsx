@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import { loadLedger, savedLedger, addPayment, removePayment, yen, MONEY_CHANGED, type Ledger } from "../lib/expenses";
+import PayNextBadge from "../components/PayNextBadge";
 
 const shortDay = (d: string | null) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : "");
 const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
@@ -60,7 +61,7 @@ export default function MoneyPage() {
     <div className="min-h-screen bg-[#faf8f5] pb-28">
       <header className="pb-6 bg-gradient-to-b from-[#e7efe3] to-[#faf8f5]" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
         <div className="max-w-xl mx-auto px-4">
-          <button type="button" onClick={back} className="min-h-[44px] text-sm text-[#514636]">‹ Back</button>
+          <button type="button" onClick={back} className="min-h-[44px] min-w-[44px] pr-2 text-sm text-[#514636]">‹ Back</button>
           <p className="text-[12px] uppercase tracking-[.14em] text-[#5b6b52] mt-1">Budget</p>
           <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight mt-0.5">{!l ? "…" : l.items.length ? `${yen(Object.values(l.totals).reduce((a, b) => a + b, 0))} shared so far` : "Nothing kept yet"}</h1>
           {l && l.parties.length === 2 && l.items.length > 0 && (
@@ -68,7 +69,7 @@ export default function MoneyPage() {
               {l.parties.map((p) => `${p} paid ${yen(l.totals[p] || 0)}`).join(" · ")}
             </p>
           )}
-          {l && <p className="text-[15px] text-[#3a3128] mt-1">Who pays next: <span className="font-medium">{l.next || (l.items.length ? "either — you're even" : "either couple")}</span></p>}
+          {l && <p className="text-[15px] text-[#3a3128] mt-1">Who pays next: {l.next && <PayNextBadge party={l.next} className="mr-1" />}<span className="font-medium">{l.next || (l.items.length ? "either — you're even" : "either couple")}</span></p>}
           {l?.owes && <p className="text-[14px] text-[#514636] mt-1">To be even now, {l.owes.from} would pay {l.owes.to} {yen(l.owes.yen)}.</p>}
           {l && !l.items.length && <p className="text-[14px] text-[#514636] mt-1">When one couple pays for the group, add it here. Each cost is shared half and half.</p>}
         </div>
@@ -122,8 +123,8 @@ export default function MoneyPage() {
                   <p className="text-xs text-[#6b5d4a] mt-0.5">{shortDay(x.dayDate)} · kept by {first(x.addedByName) === first(me) ? "you" : x.addedByName}{x.currency === "USD" ? ` · ${yen(x.yen)} at ${x.rate?.toFixed(2)} yen to the dollar` : ""}</p>
                   {x.mayRemove && (confirming === x.id ? (
                     <div className="flex gap-3 mt-1">
-                      <button type="button" onClick={async () => { setConfirming(null); const e = tripId ? await removePayment(tripId, x.id) : null; if (e) setError(e); }} className="min-h-[44px] text-sm text-[#8a3a1a] underline">Take it away</button>
-                      <button type="button" onClick={() => setConfirming(null)} className="min-h-[44px] text-sm text-[#514636] underline">Don't remove</button>
+                      <button type="button" onClick={async () => { setConfirming(null); const e = tripId ? await removePayment(tripId, x.id) : null; if (e) setError(e); }} className="min-h-[44px] text-sm text-[#8a3a1a] underline">Remove it</button>
+                      <button type="button" onClick={() => setConfirming(null)} className="min-h-[44px] text-sm text-[#514636] underline">Keep it</button>
                     </div>
                   ) : <button type="button" onClick={() => setConfirming(x.id)} className="min-h-[44px] -mb-2 text-sm text-[#6b5d4a] underline underline-offset-2">Remove</button>)}
                 </li>

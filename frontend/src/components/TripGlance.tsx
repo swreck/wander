@@ -32,7 +32,7 @@ import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMark
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
-  freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEndSaid, currentUnownedLine,
+  freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leaveBeforeCheckout, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEndSaid, currentUnownedLine,
   withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords, landingStatus, checkinAfterLanding, zoneWords, landingTitle, bookedByName, bookedWords, askedOf, nowMinutesOn, phoneIsElsewhere, tripClockMinutes, homeOnJapanDate, partiesOf, zonedMoment, scheduledLanding, openQuestionsOn, besideHotel, voiceFor, noGroupWords, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, sameThing, differWordsFor,
   samePerson, travelerToday, deadlineIsMine, startsSomething, speaksAsHer, arrivedForTonight, getsYouTo, mealUnderWay, namesMe, outvoted,
 } from "../lib/guideDisplay";
@@ -146,7 +146,12 @@ function ItemLine({ i, me, stays, date, day, onOpen, picks, all, tz, railSaysIt,
         {railSaysIt && <span className="block text-xs text-[#6b5d4a] mt-0.5">The same train as the rail sheet's — the times differ, see below</span>}
         {/* (round 13: Oct 29's Home said "~2:00–2:30 Arrive KIX" under the 1:30 PM HARUKA, which arrives 2:50 PM) */}
         {railArrives && <span className="block text-xs text-[#8a5a1a] mt-0.5">Timed for the train in {v.her} tab — the booked train arrives {railArrives}</span>}
-        {checkoutBeforeFirst(i, day) && <span className="block text-xs text-[#6b5d4a] mt-0.5">The hotel's check-out time is {clock(i.time)}</span>}
+        {/* (the line you leave by first, as the day's screen says it — on Oct 18 Home said only "The hotel's check-out time
+            is 12:00 PM", and a skimmer could think there was time till noon; user-ken1) */}
+        {checkoutBeforeFirst(i, day) && (() => {
+          const by = leaveBeforeCheckout(i, day);
+          return <span className="block text-xs text-[#6b5d4a] mt-0.5">{by?.time ? `Check out in time for ${itemTitle(by, stays, date)} at ${clock(by.time)} — the hotel's own time is ${clock(i.time)}` : `The hotel's check-out time is ${clock(i.time)}`}</span>;
+        })()}
         {other && <span className="block text-xs text-[#6b5d4a] mt-0.5">For {other}</span>}
         {!other && splitDay && i.forWhom && !/^everyone$/i.test(i.forWhom) && <span className="block text-xs text-[#514636] mt-0.5">Yours · {i.forWhom}</span>}
         {noGroup && <span className="block text-xs text-[#6b5d4a] mt-0.5">{noGroupWords(i, v, me)}</span>}
