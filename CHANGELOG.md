@@ -2,6 +2,22 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday night in Japan) — The Story of the Trip
+
+### Fixed
+- The trip's story (/story) called every day "A free day" and the trip "0 things done" (a March page that counted
+  "experiences", which this trip never had), and nothing in Wander led to it. It's now the days lived, city by city
+  under each city's photo: each day in Wander's summary of Larisa's plan, her stops with their photos (or her plan's
+  lines in her words, or her Itinerary's lines with their times), the four's own words from Notes exactly, and "Play
+  the day" / "Open the day". "The story so far" during the trip, "The story of the trip" after it. No AI writing.
+  Whose notes: your own; someone else's only when shared with the trip and its writer said yes to trip stories (the
+  note's own choice, else their setting; unanswered is no); never Scout's answers kept in Notes (server: GET
+  /api/trip-notes/trip/:tripId/story). Where: Home after the trip ("The story of the trip ›"), and Next after the trip.
+- Play's cover gives Larisa Wander's summary in her voice ("your tab"), as the day page does.
+- "Google lists … as temporarily closed" (was "closed for now", which read the evening before as "at this hour").
+- No sunset line on a moment once the sun is down; "sunset about 5:07 PM" never splits across lines.
+  SPEC UPDATE NEEDED (story, Play).
+
 ## 2026-10-15 (Thursday evening in Japan) — Play the Day: Rain and Sunset on the Moments They Touch
 
 ### Added

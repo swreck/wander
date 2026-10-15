@@ -122,6 +122,23 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   res.json(notes.filter((n) => !q || noteMatches(n, me, q)).map((n) => shape(n, me)));
 });
 
+// ── The notes the trip's story may show this person (pages/TripStoryPage) ──
+// Their own (not Scout's answers kept at their asking), and someone else's only when it's shared with the trip and its
+// writer said yes to trip stories — the note's own choice, else the writer's setting (Oct 1: "Let others' trip stories
+// use what I say about places"); unanswered is no (tourist72: the page couldn't see this and showed them all)
+router.get("/trip/:tripId/story", async (req: AuthRequest, res) => {
+  const me = req.user?.travelerId;
+  if (!me) { res.status(403).json({ error: "Sign in on your own phone to keep notes." }); return; }
+  const tripId = req.params.tripId as string;
+  const notes = await prisma.tripNote.findMany({
+    where: { tripId, NOT: { source: "scout-answer" }, OR: [{ travelerId: me }, { visibility: "trip" }] },
+    orderBy: { createdAt: "asc" },
+  });
+  const writers = new Map<string, boolean | null>();
+  for (const id of new Set(notes.filter((n) => n.travelerId !== me).map((n) => n.travelerId))) writers.set(id, (await settingsOf(id)).storyUse);
+  res.json(notes.filter((n) => n.travelerId === me || (n.storyUse ?? writers.get(n.travelerId) ?? null) === true).map((n) => shape(n, me)));
+});
+
 router.get("/trip/:tripId/export", async (req: AuthRequest, res) => {
   const me = req.user?.travelerId;
   if (!me) { res.status(403).json({ error: "Sign in on your own phone to keep notes." }); return; }

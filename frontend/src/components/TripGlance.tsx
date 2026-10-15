@@ -488,6 +488,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
           <p className="text-sm text-[#514636] mt-1">{tripDays.length} days{places.length ? ` · ${places.length} places, from ${places[0]} to ${places[places.length - 1]}` : ""}.</p>
         </div>
         <div className="px-4 py-2">
+          {/* (the trip day by day — her plan, its photos, everyone's own words; tourist72: nothing led to it) */}
+          <button onClick={() => navigate("/story")} className="w-full text-left min-h-[44px] text-sm font-medium text-[#3a3128]">The story of the trip ›</button>
           <button onClick={() => navigate("/notes")} className="w-full text-left min-h-[44px] text-sm text-[#514636]">
             {/* (this phone's copy can't know about notes written elsewhere — "Write down…" was shown to someone with
                 notes; tester k1 — so a promise only when it can see them) */}
