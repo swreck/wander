@@ -10,6 +10,12 @@
   to { opacity: 1; transform: scale(1); }
 }
 
+/* (the city's photo arriving behind its day's band — a soft fade, never a jump) */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .animate-greetingFadeIn {
   animation: greetingFadeIn 0.4s ease-out;
 }

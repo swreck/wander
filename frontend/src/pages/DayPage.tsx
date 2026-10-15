@@ -534,7 +534,7 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
 import PhraseCard from "../components/PhraseCard";
 import EveningQuestion from "../components/EveningQuestion";
 import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
-import { CityTitle, warmCityPhoto, photoWanted } from "../components/CityArrival";
+import { CityTitle, warmCityPhoto, photoWanted, useCityBandPhoto } from "../components/CityArrival";
 import DayForecast from "../components/DayForecast";
 import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
@@ -884,6 +884,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const leaving = stays.filter((s) => ymd(s.checkOutDate) === date);
   const fromCity = leaving[0] ? trip?.cities.find((c) => c.id === leaving[0].cityId)?.name : null;
   const cityName = day?.city?.name || trip?.cities.find((c) => c.id === night.stays[0]?.stay.cityId)?.name || "";
+  // The city's photo behind the city band, a city in the trip's country only ("Wander in pictures", idea 1; Oct 15)
+  const bandCity = trip?.cities.find((c) => c.id === (day?.cityId || night.stays[0]?.stay.cityId));
+  const bandPhoto = useCityBandPhoto(bandCity?.id, !!bandCity && !!trip && (!bandCity.country || bandCity.country === tripCountryOf(trip.cities)));
   const route = fromCity && cityName && fromCity !== cityName ? `${fromCity} → ${cityName}` : cityName;
   const isToday = date === today;
   const hasPrev = !!first && date > first;
@@ -1404,13 +1407,25 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         const cityId = day?.cityId || night.stays[0]?.stay.cityId || "";
         const pastel = trip ? getCityPastel(trip.cities, cityId) : "#F2ECDE";
         return (
-          <div className="pt-5 pb-4" style={{ backgroundColor: pastel, borderBottom: `3px solid ${cityAccent(pastel)}` }}>
+          <div className="relative overflow-hidden pt-5 pb-4" style={{ backgroundColor: pastel, borderBottom: `3px solid ${cityAccent(pastel)}` }}>
+            {/* The city's photo behind the band, once it's ready — the band keeps its height, so nothing below moves
+                (Ken, Oct 15: pictures lead, the day's facts stay where they are; "the look was beautiful") */}
+            {bandPhoto?.src && (
+              <>
+                <img src={bandPhoto.src} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover motion-safe:animate-[fadeIn_.6s_ease-out]" />
+                <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(24,16,8,.30) 0%, rgba(24,16,8,.48) 55%, rgba(24,16,8,.66) 100%)" }} aria-hidden />
+                {(bandPhoto.place || bandPhoto.credit) && (
+                  <p className="absolute right-3 bottom-0.5 text-[10px] text-white/75 max-w-[60%] truncate">{[bandPhoto.place, bandPhoto.credit].filter(Boolean).join(" · ")}</p>
+                )}
+              </>
+            )}
             {/* Just the city: the date and the way here ("Tokyo → Nikko") are in the bar above, and Backroads in the
                 day's note — said three times, they crowded the top of the screen (map review, Oct 1 2026) */}
             {/* (the same column as the day below it — on an iPad the name sat 16 px left of it; tester t5) */}
             {/* With the day's quiet facts under the name — her weather, the Backroads day — and "Send this day" beside it: the
                 summary can then be the first thing below (day review, Oct 4: it started 435 pt down on Oct 6) */}
-            <div className="max-w-xl mx-auto px-4">
+            {/* (over the photo, every word in the band is white with a soft shadow) */}
+            <div className={`relative max-w-xl mx-auto px-4 ${bandPhoto ? "[&_*]:!text-white [text-shadow:0_1px_3px_rgba(0,0,0,.5)]" : ""}`}>
               <div className="flex items-end justify-between gap-2">
                 {/* The first time a day in this city opens on this phone: the city's photo, for a moment (C2); a tap on the
                     name brings it back (Ken, Oct 8) */}
@@ -1434,7 +1449,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // phone on Japan time, tapping Tokyo on the map opened Oct 13 and used up the photo before landing)
                   const notThereYet = isToday && cityDates[0] <= today && ((landsAt !== null && tripNow < landsAt)
                     || (cityDates[0] === today && (arriveBy !== null ? tripNow < arriveBy : leaving.length > 0 && !arrivedForTonight(dayItems, me, tripNow, null))));
-                  return <CityTitle cityId={cityId} cityName={cityName} dateWords={longDate(date)} photo={away && !!cityId} auto={away && date <= today && inCityNow && !notThereYet && !beforeMyLanding(items, me, tripZone)} />;
+                  return <CityTitle cityId={cityId} cityName={cityName} dateWords={longDate(date)} photo={away && !!cityId} onPhoto={!!bandPhoto} auto={away && date <= today && inCityNow && !notThereYet && !beforeMyLanding(items, me, tripZone)} />;
                 })()}
                 {(planBlocks.length > 0 || dayItems.length > 0) && (
                   <div className="shrink-0 -mb-2">
