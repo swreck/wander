@@ -36,6 +36,15 @@ function isNetworkError(err: unknown): boolean {
  */
 async function request<T>(path: string, options: RequestInit = {}, keepAfterMs?: number): Promise<T> {
   const token = localStorage.getItem("wander_token");
+  const method = options.method || "GET";
+  // (a save forgets the reads shared a moment ago — before it goes and again once it's answered, so a read that crossed
+  // it isn't kept either; sharedGet below)
+  if (method !== "GET") forgetShared();
+  try { return await requestOnce<T>(path, options, method, token, keepAfterMs); }
+  finally { if (method !== "GET") forgetShared(); }
+}
+
+async function requestOnce<T>(path: string, options: RequestInit, method: string, token: string | null, keepAfterMs?: number): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -43,8 +52,6 @@ async function request<T>(path: string, options: RequestInit = {}, keepAfterMs?:
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-
-  const method = options.method || "GET";
 
   // A read that hangs (bars showing, nothing answering) gives up after 12 seconds, so screens can
   // fall back to what the phone saved instead of waiting forever. Saves are never cut short.
@@ -109,12 +116,14 @@ async function uploadRequest<T>(path: string, formData: FormData): Promise<T> {
   // Do NOT set Content-Type — browser sets it with boundary for multipart
 
   let res: Response;
+  forgetShared();
   try {
     res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers,
       body: formData,
     });
+    forgetShared();
   } catch {
     throw new Error("You're offline — photos need a connection to upload. Try again when you're back online.");
   }
@@ -134,9 +143,33 @@ async function uploadRequest<T>(path: string, formData: FormData): Promise<T> {
   return res.json();
 }
 
+/**
+ * The same read asked for by several parts of a screen at once is one request, and its answer serves them all for a
+ * few seconds (Oct 16: opening Home asked for the trip 10 times and the day 10 more — 124 requests in 30 s, over the
+ * server's limit for four phones on one hotel Wi-Fi). Each asker gets its own copy, so one screen changing what it got
+ * never changes another's. Any save forgets them all, and so does a change pushed from the server (wander:data-changed),
+ * so nothing shown is older than the change that made it. Only the person signed in now: a new sign-in starts empty.
+ */
+const SHARE_MS = 3000;
+const shared = new Map<string, { at: number; answer: Promise<unknown> }>();
+const forgetShared = () => shared.clear();
+if (typeof window !== "undefined") window.addEventListener("wander:data-changed", forgetShared, true);
+function sharedGet<T>(path: string): Promise<T> {
+  const key = `${localStorage.getItem("wander_token") || ""} ${path}`;
+  const now = Date.now();
+  const kept = shared.get(key);
+  if (!kept || now - kept.at > SHARE_MS) {
+    const answer = request<unknown>(path);
+    shared.set(key, { at: now, answer });
+    // (a failed read isn't kept: the next asker tries again)
+    answer.catch(() => { if (shared.get(key)?.answer === answer) shared.delete(key); });
+  }
+  return shared.get(key)!.answer.then((a) => (a && typeof a === "object" ? structuredClone(a) : a) as T);
+}
+
 export const api = {
   get: <T>(path: string, extraHeaders?: Record<string, string>) =>
-    request<T>(path, extraHeaders ? { headers: extraHeaders } : {}),
+    (extraHeaders ? request<T>(path, { headers: extraHeaders }) : sharedGet<T>(path)),
   post: <T>(path: string, body: unknown, extraHeaders?: Record<string, string>) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body), headers: extraHeaders }),
   /** A save that's safe to send twice: kept on the phone if the signal can't carry it within `ms` */

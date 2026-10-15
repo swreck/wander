@@ -52,12 +52,7 @@ export default function MoneyPage() {
           <button type="button" onClick={back} className="min-h-[44px] min-w-[44px] pr-2 text-sm text-[#514636]">‹ Back</button>
           <p className="text-[12px] uppercase tracking-[.14em] text-[#5b6b52] mt-1">Budget</p>
           <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight mt-0.5">{!l ? "…" : l.items.length ? `${yen(Object.values(l.totals).reduce((a, b) => a + b, 0))} shared so far` : "Nothing kept yet"}</h1>
-          {l && l.parties.length === 2 && l.items.length > 0 && (
-            <p className="text-[15px] text-[#3a3128] mt-2">
-              {l.parties.map((p) => `${p} paid ${yen(l.totals[p] || 0)}`).join(" · ")}
-            </p>
-          )}
-          {l && <p className="text-[15px] text-[#3a3128] mt-1">Who pays next: {l.next && <PayNextBadge party={l.next} className="mr-1" />}<span className="font-medium">{l.next || (l.items.length ? "either — you're even" : "either couple")}</span></p>}
+          {l && <p className="text-[15px] text-[#3a3128] mt-2">Who pays next: {l.next && <PayNextBadge party={l.next} className="mr-1" />}<span className="font-medium">{l.next || (l.items.length ? "either — you're even" : "either couple")}</span></p>}
           {l?.owes && <p className="text-[14px] text-[#514636] mt-1">To be even now, {l.owes.from} would pay {l.owes.to} {yen(l.owes.yen)}.</p>}
           {l && !l.items.length && <p className="text-[14px] text-[#514636] mt-1">When one couple pays for the group, add it here. Each cost is shared half and half.</p>}
         </div>
@@ -76,17 +71,28 @@ export default function MoneyPage() {
           <section aria-label="Payments kept">
             <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Every entry</h2>
             <ul className="bg-white rounded-2xl border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
-              {l.items.map((x) => (
-                <li key={x.id} className="px-4 py-3">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-[15px] text-[#3a3128]"><span className="font-medium">{x.party}</span>{x.what ? ` · ${x.what}` : ""}</p>
-                    <p className="text-[15px] text-[#3a3128] shrink-0">{x.currency === "USD" ? `$${x.amount}` : yen(x.amount)}</p>
-                  </div>
-                  <p className="text-xs text-[#6b5d4a] mt-0.5">{shortDay(x.dayDate)} · kept by {first(x.addedByName) === first(me) ? "you" : x.addedByName}{x.currency === "USD" ? ` · ${yen(x.yen)} at ${x.rate?.toFixed(2)} yen to the dollar` : ""}</p>
-                  {x.mayRemove && <button type="button" onClick={() => setSheet({ id: x.id })} aria-label={`Change ${x.party}'s ${x.currency === "USD" ? `$${x.amount}` : yen(x.amount)}${x.what ? `, ${x.what}` : ""}`}
-                    className="min-h-[44px] min-w-[44px] -mb-2 text-sm text-[#514636] underline underline-offset-2">Change</button>}
-                </li>
-              ))}
+              {l.items.map((x) => {
+                const lines = (
+                  <>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-[15px] text-[#3a3128]"><span className="font-medium">{x.party}</span>{x.what ? ` · ${x.what}` : ""}</p>
+                      <p className="text-[15px] text-[#3a3128] shrink-0">{x.currency === "USD" ? `$${x.amount}` : yen(x.amount)}</p>
+                    </div>
+                    <p className="text-xs text-[#6b5d4a] mt-0.5">{shortDay(x.dayDate)} · kept by {first(x.addedByName) === first(me) ? "you" : x.addedByName}{x.currency === "USD" ? ` · ${yen(x.yen)} at ${x.rate?.toFixed(2)} yen to the dollar` : ""}</p>
+                  </>
+                );
+                return (
+                  <li key={x.id}>
+                    {x.mayRemove ? (
+                      <button type="button" onClick={() => setSheet({ id: x.id })} aria-label={`Change ${x.party}'s ${x.currency === "USD" ? `$${x.amount}` : yen(x.amount)}${x.what ? `, ${x.what}` : ""}`}
+                        className="w-full text-left px-4 py-3 min-h-[56px] flex items-center gap-2 active:bg-[#f5f0ea]">
+                        <span className="flex-1 min-w-0">{lines}</span>
+                        <span aria-hidden className="text-xl leading-none text-[#a89880]">›</span>
+                      </button>
+                    ) : <div className="px-4 py-3 pr-8">{lines}</div>}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}

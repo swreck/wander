@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, 8:30 AM in Japan) — Budget rows; one request where there were ten
+
+### Changed
+- Budget: each entry you may change is itself the button, with a "›" (no "Change" under every entry — Ken: "Changing
+  every button wastes a lot of space"). The couples' totals line is gone; who pays next and "To be even now…" stay (Ken:
+  "why do we need to repeat the information?"). SPEC §9.9.
+- The same read asked for by several parts of a screen at once is one request, its answer shared for 3 seconds (each
+  part gets its own copy); any save, and any change pushed from the server, forgets them. Home asked for the trip 10
+  times; now once per screen. Measured on the test copy: 124 → 104 requests for the same walk (most of the rest are
+  photos the phone keeps for a week).
+
 ## 2026-10-16 (Friday morning in Japan) — Budget: Change, History, and the add pop-up
 
 Ken (Oct 16): "Ok to not require the reason to pay (stay optional). But then add edit button to budget page to go back
