@@ -742,7 +742,7 @@ export default function NowPage() {
                   <span className="text-sm font-medium text-[#3a3128]">{acc.name}</span>
                   {acc.latitude != null && acc.longitude != null && (
                     <a
-                      href={`https://maps.apple.com/?daddr=${acc.latitude},${acc.longitude}`}
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${acc.latitude},${acc.longitude}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-[#6b5d4a] hover:text-[#514636]"
@@ -927,7 +927,7 @@ export default function NowPage() {
                 {nextAnchor.lat != null && nextAnchor.lng != null && (
                   <div className="flex gap-2">
                     <a
-                      href={`https://maps.apple.com/?daddr=${nextAnchor.lat},${nextAnchor.lng}`}
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${nextAnchor.lat},${nextAnchor.lng}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 flex items-center justify-center px-3 py-2 rounded-lg border border-[#e0d8cc]

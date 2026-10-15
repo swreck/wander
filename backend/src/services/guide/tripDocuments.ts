@@ -16,6 +16,37 @@ export interface TripDocumentSection {
   day?: number;
   page: number;
   paragraphs: string[];
+  /** the day as "Play the day" moments, in its order (Oct 15 2026 — Ken: "Create play every day. Use what you have from
+   *  the backroads content."): its words exactly as the document has them; the short title is Wander's */
+  moments?: DocMoment[];
+}
+export interface DocMoment {
+  title: string;
+  /** the document's own words for it */
+  words?: string;
+  /** a place the document names, for its photo */
+  place?: string;
+  /** what the photo is, when the document doesn't name that exact spot (Wander's words, said with the photo) */
+  photoNote?: string;
+  /** how long, as the document gives it ("2 hours", "13 or 26 miles by bike") */
+  length?: string;
+  /** what to bring, in its words */
+  bring?: string;
+  /** what kind of moment, for the drawn card when there's no photo */
+  kind?: string;
+  /** her Guide's own line that is this moment, when she has one */
+  her?: "meeting" | "checkout" | "lunch" | "dinner";
+}
+
+/** The day's moments from the documents someone gave Wander, with whose words they are */
+export function dayMomentsOf(docs: TripDocument[], date: string): { from: string; name: string; caution: string; day: number; page: number; moments: DocMoment[] } | null {
+  for (const doc of docs) {
+    if (!doc.dayOne || !/^\d{4}-\d{2}-\d{2}$/.test(doc.dayOne)) continue;
+    const day = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${doc.dayOne}T00:00:00Z`)) / 86_400_000) + 1;
+    const s = doc.sections.find((x) => x.day === day && Array.isArray(x.moments) && x.moments.length);
+    if (s) return { from: doc.from, name: doc.name, caution: doc.caution, day, page: s.page, moments: s.moments! };
+  }
+  return null;
 }
 export interface TripDocument {
   /** what travelers see: "Backroads' itinerary" */

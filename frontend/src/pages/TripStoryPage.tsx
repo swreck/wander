@@ -19,6 +19,8 @@ import type { TripNote } from "../lib/tripNotes";
 import { useCityBandPhoto } from "../components/CityArrival";
 import { useAuth } from "../contexts/AuthContext";
 import { voiceFor, clock as clock12 } from "../lib/guideDisplay";
+import { photosOf, PHOTOS_CHANGED, useShowable, type TripPhoto } from "../lib/tripPhotos";
+import { PhotoViewer } from "../components/DayPhotos";
 import { tripCountryOf } from "../lib/cityColors";
 
 const japanToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
@@ -61,6 +63,10 @@ export default function TripStoryPage() {
   const [notes, setNotes] = useState<TripNote[]>([]);
   const [me, setMe] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "none">("loading");
+  // your photos and the ones shared, every day — each day leads with them (Oct 15: "Value, delight. Not gimmicks")
+  const [listedPhotos, setPhotos] = useState<TripPhoto[]>([]);
+  const photos = useShowable(listedPhotos);
+  const [viewing, setViewing] = useState<{ date: string; at: number } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -79,14 +85,23 @@ export default function TripStoryPage() {
           api.get<TripNote[]>(`/trip-notes/trip/${tid}/story`).catch(() => [] as TripNote[]),
         ]);
         if (!live) return;
-        setData(d); setSummaries(s || {}); setPlaces(p?.places || []); setNotes(Array.isArray(n) ? n : []);
-        try { setMe(JSON.parse(localStorage.getItem("wander_me") || "null")?.travelerId || null); } catch { /* none */ }
+        setData(d); setSummaries(s || {}); setPlaces(p?.places || []); setNotes(Array.isArray(n) ? n : []);        try { setMe(JSON.parse(localStorage.getItem("wander_me") || "null")?.travelerId || null); } catch { /* none */ }
         setState("ready");
       } catch { if (live) setState("none"); }
     })();
     return () => { live = false; };
   }, []);
 
+  // (the day's photos, and again when someone adds or shares one)
+  const tripIdOf = data?.trip.id;
+  useEffect(() => {
+    if (!tripIdOf) return;
+    let live = true;
+    const shots = () => photosOf(tripIdOf, null).then((r) => { if (live && r) setPhotos(r.photos); });
+    shots();
+    window.addEventListener(PHOTOS_CHANGED, shots);
+    return () => { live = false; window.removeEventListener(PHOTOS_CHANGED, shots); };
+  }, [tripIdOf]);
   const today = japanToday();
   const story = useMemo(() => {
     if (!data) return null;
@@ -159,6 +174,32 @@ export default function TripStoryPage() {
             {sec.days.map((d) => (
               <article key={d.date} className="mb-6 pl-4 border-l-2 border-[#e0d8cc]">
                 <h3 className="text-[15px] font-medium text-[#3a3128]">{longDay(d.date)}</h3>
+                {(() => {
+                  // the day's own photos lead it: the first large, the rest beside it — a tap for them all, full screen
+                  const day = photos.filter((x) => x.dayDate === d.date);
+                  if (!day.length) return null;
+                  return (
+                    <div className="mt-2">
+                      <button type="button" onClick={() => setViewing({ date: d.date, at: 0 })} aria-label={`${day[0].mine ? "Your" : `${day[0].authorName}'s`} photo${day[0].mine && !day[0].shared ? ", just for you" : ""}${day.length > 1 ? `, and ${day.length - 1} more from the day` : ""}`} className="relative block w-full rounded-xl overflow-hidden bg-[#2a241e]"
+                        style={{ aspectRatio: `${Math.max(3 / 4, Math.min(16 / 9, day[0].width && day[0].height ? day[0].width / day[0].height : 4 / 3))}` }}>
+                        {/* (whole, never cropped — a tall photo lost 40% in a 3:4 box; tourist77 — over a soft blur of itself) */}
+                        <img src={day[0].thumbUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-60" />
+                        <img src={day[0].url} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-contain" />
+                        <span className="absolute left-2 bottom-2 text-[11px] text-white bg-black/45 rounded px-1.5 py-0.5">{day[0].mine ? (day[0].shared ? "You" : "You · just you") : day[0].authorName}</span>
+                      </button>
+                      {day.length > 1 && (
+                        <div className="flex gap-2 overflow-x-auto mt-2 pb-1 -mr-4 pr-4">
+                          {day.slice(1).map((x, i) => (
+                            <button key={x.id} type="button" onClick={() => setViewing({ date: d.date, at: i + 1 })} aria-label={`${x.mine ? "Your" : `${x.authorName}'s`} photo${x.mine && !x.shared ? ", just for you" : ""}`} className="relative shrink-0 w-[84px] h-[84px] rounded-lg overflow-hidden bg-[#efe8dc]">
+                              <img src={x.thumbUrl} alt="" loading="lazy" className="w-full h-full object-cover" onError={(e) => { const tile = e.currentTarget.parentElement; if (tile) tile.style.display = "none"; }} />
+                              {x.mine && !x.shared && <span className="absolute left-1 bottom-1 text-[10px] text-white bg-black/45 rounded px-1">just you</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {d.summary && <p className="text-[15px] leading-relaxed text-[#3a3128] mt-1">{v.say(d.summary)}</p>}
                 {d.stops.length > 0 && (
                   <div className="flex gap-2.5 overflow-x-auto mt-3 pb-1 -mr-4 pr-4">
@@ -192,6 +233,7 @@ export default function TripStoryPage() {
         ))}
         {story.over && <LearningPrompt tripId={data.trip.id} />}
       </main>
+      {viewing && <PhotoViewer photos={photos.filter((x) => x.dayDate === viewing.date)} start={viewing.at} onClose={() => setViewing(null)} />}
     </div>
   );
 }

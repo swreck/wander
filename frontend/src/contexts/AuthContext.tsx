@@ -39,9 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem("wander_token");
     if (token) {
+      // (only while the sign-in it asked about is still this phone's: an answer landing after a sign-out brought the
+      // person back, half signed in, on a screen with no way forward — tourist76, Oct 15 2026)
+      const still = () => localStorage.getItem("wander_token") === token;
       api.get<User>("/auth/me")
-        .then((u) => setUser(u))
+        .then((u) => { if (still()) setUser(u); })
         .catch((err: Error) => {
+          if (!still()) return;
           // Only a real "not authorized" answer signs someone out (api.ts has already
           // cleared the token in that case). A weak signal, a timeout, or a check cut off
           // by a quick reload must not erase the sign-in — fall back to who we last saw here.
@@ -69,10 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // The phone's saved copies of what Wander read belong to the person signed in — when someone else signs in (or the
   // person signs out) they go. On a phone handed to someone else they showed the last person's things with no signal
-  // (privacy testers, Oct 1 2026: after sign-out, and after "Switch to Andy"). Pictures and the app itself stay.
+  // (privacy testers, Oct 1 2026: after sign-out, and after "Switch to Andy"). Pictures of places and the app itself
+  // stay; the four's own photos and the lists of them go (tourist75, Oct 15 2026).
   function forgetPhoneCopies() {
+    try { Object.keys(localStorage).filter((k) => k.startsWith("wander:photos:")).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
     if (typeof caches !== "undefined") {
-      caches.keys().then((names) => Promise.all(names.filter((n) => n.startsWith("wander-api") || n.startsWith("wander-days")).map((n) => caches.delete(n)))).catch(() => { /* nothing kept */ });
+      caches.keys().then((names) => Promise.all(names.filter((n) => n.startsWith("wander-api") || n.startsWith("wander-days") || n.startsWith("wander-photos")).map((n) => caches.delete(n)))).catch(() => { /* nothing kept */ });
+      // (a photo still on its way at sign-out lands after that and makes the store again — tourist77: Andy's private one
+      // was there 8 s later; cleared again once those have landed)
+      for (const wait of [10_000, 30_000]) setTimeout(() => { caches.delete("wander-photos-v1").catch(() => { /* nothing kept */ }); }, wait);
     }
   }
   function keepToken(token: string) {
@@ -107,10 +116,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Forget the saved copy of whoever was signed in before, so a weak signal can't bring them back
     localStorage.removeItem("wander_me");
     markSignedInWith("link");
-    // Refresh user data from /me to get travelerId and role
+    // Refresh user data from /me to get travelerId and role (only while this sign-in is still the phone's)
     api.get<User>("/auth/me")
-      .then((u) => setUser(u))
-      .catch(() => setUser({ code: displayName, displayName }));
+      .then((u) => { if (localStorage.getItem("wander_token") === token) setUser(u); })
+      .catch(() => { if (localStorage.getItem("wander_token") === token) setUser({ code: displayName, displayName }); });
     // Record login event (best-effort)
     api.post("/auth/login-event", {}).catch(() => {});
   }

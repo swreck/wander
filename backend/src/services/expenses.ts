@@ -13,6 +13,7 @@
  * frankfurter.app — free, no key).
  */
 import prisma from "./db.js";
+import { broadcastChange } from "../routes/sse.js";
 
 export type Ledger = {
   parties: string[];
@@ -86,6 +87,12 @@ export async function ledger(tripId: string, who?: { travelerId?: string | null;
   };
 }
 
+/** Every open screen on the trip looks again (the bar's "who pays next", Home's total) — quietly, no notice; the person
+ *  who kept it too, since Scout may have kept it for them */
+function tellScreens(tripId: string, name: string) {
+  try { broadcastChange(tripId, { userCode: "", displayName: name, description: "updated the budget", quiet: true }); } catch { /* no one listening */ }
+}
+
 /** A payment: who paid (a couple, or anyone in it), how much, in what, for what, on which day */
 export async function addExpense(input: { tripId: string; paidBy: string; amount: number; currency?: string; what?: string | null; dayDate?: string | null; addedById: string | null; addedByName: string }):
   Promise<{ id: string; party: string; yen: number; rate: number | null; approx: boolean } | { error: string }> {
@@ -99,6 +106,7 @@ export async function addExpense(input: { tripId: string; paidBy: string; amount
   if (currency === "USD") { const r = await yenPerDollar(); rate = r.rate; approx = r.approx; yen = Math.round(amount * r.rate); }
   const dayDate = typeof input.dayDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.dayDate) ? input.dayDate : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
   const row = await prisma.tripExpense.create({ data: { tripId: input.tripId, party, amount, currency, yen, rate, what: (input.what || "").trim().slice(0, 200) || null, dayDate, addedById: input.addedById, addedByName: input.addedByName } });
+  tellScreens(input.tripId, input.addedByName);
   return { id: row.id, party, yen, rate, approx };
 }
 
@@ -110,6 +118,7 @@ export async function removeExpense(tripId: string, id: string, who: { travelerI
   const may = (!!who.travelerId && (row.addedById === who.travelerId || org?.travelerId === who.travelerId)) || first(row.addedByName) === first(who.displayName);
   if (!may) return "not-yours";
   await prisma.tripExpense.update({ where: { id }, data: { removedAt: new Date() } });
+  tellScreens(tripId, who.displayName);
   return true;
 }
 

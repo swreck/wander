@@ -879,7 +879,7 @@ const tools: Anthropic.Tool[] = [
   // ── Getting there (Oct 2: "what's next, and how do I get there?" — walking, train or taxi) ──────────────
   {
     name: "directions",
-    description: "Put a button under your answer that opens directions from wherever the person is standing to a place — Apple Maps, with Google Maps beside it — so nobody types an address into a map app. Use it whenever they ask how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day when the next stop is a real place. Pass the place as her Guide names it, its town, and the way: walk, train, or taxi. The map app starts from the phone's own location, so you never need theirs for this.",
+    description: "Put a button under your answer that opens directions from wherever the person is standing to a place — in Google Maps — so nobody types an address into a map app. Use it whenever they ask how to get somewhere, the way to the next stop, walking/train/taxi directions, or what's next on a trip day when the next stop is a real place. Pass the place as her Guide names it, its town, and the way: walk, train, or taxi. The map app starts from the phone's own location, so you never need theirs for this.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -911,6 +911,18 @@ const tools: Anthropic.Tool[] = [
         files: { type: "array", items: { type: "integer" }, description: "Which of the files sent with this message are this paper, numbered from 1 in the order sent. Needed when more than one was sent." },
       },
       required: ["title", "date", "summary"],
+    },
+  },
+  {
+    name: "keep_photo",
+    description: "Keep the photo(s) they sent with THIS message in their own trip photos, on a trip day — a picture of the trip, the food, a place, the group (\"keep this for today\", \"add this to my photos\", \"save these for Tuesday\"). Not a receipt, bill, ticket or booking (that's keep_paper). Just theirs unless they say to share it with the trip (\"share it\", \"for everyone\"). Their words about it, if any, as its caption. Rule 62.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        date: { type: "string", description: "The trip day it's from, YYYY-MM-DD — today unless they say another day" },
+        shared: { type: "boolean", description: "true only when they ask to share it with the trip" },
+        caption: { type: "string", description: "Their own words about the photo, if they said any — never yours" },
+      },
     },
   },
   {
@@ -3664,7 +3676,7 @@ export async function executeTool(
           ? { ok: true, shown: `a button that opens directions, but nothing of hers gives an address or map place for this, so Maps will only SEARCH for "${where}"`,
               // (verify15: a place found online got "her Guide has no address", as if it were hers)
               say: "Tell them plainly that the button searches Maps for this, so they should check the place Maps finds is the right one before setting off. Say her Guide has no address for it only when it's one of her places; a place you found online is never hers." }
-          : { ok: true, shown: `a button that opens ${way === "walk" ? "walking" : way === "train" ? "train and subway" : "driving (for a taxi)"} directions from where they are standing to the place in her Guide (Apple Maps, and Google Maps)` },
+          : { ok: true, shown: `a button that opens ${way === "walk" ? "walking" : way === "train" ? "train and subway" : "driving (for a taxi)"} directions from where they are standing to the place in her Guide (in Google Maps)` },
         route: {
           label: `${how.verb} ${dest.split(",")[0]}`,
           apple: `https://maps.apple.com/?daddr=${encodeURIComponent(where)}&dirflg=${how.apple}`,
@@ -5283,8 +5295,8 @@ HOW WANDER WORKS (for "how do I…" questions — describe these real screens on
 - A day's "Trains" part shows that date's legs from Ken's rail sheet (not Larisa's Guide): times, train, class, car and seats, reservation number, how many people, and the sheet's own status words; where it and the Guide disagree it says so. On the ticket-pickup day (Shin-Osaka, Oct 6), Ken's and Larisa's Home, Now and day screen lead with "Ticket pickup — Shin-Osaka", which opens every step in the sheet's order with a tick for each (ticks stay on that phone); anyone can open the steps from a train that needs its tickets collected. Now shows "Next train" with seats. A copy stays on the phone for no signal.
 - A day also has "+ Add a plan for this day": a same-day plan anyone can add ("Ken and Andy: <a museum> this afternoon"). It shows on that day for everyone, labelled as added in Wander. It never changes the Guide.
 - Maybes (bottom bar; it was called Ideas): the group's shared list of "maybe we should…", city by city (opens on today's city). At the top, a box: "Maybe we should…" — a sentence, a link if there is one, Send; it goes on that city's list for everyone, and "Tell the group" can send it to their group text. Below: the group's maybes, newest first, then the ideas from the Activities tab of Larisa's Guide. Each shows who's in ("Interested: Larisa, Julie, Andy" — her X marks and Wander's "I'm in" together; "Julie (via Andy)" is Andy saying Julie's in), with "I'm in", "Say something" (a note for everyone, or "Just for me"), "Add to a day", Maps, Ask Scout, "Tell the group", and Remove (for whoever put it there, and the trip's organizer — off the list for everyone, with "Put it back"). A dot on the tab and a line on Home say when there's something new. Typed with no signal, it's saved on the phone and sent later.
-- Next (bottom bar; it used to be called Now): today, with where Larisa's day plan has you right now, what's next and how long until it, and "Get there" buttons — walk, train or taxi — that open Apple Maps from where they're standing (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
-- Actions (bottom bar): the to-dos from the Actions tab of Larisa's Guide.
+- Next (bottom bar; it used to be called Now): today, with where Larisa's day plan has you right now, what's next and how long until it, and "Get there" buttons — walk, train or taxi — that open Google Maps from where they're standing (on a flight day, her own plan for the airport when she wrote one, otherwise when to leave — Wander's own estimate); also quick Japanese phrases (the "Phrases" button).
+- Budget (bottom bar, where Actions was): what's been shared so far, what each couple paid, who pays next and what would make them even, "+ Add entry", then every entry with what it was for when someone said. Home shows the total and who pays next in one line. Larisa's to-dos (the Actions tab of her Guide) and the Guide's deadlines open from "To-dos and deadlines" on Home.
 - Scout: that's you — the chat bubble.
 - Settings → People on this trip: who's in; for the trip's planners, "+ Add someone" (name + trip → a QR code or a message) and "New phone? New link". Face ID is set up from Home or Settings. Someone new on an iPhone: open their link in Safari → Let's go → Set up Face ID (top of Home) → then Share → Add to Home Screen → open the icon → Sign in with Face ID. Face ID must be set up in Safari BEFORE the icon is used: the Home Screen icon opens signed out, and only Face ID signs in there.
 - Each trip shows only its own people and plan; someone on two trips switches between them from the trip name at the top of Home.
@@ -5347,6 +5359,7 @@ RULES:
 59. Telling Ken about Wander (Ken, Oct 14: "if they would like a feature added to wander or anything about the way wander works is confusing, they can speak or type at that moment what they want and it will become a message to Ken to try to fix"). Only when they ask for it — "Tell Ken…", "let Ken know…", "send that to Ken", or yes to your offer — a message about WANDER ITSELF goes to Ken with tell_ken: their words exactly, one thought per message (two wishes in one breath: two calls). "I wish Wander…", "Wander should…", "this is confusing", "I can't find…" said without asking: answer what you can, then offer once, in one short line: "Want me to pass that to Ken, word for word?" — never send without their yes (their words go to Ken only when they choose). Dictation can garble "Ken" ("tell can…", "tell Kent…"): if it's plainly meant, send it; if not, ask. Then one or two short lines: it's sent to Ken word for word (with the screen they're on, and the picture if they sent one), and they can send another. Never say Ken will fix it or when. If what they said is also a question you can answer ("I can't find the Maybes"), answer it too. Not about Wander — "tell Ken I'll be late", "tell Ken to meet us at 7", "tell Ken I love the trip" — is theirs to text: say so in one line, and send nothing. If it's unclear which, ask in one line. Never pass on anything they didn't ask you to.
 60. Ideas for Wander (Ken, Oct 15: "a place used most by andy and me to place screenshots and ideas to improve wander"): when Ken or Andy says "Wander idea: …" (the short way, often spoken), "For Ideas for Wander: …", "add that to Ideas", "put this in Ideas for Wander", call add_wander_idea with their words exactly (and their picture goes along). "Wander idea" means this only at the start of what they say — "an idea for dinner" or "any ideas for tonight?" is a question for you, never a post. It's theirs alone: anyone else who asks gets one line saying it's Ken and Andy's, and the offer to pass it to Ken (rule 59). "Tell Ken…" stays tell_ken, even from Ken or Andy. Never post on your own, and never move something said to you into Ideas without their asking.
 61. Who pays next (Larisa's idea, Oct 15: one couple pays for something, it's kept, and at the end the couple that paid less owes the other half the difference; "a simple button that is something like who pays next"). When someone says a couple, or anyone in it, paid for something — "we paid ¥12,400 for dinner", "Andy just spent 12400", "Larisa got the taxi, $30" — keep it with add_expense: who paid (their name, or the person talking for "we"/"I"), the amount as said, yen unless they said dollars, and what it was for if they said. Don't ask what it was for: it isn't needed. A number with no currency in Japan is yen. Then one or two lines: kept for which couple, and who pays next. "Who pays next?", "where are we on money?": money_so_far, then who pays next first, the totals and what's owed in a line. A payment kept by mistake: remove_expense (only who kept it, or Ken). Never keep money in Notes for this. If it's unclear who paid, ask in one line. It's shared by the two couples, all four see it. Say money plainly, in short sentences, without dashes.
+62. Their photos (Oct 15: each of the four keeps their own photos on the day they took them; just theirs unless shared with the trip). A photo of the trip sent with "keep this", "add this to my photos", "save these for Tuesday": keep_photo — today unless they name a day; shared only when they ask to share it; their own words about it as its caption. A receipt, bill, ticket or booking is a paper (keep_paper), not a photo; if it's unclear which, ask in one line. Never share a photo they didn't ask to share.
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
 
@@ -5642,11 +5655,38 @@ RULES:
           toolResults.push({ type: "tool_result", tool_use_id: toolBlock.id, content: JSON.stringify(out) });
           continue;
         }
+        // Your photos (services/tripPhotos.ts): the pictures sent with this very message, on a trip day, yours unless shared
+        if (toolBlock.name === "keep_photo") {
+          const input = (toolBlock.input || {}) as Record<string, unknown>;
+          let out: unknown;
+          if (!tripId || !req.user?.travelerId) out = { error: "No trip to keep it in." };
+          else {
+            const raw = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
+            const pics = [...(photo ? [{ mediaType: photo.mediaType, data: photo.data, thumb: undefined as string | undefined }] : []), ...sent.map((a, i) => ({ ...a, thumb: raw[i]?.thumb as string | undefined }))]
+              .filter((f) => /^image\/jpe?g$/.test(f.mediaType));
+            const { addPhoto } = await import("../services/tripPhotos.js");
+            const day = typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+            if (!pics.length) out = { error: "No photo came with this message (a JPEG photo). Ask them to attach it here and say keep it." };
+            else {
+              let kept = 0;
+              for (const f of pics) {
+                const r = await addPhoto({ tripId, travelerId: req.user.travelerId, authorName: req.user.displayName || "", image: f.data, thumb: String(f.thumb || f.data).replace(/^data:[^,]+,/, ""),
+                  dayDate: day, caption: typeof input.caption === "string" ? keptWords(input.caption, theirWords || []) || null : null, shared: input.shared === true });
+                if (!("error" in r)) kept++;
+              }
+              actions.push(`Kept ${kept === 1 ? "a photo" : `${kept} photos`} for ${new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}${input.shared === true ? ", shared with the trip" : ""}`);
+              out = { ok: kept > 0, kept, day, shared: input.shared === true, say: "One short line: kept on which day, just theirs or shared with the trip, and that it's under Photos from the day on that day's page." };
+            }
+          }
+          if ((out as any)?.error) screenOnlyOk = false;
+          toolResults.push({ type: "tool_result", tool_use_id: toolBlock.id, content: JSON.stringify(out) });
+          continue;
+        }
         // (directions to a place places_near_me just found: Google's own point, not a name search)
         if (toolBlock.name === "directions" && nearFound.has(flatName(String((toolBlock.input as any)?.place || "")))) {
           const r = walkRouteTo(nearFound.get(flatName(String((toolBlock.input as any).place)))!, (toolBlock.input as any)?.way);
           if (!routes.some((w) => w.apple === r.apple) && routes.length < 3) routes.push(r);
-          toolResults.push({ type: "tool_result", tool_use_id: toolBlock.id, content: JSON.stringify({ ok: true, shown: `a button with ${r.label.toLowerCase()} directions from where they're standing (Apple Maps, and Google Maps)` }) });
+          toolResults.push({ type: "tool_result", tool_use_id: toolBlock.id, content: JSON.stringify({ ok: true, shown: `a button with ${r.label.toLowerCase()} directions from where they're standing (in Google Maps)` }) });
           continue;
         }
         try {

@@ -708,6 +708,11 @@ export default function TripOverview() {
         <TripGlance tripId={trip.id} />
         {/* Who pays next — Larisa's idea (Oct 15 2026): one quiet line, a tap for the money page */}
         {trip && <WhoPaysNextLine tripId={trip.id} />}
+        {/* (her to-dos and the Guide's deadlines, which the Actions tab opened — its place in the bar went to Budget;
+            Ken, Oct 15) */}
+        <button type="button" onClick={() => setShowActions(true)} className="w-full text-left mb-3 min-h-[44px] px-3 rounded-lg text-sm text-[#514636] flex items-center justify-between">
+          <span>To-dos and deadlines</span><span aria-hidden>›</span>
+        </button>
         {/* Safety tips, Japan's warning app — a quiet note for Larisa, Andy and Julie from Ken (Oct 13 2026); after
             the day's own news (Andy's "You leave tomorrow" and his flight came second when it sat above) */}
         <SafetyTipsNote />

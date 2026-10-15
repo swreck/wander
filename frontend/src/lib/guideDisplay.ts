@@ -891,7 +891,27 @@ export function mapsQueryFor(i: GuideItem): string | null {
   return text.length > 3 ? text : null;
 }
 
-export const mapsLink = (q: string) => `https://maps.apple.com/?q=${encodeURIComponent(q)}`;
+// Google Maps (Ken, Oct 15: "Apple Maps sent us to the wrong place for dinner tonight. Putting address into Google Maps
+// went to right place. Please have the map link go to Google Maps if you can." Wander's link held the booking's own
+// address — "Yakiniku Yazawa Tokyo, Toin Yaesu Building 1F, 5-10 Yaesu 1-chome…" — and Apple Maps read it as somewhere
+// else). Opens the Google Maps app when it's on the phone, else Google Maps in the browser.
+export const mapsLink = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+/** Her own Apple Maps links in her cells, as the same search or route in Google Maps; any other link as it is. (Her
+ *  Apple Maps guides — maps she made in Apple Maps — aren't searches and stay Apple's.) */
+export function toGoogleMaps(url: string): string {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)maps\.apple\.com$/.test(u.hostname) || /^\/guides\//.test(u.pathname)) return url;
+    const to = u.searchParams.get("daddr");
+    if (to) {
+      const how = ({ w: "walking", r: "transit", d: "driving" } as Record<string, string>)[u.searchParams.get("dirflg") || ""];
+      const from = u.searchParams.get("saddr");
+      return `https://www.google.com/maps/dir/?api=1${from ? `&origin=${encodeURIComponent(from)}` : ""}&destination=${encodeURIComponent(to)}${how ? `&travelmode=${how}` : ""}`;
+    }
+    const q = u.searchParams.get("q") || u.searchParams.get("address") || u.searchParams.get("ll");
+    return q ? mapsLink(q) : url;
+  } catch { return url; }
+}
 
 /** What a link opens, in words ("Link ↗" said nothing): "Michelin page", "Booking page", "Map", "Website" */
 export function linkLabel(url: string): string {
@@ -1113,7 +1133,7 @@ export const besideHotel = (i: GuideItem) => /^Beside .+ in her Itinerary$/m.tes
 /** Every address in her link cell, each ready to open — a cell can hold two on separate lines (round 12: Oct 27's
  *  "Michelin page" joined a Michelin address and a Google search into one dead link) */
 export function linksIn(link: string | null | undefined): string[] {
-  const urls = (link || "").split(/\s+/).filter((u) => /^https?:\/\/\S+$/i.test(u)).map(unwrapSearchLink);
+  const urls = (link || "").split(/\s+/).filter((u) => /^https?:\/\/\S+$/i.test(u)).map(unwrapSearchLink).map(toGoogleMaps);
   return [...new Set(urls)];
 }
 

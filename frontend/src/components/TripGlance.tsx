@@ -822,7 +822,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
                   ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${airport} to ${hotel.name}?` } }))}
                       className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Ask Scout the ways to go ›</button>
                   : <span className="inline-flex items-center min-h-[44px] text-sm text-[#6b5d4a]">Scout can answer once you have signal</span>}
-                <a href={`https://maps.apple.com/?saddr=${encodeURIComponent(`${airport} Airport, Japan`)}&daddr=${encodeURIComponent(stayMapsQuery(hotel, cityOn(today)))}&dirflg=r`}
+                <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${airport} Airport, Japan`)}&destination=${encodeURIComponent(stayMapsQuery(hotel, cityOn(today)))}&travelmode=transit`}
                   target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Directions in Maps ↗</a>
               </div>
             </div>

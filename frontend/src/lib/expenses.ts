@@ -14,6 +14,11 @@ export type Ledger = {
 
 const key = (tripId: string) => `wander:money:${tripId}`;
 export const MONEY_CHANGED = "wander:money-changed";
+// (someone else kept or took away a payment — or Scout did — and the server said so: every money view looks again)
+if (typeof window !== "undefined") window.addEventListener("wander:data-changed", () => window.dispatchEvent(new Event(MONEY_CHANGED)));
+
+/** The couple's initials, first names in alphabetical order — "Andy & Julie" or "Julie & Andy" → "AJ"; "Ken & Larisa" → "KL" */
+export const initialsOf = (party: string) => party.split(/\s*&\s*|\s+and\s+/i).map((n) => n.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b)).map((n) => n[0].toUpperCase()).join("");
 
 export function savedLedger(tripId: string): Ledger | null {
   try { return JSON.parse(localStorage.getItem(key(tripId)) || "null"); } catch { return null; }

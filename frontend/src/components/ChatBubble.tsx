@@ -34,6 +34,7 @@ function linkName(url: string): string {
     const u = new URL(url);
     if (/(^|\.)google\.[a-z.]+$/.test(u.hostname) && u.pathname.startsWith("/maps/d/")) return "Open the Google map"; // (Larisa read "her" map for her own; verify12)
     if (/(^|\.)maps\.apple(\.com)?$/.test(u.hostname)) return "Open in Apple Maps";
+    if (/(^|\.)google\.[a-z.]+$/.test(u.hostname) && u.pathname.startsWith("/maps")) return "Open in Google Maps";
     return u.hostname.replace(/^www\./, "");
   } catch { return url; }
 }
@@ -404,15 +405,27 @@ function readAloud(text: string, onEnd: () => void) {
   const enVoice = voices.find((v) => /^en-US/i.test(v.lang) && v.localService) || voices.find((v) => /^en/i.test(v.lang));
   const spoken = parts.filter((p) => p.text.trim());
   if (!spoken.length) { onEnd(); return; }
-  spoken.forEach((p, n) => {
-    const u = new SpeechSynthesisUtterance(p.text);
-    u.lang = p.ja ? "ja-JP" : "en-US";
-    const voice = p.ja ? jaVoice : enVoice;
-    if (voice) u.voice = voice;
-    if (n === spoken.length - 1) { u.onend = onEnd; u.onerror = onEnd; }
-    window.speechSynthesis.speak(u);
-  });
+  // (Ken, Oct 15: "Tapped 'read aloud' and never heard anything." Safari drops what's asked in the same moment as a stop,
+  // and can let go of words still waiting to be said — so a short pause after the stop, and each kept until it's said)
+  const go = () => {
+    reading.length = 0;
+    spoken.forEach((p, n) => {
+      const u = new SpeechSynthesisUtterance(p.text);
+      u.lang = p.ja ? "ja-JP" : "en-US";
+      const voice = p.ja ? jaVoice : enVoice;
+      if (voice) u.voice = voice;
+      if (n === spoken.length - 1) { u.onend = () => { reading.length = 0; onEnd(); }; u.onerror = () => { reading.length = 0; onEnd(); }; }
+      reading.push(u);
+      window.speechSynthesis.speak(u);
+    });
+    window.speechSynthesis.resume();
+  };
+  setTimeout(go, 150);
 }
+/** what's being read, held until it's said (Safari can let go of it otherwise) */
+const reading: SpeechSynthesisUtterance[] = [];
+/** an iPhone or iPad, where the read-aloud voice follows silent mode (Safari says it's speaking even when it's muted) */
+const onIos = () => typeof navigator !== "undefined" && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
 // Words in Scout's box not yet sent, kept on the phone as they come — typed or dictated — so a screen that goes off, a
 // reload or an update never loses them (Oct 15: Larisa's long dictation was lost when her phone's screen went off). Gone
@@ -1953,14 +1966,14 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                     ))}
                   </div>
                 )}
-                {/* directions from where they're standing: Apple Maps, and Google Maps beside it (Oct 2) */}
+                {/* directions from where they're standing, in Google Maps (Oct 15: Apple Maps took them to the wrong place for
+                    dinner from the right address — Ken: "Please have the map link go to Google Maps") */}
                 {msg.routes && msg.routes.length > 0 && (
                   <div className="mt-2 flex flex-col items-start gap-1">
                     {msg.routes.map((w) => (
-                      <div key={w.apple}>
+                      <div key={w.google}>
                         <div className="flex flex-wrap items-center gap-x-3">
-                          <a href={w.apple} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636]">{w.label} ↗</a>
-                          <a href={w.google} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Google Maps ↗</a>
+                          <a href={w.google} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636]">{w.label} ↗</a>
                         </div>
                         {/* (nothing of hers gives where it is: the map app only searches — said, never hidden. Not "her Guide has
                             no address": a place found online isn't hers, and Scout may have given the address itself; verify15) */}
@@ -2026,6 +2039,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                         className="min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
                         {reading === i ? "Stop reading" : "Read aloud"}
                       </button>
+                    )}
+                    {/* (Ken, Oct 15, volume up and nothing heard: on an iPhone silent mode silences this voice too) */}
+                    {reading === i && onIos() && (
+                      <span className="basis-full text-[12px] text-[#8a7d68]">Hear nothing? Silent mode on your iPhone silences this voice too.</span>
                     )}
                   </div>
                 )}

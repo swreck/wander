@@ -2,6 +2,127 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, just after midnight in Japan) — Dictation Keeps Going, the Screen Stays On
+
+### Fixed
+- Ken (Oct 15): "When dictating a note or message to scout, wander seems to time out and iPhone sleeps while
+  dictating." Two causes. An iPhone ends a recording on its own after a pause; Wander's mic then stopped, and let the
+  screen sleep. Now it starts listening again for the same person, the words heard so far kept in front, until they tap
+  stop (never when they've stopped, when Wander is in the background, or when the phone keeps ending it at once).
+  "I'm not hearing any words yet" shows only before the first word. And the keyboard's own microphone is the iPhone's,
+  so Wander wasn't told anyone was dictating: now the screen stays on while any box in Wander has the cursor and words
+  are coming, and may sleep again when the box is left or after 3 minutes with no new words. Where: Scout's mic, Notes'
+  Talk, and every text box.
+
+## 2026-10-15 (Thursday, midnight in Japan) — Map Links Open Google Maps
+
+### Changed
+- Every map link Wander makes opens Google Maps: "Maps ↗" on a day's lines, Next's "Find in Maps" and its Walk / Train /
+  Taxi, the airport-to-hotel route, Play's Maps, and Scout's directions (now one button, Google Maps). Larisa's own
+  Apple Maps search links in her cells open the same search in Google Maps; her Apple Maps guides (maps she made in
+  Apple Maps) stay Apple's. Ken (Oct 15): "Apple Maps sent us to the wrong place for dinner tonight. Putting address
+  into Google Maps went to right place. Please have the map link go to Google Maps if you can." Wander's links for that
+  dinner all held her booking's own address ("Yakiniku Yazawa Tokyo, Toin Yaesu Building 1F, 5-10 Yaesu 1-chome…");
+  Apple Maps read it as somewhere else. (Her day plan called it "Yakiniku Yazawa Tokyo (Ginza)"; the booking is in Yaesu,
+  by Tokyo Station. Every other booked meal ahead was checked: each address agrees with her plan's area.) Place photos
+  are found by the same words as before. SPEC UPDATE NEEDED (maps, directions).
+
+## 2026-10-15 (Thursday, near midnight in Japan) — Budget in the Bar, the Total on Home, Read Aloud on iPhone
+
+### Changed
+- Budget takes Actions' place in the bottom bar. Ken (Oct 15): "There seems to be no need for the [Actions] button in
+  the main navigation menu, so you can replace that with budget". Larisa's to-dos and the Guide's deadlines (what
+  Actions opened) open from a quiet "To-dos and deadlines ›" line on Home. Budget's icon says who pays next: "KL" in
+  purple when Ken & Larisa do, "AJ" in orange when Andy & Julie do (Ken: "So it will toggle based on who is the next to
+  pay, so it can be done in a glance or tapped to see the total. Make the KL version purple. And AJ version orange.");
+  a coin when they're even or nothing is kept. A payment kept or taken away, on the page or through Scout, tells every
+  open screen quietly, so the icon turns at once on all four phones.
+- Home's money line shows the total. Ken: "a button on the homepage that actually shows the total and then has all the
+  detail below it. It should show exactly what the item is if it is included in the entry, but can be blank if the topic
+  is never added." It reads "Budget: ¥48,200 shared so far", with who pays next under it; a tap opens the budget page.
+- The budget page leads with the total ("¥48,200 shared so far"), what each couple paid, who pays next and what would
+  make them even; then "+ Add entry", always there (Ken: "should always be another button that says add entry for another
+  one to be added then"), which opens the form; then every entry, with what it was for when someone said and nothing
+  when no one did. Where: bottom bar → Budget (/money); Home. Scout's map of the app says so. SPEC UPDATE NEEDED (money,
+  bottom bar).
+
+### Fixed
+- "Read aloud" under Scout's answers said nothing on Ken's iPhone (volume up, no headphones). Safari drops speech asked
+  for in the same moment as a stop, and can let go of words still waiting; the voice now starts a moment after the stop
+  and each part is held until it's said. On an iPhone the voice also follows silent mode, which Safari can't report, so
+  while it reads a line says: "Hear nothing? Silent mode on your iPhone silences this voice too."
+
+## 2026-10-15 (Thursday, late night in Japan) — Play the Day, Every Day
+
+### Added
+- Every day of the trip plays. Ken (Oct 15), on Oct 18: "Looking ahead I don't see it every day… I wanted to see Nikko
+  and looked ahead at this backroads day. But nothing." Then: "Create play every day. Use what you have from the
+  backroads content." Play had needed two or more of her timed plan lines, so Oct 18–24 and the travel days had none.
+  The Backroads days now play Backroads' own itinerary (the PDF Ken gave Wander, dated May 7 2026), moment by moment in
+  its order: their words exactly ("Backroads' words" opens the whole passage), a short title, the length they give
+  ("13 or 26 miles by bike", "1 hour"), and a photo of each place they name (Nikko Toshogu, Cedar Avenue, the
+  Kinugawa River, Senjogahara, Toi Beach, the Jogasaki Coast, Nanzen-ji…), each checked by AI to be that place. Her
+  Guide's own lines are those moments where she has them: the 8:30 meeting, each dinner (her names for them), the
+  check-outs, Saryo Tesshin at 7 PM. Times only where she gives one; Backroads gives lengths. The cover says it's
+  Backroads' general itinerary and details can differ for our departure. Two photos stand in for places Backroads
+  describes without naming (Ikadaba's wasabi fields; Mount Daimonji, whose lookout Backroads' website names) and say
+  so beside the credit. Larisa's Guide agrees with this PDF on hotels and dinners; Backroads' current web page differs
+  (another departure) and isn't used. Any other day without her timed plan plays her lines in the day list's order.
+  "Play tomorrow" now goes straight into any next day's Play. Where: day pages ("The day with Backroads" / "The day in
+  her Guide" ▶ Play the day). Data: the moments sit with Backroads' itinerary in the trip's documents (server:
+  GET /api/guide/day-moments/:tripId/:date). SPEC UPDATE NEEDED (Play).
+
+### Changed
+- Play's cover says the day's span ("8:30 AM to 6:30 PM") only when its first and last moments have times.
+
+### Fixed
+- Your own photos: on a weak signal, the phone showed its saved copy of a photo its taker had just made private while
+  it waited for the server (tourist77). It now waits; the saved copy is only for no signal at all. And a day, Play or
+  the story left open now drops a photo within seconds when its taker makes it private or deletes it (a quiet live
+  update to everyone's open screens, and a fresh look whenever Wander comes back to the front; tourist77). The story's
+  whole-trip list is no longer kept on the phone (nothing read it, and it kept copies of taken-back photos); a photo
+  still arriving at sign-out is cleared again once it lands; the story's lead photo shows whole over a soft blur of
+  itself (a tall photo lost 40% of itself), and its VoiceOver label says whose it is and whether it's just yours.
+  tourist78: on a weak signal, Play showed "Ken's photo · 9:00 PM" and its caption over black, from the phone's old
+  list, after Ken had made it private. Someone else's photo now shows (in Play, the day's strip and the story) only once
+  its picture has come; a list that didn't arrive is asked for again 15 seconds later. Play on a Backroads day waits for
+  Backroads' moments before offering itself (it flashed her lines alone on a slow load); the Oct 18 check-out no longer
+  says "This afternoon" (it took the hotel's noon deadline as its time); Backroads' words keep their "…" where a sentence
+  runs on; two split moments are one each ("Lake Yumoto and Yudaki Falls"; "Nanzen-ji and Eikando, or a climb to a
+  viewpoint", so the choice reads as a choice).
+
+## 2026-10-15 (Thursday night in Japan) — Your Own Photos, on the Day You Took Them
+
+### Added
+- Each of the four keeps their own photos on the trip day they took them. Ken (Oct 15): "Yes. Value, delight. Not
+  gimmicks. Go", to: "let each of you add your own photos to a day… private by default, with a choice to share with the
+  trip". Every photo in Wander had come from Google or the city; Andy comes from Instagram. On a day page (today or
+  earlier), "Photos from the day": "+ Add photos" (several at once), each filed under the day its own clock says it was
+  taken (else the day you're on), shrunk on the phone; "Share with the trip" starts where you left it last time. A tap
+  shows them full screen, a swipe for the next; on your own: share, "Keep it just for me", or delete (for real). Shared
+  photos play in "Play the day" right after the moment they were taken in ("Next · 1:42 PM / Andy's photo"), whole and
+  uncropped, and lead their day in the trip's story. To Scout: send a photo and say "keep this for today" (just yours) or
+  "…share it" — a receipt or ticket stays a paper. Nobody else ever sees a photo its taker hasn't shared. Where: day
+  pages, Play the day, /story, Scout (keep_photo, rule 62). Data: trip_photos (a new kind of personal data, Ken's yes).
+  "Add a few words" in the viewer gives your own photo a caption, shown under it there and in Play.
+- Kept private before it shipped (tourist75 found three gaps on the test copy): the lists the phone keeps are each
+  person's own and go at sign-out, so on a shared phone Julie never sees Andy's "just you" photos; each picture link is
+  made for one person, and the server checks every time that the photo is still theirs or still shared, so a photo
+  made private again or deleted stops showing at once (the phone asks again before showing a saved copy, and the
+  service worker drops its copy when the answer is "not there", and never saves the photo lists); the story's
+  full-screen viewer follows the live photos, so Delete and "Keep it just for me" show at once. Photos without a clock
+  sit after the timed ones everywhere (strip, story, Play); the story's lead photo keeps a portrait's shape; your own
+  private ones say "just you" in the story; "one on Oct 14, when it was taken" names the day. tourist76 then found
+  one more: Andy's slow list landing after Julie signed in was kept as hers. A list is now tied to the sign-in that
+  asked for it, and dropped if someone else is signed in when it lands; the phone's copies of photos no longer in
+  your lists go after each fresh list; a picture that's gone hides rather than show a broken tile.
+  SPEC UPDATE NEEDED (day screen, Play, story, privacy).
+
+### Fixed
+- Signing out while Wander's opening sign-in check was still out brought the person back, half signed in, on "Wander
+  can't reach the trip right now" with no way forward but a reload (tourist76). A late answer now counts only while
+  the sign-in it asked about is still the phone's. Where: Settings → Sign out.
+
 ## 2026-10-15 (Thursday evening in Japan) — Who Pays Next
 
 ### Added

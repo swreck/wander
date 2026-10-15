@@ -26,6 +26,9 @@ export default function MoneyPage() {
   const [error, setError] = useState<string | null>(null);
   const [kept, setKept] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  // (the form opens from "Add entry", always under the total — Ken, Oct 15: "should always be another button that says
+  // add entry for another one to be added then")
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => { if (!tripId) api.get<{ id?: string } | null>("/trips/active").then((t) => setTripId(t?.id || null)).catch(() => {}); }, [tripId]);
   useEffect(() => {
@@ -49,7 +52,7 @@ export default function MoneyPage() {
     setBusy(false);
     if (err) { setError(err); return; }
     setKept(`Kept: ${paidBy}, ${currency === "USD" ? `$${n}` : yen(n)}`);
-    setAmount(""); setWhat("");
+    setAmount(""); setWhat(""); setAdding(false);
   };
 
   const back = () => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"));
@@ -58,21 +61,28 @@ export default function MoneyPage() {
       <header className="pb-6 bg-gradient-to-b from-[#e7efe3] to-[#faf8f5]" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
         <div className="max-w-xl mx-auto px-4">
           <button type="button" onClick={back} className="min-h-[44px] text-sm text-[#514636]">‹ Back</button>
-          <p className="text-[12px] uppercase tracking-[.14em] text-[#5b6b52] mt-1">Who pays next</p>
-          <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight mt-0.5">{!l ? "…" : l.next || (l.items.length ? "Either — you're even" : "Either couple")}</h1>
-          {l && l.parties.length === 2 && (
+          <p className="text-[12px] uppercase tracking-[.14em] text-[#5b6b52] mt-1">Budget</p>
+          <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight mt-0.5">{!l ? "…" : l.items.length ? `${yen(Object.values(l.totals).reduce((a, b) => a + b, 0))} shared so far` : "Nothing kept yet"}</h1>
+          {l && l.parties.length === 2 && l.items.length > 0 && (
             <p className="text-[15px] text-[#3a3128] mt-2">
-              {l.parties.map((p) => `${p} ${yen(l.totals[p] || 0)}`).join(" · ")}
+              {l.parties.map((p) => `${p} paid ${yen(l.totals[p] || 0)}`).join(" · ")}
             </p>
           )}
+          {l && <p className="text-[15px] text-[#3a3128] mt-1">Who pays next: <span className="font-medium">{l.next || (l.items.length ? "either — you're even" : "either couple")}</span></p>}
           {l?.owes && <p className="text-[14px] text-[#514636] mt-1">To be even now, {l.owes.from} would pay {l.owes.to} {yen(l.owes.yen)}.</p>}
-          {l && !l.items.length && <p className="text-[14px] text-[#514636] mt-1">When one couple pays for the group, keep it here. Each cost is shared half and half.</p>}
+          {l && !l.items.length && <p className="text-[14px] text-[#514636] mt-1">When one couple pays for the group, add it here. Each cost is shared half and half.</p>}
         </div>
       </header>
 
       <main className="px-4 max-w-xl mx-auto flex flex-col gap-5">
-        <section className="bg-white rounded-2xl border border-[#e0d8cc] p-4 flex flex-col gap-3" aria-label="Keep a payment">
-          <h2 className="text-[17px] font-medium text-[#3a3128]">Keep a payment</h2>
+        {!adding && (
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => { setAdding(true); setError(null); }} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium">+ Add entry</button>
+            {kept && <span className="text-sm text-[#4a6a3a]" role="status">✓ {kept}</span>}
+          </div>
+        )}
+        {adding && <section className="bg-white rounded-2xl border border-[#e0d8cc] p-4 flex flex-col gap-3" aria-label="Add entry">
+          <h2 className="text-[17px] font-medium text-[#3a3128]">Add entry</h2>
           <div className="grid grid-cols-2 gap-2" role="group" aria-label="Who paid">
             {(l?.parties || []).map((p) => (
               <button key={p} type="button" onClick={() => setPaidBy(p)} aria-pressed={paidBy === p}
@@ -93,15 +103,15 @@ export default function MoneyPage() {
             className="min-h-[48px] rounded-xl border border-[#e0d8cc] px-3 text-[16px] text-[#3a3128] focus:outline-none focus:border-[#a89880]" />
           <div className="flex items-center gap-3">
             <button type="button" onClick={add} disabled={busy} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? "Keeping…" : "Keep it"}</button>
-            {kept && <span className="text-sm text-[#4a6a3a]" role="status">✓ {kept}</span>}
+            <button type="button" onClick={() => { setAdding(false); setError(null); }} className="min-h-[48px] px-2 text-[15px] text-[#514636] underline underline-offset-2">Cancel</button>
           </div>
           {error && <p className="text-sm text-[#8a3a1a]" role="alert">{error}</p>}
           <p className="text-[12px] text-[#8a7d68]">Or tell Scout: “We paid ¥8,000 for lunch.” Dollars are kept with that day's yen.</p>
-        </section>
+        </section>}
 
         {l && l.items.length > 0 && (
           <section aria-label="Payments kept">
-            <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Payments kept</h2>
+            <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">Every entry</h2>
             <ul className="bg-white rounded-2xl border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
               {l.items.map((x) => (
                 <li key={x.id} className="px-4 py-3">

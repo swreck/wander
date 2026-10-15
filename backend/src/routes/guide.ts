@@ -20,6 +20,7 @@ import { importGuideSnapshot } from "../services/guide/importSnapshot.js";
 import { sheetLinkOf, otherSheetLinks } from "../services/guide/sheetLink.js";
 import { guideLinksByDay } from "../services/guide/appleGuides.js";
 import { currentSummaries } from "../services/guide/daySummaries.js";
+import { tripDocumentsOf, dayMomentsOf } from "../services/guide/tripDocuments.js";
 import { tabsOfCopy, cellsOfItem, completeCells, spotsOf } from "../services/guide/sources.js";
 import { withoutFinancialDetails, holdsPersonalNumbers } from "../services/sources/filter.js";
 
@@ -183,6 +184,15 @@ router.get("/pictures/:tripId", async (req: AuthRequest, res) => {
 // shows only while the picture it was cut from is in her current Guide copy, so a new map from her never sits under an
 // old cut. The link holds for a day and doesn't change within it, so the phone keeps the panel instead of fetching it
 // again on every visit.
+// GET /day-moments/:tripId/:date — the day's moments from a document someone gave Wander (Backroads' itinerary), for
+// "Play the day" on a day her Guide gives a line or two (Oct 15 2026, Ken: "Create play every day")
+router.get("/day-moments/:tripId/:date", async (req: AuthRequest, res) => {
+  const tripId = req.params.tripId as string, date = req.params.date as string;
+  if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { res.status(400).json({ error: "Which day?" }); return; }
+  res.json({ day: dayMomentsOf(await tripDocumentsOf(tripId), date) });
+});
+
 router.get("/day-panels/:tripId", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;
   if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }

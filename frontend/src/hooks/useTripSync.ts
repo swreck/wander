@@ -6,6 +6,7 @@ interface SyncEvent {
   userCode?: string;
   displayName?: string;
   description?: string;
+  quiet?: boolean;
   timestamp?: number;
 }
 
@@ -69,7 +70,7 @@ export default function useTripSync(
             // Someone taking back their own addition isn't news to pop up over your screen (round 12: "Julie took
             // … off …" over Home) — the screens still catch up quietly below
             const takeBack = /^(took |took back|marked .* not done)/i.test(data.description || "");
-            if (!takeBack) {
+            if (!takeBack && !data.quiet) {
               setPendingChanges((n) => n + 1);
               setLatestAction(changeWords(data.displayName || "Someone", data.description, 70));
             }

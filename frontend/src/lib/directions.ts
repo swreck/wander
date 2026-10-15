@@ -14,11 +14,12 @@ export function directionsHref(href: string | null | undefined, way?: "walk" | "
     } else if (/(^|\.)google\.[a-z.]+$/.test(u.hostname) && /\/maps/.test(u.pathname)) {
       const at = u.pathname.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
       const place = u.pathname.match(/\/maps\/place\/([^/]+)/)?.[1];
-      dest = at ? `${at[1]},${at[2]}` : place ? decodeURIComponent(place.replace(/\+/g, " ")) : u.searchParams.get("q") || u.searchParams.get("query");
+      dest = at ? `${at[1]},${at[2]}` : place ? decodeURIComponent(place.replace(/\+/g, " ")) : u.searchParams.get("q") || u.searchParams.get("query") || u.searchParams.get("destination");
     }
-    // (walking, train and subway, or a driving route a taxi driver can read)
-    const flag = way ? `&dirflg=${{ walk: "w", train: "r", taxi: "d" }[way]}` : "";
-    return dest ? `https://maps.apple.com/?daddr=${encodeURIComponent(dest)}${flag}` : null;
+    // (walking, train and subway, or a driving route a taxi driver can read — in Google Maps, from where the phone is;
+    // Ken, Oct 15: Apple Maps took them to the wrong place for dinner from the right address)
+    const how = way ? `&travelmode=${{ walk: "walking", train: "transit", taxi: "driving" }[way]}` : "";
+    return dest ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}${how}` : null;
   } catch { /* not a link */ }
   return null;
 }
