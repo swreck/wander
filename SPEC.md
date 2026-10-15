@@ -2421,7 +2421,7 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   difference. Who pays next is the couple with the smaller total.
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.
-- **Changing or taking one away** (Oct 16): only the person who kept it, or Ken. "Change" on the entry opens a pop-up
+- **Changing or taking one away** (Oct 16): only the person who kept it, or Ken. Tapping the entry (it shows a "›") opens a pop-up
   with the couple, the amount, ¥ or $, and what it was for, and "Remove this entry" ("Remove it for everyone?"). A
   removed one is hidden, never deleted. Ken: "add edit button to budget page to go back and add reason, change total, or
   change payer with a pop up, or remove item". A dollar amount keeps the rate it was kept at, unless it's newly dollars.
@@ -2434,7 +2434,7 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   based on who is the next to pay, so it can be done in a glance or tapped to see the total. Make the KL version
   purple. And AJ version orange." A payment kept or taken away, on the page or through Scout, quietly tells every open
   screen, so the icon turns at once on all four phones.
-- **The budget page** leads with the total ("¥… shared so far", or "Nothing kept yet"), what each couple paid, who pays
+- **The budget page** leads with the total ("¥… shared so far", or "Nothing kept yet"), who pays
   next ("either — you're even" when they are) and what would make them even ("To be even now, … would pay … ¥…"). Then
   **+ Add entry**, always there, and **History**. Add entry opens a pop-up near the top of the screen (above where an
   iPhone's keyboard comes up) with the cursor in the amount, the number keyboard, ¥ chosen and a small ¥ / $ switch (Ken:
