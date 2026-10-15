@@ -16,6 +16,9 @@ the individuals instead of mass appeal… 10 or more exciting yet safe-to-implem
 Ken's ambition (Sep 27; my close paraphrase, his exact words weren't recorded): Wander seduces people, Larisa included,
 into seeing it as a parallel tool that earns its place as the main window into the plan through its charm, its ease
 and its usefulness. Larisa is the final judge, comparing it with her own sheet.
+Ken (Oct 15): "You goal is to delight and surprise your users. But not by adding something you'd call a gimmick. More
+by things that ADD VALUE: beauty, info, the feature or info or view the user would want before they realize they want
+it."
 
 The people: Ken and Larisa (she owns the Guide, her Google Sheet), Andy and Julie. Accounts are named Ken, Larisa,
 Andy, Julie. Ken (Oct 10): "They see themselves as andy and Julie. The initial was yours. And the initial seems to have
@@ -141,20 +144,16 @@ The charter is in the global file. In Wander, these are also Ken's:
 - What Larisa, Andy and Julie are told, and when.
 - Any new kind of the travelers' personal data (location, photos, documents). Raise it in one line before building.
 
-Mine, for example: Scout's "Use my location" button, so "what's near me?" works for any wording.
 Ken (Oct 13): "Focus on what matters to users in Japan. Wander must be honest, no bugs, usable with no training and no
-manual. What it says about Japan to andy and Julie while in California is not important." (Claude) Fresh-agent rounds
-had chased what Julie's Notes said at 1 AM before she flew. Test and fix for people in Japan; edge cases at home don't
-hold a deploy.
+manual. What it says about Japan to andy and Julie while in California is not important." (Claude) Edge cases at home
+don't hold a deploy.
 Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engineering.md.
 
 ## 8. Docs
 
-- SPEC.md is the canonical product spec (v3.0, March 2026). Never edit it during feature work. Where Ken's later
-  decisions differ (sheet is master, Scout can't change the Guide, show what changed), his decisions win.
-  Ken (Oct 13): "Product spec should be up to date!" and, when I listed it as a choice: "yes. Always! Should not need my
-  approval!" (Claude) Mine, never asked: brought up to date from the CHANGELOG's "SPEC UPDATE NEEDED" entries, then kept
-  current in every batch that changes behaviour.
+- SPEC.md is the canonical product spec (v3.0, March 2026); where Ken's later decisions differ (sheet is master, Scout
+  can't change the Guide, show what changed), his decisions win. Ken (Oct 13): "Product spec should be up to date!" and,
+  when I listed it as a choice: "yes. Always! Should not need my approval!" (Claude) Kept current, in every batch.
 - After any change in behaviour, add an entry at the TOP of CHANGELOG.md under the date: what changed (behaviour), where
   it lives in the UI, which SPEC sections it touches, and "SPEC UPDATE NEEDED" when behaviour now differs from SPEC.
   Use Added / Changed / Fixed / Removed headings as they apply. Never rewrite old entries.

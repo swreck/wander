@@ -63,13 +63,26 @@ export async function engineerReply(ideaId: string, words: string, status?: Idea
   const idea = await prisma.wanderIdea.findUnique({ where: { id: ideaId }, select: { id: true, tripId: true, parentId: true } });
   if (!idea || idea.parentId) throw new Error("Not an idea");
   if (words.trim()) await prisma.wanderIdea.create({ data: { tripId: idea.tripId, authorName: ENGINEER_NAME, role: "engineer", parentId: idea.id, words: words.trim() } });
-  if (status) await prisma.wanderIdea.update({ where: { id: idea.id }, data: { status } });
+  if (status) await moveStatus(idea.tripId, idea.id, status, { authorName: ENGINEER_NAME, travelerId: null });
 }
 
-export async function setStatus(tripId: string, travelerId: string, id: string, status: string): Promise<boolean> {
+/**
+ * An idea's status moved, said on the idea as a line of its own ("Ken marked it Built") — so it's news like a reply: the
+ * other member's dot on Home, "new" on the card, the idea back at the top (andy-ideas, Oct 15: Ken marked Andy's idea
+ * Built and Andy never learned of it). Nothing when it didn't move.
+ */
+async function moveStatus(tripId: string, id: string, status: string, by: { authorName: string; travelerId: string | null }): Promise<boolean> {
+  const idea = await prisma.wanderIdea.findFirst({ where: { id, tripId, parentId: null }, select: { status: true } });
+  if (!idea) return false;
+  if (idea.status === status) return true;
+  await prisma.wanderIdea.update({ where: { id }, data: { status } });
+  await prisma.wanderIdea.create({ data: { tripId, travelerId: by.travelerId, authorName: by.authorName, role: "status", parentId: id, words: status } });
+  return true;
+}
+
+export async function setStatus(tripId: string, travelerId: string, id: string, status: string, authorName = "Someone"): Promise<boolean> {
   if (!(STATUSES as readonly string[]).includes(status) || !(await isMember(tripId, travelerId))) return false;
-  const r = await prisma.wanderIdea.updateMany({ where: { id, tripId, parentId: null }, data: { status } });
-  return r.count === 1;
+  return moveStatus(tripId, id, status, { authorName, travelerId });
 }
 
 /** The ideas, each with its replies, the one with the latest word first */
@@ -100,15 +113,15 @@ export async function markSeen(tripId: string, travelerId: string) {
 /** What Wander is and does, for the helper (kept short: it's read with every idea — a few cents each) */
 const WANDER = `Wander is a phone web app (iPhone, saved to the Home Screen) for four friends on a trip in Japan, Oct 5–29 2026: Ken and Larisa, Andy and Julie. Larisa planned the trip in a Google Sheet ("her Guide"); Wander reads a copy of it and never changes it — her plan is the master, in her order and her words.
 Screens: Home (a map of the trip's cities, today's plan in short, the forecast, a calendar of the days, her other tabs to read). A day page (the city and its photo behind a small icon, the forecast, her plan by the clock with Maps links and her notes, bookings, tonight's hotel, notes for the day). Next (what's coming up now, with directions and Walk/Train/Taxi). Maybes (a shared list of ideas, "I'm in", by city). Notes (their own words kept exactly; Talk to dictate; keep a paper like a receipt; notes kept from Scout). Actions (her to-do list). Scout (an AI guide that answers from her Guide and the web, never invents a time or place; takes photos and files; "remember that"; "Tell Ken…"; "Use my location"). The 日 phrase card (Japanese phrases, "Show large" for showing someone). Settings (Face ID, buzz when Scout answers).
-Being considered (Oct 15, "Wander in pictures"): the city photo at the top of each day; a photo beside each stop when Wander is sure of the place; her illustrated Kyoto map per day; "Play the day" (stories, one stop per screen); a picture in Next; days behind you on Home; one shared photo a day (needs everyone's yes); the trip so far; notes as picture cards; Maybes with pictures.
+Built Oct 15 ("Wander in pictures"): the city's photo behind each day's city band; a photo beside each stop when Wander is sure of the place; "Play the day" (one moment per screen, a Next button naming what's next, swipe, a cover for the day, "in 45 min" today, her full note, Play tomorrow). Being built: her illustrated Kyoto map, one panel at the top of each Kyoto day. Being considered: a picture in Next; days behind you on Home; one shared photo a day (needs everyone's yes); the trip so far; notes as picture cards; Maybes with pictures.
 What doesn't change: Wander never edits her Guide; Scout never states what it can't support; no polls or votes; it must work for people who've had no training; Ken decides what's built and when.`;
 
 const HELPER_RULES = `You are Scout, taking part in "Ideas for Wander": Ken and Andy's place to suggest how Wander could be better. Someone just posted an idea (with screenshots, if any). Reply once, briefly, as a thoughtful product partner.
 - Start with "I get the goal:" and the goal behind their idea, in their terms, in one sentence (what they're trying to get, not what they asked for).
 - Then one concrete suggestion that might serve that goal better or more simply, as a question: "What about …?" One only, and specific to Wander's real screens.
-- Only if an earlier idea's own words ask for the same thing, say so in one short sentence, naming who and when, quoting its words exactly, and saying where it stands from its [status] in plain words ("Close to Andy's idea from Oct 15, already planned: '…'"). Never say what an earlier idea covers or means beyond its own words; if none plainly asks for the same thing, say nothing about earlier ideas.
+- Only if an earlier idea's own words ask for the same thing, say so in one short sentence, naming who and when (if it's the same person's own earlier idea, say "you posted this on Oct 15"), quoting its words exactly, and saying where it stands from its [status] in plain words ("Close to Andy's idea from Oct 15, already planned: '…'"). Never say what an earlier idea covers or means beyond its own words; if none plainly asks for the same thing, say nothing about earlier ideas.
 - If it reports something broken or wrong, skip "What about": say what you understand they saw, and ask exactly one question — the single detail that would help most (which screen, or what they expected).
-- 2 to 4 sentences in all. Plain words, one thought per sentence, no marketing words, no exclamation marks, no lists, no headings.
+- 2 or 3 sentences, under 60 words in all: it's read on a phone beside their idea. Plain words, one thought per sentence, no marketing words, no exclamation marks, no lists, no headings, no markdown (no asterisks).
 - Never promise it will be built, or when. Never say a feature exists unless it's described above. Nothing about the trip itself (times, places, bookings) — only Wander.`;
 
 let client: Anthropic | null = null;
@@ -119,9 +132,10 @@ export async function helperReply(ideaId: string): Promise<string | null> {
   const idea = await prisma.wanderIdea.findUnique({ where: { id: ideaId }, include: { pictures: true } });
   if (!idea || idea.parentId || idea.role !== "person") return null;
   const others = await prisma.wanderIdea.findMany({ where: { tripId: idea.tripId, parentId: null, id: { not: idea.id } }, orderBy: { createdAt: "desc" }, take: 40,
-    select: { authorName: true, words: true, status: true, createdAt: true } });
-  const STATUS_SAID: Record<string, string> = { new: "new", talking: "being talked over", planned: "already planned", built: "already built", "not-now": "set aside for now" };
-  const list = others.map((o) => `- ${o.authorName}, ${o.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Tokyo" })} [${STATUS_SAID[o.status] || o.status}]: ${o.words.slice(0, 200).replace(/\s+/g, " ")}`).join("\n") || "(none yet)";
+    select: { authorName: true, travelerId: true, words: true, status: true, createdAt: true } });
+  // (andy-ideas: "new" came out as "not looked at yet", which read as neglect)
+  const STATUS_SAID: Record<string, string> = { new: "posted, not yet talked over", talking: "being talked over", planned: "already planned", built: "already built", "not-now": "set aside for now" };
+  const list = others.map((o) => `- ${o.authorName}${o.travelerId && o.travelerId === idea.travelerId ? " (the same person)" : ""}, ${o.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Tokyo" })} [${STATUS_SAID[o.status] || o.status}]: ${o.words.slice(0, 200).replace(/\s+/g, " ")}`).join("\n") || "(none yet)";
   const content: Anthropic.ContentBlockParam[] = [
     ...idea.pictures.slice(0, MOST_PICTURES).map((p) => ({ type: "image" as const, source: { type: "base64" as const, media_type: p.imageType as "image/jpeg", data: Buffer.from(p.image).toString("base64") } })),
     { type: "text", text: `EARLIER IDEAS:\n${list}\n\nTHE NEW IDEA, from ${idea.authorName}${idea.screen ? `, on ${idea.screen}` : ""}${idea.pictures.length ? `, with ${idea.pictures.length} screenshot${idea.pictures.length > 1 ? "s" : ""}` : ""}:\n${idea.words || "(no words — just the screenshot)"}` },

@@ -46,7 +46,7 @@ router.post("/trip/:tripId", async (req: AuthRequest, res) => {
 
 // POST /trip/:tripId/:id/status — { status }
 router.post("/trip/:tripId/:id/status", async (req: AuthRequest, res) => {
-  const ok = req.user?.travelerId ? await setStatus(req.params.tripId as string, req.user.travelerId, req.params.id as string, String((req.body || {}).status || "")) : false;
+  const ok = req.user?.travelerId ? await setStatus(req.params.tripId as string, req.user.travelerId, req.params.id as string, String((req.body || {}).status || ""), req.user.displayName) : false;
   if (!ok) { res.status(400).json({ error: "That status couldn't be set." }); return; }
   res.json({ ok: true });
 });

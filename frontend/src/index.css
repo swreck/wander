@@ -16,6 +16,22 @@
   to { opacity: 1; }
 }
 
+/* "Play the day" 2.0 (Oct 15 2026): a slide fades in over the one before; its photo drifts slowly closer; its words rise */
+@keyframes playDrift {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+@keyframes playRise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.play-in { animation: fadeIn .4s ease-out; }
+.play-drift { animation: playDrift 16s ease-out forwards; }
+.play-rise { animation: playRise .35s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .play-in, .play-drift, .play-rise { animation: none; }
+}
+
 .animate-greetingFadeIn {
   animation: greetingFadeIn 0.4s ease-out;
 }

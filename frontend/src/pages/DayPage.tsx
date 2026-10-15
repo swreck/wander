@@ -38,6 +38,7 @@ import SendOut, { dayText, bookingText } from "../components/SendOut";
 import { directionsHref } from "../lib/directions";
 import { appleGuides, savedAppleGuides, type GuidesByDay } from "../lib/appleGuides";
 import { guidePictures, savedGuidePictures, type GuidePicture } from "../lib/guidePictures";
+import { dayPanels, savedDayPanels, type PanelsByDay, type DayPanel } from "../lib/dayPanels";
 import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
@@ -231,6 +232,45 @@ function DayPicture({ tripId, picture, her, tab }: { tripId: string; picture: Gu
   );
 }
 
+/**
+ * Her illustrated map's panel for this day, at the top of the day ("Wander in pictures" idea 3, Oct 15 2026): her own art
+ * for the day, whole (a tall panel is shown entire over a soft blur of itself, at most 340 pt, so the day below still
+ * starts on the first screen). Its box has its height from the first frame — nothing below moves when it loads. A tap
+ * opens her whole map, every day of it, to pinch and zoom.
+ */
+const COUNT_WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+// (Her: "Larisa's" — "Your" for Larisa herself)
+function DayPanelCard({ tripId, panel, days, Her }: { tripId: string; panel: DayPanel; days: number; Her: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "opening" | "failed">("idle");
+  const [noSignal, setNoSignal] = useState(false);
+  const open = async () => {
+    setState("opening");
+    try {
+      const r = await api.get<{ url: string | null }>(`/guide/picture-link/${tripId}/${panel.of}`);
+      if (r.url) { setUrl(r.url); setState("idle"); } else setState("failed");
+    } catch { setState("failed"); }
+  };
+  return (
+    <section aria-label={`${Her} map of the day`} className="mb-4">
+      <button type="button" onClick={open} disabled={state === "opening"} aria-label={`${Her} map of this day. Open the whole map`}
+        className="relative block w-full rounded-xl overflow-hidden border border-[#e0d8cc] bg-[#efe8dc]"
+        style={{ height: `min(340px, calc((min(100vw, 576px) - 32px) * ${(panel.h / panel.w).toFixed(4)}))` }}>
+        {noSignal ? <span className="absolute inset-0 flex items-center justify-center text-xs text-[#6b5d4a]">{Her} map needs signal</span> : (
+          <>
+            <img src={panel.url} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-50" />
+            <img src={panel.url} alt="" onError={() => setNoSignal(true)} className="relative w-full h-full object-contain" />
+          </>
+        )}
+      </button>
+      <p className="text-xs text-[#6b5d4a] mt-1.5">
+        {state === "opening" ? "Opening the whole map…" : state === "failed" ? "The whole map couldn't open — tap to try again." : `${Her} map · tap to see ${days > 1 ? `all ${COUNT_WORDS[days] || days} days` : "the whole map"}`}
+      </p>
+      {url && <PictureViewer src={url} alt={`${Her} illustrated map`} onClose={() => setUrl(null)} />}
+    </section>
+  );
+}
+
 /** A line of her note for a moment in "Play the day": her "Experience:" when she wrote one, else her first line — short */
 function momentNote(lines: string[]): string | null {
   // (her "○ Transit: … ○ Experience: …" is often one line — the Experience part, wherever it sits, and only to the end of
@@ -260,7 +300,7 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
   );
 }
 
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, trainWords, playWords }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, trainWords, playWords, playCover, playTomorrow, playBookings, panelOf }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
   /** the day's city, for finding its stops' photos near it */
   cityId?: string | null;
@@ -268,6 +308,14 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   trainWords?: (b: GuideItem) => string[];
   /** "Play the day"'s heading ("Thu, Oct 15 · Tokyo") */
   playWords?: string;
+  /** "Play the day"'s cover: the day in a few sentences, the city's photo */
+  playCover?: PlayCover;
+  /** the trip's next day, for "Play tomorrow" at the end */
+  playTomorrow?: { words: string; date: string; play: boolean } | null;
+  /** the bookings said under a line, in words, for "Play the day" ("6:35 PM · UA34 KIX → SFO") */
+  playBookings?: (b: GuideItem) => string[];
+  /** her picture whose panel heads this day (its "See her map" button isn't offered again here) */
+  panelOf?: string;
   /** plans added in Wander with a time, drawn among her lines at their time ("HH:MM") — marked as added, never as hers */
   added?: { time: string; node: ReactNode }[];
   /** the train under this line already says where the sources' times differ — not again in amber on the line */
@@ -325,6 +373,26 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   const hitOf = (b: GuideItem) => { const q = queries.find((x) => x.id === b.id)?.query; const h = q ? photos[q] || null : null; return h && firstFor.get(h.id) === b.id ? h : null; };
   const [gallery, setGallery] = useState<GuideItem | null>(null);
   const [playing, setPlaying] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  // "Play tomorrow" at the end of a day's Play: Play closes (its Back step comes off first), then tomorrow's day opens
+  // straight into its own Play — "#play-2026-10-16", opened only once that day's own lines are here
+  const blocksDay = String(blocks[0]?.date || "").slice(0, 10);
+  useEffect(() => {
+    const want = location.hash.match(/^#play-(\d{4}-\d{2}-\d{2})$/)?.[1];
+    if (!want || want !== blocksDay) return;
+    navigate(location.pathname + location.search, { replace: true });
+    setPlaying(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash, blocksDay]);
+  const goTomorrow = playTomorrow ? () => {
+    let done = false;
+    // (a next day with her plan opens straight into its Play; one without, on its own page — never a dead end, tourist65)
+    const go = () => { if (done) return; done = true; window.removeEventListener("popstate", go); navigate(`/day/${playTomorrow.date}${playTomorrow.play ? `#play-${playTomorrow.date}` : ""}`); };
+    window.addEventListener("popstate", go);
+    setPlaying(false);
+    setTimeout(go, 400);
+  } : null;
   const tab = blocks[0].source.split(" · ")[0];
   const heading = blocks[0].source.split(" · ").slice(1).join(" · ");
   // Wander's own match of an undated tab to this day — said once, as Wander's
@@ -337,6 +405,11 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   const matched = matchedRaw && matchedRaw.replace(/ A picture in her .*? labels Day \d+ .*? — a different date; worth checking with Larisa\./, "");
   // Her tab plans this day twice: which one Wander follows, said once, up top (Oct 2 — her revised Day 2)
   const twoVersions = (blocks.map((b) => (b.detail || "").split("\n").find((l) => /^Her tab has \d+ versions of this day's plan/.test(l))).find(Boolean)) || null;
+  // (in words, without her cell names — "Wander follows A46 (the one she added most recently); A44 has other times"
+  // read as a spreadsheet to Larisa, Sweep B); the same words on the list and on Play's cover
+  const twoVersionsWords = twoVersions ? v.say(twoVersions
+    .replace(/: Wander follows \S+ \((.+?)\); .+? (has|have) other times — /, (_m, why, verb) => `. Wander follows ${why}; the other${verb === "have" ? "s have" : " has"} different times — `)
+    .replace(/^Her tab/, `${v.Her} tab`).replace(/worth checking with \S+ which is current/, (m) => (v.mine ? "worth a look to see which one is current" : m))) : null;
   const noOwner = ownerlessInSplit(blocks);
   // When each line ends, and the line you're on now — the same rule Home and Now use (lib/guideDisplay.ts)
   const endOf = (b: GuideItem) => planLineEnd(b, blocks);
@@ -348,26 +421,91 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // "Play the day": her lines as moments, in her order — today from the one you're on now
   const all: Moment[] = blocks.map((b) => {
     const lines = (b.detail || "").split("\n").filter((l) => l && !/^(Choice: |Tabs differ: |Times are Larisa's estimate\.|Wander matched this plan|Her tab has \d+ versions|Her whole route for the day: )/.test(l) && !PICTURE_GROUP.test(l));
-    return { id: b.id, time: planTime(b) || null, title: b.title.replace(/^./, (c) => c.toUpperCase()), note: momentNote(lines), map: mapOf[b.id] ?? null,
-      hit: hitOf(b), trains: trainWords ? trainWords(b) : [], forWhom: b.forWhom ? (isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`) : null, isNow: current?.id === b.id };
+    const note = momentNote(lines);
+    // (all her words for the line, as she wrote them — Wander's own "Where: … — the stop her tab lists" said apart)
+    const words = lines.filter((l) => !/^Where: .+ — the stop her tab lists/.test(l)).join("\n").trim();
+    const flat = (t: string) => t.replace(/[\s○•-]+/g, " ").trim();
+    // Play is never less careful than the list (tourist65: Oct 29 said "Arrive KIX ~2:00–2:30, in 6 h" where the list
+    // says the booked train arrives 2:50 PM): the same corrections, in the same words
+    const booking = choicesOf(b).length ? undefined : (bookings || []).find((m) => m.time === b.time && saidAgain(b, m));
+    const twoTimes = (!!differAbove && differAbove(b)) || (!!differBelow && differBelow(b));
+    // (exactly as the list: no "tabs differ" where the sources' two times are said — on Oct 29 that was her done "Book
+    // 1:30p Haruka… - DONE" (Ken, Oct 14: "if it is done or out of date, you don't show it"); the booking's own, when
+    // the difference is in her booking)
+    const atBooking = !!booking && tabsDiffer(booking).length > 0;
+    const differs = (twoTimes ? [] : atBooking ? tabsDiffer(booking!) : tabsDiffer(b)).map((d) => differWordsFor(d, v));
+    const dress = bookingDress(b, bookings);
+    const cautions = [
+      ...(railArrivals?.[b.id] ? [`Timed for the train in ${v.her} tab — the booked train arrives ${railArrivals[b.id]}`] : []),
+      ...(twoTimes ? [`The sources give two times for this. The booked train is the one in the box.`] : []),
+      ...differs,
+    ];
+    // (who a line is for when her table names no one: the same words as the list — tourist66, Oct 28: Ken at MIHO saw
+    // "Maruni Toryo · in 5 min" with no group)
+    const picGroup = pictureGroupOf(b);
+    const info = [
+      ...(picGroup ? [`${noOwner.has(b.id) ? `${v.Her} plan names no group here; a` : "A"} picture in ${v.her} tab puts it under “${picGroup}”${pictureYou(picGroup, v, me)}`]
+        : noOwner.has(b.id) ? ["No group named here — the group is split"] : []),
+      ...(b.detail || "").split("\n").filter((l) => /^Where: .+ — the stop her tab lists/.test(l)).map((l) => v.say(l)),
+      ...(playBookings ? playBookings(b) : []),
+      ...(dress ? [`${dress.stricter ? `${v.Her} booking at ${dress.where} asks less: ` : `${v.Her} booking at ${dress.where}: `}“${dress.words}”`] : []),
+    ];
+    const hm = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+    // (when it starts for the "in 45 min": the booked arrival when her time is for another train; none when the sources
+    // give two times — a countdown to one of them would pick a side)
+    const clockMin = (h: string, m: string, ap: string) => (Number(h) % 12 + (/p/i.test(ap) ? 12 : 0)) * 60 + Number(m);
+    const booked = railArrivals?.[b.id]?.match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+    // A booked train under the line: its own times are when it is — on board, it's Now (tourist66: riding the 1:30 HARUKA
+    // at 1:45, Play said "Earlier today" from her ~12:30 and opened on the cover)
+    const trains = trainWords ? trainWords(b) : [];
+    const ride = trains.map((t) => t.match(/(\d{1,2}):(\d{2})\s*([AP]M)\s*→\s*(\d{1,2}):(\d{2})\s*([AP]M)/i)).find(Boolean);
+    const rideStart = ride ? clockMin(ride[1], ride[2], ride[3]) : null;
+    const rideEnd = ride ? clockMin(ride[4], ride[5], ride[6]) : null;
+    const start = rideStart ?? (twoTimes ? null : booked ? clockMin(booked[1], booked[2], booked[3]) : b.time ? hm(b.time) : null);
+    const end = rideStart !== null ? rideEnd : start === null ? null : booked ? start + 15 : endOf(b);
+    const onBoard = rideStart !== null && rideEnd !== null && nowAt !== null && rideStart <= nowAt && nowAt < rideEnd && isFor(b, me);
+    return { id: b.id, time: planTime(b) || null, title: b.title.replace(/^./, (c) => c.toUpperCase()), note, map: mapOf[b.id] ?? null,
+      hit: hitOf(b), trains, forWhom: b.forWhom ? (isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`) : null, isNow: current?.id === b.id || onBoard,
+      full: words && flat(words) !== flat(note || "") ? words : null, cautions, info,
+      // (what the Next button says for it: the booked time when hers is for another train — "2:50 PM", not "~2:00")
+      at: rideStart !== null ? ride![0].split("→")[0].trim() : railArrivals?.[b.id] || null,
+      start, end };
   });
   // Her travel lines ("Taxi back to Shiraume", "Continue same taxi to TeamLab") fold into the moment they lead to, as
   // "Getting there: ~2:15 · Taxi to Raku Museum" — in her order, nothing dropped (tourist64: 13 of Kyoto Tuesday's 19
   // moments were plain cards like a taxi, and tapping through them was a chore). A train her line books stays its own
   // moment. The last line of a day, if it's travel, joins the moment before it.
+  // (tourist65: "Leave Shiraume" and "Leave Four Seasons for dinner" were thin cards of their own — they fold like a taxi;
+  // "Finish TeamLab" joins TeamLab as its end. A line with a correction on it never folds: it keeps its own screen.)
   const moments: Moment[] = [];
   let carry: string[] = [], carryNow = false;
+  const said = (m: Moment) => `${m.time ? `${m.time} · ` : ""}${m.title}`;
   for (const m of all) {
-    const travel = TRAVEL.test(m.title) && !m.hit && !m.trains.length;
-    if (travel) { carry.push(`${m.time ? `${m.time} · ` : ""}${m.title}`); carryNow ||= m.isNow; continue; }
+    const plain = !m.hit && !m.trains.length && !(m.cautions || []).length && !(m.info || []).length;
+    const travel = plain && (TRAVEL.test(m.title) || /^\W*(leave|depart)\b/i.test(m.title));
+    const finish = plain && /^\W*finish\b/i.test(m.title) && moments.length > 0 && !carry.length;
+    if (finish) { const prev = moments[moments.length - 1]; prev.after = [...(prev.after || []), said(m)]; prev.isNow ||= m.isNow; continue; }
+    if (travel) { carry.push(said(m)); carryNow ||= m.isNow; continue; }
     moments.push({ ...m, getting: carry.length ? carry : undefined, isNow: m.isNow || carryNow });
     carry = []; carryNow = false;
   }
   if (carry.length) {
     const last = moments[moments.length - 1];
-    if (last) last.trains = [...last.trains, ...carry.map((c) => `Then: ${c}`)]; else moments.push(...all.filter((m) => carry.some((c) => c.endsWith(m.title))));
+    if (last) { last.after = [...(last.after || []), ...carry]; last.isNow ||= carryNow; } else moments.push(...all.filter((m) => carry.some((c) => c.endsWith(m.title))));
   }
-  const playFrom = Math.max(0, moments.findIndex((m) => m.isNow));
+  // (today, on what's happening now; otherwise the day's cover)
+  const playFrom = moments.findIndex((m) => m.isNow);
+  // The cover: the day in her words when Wander has no summary of it (her Itinerary line); the day's own first photo
+  // before the city's (tourist65: Fushimi Inari on a Kiyomizu day implied a stop the day doesn't have); her two versions
+  const firstHit = moments.find((m) => m.hit)?.hit || null;
+  const cover: PlayCover = {
+    summary: playCover?.summary || (overview.length ? `In ${v.her} Itinerary: “${overview.map((o) => o.title).join(" · ")}”` : null),
+    photo: firstHit ? { src: placePhotoUrl(firstHit, 0), place: firstHit.name || moments.find((m) => m.hit === firstHit)!.title, credit: firstHit.photos[0]?.credit ? `Photo: ${firstHit.photos[0].credit} · Google` : null }
+      : playCover?.photo || null,
+    notes: twoVersionsWords ? [twoVersionsWords] : [],
+    texture: playCover?.texture || null,
+    her: v.Her,
+  };
   return (
     <section id="plan" className="mb-5 scroll-mt-24">
       <div className="flex items-center justify-between gap-3">
@@ -381,7 +519,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           </button>
         )}
       </div>
-      {playing && <PlayTheDay moments={moments} dayWords={playWords || ""} start={playFrom} onClose={() => setPlaying(false)} />}
+      {playing && <PlayTheDay moments={moments} dayWords={playWords || ""} start={playFrom} onClose={() => setPlaying(false)}
+        cover={cover} nowAt={nowAt} tomorrow={playTomorrow && goTomorrow ? { words: playTomorrow.words, play: playTomorrow.play, go: goTomorrow } : null} />}
       {gallery && hitOf(gallery) && <PlaceGallery hit={hitOf(gallery)!} title={gallery.title.replace(/^./, (c) => c.toUpperCase())} time={planTime(gallery) || null} map={mapOf[gallery.id] ?? null} onClose={() => setGallery(null)} />}
       {/* (the tab's plan table, opened in her sheet — round 16) */}
       <SheetSpots tripId={tripId} wholeTable label={`From the ${tabLabel(tab)} tab${heading ? ` — ${heading}` : ""}`} className="mt-0.5"
@@ -400,7 +539,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       })()}
       {/* Her pictures in this day's tab — her illustrated map of these days, full screen, pinch to zoom (Oct 2: they sat
           at the top of her day tabs, out of sight in Wander) */}
-      {tripId && !oldPicture && pictures.filter((p, i, all) => p.tab === tab && all.findIndex((q) => q.tab === tab && q.sha256 === p.sha256) === i).map((p) => (
+      {/* (not the one whose panel heads the day — its tap opens the same map: each fact once) */}
+      {tripId && !oldPicture && pictures.filter((p, i, all) => p.tab === tab && p.sha256 !== panelOf && all.findIndex((q) => q.tab === tab && q.sha256 === p.sha256) === i).map((p) => (
         <DayPicture key={p.sha256} tripId={tripId} picture={p} her={v.her} tab={tabLabel(tab)} />
       ))}
       {/* Her Apple Maps guide for the day — a map she made in Apple Maps, opened as it is now (Oct 2) */}
@@ -417,9 +557,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       ))}
       {/* (in words, without her cell names — "Wander follows A46 (the one she added most recently); A44 has other times"
           read as a spreadsheet to Larisa, Sweep B) */}
-      {twoVersions && <p className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{v.say(twoVersions
-        .replace(/: Wander follows \S+ \((.+?)\); .+? (has|have) other times — /, (_m, why, verb) => `. Wander follows ${why}; the other${verb === "have" ? "s have" : " has"} different times — `)
-        .replace(/^Her tab/, `${v.Her} tab`).replace(/worth checking with \S+ which is current/, (m) => (v.mine ? "worth a look to see which one is current" : m)))}</p>}
+      {twoVersionsWords && <p className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{twoVersionsWords}</p>}
       {matched && (whyOpen
         ? <p className="text-[13px] text-[#6b5d4a] mt-1">{v.say(matched)}</p>
         : <button onClick={() => setWhyOpen(true)} className="min-h-[44px] text-left text-[13px] text-[#6b5d4a]">
@@ -638,7 +776,7 @@ import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
 import { CityTitle, warmCityPhoto, photoWanted, useCityBandPhoto } from "../components/CityArrival";
 import { keptPlacePhotos, lookUpPlacePhotos, mapsQueryOf, placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
 import PlaceGallery from "../components/PlaceGallery";
-import PlayTheDay, { type Moment } from "../components/PlayTheDay";
+import PlayTheDay, { type Moment, type PlayCover } from "../components/PlayTheDay";
 import DayForecast from "../components/DayForecast";
 import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
@@ -737,6 +875,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const [notesByTab, setNotesByTab] = useState<NotesByTab>({});
   const [mapsByDay, setMapsByDay] = useState<GuidesByDay>({});
   const [pictures, setPictures] = useState<GuidePicture[]>([]);
+  // her illustrated map's panel for each day it covers (Kyoto, Oct 25–29) — lib/dayPanels
+  const [panels, setPanels] = useState<PanelsByDay>({});
   const [summariesByDay, setDaySummaries] = useState<Record<string, string>>({});
   const scrolledFor = useRef<string | null>(null);
 
@@ -757,13 +897,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         if (!id) id = (await api.get<Trip | null>("/trips/active"))?.id || null;
         if (!id) { if (!cancelled) setState("unreachable"); return; }
         const tid = id;
-        const got: { sources?: OtherSource[]; summaries?: Record<string, string>; notes?: NotesByTab; maps?: GuidesByDay; pictures?: GuidePicture[]; links?: SheetLinks } = {};
+        const got: { sources?: OtherSource[]; summaries?: Record<string, string>; notes?: NotesByTab; maps?: GuidesByDay; pictures?: GuidePicture[]; links?: SheetLinks; panels?: PanelsByDay } = {};
         // (the Next tab's day is worked out from her Guide; the phone's date is its best guess until then)
         const firstDate = now ? phoneToday() : /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
         // (her sheet's address too: a "from her … tab" line is a link in the first drawing — re-audit 2)
-        const saved = { sources: savedSources(tid), summaries: savedDaySummaries(tid), notes: savedSheetNotes(tid), maps: savedAppleGuides(tid), pictures: savedGuidePictures(tid), links: savedSheetLinks(tid) ?? undefined };
+        const saved = { sources: savedSources(tid), summaries: savedDaySummaries(tid), notes: savedSheetNotes(tid), maps: savedAppleGuides(tid), pictures: savedGuidePictures(tid), links: savedSheetLinks(tid) ?? undefined, panels: savedDayPanels(tid) };
         const plansSaved = !firstDate || localStorage.getItem(`wander:day-plans:${tid}:${firstDate}`) !== null;
-        const haveAll = (["sources", "summaries", "notes", "maps", "pictures", "links"] as const).every((k) => saved[k] !== undefined) && plansSaved;
+        const haveAll = (["sources", "summaries", "notes", "maps", "pictures", "links", "panels"] as const).every((k) => saved[k] !== undefined) && plansSaved;
         // (with this phone's copies, her Guide comes first and the rest refresh after — on a slow signal they'd only slow it)
         const asked = haveAll ? null : Promise.allSettled([
           sourcesData(tid).then((d) => { got.sources = d.sources; }),
@@ -772,6 +912,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
           appleGuides(tid).then((g) => { got.maps = g; }),
           guidePictures(tid).then((p) => { got.pictures = p; }),
           sheetLinks(tid).then((l) => { got.links = l; }),
+          dayPanels(tid).then((x) => { got.panels = x; }),
           // (kept where the plans' own loader below reads its saved copy first)
           firstDate ? api.get<DayChoice[]>(`/day-choices/${tid}?date=${firstDate}`).then((c) => { try { localStorage.setItem(`wander:day-plans:${tid}:${firstDate}`, JSON.stringify(c)); } catch { /* full */ } }) : null,
         ]);
@@ -786,7 +927,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         const photo = warmCityPhoto(photoCity);
         const cityDates = d.days.filter((x) => x.cityId === photoCity).map((x) => ymd(x.date)).sort();
         const photoDue = photoWanted(photoCity) && dayDate <= phoneToday() && cityDates[0] <= phoneToday() && phoneToday() <= cityDates[cityDates.length - 1];
-        const known = () => (["sources", "summaries", "notes", "maps", "pictures", "links"] as const).every((k) => got[k] !== undefined || saved[k] !== undefined)
+        const known = () => (["sources", "summaries", "notes", "maps", "pictures", "links", "panels"] as const).every((k) => got[k] !== undefined || saved[k] !== undefined)
           && (!firstDate || localStorage.getItem(`wander:day-plans:${tid}:${firstDate}`) !== null);
         if (asked && !known()) await Promise.race([asked, new Promise((r) => setTimeout(r, EXTRAS_WAIT_MS))]);
         if (photoDue && photoWanted(photoCity)) await Promise.race([photo, new Promise((r) => setTimeout(r, PHOTO_GRACE_MS))]);
@@ -799,6 +940,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         setNotesByTab(got.notes ?? saved.notes ?? {});
         setMapsByDay(got.maps ?? saved.maps ?? {});
         setPictures(got.pictures ?? saved.pictures ?? []);
+        setPanels(got.panels ?? saved.panels ?? {});
         setState("ready");
       } catch {
         if (!cancelled) setState((s) => (s === "ready" ? s : "unreachable"));
@@ -915,6 +1057,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     sheetNotes(tripId).then((n) => { if (!cancelled) setNotesByTab(same(n)); });
     appleGuides(tripId).then((g) => { if (!cancelled) setMapsByDay(same(g)); });
     guidePictures(tripId).then((p) => { if (!cancelled) setPictures(same(p)); });
+    dayPanels(tripId).then((x) => { if (!cancelled) setPanels(same(x)); });
     daySummaries(tripId).then((s) => { if (!cancelled) setDaySummaries(same(s)); });
     return () => { cancelled = true; };
   }, [tripId]);
@@ -1713,6 +1856,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   : "The rail sheet's train times aren't on this phone yet — they'll show here once you have signal."}
               </p>
             )}
+            {/* Her own map of the day leads, on a day her illustrated map covers (Kyoto) — not on Next, where the next stop
+                leads */}
+            {!now && tripId && panels[date] && (
+              <DayPanelCard tripId={tripId} panel={panels[date]} Her={v.Owners} days={Object.values(panels).filter((p) => p.of === panels[date].of).length} />
+            )}
             {!now && summariesByDay[date] && (
               <section aria-label="This day in brief" className="mb-4">
                 {/* (to Larisa, Wander's words about her Guide in her voice: "your tabs name two…", "which you note is
@@ -2049,6 +2197,16 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 tripId={tripId}
                 cityId={bandCity?.id}
                 playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
+                playCover={{ summary: summariesByDay[date] || null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
+                  texture: panels[date]?.url || bandPhoto?.src || null }}
+                playTomorrow={(() => {
+                  // (straight into its Play when the next day has her plan; else its page)
+                  if (!hasNext) return null;
+                  const city = trip?.cities.find((c) => c.id === days.find((d) => ymd(d.date) === tomorrowDate)?.cityId)?.name;
+                  return { date: tomorrowDate, words: `${shortDate(tomorrowDate)}${city ? ` · ${city}` : ""}`, play: items.filter((i) => i.kind === "block" && ymd(i.date) === tomorrowDate).length >= 2 };
+                })()}
+                panelOf={panels[date]?.of}
+                playBookings={(b) => (underLine.get(b.id) || []).map((o) => `${o.time ? `${timeLabel(o, dayItems)} · ` : ""}${itemTitle(o, stays, date)}`)}
                 trainWords={(b) => (trainsUnder.get(b.id) || []).map((x) => {
                   const dep = colOf(x.r.cols, /^depart/), arr = colOf(x.r.cols, /^arrive/);
                   return [colOf(x.r.cols, /^train$/), colOf(x.r.cols, /^route$/), dep && arr ? `${twelveHour(dep)} → ${twelveHour(arr)}` : dep ? twelveHour(dep) : "", colOf(x.r.cols, /^car/)].filter(Boolean).join(" · ");

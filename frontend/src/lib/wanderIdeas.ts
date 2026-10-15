@@ -9,7 +9,8 @@ export type IdeaStatus = "new" | "talking" | "planned" | "built" | "not-now";
 export const STATUS_WORDS: Record<IdeaStatus, string> = { new: "New", talking: "Talking", planned: "Planned", built: "Built", "not-now": "Not now" };
 /** Who wrote a post, as the page says it (verify62: "Claude, Wander's engineer" meant nothing to Andy) */
 export const ENGINEER_LABEL = "Claude, who builds Wander with Ken";
-export interface IdeaPost { id: string; who: string; role: "person" | "helper" | "engineer"; mine: boolean; words: string; screen: string | null; pictures: string[]; at: string }
+/** (role "status": a line saying the idea's status moved — its words are the new status, "built") */
+export interface IdeaPost { id: string; who: string; role: "person" | "helper" | "engineer" | "status"; mine: boolean; words: string; screen: string | null; pictures: string[]; at: string }
 export interface Idea extends IdeaPost { status: IdeaStatus; replies: IdeaPost[] }
 
 export const ideasOf = (tripId: string) => api.get<{ ideas: Idea[]; seenAt: string | null }>(`/wander-ideas/trip/${tripId}`);
