@@ -332,12 +332,15 @@ function addSky(moments: Moment[], playCover: PlayCover | undefined, nowAt: numb
 
 /** "Play the day" for a day her Guide gives no timed plan (Oct 15 2026 — Ken: "Create play every day. Use what you have
  *  from the backroads content."): the moments come built — Backroads' day with her lines in it, or her lines in order */
-function DayPlay({ tripId, cityId, date, moments: built, places, heading, playWords, cover, nowAt, playTomorrow }: {
+function DayPlay({ tripId, cityId, date, moments: built, places, heading, outline, playWords, cover, nowAt, playTomorrow }: {
   tripId: string | null; cityId?: string | null; date: string; moments: Moment[];
   /** what to look up for a moment's photo, by moment id ({ query, line } as the plan's photos are found; `note` says what
    *  the photo is when it's an example, shown only with the photo) */
   places: Record<string, { query: string; line: string; note?: string }>;
   heading: string; playWords: string; cover: PlayCover; nowAt: number | null;
+  /** on a Backroads day, what their itinerary holds, in a line — the ride and the stops weren't on the day's page at all,
+   *  only inside Play ("If I'd only scrolled the day page I'd think Sunday was a bus day" — user-andy4) */
+  outline?: string | null;
   playTomorrow: { words: string; date: string; play: boolean } | null;
 }) {
   const [playing, setPlaying] = useState(false);
@@ -383,6 +386,7 @@ function DayPlay({ tripId, cityId, date, moments: built, places, heading, playWo
     setTimeout(go, 400);
   } : null;
   return (
+    <>
     <div className="flex items-center justify-between gap-3 mb-2">
       <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{heading}</h2>
       <button type="button" onClick={() => setPlaying(true)}
@@ -393,6 +397,8 @@ function DayPlay({ tripId, cityId, date, moments: built, places, heading, playWo
       {playing && <PlayTheDay moments={moments} dayWords={playWords} start={playFrom} onClose={() => setPlaying(false)}
         cover={fullCover} nowAt={nowAt} tomorrow={playTomorrow && goTomorrow ? { words: playTomorrow.words, play: playTomorrow.play, go: goTomorrow } : null} />}
     </div>
+    {outline && <p className="text-[13px] text-[#514636] mb-3">{outline}</p>}
+    </>
   );
 }
 
@@ -2541,6 +2547,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {!planBlocks.length && docAsked && dayPlay.moments.length > 0 && (
               <DayPlay tripId={tripId} cityId={bandCity?.id} date={date} moments={dayPlay.moments} places={dayPlay.places}
                 heading={docDay ? "The day with Backroads" : `The day in ${v.her} Guide`}
+                outline={docDay ? (() => {
+                  // (their own moments, by their titles and lengths; her check-out, meeting and dinner are in the list below)
+                  const theirs = docDay.moments.filter((d) => !d.her).map((d) => `${d.title}${d.length ? ` (${d.length})` : ""}`);
+                  return theirs.length ? `${docDay.from}' general itinerary for their Day ${docDay.day}: ${theirs.join(" · ")}. Play the day shows each, in their words.` : null;
+                })() : null}
                 playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
                 cover={{ summary: summariesByDay[date] ? v.say(summariesByDay[date]) : null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
                   notes: dayPlay.notes, panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null, photos: dayPhotos, her: v.Her,

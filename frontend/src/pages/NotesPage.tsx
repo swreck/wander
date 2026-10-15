@@ -624,7 +624,7 @@ export default function NotesPage() {
                 <div className="mt-3 rounded-lg bg-[#f3f7ef] border border-[#cfe0c2] px-3 py-2" role="status">
                   <p className="text-sm text-[#3f5a2a]">
                     {/* ("spoken" said here too — on the note's own line below it went unseen; Ken, Oct 2) */}
-                    Saved — {result.note.wordCount} {result.note.source === "voice" ? "spoken " : ""}word{result.note.wordCount === 1 ? "" : "s"}, every one kept{result.note.visibility === "trip" ? ", shared with the trip" : ", just for you"}.
+                    Saved — {result.note.wordCount} word{result.note.wordCount === 1 ? "" : "s"}, every one kept{result.note.visibility === "trip" ? ", shared with the trip" : ", just for you"}.
                     {result.note.wordCount !== result.sentWords && ` (This phone counted ${result.sentWords} — tap below and check the words.)`}
                   </p>
                   <button onClick={() => setShowSaved((s) => !s)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">{showSaved ? "Hide the saved words" : "Show the saved words"}</button>

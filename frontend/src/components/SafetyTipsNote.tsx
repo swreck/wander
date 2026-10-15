@@ -26,6 +26,9 @@ export default function SafetyTipsNote() {
     try { return !localStorage.getItem(localKey(me)); } catch { return true; }
   });
   const [how, setHow] = useState(false);
+  // (shown once the person's own setting has answered — on a fresh phone it flashed up and went for someone who'd put it
+  // away on another phone; user-julie4)
+  const [asked, setAsked] = useState(false);
 
   // (put away on another phone: the person's own setting says so)
   useEffect(() => {
@@ -33,11 +36,12 @@ export default function SafetyTipsNote() {
     let live = true;
     api.get<{ preferences?: Record<string, unknown> | null }>(`/auth/travelers/${travelerId}`)
       .then((t) => { if (live && t?.preferences?.safetyTipsNote === "done") { setShown(false); try { localStorage.setItem(localKey(me), "done"); } catch { /* private */ } } })
-      .catch(() => { /* no signal: this phone decides */ });
+      .catch(() => { /* no signal: this phone decides */ })
+      .finally(() => { if (live) setAsked(true); });
     return () => { live = false; };
   }, [shown, travelerId, me]);
 
-  if (!shown) return null;
+  if (!shown || (travelerId && !asked)) return null;
   const done = () => {
     setShown(false);
     try { localStorage.setItem(localKey(me), "done"); } catch { /* private */ }

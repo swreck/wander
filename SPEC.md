@@ -1726,8 +1726,14 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
     credit. Her Guide's own lines are those moments where she has them (the morning meeting, each dinner by her name for
     it, the check-outs). Times only where she gives one; Backroads gives lengths. A choice in their day reads as one
     moment ("…, or a climb to a viewpoint"). Play on a Backroads day waits for Backroads' moments before it offers itself.
-    The cover says: "From Backroads' general itinerary, Day N (page N). Details can differ for your departure; Larisa's
-    Guide has your bookings." Backroads' current web page describes another departure and isn't used.
+    The cover says: "The moments that follow are Backroads' general itinerary for their Day N, with Larisa's Guide's own
+    lines where they're the same moment. Details can differ for your departure." Backroads' current web page describes
+    another departure and isn't used. A moment quotes the sentence its title names (both, when the title names two).
+  - **On the day's page**, under "The day with Backroads", one line names their moments with their lengths ("Backroads'
+    general itinerary for their Day 1: Shuttle to Kanuma (2 hours) · … Play the day shows each, in their words."), so
+    the ride and the stops are there without opening Play; her check-out, meeting and dinner follow in the list.
+  - **Check-out on the morning they leave** (day list, card, Home, Play): "Meet Backroads, Courtyard by Marriott Tokyo
+    Station is at 8:30 AM, so check out before then. The hotel's own check-out time is 12:00 PM."
   - **Any other day** without her timed plan plays her lines in the day list's order.
 - **A moment**: the photo, the time, the name, a line of her note, a train's booking, her bookings and dress code, the
   stop her tab names for the line, Maps, "6 photos". "Her full note" shows all her words for the line.
