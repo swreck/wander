@@ -68,7 +68,7 @@ export default function SafetyTipsNote() {
             Here's how
           </button>
         )}
-        <button onClick={done} className="min-h-[44px] text-sm text-[#6b5d4a] underline underline-offset-2">
+        <button onClick={done} className="min-h-[44px] min-w-[44px] px-1 text-sm text-[#6b5d4a] underline underline-offset-2">
           Got it
         </button>
       </div>

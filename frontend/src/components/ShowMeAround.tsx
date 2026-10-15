@@ -17,9 +17,10 @@ const stepsFor = (mine: boolean) => {
     { tab: "Home", text: "Today at a glance: what's coming up, where you sleep tonight, and any deadlines. Below that is a calendar of the whole trip. Tap any day to see its plan." },
     // (Maybes, Oct 2 2026: the group's shared list of "maybe we should…", with her ideas)
     { tab: "Maybes", text: `When you think "maybe we should…", write it here and everyone on the trip sees it. Tap "I'm in" on anything you'd like to do. ${mine ? "Your" : "Larisa's"} ideas from ${her === "your" ? "your" : "her"} Activities tab are here too, city by city.` },
-    { tab: "Next", text: "Your next stop today, and how long until it. The Walk, Train and Taxi buttons open Apple Maps with directions from wherever you're standing." },
+    { tab: "Next", text: "Your next stop today, and how long until it. The Walk, Train and Taxi buttons open Google Maps with directions from wherever you're standing." },
     { tab: "Notes", text: "Write down anything you want to remember from the trip. Type or speak, and every word is kept." },
-    { tab: "Actions", text: "Things to do soon, with their deadlines, like the last day to cancel a hotel for free." },
+    // (Budget took Actions' place in the bar, Oct 15 — the tour still pointed at Actions; user-ken2, Oct 16)
+    { tab: "Budget", text: "What each couple has paid for the group, and who pays next: KL in purple when it's Ken & Larisa, AJ in orange when it's Andy & Julie. Tap it to see every payment or add one. To-dos and deadlines are on Home." },
     { tab: "Scout", text: `Ask Scout anything about the trip, typed or spoken. Scout answers from ${her} Guide and shows which tab the answer came from. Scout reads photos and files too, like a menu, a sign or a PDF. Paste one in, or tap the paperclip.` },
     // (the small 日 at the bar's end, Oct 13 — only on a trip that has phrases: shown only when it's on the screen)
     { tab: "Phrases", optional: true, text: "Japanese phrases for the shop counter, the restaurant and the taxi, with how to say each one. Scout adds any you ask it for." },

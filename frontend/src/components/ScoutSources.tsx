@@ -31,6 +31,8 @@ export interface AnswerSources {
   // matched: Scout quoted these words without pointing to them; Wander found the one line holding them, word for word
   claims: { said: string; sources: SourceView[]; unmatchedTimes?: string[]; matched?: boolean }[];
   ownWords: string[];
+  /** figures from Wander's own records — the trip's Budget, the photos, your notes */
+  fromWander?: { said: string; from: string }[];
   /** a photo came with the question: what Scout read from it has no Guide source */
   photo?: boolean;
 }
@@ -41,7 +43,7 @@ export function citesGuide(s: AnswerSources | undefined | null): boolean {
 }
 
 export function hasSources(s: AnswerSources | undefined | null): s is AnswerSources {
-  return !!s && ((s.claims?.length || 0) > 0 || (s.ownWords?.length || 0) > 0);
+  return !!s && ((s.claims?.length || 0) > 0 || (s.ownWords?.length || 0) > 0 || (s.fromWander?.length || 0) > 0);
 }
 
 /** Which sheet the cells below are in, and how to say it to this person ("your sheet", "Larisa's sheet") */
@@ -323,6 +325,15 @@ export default function ScoutSources({ sources, tripId, onClose }: { sources: An
               </div>
             </section>
           ))}
+          {/* (a correct Budget answer's amounts were "Scout's own words — no source"; user-larisa2) */}
+          {!!sources.fromWander?.length && (
+            <section>
+              <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">From Wander's own records</p>
+              <ul className="space-y-1.5">
+                {sources.fromWander.map((w, i) => <li key={i} className="text-sm text-[#3a3128]">“{w.said}” <span className="text-[#6b5d4a]">— {w.from}</span></li>)}
+              </ul>
+            </section>
+          )}
           {sources.ownWords.length > 0 && (
             <section>
               <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{sources.photo ? "Read from your photo, or Scout's own words — not from the Guide" : "Scout's own words — no source"}</p>

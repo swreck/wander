@@ -41,13 +41,16 @@ export function PhotoViewer({ photos: all, start, me, onClose }: { photos: TripP
     <div role="dialog" aria-modal="true" aria-label="Photos from the day" className="fixed inset-0 z-[320] bg-black text-white select-none"
       onTouchStart={(e) => { x0.current = e.touches[0].clientX; }}
       onTouchEnd={(e) => { if (x0.current === null) return; const dx = e.changedTouches[0].clientX - x0.current; x0.current = null; if (dx < -50) setAt((i) => Math.min(i + 1, photos.length - 1)); else if (dx > 50) setAt((i) => Math.max(i - 1, 0)); }}>
+      {/* (a tap on its right goes on, on its left goes back — as Play does; user-andy2, Oct 16: only a swipe worked) */}
       <img key={p.id} src={p.url} alt={p.caption || `A photo ${p.mine ? "you" : p.authorName} took`} className="absolute inset-0 w-full h-full object-contain motion-safe:animate-[fadeIn_.25s_ease-out]"
+        onClick={(e) => { if (words !== null) return; const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); if (e.clientX > r.left + r.width * 0.6) setAt((i) => Math.min(i + 1, photos.length - 1)); else if (e.clientX < r.left + r.width * 0.4) setAt((i) => Math.max(i - 1, 0)); }}
         onError={() => { setGone((g) => ({ ...g, [p.id]: true })); window.dispatchEvent(new Event(PHOTOS_CHANGED)); }} />
       <div className="absolute inset-x-0 top-0 flex items-center justify-between px-3 bg-gradient-to-b from-black/60 to-transparent" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 6px)" }}>
         <span className="text-[13px] text-white/85">{at + 1} of {photos.length}</span>
         <button type="button" onClick={onClose} aria-label="Close" className="min-w-[44px] min-h-[44px] text-xl">✕</button>
       </div>
-      <div className="absolute inset-x-0 bottom-0 px-4 pt-10 bg-gradient-to-t from-black/75 to-transparent" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}>
+      {/* (a darker backing: plain white words over a bright photo were hard to read — user-andy2) */}
+      <div className="absolute inset-x-0 bottom-0 px-4 pt-14 bg-gradient-to-t from-black/90 via-black/70 to-transparent" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}>
         <p className="text-[15px]">{p.mine ? "You" : p.authorName}{timeOf(p) ? ` · ${timeOf(p)}` : ""}{!p.mine ? "" : p.shared ? " · shared with the trip" : " · just you"}</p>
         {words !== null ? (
           <form onSubmit={(e) => { e.preventDefault(); saveWords(); }} className="flex items-center gap-2 mt-2">

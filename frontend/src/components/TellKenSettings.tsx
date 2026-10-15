@@ -32,11 +32,16 @@ export default function TellKenSettings() {
     if (!tripId) return;
     if (tripId === "none") { setList("others"); return; }
     let live = true;
-    api.get<Message[]>(`/tell-ken/trip/${tripId}`)
-      .then((l) => { if (live && Array.isArray(l)) setList(l); })
-      // (only a definite "not the organizer" shows the others' row; no signal or a slow server shows nothing —
-      // verify60: Ken saw "Tell Ken about Wander" when his list couldn't load)
-      .catch((e: { status?: number }) => { if (live && e?.status === 403) setList("others"); });
+    // (whether this person is the organizer, asked plainly; then, for Ken, his list. Only a definite "not the organizer"
+    // shows the others' row; no signal or a slow server shows nothing — verify60: Ken saw "Tell Ken about Wander" when his
+    // list couldn't load)
+    api.get<{ organizer?: boolean }>(`/tell-ken/trip/${tripId}/organizer`)
+      .then((r) => {
+        if (!live) return;
+        if (r?.organizer === false) { setList("others"); return; }
+        if (r?.organizer === true) api.get<Message[]>(`/tell-ken/trip/${tripId}`).then((l) => { if (live && Array.isArray(l)) setList(l); }).catch(() => { /* shows nothing */ });
+      })
+      .catch(() => { /* no signal: shows nothing */ });
     return () => { live = false; };
   }, [tripId]);
   // (opened from the buzz on his phone: straight to the list)

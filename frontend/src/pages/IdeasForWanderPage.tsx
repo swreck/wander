@@ -82,7 +82,8 @@ function Composer({ draftId, placeholder, button, onPost, autoFocus, invite }: {
   const send = async () => {
     if (busy || (!words.trim() && !files.length)) return;
     setBusy(true); setError(null);
-    const err = await onPost(words.trim(), files);
+    // (one space where the starter's and the person's met — "I wish Wander  showed…"; user-andy2)
+    const err = await onPost(words.replace(/ {2,}/g, " ").trim(), files);
     setBusy(false);
     if (err) { setError(err); return; }
     setWords(""); setFiles([]); setTooMany(false); writeDraft(draftId, "");
@@ -332,7 +333,7 @@ export default function IdeasForWanderPage() {
           <section className="bg-white rounded-2xl border border-[#e0d8cc] p-4 flex flex-col gap-2" aria-label="A new idea">
             <div className="flex items-center justify-between">
               <h2 className="text-[17px] font-medium text-[#3a3128]">A new idea</h2>
-              {!!ideas?.length && <button type="button" onClick={() => setComposing(false)} className="min-h-[44px] px-2 -mr-2 text-sm text-[#514636]">Not now</button>}
+              {!!ideas?.length && <button type="button" onClick={() => setComposing(false)} className="min-h-[44px] px-2 -mr-2 text-sm text-[#514636]">Cancel</button>}
             </div>
             <Composer draftId="new" button="Post" invite placeholder="What would make Wander better?"
               onPost={async (words, files) => {

@@ -315,9 +315,14 @@ export default function ProfilePage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6 pb-16 space-y-6">
+        {/* (handing the phone to someone: tapping your name on Home lands here, and sign-out lives in Settings — user-ken2,
+            Oct 16, looked for it here first) */}
+        <button type="button" onClick={() => navigate("/settings")} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+          Settings, and signing out of this phone ›
+        </button>
         {/* Intro */}
         <p className="text-sm text-[#6b5d4a] leading-relaxed">
-          Here's what Scout knows about you &mdash; to help make every trip better.
+          What Scout knows about you.
         </p>
 
         {/* ── Section 1: About You ────────────────────────────── */}

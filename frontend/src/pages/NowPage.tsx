@@ -933,7 +933,7 @@ export default function NowPage() {
                       className="flex-1 flex items-center justify-center px-3 py-2 rounded-lg border border-[#e0d8cc]
                                  text-sm text-[#6b5d4a] hover:bg-[#f0ece5] transition-colors"
                     >
-                      Open in Apple Maps
+                      Open in Google Maps
                     </a>
                     <a
                       href={`https://www.google.com/maps/dir/?api=1&destination=${nextAnchor.lat},${nextAnchor.lng}`}

@@ -15,7 +15,7 @@ const sectionsFor = (mine: boolean, meName: string) => [
 
 **Home** opens on what matters now. Under the trip's dates is today's weather, and **Go to today ›** opens today's full page. Below that: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.
 
-Along the bottom: **Maybes** (the group's "maybe we should…" and ${mine ? "your" : "Larisa's"} ideas, city by city), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Actions** (deadlines and to-dos), and **Scout**, which you can ask anything about the trip. **日** at the right end opens Japanese phrases.`,
+Along the bottom: **Maybes** (the group's "maybe we should…" and ${mine ? "your" : "Larisa's"} ideas, city by city), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what each couple has paid for the group, and who pays next: KL for Ken & Larisa, AJ for Andy & Julie), and **Scout**, which you can ask anything about the trip. **日** at the right end opens Japanese phrases. To-dos and deadlines open from Home.`,
   },
   {
     id: "getting-around",
@@ -43,7 +43,7 @@ The arrows at the top move a day at a time. **‹ Back** goes back where you cam
   {
     id: "travel-days",
     title: "Next",
-    body: `The **Next** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Under it, **Get there** opens Apple Maps from where you're standing: walking, by train, or a route to show a taxi driver.
+    body: `The **Next** tab is today: where ${mine ? "your" : "Larisa's"} plan has you right now, what's next, and how long until it. Under it, **Get there** opens Google Maps from where you're standing: walking, by train, or a route to show a taxi driver.
 
 Before the trip, Next shows the first day. After it, the last.`,
   },

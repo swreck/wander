@@ -141,7 +141,19 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   // is the trip's organizer — the Maybes rule)
   type FollowUp = { english: string; script: string };
   type Added = { id: string; english: string; romaji: string; pronunciation?: string | null; script?: string | null; followUps?: FollowUp[] | null; addedBy: string; removedAt?: string | null; mayRemoveForAll?: boolean };
-  const [added, setAdded] = useState<Added[]>([]);
+  // (the phone's copy first, so the card opens with them — user-julie2, Oct 16: her allergy line came 5 s after the card
+  // opened, with nothing to say it was coming, and pushed the list under her finger; with no signal it never came)
+  const addedKey = (t: string) => `wander:phrase-added:${t}`;
+  const [added, setAddedNow] = useState<Added[]>(() => {
+    try { const t = localStorage.getItem("wander:last-trip-id"); const c = t ? JSON.parse(localStorage.getItem(addedKey(t)) || "null") : null; return Array.isArray(c) ? c : []; } catch { return []; }
+  });
+  const setAdded = (v: Added[] | ((list: Added[]) => Added[])) => {
+    setAddedNow((prev) => {
+      const next = typeof v === "function" ? v(prev) : v;
+      try { if (tripId) localStorage.setItem(addedKey(tripId), JSON.stringify(next)); } catch { /* private window */ }
+      return next;
+    });
+  };
   // "Show large" (Ken, Oct 14: "plus tappable "Show large" (button resulting in larger kanji version that stays until
   // "close" button)"): the line's Japanese across the whole screen, to hold up to a server or a driver
   const [shownLarge, setShownLarge] = useState<{ title: string; english: string; script: string; followUps?: FollowUp[] | null } | null>(null);
@@ -250,6 +262,15 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
       .catch(() => { /* no signal: this phone's copy */ });
     return () => { live = false; };
   }, [open, tripId]);
+  // (once the trip is known, in the background — ready before anyone opens the card)
+  useEffect(() => {
+    if (!tripId) return;
+    let live = true;
+    try { const c = JSON.parse(localStorage.getItem(addedKey(tripId)) || "null"); if (Array.isArray(c)) setAddedNow(c); } catch { /* none kept */ }
+    api.get<Added[]>(`/phrases/trip/${tripId}`).then((list) => { if (live && Array.isArray(list)) setAdded(list); }).catch(() => { /* the phone's copy */ });
+    return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId]);
   // (closed, the card is out of Edit)
   useEffect(() => {
     if (open) return;
