@@ -29,7 +29,8 @@ export async function amOrganizer(): Promise<boolean | null> {
   let tripId: string | null = null; try { tripId = localStorage.getItem("wander:last-trip-id"); } catch { /* none */ }
   if (!tripId) tripId = await api.get<{ id?: string }>("/trips/active").then((t) => t?.id || null).catch(() => null);
   if (!tripId) return null;
-  const answer = await api.get(`/tell-ken/trip/${tripId}`).then(() => true).catch((e: { status?: number }) => (e?.status === 403 ? false : null));
+  // (asked plainly — reading the list's "not allowed" logged an error on every phone but Ken's; Oct 16)
+  const answer = await api.get<{ organizer?: boolean }>(`/tell-ken/trip/${tripId}/organizer`).then((r) => (typeof r?.organizer === "boolean" ? r.organizer : null)).catch(() => null);
   if (answer !== null) write({ ...read(), organizer: answer });
   return answer;
 }

@@ -10,6 +10,14 @@ router.use(requireAuth);
 router.param("tripId", tripMemberParam);
 
 // GET /trip/:tripId — newest first; 403 for anyone but the organizer (the phone then shows nothing)
+// GET /trip/:tripId/organizer — { organizer: true|false }: whether this person reads Tell Ken (asked by every phone, so
+// answered plainly — asking for the list itself and reading its "not allowed" logged an error on every phone but Ken's;
+// the real-user runs, Oct 16)
+router.get("/trip/:tripId/organizer", async (req: AuthRequest, res) => {
+  const me = req.user?.travelerId;
+  res.json({ organizer: !!me && (await organizerOf(req.params.tripId as string)) === me });
+});
+
 router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   const me = req.user?.travelerId;
   const list = me ? await tellKenList(req.params.tripId as string, me) : null;

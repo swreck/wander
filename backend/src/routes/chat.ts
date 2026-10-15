@@ -5423,6 +5423,9 @@ RULES:
     const routes: { label: string; apple: string; google: string; search?: string }[] = [];
     // The forecasts Scout read (get_weather), for the phone to keep as the day page's copy
     const forecastsRead: { date: string; weather: unknown }[] = [];
+    // (Wander's own records Scout read this turn, so Sources can say where its figures came from — answerSources)
+    const wanderFacts: { from: string; text: string }[] = [];
+    if (photoLinesNow.length) wanderFacts.push({ from: "the trip's photos in Wander", text: photoLinesNow.join("\n") });
     // "Use my location" under the answer (offer_location) — only when the phone said where it is wasn't known
     let askHere = false;
     // Places places_near_me found for this answer, by name — directions to one of them goes to Google's own point
@@ -5713,6 +5716,10 @@ RULES:
           if (forecasts) for (const f of forecasts) if (!forecastsRead.some((x) => x.date === f.date)) forecastsRead.push(f);
           if (route && !routes.some((w) => w.apple === route.apple) && routes.length < 3) routes.push(route);
           if (actionDescription) actions.push(actionDescription);
+          {
+            const from = ({ money_so_far: "the trip's Budget", add_expense: "the trip's Budget", remove_expense: "the trip's Budget", get_my_notes: "your notes in Wander" } as Record<string, string>)[toolBlock.name];
+            if (from) wanderFacts.push({ from, text: JSON.stringify(result) });
+          }
           if (cards) placeCards.push(...cards);
           if (navigate && !shows.some((s) => s.path === navigate.path) && shows.length < 3) shows.push(navigate);
           console.log(`Chat tool result: ${toolBlock.name} OK`);
@@ -5756,10 +5763,10 @@ RULES:
     // Where the answer came from — its citations as Scout wrote them, each resolved to the source recorded
     // with the line it points at; the parts with none are Scout's own words. Shown only when someone taps
     // "Sources" under the answer.
-    const sources0 = finalReply ? answerSources(finalReply, answerPieces, citedDocs, guideCopy, fetchedPages) : null;
+    const sources0 = finalReply ? answerSources(finalReply, answerPieces, citedDocs, guideCopy, fetchedPages, wanderFacts) : null;
     // (what Scout read from a photo has no Guide source — the Sources panel says the photo is where it came from)
     const sources = sources0 && files.images ? { ...sources0, photo: true } : sources0;
-    const hasSources = !!sources && (sources.claims.length > 0 || sources.ownWords.length > 0);
+    const hasSources = !!sources && (sources.claims.length > 0 || sources.ownWords.length > 0 || !!sources.fromWander?.length);
 
     // Opus 5 list price: $5/M input, $25/M output, one-hour cache writes 2x input ($10/M), cache reads 0.1x,
     // searches $10/1,000

@@ -60,7 +60,10 @@ export function summaryPrompt(input: { block: string; pictures: string }): strin
 ${input.block}
 ${input.pictures ? `\nPictures in those tabs (her illustrated maps; they can be older than the lines above — the lines are the plan, and only use a picture for what the lines leave out, such as who goes where):\n${input.pictures}\n` : ""}
 Write a short summary of the day's theme for the top of the day's screen: 2 or 3 sentences, about 40–60 words in all.
-- Say what kind of day it is and its shape: where it centres, how it moves, what anchors the evening.
+- Say what kind of day it is and its shape: where it is, how it moves, and how the evening ends (a dinner, a train).
+- Say "her Guide" or "her plan" for where it comes from — never "her lines", "the lines" or "the spreadsheet's rows".
+  Never a stock phrase that would fit any day ("anchors the evening", "rounds out the day"): say the thing itself
+  ("Dinner is at Une Immersion at 7:00 PM").
 - Only what these lines say. Never add a fact, a place, a time or a quality they don't contain (no "stunning", "famous", "unforgettable", nothing from your own knowledge of Japan).
 - Who: only the people who are there. If a [WHERE] line says someone is still at home, never say "everyone" or "the group" — name who is travelling. If the group splits, say who does what by name. Several people read this, so never "you" or "your".
 - A day "with Backroads": Backroads' guides lead it — say so, and never call its hours "open" or "free" unless her lines do. A day with few lines isn't empty; say only what's there.

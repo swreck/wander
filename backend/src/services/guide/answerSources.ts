@@ -22,6 +22,21 @@ export interface AnswerSources {
   copy: string | null;       // which copy of her Guide ("Japan Oct 2026-2")
   claims: Claim[];
   ownWords: string[];        // parts with no source: Scout's own words or reasoning
+  /** parts whose figures come from Wander's own records Scout was given this turn — "the trip's Budget" (user-larisa2,
+   *  Oct 16: the amounts in a correct Budget answer were listed as "Scout's own words — no source") */
+  fromWander?: { said: string; from: string }[];
+}
+/** A record of Wander's own that Scout read this turn (a tool's answer, or a section like the trip's photos) */
+export type WanderFact = { from: string; text: string };
+
+/** Whether every figure in a sentence — amounts, times, dates — and every quoted phrase is in one of Wander's records */
+function wanderSource(sentence: string, facts: WanderFact[]): string | null {
+  const flat = (t: string) => t.replace(/[,¥$]/g, "").toLowerCase();
+  const figures = (sentence.match(/[¥$]?\d[\d,]*(?::\d{2})?/g) || []).map((x) => x.replace(/[,¥$]/g, "")).filter((x) => x.length >= 3 || x.includes(":"));
+  const quotes = (sentence.match(/[“"]([^”"]{6,})[”"]/g) || []).map((q) => q.slice(1, -1).toLowerCase());
+  if (!figures.length && !quotes.length) return null;
+  const hit = facts.find((f) => { const t = flat(f.text); return figures.every((n) => t.includes(n)) && quotes.every((q) => t.includes(q.replace(/[,¥$]/g, ""))); });
+  return hit ? hit.from : null;
 }
 
 /** A document sent to Scout with citations on: its title and the lines behind its blocks, in order */
@@ -150,9 +165,10 @@ const plain = (s: string) => s.replace(/\*\*|__|`|^#+\s*/gm, "").replace(/\s+/g,
  * answer as shown count (narration and an unasked draft are taken out before it's shown).
  */
 export function answerSources(shown: string, pieces: AnswerPiece[], docs: CitedDocument[], copy: string | null,
-  fetched: { url: string; title: string }[] = []): AnswerSources {
+  fetched: { url: string; title: string }[] = [], facts: WanderFact[] = []): AnswerSources {
   const claims: Claim[] = [];
   const ownWords: string[] = [];
+  const fromWander: { said: string; from: string }[] = [];
   const seen = new Set<string>();
   const spaced = (s: string) => s.replace(/\s+/g, " ").trim();
   const shownFlat = spaced(shown);
@@ -192,11 +208,13 @@ export function answerSources(shown: string, pieces: AnswerPiece[], docs: CitedD
     if (!touches) {
       seen.add(s);
       const found = quotedLine(s, docs);
+      const wander = found ? null : wanderSource(s, facts);
       if (found) claims.push({ said: s, sources: [trimmed(found, s)], matched: true });
+      else if (wander) fromWander.push({ said: s, from: wander });
       else ownWords.push(s);
     }
   }
-  return { copy, claims, ownWords };
+  return { copy, claims, ownWords, ...(fromWander.length ? { fromWander } : {}) };
 }
 
 /**

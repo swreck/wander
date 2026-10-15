@@ -88,7 +88,7 @@ export default function SettingsPage() {
           {confirmSignOut ? (
             <div className="rounded-xl border border-[#e0d8cc] bg-white p-4">
               <p className="text-sm text-[#3a3128]">This phone doesn't have Face ID set up for Wander.</p>
-              <p className="text-sm text-[#6b5d4a] mt-1">{/^(ken|larisa)\b/i.test(authUser?.displayName || "") ? "After signing out, you'll need your personal Wander link, or Face ID, to get back in." : "After signing out, you'll need your link from Ken or Larisa to get back in."}</p>
+              <p className="text-sm text-[#6b5d4a] mt-1">{/^(ken|larisa)\b/i.test(authUser?.displayName || "") ? (faceIdHere ? "After signing out, you'll need your personal Wander link, or Face ID, to get back in." : "After signing out, you'll need your personal Wander link to get back in.") : "After signing out, you'll need your link from Ken or Larisa to get back in."}</p>
               <div className="flex gap-2 mt-3">
                 <button onClick={() => setConfirmSignOut(false)} className="min-h-[44px] flex-1 rounded-lg bg-[#514636] text-white text-sm">Stay signed in</button>
                 <button onClick={signOut} className="min-h-[44px] flex-1 rounded-lg border border-[#d6ccbc] text-[#8a3a2a] text-sm">Sign out anyway</button>
@@ -131,9 +131,11 @@ function NotesSettingsSection() {
         <span className="block text-xs text-[#6b5d4a] mt-0.5">{words}</span>
       </span>
       <button role="switch" aria-checked={on} aria-label={title} disabled={busy === key} onClick={() => set(key, !on)}
-        // (a 68×48 place to tap around the 52×32 switch — tester t2)
-        className={`shrink-0 relative w-[52px] h-[32px] rounded-full transition-colors mt-1 after:content-[''] after:absolute after:-inset-2 ${on ? "bg-[#514636]" : "bg-[#d6ccbc]"} disabled:opacity-60`}>
-        <span className={`absolute top-[3px] w-[26px] h-[26px] rounded-full bg-white shadow transition-all ${on ? "left-[23px]" : "left-[3px]"}`} />
+        // (a 60×44 button around the 52×32 switch — the switch alone measured 32 tall; tester t2, user-ken2)
+        className="shrink-0 w-[60px] h-[44px] flex items-center justify-center disabled:opacity-60">
+        <span className={`relative block w-[52px] h-[32px] rounded-full transition-colors ${on ? "bg-[#514636]" : "bg-[#d6ccbc]"}`}>
+          <span className={`absolute top-[3px] w-[26px] h-[26px] rounded-full bg-white shadow transition-all ${on ? "left-[23px]" : "left-[3px]"}`} />
+        </span>
       </button>
     </div>
   );
@@ -212,7 +214,9 @@ function SheetSyncSection() {
               {/* ("Written with AI help. Read every few minutes — last Oct 9" said a week-old date beside "every few minutes",
                   and AI help as a label; user-ken1, Oct 16) */}
               {s.authorship && /\bAI\b/.test(s.authorship) ? `${samePerson(s.owner, me) ? "You keep" : `${s.owner} keeps`} it with AI's help. ` : s.authorship ? `${s.authorship[0].toUpperCase()}${s.authorship.slice(1)}. ` : ""}
-              Wander looks at it every few minutes{(s.lastError ? s.readAt : s.lastTriedAt || s.readAt) ? ` — last ${japanWhen((s.lastError ? s.readAt : s.lastTriedAt || s.readAt)!)}` : ""}.
+              {/* (the later of when it last read it and when it last looked — the day page said Oct 9, this said Oct 5;
+                  user-ken2) */}
+              {(() => { const last = [s.readAt, s.lastError ? null : s.lastTriedAt].filter(Boolean).sort().pop(); return `Wander looks at it every few minutes${last ? ` — last ${japanWhen(last)}` : ""}.`; })()}
               {s.lastError ? " Its latest read didn't work, so Wander is showing the copy before that." : ""}
             </p>
           </div>

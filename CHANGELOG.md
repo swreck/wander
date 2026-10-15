@@ -2,6 +2,46 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, before dawn in Japan) — Round Two of the Real-User Runs
+
+### Fixed
+- "Play tomorrow" into a Backroads day opened the day without playing (user-andy2, Oct 17 → 18 and 18 → 19). The day
+  drew once with the day before's answer about Backroads' moments, opened a Play of her lines, and lost it when its own
+  answer came. The answer now knows which day it's for.
+- The photo viewer: a tap on a photo's right side goes on, its left goes back, as in Play (only a swipe worked); its
+  words sit on a darker backing. The story shows a photo's caption under it. Play says a booking once (not "7:00 PM ·
+  Une Immersion" again under her 7:00 dinner line). Ideas: "Cancel" (not "Not now", which is also a status), and no
+  double space after "I wish Wander…".
+- The phrase card opened without the trip's added phrases — Julie's allergy line came ~5 s later, with nothing to say it
+  was coming, and never with no signal (user-julie2). The server asked who may remove each phrase one by one (18 round
+  trips); it asks once now. The phone keeps a copy, so the card opens with them, with or without signal.
+- A day's line opened from Home could still slip under the header as the day filled in above it: it's placed again for
+  the first second and a half. Its card offers "Directions ↗" (Google Maps, from where you are) beside the map search
+  for today and days ahead.
+- The story marks your own private notes "You · just you" (Julie: "Did my private note just go into everyone's
+  story?" — it shows only in yours). Asking whether someone is the trip's organizer no longer logs an error on every
+  other phone. The city's arrival photo says "Tap to continue". Note day links 44 points.
+- Scout's Sources: figures that come from Wander's own records — the trip's Budget, the trip's photos, your notes —
+  are listed under "From Wander's own records" with which one, not as "Scout's own words — no source" (user-larisa2: a
+  correct Budget answer looked unsupported).
+- Day summaries for Oct 16–29 rewritten and read before publishing: no stock phrases ("anchors the evening" was on
+  three days), "her Guide" not "her lines", Oct 17 names both Robuchon restaurants (her plan's Gastronomy, her booking's
+  La Table on the first floor). The summary instructions now ask for the thing itself (user-larisa2).
+- Play: a Backroads moment quotes the sentence its title names ("Lake Yumoto and Yudaki Falls" showed Backroads'
+  opening line about Lake Chuzenji); a check-out moment says the hotel's own time. The to-dos page is titled "To-dos
+  and deadlines", as Home names it; a free-cancellation window reads "Booked under" and the name on the booking, not
+  "Ken's to do" over "Nothing to do unless plans change". "Got it" on the safety note is 44 points.
+- Signing out left the phone's note of whether the last person was the trip's organizer, so Ken, signing in after Andy,
+  was told by Scout to start a message "Tell Ken" (user-ken2). Sign-out clears it with the rest.
+- The tour (Show me around) and the Guide page's help name Budget and Google Maps (they still said Actions and Apple
+  Maps). Settings' rail sheet line gives the later of when Wander last read it and last looked; the sign-out note
+  mentions Face ID only on a phone where it's set up. Profile links to Settings for signing out, and opens "What Scout
+  knows about you." (no "to help make every trip better").
+- Play on a Backroads day: the cover says "Backroads' general itinerary for their Day 1, with Larisa's Guide's own
+  lines…" (no page number; to Andy and Julie it names whose Guide, "Your Guide" to Larisa). "Less" under Backroads'
+  words is 44 points wide. Settings' switches are 44 points tall to the touch. "Check out in time for … at 8:30 AM"
+  drops "(Wander's reading of the day)".
+
 ## 2026-10-16 (Friday, early morning in Japan) — What Four Real-User Runs Found
 
 Ken (Oct 16): "create 4 serial fresh agents to emulate your real users… Fix bugs and confusion reports. Deploy. Rerun

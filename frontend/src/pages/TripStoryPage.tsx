@@ -187,6 +187,8 @@ export default function TripStoryPage() {
                         <img src={day[0].url} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-contain" />
                         <span className="absolute left-2 bottom-2 text-[11px] text-white bg-black/45 rounded px-1.5 py-0.5">{day[0].mine ? (day[0].shared ? "You" : "You · just you") : day[0].authorName}</span>
                       </button>
+                      {/* (its own words under it — user-andy2: the caption showed only after a tap) */}
+                      {day[0].caption && <p className="text-[14px] text-[#514636] mt-1.5 italic">{day[0].caption}</p>}
                       {day.length > 1 && (
                         <div className="flex gap-2 overflow-x-auto mt-2 pb-1 -mr-4 pr-4">
                           {day.slice(1).map((x, i) => (
@@ -220,7 +222,9 @@ export default function TripStoryPage() {
                 {d.notes.map((n) => (
                   <blockquote key={n.id} className="mt-3 rounded-xl bg-white border border-[#e0d8cc] px-3.5 py-2.5">
                     <p className="text-[15px] text-[#3a3128] whitespace-pre-line">{n.text}</p>
-                    <footer className="text-xs text-[#6b5d4a] mt-1">{n.mine || n.travelerId === me ? "You" : n.authorName} · {new Date(n.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" })}</footer>
+                    {/* (your own private note says so — user-julie2, Oct 16: "Did my private note just go into everyone's
+                        story?" It shows only in yours, as your private photos do) */}
+                    <footer className="text-xs text-[#6b5d4a] mt-1">{n.mine || n.travelerId === me ? ((n as { visibility?: string }).visibility === "trip" ? "You" : "You · just you") : n.authorName} ·{new Date(n.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" })}</footer>
                   </blockquote>
                 ))}
                 <div className="flex gap-4 mt-2">

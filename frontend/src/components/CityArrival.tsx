@@ -168,7 +168,8 @@ export default function CityArrival({ cityId, cityName, dateWords, auto = true, 
           <p className="text-[11px] text-white/70 mt-3 drop-shadow">{[shown.place, shown.credit].filter(Boolean).join(" · ")}</p>
         )}
       </div>
-      <span className="sr-only">Tap to continue</span>
+      {/* (said, small — three testers took the photo for a frozen screen: nothing on it said a tap goes on; Oct 16) */}
+      <span className="absolute left-0 right-0 text-center text-[12px] text-white/65 drop-shadow" style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}>Tap to continue</span>
     </div>
   );
 }

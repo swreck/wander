@@ -417,7 +417,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                   </div>
                 )}
                 <div className="flex flex-wrap items-center gap-x-5 mt-1 pointer-events-auto">
-                  {m.full && <button type="button" onClick={() => setFull((f) => !f)} className="inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">{full ? "Less" : m.fullLabel || `${cover?.her || "Her"} full note`}</button>}
+                  {m.full && <button type="button" onClick={() => setFull((f) => !f)} className="inline-flex items-center min-h-[44px] min-w-[44px] pr-2 text-[15px] text-white underline underline-offset-4">{full ? "Less" : m.fullLabel || `${cover?.her || "Her"} full note`}</button>}
                   {m.map && <a href={m.map} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">Maps ↗</a>}
                   {m.hit && m.hit.photos.length > 1 && (
                     <button type="button" onClick={() => setGallery(true)} className="inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">{m.hit.photos.length} photos</button>

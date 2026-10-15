@@ -82,7 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const theirs = ids.filter((x): x is string => !!x && x.length > 3);
     try {
       Object.keys(localStorage)
-        .filter((k) => k.startsWith("wander:photos:") || k === "wander-chat" || k.startsWith("wander-chat:") || theirs.some((id) => k.includes(id)))
+        // (and the phone's note of whether they're the trip's organizer — kept, Ken signing in after Andy was told to "Tell
+        // Ken"; user-ken2)
+        .filter((k) => k.startsWith("wander:photos:") || k === "wander-chat" || k.startsWith("wander-chat:") || k === "wander:tell-ken" || theirs.some((id) => k.includes(id)))
         .forEach((k) => localStorage.removeItem(k));
     } catch { /* storage unavailable */ }
     if (typeof caches !== "undefined") {

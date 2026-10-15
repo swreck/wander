@@ -522,7 +522,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
             </svg>
           </button>
           <div>
-            <h1 className="text-lg font-medium text-[#3a3128]">Actions</h1>
+            <h1 className="text-lg font-medium text-[#3a3128]">To-dos and deadlines</h1>
             <span className="text-xs text-[#6b5d4a]">Deadlines and to-dos from {voiceFor(me).guide}</span>
           </div>
         </div>

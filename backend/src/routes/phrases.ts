@@ -25,9 +25,13 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
     orderBy: { createdAt: "asc" },
   });
   const who = { travelerId: req.user?.travelerId, displayName: req.user?.displayName || "" };
+  // (the trip's organizer asked once, not once per phrase — 18 phrases took ~5 s on a phone, and the card opened without
+  // the allergy line; user-julie2, Oct 16)
+  const isOrganizer = phrases.length ? await mayRemoveForAll(who, { tripId: req.params.tripId as string, addedBy: "\u0000" }) : false;
+  const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
   const out = [];
   for (const p of phrases) {
-    const may = await mayRemoveForAll(who, p);
+    const may = isOrganizer || first(p.addedBy) === first(who.displayName);
     if (p.removedAt && !may) continue;
     out.push({ ...p, mayRemoveForAll: may });
   }

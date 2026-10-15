@@ -706,6 +706,9 @@ export function bookedWords(i: GuideItem, me: string | null | undefined): string
   if (!name) return null;
   const first = name.split(/\s+/)[0];
   if (samePerson(first, me)) return "Booked under your name";
+  // (a free-cancellation window asks nothing of anyone — "Ken's to do" above "Nothing to do unless plans change" said both;
+  // user-larisa2, Oct 16)
+  if (isFreeCancel(i)) return `Booked under ${name}`;
   return `${first}'s to do (booked under ${name})`;
 }
 
