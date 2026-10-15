@@ -39,6 +39,7 @@ import { directionsHref } from "../lib/directions";
 import { appleGuides, savedAppleGuides, type GuidesByDay } from "../lib/appleGuides";
 import { guidePictures, savedGuidePictures, type GuidePicture } from "../lib/guidePictures";
 import { dayPanels, savedDayPanels, type PanelsByDay, type DayPanel } from "../lib/dayPanels";
+import { hoursWords } from "../lib/placeHours";
 import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
@@ -371,6 +372,15 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   const firstFor = new Map<string, string>();
   for (const q of queries) { const h = photos[q.query]; if (h && !firstFor.has(h.id)) firstFor.set(h.id, q.id); }
   const hitOf = (b: GuideItem) => { const q = queries.find((x) => x.id === b.id)?.query; const h = q ? photos[q] || null : null; return h && firstFor.get(h.id) === b.id ? h : null; };
+  // When her time for a stop runs past its hours, as Google lists them — only for the place her line means (its photo's
+  // place); said on the line and in Play, never otherwise (Oct 15: "before they realize they want it")
+  const hoursNote = (b: GuideItem): string | null => {
+    // (only on the line that is the stop — the one with its photo — never "Taxi to X" or "Finish X": tourist70)
+    const h = hitOf(b);
+    if (!h?.hours || !b.time) return null;
+    const start = Number(b.time.slice(0, 2)) * 60 + Number(b.time.slice(3, 5));
+    return hoursWords(h.hours, h.name || b.title, String(b.date).slice(0, 10), start, planLineEndSaid(b, blocks));
+  };
   const [gallery, setGallery] = useState<GuideItem | null>(null);
   const [playing, setPlaying] = useState(false);
   const navigate = useNavigate();
@@ -439,6 +449,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       ...(railArrivals?.[b.id] ? [`Timed for the train in ${v.her} tab — the booked train arrives ${railArrivals[b.id]}`] : []),
       ...(twoTimes ? [`The sources give two times for this. The booked train is the one in the box.`] : []),
       ...differs,
+      ...(hoursNote(b) ? [hoursNote(b)!] : []),
     ];
     // (who a line is for when her table names no one: the same words as the list — tourist66, Oct 28: Ken at MIHO saw
     // "Maruni Toryo · in 5 min" with no group)
@@ -471,6 +482,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       full: words && flat(words) !== flat(note || "") ? words : null, cautions, info: onBoard && hers ? [`${v.Owners} plan: ${hers}`, ...info] : info,
       // (what the Next button says for it: the booked time when hers is for another train — "2:50 PM", not "~2:00")
       at: rideStart !== null ? ride![0].split("→")[0].trim() : railArrivals?.[b.id] || null,
+      onBoard,
       start, end };
   });
   // Her travel lines ("Taxi back to Shiraume", "Continue same taxi to TeamLab") fold into the moment they lead to, as
@@ -624,6 +636,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
                 {picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">{noOwner.has(b.id) ? `${v.Her} plan names no group here; a` : "A"} picture in {v.her} tab puts it under “{picGroup}”{pictureYou(picGroup, v, me)}</p>}
                 {differ.map((d) => <p key={d} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{differWordsFor(d, v)}</p>)}
+                {(() => { const h = hoursNote(b); return h ? <p className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{h}</p> : null; })()}
                 {/* (day review, Oct 4: Oct 29's HARUKA disagreement was said four times — at the top, here, in Trains, in
                     the summary) */}
                 {saidAbove && (

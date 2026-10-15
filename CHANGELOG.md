@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday evening in Japan) — When a Stop Is Open, Before You Get There
+
+### Added
+- A stop whose hours, as Google lists them, don't fit her plan's time says so on its line and in Play the day: "Google
+  lists Spiral as opening at 11 AM" (her plan has it at 10:00), "Google lists Espace Louis Vuitton as closed for now",
+  "… as closed on Mondays", "… as closing at 4:30 PM" when her time runs a quarter hour or more past it; for a whole
+  street or market, "Google's hours for Kappabashi Kitchen Supply Town start at 10 AM" (its listing isn't every shop's);
+  only on the line that is the stop itself (not "Taxi to…" or "Finish…"). Also in Play: her map centred in its room, no
+  "Getting there" once you're on the train, an open note no longer stops the words scrolling. Ken (Oct 15):
+  "the feature or info or view the user would want before they realize they want it". Only for a place Wander has
+  already checked is the one her line means (the place of its photo); her plan is never changed; nothing is said when
+  her times fit or Google has no hours. Hours come from Google's listing (special days included for the coming week)
+  and are looked at again every three days. Where: day pages (her plan's lines), Play the day. Data: place_photos.hours.
+  SPEC UPDATE NEEDED (day screen, Play).
+
 ## 2026-10-15 (Thursday, late afternoon in Japan) — Play the Day: Her Map Above the Moments Without a Photo
 
 ### Changed

@@ -4,9 +4,11 @@
  */
 import { api } from "./api";
 
-export type PlaceHit = { id: string; v?: number; name: string | null; photos: { credit: string | null }[] };
-// (2: answers that carry when each was checked — the test runs' earlier copies are dropped)
-const KEY = "wander:place-photos:2";
+import type { Hours } from "./placeHours";
+/** (hours: Google's, for the place her line means — lib/placeHours says when her time runs past them) */
+export type PlaceHit = { id: string; v?: number; name: string | null; photos: { credit: string | null }[]; hours?: Hours | null };
+// (2: answers that carry when each was checked — the test runs' earlier copies are dropped; 3: with Google's hours)
+const KEY = "wander:place-photos:3";
 const KEEP = 3 * 24 * 3600_000;
 type Kept = Record<string, { hit: PlaceHit | null; at: number }>;
 const read = (): Kept => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } };

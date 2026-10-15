@@ -4,7 +4,7 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
-import { placePhotosFor, placePicture, knownHit, type PlaceHit } from "../services/placePhotos.js";
+import { placePhotosFor, placePicture, knownHit, freshenHours, type PlaceHit } from "../services/placePhotos.js";
 
 const router = Router();
 
@@ -29,9 +29,11 @@ router.post("/lookup", requireAuth, async (req: AuthRequest, res) => {
 // GET /known — every stop Wander has looked at (her line, its search, the answer), so a phone opening any day draws
 // its photos in the first frame instead of moving the day as they come (tourist63: the page jumped ~8 s in)
 router.get("/known", requireAuth, async (_req, res) => {
-  const rows = await prisma.placePhoto.findMany({ where: { verdict: { in: ["yes", "no", "none"] } }, select: { id: true, query: true, line: true, name: true, photos: true, verdict: true, checkedAt: true } });
+  const rows = await prisma.placePhoto.findMany({ where: { verdict: { in: ["yes", "no", "none"] } }, select: { id: true, query: true, line: true, name: true, photos: true, verdict: true, checkedAt: true, hours: true } });
   res.set("Cache-Control", "private, max-age=600");
   res.json({ places: rows.map((r) => ({ query: r.query, line: r.line, hit: knownHit(r) })) });
+  // (their hours, when missing or three days old, are fetched in the background — the next look has them)
+  freshenHours();
 });
 
 router.get("/:id/:n", async (req, res) => {

@@ -34,6 +34,8 @@ export interface Moment {
   after?: string[];
   /** when it is, for the Next button, when that's the booked time rather than hers ("1:30 PM", "2:50 PM") */
   at?: string | null;
+  /** on board its booked train now (its "Getting there" is behind you) */
+  onBoard?: boolean;
 }
 
 export interface PlayCover {
@@ -58,7 +60,7 @@ const KINDS: { test: RegExp; kind: Kind }[] = [
     icon: <g {...stroke}><path d="M4 16v-3l2-5h12l2 5v3zM4 16v2M20 16v2M6 13h12" /><circle cx="8" cy="16" r="1.4" /><circle cx="16" cy="16" r="1.4" /></g> } },
   { test: /\b(e-?bikes?|e-?biking|bikes?|bicycles?|cycling|biking)\b/i, kind: { name: "bike", from: "#2f4a35", to: "#121c15",
     icon: <g {...stroke}><circle cx="6" cy="16" r="3.5" /><circle cx="18" cy="16" r="3.5" /><path d="M6 16l4-7h5l3 7M10 9l2 7M14 6h2" /></g> } },
-  { test: /\b(lunch|dinner|breakfast|brunch|caf[eé]|coffee|tea|matcha|sweets?|wagashi|ramen|sushi|soba|udon|tempura|yakiniku|yakitori|izakaya|kaiseki|restaurant|depachika|food|eat|snack|dessert|ice cream|drinks?|bar|sake|bakery|omakase)\b/i, kind: { name: "meal", from: "#5a3a22", to: "#24170f",
+  { test: /\b(lunch|dinner|breakfast|brunch|caf[eé]|coffee|tea|matcha|sweets?|wagashi|ramen|sushi|soba|udon|tempura|yakiniku|yakitori|izakaya|kaiseki|restaurant|depachika|food|eat|snack|dessert|ice cream|drinks?|bar|sake|bakery|omakase|cheesecake|cake|souffl[eé]|pastry|chocolate|crepe)\b/i, kind: { name: "meal", from: "#5a3a22", to: "#24170f",
     icon: <g {...stroke}><path d="M4 12h16a8 8 0 0 1-16 0zM9 20h6" /><path d="M14 3l5 7M17 3l3 6" /></g> } },
   { test: /(temple|shrine|jinja|taisha|\w+-ji\b|\w+dera\b|torii|pagoda|zen\b|buddha|kannon|pavilion)/i, kind: { name: "temple", from: "#6b2a1f", to: "#241210",
     icon: <g {...stroke}><path d="M3 6c4 1 14 1 18 0M5 9h14M7 6v15M17 6v15M12 9v3" /></g> } },
@@ -66,8 +68,8 @@ const KINDS: { test: RegExp; kind: Kind }[] = [
     icon: <g {...stroke}><path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" /></g> } },
   // (pottery and studios as a vase, museums as a building — tourist68: a picture frame read as a missing photo; before
   // "outdoors", so "Ceramic Cultural Park" is pottery)
-  { test: /\b(ceramic\w*|potter\w*|studio|craft\w*|workshop|kiln|clay|yakimono|class|demonstration)\b/i, kind: { name: "craft", from: "#5a3f2c", to: "#21170f",
-    icon: <g {...stroke}><path d="M9 3h6M10 3c0 3-4 5-4 10a6 6 0 0 0 12 0c0-5-4-7-4-10M7 13h10" /></g> } },
+  { test: /\b(ceramic\w*|potter\w*|studio|craft\w*|workshop|kiln|clay|yakimono|class|demonstration|sccp)\b/i, kind: { name: "craft", from: "#5a3f2c", to: "#21170f",
+    icon: <g {...stroke}><path d="M9 3h6M10 3v3c0 1-4 3-4 8 0 4 2.5 7 6 7s6-3 6-7c0-5-4-7-4-8V3M6.5 12h11M7 16.5h10" /></g> } },
   { test: /\b(museum|gallery|art|exhibit\w*|teamlab|ceremony|performance|show|theater|theatre|kabuki)\b/i, kind: { name: "museum", from: "#2c3354", to: "#13162a",
     icon: <g {...stroke}><path d="M3 9l9-5 9 5zM5 9v9M9 9v9M15 9v9M19 9v9M3 20h18" /></g> } },
   { test: /\b(garden|park|forest|bamboo|river|lake|hike|falls|waterfall|gorge|stroll|walk|nature|mountain|onsen)\b/i, kind: { name: "outdoors", from: "#2f4a35", to: "#121c15",
@@ -229,7 +231,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
       <div key={`bg-${k}`} className={`absolute inset-0 overflow-hidden${fade}`} aria-hidden style={{ background: `radial-gradient(130% 70% at 50% 22%, ${kind.from} 0%, ${kind.to} 72%)` }}>
         {cover?.panel && !full && room && room.space >= 140 ? (
           // Her map of the day, clear, in the room above the words: where this stop sits on her route
-          <figure className="absolute inset-x-0 flex flex-col items-center" style={{ top: room.top }}>
+          <figure className="absolute inset-x-0 flex flex-col items-center justify-center" style={{ top: room.top, height: room.space + 28 }}>
             <img src={cover.panel.src} alt="" className="max-w-[92%] object-contain rounded-lg shadow-[0_8px_30px_rgba(0,0,0,.45)]" style={{ maxHeight: room.space }} />
             <figcaption className="text-[11px] text-white/60 mt-2">{cover.panel.label}</figcaption>
           </figure>
@@ -332,7 +334,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                   <span className={`inline-block text-[11px] uppercase tracking-[.12em] font-semibold rounded px-1.5 py-0.5 mb-2 ${when === "Now" ? "bg-[#c8a060] text-[#2a231c]" : "bg-white/15 text-white/90 border border-white/25"}`}>{when}</span>
                 )}
                 {/* (how you get here, in her words and times, above the moment itself) */}
-                {(m.getting || []).map((g) => <p key={g} className="text-[13px] text-white/80 mb-1 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]">Getting there: {g}</p>)}
+                {(m.onBoard ? [] : m.getting || []).map((g) => <p key={g} className="text-[13px] text-white/80 mb-1 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]">Getting there: {g}</p>)}
                 {m.time && <p className="text-[17px] text-white/90 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]">{m.time}</p>}
                 <p className={`${m.hit ? "text-[28px]" : "text-[31px]"} font-light leading-tight [text-shadow:0_1px_6px_rgba(0,0,0,.6)] [overflow-wrap:anywhere]`}>{m.title}</p>
                 {m.forWhom && <p className="text-[14px] text-white/80 mt-1">{m.forWhom}</p>}
@@ -347,7 +349,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                 {(m.after || []).map((t) => <p key={t} className="text-[13px] text-white/80 mt-1.5 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]">Then: {t}</p>)}
                 {/* (all her words for the line, here in Play — Ken's lunch note stopped at "gourmet fresh salads from…") */}
                 {full && m.full && (
-                  <div data-scroll className="pointer-events-auto mt-2 max-h-[40vh] overflow-y-auto overscroll-contain rounded-lg bg-black/35 px-3 py-2">
+                  <div data-scroll className="pointer-events-auto mt-2 max-h-[40vh] overflow-y-auto rounded-lg bg-black/35 px-3 py-2">
                     <p className="text-[15px] leading-snug text-white/95 whitespace-pre-line">{m.full}</p>
                   </div>
                 )}
