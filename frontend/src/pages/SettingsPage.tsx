@@ -16,7 +16,8 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const { logout, user: authUser } = useAuth();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
-  const [noteWaiting, setNoteWaiting] = useState(false);
+  // what sign-out would throw away unsaid: an unsaved note, words waiting in Scout's box (user-ken3, user-ken4)
+  const [noteWaiting, setNoteWaiting] = useState<string | null>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (confirmSignOut) confirmRef.current?.scrollIntoView({ block: "nearest" }); }, [confirmSignOut]);
   const faceIdHere = signedInWithPasskeyHere();
@@ -27,7 +28,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#faf8f5]">
+    // (room below for the bottom bar: the sign-out question's buttons sat under it — user-ken4)
+    <div className="min-h-[100dvh] bg-[#faf8f5] pb-28">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur-sm border-b border-[#e0d8cc] px-2 pb-1 top-bar flex items-center gap-1">
         <button onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"))} aria-label="Back" className="min-h-[44px] min-w-[44px] px-2 text-sm text-[#514636]">‹ Back</button>
@@ -91,8 +93,8 @@ export default function SettingsPage() {
             (user-ken3); the warning comes into view — Ken's "from the others" arrives late above and pushed it off-screen */}
         <section>
           {confirmSignOut ? (
-            <div ref={confirmRef} className="rounded-xl border border-[#e0d8cc] bg-white p-4">
-              {noteWaiting && <p className="text-sm text-[#3a3128]">Your unsaved note on this phone goes too. To keep it, save it in Notes first.</p>}
+            <div ref={confirmRef} className="rounded-xl border border-[#e0d8cc] bg-white p-4 scroll-mb-28">
+              {noteWaiting && <p className="text-sm text-[#3a3128]">{noteWaiting}</p>}
               {!faceIdHere && <p className={`text-sm text-[#3a3128] ${noteWaiting ? "mt-1" : ""}`}>This phone doesn't have Face ID set up for Wander.</p>}
               <p className="text-sm text-[#6b5d4a] mt-1">{/^(ken|larisa)\b/i.test(authUser?.displayName || "") ? (faceIdHere ? "After signing out, you'll need Face ID, or your personal Wander link (the one you first opened Wander with), to get back in." : "After signing out, you'll need your personal Wander link, the one you first opened Wander with, to get back in.") : "After signing out, you'll need your link from Ken or Larisa to get back in."}</p>
               <div className="flex gap-2 mt-3">
@@ -102,7 +104,16 @@ export default function SettingsPage() {
             </div>
           ) : (
             <button
-              onClick={() => { const waiting = unsavedNoteHere(); setNoteWaiting(waiting); if (faceIdHere && !waiting) signOut(); else setConfirmSignOut(true); }}
+              onClick={() => {
+                const note = unsavedNoteHere();
+                let scout = false;
+                try { scout = Object.keys(localStorage).some((k) => /^wander-chat(:.+)?:draft$/.test(k) && !!(localStorage.getItem(k) || "").trim()); } catch { /* storage off */ }
+                const waiting = note && scout ? "Your unsaved note, and the words waiting in Scout's box, go too. To keep the note, save it in Notes first."
+                  : note ? "Your unsaved note on this phone goes too. To keep it, save it in Notes first."
+                  : scout ? "The words waiting in Scout's box go too." : null;
+                setNoteWaiting(waiting);
+                if (faceIdHere && !waiting) signOut(); else setConfirmSignOut(true);
+              }}
               className="w-full min-h-[44px] py-3 rounded-xl border border-[#e0d8cc] text-[#8a3a2a] text-sm font-medium hover:bg-[#f5f0ea] transition-colors"
             >
               Sign out of Wander on this phone

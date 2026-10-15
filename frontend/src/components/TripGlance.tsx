@@ -150,7 +150,7 @@ function ItemLine({ i, me, stays, date, day, onOpen, picks, all, tz, railSaysIt,
             is 12:00 PM", and a skimmer could think there was time till noon; user-ken1) */}
         {checkoutBeforeFirst(i, day) && (() => {
           const by = leaveBeforeCheckout(i, day);
-          return <span className="block text-xs text-[#6b5d4a] mt-0.5">{by?.time ? `${itemTitle(by, stays, date)} is at ${clock(by.time)}, so check out before then. The hotel's own check-out time is ${clock(i.time)}` : `The hotel's check-out time is ${clock(i.time)}`}</span>;
+          return <span className="block text-xs text-[#6b5d4a] mt-0.5">{by?.time ? `“${itemTitle(by, stays, date)}” is at ${clock(by.time)}, so check out before then. The hotel's own check-out time is ${clock(i.time)}` : `The hotel's check-out time is ${clock(i.time)}`}</span>;
         })()}
         {other && <span className="block text-xs text-[#6b5d4a] mt-0.5">For {other}</span>}
         {!other && splitDay && i.forWhom && !/^everyone$/i.test(i.forWhom) && <span className="block text-xs text-[#514636] mt-0.5">Yours · {i.forWhom}</span>}

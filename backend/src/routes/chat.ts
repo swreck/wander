@@ -1052,8 +1052,23 @@ const tools: Anthropic.Tool[] = [
     input_schema: { type: "object" as const, properties: { tripId: { type: "string" }, id: { type: "string" } }, required: ["tripId", "id"] },
   },
   {
+    name: "change_expense",
+    description: "Change a payment already kept — how much, yen or dollars, which couple paid, or what it was for (the one they mean, from money_so_far's list, by its id). Give only what changes. Only who added it, or Ken, can. Rule 61.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" }, id: { type: "string" },
+        amount: { type: "number", description: "The new amount, as said" },
+        currency: { type: "string", enum: ["JPY", "USD"] },
+        paidBy: { type: "string", description: "The couple (or anyone in it) who really paid" },
+        what: { type: "string", description: "What it was for, in their words; an empty string takes it out" },
+      },
+      required: ["tripId", "id"],
+    },
+  },
+  {
     name: "money_so_far",
-    description: "Who pays next, each couple's total, what one couple owes the other to be even, and every payment kept (newest first, with ids). For 'who pays next?', 'where are we on money?', 'how much have we spent?', and before remove_expense. Rule 61.",
+    description: "Who pays next, each couple's total, what one couple owes the other to be even, and every payment kept (newest first, with ids). For 'who pays next?', 'where are we on money?', 'how much have we spent?', and before remove_expense or change_expense. Rule 61.",
     input_schema: { type: "object" as const, properties: { tripId: { type: "string" } }, required: ["tripId"] },
   },
   {
@@ -3884,12 +3899,13 @@ export async function executeTool(
     }
     case "add_expense":
     case "remove_expense":
+    case "change_expense":
     case "money_so_far": {
       const me = (user as any).travelerId as string | undefined;
       if (!me || !(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: input.tripId, travelerId: me } } }))) {
         return { result: { error: "That trip isn't one of yours." } };
       }
-      const { addExpense, removeExpense, ledger, yenWords } = await import("../services/expenses.js");
+      const { addExpense, removeExpense, changeExpense, ledger, yenWords } = await import("../services/expenses.js");
       const said = (l: Awaited<ReturnType<typeof ledger>>) => ({
         whoPaysNext: l.next, totals: Object.fromEntries(Object.entries(l.totals).map(([k, v]) => [k, yenWords(v)])),
         toBeEven: l.owes ? `${l.owes.from} owes ${l.owes.to} ${yenWords(l.owes.yen)}` : "even",
@@ -3898,7 +3914,16 @@ export async function executeTool(
         const l = await ledger(input.tripId, { travelerId: me, displayName: user.displayName });
         return { result: { ...said(l), payments: l.items.slice(0, 40).map((x) => ({ id: x.id, paidBy: x.party, amount: x.currency === "USD" ? `$${x.amount}` : yenWords(x.amount), yen: x.currency === "USD" ? yenWords(x.yen) : undefined, what: x.what, day: x.dayDate, keptBy: x.addedByName, youMayRemove: x.mayRemove })),
           // (Scout offered Larisa "tell me which and I'll take them off" for Andy's entries, then couldn't; user-larisa3)
-          say: "Lead with who pays next, then the two totals and what's owed to be even, in a line or two. List payments only if asked. Offer to take a payment away only when it's youMayRemove: true; for others, say who kept it and that they (or Ken) can take it away." } };
+          say: "Lead with who pays next, then the two totals and what's owed to be even, in a line or two. List payments only if asked. Offer to change or take a payment away only when it's youMayRemove: true; for others, say who kept it and that they (or Ken) can." } };
+      }
+      if (toolName === "change_expense") {
+        const r = await changeExpense(input.tripId, String(input.id || ""), { travelerId: me, displayName: user.displayName },
+          { amount: input.amount === undefined ? undefined : Number(input.amount), currency: input.currency, paidBy: input.paidBy, what: input.what });
+        if (r === "not-yours") return { result: { error: "Only whoever kept that payment, or Ken, can change it." } };
+        if (r === "gone") return { result: { error: "That payment isn't there — look at money_so_far for its id." } };
+        if ("error" in r) return { result: { error: r.error } };
+        const l = await ledger(input.tripId);
+        return { result: { changed: r.said || "nothing to change — it already says that", ...said(l), say: "One line: what changed, and who pays next now." }, actionDescription: r.said ? `Changed: ${r.said}` : undefined };
       }
       if (toolName === "remove_expense") {
         const r = await removeExpense(input.tripId, String(input.id || ""), { travelerId: me, displayName: user.displayName });
@@ -5378,7 +5403,7 @@ RULES:
 54. Use create_day_choice when someone says "some of us might want to do X while others do Y", "we could split up", or "there are two options for the afternoon". This creates a Decision tied to a specific day so everyone can vote on what they want to do.
 59. Telling Ken about Wander (Ken, Oct 14: "if they would like a feature added to wander or anything about the way wander works is confusing, they can speak or type at that moment what they want and it will become a message to Ken to try to fix"). Only when they ask for it — "Tell Ken…", "let Ken know…", "send that to Ken", or yes to your offer — a message about WANDER ITSELF goes to Ken with tell_ken: their words exactly, one thought per message (two wishes in one breath: two calls). "I wish Wander…", "Wander should…", "this is confusing", "I can't find…" said without asking: answer what you can, then offer once, in one short line: "Want me to pass that to Ken, word for word?" — never send without their yes (their words go to Ken only when they choose). Dictation can garble "Ken" ("tell can…", "tell Kent…"): if it's plainly meant, send it; if not, ask. Then one or two short lines: it's sent to Ken word for word (with the screen they're on, and the picture if they sent one), and they can send another. Never say Ken will fix it or when. If what they said is also a question you can answer ("I can't find the Maybes"), answer it too. Not about Wander — "tell Ken I'll be late", "tell Ken to meet us at 7", "tell Ken I love the trip" — is theirs to text: say so in one line, and send nothing. If it's unclear which, ask in one line. Never pass on anything they didn't ask you to.
 60. Ideas for Wander (Ken, Oct 15: "a place used most by andy and me to place screenshots and ideas to improve wander"): when Ken or Andy says "Wander idea: …" (the short way, often spoken), "For Ideas for Wander: …", "add that to Ideas", "put this in Ideas for Wander", call add_wander_idea with their words exactly (and their picture goes along). "Wander idea" means this only at the start of what they say — "an idea for dinner" or "any ideas for tonight?" is a question for you, never a post. It's theirs alone: anyone else who asks gets one line saying it's Ken and Andy's, and the offer to pass it to Ken (rule 59). "Tell Ken…" stays tell_ken, even from Ken or Andy. Never post on your own, and never move something said to you into Ideas without their asking.
-61. Who pays next (Larisa's idea, Oct 15: one couple pays for something, it's kept, and at the end the couple that paid less owes the other half the difference; "a simple button that is something like who pays next"). When someone says a couple, or anyone in it, paid for something — "we paid ¥12,400 for dinner", "Andy just spent 12400", "Larisa got the taxi, $30" — keep it with add_expense: who paid (their name, or the person talking for "we"/"I"), the amount as said, yen unless they said dollars, and what it was for if they said. Don't ask what it was for: it isn't needed. A number with no currency in Japan is yen. Then one or two lines: kept for which couple, and who pays next. "Who pays next?", "where are we on money?": money_so_far, then who pays next first, the totals and what's owed in a line. A payment kept by mistake: remove_expense (only who kept it, or Ken). Never keep money in Notes for this. If it's unclear who paid, ask in one line. It's shared by the two couples, all four see it. Say money plainly, in short sentences, without dashes.
+61. Who pays next (Larisa's idea, Oct 15: one couple pays for something, it's kept, and at the end the couple that paid less owes the other half the difference; "a simple button that is something like who pays next"). When someone says a couple, or anyone in it, paid for something — "we paid ¥12,400 for dinner", "Andy just spent 12400", "Larisa got the taxi, $30" — keep it with add_expense: who paid (their name, or the person talking for "we"/"I"), the amount as said, yen unless they said dollars, and what it was for if they said. Don't ask what it was for: it isn't needed. A number with no currency in Japan is yen. Then one or two lines: kept for which couple, and who pays next. "Who pays next?", "where are we on money?": money_so_far, then who pays next first, the totals and what's owed in a line. A payment kept by mistake: remove_expense (only who kept it, or Ken). A payment that's wrong — the amount, yen or dollars, which couple paid, or what it was for ("make the coffee ¥4,300", "that was Julie, not me", "it was for the taxi"): change_expense, giving only what changes (the same people can). Budget's page has "Change" on each payment and "History" (who added, changed or removed what, when). Never keep money in Notes for this. If it's unclear who paid, ask in one line. It's shared by the two couples, all four see it. Say money plainly, in short sentences, without dashes.
 62. Their photos (Oct 15: each of the four keeps their own photos on the day they took them; just theirs unless shared with the trip). A photo of the trip sent with "keep this", "add this to my photos", "save these for Tuesday": keep_photo — today unless they name a day; shared only when they ask to share it; their own words about it as its caption. A receipt, bill, ticket or booking is a paper (keep_paper), not a photo; if it's unclear which, ask in one line. Never share a photo they didn't ask to share. "Did Andy share any photos?", "what photos do we have from Tuesday?": answer from THEIR PHOTOS — who, which day and time, the caption — and say they're on that day's page under "Photos from the day" (and in Play the day). You know who took a photo, when and its caption, not what it shows. Never say there are no photos when THEIR PHOTOS lists some; when it has none for that day, say none have been shared for that day yet.
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
@@ -5722,7 +5747,7 @@ RULES:
           if (route && !routes.some((w) => w.apple === route.apple) && routes.length < 3) routes.push(route);
           if (actionDescription) actions.push(actionDescription);
           {
-            const from = ({ money_so_far: "the trip's Budget", add_expense: "the trip's Budget", remove_expense: "the trip's Budget", get_my_notes: "your notes in Wander" } as Record<string, string>)[toolBlock.name];
+            const from = ({ money_so_far: "the trip's Budget", add_expense: "the trip's Budget", remove_expense: "the trip's Budget", change_expense: "the trip's Budget", get_my_notes: "your notes in Wander" } as Record<string, string>)[toolBlock.name];
             if (from) wanderFacts.push({ from, text: JSON.stringify(result) });
           }
           if (cards) placeCards.push(...cards);

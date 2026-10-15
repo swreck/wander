@@ -2421,7 +2421,14 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   difference. Who pays next is the couple with the smaller total.
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.
-- **Taking one away**: only the person who kept it, or Ken ("Remove", then "Take it away"). It is hidden, never deleted.
+- **Changing or taking one away** (Oct 16): only the person who kept it, or Ken. "Change" on the entry opens a pop-up
+  with the couple, the amount, ¥ or $, and what it was for, and "Remove this entry" ("Remove it for everyone?"). A
+  removed one is hidden, never deleted. Ken: "add edit button to budget page to go back and add reason, change total, or
+  change payer with a pop up, or remove item". A dollar amount keeps the rate it was kept at, unless it's newly dollars.
+- **History** (Oct 16): every add, change and removal, newest first, each line the day and time, what was done
+  ("Changed ¥2,150 → $15", "Changed who paid: Julie & Andy → Ken & Larisa") and, at the end, who did it. Ken: "date,
+  person, action only" and "add the individuals user who made change at end of record". Removals before Oct 16 say who
+  wasn't recorded. Data: trip_expense_logs.
 - **The Budget tab** (bottom bar, Oct 15) opens the budget page. Its icon says who pays next: "KL" in purple when Ken &
   Larisa do, "AJ" in orange when Andy & Julie do, a coin when they're even or nothing is kept. Ken: "So it will toggle
   based on who is the next to pay, so it can be done in a glance or tapped to see the total. Make the KL version
@@ -2429,13 +2436,15 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   screen, so the icon turns at once on all four phones.
 - **The budget page** leads with the total ("¥… shared so far", or "Nothing kept yet"), what each couple paid, who pays
   next ("either — you're even" when they are) and what would make them even ("To be even now, … would pay … ¥…"). Then
-  **+ Add entry**, always there, which opens the form (Ken: "should always be another button that says add entry for
-  another one to be added then"). Then every entry, with what it was for when someone said, and nothing when no one did.
+  **+ Add entry**, always there, and **History**. Add entry opens a pop-up near the top of the screen (above where an
+  iPhone's keyboard comes up) with the cursor in the amount, the number keyboard, ¥ chosen and a small ¥ / $ switch (Ken:
+  "should always be another button that says add entry for another one to be added then"; "including the pop up and
+  keyboard for money with tiny pop up for dollars yen (yen default)"). Then every entry, with what it was for when someone said, and nothing when no one did.
   Ken: "It should show exactly what the item is if it is included in the entry, but can be blank if the topic is never
   added."
 - **Home** has the budget line under the Today card (§2.1).
-- **Scout**: add_expense, remove_expense, money_so_far (prompt rule 61); Scout's map of the app knows Budget. Data:
-  trip_expenses.
+- **Scout**: add_expense, change_expense, remove_expense, money_so_far (prompt rule 61); Scout's map of the app knows
+  Budget. Data: trip_expenses, trip_expense_logs.
 
 ---
 
