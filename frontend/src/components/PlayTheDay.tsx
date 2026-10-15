@@ -43,6 +43,10 @@ export interface PlayCover {
   /** her illustrated map's panel for the day (Kyoto), shown above a moment drawn for its kind: where the day goes, in
    *  her own art (tourist66/67: drawn cards were 40–50% plain; a blur of it was mush) */
   panel?: { src: string; label: string } | null;
+  /** when the sun sets that day, minutes after midnight (lib/sun) — on the cover, "sunset about 5:07 PM" */
+  sunset?: number | null;
+  /** the forecast's likeliest rain hours and showers, [from, to) hours — said on the moments they touch */
+  rain?: { wet: [number, number][]; showers: [number, number][] } | null;
   /** "Her" or, to Larisa, "Your" — for "Her full note" */
   her?: string;
 }
@@ -308,7 +312,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                 <button type="button" onClick={() => setFull((f) => !f)} className="pointer-events-auto inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">{full ? "Less" : "More"}</button>
               )}
               {(cover?.notes || []).map((n) => <p key={n} className="text-[13px] mt-2 bg-[#fff8ec]/90 text-[#6a4512] rounded-lg px-2.5 py-1.5">{n}</p>)}
-              <p className="text-[14px] text-white/75 mt-2">{moments.length} moments{span ? ` · ${span}` : ""}</p>
+              <p className="text-[14px] text-white/75 mt-2">{moments.length} moments{span ? ` · ${span}` : ""}{cover?.sunset != null ? ` · sunset about ${Math.floor(cover.sunset / 60) % 12 || 12}:${String(cover.sunset % 60).padStart(2, "0")} PM` : ""}</p>
               {/* (the city's photo credit comes worded: "Photo: Léonard Havet") */}
               {cover?.photo && (cover.photo.place || cover.photo.credit) && <p className="text-[11px] text-white/55 mt-1">{[cover.photo.place, cover.photo.credit].filter(Boolean).join(" · ")}</p>}
             </div>

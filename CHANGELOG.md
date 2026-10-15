@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday evening in Japan) — Play the Day: Rain and Sunset on the Moments They Touch
+
+### Added
+- Play the day has no weather band, so the band's own rain hours are said on the moments they touch: "The forecast has
+  rain likely 2–6 PM" on the first moment of that span, "One forecast sees showers 9–10 AM" likewise (days up to three
+  ahead, from the same forecast as the band); today, only what's still ahead, on the next moment ("… until 6 PM").
+- Sunset, worked out on the phone for the day's city: on the cover ("sunset about 5:07 PM") and on the moment the sun
+  goes down in ("Sunset about 5:07 PM"). Ken (Oct 15): "the feature or info or view the user would want before they
+  realize they want it". Where: day pages → Play the day. SPEC UPDATE NEEDED (Play).
+
 ## 2026-10-15 (Thursday evening in Japan) — When a Stop Is Open, Before You Get There
 
 ### Added
