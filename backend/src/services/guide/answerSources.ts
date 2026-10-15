@@ -34,6 +34,11 @@ function wanderSource(sentence: string, facts: WanderFact[]): string | null {
   const flat = (t: string) => t.replace(/[,¥$]/g, "").toLowerCase();
   const figures = (sentence.match(/[¥$]?\d[\d,]*(?::\d{2})?/g) || []).map((x) => x.replace(/[,¥$]/g, "")).filter((x) => x.length >= 3 || x.includes(":"));
   const quotes = (sentence.match(/[“"]([^”"]{6,})[”"]/g) || []).map((q) => q.slice(1, -1).toLowerCase());
+  // ("Ken and Larisa still pay next" has no figure: the Budget's answer of who pays next, by that couple — user-julie4)
+  if (!figures.length && !quotes.length && /\bpays? next\b/i.test(sentence)) {
+    const hit = facts.find((f) => { const t = f.text.toLowerCase(); return t.includes("whopaysnext") && (t.match(/"whopaysnext":"([^"]+)"/)?.[1] || "").split(/\s*&\s*/).every((n) => n && sentence.toLowerCase().includes(n.toLowerCase())); });
+    return hit ? hit.from : null;
+  }
   if (!figures.length && !quotes.length) return null;
   const hit = facts.find((f) => { const t = flat(f.text); return figures.every((n) => t.includes(n)) && quotes.every((q) => t.includes(q.replace(/[,¥$]/g, ""))); });
   return hit ? hit.from : null;

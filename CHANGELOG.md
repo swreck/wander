@@ -2,6 +2,28 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday morning in Japan) — Round Four of the Real-User Runs
+
+### Added
+- A Backroads day's page says what their itinerary holds, under "The day with Backroads": "Backroads' general itinerary
+  for their Day 1: Shuttle to Kanuma (2 hours) · Lunch at a local café · Up the valley toward Nikko (13 or 26 miles by
+  bike) · … Play the day shows each, in their words." The ride and the stops were only inside Play ("If I'd only
+  scrolled the day page I'd think Sunday was a bus day" — user-andy4). Her own check-out, meeting and dinner stay in
+  the list below. SPEC §3.7.
+
+### Fixed
+- Scout named Julie's oldest note of the day as "the most recent one" when she asked whether Andy could see the note
+  she'd just dictated, and offered to share it (user-julie4) — a yes could have put the wrong private note before the
+  trip. Scout's list of notes now says it's newest first and when each was kept, to the minute; it never offers to
+  share or un-share a kept note (that's the note's own "Share with the trip" on the Notes tab, which it points to) and
+  never keeps one again to share it. Asked again on the test copy: it names the tea-house note, says it's just hers,
+  and on "share it with everyone" says where to do it; nothing was shared.
+- Scout's Sources: "Ken and Larisa still pay next" is listed as from the trip's Budget (a sentence with no figure was
+  "Scout's own words").
+- A saved note says "Saved — 23 words, every one kept" (it called typed words "spoken" when the note began spoken).
+- The Safety tips card waits for the person's own setting before showing (on a fresh phone it flashed up and went for
+  someone who'd put it away on another phone).
+
 ## 2026-10-16 (Friday, early morning in Japan) — Round Three of the Real-User Runs
 
 ### Fixed
