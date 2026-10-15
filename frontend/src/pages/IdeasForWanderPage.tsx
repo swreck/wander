@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import { ideasOf, ideasSeen, postIdea, setIdeaStatus, ideaPictureUrl, STATUS_WORDS, type Idea, type IdeaPost, type IdeaStatus } from "../lib/wanderIdeas";
+import { ideasOf, ideasSeen, postIdea, setIdeaStatus, ideaPictureUrl, STATUS_WORDS, ENGINEER_LABEL, type Idea, type IdeaPost, type IdeaStatus } from "../lib/wanderIdeas";
 import PictureViewer from "../components/PictureViewer";
 
 const ORDER: IdeaStatus[] = ["new", "talking", "planned", "built", "not-now"];
@@ -46,12 +46,16 @@ function Composer({ draftId, placeholder, button, onPost, autoFocus }: {
   const [previews, setPreviews] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tooMany, setTooMany] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => { writeDraft(draftId, words); }, [draftId, words]);
   useEffect(() => { const u = files.map((f) => URL.createObjectURL(f)); setPreviews(u); return () => u.forEach((x) => URL.revokeObjectURL(x)); }, [files]);
   const add = (list: FileList | File[] | null) => {
     const pics = Array.from(list || []).filter((f) => f.type.startsWith("image/") || !f.type);
-    if (pics.length) setFiles((old) => [...old, ...pics].slice(0, 6));
+    // (six at most, said when more are chosen — verify62: a seventh vanished without a word)
+    if (!pics.length) return;
+    setTooMany(files.length + pics.length > 6);
+    setFiles((old) => [...old, ...pics].slice(0, 6));
   };
   const send = async () => {
     if (busy || (!words.trim() && !files.length)) return;
@@ -59,7 +63,7 @@ function Composer({ draftId, placeholder, button, onPost, autoFocus }: {
     const err = await onPost(words.trim(), files);
     setBusy(false);
     if (err) { setError(err); return; }
-    setWords(""); setFiles([]); writeDraft(draftId, "");
+    setWords(""); setFiles([]); setTooMany(false); writeDraft(draftId, "");
   };
   return (
     <div className="flex flex-col gap-2">
@@ -74,12 +78,16 @@ function Composer({ draftId, placeholder, button, onPost, autoFocus }: {
           {previews.map((u, i) => (
             <span key={u} className="relative">
               <img src={u} alt="" className="w-16 h-16 rounded-lg object-cover border border-[#e0d8cc]" />
-              <button type="button" onClick={() => setFiles((old) => old.filter((_, j) => j !== i))} aria-label="Take this picture off"
-                className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-[#3a3128] text-white text-xs">✕</button>
+              {/* (a 44-pt target around the small ✕ — verify62: it was 28) */}
+              <button type="button" onClick={() => { setTooMany(false); setFiles((old) => old.filter((_, j) => j !== i)); }} aria-label="Take this picture off"
+                className="absolute -top-3.5 -right-3.5 w-11 h-11 flex items-center justify-center">
+                <span className="w-7 h-7 rounded-full bg-[#3a3128] text-white text-xs flex items-center justify-center">✕</span>
+              </button>
             </span>
           ))}
         </div>
       )}
+      {tooMany && <p className="text-sm text-[#6b5d4a]">Six screenshots is the most for one idea. The first six are here.</p>}
       <div className="flex items-center gap-3">
         <input ref={input} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
         <button type="button" onClick={() => input.current?.click()} disabled={files.length >= 6}
@@ -96,12 +104,15 @@ function Composer({ draftId, placeholder, button, onPost, autoFocus }: {
   );
 }
 
-function Post({ p }: { p: IdeaPost }) {
-  const label = p.role === "helper" ? "Scout" : p.role === "engineer" ? "Claude, Wander's engineer" : p.mine ? "You" : p.who;
+function Post({ p, since }: { p: IdeaPost; since: string | null }) {
+  const label = p.role === "helper" ? "Scout" : p.role === "engineer" ? ENGINEER_LABEL : p.mine ? "You" : p.who;
+  // (new since they last looked: anyone else's, Scout's and Claude's included — verify62)
+  const fresh = !p.mine && !!since && p.at > since;
   return (
     <div className="flex flex-col gap-1.5">
       <p className="text-xs text-[#6b5d4a]">
         <span className={`font-medium ${p.role === "person" ? "text-[#3a3128]" : "text-[#8a5a1a]"}`}>{label}</span> · {when(p.at)}{p.screen ? ` · on ${p.screen}` : ""}
+        {fresh && <span className="ml-1.5 px-1.5 rounded bg-[#fdebd9] text-[#a85a1c] font-medium">new</span>}
       </p>
       {p.words && <p className="text-[15px] text-[#3a3128] whitespace-pre-line [overflow-wrap:anywhere]">{p.words}</p>}
       {p.pictures.length > 0 && <div className="flex flex-wrap gap-2">{p.pictures.map((id) => <Thumb key={id} id={id} who={label} />)}</div>}
@@ -109,7 +120,7 @@ function Post({ p }: { p: IdeaPost }) {
   );
 }
 
-function IdeaCard({ idea, tripId, waiting, onChanged }: { idea: Idea; tripId: string; waiting: boolean; onChanged: () => void }) {
+function IdeaCard({ idea, tripId, waiting, since, onChanged }: { idea: Idea; tripId: string; waiting: boolean; since: string | null; onChanged: () => void }) {
   const [replying, setReplying] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [status, setStatus] = useState<IdeaStatus>(idea.status);
@@ -122,9 +133,9 @@ function IdeaCard({ idea, tripId, waiting, onChanged }: { idea: Idea; tripId: st
   return (
     <li className="bg-white rounded-2xl border border-[#e0d8cc] p-4 flex flex-col gap-3">
       <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1"><Post p={idea} /></div>
+        <div className="min-w-0 flex-1"><Post p={idea} since={since} /></div>
         <button type="button" onClick={() => setChoosing((c) => !c)} aria-expanded={choosing} aria-label={`Status: ${STATUS_WORDS[status]}. Change it`}
-          className={`shrink-0 min-h-[32px] px-2.5 rounded-full text-xs border ${status === "built" ? "border-[#7a9a6a] text-[#4a6a3a]" : status === "planned" ? "border-[#c8a25a] text-[#8a5a1a]" : status === "not-now" ? "border-[#cfc5b5] text-[#9a8d78]" : "border-[#e0d8cc] text-[#514636]"}`}>
+          className={`shrink-0 min-h-[44px] px-3 rounded-full text-xs border ${status === "built" ? "border-[#7a9a6a] text-[#4a6a3a]" : status === "planned" ? "border-[#c8a25a] text-[#8a5a1a]" : status === "not-now" ? "border-[#cfc5b5] text-[#9a8d78]" : "border-[#e0d8cc] text-[#514636]"}`}>
           {STATUS_WORDS[status]} ▾
         </button>
       </div>
@@ -132,13 +143,13 @@ function IdeaCard({ idea, tripId, waiting, onChanged }: { idea: Idea; tripId: st
         <div className="flex flex-wrap gap-2" role="group" aria-label="Choose its status">
           {ORDER.map((s) => (
             <button key={s} type="button" onClick={() => choose(s)} aria-pressed={s === status}
-              className={`min-h-[36px] px-3 rounded-full text-sm border ${s === status ? "bg-[#514636] text-white border-[#514636]" : "border-[#e0d8cc] text-[#514636]"}`}>{STATUS_WORDS[s]}</button>
+              className={`min-h-[44px] px-3.5 rounded-full text-sm border ${s === status ? "bg-[#514636] text-white border-[#514636]" : "border-[#e0d8cc] text-[#514636]"}`}>{STATUS_WORDS[s]}</button>
           ))}
         </div>
       )}
       {(idea.replies.length > 0 || waiting) && (
         <ul className="flex flex-col gap-3 border-l-2 border-[#f0ebe3] pl-3">
-          {idea.replies.map((r) => <li key={r.id}><Post p={r} /></li>)}
+          {idea.replies.map((r) => <li key={r.id}><Post p={r} since={since} /></li>)}
           {waiting && <li className="text-sm text-[#6b5d4a]">Scout is reading it…</li>}
         </ul>
       )}
@@ -154,6 +165,9 @@ export default function IdeasForWanderPage() {
   const navigate = useNavigate();
   const [tripId, setTripId] = useState<string | null>(() => { try { return localStorage.getItem("wander:last-trip-id"); } catch { return null; } });
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
+  // when they last looked before this visit — what's newer is marked "new" (kept for the whole visit)
+  const [since, setSince] = useState<string | null | undefined>(undefined);
+  const firstLoad = useRef(true);
   const [notMember, setNotMember] = useState(false);
   const [offline, setOffline] = useState(false);
   const [filter, setFilter] = useState<IdeaStatus | "all">("all");
@@ -166,10 +180,13 @@ export default function IdeasForWanderPage() {
   }, [tripId]);
   const load = useCallback(() => {
     if (!tripId) return;
-    ideasOf(tripId).then((l) => { setIdeas(l); setOffline(false); })
-      .catch((e: { status?: number }) => { if (e?.status === 403) setNotMember(true); else setOffline(true); });
+    ideasOf(tripId).then((r) => {
+      setIdeas(r.ideas); setOffline(false);
+      // (the first answer of this visit sets what's "new"; only then is the visit counted as seen)
+      if (firstLoad.current) { firstLoad.current = false; setSince(r.seenAt); ideasSeen(tripId); }
+    }).catch((e: { status?: number }) => { if (e?.status === 403) setNotMember(true); else setOffline(true); });
   }, [tripId]);
-  useEffect(() => { load(); if (tripId) ideasSeen(tripId); }, [tripId, load]);
+  useEffect(() => { load(); }, [load]);
   // (Scout's answer arrives in a few seconds: look again until it's there)
   useEffect(() => {
     if (!awaiting) return;
@@ -189,10 +206,13 @@ export default function IdeasForWanderPage() {
 
   return (
     <div className="min-h-screen bg-[#faf8f5] pb-28">
-      <header className="sticky z-20 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] px-4 pb-3" style={{ top: 0, paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
-        <button type="button" onClick={back} className="min-h-[44px] text-sm text-[#514636]">‹ Back to the trip</button>
-        <h1 className="text-2xl text-[#3a3128]">Ideas for Wander</h1>
-        <p className="text-sm text-[#6b5d4a] mt-0.5">Just Ken and Andy. Scout answers each idea, and Claude, Wander’s engineer, picks them up and keeps each one’s status.</p>
+      {/* (scrolls away with the page: fixed, its three lines took a fifth of the screen — verify62) */}
+      <header className="border-b border-[#e0d8cc] px-4 pb-3" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
+        <div className="max-w-2xl mx-auto">
+          <button type="button" onClick={back} className="min-h-[44px] text-sm text-[#514636]">‹ Back to the trip</button>
+          <h1 className="text-2xl text-[#3a3128]">Ideas for Wander</h1>
+          <p className="text-sm text-[#6b5d4a] mt-0.5">Just Ken and Andy. Scout answers each idea in a few seconds.</p>
+        </div>
       </header>
 
       <main className="px-4 pt-4 flex flex-col gap-5 max-w-2xl mx-auto">
@@ -214,7 +234,7 @@ export default function IdeasForWanderPage() {
           <div className="flex flex-wrap gap-2" role="group" aria-label="Show ideas by status">
             {(["all", ...ORDER] as const).map((s) => (
               <button key={s} type="button" onClick={() => setFilter(s)} aria-pressed={filter === s}
-                className={`min-h-[36px] px-3 rounded-full text-sm border ${filter === s ? "bg-[#514636] text-white border-[#514636]" : "border-[#e0d8cc] text-[#514636] bg-white"}`}>
+                className={`min-h-[44px] px-3.5 rounded-full text-sm border ${filter === s ? "bg-[#514636] text-white border-[#514636]" : "border-[#e0d8cc] text-[#514636] bg-white"}`}>
                 {s === "all" ? `All ${ideas.length}` : `${STATUS_WORDS[s]} ${counts[s]}`}
               </button>
             ))}
@@ -223,7 +243,7 @@ export default function IdeasForWanderPage() {
         {ideas && ideas.length === 0 && <p className="text-sm text-[#6b5d4a]">No ideas yet. Post the first one: a screenshot of anything in Wander, and what would make it better.</p>}
         {shown.length === 0 && ideas && ideas.length > 0 && <p className="text-sm text-[#6b5d4a]">None marked {filter === "all" ? "" : STATUS_WORDS[filter as IdeaStatus]} right now.</p>}
         <ul className="flex flex-col gap-4">
-          {shown.map((i) => <IdeaCard key={i.id} idea={i} tripId={tripId!} waiting={awaiting?.id === i.id} onChanged={load} />)}
+          {shown.map((i) => <IdeaCard key={i.id} idea={i} tripId={tripId!} waiting={awaiting?.id === i.id} since={since ?? null} onChanged={load} />)}
         </ul>
       </main>
     </div>

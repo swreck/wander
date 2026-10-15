@@ -16,7 +16,9 @@ const NOT_IN = { error: "Ideas for Wander is for its members." };
 router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string, me = req.user?.travelerId;
   if (!me || !(await isMember(tripId, me))) { res.status(403).json(NOT_IN); return; }
-  res.json({ ideas: await listIdeas(tripId, me) });
+  // (when this member last looked, so the page can mark what's new since — verify62: "1 new" on Home, nothing marked)
+  const m = await prisma.wanderIdeaMember.findUnique({ where: { tripId_travelerId: { tripId, travelerId: me } }, select: { seenAt: true } });
+  res.json({ ideas: await listIdeas(tripId, me), seenAt: m?.seenAt?.toISOString() ?? null });
 });
 
 // GET /trip/:tripId/unseen — for the dot beside "Ideas" on Home ({ member: false } for everyone else)
