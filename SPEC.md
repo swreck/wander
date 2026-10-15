@@ -1635,6 +1635,15 @@ below. Trains, walks and "refresh at the hotel" stay compact text rows. The time
 her plan moves or is reordered. Ken (Oct 15): "simply adding a photo on each day page does not seem to fulfill Andy's
 social media vision of a visual flow… It might be an option when you see a picture to see more pictures".
 
+**When a stop is open** (Oct 15). Ken: "the feature or info or view the user would want before they realize they want
+it". When her plan's time doesn't fit the place's hours as Google lists them, the stop's line says so, as Google's:
+"Google lists … as opening at 11 AM" (her plan has it at 10:00), "… as closed for now", "… as closed on Mondays", "… as
+closing at 4:30 PM" when her time runs a quarter hour or more past closing. For a whole street or market it says
+"Google's hours for … start at 10 AM", since one listing isn't every shop's. It shows only on the line that is the stop
+itself (never "Taxi to…" or "Finish…"), and only for a place Wander has already checked is the one her line means (the
+place of its photo). Nothing is said when her times fit or Google has no hours. Her plan is never changed. Hours come
+from Google's listing, special days included for the coming week, and are looked at again every three days.
+
 **Your trains, in the day** (Oct 4, Oct 8). Each booked train is drawn once: under her line when it names the train,
 else at its time. The short row keeps what you need on the platform: times, name and route, car, seats, reservation
 number, any check before boarding, and her Guide's other time for it. "Reservation, notes and steps ›" opens the rest.
@@ -1696,7 +1705,8 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
 - **A moment**: the photo, the time, the name, a line of her note, a train's booking, her bookings and dress code, the
   stop her tab names for the line, Maps, "6 photos". "Her full note" shows all her words for the line.
 - **The list's corrections come along**: each moment carries what the day's list says about it (a booked arrival, "the
-  sources give two times", her tabs differing). A line her Guide marks done is never a moment.
+  sources give two times", her tabs differing), and the stop's hours when they don't fit her time (§3.4). A line her
+  Guide marks done is never a moment. An open note never stops the words scrolling.
 - **Her order, nothing dropped**: her travel lines (taxi, transfer, return, and "Leave…" lines) fold into the moment
   they lead to as "Getting there: 9:15 AM · Taxi back to …". A "Finish X" line joins X as "Then: …".
 - **Moving**: a white **Next** button names what comes next ("Next · 1:30 PM / …"), with ‹ for the one before. Swipe left
@@ -1711,11 +1721,13 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
 - **No sure photo**: the moment shows a drawing of its kind of stop (a bowl for a meal, a gate for a temple, a train, a
   bed for the hotel) on a warm colour, just above its words. On a Kyoto day her own map panel for that day fills the
   upper part, captioned "Larisa's map of the day" ("Your map of the day" to Larisa). On other days the upper part is a
-  faint pattern of the drawing. Nothing suggests a photo of the stop. A small photo shows whole over a blur of itself.
-- **On a booked train**, its moment leads with the booked times and gives her plan's time beneath.
+  faint pattern of the drawing. Her map sits centred in its room. Nothing suggests a photo of the stop. A small photo
+  shows whole over a blur of itself.
+- **On a booked train**, its moment leads with the booked times and gives her plan's time beneath. Once you're on the
+  train, no "Getting there" shows.
 - **Motion**: photos drift slowly closer and fade into each other; none of that under Reduce Motion.
-- **The end**: "That's the day.", ‹ back to the last moment, and **Play tomorrow** when the next day has her plan, or **See tomorrow** (the next
-  day's page) when it doesn't.
+- **The end**: "That's the day.", ‹ back to the last moment, and **Play tomorrow** when the next day has her plan, or
+  **See tomorrow** (the next day's page) when it doesn't.
 
 ---
 
@@ -2515,7 +2527,8 @@ setting never replaces the others.
   map (§3.1). Cut once from her picture, which is never changed; a new map in a new copy of her Guide retires the old
   panels.
 - **Her stops' photos** on the day screen, and **Play the day** (§3.4, §3.7). A stop's photo is kept only when a check
-  finds Google's place is the same place her line means.
+  finds Google's place is the same place her line means. That checked place's hours, from its Google listing and
+  looked at again every three days, are said on the stop's line when her time doesn't fit them (§3.4).
 - **Her pictures**, full screen from tab by tab and from Sources (§4.6). A picture holding people's own travel numbers is
   never shown (§19).
 - **Papers' photos** open in the phone's own viewer (§9.6).

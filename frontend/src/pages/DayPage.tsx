@@ -40,6 +40,8 @@ import { appleGuides, savedAppleGuides, type GuidesByDay } from "../lib/appleGui
 import { guidePictures, savedGuidePictures, type GuidePicture } from "../lib/guidePictures";
 import { dayPanels, savedDayPanels, type PanelsByDay, type DayPanel } from "../lib/dayPanels";
 import { hoursWords } from "../lib/placeHours";
+import { sunsetMinutes } from "../lib/sun";
+import { savedDayForecast, dayForecastFor } from "../lib/forecast";
 import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
@@ -507,6 +509,29 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     const last = moments[moments.length - 1];
     if (last) { last.after = [...(last.after || []), ...carry]; last.isNow ||= carryNow; } else moments.push(...all.filter((m) => carry.some((c) => c.endsWith(m.title))));
   }
+  // Rain and sunset on the moments they touch, in Play (it has no band): the forecast's likeliest rain hours on the first
+  // moment of each span still ahead ("Rain likely 3–7 PM", as the band says it), showers one forecast sees, and the
+  // sunset on the moment the sun goes down in — worked out on the phone, "about" (Oct 15: "before they realize")
+  {
+    const hourWord = (h: number) => (h === 12 ? "noon" : `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`);
+    const spanWord = ([s, e]: [number, number]) => (s !== 12 && e !== 12 && (s < 12) === (e < 12) ? `${s % 12 || 12}–${hourWord(e)}` : `${hourWord(s)}–${hourWord(e)}`);
+    const lasts = (m: Moment) => (m.start == null ? null : [m.start, m.end ?? m.start + 60] as [number, number]);
+    // (today, from now on: a span under way goes on the first moment still ahead, as "until 6 PM")
+    const from = nowAt ?? 0;
+    const firstIn = ([s, e]: [number, number]) => moments.find((m) => { const t = lasts(m); return !!t && t[1] > from && t[0] < e * 60 && t[1] > s * 60; });
+    for (const [list, say] of [[playCover?.rain?.wet || [], "The forecast has rain likely"], [playCover?.rain?.showers || [], "One forecast sees showers"]] as const) {
+      for (const sp of list.filter((x) => x[1] * 60 > from)) {
+        const m = firstIn(sp);
+        const under = nowAt !== null && sp[0] * 60 <= nowAt;
+        if (m) m.info = [...(m.info || []), `${say} ${under ? `until ${hourWord(sp[1])}` : spanWord(sp)}`];
+      }
+    }
+    const sun = playCover?.sunset ?? null;
+    if (sun !== null) {
+      const m = moments.find((x) => { const t = lasts(x); return !!t && t[0] <= sun && sun < t[1]; });
+      if (m) m.info = [...(m.info || []), `Sunset about ${hourWord(Math.floor(sun / 60)).replace(/^(\d+)/, `$1:${String(sun % 60).padStart(2, "0")}`)}`];
+    }
+  }
   // (today, on what's happening now; otherwise the day's cover)
   const playFrom = moments.findIndex((m) => m.isNow);
   // The cover: the day in her words when Wander has no summary of it (her Itinerary line); the day's own first photo
@@ -518,6 +543,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       : playCover?.photo || null,
     notes: twoVersionsWords ? [twoVersionsWords] : [],
     panel: playCover?.panel || null,
+    sunset: playCover?.sunset ?? null,
     her: v.Her,
   };
   return (
@@ -1099,6 +1125,16 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     const t = setInterval(get, 10 * 60_000);
     return () => { cancelled = true; clearInterval(t); };
   }, [tripId]);
+  // The hours rain is likeliest, from the same forecast the band says (days up to 3 ahead), for "Play the day" — which
+  // has no band: said there on the moment it first touches (Oct 15: "before they realize they want it")
+  const [dayRain, setDayRain] = useState<{ wet?: [number, number][]; showers?: [number, number][] } | null>(null);
+  useEffect(() => {
+    if (!tripId) return;
+    let live = true;
+    setDayRain(savedDayForecast(tripId, date));
+    dayForecastFor(tripId, date).then((f) => { if (live && f) setDayRain(f); }).catch(() => {});
+    return () => { live = false; };
+  }, [tripId, date]);
 
   // The day in the order it's lived (lib/guideDisplay.ts). Deadlines appear on every day of their
   // window; Larisa's budget and bookkeeping notes sit apart from the plan.
@@ -2213,7 +2249,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 cityId={bandCity?.id}
                 playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
                 playCover={{ summary: summariesByDay[date] || null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
-                  panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null }}
+                  panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null,
+                  sunset: forecastCity?.latitude != null && forecastCity?.longitude != null ? sunsetMinutes(forecastCity.latitude, forecastCity.longitude, date) : null,
+                  rain: dayRain && (dayRain.wet?.length || dayRain.showers?.length) ? { wet: dayRain.wet || [], showers: dayRain.showers || [] } : null }}
                 playTomorrow={(() => {
                   // (straight into its Play when the next day has her plan; else its page)
                   if (!hasNext) return null;
