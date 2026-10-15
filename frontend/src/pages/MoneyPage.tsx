@@ -43,6 +43,8 @@ export default function MoneyPage() {
   // (the couple you're in, ready as "paid by")
   const mine = l?.parties.find((p) => p.split(/\s*&\s*/).some((x) => first(x) === first(me))) || null;
   useEffect(() => { if (!paidBy && mine) setPaidBy(mine); }, [mine, paidBy]);
+  // (a couple chosen answers "Which couple paid?" — it stayed red once the couples came and hers was picked; user-julie3)
+  useEffect(() => { if (paidBy) setError((e) => (e === "Which couple paid?" ? null : e)); }, [paidBy]);
   useEffect(() => { if (!kept) return; const t = setTimeout(() => setKept(null), 4000); return () => clearTimeout(t); }, [kept]);
 
   const add = async () => {
@@ -84,6 +86,9 @@ export default function MoneyPage() {
         )}
         {adding && <section className="bg-white rounded-2xl border border-[#e0d8cc] p-4 flex flex-col gap-3" aria-label="Add entry">
           <h2 className="text-[17px] font-medium text-[#3a3128]">Add entry</h2>
+          {/* (opened before the ledger came, it had no couples to pick and said "Which couple paid?" with no way to answer —
+              user-julie3) */}
+          {!l && <p className="text-[15px] text-[#6b5d4a] min-h-[48px] flex items-center" role="status">Getting the two couples…</p>}
           <div className="grid grid-cols-2 gap-2" role="group" aria-label="Who paid">
             {(l?.parties || []).map((p) => (
               <button key={p} type="button" onClick={() => setPaidBy(p)} aria-pressed={paidBy === p}
@@ -103,7 +108,7 @@ export default function MoneyPage() {
           <input value={what} onChange={(e) => setWhat(e.target.value)} placeholder="What for (if you like)" aria-label="What for"
             className="min-h-[48px] rounded-xl border border-[#e0d8cc] px-3 text-[16px] text-[#3a3128] focus:outline-none focus:border-[#a89880]" />
           <div className="flex items-center gap-3">
-            <button type="button" onClick={add} disabled={busy} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? "Keeping…" : "Keep it"}</button>
+            <button type="button" onClick={add} disabled={busy || !l} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? "Keeping…" : "Keep it"}</button>
             <button type="button" onClick={() => { setAdding(false); setError(null); }} className="min-h-[48px] px-2 text-[15px] text-[#514636] underline underline-offset-2">Cancel</button>
           </div>
           {error && <p className="text-sm text-[#8a3a1a]" role="alert">{error}</p>}

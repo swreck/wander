@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { unsavedNoteHere } from "../lib/tripNotes";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -15,6 +16,9 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const { logout, user: authUser } = useAuth();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [noteWaiting, setNoteWaiting] = useState(false);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (confirmSignOut) confirmRef.current?.scrollIntoView({ block: "nearest" }); }, [confirmSignOut]);
   const faceIdHere = signedInWithPasskeyHere();
 
   function signOut() {
@@ -83,12 +87,14 @@ export default function SettingsPage() {
         {/* Dedup review (planner-only) */}
         <DedupSection />
 
-        {/* Sign out — with a warning when this phone has no Face ID to get back in */}
+        {/* Sign out — with a warning when this phone has no Face ID to get back in, or an unsaved note would go with it
+            (user-ken3); the warning comes into view — Ken's "from the others" arrives late above and pushed it off-screen */}
         <section>
           {confirmSignOut ? (
-            <div className="rounded-xl border border-[#e0d8cc] bg-white p-4">
-              <p className="text-sm text-[#3a3128]">This phone doesn't have Face ID set up for Wander.</p>
-              <p className="text-sm text-[#6b5d4a] mt-1">{/^(ken|larisa)\b/i.test(authUser?.displayName || "") ? (faceIdHere ? "After signing out, you'll need your personal Wander link, or Face ID, to get back in." : "After signing out, you'll need your personal Wander link to get back in.") : "After signing out, you'll need your link from Ken or Larisa to get back in."}</p>
+            <div ref={confirmRef} className="rounded-xl border border-[#e0d8cc] bg-white p-4">
+              {noteWaiting && <p className="text-sm text-[#3a3128]">Your unsaved note on this phone goes too. To keep it, save it in Notes first.</p>}
+              {!faceIdHere && <p className={`text-sm text-[#3a3128] ${noteWaiting ? "mt-1" : ""}`}>This phone doesn't have Face ID set up for Wander.</p>}
+              <p className="text-sm text-[#6b5d4a] mt-1">{/^(ken|larisa)\b/i.test(authUser?.displayName || "") ? (faceIdHere ? "After signing out, you'll need Face ID, or your personal Wander link (the one you first opened Wander with), to get back in." : "After signing out, you'll need your personal Wander link, the one you first opened Wander with, to get back in.") : "After signing out, you'll need your link from Ken or Larisa to get back in."}</p>
               <div className="flex gap-2 mt-3">
                 <button onClick={() => setConfirmSignOut(false)} className="min-h-[44px] flex-1 rounded-lg bg-[#514636] text-white text-sm">Stay signed in</button>
                 <button onClick={signOut} className="min-h-[44px] flex-1 rounded-lg border border-[#d6ccbc] text-[#8a3a2a] text-sm">Sign out anyway</button>
@@ -96,7 +102,7 @@ export default function SettingsPage() {
             </div>
           ) : (
             <button
-              onClick={() => { if (faceIdHere) signOut(); else setConfirmSignOut(true); }}
+              onClick={() => { const waiting = unsavedNoteHere(); setNoteWaiting(waiting); if (faceIdHere && !waiting) signOut(); else setConfirmSignOut(true); }}
               className="w-full min-h-[44px] py-3 rounded-xl border border-[#e0d8cc] text-[#8a3a2a] text-sm font-medium hover:bg-[#f5f0ea] transition-colors"
             >
               Sign out of Wander on this phone

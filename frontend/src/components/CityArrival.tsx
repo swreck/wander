@@ -93,7 +93,9 @@ export default function CityArrival({ cityId, cityName, dateWords, auto = true, 
   replay?: number;
 }) {
   // The first time, by itself — in the day's very first drawing, or not this visit
-  const [shown, setShown] = useState<Shown | null>(() => (auto && cityId && readyPhotos.has(cityId) && !seen(cityId) ? readyPhotos.get(cityId)! : null));
+  // (and not over a day already being read: drawn once the day's data came, it covered the photos Julie had scrolled
+  // down to; user-julie3)
+  const [shown, setShown] = useState<Shown | null>(() => (auto && cityId && readyPhotos.has(cityId) && !seen(cityId) && window.scrollY < 40 ? readyPhotos.get(cityId)! : null));
   const [fading, setFading] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const shownAt = useRef(Date.now());

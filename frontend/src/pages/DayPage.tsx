@@ -556,7 +556,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
         : noOwner.has(b.id) ? ["No group named here — the group is split"] : []),
       ...(b.detail || "").split("\n").filter((l) => /^Where: .+ — the stop her tab lists/.test(l)).map((l) => v.say(l)),
       ...(playBookings ? playBookings(b) : []),
-      ...(dress ? [`${dress.stricter ? `${v.Her} booking at ${dress.where} asks less: ` : `${v.Her} booking at ${dress.where}: `}“${dress.words}”`] : []),
+      // ("asks less" left Andy guessing — the booking's dress code is looser than her plan's line; user-andy3)
+      ...(dress ? [`${dress.stricter ? `${v.Her} booking at ${dress.where} gives a looser dress code: ` : `${v.Her} booking at ${dress.where}: `}“${dress.words}”`] : []),
     ];
     const hm = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
     // (when it starts for the "in 45 min": the booked arrival when her time is for another train; none when the sources
@@ -757,7 +758,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 {(() => {
                   const dress = bookingDress(b, bookings);
                   return dress ? <p className={`text-[13px] rounded-md px-2 py-1 mt-1 ${dress.stricter ? "text-[#8a5a1a] bg-[#fff8ec]" : "text-[#514636] bg-[#f6f1e8]"}`}>
-                    {dress.stricter ? `${v.Her} booking at ${dress.where} asks less: ` : `${v.Her} booking at ${dress.where}: `}“{dress.words}”
+                    {dress.stricter ? `${v.Her} booking at ${dress.where} gives a looser dress code: ` : `${v.Her} booking at ${dress.where}: `}“{dress.words}”
                   </p> : null;
                 })()}
                 {choices.length > 0 && (
@@ -901,6 +902,8 @@ import { DayPapers } from "../components/Papers";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** words in a Backroads moment's title that don't name anything ("then", "your") — for choosing the sentences it quotes */
+const SAID_STOP = new Set("with from into your yours their then this that there over back time some they them".split(" "));
 const KIND_MARK: Record<string, string> = {
   flight: "✈︎", train: "🚄", travel: "🚐", meeting: "📍", tour: "🧭", meal: "🍽", checkin: "🛎", checkout: "🧳",
   // Her notes get a plain mark — a pencil read as "tap to edit" and did nothing (round 6)
@@ -1667,7 +1670,17 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         const sentences = words.replace(/^…/, "").match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g)?.map((x) => x.trim()) || [];
         const keys = d.title.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 4);
         const named1 = sentences.findIndex((x) => keys.some((k) => x.toLowerCase().includes(k)));
-        const said = !words ? null : named1 > 0 ? sentences[named1] : (/^…/.test(words) ? `…${firstSentence(words)}` : firstSentence(words));
+        // (and both sentences when the title names something in each — "An art tour, the onsen or a massage" quoted only
+        // the onsen one; a sentence that adds nothing the title names isn't added — "Lake Yumoto…" stays off "…Lake
+        // Chuzenji"; user-larisa3. Checked against all 39 moments: scratchpad said-compare.mjs, 4 change)
+        const keys2 = d.title.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4 && !SAID_STOP.has(w));
+        const has = (i: number) => new Set(keys2.filter((k) => sentences[i].toLowerCase().includes(k)));
+        const adds = (a: number, b: number) => [...has(a)].some((k) => !has(b).has(k));
+        const hits = sentences.map((x, i) => (keys2.some((k) => x.toLowerCase().includes(k)) ? i : -1)).filter((i) => i >= 0);
+        const [lo, hi] = [hits[0], hits[hits.length - 1]];
+        const said = !words ? null
+          : hits.length && hi - lo === 1 && adds(lo, hi) && adds(hi, lo) ? sentences.slice(lo, hi + 1).join(" ")
+          : named1 > 0 ? sentences[named1] : (/^…/.test(words) ? `…${firstSentence(words)}` : firstSentence(words));
         // (under her own line — "Ritz Carlton - Japanese Dinner" — Backroads' "we meet for a welcome reception…" read as
         // hers: there, their words say whose they are; user-larisa1, Oct 16)
         const note = said ? (named ? `${docDay.from}: “${said}”` : said) : her ? herDetail(her)[0] || null : null;
@@ -1677,7 +1690,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         // Chuzenji among them; Oct 16)
         if (d.place) places[id] = { query: d.place, line: d.photoNote ? `${d.place} — ${d.photoNote}` : d.place, note: d.photoNote };
         else if (named && d.her === "dinner") places[id] = { query: her!.title, line: her!.title };
-        return [{ ...base, id, title: named ? itemTitle(her!, stays, date) : d.title, note,
+        // (her line's map, as the day's page has it — the 8:30 meeting had no way to the Courtyard by Marriott in Play;
+        // user-larisa3. Not the check-out: that's the hotel you're in)
+        return [{ ...base, id, map: her && d.her !== "checkout" ? planMapHref(her, {}) ?? (mapsQueryFor(her) ? mapsLink(mapsQueryFor(her)!) : null) : null, title: named ? itemTitle(her!, stays, date) : d.title, note,
           // (no countdown from a check-out's time: that's the hotel's latest — on Oct 18 they leave before the 8:30
           // meeting, and Play said "This afternoon"; tourist78)
           time: her?.time ? timeLabel(her, dayItems) : null, start: d.her === "checkout" ? null : hm(her?.time),
@@ -1691,7 +1706,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             ...(named && d.her === "dinner" ? herDetail(her!).slice(0, 1) : []),
             // (the hotel's own time, as the day's screen says it — Play's "Morning · Check out" said nothing of the noon in
             // her screenshot; user-larisa2)
-            ...(named && d.her === "checkout" && her?.time ? [`The hotel's own check-out time is ${clock(her.time)}`] : []),
+            // (and when to be out by, first, as the day's card says it — "The hotel's own check-out time is 12:00 PM" alone
+            // read to Andy as his deadline on the morning they meet Backroads at 8:30; user-andy3)
+            ...(named && d.her === "checkout" && her?.time ? (() => { const by = leaveBeforeCheckout(her, dayItems);
+              return [...(by ? [`${itemTitle(by, stays, date)} is at ${timeLabel(by, dayItems)}, so check out before then`] : []), `The hotel's own check-out time is ${clock(her.time)}`]; })() : []),
           ],
           kind: KIND[d.kind || ""] }];
       });
@@ -2276,7 +2294,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 {(() => {
                   const dress = bookingDress(currentBlock, dayItems.filter((m) => m.kind === "meal"));
                   return dress ? <span className={`block text-sm mt-0.5 ${dress.stricter ? "text-[#8a5a1a]" : "text-[#514636]"}`}>
-                    {dress.stricter ? `${v.Her} booking at ${dress.where} asks less: ` : `${v.Her} booking at ${dress.where}: `}“{dress.words}”
+                    {dress.stricter ? `${v.Her} booking at ${dress.where} gives a looser dress code: ` : `${v.Her} booking at ${dress.where}: `}“{dress.words}”
                   </span> : null;
                 })()}
               </button>
@@ -3031,7 +3049,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             </span>
             {doneWords ? <span className="block text-sm mt-0.5 text-[#3f5a2a]">{doneWords}</span>
               : timing && <span className={`block text-sm mt-0.5 ${othersJob ? "text-[#6b5d4a]" : "text-[#8a5a1a]"}`}>{timing}</span>}
-            {leaveBy && <span className="block text-sm text-[#3a3128] mt-0.5">Check out in time for {itemTitle(leaveBy, stays, date)} at {timeLabel(leaveBy, day)}</span>}
+            {/* (her 12:00 last, so her screenshot's source line below sits under her own fact — user-larisa3) */}
+            {leaveBy && <span className="block text-sm text-[#3a3128] mt-0.5">{itemTitle(leaveBy, stays, date)} is at {timeLabel(leaveBy, day)}, so check out before then.{i.time ? ` The hotel's own check-out time is ${clock(i.time)}.` : ""}</span>}
             {checkinAfterLanding(i, day) && <span className="block text-sm text-[#6b5d4a] mt-0.5">Rooms are ready from {clock(i.time)}.</span>}
             {inJapan && <span className="block text-sm text-[#514636] mt-0.5">{inJapan}</span>}
             {/* (where a flight stands right now is a "when" — in sight: "Should be in the air now… due to land at 2:50 PM") */}
@@ -3122,9 +3141,9 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             const by = leaveBeforeCheckout(i, day);
             return by
               ? <>
-                  {/* (Wander's reasoning, said as Wander's — under her screenshot's source, "Check out before 8:30 AM" read as
-                      hers; her screenshot says 12:00; user-larisa1) */}
-                  <p className="text-sm text-[#3a3128] mt-1">Check out in time for {itemTitle(by, stays, date)} at {timeLabel(by, day)}</p>
+                  {/* (Wander's reasoning, said as reasoning — under her screenshot's source, "Check out before 8:30 AM" and then
+                      "Check out in time for…" read as hers; her screenshot says 12:00; user-larisa1, user-larisa3) */}
+                  <p className="text-sm text-[#3a3128] mt-1">{itemTitle(by, stays, date)} is at {timeLabel(by, day)}, so check out before then.</p>
                   <p className="text-xs text-[#6b5d4a] mt-0.5">The hotel's own check-out time is {clock(i.time)}.</p>
                 </>
               : <p className="text-sm text-[#6b5d4a] mt-1">The hotel's check-out time is {clock(i.time)}.</p>;

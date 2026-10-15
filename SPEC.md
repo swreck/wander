@@ -1764,7 +1764,8 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
   seconds when its taker makes it private or deletes it (§3.8).
 - **Motion**: photos drift slowly closer and fade into each other; none of that under Reduce Motion.
 - **The end**: "That's the day.", ‹ back to the last moment, and **Play tomorrow**, straight into the next day's Play,
-  or **See tomorrow** (the next day's page) when that day has nothing to play.
+  or **See tomorrow** (the next day's page) when that day has nothing to play. Played on a day other than today, they
+  read **Play the next day** / **See the next day**.
 
 ### 3.8 Your own photos
 
@@ -1773,7 +1774,8 @@ gimmicks. Go", to: "let each of you add your own photos to a day… private by d
 trip".
 
 - **Where**: "Photos from the day" near the foot of each day page (§3.5). With none yet: "Your photos from this day,
-  kept with it. Just yours unless you share them."
+  kept with it." and, following the box, "The ones you add are shared with the trip." or "The ones you add are just
+  yours."
 - **Adding**: "+ Add photos" on today or an earlier day, several at once. Each is filed under the day its own clock
   says it was taken (else the day you're on), and shrunk on the phone. "Share with the trip" starts where you left it
   last time. Wander says where they went: "3 added, shared with the trip (some on Oct 14, when they were taken)".

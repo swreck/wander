@@ -13,7 +13,7 @@ import { api } from "../lib/api";
 import type { Trip } from "../lib/types";
 import { guideData } from "../lib/guideData";
 import { replayQueue, dropQueued } from "../lib/offlineStore";
-import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
+import { startVoice, stopVoice, voiceInto, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { useAuth } from "../contexts/AuthContext";
 import {
   saveNote, waitingNotes, changeWaitingNote, savedCopy, keepCopy, readDraft, keepDraft, exportText, tripToday, dayWords, sendCopy,
@@ -318,17 +318,18 @@ export default function NotesPage() {
   // (the app's one microphone, lib/voice.ts — shared with Scout, started on the tap itself)
   const toggleVoice = useCallback(() => {
     if (listening) { stopVoice(recognitionRef.current ?? undefined); setListening(false); return; }
-    const typed = (boxRef.current?.value ?? "").replace(/\s+$/, "");
+    // (and words typed while it listens stay — voiceInto)
+    const into = voiceInto(boxRef.current);
     voiceLiveRef.current = true;
     setVoiceQuiet(false);
     const handlers: VoiceHandlers = {
       onText: (said) => {
         if (!voiceLiveRef.current) return;
         setVoiceQuiet(false);
-        setText(typed ? `${typed} ${said.trimStart()}` : said);
+        setText(into.text(said));
         setUsedVoice(true);
       },
-      onEnd: () => { setListening(false); setVoiceQuiet(false); voiceLiveRef.current = false; if (recognitionRef.current === handlers) recognitionRef.current = null; },
+      onEnd: () => { into.done(); setListening(false); setVoiceQuiet(false); voiceLiveRef.current = false; if (recognitionRef.current === handlers) recognitionRef.current = null; },
       onQuiet: () => { if (voiceLiveRef.current) setVoiceQuiet(true); },
     };
     recognitionRef.current = handlers;
