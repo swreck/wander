@@ -312,7 +312,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                 <button type="button" onClick={() => setFull((f) => !f)} className="pointer-events-auto inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">{full ? "Less" : "More"}</button>
               )}
               {(cover?.notes || []).map((n) => <p key={n} className="text-[13px] mt-2 bg-[#fff8ec]/90 text-[#6a4512] rounded-lg px-2.5 py-1.5">{n}</p>)}
-              <p className="text-[14px] text-white/75 mt-2">{moments.length} moments{span ? ` · ${span}` : ""}{cover?.sunset != null ? ` · sunset about ${Math.floor(cover.sunset / 60) % 12 || 12}:${String(cover.sunset % 60).padStart(2, "0")} PM` : ""}</p>
+              <p className="text-[14px] text-white/75 mt-2">{moments.length} moments{span ? ` · ${span}` : ""}{cover?.sunset != null ? ` · sunset about ${Math.floor(cover.sunset / 60) % 12 || 12}:${String(cover.sunset % 60).padStart(2, "0")} PM` : ""}</p>
               {/* (the city's photo credit comes worded: "Photo: Léonard Havet") */}
               {cover?.photo && (cover.photo.place || cover.photo.credit) && <p className="text-[11px] text-white/55 mt-1">{[cover.photo.place, cover.photo.credit].filter(Boolean).join(" · ")}</p>}
             </div>

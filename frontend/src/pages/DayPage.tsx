@@ -527,7 +527,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       }
     }
     const sun = playCover?.sunset ?? null;
-    if (sun !== null) {
+    // (not once the sun is down, today — tourist71: "Sunset about 5:07 PM" on the Now moment at 6)
+    if (sun !== null && (nowAt === null || nowAt < sun)) {
       const m = moments.find((x) => { const t = lasts(x); return !!t && t[0] <= sun && sun < t[1]; });
       if (m) m.info = [...(m.info || []), `Sunset about ${hourWord(Math.floor(sun / 60)).replace(/^(\d+)/, `$1:${String(sun % 60).padStart(2, "0")}`)}`];
     }
@@ -1809,7 +1810,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 })()}</>}. Here's {first === tripFirst ? "the first day" : leaveDay !== first ? "your first day in Japan" : "your first day"}.
               </p>
             )}
-            {afterTrip && <p className="text-sm text-[#6b5d4a] mb-3">Welcome home. Here's the last day of the trip.</p>}
+            {afterTrip && (
+              <p className="text-sm text-[#6b5d4a] mb-3">Welcome home. Here's the last day of the trip.{" "}
+                <button type="button" onClick={() => navigate("/story")} className="min-h-[44px] text-[#514636] underline underline-offset-2">The story of the trip ›</button>
+              </p>
+            )}
             {/* Still at home on this Japan date: say so before anything else on it (round 8: Julie's "first day"
                 showed the others' 8 PM Tokyo dinner as if it might be hers) */}
             {(() => {
@@ -2248,7 +2253,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 tripId={tripId}
                 cityId={bandCity?.id}
                 playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
-                playCover={{ summary: summariesByDay[date] || null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
+                playCover={{ summary: summariesByDay[date] ? v.say(summariesByDay[date]) : null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
                   panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null,
                   sunset: forecastCity?.latitude != null && forecastCity?.longitude != null ? sunsetMinutes(forecastCity.latitude, forecastCity.longitude, date) : null,
                   rain: dayRain && (dayRain.wet?.length || dayRain.showers?.length) ? { wet: dayRain.wet || [], showers: dayRain.showers || [] } : null }}

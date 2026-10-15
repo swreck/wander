@@ -38,7 +38,8 @@ function spans(h: Hours, date: string): { list: [number, number][]; dated: boole
 export function hoursWords(h: Hours | null | undefined, place: string, date: string, start: number | null, end: number | null): string | null {
   if (!h) return null;
   if (h.status === "CLOSED_PERMANENTLY") return `Google lists ${place} as permanently closed.`;
-  if (h.status === "CLOSED_TEMPORARILY") return `Google lists ${place} as closed for now.`;
+  // ("temporarily closed", not "closed for now" — read the evening before, that sounded like "at this hour"; tourist71)
+  if (h.status === "CLOSED_TEMPORARILY") return `Google lists ${place} as temporarily closed.`;
   if (start === null) return null;
   const s = spans(h, date);
   if (!s) return null;
