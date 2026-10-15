@@ -2,6 +2,24 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday, 10:00 AM in Japan) — Scout Stays Ready for Less; Scout's Weekdays
+
+### Changed
+- Scout's reading (its instructions, tools, her Guide and Ken's rail sheet, ~197,000 tokens) is kept in Anthropic's
+  cache between questions: after any question, a one-token request every 55 minutes for the next four hours, between
+  7 AM and 11 PM in Japan. A question after a quiet hour cost ~$2 (storing it all again); within those hours it's now
+  ~$0.10–0.30. Answers are unchanged. Ken (Oct 15): "I want Scout to
+  be brilliant, and I want Scout to be cheap… keep good model and better architecture please." Where: the server
+  (services/scoutWarm.ts); the log's "Scout keep-warm" lines.
+
+### Fixed
+- Scout gave a wrong weekday ("through the night of Fri, Oct 17" — a Saturday): every date in Scout's Guide reading
+  now carries its weekday, so Scout copies it instead of working it out. Where: Scout.
+- Home's "Guide, tab by tab": under her Tokyo day tabs' map picture, "The dates in this picture are from an earlier
+  plan. Her text in this tab is the plan Wander follows." (verify61). Where: Home.
+- Home's calendar: with Google's maps unreachable, each day's small map hides instead of showing a broken-picture
+  mark (verify61). Where: Home.
+
 ## 2026-10-15 (Thursday, 9:00 AM in Japan) — Her Old Tokyo Map Steps Aside; Morning Weather; Home Without Google's Map
 
 ### Changed

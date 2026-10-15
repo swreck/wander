@@ -18,6 +18,9 @@ import { getCountryAdvisories, getPreTripSummary } from "../services/travelAdvis
 import { addDayChoice, removeDayChoice, listDayChoices, plainDay } from "../services/dayChoices.js";
 import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
+import { keepScoutWarm } from "../services/scoutWarm.js";
+
+const SCOUT_MODEL = "claude-opus-5";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
 import { myMapPlaces } from "../services/guide/googleMyMap.js";
 import { placeNotesOf, noteFor } from "../services/guide/placeNotes.js";
@@ -5361,17 +5364,14 @@ RULES:
     messages.push({ role: "user", content: latest });
     // The Guide opens the conversation — the same bytes for everyone, so it's read from the cache
     // Other sources follow it, each cached on its own: a change to the rail sheet re-reads only that part
-    if ((guideContext && guideLines.length) || otherDocs.length) {
+    const cachedDocs = [
+      ...(guideContext && guideLines.length ? [asDocument(GUIDE_TITLE, guideLines, true)] : []),
+      ...otherDocs.map((d) => asDocument(d.title, d.lines, true)),
+    ];
+    if (cachedDocs.length) {
       const first = messages[0];
       const rest = typeof first.content === "string" ? [{ type: "text", text: first.content }] : (first.content as any[]);
-      messages[0] = {
-        role: "user",
-        content: [
-          ...(guideContext && guideLines.length ? [asDocument(GUIDE_TITLE, guideLines, true)] : []),
-          ...otherDocs.map((d) => asDocument(d.title, d.lines, true)),
-          ...rest,
-        ],
-      };
+      messages[0] = { role: "user", content: [...cachedDocs, ...rest] };
     }
     // Every piece of the answer with its citations, and pages Scout fetched (their citations name them by title)
     const answerPieces: AnswerPiece[] = [];
@@ -5383,7 +5383,7 @@ RULES:
 
     for (let turn = 0; turn < 8; turn++) {
       const response = await anthropic.messages.create({
-        model: "claude-opus-5",
+        model: SCOUT_MODEL,
         // (4,096: a full answer on one place across every source, or a table of eight days, ran past 2,048 and was cut
         // off mid-row — Ken, Oct 2)
         // SCOUT_THINKING (test server only, Oct 4): Scout thinks before answering — measured against the same questions
@@ -5617,6 +5617,9 @@ RULES:
     // searches $10/1,000
     const dollars = (used.input * 5 + used.cacheWrite * 10 + used.cacheRead * 0.5 + used.output * 25) / 1e6 + used.searches * 0.01;
     console.log(`Scout usage: steps=${used.steps} input=${used.input} cacheWrite=${used.cacheWrite} cacheRead=${used.cacheRead} output=${used.output} searches=${used.searches} seconds=${((Date.now() - startedAt) / 1000).toFixed(1)} ≈ $${dollars.toFixed(3)}`);
+    // (the cached part of this question — instructions, tools, her Guide, the rail sheet — kept warm for the next one;
+    // services/scoutWarm.ts)
+    if (tripId && cachedDocs.length && used.steps > 0) keepScoutWarm(tripId, { model: SCOUT_MODEL, system, tools: offeredTools, docs: cachedDocs });
 
     // Persist conversation to DB
     if (tripId && req.user?.travelerId && finalReply) {

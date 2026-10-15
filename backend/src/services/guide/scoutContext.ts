@@ -551,8 +551,21 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     }
   }
   if (travelNow.length) { say(live, "FLIGHTS — WHERE EACH STANDS RIGHT NOW BY ITS SCHEDULE (worked out from the time on the phone; there is no live flight tracking):"); live.push(...travelNow); }
+  // Every date Scout reads carries its weekday, so Scout copies it instead of working it out — Oct 15, Andy asked where
+  // they sleep tonight and Scout said "through the night of Fri, Oct 17" (a Saturday) from "the nights of … 2026-10-17"
+  const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const withWeekdays = (lines: ContextLine[]) => lines.map((l) => {
+    const t = l.text.replace(/\b(\d{4})-(\d{2})-(\d{2})\b(?! ?\((?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\))/g, (d, y, m, dd, at: number, all: string) => {
+      // (a day's heading already names it — "Wednesday, October 7 (2026-10-07)" — and daySummaries finds days by it)
+      if (all[at - 1] === "(" && all[at + d.length] === ")") return d;
+      const day = new Date(Date.UTC(Number(y), Number(m) - 1, Number(dd)));
+      return isNaN(day.getTime()) ? d : `${d} (${DAY[day.getUTCDay()]})`;
+    });
+    return t === l.text ? l : { ...l, text: t };
+  });
+  const outDated = withWeekdays(out), liveDated = withWeekdays(live);
   const text = (lines: ContextLine[]) => lines.map((l) => l.text).join("\n");
-  return { stable: text(out), live: text(live), stableLines: out, liveLines: live, copy: snapshot.sourceName.replace(/\.xlsx$/i, "") };
+  return { stable: text(outDated), live: text(liveDated), stableLines: outDated, liveLines: liveDated, copy: snapshot.sourceName.replace(/\.xlsx$/i, "") };
 }
 
 /** The same cell listed once */
