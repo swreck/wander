@@ -5,6 +5,7 @@ import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import PhraseCard from "./PhraseCard";
 import { loadLedger, savedLedger, initialsOf, MONEY_CHANGED } from "../lib/expenses";
+import { api } from "../lib/api";
 
 interface Props {
   pendingChanges?: number;
@@ -89,13 +90,20 @@ export default function BottomNav({ pendingChanges }: Props) {
   const [payNext, setPayNext] = useState<string | null>(() => { const t = tripIdNow(); return t ? savedLedger(t)?.next || null : null; });
   useEffect(() => {
     let live = true;
-    const get = () => { const t = tripIdNow(); if (t) loadLedger(t).then((l) => { if (live && l) setPayNext(l.next || null); }); };
+    // (the trip from the phone's note of it, else asked — on a phone just signed in there's no note yet, and production
+    // showed the plain coin while Julie & Andy paid next; Oct 16)
+    const get = async () => {
+      let t = tripIdNow();
+      if (!t && localStorage.getItem("wander_token")) { try { t = (await api.get<{ id?: string } | null>("/trips/active"))?.id || null; } catch { t = null; } }
+      if (t) loadLedger(t).then((l) => { if (live && l) setPayNext(l.next || null); });
+    };
     get();
     const onShow = () => { if (document.visibilityState === "visible") get(); };
     window.addEventListener(MONEY_CHANGED, get);
     document.addEventListener("visibilitychange", onShow);
     return () => { live = false; window.removeEventListener(MONEY_CHANGED, get); document.removeEventListener("visibilitychange", onShow); };
-  }, []);
+  // (and on each new screen: cheap, and it catches a sign-in that happened since)
+  }, [location.pathname]);
   // Something new on Maybes from someone else since you last looked — a dot, never an alert
   const [maybesNew, setMaybesNew] = useState(false);
 
