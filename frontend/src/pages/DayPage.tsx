@@ -231,8 +231,43 @@ function DayPicture({ tripId, picture, her, tab }: { tripId: string; picture: Gu
   );
 }
 
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [] }: {
+/** A line of her note for a moment in "Play the day": her "Experience:" when she wrote one, else her first line — short */
+function momentNote(lines: string[]): string | null {
+  // (her "○ Transit: … ○ Experience: …" is often one line — the Experience part, wherever it sits, and only to the end of
+  // its own line: tourist63, dinner's ran on into the next line, Ken's Oct 14 address note)
+  const exp = lines.map((l) => l.replace(/\s+/g, " ").match(/Experience:\s*(.+?)(?=\s*[○•]?\s*(?:Transit|Note|Where):|$)/i)?.[1]).find(Boolean);
+  const plain = lines.map((l) => l.replace(/^[\s○•-]+/, "")).find((l) => l && !/^(Transit|Where|Note|Experience):/i.test(l));
+  const t = (exp || plain || "").replace(/^[\s○•-]+|[\s○•-]+$/g, "").trim();
+  if (!t) return null;
+  return t.length <= 170 ? t : `${t.slice(0, 165).replace(/\s+\S*$/, "")}…`;
+}
+
+/** A stop's photo under its name: the place itself, a tap for more of it (the day as moments, Oct 15) */
+function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onOpen: () => void }) {
+  // (no signal for a photo not already on the phone: its space stays, quietly — never a broken-picture mark
+  // (tourist63), and never a fold that moves the day (tourist64: 0.127 when the boxes folded away))
+  const [failed, setFailed] = useState(false);
+  if (failed) return <div className="mt-2 rounded-lg bg-[#efe8dc] aspect-[16/9] flex items-center justify-center text-xs text-[#6b5d4a]">Photo needs signal</div>;
+  const credit = hit.photos[0]?.credit;
+  return (
+    <button type="button" onClick={onOpen} aria-label={`Photos of ${hit.name || title}`} className="relative block w-full mt-2 rounded-lg overflow-hidden bg-[#efe8dc] aspect-[16/9]">
+      <img src={placePhotoUrl(hit, 0, true)} alt="" loading="lazy" onError={() => setFailed(true)} className="absolute inset-0 w-full h-full object-cover" />
+      <span className="absolute inset-x-0 bottom-0 h-9 bg-gradient-to-t from-black/45 to-transparent" aria-hidden />
+      {/* (the photographer, on the photo, as Google asks — tourist63: the list's photos had no credit) */}
+      {credit && <span className="absolute left-2 bottom-1.5 max-w-[70%] truncate text-[10px] text-white/85">Photo: {credit} · Google</span>}
+      {hit.photos.length > 1 && <span className="absolute right-2 bottom-1.5 text-[11px] font-medium text-white bg-black/45 rounded-full px-2 py-0.5">1 / {hit.photos.length}</span>}
+    </button>
+  );
+}
+
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, trainWords, playWords }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
+  /** the day's city, for finding its stops' photos near it */
+  cityId?: string | null;
+  /** the trains under a line, in words ("NOZOMI 21 · Tokyo → Kyoto · 10:03 AM → 12:15 PM · Car 7, 3A–3D") */
+  trainWords?: (b: GuideItem) => string[];
+  /** "Play the day"'s heading ("Thu, Oct 15 · Tokyo") */
+  playWords?: string;
   /** plans added in Wander with a time, drawn among her lines at their time ("HH:MM") — marked as added, never as hers */
   added?: { time: string; node: ReactNode }[];
   /** the train under this line already says where the sources' times differ — not again in amber on the line */
@@ -262,6 +297,34 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // Wander's reasoning for the day it put an undated plan on: one quiet line, the whole of it on a tap (delight audit:
   // five amber lines of "Wander matched…" sat above her stops all day, outranking her plan)
   const [whyOpen, setWhyOpen] = useState(false);
+  // The day as moments (Oct 15): each stop's own photos, found from the words its Maps button searches
+  const mapOf = useMemo(() => Object.fromEntries(blocks.map((b) => [b.id, choicesOf(b).length ? null : planMapHref(b, { hotel, dayWords, bookings })])) as Record<string, string | null>,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [blocks, hotel, dayWords, bookings.map((m) => m.id).join()]);
+  // (her line, and the stop her tab names for it — "Traditional Kyoto sweet / matcha in Gion" lists Gion Tsujiri; checked
+  // on the title alone it was turned down)
+  // (no photo on a line about getting somewhere — "Taxi to Raku Museum", "Continue same taxi to TeamLab": the photo is
+  // the place's, on its own line; tourist63 saw TeamLab's three times in a row)
+  const TRAVEL = /^\W*(taxi|train|bus|shuttle|ride|drive|board|transfer|continue|return(ing)?|head(ing)?|go(ing)?|walk(ing)?\s+(to|back|over)|complimentary\b.*\btransfer)\b|→/i;
+  const queries = useMemo(() => blocks.map((b) => {
+    const where = (b.detail || "").match(/^Where: (.+?) — the stop her tab lists/m)?.[1];
+    return { id: b.id, query: TRAVEL.test(b.title) ? null : mapsQueryOf(mapOf[b.id]), line: where ? `${b.title} (her tab names the stop: ${where})` : b.title };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }).filter((x): x is { id: string; query: string; line: string } => !!x.query), [blocks, mapOf]);
+  const [photos, setPhotos] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(queries));
+  useEffect(() => {
+    if (!tripId || !queries.length) return;
+    let live = true;
+    setPhotos(keptPlacePhotos(queries));
+    lookUpPlacePhotos(tripId, cityId, queries.map((q) => ({ query: q.query, line: q.line }))).then((p) => { if (live) setPhotos(p); });
+    return () => { live = false; };
+  }, [tripId, cityId, queries]);
+  // (a place's photo once a day, on the first of its lines — "Finish TeamLab" after "TeamLab" gets none)
+  const firstFor = new Map<string, string>();
+  for (const q of queries) { const h = photos[q.query]; if (h && !firstFor.has(h.id)) firstFor.set(h.id, q.id); }
+  const hitOf = (b: GuideItem) => { const q = queries.find((x) => x.id === b.id)?.query; const h = q ? photos[q] || null : null; return h && firstFor.get(h.id) === b.id ? h : null; };
+  const [gallery, setGallery] = useState<GuideItem | null>(null);
+  const [playing, setPlaying] = useState(false);
   const tab = blocks[0].source.split(" · ")[0];
   const heading = blocks[0].source.split(" · ").slice(1).join(" · ");
   // Wander's own match of an undated tab to this day — said once, as Wander's
@@ -282,9 +345,44 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   const current = nowAt === null || riding ? null : currentPlanLine(blocks, nowAt, me) || currentUnownedLine(blocks, nowAt) || null;
   const addedSorted = [...added].sort((a, b) => a.time.localeCompare(b.time));
   let nextAdded = 0;
+  // "Play the day": her lines as moments, in her order — today from the one you're on now
+  const all: Moment[] = blocks.map((b) => {
+    const lines = (b.detail || "").split("\n").filter((l) => l && !/^(Choice: |Tabs differ: |Times are Larisa's estimate\.|Wander matched this plan|Her tab has \d+ versions|Her whole route for the day: )/.test(l) && !PICTURE_GROUP.test(l));
+    return { id: b.id, time: planTime(b) || null, title: b.title.replace(/^./, (c) => c.toUpperCase()), note: momentNote(lines), map: mapOf[b.id] ?? null,
+      hit: hitOf(b), trains: trainWords ? trainWords(b) : [], forWhom: b.forWhom ? (isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`) : null, isNow: current?.id === b.id };
+  });
+  // Her travel lines ("Taxi back to Shiraume", "Continue same taxi to TeamLab") fold into the moment they lead to, as
+  // "Getting there: ~2:15 · Taxi to Raku Museum" — in her order, nothing dropped (tourist64: 13 of Kyoto Tuesday's 19
+  // moments were plain cards like a taxi, and tapping through them was a chore). A train her line books stays its own
+  // moment. The last line of a day, if it's travel, joins the moment before it.
+  const moments: Moment[] = [];
+  let carry: string[] = [], carryNow = false;
+  for (const m of all) {
+    const travel = TRAVEL.test(m.title) && !m.hit && !m.trains.length;
+    if (travel) { carry.push(`${m.time ? `${m.time} · ` : ""}${m.title}`); carryNow ||= m.isNow; continue; }
+    moments.push({ ...m, getting: carry.length ? carry : undefined, isNow: m.isNow || carryNow });
+    carry = []; carryNow = false;
+  }
+  if (carry.length) {
+    const last = moments[moments.length - 1];
+    if (last) last.trains = [...last.trains, ...carry.map((c) => `Then: ${c}`)]; else moments.push(...all.filter((m) => carry.some((c) => c.endsWith(m.title))));
+  }
+  const playFrom = Math.max(0, moments.findIndex((m) => m.isNow));
   return (
     <section id="plan" className="mb-5 scroll-mt-24">
-      <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{v.Owners} plan for the day</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{v.Owners} plan for the day</h2>
+        {/* (the day as moments, full screen — Ken, Oct 15: "'Play the day' feels right") */}
+        {moments.length >= 2 && (
+          <button type="button" onClick={() => setPlaying(true)}
+            className="shrink-0 min-h-[44px] inline-flex items-center gap-1.5 pl-3 pr-4 rounded-full bg-[#3a3128] text-white text-sm font-medium">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden><path d="M2.5 1.5v9l8-4.5z" fill="currentColor" /></svg>
+            Play the day
+          </button>
+        )}
+      </div>
+      {playing && <PlayTheDay moments={moments} dayWords={playWords || ""} start={playFrom} onClose={() => setPlaying(false)} />}
+      {gallery && hitOf(gallery) && <PlaceGallery hit={hitOf(gallery)!} title={gallery.title.replace(/^./, (c) => c.toUpperCase())} time={planTime(gallery) || null} map={mapOf[gallery.id] ?? null} onClose={() => setGallery(null)} />}
       {/* (the tab's plan table, opened in her sheet — round 16) */}
       <SheetSpots tripId={tripId} wholeTable label={`From the ${tabLabel(tab)} tab${heading ? ` — ${heading}` : ""}`} className="mt-0.5"
         spots={[{ tab: blocks[0].spots?.[0]?.tab || tab, a1s: blocks.flatMap((b) => b.spots?.find((x) => x.tab === (blocks[0].spots?.[0]?.tab || tab))?.a1s || []) }]} />
@@ -354,7 +452,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           const noteText = notes.join("\n").replace(/\s+(Experience|Transit|Note):/g, "\n$1:");
           const shortNote = noteText.length <= 90;
           // With choices, each choice gets its own Maps link; the line itself ("Lunch") isn't a place
-          const map = choices.length ? null : planMapHref(b, { hotel, dayWords, bookings });
+          const map = mapOf[b.id] ?? null;
+          const hit = hitOf(b);
           const time = planTime(b);
           const pickedHere = choices.map((c) => `${b.title}: ${c.split(" — ")[0]}`).filter((t) => picked.has(t));
           const isNow = current?.id === b.id;
@@ -378,6 +477,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                       className="-mt-2.5 -mb-2 shrink-0 inline-flex items-center min-h-[44px] px-1 text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>
                   )}
                 </div>
+                {/* the place itself, under its name — the time stays on the left, the facts below (the day as moments) */}
+                {hit && <MomentPhoto hit={hit} title={b.title} onOpen={() => setGallery(b)} />}
                 {b.forWhom && <p className="text-sm text-[#514636] mt-0.5">{isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`}</p>}
                 {/* (round 13: a picture in her tab can name the group her table leaves out — quoted, never assigned) */}
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
@@ -535,6 +636,9 @@ import PhraseCard from "../components/PhraseCard";
 import EveningQuestion from "../components/EveningQuestion";
 import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
 import { CityTitle, warmCityPhoto, photoWanted, useCityBandPhoto } from "../components/CityArrival";
+import { keptPlacePhotos, lookUpPlacePhotos, mapsQueryOf, placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
+import PlaceGallery from "../components/PlaceGallery";
+import PlayTheDay, { type Moment } from "../components/PlayTheDay";
 import DayForecast from "../components/DayForecast";
 import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
@@ -1943,6 +2047,12 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {planBlocks.length > 0 && (
               <PlanSection
                 tripId={tripId}
+                cityId={bandCity?.id}
+                playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
+                trainWords={(b) => (trainsUnder.get(b.id) || []).map((x) => {
+                  const dep = colOf(x.r.cols, /^depart/), arr = colOf(x.r.cols, /^arrive/);
+                  return [colOf(x.r.cols, /^train$/), colOf(x.r.cols, /^route$/), dep && arr ? `${twelveHour(dep)} → ${twelveHour(arr)}` : dep ? twelveHour(dep) : "", colOf(x.r.cols, /^car/)].filter(Boolean).join(" · ");
+                })}
                 maps={mapsByDay[date] || []}
                 pictures={pictures}
                 added={timedOwn.map((c) => ({ time: c.time!, node: addedPlan(c, "row") }))}

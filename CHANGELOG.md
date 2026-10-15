@@ -2,6 +2,23 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday, afternoon in Japan) — The Day as Moments; Play the Day
+
+### Added
+- Her plan's stops are led by photos of each exact place: under the stop's name, a 16:9 photo from Google's listing
+  of the very place its Maps button searches, kept only when a check reads her line (and the stop her tab names) and
+  Google's place and says they're the same place; trains, walks and "refresh at the hotel" stay compact text rows. A
+  tap opens that place's photos full screen (swipe across, the time, name and Maps pinned below). Ken (Oct 15): "simply
+  adding a photo on each day page does not seem to fulfill Andy's social media vision of a visual flow… It might be an
+  option when you see a picture to see more pictures". The time column stays on the left; nothing of her plan moves
+  or is reordered. Where: day pages with her plan. Table place_photos; GET/POST /api/place-photos. SPEC UPDATE NEEDED.
+- "Play the day": the same moments full screen, one per screen, in her order — the photo, the time, the name, a line
+  of her note, a train's booking, Maps, "6 photos". Tap right for the next, left for the one before; it never moves
+  on by itself; ✕, Back or a swipe down closes it. Today it opens on the moment you're in; it ends on "That's the day."
+  Her travel lines (taxi, transfer, return) fold into the moment they lead to as "Getting there: 9:15 AM · Taxi back
+  to Shiraume" (nothing dropped, her order kept); a small photo shows whole over a blur of itself.
+  Ken: "'Play the day' feels right". Where: "▶ Play the day" beside "Larisa's plan for the day". SPEC UPDATE NEEDED.
+
 ## 2026-10-15 (Thursday, 10:25 AM in Japan) — The City's Photo on Every Day; "Wander idea:"
 
 ### Added
