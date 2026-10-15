@@ -464,9 +464,11 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     const start = rideStart ?? (twoTimes ? null : booked ? clockMin(booked[1], booked[2], booked[3]) : b.time ? hm(b.time) : null);
     const end = rideStart !== null ? rideEnd : start === null ? null : booked ? start + 15 : endOf(b);
     const onBoard = rideStart !== null && rideEnd !== null && nowAt !== null && rideStart <= nowAt && nowAt < rideEnd && isFor(b, me);
-    return { id: b.id, time: planTime(b) || null, title: b.title.replace(/^./, (c) => c.toUpperCase()), note, map: mapOf[b.id] ?? null,
+    // (on board, the train's booked times lead and hers follow, said as hers — tourist67: "~12:30–1:00" under Now at 1:45)
+    const hers = planTime(b) || null;
+    return { id: b.id, time: onBoard ? ride![0].replace(/\s*→\s*/, " → ") : hers, title: b.title.replace(/^./, (c) => c.toUpperCase()), note, map: mapOf[b.id] ?? null,
       hit: hitOf(b), trains, forWhom: b.forWhom ? (isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`) : null, isNow: current?.id === b.id || onBoard,
-      full: words && flat(words) !== flat(note || "") ? words : null, cautions, info,
+      full: words && flat(words) !== flat(note || "") ? words : null, cautions, info: onBoard && hers ? [`${v.Owners} plan: ${hers}`, ...info] : info,
       // (what the Next button says for it: the booked time when hers is for another train — "2:50 PM", not "~2:00")
       at: rideStart !== null ? ride![0].split("→")[0].trim() : railArrivals?.[b.id] || null,
       start, end };
@@ -503,7 +505,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     photo: firstHit ? { src: placePhotoUrl(firstHit, 0), place: firstHit.name || moments.find((m) => m.hit === firstHit)!.title, credit: firstHit.photos[0]?.credit ? `Photo: ${firstHit.photos[0].credit} · Google` : null }
       : playCover?.photo || null,
     notes: twoVersionsWords ? [twoVersionsWords] : [],
-    texture: playCover?.texture || null,
+    panel: playCover?.panel || null,
     her: v.Her,
   };
   return (
@@ -2198,7 +2200,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 cityId={bandCity?.id}
                 playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
                 playCover={{ summary: summariesByDay[date] || null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
-                  texture: panels[date]?.url || bandPhoto?.src || null }}
+                  panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null }}
                 playTomorrow={(() => {
                   // (straight into its Play when the next day has her plan; else its page)
                   if (!hasNext) return null;

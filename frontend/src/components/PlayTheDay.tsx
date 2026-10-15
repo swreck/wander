@@ -11,7 +11,7 @@
  * reach of a thumb; swipe left and right; a cover for the day; today, each moment says when it is ("in 45 min"); the end
  * offers tomorrow, straight into its own Play.
  */
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import useBackToClose from "../hooks/useBackToClose";
 import { placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
 import PlaceGallery from "./PlaceGallery";
@@ -38,9 +38,9 @@ export interface Moment {
 
 export interface PlayCover {
   summary: string | null; photo: { src: string; credit: string | null; place: string | null } | null; notes?: string[];
-  /** behind a moment drawn for its kind: her map of the day, else the city's photo — blurred to a texture, never a claim
-   *  about the stop (tourist66: 24 drawn cards were 40–50% plain brown) */
-  texture?: string | null;
+  /** her illustrated map's panel for the day (Kyoto), shown above a moment drawn for its kind: where the day goes, in
+   *  her own art (tourist66/67: drawn cards were 40–50% plain; a blur of it was mush) */
+  panel?: { src: string; label: string } | null;
   /** "Her" or, to Larisa, "Your" — for "Her full note" */
   her?: string;
 }
@@ -53,16 +53,25 @@ const KINDS: { test: RegExp; kind: Kind }[] = [
     icon: <path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /> } },
   { test: /\b(shinkansen|nozomi|hikari|haruka|limited express|train|station|JR\b|subway|metro)/i, kind: { name: "train", from: "#2c4250", to: "#121a20",
     icon: <g {...stroke}><rect x="6" y="3" width="12" height="13" rx="3" /><path d="M6 10h12M9 13h.01M15 13h.01M9 16l-2 4M15 16l2 4M8 19h8" /></g> } },
+  // (tourist68: the e-bike tour was drawn as a temple gate, a taxi as a compass)
+  { test: /\b(taxi|car|van|drive|uber|pick-?up)\b/i, kind: { name: "car", from: "#3a3f48", to: "#16181c",
+    icon: <g {...stroke}><path d="M4 16v-3l2-5h12l2 5v3zM4 16v2M20 16v2M6 13h12" /><circle cx="8" cy="16" r="1.4" /><circle cx="16" cy="16" r="1.4" /></g> } },
+  { test: /\b(e-?bikes?|e-?biking|bikes?|bicycles?|cycling|biking)\b/i, kind: { name: "bike", from: "#2f4a35", to: "#121c15",
+    icon: <g {...stroke}><circle cx="6" cy="16" r="3.5" /><circle cx="18" cy="16" r="3.5" /><path d="M6 16l4-7h5l3 7M10 9l2 7M14 6h2" /></g> } },
   { test: /\b(lunch|dinner|breakfast|brunch|caf[eé]|coffee|tea|matcha|sweets?|wagashi|ramen|sushi|soba|udon|tempura|yakiniku|yakitori|izakaya|kaiseki|restaurant|depachika|food|eat|snack|dessert|ice cream|drinks?|bar|sake|bakery|omakase)\b/i, kind: { name: "meal", from: "#5a3a22", to: "#24170f",
     icon: <g {...stroke}><path d="M4 12h16a8 8 0 0 1-16 0zM9 20h6" /><path d="M14 3l5 7M17 3l3 6" /></g> } },
   { test: /(temple|shrine|jinja|taisha|\w+-ji\b|\w+dera\b|torii|pagoda|zen\b|buddha|kannon|pavilion)/i, kind: { name: "temple", from: "#6b2a1f", to: "#241210",
     icon: <g {...stroke}><path d="M3 6c4 1 14 1 18 0M5 9h14M7 6v15M17 6v15M12 9v3" /></g> } },
   { test: /\b(shop\w*|store|retail|market|mall|muji|boutique|department|souvenir|buy|onitsuka|uniqlo|arcade|stationery|kitchenware)\b/i, kind: { name: "shopping", from: "#4f2f48", to: "#1d121b",
     icon: <g {...stroke}><path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" /></g> } },
+  // (pottery and studios as a vase, museums as a building — tourist68: a picture frame read as a missing photo; before
+  // "outdoors", so "Ceramic Cultural Park" is pottery)
+  { test: /\b(ceramic\w*|potter\w*|studio|craft\w*|workshop|kiln|clay|yakimono|class|demonstration)\b/i, kind: { name: "craft", from: "#5a3f2c", to: "#21170f",
+    icon: <g {...stroke}><path d="M9 3h6M10 3c0 3-4 5-4 10a6 6 0 0 0 12 0c0-5-4-7-4-10M7 13h10" /></g> } },
+  { test: /\b(museum|gallery|art|exhibit\w*|teamlab|ceremony|performance|show|theater|theatre|kabuki)\b/i, kind: { name: "museum", from: "#2c3354", to: "#13162a",
+    icon: <g {...stroke}><path d="M3 9l9-5 9 5zM5 9v9M9 9v9M15 9v9M19 9v9M3 20h18" /></g> } },
   { test: /\b(garden|park|forest|bamboo|river|lake|hike|falls|waterfall|gorge|stroll|walk|nature|mountain|onsen)\b/i, kind: { name: "outdoors", from: "#2f4a35", to: "#121c15",
     icon: <g {...stroke}><path d="M12 21v-7M12 14l-5 2M12 14c-6 0-8-5-5-9 2 2 4 2 5-1 1 3 3 3 5 1 3 4 1 9-5 9z" /></g> } },
-  { test: /\b(museum|gallery|art|exhibit\w*|teamlab|ceramic\w*|potter\w*|studio|craft\w*|workshop|class|demonstration|kiln|ceremony|performance|show|theater|theatre|kabuki)\b/i, kind: { name: "art", from: "#2c3354", to: "#13162a",
-    icon: <g {...stroke}><rect x="3" y="4" width="18" height="16" rx="1.5" /><path d="M3 16l5-5 4 4 3-3 6 6" /><circle cx="15.5" cy="8.5" r="1.5" /></g> } },
   { test: /\b(hotel|check[- ]?in|check[- ]?out|refresh|rest|nap|ryokan|luggage|pack|bags?|sleep|bed)\b/i, kind: { name: "hotel", from: "#3a3f48", to: "#16181c",
     icon: <g {...stroke}><path d="M3 18V7M3 14h18v4M21 14v-3a3 3 0 0 0-3-3h-7v6" /><circle cx="7" cy="11" r="1.6" /></g> } },
 ];
@@ -120,6 +129,26 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
   // (a keyboard — Larisa's iPad — stays inside Play while it's open, and is back on "Play the day" after: tourist65,
   // Tab walked out into the day page behind)
   const root = useRef<HTMLDivElement>(null);
+  // The room above a moment's words, measured — her map gets exactly that, or the pattern when it's too little; words
+  // taller than the screen scroll in their own space instead of climbing over the date (tourist68: her map ran into the
+  // words on long Oct 25 moments; with her full note open, Robuchon's words printed over the date line)
+  const topRef = useRef<HTMLDivElement>(null);
+  const wordsRef = useRef<HTMLDivElement>(null);
+  const [room, setRoom] = useState<{ top: number; space: number; over: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const words = wordsRef.current, top = topRef.current;
+    if (!words || !top) return;
+    const measure = () => {
+      const t = top.getBoundingClientRect().bottom + 12;
+      const next = { top: t, space: Math.floor(words.getBoundingClientRect().top - t - 44), over: words.scrollHeight > words.clientHeight + 1 };
+      setRoom((r) => (r && r.top === next.top && r.space === next.space && r.over === next.over ? r : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(words);
+    window.addEventListener("resize", measure);
+    return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
+  }, [at, full]);
   useEffect(() => {
     const unlock = lockScroll();
     const before = document.activeElement as HTMLElement | null;
@@ -198,13 +227,23 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
     const kind = kindOf(x);
     return (
       <div key={`bg-${k}`} className={`absolute inset-0 overflow-hidden${fade}`} aria-hidden style={{ background: `radial-gradient(130% 70% at 50% 22%, ${kind.from} 0%, ${kind.to} 72%)` }}>
-        {cover?.texture && <img src={cover.texture} alt="" className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-30 mix-blend-luminosity" />}
-        <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, transparent 0%, ${kind.to}cc 78%)` }} />
-        {/* (a drawing of the kind of stop, large and quiet in the upper half — tourist: the lunch with no photo read as
-            a screen still loading) */}
-        <div className="absolute left-1/2 top-[27%] -translate-x-1/2 -translate-y-1/2 w-[132px] h-[132px] rounded-full border border-white/15 bg-white/[.06] flex items-center justify-center text-white/75">
-          <svg width="64" height="64" viewBox="0 0 24 24">{kind.icon}</svg>
-        </div>
+        {cover?.panel && !full && room && room.space >= 140 ? (
+          // Her map of the day, clear, in the room above the words: where this stop sits on her route
+          <figure className="absolute inset-x-0 flex flex-col items-center" style={{ top: room.top }}>
+            <img src={cover.panel.src} alt="" className="max-w-[92%] object-contain rounded-lg shadow-[0_8px_30px_rgba(0,0,0,.45)]" style={{ maxHeight: room.space }} />
+            <figcaption className="text-[11px] text-white/60 mt-2">{cover.panel.label}</figcaption>
+          </figure>
+        ) : (
+          // Otherwise a quiet pattern of the stop's own drawing, fading toward the words — designed, never the place
+          <svg className="absolute inset-0 w-full h-full text-white" style={{ opacity: 0.07, WebkitMaskImage: "linear-gradient(180deg, #000 0%, #000 35%, transparent 70%)", maskImage: "linear-gradient(180deg, #000 0%, #000 35%, transparent 70%)" }}>
+            <defs>
+              <pattern id={`kind-${k}`} width="64" height="64" patternUnits="userSpaceOnUse" patternTransform="rotate(-12)">
+                <svg x="16" y="16" width="32" height="32" viewBox="0 0 24 24">{kind.icon}</svg>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill={`url(#kind-${k})`} />
+          </svg>
+        )}
       </div>
     );
   };
@@ -231,7 +270,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
       {backdrop(at, true)}
 
       {/* the day's moments, and where you are in them */}
-      <div className="absolute inset-x-0 top-0 z-30 px-3" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
+      <div ref={topRef} className="absolute inset-x-0 top-0 z-30 px-3" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
         <div className="flex gap-1" aria-hidden>
           {moments.map((x, i) => {
             const k = i + 1;
@@ -250,7 +289,9 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
       <button type="button" tabIndex={-1} aria-hidden onClick={() => { if (Date.now() - swiped.current > 400 && slide.kind !== "end") next(); }} className="absolute right-0 top-0 bottom-0 w-[70%] z-10" />
 
       <div className="absolute inset-x-0 bottom-0 z-20 pointer-events-none" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}>
-        <div key={at} className="play-rise px-5 mx-auto max-w-[640px]" aria-live="polite" style={{ transform: drag ? `translateX(${drag}px)` : undefined, transition: drag ? "none" : "transform .25s ease-out" }}>
+        <div key={at} ref={wordsRef} {...(room?.over ? { "data-scroll": "" } : {})} aria-live="polite"
+          className={`play-rise px-5 mx-auto max-w-[640px] overflow-y-auto overscroll-contain ${room?.over ? "pointer-events-auto" : ""}`}
+          style={{ maxHeight: `calc(100dvh - ${room ? Math.round(room.top) : 90}px - 100px - env(safe-area-inset-bottom, 0px))`, transform: drag ? `translateX(${drag}px)` : undefined, transition: drag ? "none" : "transform .25s ease-out" }}>
           {slide.kind === "cover" && (
             <div className="pb-3">
               <p className="text-[13px] uppercase tracking-[.14em] text-white/75">Play the day</p>
@@ -280,6 +321,13 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
             const when = whenOf(m);
             return (
               <div className="pb-3">
+                {/* (no sure photo: a drawing of the kind of stop, just above its words — a lunch, a temple, a train — never
+                    passed off as the place) */}
+                {!m.hit && !full && (
+                  <div className="w-[84px] h-[84px] mb-4 rounded-full border border-white/25 bg-white/10 flex items-center justify-center text-white/85" aria-hidden>
+                    <svg width="42" height="42" viewBox="0 0 24 24">{kindOf(m).icon}</svg>
+                  </div>
+                )}
                 {when && (
                   <span className={`inline-block text-[11px] uppercase tracking-[.12em] font-semibold rounded px-1.5 py-0.5 mb-2 ${when === "Now" ? "bg-[#c8a060] text-[#2a231c]" : "bg-white/15 text-white/90 border border-white/25"}`}>{when}</span>
                 )}
@@ -327,6 +375,9 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                 </button>
               )}
               <div className="flex gap-2.5">
+                {/* (back to the day's last moment, as on every other screen — tourist67) */}
+                <button type="button" onClick={back} aria-label="The moment before"
+                  className="shrink-0 w-[50px] h-[50px] rounded-full bg-white/15 border border-white/35 text-2xl leading-none flex items-center justify-center">‹</button>
                 <button type="button" onClick={onClose} className={`flex-1 min-h-[50px] px-4 rounded-full text-[15px] font-medium ${tomorrow ? "bg-white/15 border border-white/35 text-white" : "bg-white text-[#2a231c]"}`}>Back to the day</button>
                 <button type="button" onClick={() => go(1)} className="flex-1 min-h-[50px] px-4 rounded-full bg-white/15 border border-white/35 text-white text-[15px]">From the start</button>
               </div>

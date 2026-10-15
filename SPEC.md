@@ -1708,10 +1708,13 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
   with the cover one step back.
 - **Today**, each moment says when it is: Now, "in 45 min", Under way (someone else's line), Earlier today. A moment
   further off says This morning, This afternoon or This evening.
-- **No sure photo**: the moment is drawn for its kind of stop (a bowl for a meal, a gate for a temple, a train, a bed for
-  the hotel) on a warm colour, never passed off as the place. A small photo shows whole over a blur of itself.
+- **No sure photo**: the moment shows a drawing of its kind of stop (a bowl for a meal, a gate for a temple, a train, a
+  bed for the hotel) on a warm colour, just above its words. On a Kyoto day her own map panel for that day fills the
+  upper part, captioned "Larisa's map of the day" ("Your map of the day" to Larisa). On other days the upper part is a
+  faint pattern of the drawing. Nothing suggests a photo of the stop. A small photo shows whole over a blur of itself.
+- **On a booked train**, its moment leads with the booked times and gives her plan's time beneath.
 - **Motion**: photos drift slowly closer and fade into each other; none of that under Reduce Motion.
-- **The end**: "That's the day." and **Play tomorrow** when the next day has her plan, or **See tomorrow** (the next
+- **The end**: "That's the day.", ‹ back to the last moment, and **Play tomorrow** when the next day has her plan, or **See tomorrow** (the next
   day's page) when it doesn't.
 
 ---

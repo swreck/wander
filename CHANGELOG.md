@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday, late afternoon in Japan) — Play the Day: Her Map Above the Moments Without a Photo
+
+### Changed
+- In Play the day, a moment Wander has no sure photo for no longer leaves half the screen empty (fresh checks: 40–50%
+  plain brown). Its drawing (a bowl, a gate, a train) sits just above its words. On a Kyoto day, Larisa's own map
+  panel for that day fills the upper part, clear, captioned "Larisa's map of the day" ("Your map of the day" to her);
+  on other days, a faint pattern of the drawing fades toward the words. Nothing suggests a photo of the stop.
+- On board a booked train, its moment leads with the booked times ("1:30 PM → 2:50 PM") and says her plan's time
+  beneath ("Larisa's plan: ~12:30–1:00").
+- The end of the day has ‹ back to the last moment, as every other screen does.
+  Where: day pages → Play the day. SPEC UPDATE NEEDED (Play the day).
+
 ## 2026-10-15 (Thursday afternoon in Japan) — Play the Day 2.0; Ideas for Wander, Inviting; Her Kyoto Map by Day; Dictation Kept
 
 ### Fixed
