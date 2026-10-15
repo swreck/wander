@@ -29,6 +29,8 @@ import TodayWeather from "./TodayWeather";
 import { tripCountryOf } from "../lib/cityColors";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMarks";
+import { useLinePhotos } from "../lib/linePlaces";
+import { placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
@@ -79,7 +81,10 @@ function whose(i: GuideItem, me: string | null | undefined) {
   return isFor(i, me) ? `Yours (${i.forWhom})` : `For ${i.forWhom}`;
 }
 
-function ItemLine({ i, me, stays, date, day, onOpen, picks, all, tz, railSaysIt, railArrives, sources, noGroup, splitDay }: {
+function ItemLine({ i, me, stays, date, day, onOpen, picks, all, tz, railSaysIt, railArrives, sources, noGroup, splitDay, photo, next }: {
+  /** the place's checked photo (the day page's own), small at the line's end — or, for Next, filling the box's right side
+   *  (Oct 16: Ken, "50-100% further" toward the visual; it never moves the page as it comes) */
+  photo?: PlaceHit | null; next?: boolean;
   /** Ken's rail sheet and any other source: what it has for a place her Guide asks you about (round 13) */
   sources?: OtherSource[];
   /** A line of her plan naming no group on a split day — said, with the group left unsaid (round 15) */
@@ -165,10 +170,21 @@ function ItemLine({ i, me, stays, date, day, onOpen, picks, all, tz, railSaysIt,
       </span>
     </>
   );
+  const pic = photo ? (next
+    // (Next: the photo fills the right of its box, fading into it — the box keeps its height, nothing below moves)
+    ? <span aria-hidden className="absolute inset-y-0 right-0 w-[36%] overflow-hidden rounded-r-lg">
+        <img src={placePhotoUrl(photo, 0, true)} alt="" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        <span className="absolute inset-0 bg-gradient-to-r from-[#f6f1e8] via-[#f6f1e8]/30 to-transparent" />
+      </span>
+    // (40 pt, over the row's own padding — a one-line row keeps its height as the photo comes: 0.124 layout shift at
+    // 44 pt with no overlap; Oct 16)
+    : <span aria-hidden className="w-10 h-10 -my-1 shrink-0 self-start rounded-md overflow-hidden bg-[#efe8dc]">
+        <img src={placePhotoUrl(photo, 0, true)} alt="" loading="lazy" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.parentElement!.style.visibility = "hidden"; }} />
+      </span>) : null;
   // Every line opens its day, at that line (tapping "Hassun" on Home did nothing)
   return onOpen
-    ? <li><button onClick={onOpen} className="w-full text-left flex gap-3 py-1.5 min-h-[44px]">{body}</button></li>
-    : <li className="flex gap-3 py-1.5">{body}</li>;
+    ? <li><button onClick={onOpen} className={`w-full text-left flex gap-3 py-1.5 min-h-[44px] ${photo && next ? "pr-[34%]" : ""}`}>{body}{!next && pic}</button>{next && pic}</li>
+    : <li className="flex gap-3 py-1.5">{body}{!next && pic}</li>;
 }
 
 export default function TripGlance({ tripId }: { tripId: string }) {
@@ -255,6 +271,22 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   // Your own today: Japan's date once your plane has landed there, whatever the phone's clock (Oct 10 audit: a phone
   // still on California time after Julie landed kept her on the day she flew); worked out on every redraw
   const today = data ? travelerToday(data.items, me, data.trip.timeZone || "Asia/Tokyo", phoneDay) : phoneDay;
+  // Today's lines of her plan with their places' checked photos — found as the day's screen finds them (its Maps search,
+  // tonight's hotel, her Itinerary heading, the day's bookings), so each line shows the same photo on both (Oct 16)
+  const linePlaces = useMemo(() => {
+    if (!data) return { blocks: [] as GuideItem[], cityId: null as string | null, ctx: {} };
+    const tz = data.trip.timeZone || "Asia/Tokyo";
+    const dayItems = data.items.filter((i) => ymd(i.date) === today);
+    const blocks = dayItems.filter((i) => i.kind === "block").sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const cityId = data.days.find((d) => ymd(d.date) === today)?.cityId ?? null;
+    const n = myNight(nightOf(today, data.stays, data.items, tz, true), me);
+    const cityName = (id?: string | null) => (id ? data.trip.cities.find((c) => c.id === id)?.name ?? null : null);
+    const hotel = n.stays.length === 1 ? stayMapsQuery(n.stays[0].stay, cityName(n.stays[0].stay.cityId)) : null;
+    const dayWords = dayItems.filter((i) => !i.time && /itinerary/i.test(i.source) && (["plan", "tour", "note"].includes(i.kind) || /^(\w+\s)?day\s*\d+\s*-/i.test(i.title)) && !besideHotel(i)).map((o) => o.title).join(" ");
+    return { blocks, cityId, ctx: { hotel, dayWords, bookings: dayItems.filter((m) => m.kind === "meal") } };
+  }, [data, today, me]);
+  const linePhoto = useLinePhotos(tripId, linePlaces.cityId, linePlaces.blocks, linePlaces.ctx);
+  const photoOf = (i: GuideItem): PlaceHit | null => (i.kind === "block" ? linePhoto(i) : null);
   // Deadlines marked done in Wander by the person they're for (Oct 9) — Home stops listing them
   const [doneMarks, setDoneMarks] = useState<Map<string, Mark>>(() => savedMarks(tripId));
   useEffect(() => {
@@ -971,9 +1003,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
             </button>
           </div>
         ) : next && !(showLeave && next === flight) ? (
-          <div className="mt-2 rounded-lg bg-[#f6f1e8] px-3 py-2">
+          <div className="relative mt-2 rounded-lg bg-[#f6f1e8] px-3 py-2">
             <p className="text-xs text-[#6b5d4a]">{legBefore || unownedSoon ? "Then" : "Next"}</p>
-            <ul><ItemLine i={next} me={me} stays={data.stays} date={today} day={dayWithPlan} picks={choices} all={data.items} tz={tz} railSaysIt={railSaysIt(next)} railArrives={railArrives(next)} sources={otherSources} onOpen={() => openDay(today, next.id)} /></ul>
+            <ul><ItemLine i={next} me={me} stays={data.stays} date={today} day={dayWithPlan} picks={choices} all={data.items} tz={tz} railSaysIt={railSaysIt(next)} railArrives={railArrives(next)} sources={otherSources} onOpen={() => openDay(today, next.id)} photo={photoOf(next)} next /></ul>
           </div>
         ) : todays.length === 0 && todayChoices.length === 0 && plan.all.length === 0 && !guidedToday ? (
           <p className="text-sm text-[#6b5d4a] mt-2">{v.mine ? "Your Guide" : "Larisa's Guide"} has nothing set for today.</p>
@@ -994,7 +1026,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
                 <li><button onClick={openHidden} className="min-h-[44px] ml-[5.5rem] text-sm text-[#514636] underline underline-offset-2">{moreWords}</button></li>
               )}
               {r.guide
-              ? <ItemLine key={r.key} i={r.guide} me={me} stays={data.stays} date={today} day={dayWithPlan} picks={choices} all={data.items} tz={tz} railSaysIt={railSaysIt(r.guide)} railArrives={railArrives(r.guide)} sources={otherSources} noGroup={r.noGroup} splitDay={plan.noOwner.size > 0} onOpen={() => openDay(today, r.guide!.id)} />
+              ? <ItemLine key={r.key} i={r.guide} me={me} stays={data.stays} date={today} day={dayWithPlan} picks={choices} all={data.items} tz={tz} railSaysIt={railSaysIt(r.guide)} railArrives={railArrives(r.guide)} sources={otherSources} noGroup={r.noGroup} splitDay={plan.noOwner.size > 0} onOpen={() => openDay(today, r.guide!.id)} photo={photoOf(r.guide)} />
               : r.bits ? (
                 <li key={r.key}>
                   <button onClick={() => openDay(today)} className="w-full text-left py-1.5 min-h-[44px] text-[13px] text-[#514636] leading-snug">

@@ -1769,6 +1769,15 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
   with no clock comes after the timed ones. Someone else's photo shows only once its picture has come, and drops within
   seconds when its taker makes it private or deletes it (§3.8).
 - **Motion**: photos drift slowly closer and fade into each other; none of that under Reduce Motion.
+- **Moving on by itself** (Oct 16): the first time after 3 seconds, then every 5, the bar at the top filling for the
+  moment showing. It waits while a finger rests on the screen, while a moment's full words or its photos are open, and
+  while Wander isn't on screen; it stops at the end and never goes into the next day by itself. Ken: "Play day should
+  auto advance after a few seconds… first change after only 2-3 seconds to teach users about auto… then slow to 5
+  seconds for rest."
+- **Two photos** (Oct 16, Play only): where Wander's check finds a second photo that also shows the place (a clearly
+  different view, never a menu, sign or selfie), it fades in halfway through the moment, with its own credit.
+- **On Home** (Oct 16): today's lines carry their places' photos, small at each line's end, and Next's box its place's
+  photo on its right side — the same checked photos as the day's screen.
 - **The end**: "That's the day.", ‹ back to the last moment, and **Play tomorrow**, straight into the next day's Play,
   or **See tomorrow** (the next day's page) when that day has nothing to play. Played on a day other than today, they
   read **Play the next day** / **See the next day**.

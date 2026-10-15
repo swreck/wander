@@ -27,6 +27,9 @@
 }
 .play-in { animation: fadeIn .4s ease-out; }
 .play-drift { animation: playDrift 16s ease-out forwards; }
+/* (the bar's fill for the moment showing, over the time before Play moves on by itself — PlayTheDay sets its length) */
+@keyframes playFill { from { width: 0%; } to { width: 100%; } }
+.play-fill { width: 0%; animation-name: playFill; animation-timing-function: linear; animation-fill-mode: forwards; }
 .play-rise { animation: playRise .35s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .play-in, .play-drift, .play-rise { animation: none; }
