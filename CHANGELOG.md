@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday, 10:25 AM in Japan) — The City's Photo on Every Day; "Wander idea:"
+
+### Added
+- Each day's city band (the city's name, the forecast, "Send this day") now sits on the city's photo, with the words
+  in white and the photographer credited ("Meiji Jingu · Photo: …"). Andy loved the opening photo and wanted more of
+  it; Ken: "Do it… the look was beautiful". The band keeps its height, so nothing below moves; until the photo is ready,
+  or with no signal, the band is as before. Same photo as the arrival, already chosen for the season. Where: day pages
+  (cities in Japan). "Wander in pictures", idea 1. SPEC UPDATE NEEDED.
+- "Wander idea: …" to Scout posts to Ideas for Wander (Ken and Andy; Ken, Oct 15: think whether the entry is "as
+  smooth as it can be") — two taps and your words from any screen, the screen and any pasted screenshot going along.
+  "Any ideas for dinner?" stays a question. Where: Scout (rule 60).
+
 ## 2026-10-15 (Thursday, 10:10 AM in Japan) — Ideas for Wander, Polished
 
 ### Fixed
