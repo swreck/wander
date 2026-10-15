@@ -9,7 +9,7 @@ import { withPhoneLinks } from "../lib/guideDisplay";
 import ScoutSources, { hasSources, citesGuide, type AnswerSources } from "./ScoutSources";
 import OnceTip, { useOnceTip } from "./OnceTip";
 import { amOrganizer, tipDue, tipShown, tipClosed, sentToKen, scoutClosedUnasked, scoutAnswered } from "../lib/tellKen";
-import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
+import { startVoice, stopVoice, voiceInto, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import { whereAmI, hereNow, type Here } from "../lib/whereAmI";
@@ -1491,8 +1491,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       setListening(false);
       return;
     }
-    // Words already typed stay; what's said follows them
-    const typed = (inputRef.current?.value ?? "").trim();
+    // Words already typed stay; what's said follows them (and words typed while it listens stay too — voiceInto)
+    const into = voiceInto(inputRef.current);
     voiceLiveRef.current = true;
     setVoiceQuiet(false);
     const handlers: VoiceHandlers = {
@@ -1500,11 +1500,12 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       onText: (said) => {
         if (!voiceLiveRef.current) return;
         setVoiceQuiet(false);
-        setInput(typed ? `${typed} ${said.trimStart()}` : said);
+        setInput(into.text(said));
       },
       // Tap to start, tap to stop, as the iPhone keyboard's mic: everything heard stays in the box for a glance and
       // Send (Ken, Oct 1 — a misheard question shouldn't go straight to Scout)
       onEnd: () => {
+        into.done();
         setListening(false);
         setVoiceQuiet(false);
         if (recognitionRef.current === handlers) recognitionRef.current = null;

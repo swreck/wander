@@ -65,6 +65,36 @@ export function joinSaid(pieces: string[]): string {
   return out;
 }
 
+/**
+ * What the box should hold as words come, for a box the person can also type in while Wander listens. Words typed
+ * before the mic stay in front; words typed (or changed) while it listens become the new front, and only what's said
+ * after joins them — Julie typed " (Yanaka)" between two spoken phrases and the next phrase wiped it (user-julie3,
+ * Oct 16). Typing is read from the box's own input events: Wander filling the box doesn't fire them.
+ */
+export function voiceInto(box: HTMLTextAreaElement | HTMLInputElement | null | undefined) {
+  let front = (box?.value ?? "").replace(/\s+$/, "");
+  let inFront = "";   // the part of what's been said that's already inside `front`
+  let lastSaid = "";
+  const words = (s: string) => s.split(/\s+/).filter(Boolean);
+  const onInput = () => { front = (box?.value ?? "").replace(/\s+$/, ""); inFront = lastSaid; };
+  box?.addEventListener("input", onInput);
+  return {
+    text(said: string): string {
+      lastSaid = said;
+      // (the phone can revise its last words; then what's new is counted in words)
+      let rest = (said.startsWith(inFront) ? said.slice(inFront.length) : words(said).slice(words(inFront).length).join(" ")).trim();
+      // (a fresh start after a pause comes as ". Then…": the period goes after what's in front — unless what they typed
+      // already ends a sentence; "Julie's words. . Then" otherwise)
+      const stop = /^\.(\s|$)/.test(rest);
+      if (stop) rest = rest.replace(/^\.\s*/, "");
+      if (!rest) return front;
+      if (!front) return rest;
+      return `${front}${stop && !/[.!?…]["')\]]*$/.test(front) ? "." : ""} ${rest}`;
+    },
+    done() { box?.removeEventListener("input", onInput); },
+  };
+}
+
 // The screen stays on while Wander listens (Oct 15: Larisa was dictating a long "Tell Ken…" to Scout, the phone's
 // screen went off mid-sentence, and the iPhone stopped listening — "all wasted time", Ken). Asked for on the tap that
 // starts listening, asked again if Wander comes back to the screen still listening, let go when listening ends. A phone

@@ -2,6 +2,43 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, early morning in Japan) — Round Three of the Real-User Runs
+
+### Fixed
+- Play on Oct 18: the check-out moment said only "The hotel's own check-out time is 12:00 PM", which a skimmer read as his
+  deadline on the morning they meet Backroads at 8:30 (user-andy3). It now says first "Check out in time for Meet
+  Backroads… at 8:30 AM", as the day's card does, then the hotel's own time.
+- The end of Play says "Play tomorrow" only when the day played is today; from another day, "Play the next day".
+- A booking's looser dress code says so: "Her booking at … gives a looser dress code: “…”" (it said "asks less").
+- Photos from the day, with none yet: the line under "Share the ones I add" follows the box ("The ones you add are
+  shared with the trip" / "…are just yours"); it said "Just yours unless you share them" with the box ticked.
+- Ideas for Wander: Scout's helper knows Next already shows Google's opening hours and the morning's check-out, so it
+  doesn't suggest them.
+- Talking into a note or Scout's box: words typed while Wander listens were wiped by the next spoken phrase (Julie typed
+  " (Yanaka)" between two phrases; user-julie3). What's typed or corrected while listening now stays, and only what's
+  said after joins it; after the iPhone's pause, one period between, never two.
+- Budget: "+ Add entry" opened before the two couples had loaded showed no couples and said "Which couple paid?" with no
+  way to answer. It says "Getting the two couples…" and Keep it waits; choosing a couple clears that line.
+- The city's arrival photo no longer appears over a day someone has already scrolled down (it's drawn when the day's
+  data comes, which can be seconds after the day opens).
+- Oct 18's check-out, on the day's list, its card, Home and Play: "Meet Backroads, Courtyard by Marriott Tokyo Station
+  is at 8:30 AM, so check out before then. The hotel's own time is 12:00 PM." Wander's reasoning reads as reasoning,
+  and her screenshot's source line sits under her own 12:00 (user-larisa3: "Check out in time for…" over "From your
+  Guide — a screenshot…" read as her sentence). Replaces this morning's "Check out in time for…" wording.
+- Play: a Backroads moment whose title names two sentences' worth quotes both ("An art tour, the onsen or a massage"
+  had only the onsen sentence; 4 of 39 moments change). Her 8:30 meeting and her dinner have their Maps link in Play,
+  as on the day's page.
+- Scout: says "your Dining Resos tab" to Larisa, never "her" (Wander's own notes say "her … tab"); offers to take a
+  payment away only when the asker may (it offered Larisa to remove Andy's repeats, then couldn't).
+- Signing out clears Home's kept copy (it named the last person as the trip's owner and planner until the next sign-in)
+  and the phrase card's list (user-ken3). With an unsaved note on the phone, sign-out asks first: "Your unsaved note
+  on this phone goes too. To keep it, save it in Notes first." The question comes into view (Ken's Settings grows a
+  second after opening and had pushed it off-screen). The note about getting back in says which link: "the one you
+  first opened Wander with".
+- The photo viewer says "Keeping it just for you…" / "Sharing it with the trip…" while that's on its way (on a slow
+  signal the tap showed nothing for seconds). Play's countdown says "in 1 hr 15 min", as Next does ("1 h" before).
+  "How Wander works" says "AJ for Julie & Andy", as Budget names them.
+
 ## 2026-10-16 (Friday, before dawn in Japan) — Round Two of the Real-User Runs
 
 ### Fixed

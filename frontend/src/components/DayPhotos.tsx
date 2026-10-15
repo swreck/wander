@@ -21,6 +21,7 @@ export function PhotoViewer({ photos: all, start, me, onClose }: { photos: TripP
   const [at, setAt] = useState(Math.min(start, all.length - 1));
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sharing, setSharing] = useState<boolean | null>(null);   // a share or keep-it-mine on its way
   const [words, setWords] = useState<string | null>(null);     // the caption being written, while it is
   const [gone, setGone] = useState<Record<string, boolean>>({}); // pictures the server says aren't there for you anymore
   const x0 = useRef<number | null>(null);
@@ -63,8 +64,9 @@ export function PhotoViewer({ photos: all, start, me, onClose }: { photos: TripP
         {p.mine && me !== false && words === null && (
           <div className="flex flex-wrap items-center gap-x-5 mt-1">
             <button type="button" onClick={() => setWords(p.caption || "")} className="min-h-[44px] text-[15px] underline underline-offset-4">{p.caption ? "Change the words" : "Add a few words"}</button>
-            <button type="button" disabled={busy} onClick={async () => { setBusy(true); await sharePhoto(p.id, !p.shared); setBusy(false); }}
-              className="min-h-[44px] text-[15px] underline underline-offset-4">{p.shared ? "Keep it just for me" : "Share with the trip"}</button>
+            {/* (says it's on its way: on a slow signal the tap showed nothing for seconds — a second tap would undo it) */}
+            <button type="button" disabled={busy} onClick={async () => { setBusy(true); setSharing(!p.shared); await sharePhoto(p.id, !p.shared); setSharing(null); setBusy(false); }}
+              className="min-h-[44px] text-[15px] underline underline-offset-4 disabled:opacity-70">{sharing === false ? "Keeping it just for you…" : sharing === true ? "Sharing it with the trip…" : p.shared ? "Keep it just for me" : "Share with the trip"}</button>
             {confirming ? (
               <>
                 <button type="button" disabled={busy} onClick={async () => { setBusy(true); const ok = await deletePhoto(p.id); setBusy(false); setConfirming(false); if (ok && photos.length <= 1) onClose(); }}
@@ -145,7 +147,9 @@ export default function DayPhotos({ tripId, date, canAdd, trip }: { tripId: stri
           </button>
         ))}
       </div>
-      {!photos.length && canAdd && <p className="text-[13px] text-[#6b5d4a] mt-1">Your photos from this day, kept with it. Just yours unless you share them.</p>}
+      {/* (says what the box above says — with it ticked, "Just yours unless you share them" left Andy unsure which wins;
+          user-andy3) */}
+      {!photos.length && canAdd && <p className="text-[13px] text-[#6b5d4a] mt-1">Your photos from this day, kept with it. {share ? "The ones you add are shared with the trip." : "The ones you add are just yours."}</p>}
       {note && <p className="text-[13px] text-[#4a6a3a] mt-1" role="status">{note}</p>}
       <input ref={input} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { pick(e.target.files); e.target.value = ""; }} />
       {open !== null && <PhotoViewer photos={photos} start={open} onClose={() => setOpen(null)} />}

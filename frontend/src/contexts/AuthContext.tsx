@@ -84,7 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Object.keys(localStorage)
         // (and the phone's note of whether they're the trip's organizer — kept, Ken signing in after Andy was told to "Tell
         // Ken"; user-ken2)
-        .filter((k) => k.startsWith("wander:photos:") || k === "wander-chat" || k.startsWith("wander-chat:") || k === "wander:tell-ken" || theirs.some((id) => k.includes(id)))
+        // (and Home's kept copy, which names them as the trip's owner and planner, and their phrase card's list — both
+        // stayed until the next person signed in; user-ken3)
+        .filter((k) => k.startsWith("wander:photos:") || k === "wander-chat" || k.startsWith("wander-chat:") || k === "wander:tell-ken" || k === "wander:home-copy" || k.startsWith("wander:phrase-added") || theirs.some((id) => k.includes(id)))
         .forEach((k) => localStorage.removeItem(k));
     } catch { /* storage unavailable */ }
     if (typeof caches !== "undefined") {

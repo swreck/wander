@@ -75,6 +75,14 @@ export function keepCopy(tripId: string, notes: TripNote[]) {
 }
 
 const draftKey = (tripId: string) => `wander:note-draft:${tripId}:${person()}`;
+/** An unsaved note on this phone, for the person signed in — sign-out says it goes too (user-ken3: the Notes box says
+ *  "kept on this phone until you save", and sign-out threw it away without a word) */
+export function unsavedNoteHere(): boolean {
+  try {
+    return Object.keys(localStorage).some((k) => k.startsWith("wander:note-draft:") && k.endsWith(`:${person()}`)
+      && !!readDraft(k.split(":")[2]).text.trim());
+  } catch { return false; }
+}
 /** A half-written note, and the day it's about — a draft started Sat Oct 17 and reopened Sun Oct 18 was about to be
  *  filed under Sunday in Nikko (tester t2) */
 /** `sending`: the phone's id for it once Save was tapped — if Wander closed before the server answered, the words come

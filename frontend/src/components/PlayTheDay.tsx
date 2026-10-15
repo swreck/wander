@@ -96,7 +96,7 @@ const kindOf = (m: Moment): Kind => (m.trains.length ? KINDS.find((k) => k.kind.
 
 /** "in 45 min", "in 1 h 20 min" — and past three hours, the part of the day (tourist65: "in 11 h 30 min" at 7 AM was
  *  noise) */
-const inWords = (min: number, at: number) => (min < 60 ? `in ${Math.max(1, Math.round(min))} min` : min <= 180 ? `in ${Math.floor(min / 60)} h${min % 60 ? ` ${Math.round(min % 60)} min` : ""}`
+const inWords = (min: number, at: number) => (min < 60 ? `in ${Math.max(1, Math.round(min))} min` : min <= 180 ? `in ${Math.floor(min / 60)} hr${min % 60 ? ` ${Math.round(min % 60)} min` : ""}`
   : at < 12 * 60 ? "This morning" : at < 17 * 60 ? "This afternoon" : "This evening");
 
 type Slide = { kind: "cover" } | { kind: "moment"; i: number } | { kind: "photo"; p: TripPhoto } | { kind: "end" };
@@ -438,7 +438,8 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
             <div className="w-full flex flex-col gap-2.5">
               {tomorrow && (
                 <button type="button" onClick={tomorrow.go} className="w-full min-h-[54px] px-5 rounded-full bg-white text-[#2a231c] text-[16px] font-medium flex items-center justify-between gap-3">
-                  <span className="truncate"><span className="font-semibold">{tomorrow.play ? "Play tomorrow" : "See tomorrow"}</span><span className="text-[#6b5d4a]"> · {tomorrow.words}</span></span><span aria-hidden className="text-xl leading-none">›</span>
+                  <span className="truncate">{/* ("tomorrow" only when this is today — from Saturday on a Friday it read wrong; user-andy3) */}
+                  <span className="font-semibold">{nowAt !== null ? (tomorrow.play ? "Play tomorrow" : "See tomorrow") : (tomorrow.play ? "Play the next day" : "See the next day")}</span><span className="text-[#6b5d4a]"> · {tomorrow.words}</span></span><span aria-hidden className="text-xl leading-none">›</span>
                 </button>
               )}
               <div className="flex gap-2.5">
