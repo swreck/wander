@@ -1491,7 +1491,8 @@ On a Japan date you're still at home, Home's now and next only take lines that n
 "The rest is the others' plan."
 
 After the trip: "Welcome home, Ken." with the trip's days and places, a way into the trip notes (or an offer to write
-some), and the last day. While the flight home is in the air: "Should be in the air"; after it lands, "Safe travels
+some), "The story of the trip ›" (§9.8; Next links to it after the trip too), and the last day. While the flight home
+is in the air: "Should be in the air"; after it lands, "Safe travels
 home." Each person's own trip is counted.
 
 ### 2.3 The trip map on Home
@@ -1637,7 +1638,7 @@ social media vision of a visual flow… It might be an option when you see a pic
 
 **When a stop is open** (Oct 15). Ken: "the feature or info or view the user would want before they realize they want
 it". When her plan's time doesn't fit the place's hours as Google lists them, the stop's line says so, as Google's:
-"Google lists … as opening at 11 AM" (her plan has it at 10:00), "… as closed for now", "… as closed on Mondays", "… as
+"Google lists … as opening at 11 AM" (her plan has it at 10:00), "… as temporarily closed", "… as closed on Mondays", "… as
 closing at 4:30 PM" when her time runs a quarter hour or more past closing. For a whole street or market it says
 "Google's hours for … start at 10 AM", since one listing isn't every shop's. It shows only on the line that is the stop
 itself (never "Taxi to…" or "Finish…"), and only for a place Wander has already checked is the one her line means (the
@@ -1714,8 +1715,14 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
   itself. Keyboard focus stays inside Play while it's open.
 - **The cover**: a day that isn't under way opens on the date and city over the day's own first stop photo (or the
   city's), the day in a few sentences (her Itinerary line when there's no summary), "13 moments · 6:45 AM to 6:30 PM",
-  and **Start**. When her tab has two versions of the day, the cover says which one Play follows. Today opens on Now,
-  with the cover one step back.
+  and **Start**. To Larisa the summary speaks in her voice ("your tab"), as the day page does. When her tab has two
+  versions of the day, the cover says which one Play follows. Today opens on Now, with the cover one step back.
+- **Rain and sunset** (Oct 15). Play has no weather band, so the band's rain hours are said on the moments they touch:
+  "The forecast has rain likely 2–6 PM" on the first moment of that span, "One forecast sees showers 9–10 AM" likewise.
+  They come from the same forecast as the band, for days up to three ahead (§6.4). Today, only what's still ahead, on
+  the next moment ("… until 6 PM"). Sunset is worked out on the phone for the day's city and said as "about": on the
+  cover ("sunset about 5:07 PM", never split across lines) and on the moment the sun goes down in. No sunset line once
+  the sun is down. Ken (Oct 15): "the feature or info or view the user would want before they realize they want it".
 - **Today**, each moment says when it is: Now, "in 45 min", Under way (someone else's line), Earlier today. A moment
   further off says This morning, This afternoon or This evening.
 - **No sure photo**: the moment shows a drawing of its kind of stop (a bowl for a meal, a gate for a temple, a train, a
@@ -2308,6 +2315,19 @@ Notes is open, waiting notes try again every 20 seconds and whenever Wander come
 **Change it**; if its first words already reached Wander, the change arrives as an edit with the first words kept as the
 original.
 
+### 9.8 The story of the trip
+
+The days lived, city by city, each city under its photo (Oct 15). Each day has Wander's summary of Larisa's plan, her
+stops with their photos (or her plan's lines in her words, or her Itinerary's lines with their times), the travelers'
+own words from Notes exactly, and **Play the day** / **Open the day**. It is headed "The story so far" during the trip
+and "The story of the trip" after it. No AI writing.
+
+Whose notes: your own; someone else's only when shared with the trip and their writer said yes to trip stories (the
+note's own choice, else their setting; a question not yet answered counts as no). Never Scout's answers kept in Notes.
+
+Where: Home after the trip ("The story of the trip ›"), and Next after the trip. (It replaces a March page that counted
+"experiences" this trip never had.)
+
 ---
 
 ## 10. The Phrase Card
@@ -2690,7 +2710,7 @@ describe those. On Sep 27 Wander became a front end to her Guide. What happened 
   effective Wander.").
 - **Kept, in a new form**: the phrase card (§10); the change log, as History (§17.3); travel documents and the vault
   (§17.4); invite links and trip members (§14); offline caching (§15); city photos (§16); the Now screen, as Next (§2.4);
-  Scout, with the rules in §7.
+  Scout, with the rules in §7; the trip story, as the days lived (§9.8).
 - **Waiting on Ken**: split days as a designed feature, multiple trips, a native app, trip summaries from notes, Scout
   streaming, "Team Fun" (CLAUDE.md §6 and memory). Never bring back the travelerProfiles nudges: they invent facts.
 
