@@ -1326,7 +1326,8 @@ function CalendarCluster({
                 >
                   {mapUrl && (
                     <>
-                      <img src={mapUrl} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                      {/* (gone when Google won't send it — verify61: a broken-picture mark on every day with Google blocked) */}
+                      <img src={mapUrl} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                       <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
                     </>
                   )}

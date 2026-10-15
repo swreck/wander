@@ -27,6 +27,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { tabLabel, voiceFor } from "../lib/guideDisplay";
 import FindInGuide from "./FindInGuide";
 import PictureViewer from "./PictureViewer";
+import { guideData } from "../lib/guideData";
 
 interface SheetNote {
   id: string;
@@ -145,6 +146,23 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
   const [openTab, setOpenTab] = useState<string | null>(null);
   // The phone's Back closes the tab being read, instead of leaving Wander
   useBackToClose(!!openTab, () => setOpenTab(null));
+  // Tabs whose picture dates her plan's day differently (Wander's reading says so on the plan): the picture is her
+  // earlier plan, said under its description — Ken, Oct 15, on her Tokyo tabs' map: "The map is old and should not be
+  // the target. Text under is correct" (verify61: "Day 3 – Thu, Oct 15" read here with nothing saying it's old)
+  const [oldPictureTabs, setOldPictureTabs] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let live = true;
+    guideData(tripId).then((g) => {
+      if (!live || !g) return;
+      const tabs = new Set<string>();
+      for (const i of g.items || []) {
+        const m = (i.detail || "").match(/ A picture in her (tab|“([^”]+)” tab) labels Day \d+ .*? — a different date/);
+        if (m) tabs.add(m[2] || (i.source || "").split(" · ")[0]);
+      }
+      setOldPictureTabs(tabs);
+    }).catch(() => { /* no note: the description stands as before */ });
+    return () => { live = false; };
+  }, [tripId]);
 
   function closeTab(tabName: string) {
     setOpenTab(null);
@@ -277,6 +295,9 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
                         <li key={note.rowIndex} className="text-sm text-[#514636] leading-relaxed whitespace-pre-line [overflow-wrap:anywhere] bg-[#f6f1e8] rounded-lg px-3 py-2">
                           <span className="block text-xs text-[#6b5d4a] mb-0.5">{v.mine ? "A picture you pasted" : "A picture Larisa pasted"} — Wander's description</span>
                           {note.text.replace(/^Picture:\s*/, "").replace(/^Picture \(not read yet\)$/, "Not described yet.")}
+                          {oldPictureTabs.has(tabName) && (
+                            <span className="block mt-1 text-xs text-[#8a5a1a]">The dates in this picture are from an earlier plan. {v.mine ? "Your" : "Her"} text in this tab is the plan Wander follows.</span>
+                          )}
                           <TabPicture tripId={tripId} tab={tabName} nth={byTab[tabName].slice(0, n).filter((x) => x.text.startsWith("Picture")).length} />
                         </li>
                       ) : (
