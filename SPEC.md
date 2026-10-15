@@ -6,9 +6,19 @@
 
 This document is the single authoritative specification for the Wander travel planning and execution application. It supersedes all prior drafts, addenda, audit documents, and partial specifications. Claude Code must not invent any architectural, UX, or behavioral decision not explicitly addressed here. Where this document provides a decision, that decision is final. Where this document acknowledges uncertainty, it says so explicitly and provides the preferred resolution path.
 
+> **Status (updated Oct 15, 2026).** Since Sep 27, 2026, Wander is a front end to Larisa's Japan Guide (her Google
+> Sheet) for the group's Japan trip in October 2026. Her Guide is the master: Wander reads copies of it and never
+> changes it, and Scout can't change the trip. Part I below is the March 2026 design, kept as written. **Part II, at
+> the end, describes Wander as built, and wins wherever Part I differs.** Sections of Part I that the trip product
+> replaced carry a one-line "[Superseded: …]" note. Ken's later decisions (CLAUDE.md) win over both.
+
 ---
 
+# Part I — The March 2026 Design (v3.0)
+
 ## 1. Product Identity and Purpose
+
+*[Superseded: see Part II §1.1–1.2. Wander is a front end to Larisa's Guide for four friends on one trip.]*
 
 Wander is a web application that bridges the gap between travel research and travel execution for small, trusted travel groups. It is not a travel discovery platform. It is not a booking platform. It is not a social travel application.
 
@@ -19,6 +29,8 @@ The product must feel like a trusted, calm travel companion. It must never feel 
 ---
 
 ## 2. Non-Negotiable Product Principles
+
+*[Partly superseded: see Part II §1.3. "The itinerary is sacred" now means Larisa's Guide, which nothing in Wander changes. The map is no longer the centre. Scout speaks as a warm guide. Small confirmations and quiet cards are used where they help.]*
 
 These principles govern every implementation decision. When Claude Code faces a choice not explicitly addressed in this document, it must resolve that choice by asking which option best honors these principles.
 
@@ -44,6 +56,8 @@ These principles govern every implementation decision. When Claude Code faces a 
 
 ## 3. Target Users and Use Context
 
+*[Superseded: see Part II §1.2.]*
+
 Wander is built for a small, trusted travel group of approximately two to six people. All group members share access to the same trip data. All group members can view and modify the plan. The application is not designed for strangers, large groups, or public sharing.
 
 The primary user is an experienced traveler who already has a working planning process — browser research, notes capture, and spreadsheet-based itinerary management. Wander replaces that process without imposing new structure. The system must respect that experienced travelers already know which city an experience belongs to, already have opinions about which experiences are worth including, and do not need the application to tell them what to do.
@@ -57,6 +71,8 @@ All features must be available on all devices. The layout adapts to device size 
 ---
 
 ## 4. Technical Stack — Explicit and Non-Negotiable
+
+*[Partly superseded: see Part II §20.1. Access codes, the ratings services and the capture pipeline are gone from the trip product.]*
 
 Claude Code must implement Wander using exactly the following stack. No substitutions without explicit user approval.
 
@@ -123,6 +139,8 @@ Claude Code must implement Wander using exactly the following stack. No substitu
 
 ## 5. Authentication and Access Control
 
+*[Superseded: see Part II §14. Sign-in is Face ID with personal invite links; access codes are gone.]*
+
 Wander uses a pre-generated access code system. There are no usernames, no passwords, no email verification, no OAuth providers, and no password reset flows.
 
 **How it works:**
@@ -152,6 +170,8 @@ Wander uses a pre-generated access code system. There are no usernames, no passw
 ---
 
 ## 6. Core Data Model
+
+*[Superseded: see Part II §20.2. Her Guide is a layer Wander replaces with each good copy; what people add lives apart from it.]*
 
 ### 6.1 Trip
 
@@ -315,6 +335,8 @@ Fields:
 
 ## 7. Trip Lifecycle and Initiation
 
+*[Superseded: see Part II §4. Trips come from her Guide; there is no trip creation or itinerary import.]*
+
 ### 7.1 Creating a New Trip
 
 When no active trip exists, the application presents a trip creation screen. This screen must be simple and fast. Fields:
@@ -363,6 +385,8 @@ This choice is presented inline, never as a blocking modal. If parsing fails or 
 
 ## 8. The Experience Funnel
 
+*[Superseded: see Part II §8 (Maybes) and §3.4 (choices in a block).]*
+
 All experiences move through exactly two states: Possible and Selected. There is no intermediate state.
 
 **Possible:** The experience has caught the user's attention and been captured. It is a candidate for the trip. The user has not yet decided it deserves time in the itinerary. A city typically contains five to twenty possible experiences at any time — this scale informs UI decisions about list density, scroll behavior, and pagination.
@@ -380,6 +404,8 @@ All experiences move through exactly two states: Possible and Selected. There is
 ---
 
 ## 9. Capture System
+
+*[Superseded: see Part II §7.6 (Scout takes any file) and §8 (Maybes).]*
 
 ### 9.1 Capture Philosophy
 
@@ -441,6 +467,8 @@ Enrichment results update the experience record silently. The user does not need
 
 ## 10. Location and Geocoding Model
 
+*[Superseded: see Part II §4.4, §4.5 and §7.7. The rule lives on: a misplaced pin is never a destination.]*
+
 ### 10.1 Location Status States
 
 Every experience has one of three location statuses:
@@ -468,6 +496,8 @@ Tapping this indicator opens a location resolution panel (slides in, does not bl
 ---
 
 ## 11. Ratings Enrichment System
+
+*[Superseded: see Part II §21. Ratings aren't part of the trip product.]*
 
 ### 11.1 Philosophy
 
@@ -545,6 +575,8 @@ The AI may use ratings data as one input when generating observations about an e
 
 ## 12. Image Storage and Management
 
+*[Superseded: see Part II §16.]*
+
 ### 12.1 Cloudinary Integration
 
 All experience images are stored in Cloudinary. The database stores only the Cloudinary public_id, not the full URL. URLs are constructed at render time using Cloudinary's URL SDK, allowing image transformation (resize, crop, format optimization) at delivery time.
@@ -569,6 +601,8 @@ If no image has been captured for an experience, show a neutral placeholder — 
 
 ## 13. The Spatial Canvas
 
+*[Superseded: see Part II §2.3 and §21. Ken (Oct 3): "stop the map".]*
+
 The spatial canvas is the primary UI surface of Wander. It is not one screen among many — it is the persistent foundation that every planning and execution view is built on top of. The City Exploration view, the Day Planning view, and the Execution view are all the same canvas operating in different axis contexts. They are not separate screens.
 
 The canvas consists of:
@@ -584,6 +618,8 @@ The map is never replaced by a full-screen list. On iPhone, lists appear as part
 ---
 
 ## 14. Navigation Axes
+
+*[Superseded: see Part II §1.4 and §21.]*
 
 ### 14.1 Overview
 
@@ -628,6 +664,8 @@ Switching axes or scrubbing to a new item never loses or resets planning data. E
 ---
 
 ## 15. Three-Tier Map Marker System
+
+*[Superseded: see Part II §2.3 and §21.]*
 
 The map displays three tiers of markers simultaneously at all times — during planning and during execution. There is no mode that hides any tier. The visual hierarchy communicates the relationship between the tiers without requiring labels or controls.
 
@@ -680,6 +718,8 @@ These signals are visual and passive. They require no user action and trigger no
 
 ## 16. Spatial Consequence Visualization (Travel Geometry Overlay)
 
+*[Superseded: see Part II §21.]*
+
 ### 16.1 Purpose
 
 When a user is planning a day and promotes experiences into the Selected state, the map should immediately convey how much ground the selected experiences cover. This is a passive signal — it reveals spatial consequence without making a recommendation.
@@ -720,6 +760,8 @@ The overlay does not suggest routes. It does not suggest optimal ordering. It do
 ---
 
 ## 17. In-Canvas Promotion UI
+
+*[Superseded: see Part II §21.]*
 
 ### 17.1 Concept
 
@@ -769,6 +811,8 @@ Wander does not enforce a maximum number of selected experiences per day. Capaci
 
 ## 18. Day View
 
+*[Superseded: see Part II §3 (the day screen).]*
+
 ### 18.1 Access
 
 Day view is the spatial canvas operating on the Days axis with a specific day selected on the selector strip. It is not a separate screen.
@@ -798,6 +842,8 @@ Within the day view, the Possible experiences for that city are shown in the Can
 
 ## 19. Execution Mode — The "Now" Screen
 
+*[Superseded: see Part II §2.4 (Next).]*
+
 ### 19.1 Access and Visibility
 
 The "Now" button is visible in the bottom left of the spatial canvas during the active travel dates of the trip (from trip start date to trip end date inclusive). Outside those dates, the button is hidden.
@@ -826,6 +872,8 @@ This section requires GPS to be active. If GPS is unavailable, no opportunistic 
 ---
 
 ## 20. Leave-Time Calculation
+
+*[Superseded: see Part II §2.4. Walk, Train and Taxi open Apple Maps from where the phone is; on the last day her own way to the airport is used.]*
 
 ### 20.1 Calculation Logic
 
@@ -864,6 +912,8 @@ If no transportation mode is specified for an anchor, the system defaults to wal
 
 ## 21. Departure Handoff
 
+*[Superseded: see Part II §2.4 and §3.6 (Send this day).]*
+
 The web application cannot send notifications or fire alarms when the browser is closed or the screen is locked. This is a fundamental web platform constraint. The application handles this by providing excellent handoff to native device capabilities. The timer handoff is primary. The original specification's description of alarm as "most trusted" is superseded by this specification — the timer via Siri is the primary and preferred handoff mechanism for this application.
 
 ### 21.1 Primary Handoff: Timer
@@ -895,6 +945,8 @@ A "Share Today's Plan" button on the Now screen generates a plain text summary o
 ---
 
 ## 22. GPS Behavior and Offline Mode
+
+*[Superseded: see Part II §15 (offline) and §7.7 (location).]*
 
 ### 22.1 GPS Constraints
 
@@ -934,6 +986,8 @@ The application must detect connectivity status. The offline indicator is subtle
 ---
 
 ## 23. Change Log, Group Awareness, and Natural Language Search
+
+*[Superseded: see Part II §17.3 (History) and §15.2 (other people's changes).]*
 
 ### 23.1 What Is Logged
 
@@ -994,6 +1048,8 @@ Search results display the user display name first and most prominently — the 
 
 ## 24. Between-Cities Experiences
 
+*[Superseded: see Part II §21.]*
+
 Some experiences are physically located between two base cities — a temple on the route from Kyoto to Nara, a roadside attraction between cities.
 
 **City axis context:** The experience is associated with the preceding city in sequence. If the experience is geographically between Kyoto and Nara, it appears in Kyoto's experience list. The decision to include it is made while planning from the prior location.
@@ -1006,6 +1062,8 @@ Some experiences are physically located between two base cities — a temple on 
 
 ## 25. Exploration Zones
 
+*[Superseded: see Part II §21.]*
+
 An exploration zone is a named neighborhood or district designated for a day's wandering. Examples: "Gion district," "Yanaka neighborhood," "Shibuya area."
 
 Exploration zones are text fields attached to day records. When defined, the map resolves the zone name to coordinates via Google Maps geocoding and uses the result to bias the display ordering of nearby Possible experiences — experiences geographically near the zone are shown higher in the candidate list. Experiences outside the zone are not hidden.
@@ -1013,6 +1071,8 @@ Exploration zones are text fields attached to day records. When defined, the map
 ---
 
 ## 26. Trip Overview Screen
+
+*[Superseded: see Part II §2.1 (Home).]*
 
 The trip overview is the entry point to all planning and the only screen in the application that does not center the map.
 
@@ -1031,6 +1091,8 @@ It shows:
 ---
 
 ## 27. Experience Detail View
+
+*[Superseded: see Part II §8 and §3.4.]*
 
 The experience detail view shows the complete record for one experience. It slides in as a panel — it does not replace the map on larger screens.
 
@@ -1056,6 +1118,8 @@ Action buttons:
 ---
 
 ## 28. AI Assistant Behavior
+
+*[Superseded: see Part II §7 (Scout).]*
 
 The AI assistant in Wander is passive and advisory. It never acts autonomously on itinerary data. It never uses conversational language or action-encouraging framing. It surfaces observations as plain factual information. It does not say "you should," "consider," "we recommend," or any similar phrasing.
 
@@ -1099,6 +1163,8 @@ Time-sensitive alerts are more visually prominent than general observations but 
 
 ## 29. Trust Model and Immutability Rules
 
+*[Partly superseded: see Part II §1.3 and §4.3. The spirit holds, more strictly: nothing in Wander changes her Guide, and nothing people add is lost on a re-read.]*
+
 These rules are absolute and must be enforced at the application layer, not just the UI layer:
 
 1. **No automatic itinerary modification.** No background process, AI agent, or enrichment task may change the state, day assignment, route segment assignment, or sequence of any experience.
@@ -1118,6 +1184,8 @@ These rules are absolute and must be enforced at the application layer, not just
 ---
 
 ## 30. Device-Specific Layout Rules
+
+*[Superseded: see Part II §1.2 and rules/engineering.md § iPhone.]*
 
 ### 30.1 iPhone
 
@@ -1158,6 +1226,8 @@ These rules are absolute and must be enforced at the application layer, not just
 
 ## 31. External API Dependencies and Failure Handling
 
+*[Superseded: see Part II §20.1.]*
+
 ### 31.1 Google Maps JavaScript API
 
 Required for: map rendering, clustering, geocoding, travel time calculation, Tier 3 nearby place discovery.
@@ -1196,6 +1266,8 @@ Core functionality — viewing the itinerary, using the Now screen, accessing th
 
 ## 32. Implementation Priority Guidance for Claude Code
 
+*[Superseded: Part II describes what was built; CLAUDE.md holds the working rules.]*
+
 Claude Code should implement features in this sequence to ensure a usable application exists at each stage:
 
 **Phase 1 — Foundation:**
@@ -1220,6 +1292,8 @@ Routes axis with rail station markers, between-cities experience handling, Tier 
 
 ## 33. Closing Directives for Claude Code
 
+*[Superseded: Part II describes what was built; CLAUDE.md holds the working rules.]*
+
 These directives summarize the non-negotiable implementation requirements. Each represents a decision made explicitly by the product owner that must not be revisited or overridden:
 
 - **The spatial canvas with Google Maps is the center.** Build it first. Every other screen is secondary.
@@ -1242,4 +1316,1366 @@ These directives summarize the non-negotiable implementation requirements. Each 
 
 ---
 
-*End of Wander Master Specification v3.0*
+*End of Part I (Wander Master Specification v3.0)*
+
+
+---
+---
+
+# Part II — Wander as built (October 2026)
+
+Part II describes Wander as people use it on the Japan trip. It was written on Oct 15, 2026 from CHANGELOG.md (every
+entry from Sep 27 on, and the March–April entries marked "SPEC UPDATE NEEDED"), CLAUDE.md, rules/engineering.md and
+rules/tone.md. Where Part I and Part II differ, Part II wins. Where two changelog entries differ, the newer one wins.
+Ken's words are quoted with their dates. Lines marked (Claude) are the engineer's reading beside them.
+
+Keeping it current: every batch that changes behaviour updates this part in the same pass as its CHANGELOG entry. Ken
+(Oct 13): "Product spec should be up to date!" and "yes. Always! Should not need my approval!"
+
+---
+
+## 1. What Wander Is Now
+
+### 1.1 Purpose
+
+Ken (Apr 11 2026, reconfirmed Sep 27): "Wander is a value-add front end to Larisa's Japan Guide."
+
+Larisa's Guide is the Google Sheet she built for the trip: an Itinerary tab, a tab for many key days, dining
+reservations, hotel notes, pasted emails, pictures, to-do lists. Wander reads a copy of it and never changes it. Wander
+makes her plan easy to use on a phone during the trip: what's next, what today holds, what not to miss, how to get
+there, and answers to questions about any of it.
+
+Ken (Oct 1 2026): "be creative… friends travelling to a new location with new culture, style, foods… hand built for
+the individuals instead of mass appeal… 10 or more exciting yet safe-to-implement ideas."
+
+Ken's ambition (Sep 27; a close paraphrase, his exact words weren't recorded): Wander seduces people, Larisa included,
+into seeing it as a parallel tool that earns its place as the main window into the plan through its charm, its ease
+and its usefulness. Larisa is the final judge, comparing it with her own sheet.
+
+The design standard. Ken (Apr): "UX for non-technical users resulting in delight without having to be trained".
+
+### 1.2 The people
+
+Four travelers, with accounts named Ken, Larisa, Andy and Julie. Ken (Oct 10): "They see themselves as andy and Julie.
+The initial was yours. And the initial seems to have caused a problem".
+
+- **Ken** looks after Wander. He is the trip's first member (the "organizer" in Wander's words), and a few actions are
+  his and the person who added a thing (removing from Maybes, removing a phrase from everyone's card).
+- **Larisa** owns the Guide. Wander speaks to her about it as hers: "your Guide", "your tabs", "your plan for the day".
+- **Andy and Julie** join a week after Ken and Larisa. For any Japan date when someone is still at home, Wander says so
+  and keeps the others' plan apart (§18).
+- Everyone carries an iPhone 16 or later. Screens are reviewed at 393, 402 and 440 pt wide and on iPad. The 375 pt SE
+  must work but isn't polished for.
+
+Wander speaks to the person holding the phone. Larisa sees "your Guide"; Ken sees "your rail sheet"; everyone else
+reads "Larisa's Guide" and "Ken's rail sheet". Wander's own lines never talk about the reader in the third person
+(Sep 30, Oct 5, Oct 10).
+
+### 1.3 The rules that govern every screen
+
+1. **Downstream of Larisa's Guide (hard rule, Sep 27).** Her sheet is the master. Ken (Oct 2): "The ONLY reason for
+   non-live connections is the danger of you changing something or deleting something or destroying something she
+   created." Nothing in Wander writes to any sheet. Google access is read-only, so Google itself would refuse a write.
+   A trip read from her Guide can't be deleted. Scout's tools for restructuring the trip are withdrawn (§7.9).
+2. **Lightweight planning only, inside her plan's open space.** Ken (Sep 27): "which of 3 restaurants", "what Andy and
+   Ken do on the spur of the moment while Larisa and Julie are at a ceramics demonstration". Days, cities, hotels and
+   tours are her Guide's job. Ken: "no non-Wander workflows". Ken (Sep 27): "May change while on the road, but it's
+   the right start."
+3. **Faithfulness with judgement.** Ken (Oct 2): "everything in the spreadsheet is data". Ken (Oct 10): "Faithfulness
+   continues to be Key. But your judgement as head of engineering with faithfulness as a goal is just as important.
+   Perhaps more because 'you are the head of engineering creating a great product that has faithfulness at its
+   core.' This optimization would be clear to a human." (Claude) Two questions of every fact on screen: is her word
+   kept exactly, and is this the best a traveler can have right now? When they differ, both show: live first, hers
+   labelled hers.
+4. **Scout never lies (Sep 29).** Ken: "one scout error when asked when or where something is happening can overwhelm
+   multiple correct answers." Ken (Oct 2): "if they go to the airport on the wrong day because of Wander, I will never
+   hear the end of it". Ken (Oct 13): "Why hide rain if a legitimate forecast has it? If it is real, use it. If not,
+   don't. Scout does not lie." The same honesty applies to every screen.
+5. **Disagreements are shown, never settled.** When her tabs, her pictures, Ken's rail sheet or a file someone sent
+   differ on a time, a place or a booking, Wander shows both and where each comes from. It never picks one.
+6. **Done or out of date isn't shown.** Ken (Oct 14): "You don't change her sheet. You add value to it. So if it is
+   done or out of date, you don't show it" · "Just don't show it in wander".
+7. **Personal information.** Ken (Oct 4): "unless the info passes through the vault in a safe way, Wander should not
+   surprise people by surfacing their personal info." (§19)
+8. **Each fact once.** A booking, a disagreement or a deadline is said in one place on a screen, with a pointer from
+   anywhere else that needs it (the day screen review, Oct 4).
+9. **Words.** The test in CLAUDE.md §5: could this string appear unchanged in Jira, a banking app or a form builder? If
+   yes, rewrite it. Ken (Oct 2): "remember to use table for two, and don't use ambiguous nouns." The full rule is
+   rules/tone.md.
+10. **Nothing moves under the reader.** (Claude) A card arrives in a screen's first drawing or waits for the next
+    visit. One ask per visit, in a fixed order. Layout shift stays under 0.1. Most of the Oct 10 audit fixes were
+    this.
+11. **Chat parity for Wander's own additions.** "anything that can be done by the visual UI should be able to be done
+    by the agent" (Apr). When a screen changes something Wander owns, Scout has a matching tool, and the reverse.
+    Never for anything read from her Guide. Ken (Oct 13): "Good job ensuring scout can reorder like a user. that is
+    big picture thinking. Keep it."
+12. **What matters is Japan.** Ken (Oct 13): "Focus on what matters to users in Japan. Wander must be honest, no bugs,
+    usable with no training and no manual. What it says about Japan to andy and Julie while in California is not
+    important."
+
+### 1.4 The screens
+
+The bottom bar, on every screen: **Home · Maybes · Next · Notes · Actions · Scout**, and a small **日** at its right end
+for the phrase card. Tapping Home while on Home closes Actions and Scout and goes back to the top. A dot on a tab means
+something new there.
+
+Other screens: a day (tap any day on Home's calendar), the whole trip on one page, History ("What's changed in
+Wander"), People, Settings, Profile (travel documents), How Wander works, the ticket pickup page, and Ideas for Wander.
+The old Plan screen's address now opens Maybes.
+
+---
+
+## 2. Home and Next
+
+### 2.1 Home
+
+Home is the trip at a glance, with today first. From the top:
+
+- **The header** is one row: the trip's name with ▾ and its dates, then "? History ⚙ <your name>" (Sep 30). The ▾
+  lists only trips you're on that were read from her Guide, each with its dates and when the Guide was read.
+- **Wander ideas** (Ken and Andy only): a small amber chip with a sparkle that opens Ideas for Wander, with a dot when
+  something there is new (§12).
+- **Today's weather**, one line just under the dates: "63‑73°F, rain 18% (.09")" with **Go to today ›** at its right.
+  Ken (Oct 13): "Can it be one line of: 63‑74°F, rain 6%      Go to today ›". It shows only on your own days in Japan,
+  so it needs no place name; a screen reader hears where it's measured. When her plan takes you somewhere other than
+  where you sleep, a second line follows, each line naming its town, in the order the day is lived. On a travel day,
+  from noon in Japan, tonight's town leads. Rain hours aren't on Home: Ken asked for one line there (§6).
+- **The trip map** (§2.3).
+- **The Today card** (§2.2), or before the trip the countdown and your first days, or after it "Welcome home".
+- **Quiet notes**: the Safety tips note under the day's card (§6.7); and one ask per visit, in order, the leaving card,
+  Face ID, then the welcome (§17.1).
+- **The calendar**: every day of the trip in its city's colour with a small map (hidden when Google's maps can't be
+  reached), a "B" beside the date on a Backroads day ("B · with Backroads" under it), today ringed. Every day is one
+  tap. It stays after the trip.
+- **The whole trip on one page** and **Your Guide, tab by tab**, with Find a word (§4.6).
+- **Recent activity**: what people did in Wander (maybes, shared notes, picks, plans added). One person's quick changes
+  of mind on one line within half an hour merge into the latest. Something added and taken back is left out (History
+  keeps both). A private note never appears.
+- **A Maybes line** when there's something new: "Andy has a maybe for Tokyo: "…" · and 1 more ›". No phone alerts.
+
+**The leaving card** (Oct 2). For anyone whose own first flight is after the trip begins (Andy and Julie), once a day
+before they leave: "You leave in 10 days", "You leave tomorrow", "You leave today · Safe travels." It shows their
+flight as her Guide has it and one fact about Japan, a different one each day, each checked against published sources.
+It shows only if it's ready before they've touched anything, with nothing else open; otherwise on the next visit. Ken
+(Oct 10): "conflict in the UI since both are early and unexpected info… Overlap, race condition". Ken can preview it
+with a setting: "If Julie and Andy open Wander today, this is what they'll see:".
+
+**If Google's map won't load**, Home opens at the trip's name without the map, and the phone tells Wander's server why
+(Oct 15).
+
+### 2.2 Home's Today card
+
+During the trip the Today card is today from her Guide, on Japan's date for you:
+
+- Her open question about today comes first ("Still open in her Guide: …"), unless her own line marks it done.
+- Her Itinerary line for the day leads, saying whose it is when it's someone else's ("— For Ken & Larisa"). Short
+  untimed bits share one line: "In her Itinerary for today: "…" · "…"".
+- Then the day in time order: her timed lines, your booked trains, flights, bookings. A train, a flight, a booking,
+  a line to a station or airport, and a line still waiting for a pick ("Lunch · 2 places to choose from ›") are never
+  folded away. When other lines are left out, "and 9 more from 11:35 AM ›" sits at the gap and opens the day there.
+- **Now** and **Next** by the clock (§2.4). A booked meal under way is "Now · <restaurant>, booked for 6:00 PM" with its
+  confirmation, for two hours.
+- **Tonight**: where you sleep, both hotels when her Guide lists two, each one tap to Maps by its name. The check-in
+  row leaves once you're there.
+- **Tomorrow**: the earliest of her Itinerary, her day plan and your booked trains. "her Guide lists two places" when
+  it does, never a pick.
+- **Your deadlines** in the next few days, said by whose name the booking is under. Charges that have started sit under
+  "Now in effect". A free-cancellation day says "Last day … Nothing to do unless plans change", never a gold deadline.
+- **Earlier today: … ›** folds the morning's check-out and the lines that only got you here, once you've reached
+  tonight's place (§2.4).
+
+Before the trip, the card says "You leave in N days", shows only your own lines and the deadlines in the next two
+weeks, and says where the others are now (§18.3).
+
+On a Japan date you're still at home, Home's now and next only take lines that name you; the others' lines sit under
+"The rest is the others' plan."
+
+After the trip: "Welcome home, Ken." with the trip's days and places, a way into the trip notes (or an offer to write
+some), and the last day. While the flight home is in the air: "Should be in the air"; after it lands, "Safe travels
+home." Each person's own trip is counted.
+
+### 2.3 The trip map on Home
+
+Numbered markers in visit order, each in its city's calendar colour, with names beside them and gently arced legs with
+one arrow each; "start" and "end" on the first and last stops (Oct 1). Google's own place names are off; the only words
+are Wander's. Tapping a marker opens that city's first day, or today if it's today's city. Two stops close together
+that the trip doubles back through share a split marker ("2 | 3") that opens a chooser. During the trip, today's city
+is dark and what's behind you goes quiet; no city is "today's stop" for someone still at home, or before their plane is
+due to land. Pinching or dragging with two fingers works wherever the fingers land; a "Whole trip" button brings the
+view back.
+
+The map is built once per visit and kept with the view it settled on, so coming back to Home draws it at once (Oct 9).
+Its layout is worked out in the background, so opening the app never freezes (Oct 10). It never shrinks under someone
+reading.
+
+Ken (Oct 3): "stop the map". No more spending on its polish. A map that is added or changed is reviewed by a fresh
+agent against a rubric, at the review sizes, on production data (rules/engineering.md).
+
+### 2.4 Next
+
+Next (the Now tab until Oct 2) answers what's next, when, and how to get there. Ken (Oct 10, Hakata): "given the time
+of day that you know, I would think you would realize that when I tapped on next, you would know that I was already in
+Hakata at the hotel, and so when I tapped on next, it would not tell me we were taking a local train to Hakata."
+
+**How Wander decides what's next.** One reckoning for Next, Home and the day screen: the train you're on; otherwise the
+sooner of your next booked train and her next timed line for you. A plan added in Wander counts. "This morning" lines
+show before the first clock time. Once you've reached tonight's place (the evening, tonight's check-in time, or the
+booked train here has arrived), the morning's check-out and the untimed lines that got you here fold into "Earlier
+today: … ›". The check-out goes once your first booked train has left.
+
+Rules that keep it right:
+- While you're on a booked train, her lines timed before its arrival wait. "On this train now, by the schedule ·
+  arriving 7:05 PM", with the seats, stays in view between leaving and arriving.
+- A line her other tab puts at another hour is never Next or Now; it stays in the day with its difference said.
+- On a split day, a line inside the split with no name on it is never anyone's Now or Next. It's mentioned: "At 10:35
+  AM, her plan has … — her Guide doesn't say which group".
+- An end time is only one her plan gives. A line with no end runs until her next line.
+- Before you land, the landing is next.
+
+**What Next shows.** One strong card at a time; a second card is a step quieter.
+- **The Next card**: the time, how long until it, her transit and dress notes ("Notes from your Guide ›"), the group's
+  pick or "2 places to choose from", whether her tabs differ. Under it: **Find in Maps**, and **Get there from where
+  you are: Walk · Train · Taxi**, each opening Apple Maps with directions from the phone to her own place (the pin of a
+  place she linked, the address she wrote, a hotel's booked address). Nobody types an address. Not shown for a flight,
+  or for a stop with no place.
+- **The train card**: "Next train · in 2 hr 57 min", car, seats, reservation number, any check before boarding, and the
+  seat from a ticket you kept (§5.5).
+- **The landing card**, for the person landing: the status by the schedule (§18.4), and how to get from the airport to
+  the hotel in her own words from whichever tab says it, with **Ask Scout the ways to go ›** and **Directions in
+  Maps ↗**. It leaves three hours after landing.
+- **The last day**: her own way to the airport (her train) replaces Wander's "leave for the airport" estimate; that
+  estimate shows, labelled as one, only when her Guide gives no way.
+- **Tomorrow**, naming its clock on a phone not on Japan time.
+- A labelled **日 Phrases** button in the header, where people learn what the 日 means (§10).
+
+A screen opened from Next says "‹ What's next".
+
+---
+
+## 3. The Day Screen
+
+Ken's decision (Oct 4, Oct 8): first the day in a few sentences, then what you can't get wrong today, then the day by
+the clock in ONE list in the order it's lived; reference last; never category sections. Chips may filter that list in
+place. Each fact once. Ken (Oct 8): "the general principle is an absolute yes to your ideas… create an agent that is an
+expert in user experience and discuss options… you are the head of engineering, so you can sequence it".
+
+Before changing the day screen, run day-risk-check.mjs and lost-facts.mjs (trip-data/session-tools). Everything the
+day draws (her Guide, the rail sheet, Wander's summaries, her other tabs, her maps and pictures, plans added in Wander)
+is asked for at once and drawn in one step, from the phone's copy when it has one. On a very slow first open the day
+waits up to 4 seconds, then says "Still getting the train times from the rail sheet…" rather than look trainless.
+
+### 3.1 The top
+
+- **The top bar**: a back button that names where it goes ("‹ Home", "‹ What's next", "‹ Notes"), the date, the way on
+  a travel day ("Tokyo → Nikko"), "Today" on today, and the neighbouring days as bordered buttons ("‹ Sat", "Mon ›").
+- **The city band**: the city's name large in its calendar colour, on the city's photo with the words in white and the
+  photographer credited (Oct 15; Ken: "Do it… the look was beautiful"). It carries the day's quiet facts: the forecast
+  lines (§6), "With Backroads · day N of 8" on a Backroads day, and **Send this day ›**. Until the photo is ready, or
+  with no signal, the band is plain; its height never changes. Tapping the city's name brings back the arrival photo.
+- **Her Kyoto map, one day at a time** (Oct 15). On each Kyoto day, just under the band, her illustrated Kyoto map's
+  panel for that date, shown whole: a tall panel at most 340 pt, over a soft blur of itself, so the day's summary still
+  starts on the first screen. Under it: "Larisa's map · tap to see all five days" ("Your map" to Larisa). A tap opens her
+  whole map to pinch and zoom. Each panel was cut once from her picture, and her picture is never changed. If a new copy
+  of her Guide brings a new map, the old panels stop showing. Those days don't also offer "See her map from this tab".
+  Not on Next.
+
+### 3.2 The day in a few sentences
+
+"Wander's summary of Larisa's plan" (to Larisa, "your plan"), first under the band: two or three sentences on what
+kind of day it is, its shape, and what anchors the evening. It is written from the same day Scout reads (her lines,
+her pictures' words, who isn't in Japan yet, Backroads) and says only what they say. It names the people actually
+there and says "you" to the reader. It says Backroads leads its days and states her disagreements neutrally. Every
+summary is read against her lines before it's published. When a new copy of her Guide changes a day, its summary is
+hidden until it's rewritten and read. The phone keeps a copy for no signal.
+
+### 3.3 Don't miss
+
+"Today, don't miss" (or "Don't miss" on another day), right under the summary. In this order:
+1. The storm watch's line, when there is one (§6.6).
+2. The ticket pickup card, on its day (§5.4).
+3. Each thing to check, once: a disagreement between the sources today; her open question for the day; a train still
+   marked to verify; your own deadline ending today (or one of your own party's, said as theirs: "Larisa's to-do, last
+   day today: …"); a line where her tabs name two places.
+
+Each has ↓, which opens the line it points to. Four show; more open in place. Left out: anything her own words mark
+done, a deadline someone marked done in Wander, "Free cancellation ends" (it asks nothing), and someone else's to-do.
+
+The "You land at …" box shows on the day screen only when it says something the day doesn't: that earlier lines are the
+others', or how to get from the airport to the hotel. It goes three hours after the landing; the landing stays in the
+day.
+
+### 3.4 The day by the clock
+
+One list, in the order the day is lived.
+
+**At its top**, her Itinerary's heading for the day as one quiet line: "In her Itinerary for today: …".
+
+**Her plan for the day.** On a day with her detailed day tab, "Larisa's plan for the day" leads: her tab, in her order,
+with her times as she wrote them ("~8:30–9:15", "After dinner"). Beside its heading: **▶ Play the day** (§3.7). Under
+it, when her tab has one: **See her route for the day in Google Maps** (the day's city and "Japan" are added to bare
+stop names so the app finds every stop) and **See her Apple Maps guide for the day ↗** (§4.5).
+- Each line says who it's for when the group splits ("Yours · Ken & Andy", "For Larisa & Julie").
+- A line with no name inside a split says "No group named here". When her picture names the group, Wander quotes it:
+  "a picture in your tab lists it under "You & Julie (morning)"".
+- Her longer notes sit under "Larisa's notes ›" ("Transit:", "Experience:" on their own lines). Short ones show
+  without a tap.
+- Maps for a line comes from her stop list's own link, then her booking's address, then a place her words name; the
+  town her tab names is added. "Leave …" and "Depart …" lines get no Maps. "The hotel" means tonight's hotel.
+- **Two versions of the day** in one tab: Wander follows the one she added most recently and says so ("Wander follows
+  the one she added most recently; the other has different times"). Scout sees the other as the earlier version.
+- **Choices in a block.** When she lists several places for one time, each has **We're going here**. The pick is a plan
+  added in Wander; her sheet is untouched. It shows "✓ The group's pick · Ken, in Wander" with **Undo** and **Tell
+  Larisa**; the others offer **Switch to this**. One pick per line, kept on the server. With no signal, "✓ Your pick ·
+  on this phone until there's signal".
+
+**Her stops' photos** (Oct 15). Under a stop's name, a 16:9 photo from Google's listing of the very place its Maps
+button searches, kept only when a check reads her line (and the stop her tab names) and Google's place and finds they
+are the same place. A tap opens that place's photos full screen, swiping across, with the time, name and Maps pinned
+below. Trains, walks and "refresh at the hotel" stay compact text rows. The time column stays on the left; nothing of
+her plan moves or is reordered. Ken (Oct 15): "simply adding a photo on each day page does not seem to fulfill Andy's
+social media vision of a visual flow… It might be an option when you see a picture to see more pictures".
+
+**Your trains, in the day** (Oct 4, Oct 8). Each booked train is drawn once: under her line when it names the train,
+else at its time. The short row keeps what you need on the platform: times, name and route, car, seats, reservation
+number, any check before boarding, and her Guide's other time for it. "Reservation, notes and steps ›" opens the rest.
+A car, taxi or local leg with no booking is one thin row beside the train it connects to ("After train · … · Car /
+taxi · no booking"). Her untimed lines sit right after the train or leg that goes where they name. On your landing day,
+untimed lines come after you land, and the airport leg follows the landing. The others' trains fold to one line ("Ken &
+Larisa's trains today (4) ›").
+
+**Plans added in Wander** sit at their time, "Added by you · not in Larisa's Guide" (or by whoever added them), with
+Tell Larisa and Take off this day. A plan with no time sits under "Added in Wander". **+ Add a plan for this day** and
+**+ Add a note for this day** are on every day (§9.3).
+
+**Each line is short until tapped** (Oct 9). A row is its time and what it is; a tap opens the rest in place, "Show
+less ‹" closes it. What you can't be without stays in sight: a train's essentials; a line's open question or
+disagreement; a question for you; check-out timing; a flight's status and confirmation; a meal's name, whether it's
+booked, and its Map; a to-do's window and phone numbers. Class, sources, addresses and her notes open on a tap.
+
+**Today**: the line that's now opens by itself. Earlier timed lines turn a quieter colour, never hidden. On a day
+ahead its first timed line opens; a day looked back on stays short.
+
+**Someone else's line** on a split day is one quiet row at its time ("Ken & Larisa · Day trip from Tokyo to Mashiko ›"),
+opened in place.
+
+**Mornings.** A check-out on a morning you leave earlier reads "Check out before 8:30 AM · Meet Backroads, …", with the
+hotel's own time below, smaller. On a two-hotel morning each check-out shows with its own time and confirmation.
+
+**Deadlines** say whose booking they are ("Booked under your name", "Larisa's to-do · …"). Amber is only for the person
+who must act. "Why this date? ›" opens the policy. A deadline someone marked done reads "Done — Larisa, Oct 14 (marked
+in Wander)" (§11).
+
+**Her tabs differ** is said on the line itself, both quoted, both spots one tap each ("In your sheet: Itinerary ↗ ·
+Kyoto Thu… ↗"). A disagreement already said at the top points up: "The sources give two times for this — see the top of
+the day ↑".
+
+**Source links** are quiet: "From Larisa's Guide — the Itinerary tab ↗" in small gray, opening her sheet at the exact
+cells (§4.6). Phone numbers can be tapped only when they're shaped like a phone number.
+
+### 3.5 Reference, last
+
+At the foot of the day: her note for a whole stay, folded to one row ("Larisa's note for the Okayama stay, Oct 6–8 ›");
+"Also in her Guide for today" for what has no line of hers; where everyone sleeps ("Tonight", or "The night of Wed,
+Oct 14" on another day); the papers kept for that day (§9.6); and the gray footer: "Larisa's Guide, as Wander last read
+it …" and "The trains are from your rail sheet, as Wander last read it … Japan time."
+
+### 3.6 Send this day
+
+**Send this day ›** opens the phone's share sheet (or copies) for someone outside the four: her plan in her order with
+her times and whose each line is, her Itinerary line, the booked trains, where they sleep, and "— from Larisa's plan for
+the trip". No confirmation numbers. A time her tabs dispute goes out marked "her tabs differ on this; check before
+relying on it". A time on another clock goes with its clock. **Send ›** on a booked meal, check-in or tour sends its
+name, day, time, address and confirmation, for a concierge.
+
+### 3.7 Play the day
+
+The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' feels right"; for 2.0, "treat current as
+1.0… make it fabulous".
+
+- **Where**: "▶ Play the day" beside "Larisa's plan for the day", on days with her plan.
+- **A moment**: the photo, the time, the name, a line of her note, a train's booking, her bookings and dress code, the
+  stop her tab names for the line, Maps, "6 photos". "Her full note" shows all her words for the line.
+- **The list's corrections come along**: each moment carries what the day's list says about it (a booked arrival, "the
+  sources give two times", her tabs differing). A line her Guide marks done is never a moment.
+- **Her order, nothing dropped**: her travel lines (taxi, transfer, return, and "Leave…" lines) fold into the moment
+  they lead to as "Getting there: 9:15 AM · Taxi back to …". A "Finish X" line joins X as "Then: …".
+- **Moving**: a white **Next** button names what comes next ("Next · 1:30 PM / …"), with ‹ for the one before. Swipe left
+  and right moves between moments; taps on the picture still work; swipe down, ✕ or Back closes. It never moves on by
+  itself. Keyboard focus stays inside Play while it's open.
+- **The cover**: a day that isn't under way opens on the date and city over the day's own first stop photo (or the
+  city's), the day in a few sentences (her Itinerary line when there's no summary), "13 moments · 6:45 AM to 6:30 PM",
+  and **Start**. When her tab has two versions of the day, the cover says which one Play follows. Today opens on Now,
+  with the cover one step back.
+- **Today**, each moment says when it is: Now, "in 45 min", Under way (someone else's line), Earlier today. A moment
+  further off says This morning, This afternoon or This evening.
+- **No sure photo**: the moment is drawn for its kind of stop (a bowl for a meal, a gate for a temple, a train, a bed for
+  the hotel) on a warm colour, never passed off as the place. A small photo shows whole over a blur of itself.
+- **Motion**: photos drift slowly closer and fade into each other; none of that under Reduce Motion.
+- **The end**: "That's the day." and **Play tomorrow** when the next day has her plan, or **See tomorrow** (the next
+  day's page) when it doesn't.
+
+---
+
+## 4. Larisa's Guide as Master, and the Importer
+
+### 4.1 Where her Guide comes from
+
+Wander reads snapshot copies of her sheet that Ken downloads and gives to Wander. It never reaches her online sheet.
+Ken's words for it: "never reach her online sheet". Changing that is Ken's call alone. Wander never uses the Google
+Drive connector.
+
+New copies during the trip. Ken (Oct 2): "I want you prepared for a new copy anytime during the trip that Larisa makes
+changes to the sheet by phone or iPad. When she does that, I need to download with my phone (only device) and give to
+you over the long distance remote control from Japan to Mac." The procedure (trip-data/session-tools/guide-update)
+finds the copy, imports it into the test copy, and lists every warning and changed cell. Each is read before
+production. After production, only the changed days' summaries are rewritten, and each is read before it's published.
+
+### 4.2 How Wander reads her Guide
+
+Ken (Oct 4): "I want to reinforce that this smart parsing of her unstructured (sometimes random) entries are the power
+you bring. That intent and requirement should stay durable across sessions please." Ken (Oct 2): "Larisa has spent a
+great deal of time on that spreadsheet. She is precise and intentional. Everything earning a place in the spreadsheet
+is important… every word, image, and number [is] 'data' that is valuable…"
+
+- **Every tab**, with each tab given exactly one reader: the Itinerary, a day plan, a reservations tab, a booking email,
+  an actions list, a pasted copy of Ken's rail sheet. Columns are found by their header names. Her words are kept as
+  written, her Notes column and rows without a date included. Sections she marked "SKIP" stay out.
+- **Every word on her pictures** (flight confirmations, booking screenshots, illustrated maps). Scout gets each
+  picture's full words, read once even when she pasted it in several tabs (Oct 2).
+- **Pasted emails** for bookings and deadlines. A deadline worked out from a rule ("reconfirm 3–7 days prior") says so,
+  quotes her words, and is listed on its last day. A date when charges start closes as that day begins (Oct 4).
+- **Every line records its exact cells**, so Sources can open the spot (§7.4).
+- **Day tabs**: time blocks, choices in a block, who each line is for, her stop list's map links, and a date matched
+  when her tab gives none (Wander says how it matched).
+- **Her shorthand**: initials become names ("KL day trip" is Ken & Larisa's; "AB / JD" is Andy & Julie). Initials no one
+  on the trip has ("LT") stay as she wrote them; her "LT actions" list is a heading, never a person.
+- **Her informal lists** in the Actions tab: a cell ending "actions" or "to do" heads a list of to-dos.
+- **Backroads dinners** listed "Day 1" … "Day 7" are dated from the first Backroads night in her Itinerary, and say so.
+- **Done marks** ("— DONE", "DONE —", "(done)", a tick) close a question or line, which then isn't shown as open.
+- Hotel dates written into a hotel's name win over the date columns. A room description beside a hotel isn't the day's
+  line. Working notes in a heading never create a city. "By 3:45p" is never a start time. Tab names cut at 31 letters
+  end at the last whole word with "…".
+
+(Claude) Never trust "accepted" on an import: a sentence she typed in the hotel column became a second hotel (Oct 4).
+Fix the reader with a general rule tested on her real cells; never her sheet. Before asking Ken about her sheet, read
+the cell. Ken (Oct 10): "There is no lt. why do you keep asking?" Ken approved (Oct 11): everything she wrote is data
+Wander holds and Scout can answer from; how much screen work each piece gets is proportionate. Ken is asked only when
+two readings would give a different time, place or booking.
+
+**A picture older than her text.** Her Tokyo day tabs open with an illustrated map labelled with earlier dates. Ken
+(Oct 15): "The map is old and should not be the target. Text under is correct". When Wander's reading says a picture
+dates the day differently, the day page doesn't offer the picture, and Scout says it's her earlier plan. Home's tab by
+tab says under it: "The dates in this picture are from an earlier plan. Her text in this tab is the plan Wander
+follows."
+
+### 4.3 A new copy
+
+A good copy replaces the Guide layer, and Wander records what changed. A copy that looks broken (no itinerary, no
+dates, or far fewer hotels or tabs than last time) is refused, and the last good reading stays.
+
+Nothing people added in Wander is lost on a re-read. Plans added in Wander are stored apart from her Guide. An idea
+that leaves her Guide carrying anything someone added is kept, marked "No longer in Larisa's Guide"; if she renamed it
+(one new idea in the same city shares a distinctive word), the additions move to the new one. Wander's I'm in marks
+survive (only her X marks are replaced). A maybe taken off the list stays off. Her maps, Wander's place notes, the
+Backroads itinerary, the sheet's link and the day-plan version Wander follows are all kept.
+
+### 4.4 Wander's own notes on her places
+
+When her Guide only names a place (a Backroads stay, say), Wander can keep its own note on it, apart from her Guide:
+where it is and where that came from (Oct 2). Scout reads it beside her stay, marked as Wander's addition. Sources lists
+it as Wander's note. Walk, Train and Taxi use its location when nothing of hers gives one, and the Home map places the
+stop by it. A stop is never given an old stop's pin by its dates alone.
+
+### 4.5 Her other sources
+
+From CLAUDE.md §2: "Her view-only share links (Apple Maps guides, her Google map) may be read; say so first."
+
+- **Her Apple Maps guides** (Oct 2). For some days she made a guide in Apple Maps. **See her Apple Maps guide for the
+  day ↗** opens it as it is now. Scout knows each guide's places and addresses and Wander's straight-line distances
+  between them. Ken: "Scout might add value by saying what's close and what isn't". Scout says which are close and which
+  need a train or taxi, as straight-line distance, never a walking time, and never reorders her day. Where her guide and
+  her tab differ, Scout says both. A guide is matched to its tab by name; one no tab matches isn't put on a day.
+- **Her Google map** (Oct 11): her map of every location of the trip, in layers she named. Anyone asking for it gets the
+  link ("Open the Google map"; to Larisa it's her own). Scout uses her pins for "where is…", what's close to what, and
+  directions when her sheet gives no address. A layer's name is hers, never a date. Wander reads its public export
+  again every few hours and keeps the last good reading. A pin far from every town of the trip is weighed against her
+  plan; a misplaced one is never used for directions.
+- **Backroads' itinerary** (Oct 4). Ken gave Wander Backroads' detailed itinerary for their week. Its words are kept as
+  written, its days dated from the day her Guide meets Backroads. Scout reads it as "Backroads' own words, given to
+  Wander by Ken — NOT Larisa's Guide". It is their general itinerary, not one for this departure, and Scout says so
+  when it matters. Where it and her Guide differ, Scout says both.
+
+### 4.6 Seeing her Guide in Wander
+
+- **Your Guide, tab by tab** (Home): her tabs in her sheet's order, each opening on its own. Her pictures open full
+  screen ("See the picture ›": pinch or double-tap to zoom, Done or Back to close). Wander's own links say they're
+  Wander's.
+- **Find a word** at the top of tab by tab: every tab and every word on her pictures, searched on the phone, no accents
+  needed ("osaka" finds "Shin-Ōsaka"). Each find shows the tab and cell, her words around it with the word marked, the
+  day it belongs to, and "Open this spot in your sheet ↗". It works with no signal after the first search. A word she
+  never wrote: "Nothing in your Guide says '…' — at least in the copy Wander has."
+- **The whole trip on one page** (Home, under the calendar): day by day (where, her line for the day, where you sleep,
+  meals booked); where you sleep (dates, nights, whose, check-in and check-out, confirmation, free to cancel until);
+  every meal in her dining tab with any disagreement; flights and booked trains in one list; every date to keep in mind.
+  A table on a laptop, a list on a phone. Every row opens its day.
+- **Open at this spot in her sheet.** The phone opens her Google Sheet at that tab and those cells; Google decides who
+  may see it. Wander never opens her sheet itself. A tab Wander has no address for opens her sheet, with the tab and
+  cell named in words. Her sheet's address and tab ids live in the database, never in this public repo.
+- **Settings → Where Wander's plan comes from**: the copy of her Guide and Ken's rail sheet, each with when Wander last
+  read it, in Japan time on every phone.
+
+---
+
+## 5. Trains: Ken's Rail Sheet
+
+### 5.1 The source
+
+Ken's rail sheet is his own Google Sheet of rail reservations, written with AI help (Sep 30). Wander reads it live and
+read-only: its robot can only view it, and nothing in Wander writes to it. It's read again every 10 minutes; a new copy
+is kept only when something changed; if a read fails, the last good copy stays and Wander says so. It's never merged
+into her Guide. Its tabs are recognized by their header rows (the trains, the ticket pickup steps, a rebooking tab), so
+they'd be read the same way in any sheet.
+
+### 5.2 Trains on screen
+
+Each leg shows its times, train, class ("Green Car (JR's first class)"), car and seats, reservation number, how many
+people, the sheet's own status words, its notes, and where it came from ("From Ken's rail sheet, written with AI help —
+Rail Detail tab, row 6"). A leg with no booking says so. A leg the sheet marks "?" says its open question right there.
+24-hour times get their 12-hour words ("18:17 (6:17 PM)"); 10:00–12:59 only gain AM or PM.
+
+**Whose trains.** A leg with seats for the whole group is everyone's. Fewer seats are the sheet owner's couple (Ken &
+Larisa). Andy and Julie never get Ken & Larisa's trains as theirs; a note that says whose ("Ken + Larisa only") shows up
+top.
+
+**Status words.** A status that starts with Done, Complete, Confirmed, Verified or ✓ is settled: shown in the colour of
+a thing done, never under Don't miss, and Scout is told it's done (Oct 4). A "PENDING — SmartEX…" check goes once you're
+aboard. A status naming a day already past reads: "The rail sheet still said, when Wander read it …: "…" Wander can't
+tell whether that has been done since", with whose job it was.
+
+### 5.3 Rebooked trains
+
+When the sheet gains a rebooking tab, Wander marks each train it lists (Oct 9). A cancelled booking's number, seats,
+cost and notes are kept only as "the cancelled booking's", never on a screen or from Scout as current. A rebooked train
+says "Rebooked on Ken's new card — car and seats are on the paper tickets" until the new details are in the sheet. A
+train cancelled and not rebooked says there's no booking for it.
+
+### 5.4 The ticket pickup page
+
+The sheet's pickup tab, step by step, in its order and words, with a tick for each that stays on that phone (Sep 30).
+It opens at the step you're on, folds ticked steps to one line, titles each reservation by its journey with the
+reservation number in bold and "The ticket should say:", and counts in tickets ("4 of 6 tickets ticked on this phone —
+next: JR West 5"). A row of jump buttons sits near the top. It opens with no signal once seen. After the pickup day,
+a ticket this phone didn't tick is said at the top of Home and Next on the morning it travels, with the sheet's own words
+on where it can still be had. Once tickets are in hand, the collection steps are left out.
+
+### 5.5 Your seat, from the ticket you kept
+
+A train's card shows the car and seat from a ticket kept in Papers for that day that names the same train: "Car 9, seat
+11-D, on the ticket you kept" (Larisa sees "on the ticket Ken kept"). Ken (Oct 13): "I know Scout knows my seat, and I
+can't read it, and it's not showing up." A ticket carrying two trains gives each train the car and seats written after
+its own name.
+
+### 5.6 When the sources differ
+
+Worked out by rule, never settled: when the rail sheet and her Guide give a train different times, both show, each with
+its source. A window that holds the time ("ideally around 4:45–5:00 PM" for a 4:58 train) or "leave 6:15 or later" is
+agreement. The difference shows until every time it names has passed.
+
+### 5.7 Train status
+
+Scout has no train-status tool: the old one read an empty route list and said there were no trains (withdrawn Oct 10).
+For delays Scout finds the railway's own status page and says it found it online. It never says whether a train will
+run. On a day with a train, the storm watch adds JR's rule (§6.6).
+
+---
+
+## 6. Weather and the Storm Watch
+
+### 6.1 One source
+
+The day's weather is the live forecast (Open-Meteo, in °F) for where you'll be. Her pre-trip forecast shows only when
+there's no live one, labelled "Her pre-trip estimate" (Oct 10). Ken (Oct 13), on Scout and the screens: "yes. One
+unified and correct source". The day page, Home and Scout use the same forecast and the same words (one file on each
+side, a test failing if they differ). Wander asks for 15 days (asking for 16 failed between midnight and 9 AM in Japan).
+
+### 6.2 Which place
+
+- **Where you sleep that night**: "Forecast at the <hotel>: 48‑66°F, 68% chance of rain". The town's forecast only when
+  there's no stay that night, and before a person's own first night (they're on the plane). More than 7 days out the
+  line says "Early outlook". A day that's over shows no forecast.
+- **Two places when the day goes somewhere else** (Oct 13). Ken: "staying at [the hotel], but the day plan is to go to
+  Mashiko, so both weathers should be there, even if it means an additional line of small text with the same standard
+  spacing between lines. That should always be true if you can identify a different location from the plan." A day trip
+  in her plan for you gives "Mashiko: …" then "Tokyo: …"; a travel day gives "Tokyo this morning: …" then "Nikko
+  tonight: …". A second place counts only when it's more than about 15 miles from where you sleep. Plan words in a
+  headline ("Rest Day", "Departure") are never a town.
+
+### 6.3 How much rain
+
+Every forecast gives the day's expected rain in inches right after the chance: "rain 90% (.09")" on Home, "90% chance of
+rain (.09")" on the day page. Ken (Oct 13): "rain percentage is important, but especially in Japan, the quantity of
+rain matters, so can you in parentheses right after the percentage put the quantity of rain in inches? E.g., (.0x")".
+An amount that rounds to nothing beside a chance of 20% or more reads "(under .01")". When the main forecast gives 30%
+or more, Europe's, Japan's and the US models are compared: "though other forecasts show little rain" when none shows any
+to speak of, "but the forecasts disagree" when some do.
+
+### 6.4 When the rain comes
+
+On a day up to 3 days ahead with a 30%+ chance, the day page says when it's most likely: "90% chance of rain (.09"), most
+likely 3–7 PM, with showers possible 8–10 AM"; also "until 10 AM", "from 6 PM", "likely through most of the day", "on and
+off 8 AM to 6 PM" (Oct 13). An hour is "most likely" when the main forecast gives it 50%+ or two of the three models put
+measurable rain in it; "showers possible" when one model alone puts .02"+ in it at a 25%+ chance. Between 7 AM and 10 PM
+Japan time. On today, only the hours still to come, worked out on the phone, so a morning copy stays right with no
+signal. On a travel day, the morning's town gets its hours to 1 PM and tonight's town from noon. Not on Home.
+
+### 6.5 Staying current
+
+Home's line and the day page's lines ask again whenever the phone shows Wander again (unlocked, switched back to), once
+more a minute later, when the signal comes back, and every 5 minutes while in view (Oct 14). A copy under 30 minutes old
+is reused, the same time Wander's server keeps one. The forecast Scout read for an answer becomes the phone's copy, so
+the screens show the numbers Scout just said. An older forecast never replaces a newer one. The phone keeps a copy for
+no signal; a copy kept by an older version of Wander is fetched again.
+
+### 6.6 The storm, warning and train watch
+
+A watch on Japan's weather agency (JMA) for each person's own places, today through 5 days ahead (Oct 14; Ken, Oct 13:
+"yes"; live before the Oct 21 Shinkansen). It is silent unless one of these holds:
+- a Level 3+ warning is in force for the town you're in today (all of it, or "part of" it);
+- a medium or high chance of warning-level weather there (by region for the next day or two, then by prefecture, said
+  as the prefecture's, as far as the agency's outlook goes);
+- a typhoon or tropical storm forecast within about 190 miles of you within 5 days, checked hour by hour along its track.
+
+Its places are the day page's (where you sleep, a day trip, a travel day's start), the airports in her plan that day,
+and the areas a travel day's road route crosses. A day with a train adds JR's rule: planned stops are usually announced
+the day before, and a cancelled train is refunded in full. Its line is first under Don't miss, with a link to the
+agency's English warning or typhoon map, or the Shinkansen's status page. Scout sees the line with every question, so a
+typhoon on a travel day is said even when asked only "anything I should know about the 21st?". When part of the agency's
+data can't be read, Scout says so and never gives an all-clear. A file that has stopped updating is refused.
+
+### 6.7 Packing tips and the Safety tips note
+
+**Packing tips** (Scout's packing_tips; Oct 12): Ken: "Adjust your packing tips for this. Don't say obvious things. Be
+helpful." From the live forecast at each of that person's hotels, from their own first night: up to three items tied to
+their dates and to what her Guide and Backroads have them doing, then a checked list of what Americans most often wish
+they'd brought to Japan, seven in all. Nothing Backroads already tells them, no umbrella to pack (convenience stores
+sell them), never "mild" or "bring ordinary clothes". Rain is "likely" only when all three models show it; otherwise
+"may", saying the forecasts disagree. Julie and Andy were offered this once in Scout before they flew (§7.5).
+
+**The Safety tips note** (Home, for Larisa, Andy and Julie; Oct 13): Ken got an alert pointing him to Safety tips, the
+free warning app from Japan's Tourism Agency; he installed it, "and you're with him". "Here's how" shows three steps and
+an App Store button; "Got it" puts it away for good on every phone. Ken: "Messages should be gentle".
+
+---
+
+## 7. Scout
+
+### 7.1 Who Scout is
+
+Scout is Wander's guide, asked in words or by voice from every screen. Its voice is a Backroads guide, knowledgeable and
+warm. Ken (Apr) on those guides: "some of the best employees in any job I've ever seen." The test: would a world-class
+trip guide say this, in this tone, at this moment? Scout answers the question in its first sentence, keeps in-the-moment
+answers short, never repeats a paragraph, and uses no spreadsheet words. It says "Larisa's Guide" to everyone but
+Larisa, and "your Guide" to her.
+
+### 7.2 What Scout reads with every question
+
+- Her whole Guide, every tab, with every word on her pictures; every date with its weekday; who isn't in Japan yet on
+  each date; today, tomorrow and yesterday named.
+- Ken's rail sheet, Backroads' itinerary, her Apple Maps guides and Google map, Wander's notes on her places.
+- What people added in Wander: plans, picks, maybes and I'm ins, the phrase card, to-dos and their marks.
+- Facts already worked out: each deadline's status from the clock (passed, open now, not open yet), each flight's
+  status by its schedule in both clocks, where each party is now, whose a split-day line is ("whose: not stated").
+- The notes the asker may see (their own and those shared with the trip) and what Scout kept for them; the papers they
+  may see.
+- The storm watch's line, when there is one.
+- The person's own date, time and time zone, the screen they're on, and when Wander last read each source.
+- Only the last 10 messages of today's conversation. What lasts is Notes (§7.10).
+
+### 7.3 Scout never lies
+
+Scout may honestly not know. It never states a time, place, booking or fact it can't support. It gives the Guide's
+answer with its tab; the web when the Guide is silent, labelled as found online, never as the plan; plain words for
+what's unknown.
+- **Links** in an answer are only ones Scout saw while answering (her Guide, the rail sheet, a document, a file sent, a
+  tool's result, a page it opened). Wander checks every answer; a link Scout never saw sends it back once, and one it
+  keeps anyway is marked "(Wander couldn't check this link — Scout didn't open it)" (Oct 4). (Claude) Past his rail
+  sheet it had described a page it never opened and given a dead link.
+- **Website and app steps** come only from a page Scout opened, the rail sheet's steps, or the person's screenshot.
+  Otherwise it asks for a screenshot. While someone works through a screen, it gives only the next step.
+- **Who did it**: who booked, paid or set something only when a source says so. A hedge ("it should be in the email") is
+  a claim and needs its source.
+- **Her plan**: it never reconciles two tabs that disagree, never says which "to go by", never adds units, never treats
+  a check-in time as an arrival or a line's time as a time to leave, copies her transit directions word for word, names
+  a restaurant by its booking, never names a vehicle her Guide doesn't, and never assigns a split-day line with no name.
+- **Flights**: only what the schedule supports ("should have landed by now… that's the schedule, not a confirmation").
+- **Its own estimates** (a departure plus a ride) are labelled as its estimates.
+- **Distances** are straight lines, never walking minutes of its own.
+- **Bookings**: only the person a booking is under hears "your name".
+- After someone says no, it doesn't offer again.
+
+Exams are written from her text before building, never from Wander's output. They're rerun after any change to the
+reader, Scout's context or its prompt, and every answer is read word for word. When Scout passes one, a harder one is
+written. An honesty failure is a blocker.
+
+### 7.4 Sources
+
+Ken (Sep 30): "make sure we're not trying to surface the sources unless they're requested." Ken (Oct 2): "be sure the
+source button goes to the right tab and right cells… a button to open it".
+
+Under each answer, a quiet **Sources** link opens "Where this came from": each part from her Guide with its tab, cell
+and exact words (with **Open at this spot in her sheet ↗**); Wander's own notes, labelled "not her words"; a screenshot's
+**See the picture**; what Wander worked out (a deadline's status, who's at home) with the cells it came from; plans added
+in Wander and who added them; Ken's rail sheet, Backroads' itinerary and her maps, each named as not her Guide; web
+pages with their title, address and the words quoted; a file sent with the question ("Sent with the question — Wander
+doesn't keep it"); a time Scout said that isn't in its sources ("Scout worked it out, or got it wrong. Worth checking");
+and Scout's own words with no source. It names the copy of her Guide it came from.
+
+Sources are recorded when the answer is written (Anthropic citations), never worked out afterwards. Ken: a wrong source
+is worse than none. An exact quote Scout forgot to point to is found and shown as such ("Wander found them here, word
+for word"). Escape closes the Sources panel, and only it.
+
+### 7.5 Scout's panel
+
+- **Opening**: the Scout tab or any "Ask Scout" button opens Scout with the cursor in the box and the keyboard up, in one
+  tap. It opens at half height so the page stays readable; swipe up for full height, down to make it small, ✕ to close.
+- **The slim bar** (Scout made small): two rows, Scout's own headline for it, then ↩ Back, an "Ask Scout…" box, the
+  microphone and ✕. Ken (Oct 13): "change to dark is confusing. So please keep scout color same at all three sizes." It
+  is the open panel's cream at every size.
+- **Showing you things**: "Show me the day Andy and Julie arrive", "show me the deadlines": Scout opens the screen, says
+  what it opened, and steps down to the slim bar. ↩ Back, a typed or spoken "back" and the phone's Back each go one
+  screen. Scout never moves the screen while you're typing.
+- **The microphone**: tap to start, tap to stop; the words wait in the box for a glance and Send (Ken's choice, Oct 1).
+  No auto-send, no hold-to-talk. Send stops the mic. After six seconds with no words: "I'm not hearing any words yet…".
+  Pauses in a long recording are joined with a space, and a period where the iPhone signals a fresh sentence; the words
+  themselves are never changed (Oct 14).
+- **Dictation is never lost** (Oct 15). Ken: "Larisa was dictating something that started with the phrase, ask Ken with
+  a major new feature, and her phone just shut off and lost the dictation, and it was all wasted time. There is something
+  about scout getting dictation that needs to keep the phone from turning off". The screen stays on while Wander listens
+  and may sleep again when listening stops. Scout's unsent words, typed or dictated, are kept on the phone as they come,
+  so a screen going off, a reload or an update never loses them. They're back in the box the next time Scout opens.
+  Sending clears them. Each person's are their own.
+- **Under each answer**: Sources, **Copy** (the whole answer as plain words), **Read aloud** (the phone's own voice,
+  Japanese in a Japanese voice, nothing sent anywhere), and any buttons the answer offers. Tables are drawn as tables.
+  Web addresses show as short tappable names.
+- **While it works** it says what it's doing: "Reading your picture", "Reading what you sent", "Going through the trip",
+  then "Still working — a long answer takes a minute or two". The phone waits up to two and a half minutes.
+- **On a bad line**: when the line drops mid-answer, Scout says "The connection dropped while I was answering — I'm still
+  on it, and the answer will show up here", looks for the saved answer, and shows it once. Each question carries its own
+  tag, so an answer is found for exactly that question. With no signal at all: "No signal right now…", and it looks once
+  the signal returns. Try again never loses an earlier try's answer.
+- **The same conversation on every device** (Oct 4). Ken: "When I change devices or change between a webpage and web app
+  … I seem to lose the history". "Start fresh" asks "Clear this conversation on all your devices?"; what was said stays
+  saved.
+- **A buzz when an answer takes a while**: "Scout answered" on the lock screen for any answer of 8 seconds or more. Each
+  phone is asked once, ever. The lock screen shows the answer's first line, unless it holds a booking code or a long
+  number. On iPhone, from the Home Screen icon only (Apple's rule for web apps).
+- **Ask from a link**: Wander's address with "?ask=<question>" opens Scout asking it, for a Siri Shortcut (Oct 5). The
+  question leaves the address at once, so a reload never asks twice.
+- **Offers and tips**, one at a time, in order: a one-time packing offer for Julie, a weather packing offer for Andy and
+  Julie before they flew (each with Later and No thanks), the Tell Ken line (§13), the paperclip tip, the Sources tip.
+  Scout's evening question ("Anything worth remembering from today?") opens Notes for the day; it's never asked on a
+  Japan date you're still at home, on landing night, during a booked dinner, or on a visit something else has asked.
+- **On the iPhone**: the box sits above the keyboard and clear of the bar iOS floats over it (˄ ˅ ✓); the page under
+  Scout holds still; the panel's top stays below the clock's strip. On iPad the panel sits above the bottom bar and the
+  keyboard. (Claude) Any change touching the keyboard or fixed elements stays inside one component and is unverifiable
+  until Ken's phone (rules/engineering.md, § iPhone).
+
+### 7.6 Photos and files
+
+Ken (Oct 4): "User should just drag (Mac) or paste (iOS) anything and Scout should parse and make sense if it: picture
+with text, pdf, text, etc."
+
+- **Ways in**: the camera button; paste into the box (a picture shows as a small copy, a document by its name); drag a
+  file anywhere onto Wander on a Mac or iPad ("Drop it here — Scout will read it"); the paperclip, for PDFs, Word
+  documents, text, CSV, email and web pages. Up to 6 per question, 10 MB each. Photos are shrunk on the phone first.
+- **What Scout does**: pictures are read and translated (a menu or sign line by line, the Japanese beside the English);
+  PDFs page by page; documents by their words. Sent with no question, Scout says what it is and what in it matters for
+  this trip. Where a file and her Guide differ on a time, place or booking, it shows both. A file it can't open is named
+  as unread, never guessed at. A menu photo can't prove what's in a dish; Scout says to confirm with the staff.
+- **Nothing sent is kept** unless someone asks Scout to keep a paper (§9.6). The saved conversation keeps only file
+  names.
+
+### 7.7 Where you are, and how to get there
+
+Ken (Oct 11): "the two closest places that attracted Larisa are X about 4 blocks from you and Y a 1.5 mile walk in the
+direction of your hotel".
+
+- **What's near me**: her pins first (her Google map and Apple Maps guides), each with how far in the words people use
+  ("about 400 m — roughly 4 blocks", "1.5 miles"), which way, and "toward your hotel" when it is within 30°. Straight
+  lines, never a walking time. Far from all of her places, Scout says so and names the closest.
+- **Everyday needs** ("somewhere to sit down for a coffee?", "a pharmacy I can walk to?"): when her pins have nothing of
+  that kind near, Scout finds the closest real ones near the phone (Google Places), said as found on Google, with a
+  walking button to the closest open one (Oct 12). On a fast-moving train it says "near" is changing and offers no
+  walking button.
+- **Use my location**: when Scout needs to know where someone is and can't see it, its answer carries "📍 Use my
+  location"; one tap asks the phone and asks the question again. Scout decides when an answer depends on where they are,
+  so it works for any wording. iOS forgets a Home Screen app's location answer each time it's opened, so this is the
+  usual way on a fresh open. If they say no, a short reply says so; a second no says how to change it.
+- **Directions**: asked how to get somewhere, Scout names the stop and its time, quotes her own route for that leg, and
+  adds a button ("Walk to … ↗" with "Google Maps ↗" beside it): the way they asked, else the way her plan names, else
+  Walk and Train. It never writes turn-by-turn steps or travel times of its own. The destination is hers, best first
+  (her linked pin, her address, a hotel's booked address, her map's pin); it never sends you to a different place of
+  hers. When it can only search, the button says so: "Maps will search for … Check it's the right place before you go."
+- **The phone's position** is sent only with a question that needs it, goes to Google only for "near me" questions,
+  rounded to about 100 m, and is never stored (Ken approved, Oct 12).
+
+### 7.8 Weather answers
+
+Scout answers the weather from Wander's own forecast, the day page's numbers, hours and places for the person asking:
+both places on a day trip or a travel day, the day's place first; "early outlook" only for days more than a week out
+(Oct 14). It never gives ranges of its own ("high 40s"), never calls the day's range tonight's, and never ties one
+place's rain hours to another place. On a day with a flight it also has the airport's own forecast. A town in Japan
+that isn't on their plan gets Wander's forecast for it, said as not where their plan has them. Only weather outside
+Japan is searched online.
+
+### 7.9 What Scout can do, and what's withdrawn
+
+Scout's tools for Wander's own additions match the screens (§1.3 rule 11):
+- **Maybes**: add_maybe, im_in, take_back_maybe, remove_from_maybes, put_back_on_maybes; notes on ideas (add, take back).
+- **Plans for a day**: add, list, remove.
+- **Notes**: keep_in_my_notes (what you told Scout, or Scout's own answer kept "from Scout"), get_my_notes.
+- **Papers**: keep_paper, remove_paper.
+- **The phrase card**: add_phrase, arrange_my_phrases.
+- **Actions**: get_todos, add_todo, set_todo_done, remove_todo, set_deadline_done. Marking one of her to-dos done marks
+  it in Wander, never in her list.
+- **Getting around and weather**: directions, offer_location, places_near_me, get_weather, packing_tips.
+- **To Ken**: tell_ken (§13), add_wander_idea (§12).
+- **Screens**: opening any screen Scout can describe.
+
+**Withdrawn** (WITHDRAWN_TOOLS in backend/src/routes/chat.ts, and they stay withdrawn): deleting places, cities, days,
+hotels, bookings, route legs or group choices; shifting or re-dating days; reordering or hiding cities; creating or
+switching trips; adding people or changing who plans; re-sending invites; the old train-status check; April's
+"learnings". Scout says plainly that plan changes happen in Larisa's Guide, and offers Tell Larisa. It never offers
+"Larisa's Guide is unchanged" unless asked. It writes a message for Larisa only when asked.
+
+### 7.10 "Remember that", then "bring it back"
+
+Ken (Oct 13): "Can you remember all that for when I ask for options each day?" Ken (Oct 14): "1. Ask or tell 2. Scott
+responds with something useful for future 4. Remember that let's use say something later like "A that thing we
+discussed? Bring it back. 5. Scott brings it back by finding in notes what would have been gone."
+
+- "Remember this" keeps Scout's answer in your Notes word for word, marked "kept from Scout". Scout sees what it kept
+  with every question.
+- Something you tell Scout about the trip is kept in your Notes for that day, marked "told to Scout". Only your own
+  words are kept: the server checks every word is in what you said. Private unless you ask to share.
+- Asked for something from before ("that thing we discussed", "bring it back", even garbled by dictation), Scout looks
+  in what it kept and your notes first, brings back the best fit word for word, says when it was kept, and names the
+  others in a few words. "Bring it back" means a removed maybe or phrase only when one is named.
+- Scout never promises to hold something "as long as this conversation runs".
+
+### 7.11 Saying it in Japanese
+
+Asked to put something into Japanese for someone ("ask the waiter if…", "tell the taxi driver…"), Scout replies with
+only the Japanese, so what's shown or read aloud is just the sentence for the other person (Oct 5). Ken: "if Scout is
+asked to translate something, it should assume it should only give the Japanese". It uses the trip (the booking's time,
+the hotel's address). Asked how to say it, it adds the pronunciation. Its phrases have an English title, romaji, and how
+to say it.
+
+### 7.12 What Scout costs
+
+Ken (Oct 15): "I want Scout to be brilliant, and I want Scout to be cheap… keep good model and better architecture
+please." Scout runs on an Anthropic Opus model. Its reading (instructions, tools, her Guide and Ken's rail sheet, about
+197,000 tokens) comes first and is the same for everyone, so it's cached; what changes per question comes last. After
+any question, a one-token request every 55 minutes keeps the cache for the next four hours, between 7 AM and 11 PM in
+Japan. A question within those hours costs about $0.10–0.30; after a quiet stretch, about $2. Every answer logs its
+tokens and cost.
+
+Spending on tests (Ken, Sep 29): "use api when needed. Use synthetic Prisma data when checking bugs or plumbing or user
+interface." Exams are named with their rough question count before a run; full runs only before a deploy.
+
+---
+
+## 8. Maybes
+
+The group's shared list of "maybe we should…". Ken (Oct 2): "a shared list of maybes", light enough for "tea or ice
+cream?". No polls, votes or alerts.
+
+- **Where**: the Maybes tab (it was Ideas until Oct 3). It opens on the next city ahead of you that has ideas.
+- **Each city's list** starts with a box: "Maybe we should…". A few words, a link if there is one (kept as its link:
+  "Instagram post ↗"), Send, and it's on that city's list for everyone. Saying it means you're in on it. With no signal
+  it waits on the phone.
+- **The group's maybes**, newest first, sit above Larisa's ideas ("Things to do · from Larisa's Guide"). Each says who and
+  when ("Andy · 12 min ago · New"). A small maybe from a day before today folds into "Earlier · n ›".
+- **I'm in** on any maybe or any of her ideas; tap again to take it back. "Interested:" is one line: her Activities tab's
+  X marks and Wander's I'm ins together, one name a person, "you" for yourself. Your own X in her Guide already counts.
+- **Seen by** lists the others who have looked at that city's list since.
+- **Tags and filters**: "Today" / "Tomorrow" beside an idea on that day's plan; "In Larisa's plan for Mon, Oct 26 ›" on
+  ideas her days already have (matched by her words, a long word one letter off still matching). Under "Show:", one
+  sideways row: Next 2 days, and themes (Food & drink · Temples & history · Art & craft · Shopping · Nature · Other), one
+  at a time. A theme is only ever a filter, never stated as a fact. Who: Everyone · What you're in on · a person's.
+- **On each item**: Say something (a note for everyone or just for you), Add to a day, Maps (her places only), its link,
+  Ask Scout, and **Tell the group** (the phone's share sheet: the writer's name, the words, the link and the city; hers
+  go out as "From Larisa's Guide: …"). Ken (Oct 3): "any item, with the original source".
+- **Remove.** Ken (Oct 3): "I should be able to remove items on any list, e.g., Maybes… I know we're going to TeamLab in
+  Kyoto, so I can remove it as a maybe for Tokyo." Then: "remove is NOT for everyone. It is for the person who added it
+  and me." Anyone can remove their own maybe; Larisa can remove her Guide's ideas; Ken can remove anything. Nobody else
+  sees the button (a quiet ×). It asks first ("Take this off Tokyo's list for everyone? Larisa's Guide keeps it.").
+  Removing hides the item for everyone and never deletes: notes, I'm ins and a day it was put on all stay. Where the
+  card was: "… is off Tokyo's list for everyone. Put it back". At the bottom: "Taken off the list · n ›", with who took
+  each off and Put it back for the same people. A new copy of her Guide keeps it off.
+- **Something new**: a dot on the Maybes tab and one quiet line on Home.
+- **Scout**: "maybe we should…", "I'm in", "Julie's in too", "never mind the ice cream", remove and put back, by the same
+  rules (§7.9).
+
+---
+
+## 9. Notes and Papers
+
+Ken (Oct 1) called notes and summaries "a major topic for me". Ken (Oct 8): "I like notes function. It will become source
+info for an ai assisted summary later. I'm sure I want it integrated with the activities from Larisa's spreadsheet."
+Trip notes are kept word for word, the original always kept. The design for later summaries is in memory
+(project_trip_notes_and_summaries).
+
+### 9.1 Writing a note
+
+- **Where**: the Notes tab; "+ Add a note for this day" on every day page; Scout's evening question; telling Scout.
+- **Write or talk**. Every word is kept exactly and read back with its count ("Saved — 142 words, every one kept";
+  "spoken" for a spoken note). While Talk listens, the screen stays on (§7.5).
+- **Just me or the trip**: each new note starts as "Just me"; sharing is per note.
+- **About**: a place on the trip, "Backroads", or "Japan overall", on the phone's own list. A new note starts at where
+  you are once you've landed; before that, "Japan overall".
+- **Day**: any trip day, or "No particular day" (Oct 13). Ken: "there also should be a button on each day page that says,
+  add a note for this day". About follows the day's town unless chosen. Before 4 AM the night belongs to the evening, so
+  notes about tonight's dinner written after midnight stay with tonight. A date Wander set itself moves on with the
+  trip's clock; one picked by hand doesn't. After a save, the next note is today and where you are.
+- **A half-written note** survives closing Wander. A fast double tap saves once.
+
+### 9.2 Reading notes
+
+Under the search box: **Everyone's · Mine · Others' · Scout** (Scout: only what Scout kept at your asking; Ken, Oct 13:
+"Memory notes works. Add scout to this view") and **Newest first · Trip order**. Trip order reads the trip as it
+happened: Japan overall first, then each place in the order the trip reaches it, Backroads in its week. Each note says
+who wrote it, where, the day (one tap to that day) and when; a note written at home says "your time". Long notes fold.
+Search marks the words found.
+
+### 9.3 Changing, sending, exporting
+
+**Change** on your own note keeps the words as first saved one tap away, and can move it to another place. **Send a
+copy** goes to anyone (family at home). **Export mine** is a text file, led by place; with notes kept from Scout it asks
+**Just my words** or **With Scout's notes too** (Ken: notes are source material for a journal, "so exporting should allow
+with or without Scout's notes").
+
+### 9.4 Tidy my dictation
+
+Settings → Notes → **Tidy my dictation**, off by default. It tidies spoken notes only: filler, misheard words,
+punctuation. It never adds feeling: no exclamation marks, emphasis or emoji the writer didn't give (Ken: an "!" he never
+said "could leak into an eventual trip story"). A tidy that changes more than a few words is thrown away, the original
+kept ("Left exactly as you said it."). A tidied note has "Tidied — show exactly what was said". Words changed by hand
+are never tidied.
+
+### 9.5 Privacy and the trip-stories question
+
+Someone else sees only a shared note's words as they read now, never the first-saved words or the dictation before
+tidying, on screen, in search or in Scout. Notes copies and drafts are kept per person on a shared phone; signing out,
+or in as someone else, clears the phone's saved copies. Asked once, after a first note: may others' trip stories use
+what you say about places (never anything personal)? The choice lives in Settings too.
+
+### 9.6 Papers
+
+A receipt, a bill, a ticket or a booking can be kept in Wander instead of carried (Oct 12).
+- **Keeping one**: "Keep a paper" in Notes (take a photo, choose one, or a PDF), or send it to Scout and say "keep this".
+  Wander reads it and files it under the trip day it belongs to ("Kept '… bill' under Oct 9 · Karatsu"; a stay sits on its
+  last night), with a one-line description and the total as printed. Never a card, confirmation or passport number in the
+  words. Two photos are filed as the papers they are; one photo of tickets for two days is kept under each day.
+- **Who sees it**: whoever kept it; Ken's and Larisa's are visible to each other (Ken, Oct 12).
+- **Where**: Notes ("3 kept ↓" under the writing box, the list after the notes) and the end of that day's page. Tapping
+  one opens it in the phone's own viewer.
+- **Remove**: the person who kept it; nothing is deleted.
+- **Scout** knows the papers the asker may see ("what did the ryokan cost?"): it asks which when more than one place
+  fits, says what a total was for, and never makes up a price per night the paper doesn't show.
+- **A send that breaks partway** is sent again by itself, up to three tries; a send cut off keeps nothing, so it can't
+  make two.
+
+### 9.7 With no signal
+
+A note is kept on the phone, listed as waiting, and sent once the signal returns, under the writer's own sign-in. While
+Notes is open, waiting notes try again every 20 seconds and whenever Wander comes back to the front. A waiting note has
+**Change it**; if its first words already reached Wander, the change arrives as an edit with the first words kept as the
+original.
+
+---
+
+## 10. The Phrase Card
+
+The 日 card: Japanese phrases to say, and characters to find.
+
+- **Where**: a small 日 at the right end of the bottom bar on every screen opens it in one tap (Oct 13). Ken: "a clear
+  convenient but subtle way to have phrase button always available". Next keeps its labelled "日 Phrases". Both open the
+  same card. It closes on Back, Close, a tap on the page, or a change of screen.
+- **Each line leads with its English title**, then the Japanese in romaji and how to say it: "Hello", then "Konnichiwa
+  (Koh-nee-chee-wah)". Ken (Oct 14): "all phrases titles should be English to find what is needed".
+- **Characters to find on a device.** Ken (Oct 14): "Language list should generally not use kanji. But in this case (and
+  possibly future ones) the purpose is finding something on a Japanese device." And: "title is Toilet flush ( in
+  English) because that is what an English speaker scans for. Then my line. Use that approach if I add anything else like
+  this. That should be obvious to you!" A line for signs and machines is the characters, large, with their meanings.
+- **Show large.** A line meant for a Japanese reader (an allergy, a diet, a medical need, an address) carries its
+  Japanese writing and **Show large**: the Japanese across the whole screen until Close, the screen kept lit where the
+  phone allows. Ken (Oct 14): "notes should include kanji when helpful… plus tappable "Show large" (button resulting in
+  larger kanji version that stays until "close" button)". Its small English says what the Japanese says, sentence for
+  sentence. Ken (Oct 14): "make sure the small type English always makes it clear to the user what they are giving to
+  the Japanese reader". Never a fact they didn't give.
+- **Ask them a question** (Show large): the line's own next questions, each large in Japanese with its English at the
+  top, "‹ Back to the card" and "Ask another ›"; and **Ask something else**: say or type any question in English and
+  it's shown large in Japanese, its English saying exactly what it says (not saved). Ken (Oct 14), after a meal where
+  every main had one ingredient they avoid: "think thru Ux and make it a smart option for the user to ask what they want".
+- **Add**: type or say English (Talk); Wander finds the Japanese and how to say it, and offers two or three ways only
+  when the Japanese really differs, each with a few words of context. Ken (Oct 14): "'Add' allows add where person types
+  or speaks English and scouts fill in the fine print Japanese and pronunciation. If the translation is questionable or
+  problematic or can be done in two ways with different nuance, give an option with super brief context and tappable
+  choice." One already on the card in any wording says so; one you took off offers "Put it back".
+- **Edit/Reorder**: ↑ and ↓, Remove, and a Removed list with Put back. Ken (Oct 13): "Need to be able to remove phrases.
+  And to rearrange the order. No need to designate original or not." Each person's order is their own. Ken: "Anything
+  added by one adds to bottom for others no matter where placed by the person adding it. It goes to top for the one who
+  adds it." One list, with no "added by".
+- **Remove** takes a line off your own card. For a line you added (any added line, for the organizer) it asks: "Just my
+  card" (first), "Everyone's card", or "Keep it". Ken (Oct 14): "yes, good suggestion. But ensure just your card is
+  default. I don't want Larisa or Julie to accidentally remove for andy!" Nothing is deleted.
+- **Scout** adds phrases (one request is one line; a second way of saying what's there only when asked) and arranges the
+  card in words ("put Sumimasen first", "take Konnichiwa off it"), taking a phrase off the asker's card unless they say
+  everyone's.
+
+---
+
+## 11. Actions and Deadlines
+
+Ken (Oct 9): "it seems to include old actions, non actions, and actions not for me".
+
+### 11.1 The Actions screen
+
+- **Yours first**: your deadlines and to-dos ("Yours (Julie & Andy)", as Home says it), the ones asking something on top.
+  With nothing of yours open: "Nothing for you right now."
+- **Others' lists fold** to one quiet row each ("Andy & Julie's to-dos · 4 ›", "Larisa's deadline · 1 ›"), opened in
+  place. Her lists are named in plain words ("In her list for Andy & Julie", "Other to-dos in her sheet (marked "LT")").
+- **Deadlines that ask nothing** ("Free cancellation ends") sit below as a quiet line: "Nothing to do unless plans
+  change". Charges that have started: "These charges apply now. Nothing to do — it stays booked."
+- **Her open questions for you**: "Larisa is asking whether you're interested in … — her Guide has it on …: "…"", with
+  **Tell Larisa your answer ›**. Never put to someone on a Japan date they're still at home.
+
+### 11.2 Marking done in Wander
+
+A to-do from her Guide can be marked done in Wander by the people it's for and by Ken (Oct 9). It's Wander's record,
+never written to her sheet, said with who and when ("done — Andy, Oct 14"), with "Not done after all". A deadline that
+asks something (reconfirm, pay, book) has **Mark it done** for whoever it's for, or Ken. Marked done, it leaves Actions'
+deadlines, the day's Don't miss and Home; its card on the day says "Done — Larisa, Oct 14 (marked in Wander)". A to-do
+done in her Guide can't be un-done here. Scout is told which are done and never reminds anyone of them.
+
+### 11.3 To-dos added in Wander
+
+Anyone can add one ("+ Add"). Each says who added it; only they can take it out ("Take out", then "Take this out?").
+History records to-dos added, ticked, marked not done and taken out. Scout uses the same rules.
+
+### 11.4 How deadlines are said
+
+In the trip's time zone, with "your time" on a phone elsewhere: "Today is the last day", "Any day through Wed, Oct 14, by
+the end of the day in Japan (Wed 7:59 AM your time)", "Last day … Until 11:59 PM Japan time", "Passed". A deadline with no
+time says when the day ends in Japan. Each says whose booking it is ("Booked under your name", or the person's name). A
+date when charges start closes as the day begins, never "Today is the last day". A passed reconfirm says Wander can't tell
+whether it was done, and to ask Larisa.
+
+---
+
+## 12. Ideas for Wander
+
+Ken and Andy's place for screenshots and ideas to make Wander better, apart from the trip (Oct 15). Ken: "a place used
+most by andy and me to place screenshots and ideas to improve wander… Should not get in the way of travel flow. Product
+focused only. With all inputs durable and optimized to support planning. So ideally you or Scott are a participant" and
+"it should be easy and evident for Andy and me without conflicting with daily reference use". Ken (Oct 15): "make the
+'improve wander' function attractive so andy will be drawn to offering ideas to improve".
+
+- **Who**: members only (Ken and Andy). Tell Ken stays Ken's alone.
+- **Where**: the amber "Wander ideas" chip with a sparkle on Home (with a dot when something's new), a row in Settings,
+  and Scout. Back from Ideas opened on its own goes to Home.
+- **The page** opens with a warm header saying what it's for. With no ideas yet: a large **Add a screenshot** tile, ways
+  to begin ("I wish Wander…", "This confused me:", "More of this:", "This looks off:", "I loved this:"), how to take a
+  screenshot on an iPhone, and an example idea with its answer. Once there are ideas, they lead the page and the box for
+  a new one is one bar ("+ A new idea"). After Post, the new idea scrolls into view with "Scout is reading it…", then
+  Scout's answer.
+- **Each idea** keeps its words exactly, up to six screenshots (shown as the phone screens they are), the screen it came
+  from, replies, and a status: New, Talking, Planned, Built, Not now. Where things stand reads as New / Talking /
+  Planned / Built counts that filter the list. A status that moves is said on the idea ("Ken marked it Built"); it counts
+  as new for the other member (Home's dot, "new" on the card) and brings the idea to the top. A built idea says "✓ In
+  Wander now", and "✓ In Wander now, from your idea" on the author's own. What's new since you last looked is marked
+  "new". Words being written are kept as a draft.
+- **Replies**: Scout answers each new idea in about ten seconds, in two or three sentences without markdown ("I get the
+  goal… What about…?"), reading only Wander's features and the idea list (about 2 cents a reply). It says where a
+  repeated idea stands ("already planned"), calls the same person's earlier idea "you posted this", and asks one
+  question about a bug report. Claude, Wander's engineer, answers in its working sessions, signed "Claude, who builds
+  Wander with Ken", and moves statuses. Replies sit in bubbles.
+- **From Scout**: "Wander idea: …" (or "For Ideas for Wander: …") posts to the list in two taps from any screen, with the
+  screen and any pasted screenshot. "Any ideas for dinner?" stays a question. Ken (Oct 15): think whether the entry is
+  "as smooth as it can be".
+
+---
+
+## 13. Tell Ken
+
+Larisa, Andy or Julie say or type "Tell Ken…" to Scout, and Scout passes their words to Ken exactly, with their name,
+the time, the screen they were on and any picture they attached (Oct 14). Ken: "if they would like a feature added to
+wander or anything about the way wander works is confusing, they can speak or type at that moment what they want and it
+will become a message to Ken to try to fix. It cannot be a nuisance, and it should be very easy".
+
+- **Sending**: only on a clear "Tell Ken", or a yes to Scout's offer ("Want me to pass that to Ken, word for word?").
+  Never a personal message.
+- **Ken's side**: his phone buzzes ("Julie, about Wander") when it allows Scout's buzz. Settings → "About Wander, from
+  the others", newest first, pictures opened in place, "Mark as read".
+- **The others' side**: Settings → "Tell Ken about Wander" opens Scout ready to write. A quiet line inside Scout with
+  "Start one" the first day they open Scout, two days later, and three days after that; never again once they've sent
+  one; ✕ closes it for the day.
+- **When someone seems lost**: "Not finding something? Tell Ken ›" just above the bottom bar, at most once a day, gone
+  after 20 seconds. Ken (Oct 14): "perhaps even signals based on them seemingly clicking around and not getting value
+  and treating that as a trigger to offer." The signs (quick screens, Scout opened and shut with nothing asked, taps on
+  words that aren't buttons, opening How Wander works) are added up on the phone and never sent or kept. It needs two
+  different kinds of sign, never in the first half minute, never for Ken, and waits while Scout is open.
+
+---
+
+## 14. Sign-In, Accounts and Invitations
+
+### 14.1 Getting in
+
+- **Face ID** (passkeys). The sign-in screen has one button, "Sign in with Face ID". Tapping a name signs no one in,
+  except in local development and tests. Sessions last a year; a weak signal or a quick reload never signs anyone out,
+  only a real "not authorized" from the server.
+- **A new iPhone** (Oct 2, after Larisa's phone hit a dead end): the invite opens in Safari; **Let's go**, with "Next,
+  you'll set up Face ID, then put Wander on your Home Screen." On Home in Safari, **Set up Face ID**, then **Put Wander on
+  your Home Screen**, whose last step is "Open Wander from your Home Screen and tap Sign in with Face ID." A Face ID key
+  made in Safari works in the Home Screen app. Inside the app, the sign-in screen says: "First time on this phone? Open
+  the link or code you were sent. It opens in Safari: tap Let's go, then Set up Face ID. After that, Face ID works here
+  too."
+- Signing out lives in Settings only, and warns when the phone has no Face ID to get back in.
+
+### 14.2 Letting someone in
+
+Ken (Sep 28) on links pasted in chat: "does nothing. it just scrolls away." Invitations live inside Wander:
+- **People → + Add someone**: type a name (and pick the trip when you plan more than one). A QR code appears for the
+  other person's iPhone camera; **Send as a message instead** (the share sheet) and Copy are there too. The link itself
+  is never shown, and link codes never appear on screen or in chat. "Handed to your messages" after sharing.
+- A name already in Wander asks "Is this for Julie's new phone?" before any link is made. **New phone? New link** makes a
+  fresh one. A person's link stops working once they've set up Face ID.
+- A phone signed in as one person opening another's link asks: "This link is for Andy — Stay as Julie / Switch to Andy".
+- People lists everyone's status ("Uses Face ID", "Has opened Wander", "Hasn't opened Wander yet") and unused invites.
+  Ken and Larisa, the trip's planners, send links. Scout can't add people, change who plans, or send links.
+
+### 14.3 Accounts and access
+
+Each trip is private to its people: you see, open and switch between only the trips you're on. Every route that names a
+trip, or an item on one, refuses anyone not on that trip; a traveler's profile is visible only to people sharing a trip.
+A person's name comes from their account, so a renamed person is known by the new name at once. Saving one personal
+setting never replaces the others.
+
+---
+
+## 15. Offline and Updates
+
+### 15.1 With no signal
+
+- **The phone keeps a copy** of the trip, her Guide's days, the rail sheet, summaries, forecasts, the pickup page once
+  seen, and Find a word after a first search. With no signal Home shows the saved copy ("No signal — showing what this
+  phone saved today at 9:12 PM"), never a new-trip screen. Reloading an inner screen with no signal shows the saved copy.
+- **A lasting line**, "No signal — showing what this phone saved …", shows whenever the phone is offline, wrapping inside
+  the screen. "Weak signal" is said only when truly offline.
+- **What waits on the phone and goes later**: notes and their changes, maybes, picks, plans for a day, notes on ideas.
+  Each is sent once, one at a time, under its writer's sign-in. A pick not answered within 6 seconds is kept on the phone
+  ("The signal's weak — saved on this phone, and I'll send it as soon as it gets through"). A save kept for later waits a
+  second at most before saying so.
+- **Scout with no signal** says so in its box, and its question buttons, Send and microphone wait.
+- The offline worker tries fresh data first and uses its copy only without signal.
+
+### 15.2 Staying up to date
+
+- **Other people's changes**: when someone else changes the plan, every open screen reloads at once, and a dark notice at
+  the bottom says what changed, with "Got it" (gone by itself after 8 seconds). Screens catch up after a dropped
+  connection too. Someone taking back their own addition doesn't pop a notice.
+- **The day turning**: the day and Home screens update at midnight and whenever the phone is unlocked.
+- **A new version of Wander** loads by itself, but waits until no box on the screen holds unsent words (Oct 15). (Claude)
+  The service worker's stale bundle is the main trap when checking a deploy; the global rule in ~/.claude/CLAUDE.md says
+  how to tell.
+- **Phone reports**: the phone tells Wander's server, in numbers and short words only, when its keyboard and screen
+  repairs act, when Scout recovers a dropped answer, and how a paper's send went. Never anyone's words. At most 30 per
+  person in 10 minutes.
+
+---
+
+## 16. Photos
+
+- **Arriving in a city** (Oct 1): the first time a day in a new city opens on a phone, a photo of the city's best-known
+  sight fills the screen with the city's name, the date, the sight's name and the photographer's credit, for about three
+  seconds; a tap puts it away. Once per city per phone. Only on arriving: never before you've landed, never before the
+  booked train in has arrived on a travel day, never while a day is being read (it shows only in the day's first
+  drawing). The sight is the most-reviewed attraction within 12 km, never a mall, shop, theme park or hotel. The photo
+  check looks at the whole picture and passes over any that shows another season (holiday decorations, snow, bare trees,
+  cherry blossoms); with nothing fitting October, there's no photo. Tapping the city's name on any of its days brings it
+  back. The photo comes through Wander's server, so no Google key reaches the phone.
+- **The city band** on every day carries the same photo, already chosen for the season, with the photographer credited
+  (§3.1). "Wander in pictures", idea 1.
+- **Her Kyoto map, by day**: her illustrated Kyoto map's panel for each Kyoto day, under the band; a tap opens the whole
+  map (§3.1). Cut once from her picture, which is never changed; a new map in a new copy of her Guide retires the old
+  panels.
+- **Her stops' photos** on the day screen, and **Play the day** (§3.4, §3.7). A stop's photo is kept only when a check
+  finds Google's place is the same place her line means.
+- **Her pictures**, full screen from tab by tab and from Sources (§4.6). A picture holding people's own travel numbers is
+  never shown (§19).
+- **Papers' photos** open in the phone's own viewer (§9.6).
+- **Photos sent to Scout** are read and never kept (§7.6).
+
+---
+
+## 17. Help, Settings, History, People, Profile
+
+### 17.1 First-time help
+
+- **The welcome card** on Home (first open): "Hi Julie. This is Larisa's plan for the trip, day by day, on your phone.
+  There's nothing you need to do — it's here when you want it." It comes up just above the tab bar, so nothing moves.
+- **Show me around**: seven short steps, one for each button along the bottom including the 日. The screen dims, the
+  button stays lit, and a sentence or two says what it's for, with Back, Next and Skip. Nothing starts on its own. Ken
+  (Oct 4): "I'd like it offered at least 3x with Yes, Next time, No Thanks". Offered up to three times: "Show me around",
+  "Next time" (back on a visit at least 12 hours later), "No thanks"; the third says it's the last and that it's always in
+  Settings. The answer is kept per person on Wander. Also in Settings and at the top of How Wander works.
+- **One-time tips in Scout**, each shown once: under the first answer with Sources, and the paperclip tip.
+- **How Wander works** describes Wander as it is now, entry by entry, with "A New Phone, or Someone New" last. Ken (Oct
+  13): "They are in now and can't read it unless they are in already!"
+- **One ask per visit**, in order: the leaving card, then Face ID, then the tour.
+
+### 17.2 Settings
+
+Where Wander's plan comes from (her Guide's copy and Ken's rail sheet, with read times); Face ID on this phone; Notes
+(Tidy my dictation, trip stories); Show me around; "Tell Ken about Wander" (or, for Ken, "About Wander, from the
+others"); Ideas for Wander (members); People; sign out. No sync controls: Wander can't write to any sheet.
+
+### 17.3 History and Recent activity
+
+History is "What's changed in Wander": what people did in Wander, said in plain words ("You added a maybe — …", "switched
+'Lunch' to …"), including shared notes, Scout's additions and to-dos, with "Bring back" where it applies. A private note
+never appears; a note taken back takes its words out of the history. Home's Recent activity is its short form (§2.1).
+
+### 17.4 Profile: travel documents
+
+Each person can keep travel documents in their Profile. Passport, visa and insurance details open with Face ID or a
+PIN, and no one else ever sees them; the group sees only that you have one. Other documents can be shared with the
+trip or kept to yourself (the "who can see this" switch). Scout never reveals passport, visa or insurance details; it
+says they're locked and that the vault in Profile opens with Face ID or PIN. A planner can reset someone's PIN, which
+clears only the PIN.
+
+---
+
+## 18. Whose It Is, and Which Clock
+
+### 18.1 Whose a line is
+
+Every line says whose it is when it isn't everyone's. Her names, her initials ("KL day trip"), a booking's name, who
+slept in a room, and a picture's grouping all count; nothing else. A line naming you is never "the others'". Someone
+else's to-do is off your day and Home (Ken still sees all). A question in her Guide is "for you" only when it is.
+
+### 18.2 Today, for each person
+
+"Today" for a person is Japan's date from their scheduled landing until their flight home. Before that, on a Japan date
+you're still at home, a day screen says so at the top ("You're still at home", with your take-off time) and "The rest of
+this day is the others' plan." Notes doesn't call a city "where you are", and Maybes doesn't call it "today", before you
+land.
+
+### 18.3 Where the others are
+
+On Home before you've arrived, "Right now in Japan" says where the others really are, by the schedule and their booked
+trains: "Ken & Larisa haven't left home yet — they're due to land at …", "should be in the air…", "landed at … by the
+schedule, and are on their way to … — due there about 7:05 PM", "the others are in Nagoya now" once the day's booked
+train has arrived, "the others travel from Nagoya to Tokyo today".
+
+### 18.4 Flights, by their schedule
+
+Wander can't see a real flight, only its timetable, and says so. Before take-off: "Takes off from San Francisco (SFO)
+Tue, Oct 13, 12:00 PM California time — that's Wed 4:00 AM Japan time". In the air: "Should be in the air now — due to
+… land at 3:00 PM". After: "Was due to land at 3:00 PM — that's the schedule; a delay wouldn't show here", for 12 hours,
+then "landed". Your own landing: "Your flight was due to land at … (Tue 11:00 PM your time) — that's the schedule."
+
+### 18.5 Clocks
+
+On a phone not on Japan time, every time says "Japan time", and a time on another clock says whose ("12:00 PM California
+time"). Every countdown, Next, Now and faded past line measures now on the clock its time is on. A time on another clock
+is placed in the day by when it happens. "Tonight" means tonight: another day's screen heads its sleeping section "The
+night of Wed, Oct 14". "As Wander last read it" is in Japan time on every phone.
+
+---
+
+## 19. Privacy
+
+- **People's own travel numbers stay out of Wander** (Oct 4). Known Traveler, Redress, eTicket, frequent-flyer and
+  passport numbers and birth dates: the number goes, the label stays ("KTN [left out by Wander]"); in a record carrying
+  one, its phone, email and total go too. A picture holding them isn't shown: "Wander keeps this one to Larisa's sheet —
+  it has people's own travel numbers on it." The server won't send it to a phone at all. Every new copy of her Guide is
+  cleaned the same way.
+- **Personal contacts**: personal email addresses and US phone numbers in her tabs are left out. A hotel's or
+  restaurant's own address and Japanese numbers stay.
+- **Cards** by their last four digits only ("[card ending 1234]"); a transit card's full ID is left out.
+- **The vault**: passport, visa and insurance details open with Face ID or PIN (§17.4).
+- **Notes** are private by default and shared per note (§9.5). Papers are seen by whoever kept them, and Ken's and
+  Larisa's by each other.
+- **Location** is sent only with a question that needs it and never stored (§7.7).
+- **Signals** for the Tell Ken offer are added up on the phone and never sent or kept (§13).
+- **Any new kind of personal data** (location, photos, documents) is Ken's call, raised in one line before it's built
+  (CLAUDE.md §7).
+- **This repo is public**: no ids, links, keys, booking codes or people's personal details here (CLAUDE.md). They live in
+  trip-data (not in git) or private memory. A git hook blocks commits that add them.
+
+---
+
+## 20. How It's Built (Changes to Part I §4 and §6)
+
+### 20.1 Stack
+
+As in Part I §4: React 19 with TypeScript, Vite and Tailwind; Node with Express 5 and TypeScript; Prisma on Neon
+PostgreSQL; one Railway service, with Express serving the built front end. Changes since March:
+- **Sign-in**: Face ID passkeys (WebAuthn), with personal invite links as the way in. Access codes are gone.
+- **Scout**: Anthropic's API, an Opus model, with citations (for Sources), built-in web search and fetch, prompt caching
+  and keep-warm.
+- **Her Guide**: snapshot .xlsx copies Ken provides, read on the server; pictures read by AI. Ken's rail sheet: the Google
+  Sheets API, read-only.
+- **Weather**: Open-Meteo (forecast and several models); Japan's weather agency for the storm watch.
+- **Places and photos**: Google Maps on Home; Google Places for city photos, stop photos and "near me"; Apple Maps
+  and Google Maps links for directions.
+- **The phone**: a service worker for the offline copy and updates; Web Push for Scout's and Tell Ken's buzz; the
+  phone's own speech recognition (one microphone for the app) and voice for Read aloud.
+- Part I's ratings services, capture pipeline and spatial canvas aren't part of the trip product (§21).
+
+### 20.2 What Wander keeps beside her Guide
+
+Her Guide is a layer Wander replaces with each good copy: snapshots, Guide items (each with its cells and time text), and
+Guide pictures. Everything people add lives apart from it and survives every re-read: plans for a day and picks, maybes
+and their marks and removals, notes on ideas, trip notes, papers, phrases and each person's order and removals, to-dos
+added in Wander and the done marks on hers (keyed to stable places in her list), Ideas for Wander, Tell Ken messages,
+push subscriptions, the conversation with Scout and each answer's sources, place photos, Wander's place notes, and other
+sources (Ken's rail sheet and its copies, Backroads' itinerary, her maps).
+
+### 20.3 How it's checked
+
+rules/engineering.md holds the deploy path (a backup, any schema change first, merge to main, the functional suite and a
+walk on production), the type-check baselines, the backend suite rules, Playwright on its own headless shell, chaos
+tests for anything that changes data (Scout's tools above all), timing bars, the iPhone rules, and the React hooks
+check. Screens and plumbing are tested on synthetic data with Scout stubbed; real Scout calls check only Scout's own
+answers. Ken (Sep 28 2026): "You're authorized to deploy Wander to production whenever ready."
+
+---
+
+## 21. What Became of the March Design
+
+Part I was written in March 2026 for a planning tool: capture, a map-centred canvas, ratings, and promoting experiences
+into days. From March to early April it grew planning boards, group decisions and votes, imports, a trip story, travel
+advisories, and two-way sync with Larisa's sheet. The changelog's March and April entries marked "SPEC UPDATE NEEDED"
+describe those. On Sep 27 Wander became a front end to her Guide. What happened to each:
+
+- **Withdrawn or replaced**: two-way sheet sync and every write to a sheet (Sep 27); the spatial canvas, axes,
+  selector strip, three-tier markers, travel geometry overlay and promotion (the trip map on Home is what remains, and
+  Ken, Oct 3: "stop the map"); capture by paste or drop on Home and Plan (now Scout takes any file, §7.6); the Plan tab
+  and planning board (now Maybes, whose address the old Plan address opens); trip creation and itinerary import (trips
+  come from her Guide; "+ Plan a new trip" is gone); group decisions, votes and "happy with any" (choices in a block,
+  §3.4, and I'm in, §8); ratings badges; the daily greeting, next-up overlay, interest quiz and evening sheet (nothing
+  pops up uninvited, Sep 28); the old phrase card's "no Japanese characters" (§10); voice auto-send (Oct 1); the
+  train-status scraper (§5.7); the "learnings" (§7.9); the April trips' placeholder data (Ken, Sep 27:
+  "No need to worry about keeping existing data in Wander… That data was placeholder data to learn how to create an
+  effective Wander.").
+- **Kept, in a new form**: the phrase card (§10); the change log, as History (§17.3); travel documents and the vault
+  (§17.4); invite links and trip members (§14); offline caching (§15); city photos (§16); the Now screen, as Next (§2.4);
+  Scout, with the rules in §7.
+- **Waiting on Ken**: split days as a designed feature, multiple trips, a native app, trip summaries from notes, Scout
+  streaming, "Team Fun" (CLAUDE.md §6 and memory). Never bring back the travelerProfiles nudges: they invent facts.
+
+*End of Part II, written Oct 15, 2026. Keep it current.*

@@ -414,7 +414,15 @@ function readAloud(text: string, onEnd: () => void) {
   });
 }
 
+// Words in Scout's box not yet sent, kept on the phone as they come — typed or dictated — so a screen that goes off, a
+// reload or an update never loses them (Oct 15: Larisa's long dictation was lost when her phone's screen went off). Gone
+// once they're sent, or the box is emptied.
+const draftKey = () => `${chatKey()}:draft`;
+const readScoutDraft = () => { try { return localStorage.getItem(draftKey()) || ""; } catch { return ""; } };
+const keepScoutDraft = (v: string) => { try { if (v.trim()) localStorage.setItem(draftKey(), v); else localStorage.removeItem(draftKey()); } catch { /* full or private */ } };
+
 function clearMessages() {
+  try { localStorage.removeItem(draftKey()); } catch { /* none */ }
   localStorage.removeItem(chatKey());
   localStorage.removeItem("wander-chat");
   // Also clean up any legacy per-trip keys
@@ -485,7 +493,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   const tellKenVisible = open && tellKenTip;
   useEffect(() => { if (tellKenVisible) tipShown(); }, [tellKenVisible]);
   const [sourcesTip, sourcesTipDone] = useOnceTip("scout-sources");
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(readScoutDraft);
+  useEffect(() => { keepScoutDraft(input); }, [input]);
   // What goes with the next question — pictures, PDFs, documents, text files, dragged in, pasted or chosen — and what
   // went with one in flight (kept for "Try again")
   const [files, setFiles] = useState<Attached[]>([]);

@@ -1144,8 +1144,13 @@ export function withWebLinks(text: string): { text: string; url?: string }[] {
   return parts;
 }
 
-/** Her words that differ between tabs, on the line itself ("Tabs differ: her Itinerary tab says …") */
-export const tabsDiffer = (i: GuideItem) => (i.detail || "").split("\n").filter((l) => l.startsWith("Tabs differ: ")).map((l) => l.slice(13));
+/** Her words that differ between tabs, on the line itself ("Tabs differ: her Itinerary tab says …") — not when the other
+ *  tab's words are a to-do she marked done (tourist66, Oct 29 after the HARUKA left: "Itinerary tab says 'Book 1:30p
+ *  Haruka from Kyoto to KIX - DONE'" on the list and in Play). Ken (Oct 14): "if it is done or out of date, you don't
+ *  show it". (The same mark as an open question's, below.) */
+const MARKED_DONE = /(?:^|[—–:(\[,]\s*|\s-\s*)(?:done|completed?|resolved|sorted)\b|\b(?:done|completed?|resolved|sorted)\s*(?:[)\].!]|$)|[✓✔☑✅]/i;
+export const tabsDiffer = (i: GuideItem) => (i.detail || "").split("\n").filter((l) => l.startsWith("Tabs differ: ")).map((l) => l.slice(13))
+  .filter((d) => !(d.match(/"([^"]+)"|“([^”]+)”/g) || []).some((q) => MARKED_DONE.test(q.slice(1, -1))));
 
 /** A hotel is found by its name and city ("Imperial Hotel, Tokyo, Japan"). A bare district address
  *  ("Chiyoda City") put the pin on the Imperial Palace grounds, over a kilometre away. */

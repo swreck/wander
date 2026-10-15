@@ -178,6 +178,28 @@ router.get("/pictures/:tripId", async (req: AuthRequest, res) => {
   })));
 });
 
+// ── Her illustrated map, one panel per day, at the top of the day ("Wander in pictures" idea 3, Oct 15 2026) ──
+// Each panel was cut once from her picture (trip-data/session-tools/day-panels.mts) and kept as Wander's own picture; it
+// shows only while the picture it was cut from is in her current Guide copy, so a new map from her never sits under an
+// old cut. The link holds for a day and doesn't change within it, so the phone keeps the panel instead of fetching it
+// again on every visit.
+router.get("/day-panels/:tripId", async (req: AuthRequest, res) => {
+  const tripId = req.params.tripId as string;
+  if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
+  const current = await prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { tabs: true } });
+  const inGuide = new Set(((current?.tabs as any[]) || []).flatMap((t) => (t.images || []).map((p: { sha256: string }) => p.sha256)));
+  const panels = await prisma.guideImage.findMany({ where: { tripId, readStatus: "panel" }, select: { sha256: true, facts: true } });
+  const day = Math.floor(Date.now() / 86_400_000) * 86_400;
+  const byDay: Record<string, { url: string; w: number; h: number; label: string; of: string }> = {};
+  for (const p of panels) {
+    const f = (p.facts || {}) as { panelOf?: string; date?: string; label?: string; w?: number; h?: number };
+    if (!f.panelOf || !f.date || !inGuide.has(f.panelOf) || !f.w || !f.h) continue;
+    const token = jwt.sign({ picture: `${tripId}:${p.sha256}`, iat: day }, PICTURE_SECRET, { expiresIn: "2d" });
+    byDay[f.date] = { url: `/api/guide/picture/${tripId}/${p.sha256}?t=${token}`, w: f.w, h: f.h, label: f.label || "Her map", of: f.panelOf };
+  }
+  res.json({ byDay });
+});
+
 // ── A fresh link to one picture — "See the picture" under a Scout answer's Sources ──
 router.get("/picture-link/:tripId/:sha", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;

@@ -2,6 +2,60 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday afternoon in Japan) — Play the Day 2.0; Ideas for Wander, Inviting; Her Kyoto Map by Day; Dictation Kept
+
+### Fixed
+- Dictation lost when the screen goes off. Ken (Oct 15): "Larisa was dictating something that started with the phrase,
+  ask Ken with a major new feature, and her phone just shut off and lost the dictation, and it was all wasted time.
+  There is something about scout getting dictation that needs to keep the phone from turning off". The screen now stays
+  on while Wander listens (Scout's mic, Notes' Talk) and may sleep again when listening stops; and Scout's unsent words,
+  typed or dictated, are kept on the phone as they come, so a screen that goes off, a reload or an update never loses
+  them. They're back in the box the next time Scout opens; sending clears them; each person's are their own. Where:
+  Scout, Notes. SPEC UPDATE NEEDED (Scout's panel).
+
+### Added
+- Larisa's illustrated Kyoto map, one panel per day, at the top of each Kyoto day (Oct 25–29), under the city band: her
+  own panel for that date, whole (a tall panel at most 340 pt, over a soft blur of itself, so the day's summary still
+  starts on the first screen), "Larisa's map · tap to see all five days" (Larisa reads "Your map"); a tap opens her
+  whole map to pinch and zoom. Each panel was cut once from her picture; her picture is never changed, and if a new
+  Guide copy brings a new map, the old cuts stop showing. Those days no longer also offer "See her map from this tab".
+  Where: day pages Oct 25–29 (not Next). SPEC UPDATE NEEDED (day screen).
+
+### Changed
+- Play the day, 2.0. Ken (Oct 15, at lunch, on the Mitsukoshi moment that had no photo): "Play the day goes here and
+  nothing happens. Should something happen or have a button to activate?" and then "treat current as 1.0… make it
+  fabulous". Now: a white Next button at the bottom of every moment names what comes next ("Next · 1:30 PM / Ginza
+  Premium Retail Walk"), with ‹ for the one before; swipe left and right moves between moments (taps on the picture
+  still work; swipe down still closes; nothing moves by itself). A day that isn't under way opens on a cover: the
+  date and city over the city's photo, the day in a few sentences, "13 moments · 6:45 AM to 6:30 PM", and Start;
+  today it opens on Now with the cover one step back. A moment Wander has no sure photo for is drawn for its kind of
+  stop (a bowl for a meal, a gate for a temple, a train, a bed for the hotel…) on a warm colour, never passed off as
+  the place. Today each moment says when it is: Now, "in 45 min", Under way (someone else's line), Earlier today.
+  "Her full note" shows all her words for the line inside Play. The end of the day offers "Play tomorrow", straight
+  into the next day's Play, when the next day has her plan. Photos drift slowly closer and fade into each other; none
+  of that under Reduce Motion. After a fresh check: each moment carries the corrections the day's list shows on that
+  line, in the list's words (the booked train's arrival, "the sources give two times for this", her tabs differ; never
+  a line her Guide marks done), her booking under it (the flight's number), its dress code and the stop her tab names;
+  a countdown never picks between two times; the cover uses the day's own first stop photo, her Itinerary line when
+  Wander has no summary, and says when her tab has two versions; "Leave …" lines fold in like taxis and "Finish X"
+  joins X as "Then:"; moments more than three hours ahead say This morning / This afternoon / This evening; "See
+  tomorrow" opens the next day's page when it has no plan of hers; a keyboard stays inside Play; a sideways swipe never
+  closes it. Where: day pages with her plan → Play the day. SPEC UPDATE NEEDED (day screen, Play).
+- Ideas for Wander, made inviting for Andy (Ken, Oct 15: "make the 'improve wander' function attractive so andy will
+  be drawn to offering ideas to improve"): on Home a small amber "Ideas" chip with a sparkle (the Maybes tab is a bulb);
+  the page opens with a warm header saying what it's for, a large "Add a screenshot" tile, ways to begin ("I wish
+  Wander…", "This confused me:", "More of this:", "This looks off:"), and how to take a screenshot on iPhone; ideas
+  show their screenshots as the phone screens they are; Scout's and Claude's answers sit in reply bubbles; where every
+  idea stands reads as New / Talking / Planned / Built counts that filter the list; a built idea says "✓ In Wander now".
+  After a fresh check as Andy: once there are ideas, they lead the page and the box for a new one is one bar ("+ A new
+  idea"); after Post the new idea scrolls into view, with "Scout is reading it…" and then Scout's answer; a status that
+  moves is said on the idea ("Ken marked it Built"), counts as new for the other member (Home's dot, "new" on the
+  card) and brings the idea to the top; "✓ In Wander now, from your idea" on the author's own; Scout answers in two or
+  three sentences without markdown, and calls the same person's earlier idea "you posted this"; an example idea and
+  answer on the empty page; "I loved this:" among the ways to begin; the Home chip reads "Wander ideas"; Back from
+  Ideas opened on its own goes Home. Where: Home (Ken and Andy only), Ideas for Wander. SPEC UPDATE NEEDED (Ideas for
+  Wander).
+
 ## 2026-10-15 (Thursday, afternoon in Japan) — The Day as Moments; Play the Day
 
 ### Added

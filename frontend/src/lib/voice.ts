@@ -57,6 +57,23 @@ export function joinSaid(pieces: string[]): string {
   return out;
 }
 
+// The screen stays on while Wander listens (Oct 15: Larisa was dictating a long "Tell Ken…" to Scout, the phone's
+// screen went off mid-sentence, and the iPhone stopped listening — "all wasted time", Ken). Asked for on the tap that
+// starts listening, asked again if Wander comes back to the screen still listening, let go when listening ends. A phone
+// without it (or Low Power Mode) just behaves as before.
+let wake: any = null;
+function holdAwake() {
+  if (wake || typeof navigator === "undefined" || !("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+  (navigator as any).wakeLock.request("screen")
+    .then((w: any) => { if (!running) { w.release?.().catch?.(() => {}); return; } wake = w; w.addEventListener?.("release", () => { if (wake === w) wake = null; }); })
+    .catch(() => { /* not allowed now: the screen may sleep as before */ });
+}
+function letSleep() {
+  const w = wake; wake = null;
+  try { w?.release?.().catch?.(() => {}); } catch { /* already released */ }
+}
+if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => { if (running && document.visibilityState === "visible") holdAwake(); });
+
 function clearQuiet() {
   if (quietTimer) { clearTimeout(quietTimer); quietTimer = null; }
 }
@@ -66,6 +83,7 @@ function begin(h: VoiceHandlers): boolean {
   try {
     rec.start();
     running = true;
+    holdAwake();
     clearQuiet();
     quietTimer = setTimeout(() => { if (owner === h) h.onQuiet?.(); }, 6000);
     return true;
@@ -96,6 +114,7 @@ function make() {
     was?.onEnd();
     // someone asked while it was still finishing: they get it now
     if (next) { const n = next; next = null; begin(n); }
+    if (!running) letSleep();
   };
   return r;
 }

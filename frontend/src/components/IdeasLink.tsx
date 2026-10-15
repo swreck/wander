@@ -47,12 +47,19 @@ export default function IdeasLink({ tripId, className = "" }: { tripId: string |
     return () => { live = false; document.removeEventListener("visibilitychange", onShow); };
   }, [tripId]);
   if (!state?.member) return null;
+  // (a small warm chip with a bulb — easy to find for the two of them, quiet beside the trip; Oct 15, Ken: "make the
+  // 'improve wander' function attractive so andy will be drawn to offering ideas")
   return (
     <button type="button" onClick={() => navigate("/ideas-for-wander")}
       aria-label={state.unseen ? `Ideas for Wander, ${state.unseen} new` : "Ideas for Wander"}
-      className={`relative text-sm text-[#6b5d4a] hover:text-[#3a3128] transition-colors px-2 py-2.5 min-h-[44px] flex items-center ${className}`}>
-      Ideas
-      {state.unseen > 0 && <span className="absolute top-2.5 right-0.5 w-2 h-2 rounded-full bg-[#d4772c]" aria-hidden />}
+      className={`relative min-h-[44px] px-1 flex items-center ${className}`}>
+      <span className="flex items-center gap-1 pl-2 pr-2.5 py-1 rounded-full bg-[#fbf0dc] border border-[#ecd7a6] text-[13px] text-[#8a5a1a]">
+        {/* (a sparkle — the Maybes tab is a bulb) */}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" /></svg>
+        {/* ("Wander ideas", not "Ideas": in a travel app that read as things to do — andy-ideas) */}
+        Wander ideas
+      </span>
+      {state.unseen > 0 && <span className="absolute top-2 right-0.5 w-2.5 h-2.5 rounded-full bg-[#d4772c] border-2 border-[#faf8f5]" aria-hidden />}
     </button>
   );
 }
