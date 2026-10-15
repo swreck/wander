@@ -1451,6 +1451,7 @@ Home is the trip at a glance, with today first. From the top:
 - **Recent activity**: what people did in Wander (maybes, shared notes, picks, plans added). One person's quick changes
   of mind on one line within half an hour merge into the latest. Something added and taken back is left out (History
   keeps both). A private note never appears.
+- **Who pays next: … ›**, pointing to the couple with the smaller total and opening the Money page (§9.9).
 - **A Maybes line** when there's something new: "Andy has a maybe for Tokyo: "…" · and 1 more ›". No phone alerts.
 
 **The leaving card** (Oct 2). For anyone whose own first flight is after the trip begins (Andy and Julie), once a day
@@ -2161,6 +2162,7 @@ Scout's tools for Wander's own additions match the screens (§1.3 rule 11):
 - **Actions**: get_todos, add_todo, set_todo_done, remove_todo, set_deadline_done. Marking one of her to-dos done marks
   it in Wander, never in her list.
 - **Getting around and weather**: directions, offer_location, places_near_me, get_weather, packing_tips.
+- **Money**: add_expense, remove_expense, money_so_far (§9.9).
 - **To Ken**: tell_ken (§13), add_wander_idea (§12).
 - **Screens**: opening any screen Scout can describe.
 
@@ -2241,7 +2243,7 @@ cream?". No polls, votes or alerts.
 
 ---
 
-## 9. Notes and Papers
+## 9. Notes, Papers, the Story and Money
 
 Ken (Oct 1) called notes and summaries "a major topic for me". Ken (Oct 8): "I like notes function. It will become source
 info for an ai assisted summary later. I'm sure I want it integrated with the activities from Larisa's spreadsheet."
@@ -2327,6 +2329,25 @@ note's own choice, else their setting; a question not yet answered counts as no)
 
 Where: Home after the trip ("The story of the trip ›"), and Next after the trip. (It replaces a March page that counted
 "experiences" this trip never had.)
+
+### 9.9 Who pays next
+
+Larisa's idea, through Ken (Oct 15): "one should be able to say to scout it any time that the unit that is Ken and
+Larisa has paid a certain amount of money for something… at the end of the trip… the difference [is] the amount that
+one owes to the other… there should always be a simple button that is something like who pays next and it just points
+to the couple that currently has the smaller total." Ken's answers (Oct 15): shared half and half; "In yen (or dollars
+and you should convert)"; all four see it; "It didn't need to be exact!"
+
+- **Keeping a payment**: any of the four tells Scout what a couple paid and for what ("we paid … for dinner", "Larisa got
+  the taxi"), or keeps it on the Money page. Scout answers "who pays next?" and takes a payment away when asked.
+- **The couples** are her Guide's: Ken & Larisa, and Julie & Andy.
+- **The sums**: each payment is shared half and half, so the couple that has paid less owes the other half the
+  difference. Who pays next is the couple with the smaller total.
+- **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
+- **Who sees it**: all four.
+- **Taking one away**: only the person who kept it, or Ken. It is hidden, never deleted.
+- **Where**: Home ("Who pays next: … ›"), the Money page (/money), and Scout (add_expense, remove_expense,
+  money_so_far; prompt rule 61). Data: trip_expenses.
 
 ---
 
@@ -2647,6 +2668,8 @@ night of Wed, Oct 14". "As Wander last read it" is in Japan time on every phone.
   Larisa's by each other.
 - **Location** is sent only with a question that needs it and never stored (§7.7).
 - **Signals** for the Tell Ken offer are added up on the phone and never sent or kept (§13).
+- **What each couple paid, and for what**, is shared with all four (Who pays next, §9.9). A new kind of shared data,
+  approved by Ken on Oct 15.
 - **Any new kind of personal data** (location, photos, documents) is Ken's call, raised in one line before it's built
   (CLAUDE.md §7).
 - **This repo is public**: no ids, links, keys, booking codes or people's personal details here (CLAUDE.md). They live in
@@ -2677,7 +2700,7 @@ PostgreSQL; one Railway service, with Express serving the built front end. Chang
 Her Guide is a layer Wander replaces with each good copy: snapshots, Guide items (each with its cells and time text), and
 Guide pictures. Everything people add lives apart from it and survives every re-read: plans for a day and picks, maybes
 and their marks and removals, notes on ideas, trip notes, papers, phrases and each person's order and removals, to-dos
-added in Wander and the done marks on hers (keyed to stable places in her list), Ideas for Wander, Tell Ken messages,
+added in Wander and the done marks on hers (keyed to stable places in her list), Ideas for Wander, Tell Ken messages, payments for Who pays next,
 push subscriptions, the conversation with Scout and each answer's sources, place photos, Wander's place notes, and other
 sources (Ken's rail sheet and its copies, Backroads' itinerary, her maps).
 

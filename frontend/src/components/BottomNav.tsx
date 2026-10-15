@@ -4,6 +4,7 @@ import { loadMaybeNews } from "../lib/maybesNews";
 import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import PhraseCard from "./PhraseCard";
+import { loadLedger, savedLedger, initialsOf, MONEY_CHANGED } from "../lib/expenses";
 
 interface Props {
   pendingChanges?: number;
@@ -53,12 +54,14 @@ const tabs = [
       </svg>
     ),
   },
+  // Budget where Actions was — Ken (Oct 15): "There seems to be no need for the [Actions] button in the main navigation
+  // menu, so you can replace that with budget" (the to-dos open from Home's "To-dos and deadlines" line)
   {
-    path: "__actions__",
-    label: "Actions",
+    path: "/money",
+    label: "Budget",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+        <circle cx="12" cy="12" r="9" /><path d="M8.5 7.5 12 12l3.5-4.5M12 12v5M9 13h6M9 15.5h6" />
       </svg>
     ),
   },
@@ -80,6 +83,19 @@ export default function BottomNav({ pendingChanges }: Props) {
   // Home tells us when its Actions panel is open, so the right tab is highlighted
   const [actionsOpen, setActionsOpen] = useState(false);
   const [scoutOpen, setScoutOpen] = useState(false);
+  // Who pays next, for Budget's icon: "AJ" in orange or "KL" in purple — "so it can be done in a glance or tapped to see
+  // the total" (Ken, Oct 15). From the phone's copy first; again when money changes or Wander comes back to the front.
+  const tripIdNow = () => { try { return localStorage.getItem("wander:last-trip-id"); } catch { return null; } };
+  const [payNext, setPayNext] = useState<string | null>(() => { const t = tripIdNow(); return t ? savedLedger(t)?.next || null : null; });
+  useEffect(() => {
+    let live = true;
+    const get = () => { const t = tripIdNow(); if (t) loadLedger(t).then((l) => { if (live && l) setPayNext(l.next || null); }); };
+    get();
+    const onShow = () => { if (document.visibilityState === "visible") get(); };
+    window.addEventListener(MONEY_CHANGED, get);
+    document.addEventListener("visibilitychange", onShow);
+    return () => { live = false; window.removeEventListener(MONEY_CHANGED, get); document.removeEventListener("visibilitychange", onShow); };
+  }, []);
   // Something new on Maybes from someone else since you last looked — a dot, never an alert
   const [maybesNew, setMaybesNew] = useState(false);
 
@@ -278,7 +294,14 @@ export default function BottomNav({ pendingChanges }: Props) {
               className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 min-h-[48px] px-1 py-1 rounded-lg transition-colors relative ${tab.path === "__actions__" && actionsNeedAttention ? "text-amber-600" : ""}
                 ${isActive ? "text-[#514636]" : "text-[#7a6b55] hover:text-[#6b5d4a]"}`}
             >
-              {tab.icon}
+              {tab.path === "/money" && payNext ? (() => {
+                const who = initialsOf(payNext);
+                const color = who === "KL" ? "#6b46c1" : who === "AJ" ? "#e07020" : "#7a6b55";
+                return (
+                  <span aria-label={`${payNext} pay next`} className="inline-flex items-center justify-center h-[20px] min-w-[26px] px-1 rounded-full text-[10.5px] font-semibold tracking-[.04em] text-white"
+                    style={{ background: color }}>{who}</span>
+                );
+              })() : tab.icon}
               <span className="text-xs leading-tight font-medium">{tab.label}</span>
               {/* Badge dot for pending sync changes on Home */}
               {tab.path === "/" && pendingChanges && pendingChanges > 0 ? (

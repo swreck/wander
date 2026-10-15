@@ -25,6 +25,14 @@ let owner: VoiceHandlers | null = null;
 let next: VoiceHandlers | null = null;
 let running = false;
 let quietTimer: ReturnType<typeof setTimeout> | null = null;
+// Listening goes on until the person taps stop (Ken, Oct 15: "When dictating a note or message to scout, wander seems to
+// time out and iPhone sleeps while dictating"). An iPhone ends a recording on its own after a pause; Wander starts it
+// again for the same person, the words heard so far carried in front of the new ones.
+let wanted = false;          // the person hasn't stopped it
+let carried = "";            // words from the recordings before this one, since they tapped the mic
+let lastSaid = "";           // everything heard in this recording so far
+let startedAt = 0;
+let quickEnds = 0;           // recordings that ended within a second of starting, in a row — then it isn't a pause
 
 export const voiceSupported = (): boolean => !!Recognizer();
 
@@ -61,35 +69,64 @@ export function joinSaid(pieces: string[]): string {
 // screen went off mid-sentence, and the iPhone stopped listening — "all wasted time", Ken). Asked for on the tap that
 // starts listening, asked again if Wander comes back to the screen still listening, let go when listening ends. A phone
 // without it (or Low Power Mode) just behaves as before.
+// And while someone is writing in any box — the keyboard's own microphone is the iPhone's, not Wander's, and Wander isn't
+// told it's listening (Ken, Oct 15). On while a text box has the cursor and words are coming; let go when it loses the
+// cursor, or after 3 minutes with no new words.
 let wake: any = null;
+let writing = false;
+let writingTimer: ReturnType<typeof setTimeout> | null = null;
+const needAwake = () => running || wanted || writing;
 function holdAwake() {
   if (wake || typeof navigator === "undefined" || !("wakeLock" in navigator) || document.visibilityState !== "visible") return;
   (navigator as any).wakeLock.request("screen")
-    .then((w: any) => { if (!running) { w.release?.().catch?.(() => {}); return; } wake = w; w.addEventListener?.("release", () => { if (wake === w) wake = null; }); })
+    .then((w: any) => { if (!needAwake()) { w.release?.().catch?.(() => {}); return; } wake = w; w.addEventListener?.("release", () => { if (wake === w) wake = null; }); })
     .catch(() => { /* not allowed now: the screen may sleep as before */ });
 }
 function letSleep() {
+  if (needAwake()) return;
   const w = wake; wake = null;
   try { w?.release?.().catch?.(() => {}); } catch { /* already released */ }
 }
-if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => { if (running && document.visibilityState === "visible") holdAwake(); });
+const isBox = (t: EventTarget | null) => t instanceof HTMLTextAreaElement || (t instanceof HTMLInputElement && /^(text|search|)$/.test(t.type)) || (t instanceof HTMLElement && t.isContentEditable);
+function stillWriting() {
+  writing = true;
+  holdAwake();
+  if (writingTimer) clearTimeout(writingTimer);
+  writingTimer = setTimeout(() => { writing = false; letSleep(); }, 3 * 60_000);
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => { if (needAwake() && document.visibilityState === "visible") holdAwake(); });
+  document.addEventListener("focusin", (e) => { if (isBox(e.target)) stillWriting(); });
+  document.addEventListener("input", (e) => { if (isBox(e.target)) stillWriting(); }, true);
+  document.addEventListener("focusout", (e) => {
+    if (!isBox(e.target)) return;
+    // (to another box: still writing)
+    setTimeout(() => { if (!isBox(document.activeElement)) { writing = false; if (writingTimer) clearTimeout(writingTimer); letSleep(); } }, 0);
+  });
+}
 
 function clearQuiet() {
   if (quietTimer) { clearTimeout(quietTimer); quietTimer = null; }
 }
 
-function begin(h: VoiceHandlers): boolean {
+function begin(h: VoiceHandlers, again = false): boolean {
   owner = h;
+  if (!again) { carried = ""; quickEnds = 0; }
+  lastSaid = "";
   try {
     rec.start();
     running = true;
+    wanted = true;
+    startedAt = Date.now();
     holdAwake();
     clearQuiet();
-    quietTimer = setTimeout(() => { if (owner === h) h.onQuiet?.(); }, 6000);
+    // ("no words yet" only before the first word — never in a pause mid-sentence, after listening went on by itself)
+    if (!carried) quietTimer = setTimeout(() => { if (owner === h) h.onQuiet?.(); }, 6000);
     return true;
   } catch {
     owner = null;
     running = false;
+    wanted = false;
     return false;
   }
 }
@@ -103,13 +140,31 @@ function make() {
   r.lang = "en-US";
   r.onresult = (e: any) => {
     clearQuiet();
-    owner?.onText(joinSaid(Array.from(e.results).map((x: any) => String(x[0].transcript ?? ""))));
+    quickEnds = 0;
+    lastSaid = joinSaid(Array.from(e.results).map((x: any) => String(x[0].transcript ?? "")));
+    owner?.onText(joinSaid([carried, lastSaid].filter(Boolean)));
   };
-  r.onerror = (e: any) => { owner?.onError?.(e?.error || "error"); };
+  r.onerror = (e: any) => {
+    const err = e?.error || "error";
+    // (a pause with nothing said, or the iPhone ending it: listening goes on — said only when it can't)
+    if (wanted && (err === "no-speech" || err === "aborted")) return;
+    if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") wanted = false;
+    owner?.onError?.(err);
+  };
   r.onend = () => {
     running = false;
     clearQuiet();
     const was = owner;
+    // The iPhone ended it after a pause, and the person hasn't tapped stop: go on listening for them, with what they've
+    // said so far kept in front. Not when nobody's waiting, the screen is away, or it keeps ending at once.
+    if (was && wanted && !next && document.visibilityState === "visible") {
+      quickEnds = Date.now() - startedAt < 1000 ? quickEnds + 1 : 0;
+      if (quickEnds < 3) {
+        carried = joinSaid([carried, lastSaid].filter(Boolean));
+        if (begin(was, true)) return;
+      }
+    }
+    wanted = false;
     owner = null;
     was?.onEnd();
     // someone asked while it was still finishing: they get it now
@@ -127,6 +182,7 @@ export function startVoice(h: VoiceHandlers): boolean {
     // taken over: the last asker's words stop; this one starts once the recognizer has finished
     const was = owner;
     owner = null;
+    wanted = false;
     was?.onEnd();
     next = h;
     try { rec.stop(); } catch { /* already stopping */ }
@@ -139,5 +195,7 @@ export function startVoice(h: VoiceHandlers): boolean {
 export function stopVoice(h?: VoiceHandlers) {
   if (next && (!h || next === h)) next = null;
   if (!rec || !running || (h && owner !== h)) return;
+  // (they tapped stop: no listening again after this recording ends)
+  wanted = false;
   try { rec.stop(); } catch { /* already stopped */ }
 }

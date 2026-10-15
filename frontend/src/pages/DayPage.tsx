@@ -42,6 +42,8 @@ import { dayPanels, savedDayPanels, type PanelsByDay, type DayPanel } from "../l
 import { hoursWords } from "../lib/placeHours";
 import { sunsetMinutes } from "../lib/sun";
 import { savedDayForecast, dayForecastFor } from "../lib/forecast";
+import DayPhotos from "../components/DayPhotos";
+import { photosOf, savedPhotos, PHOTOS_CHANGED, type TripPhoto } from "../lib/tripPhotos";
 import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
@@ -303,6 +305,97 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
   );
 }
 
+// Rain and sunset on the moments they touch, in Play (it has no band): the forecast's likeliest rain hours on the first
+// moment of each span still ahead ("Rain likely 3–7 PM", as the band says it), showers one forecast sees, and the
+// sunset on the moment the sun goes down in — worked out on the phone, "about" (Oct 15: "before they realize")
+function addSky(moments: Moment[], playCover: PlayCover | undefined, nowAt: number | null) {
+  const hourWord = (h: number) => (h === 12 ? "noon" : `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`);
+  const spanWord = ([s, e]: [number, number]) => (s !== 12 && e !== 12 && (s < 12) === (e < 12) ? `${s % 12 || 12}–${hourWord(e)}` : `${hourWord(s)}–${hourWord(e)}`);
+  const lasts = (m: Moment) => (m.start == null ? null : [m.start, m.end ?? m.start + 60] as [number, number]);
+  // (today, from now on: a span under way goes on the first moment still ahead, as "until 6 PM")
+  const from = nowAt ?? 0;
+  const firstIn = ([s, e]: [number, number]) => moments.find((m) => { const t = lasts(m); return !!t && t[1] > from && t[0] < e * 60 && t[1] > s * 60; });
+  for (const [list, say] of [[playCover?.rain?.wet || [], "The forecast has rain likely"], [playCover?.rain?.showers || [], "One forecast sees showers"]] as const) {
+    for (const sp of list.filter((x) => x[1] * 60 > from)) {
+      const m = firstIn(sp);
+      const under = nowAt !== null && sp[0] * 60 <= nowAt;
+      if (m) m.info = [...(m.info || []), `${say} ${under ? `until ${hourWord(sp[1])}` : spanWord(sp)}`];
+    }
+  }
+  const sun = playCover?.sunset ?? null;
+  // (not once the sun is down, today — tourist71: "Sunset about 5:07 PM" on the Now moment at 6)
+  if (sun !== null && (nowAt === null || nowAt < sun)) {
+    const m = moments.find((x) => { const t = lasts(x); return !!t && t[0] <= sun && sun < t[1]; });
+    if (m) m.info = [...(m.info || []), `Sunset about ${hourWord(Math.floor(sun / 60)).replace(/^(\d+)/, `$1:${String(sun % 60).padStart(2, "0")}`)}`];
+  }
+}
+
+/** "Play the day" for a day her Guide gives no timed plan (Oct 15 2026 — Ken: "Create play every day. Use what you have
+ *  from the backroads content."): the moments come built — Backroads' day with her lines in it, or her lines in order */
+function DayPlay({ tripId, cityId, date, moments: built, places, heading, playWords, cover, nowAt, playTomorrow }: {
+  tripId: string | null; cityId?: string | null; date: string; moments: Moment[];
+  /** what to look up for a moment's photo, by moment id ({ query, line } as the plan's photos are found; `note` says what
+   *  the photo is when it's an example, shown only with the photo) */
+  places: Record<string, { query: string; line: string; note?: string }>;
+  heading: string; playWords: string; cover: PlayCover; nowAt: number | null;
+  playTomorrow: { words: string; date: string; play: boolean } | null;
+}) {
+  const [playing, setPlaying] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const asked = Object.values(places);
+  const [hits, setHits] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(asked));
+  const askKey = asked.map((x) => x.query).join("|");
+  useEffect(() => {
+    if (!tripId || !asked.length) return;
+    let live = true;
+    setHits(keptPlacePhotos(asked));
+    lookUpPlacePhotos(tripId, cityId, asked).then((h) => { if (live) setHits(h); }).catch(() => { /* drawn cards */ });
+    return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId, cityId, askKey]);
+  // (straight into Play from the day before's "Play tomorrow": "#play-2026-10-19")
+  useEffect(() => {
+    const want = location.hash.match(/^#play-(\d{4}-\d{2}-\d{2})$/)?.[1];
+    if (!want || want !== date || !built.length) return;
+    navigate(location.pathname + location.search, { replace: true });
+    setPlaying(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash, date, built.length]);
+  if (!built.length) return null;
+  const moments = built.map((m) => {
+    const hit = places[m.id] ? hits[places[m.id].query] ?? null : null;
+    return { ...m, hit, photoWords: hit ? places[m.id]?.note : undefined };
+  });
+  addSky(moments, cover, nowAt);
+  const playFrom = moments.findIndex((m) => m.isNow);
+  const firstHit = moments.find((m) => m.hit)?.hit || null;
+  const fullCover: PlayCover = {
+    ...cover,
+    photo: firstHit ? { src: placePhotoUrl(firstHit, 0), place: firstHit.name || moments.find((m) => m.hit === firstHit)!.title, credit: firstHit.photos[0]?.credit ? `Photo: ${firstHit.photos[0].credit} · Google` : null }
+      : cover.photo || null,
+  };
+  const goTomorrow = playTomorrow ? () => {
+    let done = false;
+    const go = () => { if (done) return; done = true; window.removeEventListener("popstate", go); navigate(`/day/${playTomorrow.date}${playTomorrow.play ? `#play-${playTomorrow.date}` : ""}`); };
+    window.addEventListener("popstate", go);
+    setPlaying(false);
+    setTimeout(go, 400);
+  } : null;
+  return (
+    <div className="flex items-center justify-between gap-3 mb-2">
+      <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{heading}</h2>
+      <button type="button" onClick={() => setPlaying(true)}
+        className="shrink-0 min-h-[44px] inline-flex items-center gap-1.5 pl-3 pr-4 rounded-full bg-[#3a3128] text-white text-sm font-medium">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden><path d="M2.5 1.5v9l8-4.5z" fill="currentColor" /></svg>
+        Play the day
+      </button>
+      {playing && <PlayTheDay moments={moments} dayWords={playWords} start={playFrom} onClose={() => setPlaying(false)}
+        cover={fullCover} nowAt={nowAt} tomorrow={playTomorrow && goTomorrow ? { words: playTomorrow.words, play: playTomorrow.play, go: goTomorrow } : null} />}
+    </div>
+  );
+}
+
 function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, trainWords, playWords, playCover, playTomorrow, playBookings, panelOf }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
   /** the day's city, for finding its stops' photos near it */
@@ -509,30 +602,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     const last = moments[moments.length - 1];
     if (last) { last.after = [...(last.after || []), ...carry]; last.isNow ||= carryNow; } else moments.push(...all.filter((m) => carry.some((c) => c.endsWith(m.title))));
   }
-  // Rain and sunset on the moments they touch, in Play (it has no band): the forecast's likeliest rain hours on the first
-  // moment of each span still ahead ("Rain likely 3–7 PM", as the band says it), showers one forecast sees, and the
-  // sunset on the moment the sun goes down in — worked out on the phone, "about" (Oct 15: "before they realize")
-  {
-    const hourWord = (h: number) => (h === 12 ? "noon" : `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`);
-    const spanWord = ([s, e]: [number, number]) => (s !== 12 && e !== 12 && (s < 12) === (e < 12) ? `${s % 12 || 12}–${hourWord(e)}` : `${hourWord(s)}–${hourWord(e)}`);
-    const lasts = (m: Moment) => (m.start == null ? null : [m.start, m.end ?? m.start + 60] as [number, number]);
-    // (today, from now on: a span under way goes on the first moment still ahead, as "until 6 PM")
-    const from = nowAt ?? 0;
-    const firstIn = ([s, e]: [number, number]) => moments.find((m) => { const t = lasts(m); return !!t && t[1] > from && t[0] < e * 60 && t[1] > s * 60; });
-    for (const [list, say] of [[playCover?.rain?.wet || [], "The forecast has rain likely"], [playCover?.rain?.showers || [], "One forecast sees showers"]] as const) {
-      for (const sp of list.filter((x) => x[1] * 60 > from)) {
-        const m = firstIn(sp);
-        const under = nowAt !== null && sp[0] * 60 <= nowAt;
-        if (m) m.info = [...(m.info || []), `${say} ${under ? `until ${hourWord(sp[1])}` : spanWord(sp)}`];
-      }
-    }
-    const sun = playCover?.sunset ?? null;
-    // (not once the sun is down, today — tourist71: "Sunset about 5:07 PM" on the Now moment at 6)
-    if (sun !== null && (nowAt === null || nowAt < sun)) {
-      const m = moments.find((x) => { const t = lasts(x); return !!t && t[0] <= sun && sun < t[1]; });
-      if (m) m.info = [...(m.info || []), `Sunset about ${hourWord(Math.floor(sun / 60)).replace(/^(\d+)/, `$1:${String(sun % 60).padStart(2, "0")}`)}`];
-    }
-  }
+  addSky(moments, playCover, nowAt);
   // (today, on what's happening now; otherwise the day's cover)
   const playFrom = moments.findIndex((m) => m.isNow);
   // The cover: the day in her words when Wander has no summary of it (her Itinerary line); the day's own first photo
@@ -545,6 +615,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     notes: twoVersionsWords ? [twoVersionsWords] : [],
     panel: playCover?.panel || null,
     sunset: playCover?.sunset ?? null,
+    photos: playCover?.photos || [],
     her: v.Her,
   };
   return (
@@ -1128,6 +1199,31 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   }, [tripId]);
   // The hours rain is likeliest, from the same forecast the band says (days up to 3 ahead), for "Play the day" — which
   // has no band: said there on the moment it first touches (Oct 15: "before they realize they want it")
+  // Your photos and the ones shared, for "Play the day" — each after the moment it was taken in
+  const [dayPhotos, setDayPhotos] = useState<TripPhoto[]>([]);
+  useEffect(() => {
+    if (!tripId) return;
+    let live = true;
+    setDayPhotos(savedPhotos(tripId, date) || []);
+    const get = () => photosOf(tripId, date).then((r) => { if (live && r) setDayPhotos(r.photos); });
+    get();
+    window.addEventListener(PHOTOS_CHANGED, get);
+    return () => { live = false; window.removeEventListener(PHOTOS_CHANGED, get); };
+  }, [tripId, date]);
+  // Backroads' moments for the day, when it's one of theirs (for "Play the day" on a day her Guide gives a line or two)
+  type DocMoment = { title: string; words?: string; place?: string; photoNote?: string; length?: string; bring?: string; kind?: string; her?: "meeting" | "checkout" | "lunch" | "dinner" };
+  const [docDay, setDocDay] = useState<{ from: string; name: string; day: number; page: number; moments: DocMoment[] } | null>(null);
+  // (Play waits for the answer: on a slow load it offered her lines alone for a moment before Backroads' day came —
+  // tourist78)
+  const [docAsked, setDocAsked] = useState(false);
+  useEffect(() => {
+    if (!tripId) return;
+    let live = true;
+    setDocDay(null); setDocAsked(false);
+    api.get<{ day: typeof docDay }>(`/guide/day-moments/${tripId}/${date}`).then((r) => { if (live) setDocDay(r.day || null); })
+      .catch(() => { /* her lines alone */ }).finally(() => { if (live) setDocAsked(true); });
+    return () => { live = false; };
+  }, [tripId, date]);
   const [dayRain, setDayRain] = useState<{ wet?: [number, number][]; showers?: [number, number][] } | null>(null);
   useEffect(() => {
     if (!tripId) return;
@@ -1513,6 +1609,70 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   }
   const nestedTrains = new Set([...trainsUnder.values()].flat().map(railKey));
   const listDrawn = !(dayItems.length === 0 && choices.length === 0 && planBlocks.length === 0);
+  // "Play the day" on a day her Guide gives no timed plan (Oct 15 2026 — Ken: "Create play every day. Use what you have
+  // from the backroads content."): a Backroads day is their itinerary's moments in its order, in their words, with her
+  // own lines where they are those moments (the 8:30 meeting, her dinner, the check-out); any other day is her lines in
+  // the list's order. A time only where she gives one — Backroads gives lengths, never start times.
+  const dayPlay = (() => {
+    const places: Record<string, { query: string; line: string; note?: string }> = {};
+    if (planBlocks.length) return { moments: [] as Moment[], places, notes: [] as string[] };
+    const hm = (t: string | null | undefined) => (t && /^\d{2}:\d{2}/.test(t) ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : null);
+    const firstSentence = (t: string) => (t.replace(/^…/, "").match(/^.*?[.!?](?=\s|$)/)?.[0] || t).trim();
+    const herDetail = (i: GuideItem) => (i.detail || "").split("\n").map((l) => l.trim()).filter((l) => l && !/^(Her Dining Resos tab lists|Her note: see|Wander )/.test(l));
+    const base = { map: null, hit: null, trains: [] as string[], forWhom: null, isNow: false };
+    const KIND: Record<string, string> = { meet: "car", shuttle: "car", meal: "meal", sake: "meal", bike: "bike", shrine: "temple", temple: "temple", hotel: "hotel", raft: "outdoors", onsen: "outdoors", hike: "outdoors", walk: "outdoors", town: "outdoors", train: "train" };
+    if (docDay) {
+      const meals = dayItems.filter((i) => i.kind === "meal" && !/^(day \d|see above)/i.test(i.title));
+      const herLine = (k: string) => k === "meeting" ? dayItems.find((i) => i.kind === "meeting")
+        : k === "checkout" ? dayItems.find((i) => i.kind === "checkout")
+        : k === "lunch" ? dayItems.find((i) => i.kind === "meal" && /\blunch\b/i.test(i.title))
+        : meals.find((i) => !!i.time) || meals.find((i) => !/\blunch\b/i.test(i.title));
+      const moments = docDay.moments.flatMap((d, k): Moment[] => {
+        const her = d.her ? herLine(d.her) : undefined;
+        if (d.her && !her && !d.words) return [];
+        const id = `doc-${date}-${k}`;
+        const named = !!her && (d.her === "dinner" || d.her === "checkout");
+        // (their words as the itinerary has them, "…" where a sentence goes on in the next moment — cut, "set out on foot…"
+        // started in lower case and "…along the way" ended with no stop; tourist78)
+        const words = (d.words || "").trim();
+        const note = words ? (/^…/.test(words) ? `…${firstSentence(words)}` : firstSentence(words)) : her ? herDetail(her)[0] || null : null;
+        const full = [words, d.bring || ""].filter(Boolean).join("\n\n");
+        // (the lookup's "same place?" check reads the moment in Backroads' words, or what the photo is meant to show)
+        if (d.place) places[id] = { query: d.place, line: d.photoNote ? `${d.place} — ${d.photoNote}` : `${d.title} — ${note || d.place}`, note: d.photoNote };
+        else if (named && d.her === "dinner") places[id] = { query: her!.title, line: her!.title };
+        return [{ ...base, id, title: named ? itemTitle(her!, stays, date) : d.title, note,
+          // (no countdown from a check-out's time: that's the hotel's latest — on Oct 18 they leave before the 8:30
+          // meeting, and Play said "This afternoon"; tourist78)
+          time: her?.time ? timeLabel(her, dayItems) : null, start: d.her === "checkout" ? null : hm(her?.time),
+          full: full && full !== note ? full : null, fullLabel: words ? `${docDay.from}' words` : undefined,
+          info: [
+            ...(d.length ? [d.length] : []),
+            ...(her && !named ? [`${v.Her} Guide: “${her.title}”`] : []),
+            ...(named && d.her === "dinner" ? herDetail(her!).slice(0, 1) : []),
+          ],
+          kind: KIND[d.kind || ""] }];
+      });
+      return { moments, places, notes: [`From ${docDay.from}' general itinerary, Day ${docDay.day} (page ${docDay.page}). Details can differ for your departure; ${v.her} Guide has your bookings.`] };
+    }
+    const shown = listItems.filter((i) => !["deadline", "weather"].includes(i.kind));
+    // (the day you land, as the list has it: her lines with no time follow your landing — Oct 6 played "Osaka → Okayama"
+    // before the 2:50 PM landing)
+    const landing = myLanding && alsoItems.includes(myLanding) ? myLanding : null;
+    const firstTimed = shown.findIndex((i) => !!i.time);
+    const lead = landing && firstTimed > 0 ? shown.slice(0, firstTimed).filter((i) => i.kind !== "checkout") : [];
+    const lines = lead.length ? shown.filter((i) => !lead.includes(i)).flatMap((i) => (i === landing ? [i, ...lead] : [i])) : shown;
+    const moments = lines.map((i): Moment => {
+      const id = `line-${i.id}`;
+      const detail = herDetail(i);
+      if (["meal", "stop", "tour", "checkin", "checkout"].includes(i.kind)) {
+        const q = i.title.replace(/^(Check (in|out)) · /, "").trim();
+        places[id] = { query: q, line: i.title };
+      }
+      return { ...base, id, title: itemTitle(i, stays, date), time: i.time ? timeLabel(i, dayItems) : null, start: hm(i.time),
+        note: detail[0] && detail[0].length <= 140 ? detail[0] : null, full: detail.join("\n") || null, info: [] };
+    });
+    return { moments, places, notes: [] as string[] };
+  })();
   const timelineTrains = listDrawn ? bookedMine.filter((x) => !nestedTrains.has(railKey(x))) : [];
   const landingInList = !!myLanding && alsoItems.includes(myLanding);
   const landingLegs = landingInList && listDrawn ? railMine.filter((x) => !isBookedTrain(x.r)
@@ -1889,7 +2049,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                               ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${airport.replace(/\s*\([A-Z]{3}\)$/, "")} to ${hotel}?` } }))}
                                   className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Ask Scout the ways to go ›</button>
                               : <span className="inline-flex items-center min-h-[44px] text-sm text-[#6b5d4a]">Scout can answer once you have signal</span>}
-                            <a href={`https://maps.apple.com/?saddr=${encodeURIComponent(airport.replace(/\s*\([A-Z]{3}\)$/, "") + " Airport, Japan")}&daddr=${encodeURIComponent(tonightHotel || hotel)}&dirflg=r`}
+                            <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(airport.replace(/\s*\([A-Z]{3}\)$/, "") + " Airport, Japan")}&destination=${encodeURIComponent(tonightHotel || hotel)}&travelmode=transit`}
                               target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Directions in Maps ↗</a>
                           </span>
                         </span>
@@ -2255,13 +2415,15 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
                 playCover={{ summary: summariesByDay[date] ? v.say(summariesByDay[date]) : null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
                   panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null,
+                  photos: dayPhotos,
                   sunset: forecastCity?.latitude != null && forecastCity?.longitude != null ? sunsetMinutes(forecastCity.latitude, forecastCity.longitude, date) : null,
                   rain: dayRain && (dayRain.wet?.length || dayRain.showers?.length) ? { wet: dayRain.wet || [], showers: dayRain.showers || [] } : null }}
                 playTomorrow={(() => {
                   // (straight into its Play when the next day has her plan; else its page)
                   if (!hasNext) return null;
                   const city = trip?.cities.find((c) => c.id === days.find((d) => ymd(d.date) === tomorrowDate)?.cityId)?.name;
-                  return { date: tomorrowDate, words: `${shortDate(tomorrowDate)}${city ? ` · ${city}` : ""}`, play: items.filter((i) => i.kind === "block" && ymd(i.date) === tomorrowDate).length >= 2 };
+                  // (every day plays now — Oct 15)
+                  return { date: tomorrowDate, words: `${shortDate(tomorrowDate)}${city ? ` · ${city}` : ""}`, play: items.some((i) => ymd(i.date) === tomorrowDate) };
                 })()}
                 panelOf={panels[date]?.of}
                 playBookings={(b) => (underLine.get(b.id) || []).map((o) => `${o.time ? `${timeLabel(o, dayItems)} · ` : ""}${itemTitle(o, stays, date)}`)}
@@ -2302,6 +2464,18 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* (a rail-sheet train her plan doesn't name joins this list too — then it isn't all "in her Guide") */}
             {planBlocks.length > 0 && (alsoItems.length > 0 || timelineTrains.length > 0) && (
               <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">{timelineTrains.length ? "Also today" : `Also in ${v.her} Guide for today`}</h2>
+            )}
+            {/* (every day plays — a Backroads day from their itinerary, any other from her lines; Ken, Oct 15) */}
+            {!planBlocks.length && docAsked && dayPlay.moments.length > 0 && (
+              <DayPlay tripId={tripId} cityId={bandCity?.id} date={date} moments={dayPlay.moments} places={dayPlay.places}
+                heading={docDay ? "The day with Backroads" : `The day in ${v.her} Guide`}
+                playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
+                cover={{ summary: summariesByDay[date] ? v.say(summariesByDay[date]) : null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
+                  notes: dayPlay.notes, panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null, photos: dayPhotos, her: v.Her,
+                  sunset: forecastCity?.latitude != null && forecastCity?.longitude != null ? sunsetMinutes(forecastCity.latitude, forecastCity.longitude, date) : null,
+                  rain: dayRain && (dayRain.wet?.length || dayRain.showers?.length) ? { wet: dayRain.wet || [], showers: dayRain.showers || [] } : null }}
+                nowAt={isToday ? tripNow : null}
+                playTomorrow={hasNext ? { date: tomorrowDate, words: `${shortDate(tomorrowDate)}${(() => { const c = trip?.cities.find((x) => x.id === days.find((d) => ymd(d.date) === tomorrowDate)?.cityId)?.name; return c ? ` · ${c}` : ""; })()}`, play: items.some((i) => ymd(i.date) === tomorrowDate) } : null} />
             )}
             {dayItems.length === 0 && choices.length === 0 && planBlocks.length === 0 ? (
               day?.dayType === "guided" ? (
@@ -2555,6 +2729,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 )}
               </section>
             )}
+
+            {/* Your photos from the day, and the ones the others shared (Oct 15: "Value, delight. Not gimmicks") */}
+            {tripId && date && tripFirst && last && <DayPhotos tripId={tripId} date={date} canAdd={date <= today} trip={{ first: tripFirst, last }} />}
 
             {/* Every day of the stay (and Now): Larisa's note for the whole stay, as background — one row, opened in place */}
             {stopNotes.map((s) => (

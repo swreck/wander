@@ -16,6 +16,7 @@ import useBackToClose from "../hooks/useBackToClose";
 import { placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
 import PlaceGallery from "./PlaceGallery";
 import { lockScroll } from "../lib/scrollLock";
+import { PHOTOS_CHANGED, useShowable, type TripPhoto } from "../lib/tripPhotos";
 
 export interface Moment {
   id: string; time: string | null; title: string; note: string | null; map: string | null; hit: PlaceHit | null;
@@ -36,6 +37,12 @@ export interface Moment {
   at?: string | null;
   /** on board its booked train now (its "Getting there" is behind you) */
   onBoard?: boolean;
+  /** the button for its full words when they aren't hers ("Backroads' words") */
+  fullLabel?: string;
+  /** its kind of moment when its title doesn't say ("bike", "temple", "outdoors"…), for the drawn card */
+  kind?: string;
+  /** what its photo shows when that's an example rather than the exact spot, said beside the credit */
+  photoWords?: string;
 }
 
 export interface PlayCover {
@@ -49,6 +56,8 @@ export interface PlayCover {
   rain?: { wet: [number, number][]; showers: [number, number][] } | null;
   /** "Her" or, to Larisa, "Your" — for "Her full note" */
   her?: string;
+  /** your photos from the day and the ones shared with the trip — each after the moment it was taken in */
+  photos?: TripPhoto[];
 }
 
 // ── A moment with no photo: drawn for its kind of stop, so it reads as finished — never as the place itself ──
@@ -83,14 +92,14 @@ const KINDS: { test: RegExp; kind: Kind }[] = [
 ];
 const ANY: Kind = { name: "moment", from: "#4a3c2c", to: "#1d1813",
   icon: <g {...stroke}><circle cx="12" cy="12" r="8.5" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></g> };
-const kindOf = (m: Moment): Kind => (m.trains.length ? KINDS.find((k) => k.kind.name === "train")!.kind : KINDS.find((k) => k.test.test(m.title))?.kind || KINDS.find((k) => k.test.test(m.note || ""))?.kind || ANY);
+const kindOf = (m: Moment): Kind => (m.trains.length ? KINDS.find((k) => k.kind.name === "train")!.kind : (m.kind ? KINDS.find((k) => k.kind.name === m.kind)?.kind : undefined) || KINDS.find((k) => k.test.test(m.title))?.kind || KINDS.find((k) => k.test.test(m.note || ""))?.kind || ANY);
 
 /** "in 45 min", "in 1 h 20 min" — and past three hours, the part of the day (tourist65: "in 11 h 30 min" at 7 AM was
  *  noise) */
 const inWords = (min: number, at: number) => (min < 60 ? `in ${Math.max(1, Math.round(min))} min` : min <= 180 ? `in ${Math.floor(min / 60)} h${min % 60 ? ` ${Math.round(min % 60)} min` : ""}`
   : at < 12 * 60 ? "This morning" : at < 17 * 60 ? "This afternoon" : "This evening");
 
-type Slide = { kind: "cover" } | { kind: "moment"; i: number } | { kind: "end" };
+type Slide = { kind: "cover" } | { kind: "moment"; i: number } | { kind: "photo"; p: TripPhoto } | { kind: "end" };
 
 export default function PlayTheDay({ moments, dayWords, start, onClose, cover, nowAt = null, tomorrow = null }: {
   moments: Moment[]; dayWords: string;
@@ -103,8 +112,33 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
   tomorrow?: { words: string; play: boolean; go: () => void } | null;
 }) {
   useBackToClose(true, onClose);
-  const slides: Slide[] = [{ kind: "cover" }, ...moments.map((_, i) => ({ kind: "moment" as const, i })), { kind: "end" }];
-  const opening = start >= 0 && start < moments.length ? start + 1 : 0;
+  const coverPhotos = useShowable(cover?.photos || []);
+  // The day as lived: her moments in her order, and your photos (yours, and the ones shared) each after the moment it
+  // was taken in — by the photo's own clock; one taken before her first moment comes first, one without a clock at the end
+  // (a photo the server says isn't there for you anymore — made private or deleted while Play is open — leaves at once)
+  const [gonePhoto, setGonePhoto] = useState<Record<string, boolean>>({});
+  const slides: Slide[] = (() => {
+    const out: Slide[] = [{ kind: "cover" }];
+    const shots = coverPhotos.filter((p) => !gonePhoto[p.id]).map((p) => ({ p, min: p.takenAt ? Number(p.takenAt.slice(11, 13)) * 60 + Number(p.takenAt.slice(14, 16)) : null }));
+    const starts = moments.map((m) => m.start ?? null);
+    const homeOf = (min: number | null) => {
+      if (min === null) return moments.length;                  // no clock: at the end
+      let k = -1;
+      for (let i = 0; i < moments.length; i++) if (starts[i] !== null && starts[i]! <= min) k = i;
+      return k;                                                 // -1: before her first moment
+    };
+    const placed = shots.map((x) => ({ ...x, home: homeOf(x.min) }));
+    for (const x of placed.filter((y) => y.home === -1)) out.push({ kind: "photo", p: x.p });
+    moments.forEach((_, i) => {
+      out.push({ kind: "moment", i });
+      for (const x of placed.filter((y) => y.home === i)) out.push({ kind: "photo", p: x.p });
+    });
+    for (const x of placed.filter((y) => y.home === moments.length)) out.push({ kind: "photo", p: x.p });
+    out.push({ kind: "end" });
+    return out;
+  })();
+  const momentSlide = (i: number) => slides.findIndex((x) => x.kind === "moment" && x.i === i);
+  const opening = start >= 0 && start < moments.length ? momentSlide(start) : 0;
   const [at, setAt] = useState(opening);
   const [was, setWas] = useState<number | null>(null);
   const [gallery, setGallery] = useState(false);
@@ -115,7 +149,8 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
   const [drag, setDrag] = useState(0);
   const touch = useRef<{ x: number; y: number; t: number } | null>(null);
   const swiped = useRef(0);
-  const slide = slides[at];
+  const slide = slides[Math.min(at, slides.length - 1)];
+  useEffect(() => { if (at > slides.length - 1) setAt(slides.length - 1); }, [at, slides.length]);
   // (the slide before is dropped once the new one has faded in — tourist65: kept, it showed around a small photo)
   useEffect(() => { if (was === null) return; const t = setTimeout(() => setWas(null), 450); return () => clearTimeout(t); }, [was, at]);
   const go = (to: number) => {
@@ -193,8 +228,13 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
   // (when it starts, her words: "1:30 PM" of "1:30 PM – 5:00 PM", "11:00" of "11:00–11:30 entry" — the name needs the room)
   const startOf = (t: string) => t.replace(/\s*[–-].*$/, "");
   const timed = moments.filter((x) => x.time && x.start != null);
-  const span = timed.length > 1 ? `${startOf(timed[0].time!)} to ${startOf(timed[timed.length - 1].time!)}` : null;
+  // (only when the day's first and last moments have a time — a Backroads day timed only at its 8:30 meeting read
+  // "Morning to 8:30 AM", as if it ended there)
+  const span = timed.length > 1 && moments[0]?.time && moments[moments.length - 1]?.time ? `${startOf(timed[0].time!)} to ${startOf(timed[timed.length - 1].time!)}` : null;
   const nextMoment = momentAt(at + 1);
+  const nextSlide = slides[at + 1];
+  // ("7:42 PM", from the photo's own clock)
+  const photoTime = (p: TripPhoto) => { const t = p.takenAt?.slice(11, 16); if (!t) return null; const h = Number(t.slice(0, 2)); return `${h % 12 || 12}:${t.slice(3, 5)} ${h < 12 ? "AM" : "PM"}`; };
   const summary = (cover?.summary || "").trim();
 
   // The background of a slide: her stop's photo (a small one whole, over a blur of itself), the kind of stop drawn, the
@@ -214,6 +254,17 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
           <div className="absolute inset-0" style={{ background: s.kind === "end" ? "rgba(20,16,12,.7)" : "linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,.25) 50%, rgba(0,0,0,.85) 100%)" }} />
         </div>
       ) : <div key={`bg-${k}`} className={`absolute inset-0${fade}`} style={{ background: "radial-gradient(120% 80% at 30% 20%, #4a3c2c 0%, #1d1813 70%)" }} aria-hidden />;
+    }
+    if (s.kind === "photo") {
+      // your photo, whole, over a soft blur of itself — never cropped (people's pictures are composed)
+      return (
+        <div key={`bg-${k}`} className={`absolute inset-0 bg-black${fade}`} aria-hidden>
+          <img src={s.p.thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-50" />
+          <img src={s.p.url} alt="" className="absolute inset-0 w-full h-full object-contain"
+            onError={() => { setGonePhoto((g) => ({ ...g, [s.p.id]: true })); window.dispatchEvent(new Event(PHOTOS_CHANGED)); }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 20%, rgba(0,0,0,0) 70%, rgba(0,0,0,.75) 100%)" }} />
+        </div>
+      );
     }
     const x = momentAt(k)!;
     if (x.hit) {
@@ -279,7 +330,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
       <div ref={topRef} className="absolute inset-x-0 top-0 z-30 px-3" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
         <div className="flex gap-1" aria-hidden>
           {moments.map((x, i) => {
-            const k = i + 1;
+            const k = momentSlide(i);
             return <span key={x.id} className={`flex-1 h-[3px] rounded-full transition-colors duration-300 ${k < at ? "bg-white/85" : k === at ? "bg-white" : "bg-white/30"}`} />;
           })}
         </div>
@@ -315,6 +366,12 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
               <p className="text-[14px] text-white/75 mt-2">{moments.length} moments{span ? ` · ${span}` : ""}{cover?.sunset != null ? ` · sunset about ${Math.floor(cover.sunset / 60) % 12 || 12}:${String(cover.sunset % 60).padStart(2, "0")} PM` : ""}</p>
               {/* (the city's photo credit comes worded: "Photo: Léonard Havet") */}
               {cover?.photo && (cover.photo.place || cover.photo.credit) && <p className="text-[11px] text-white/55 mt-1">{[cover.photo.place, cover.photo.credit].filter(Boolean).join(" · ")}</p>}
+            </div>
+          )}
+          {slide.kind === "photo" && (
+            <div className="pb-3">
+              <p className="text-[15px] text-white/90 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]">{slide.p.mine ? "Your photo" : `${slide.p.authorName}'s photo`}{photoTime(slide.p) ? ` · ${photoTime(slide.p)}` : ""}{slide.p.mine && !slide.p.shared ? " · just you" : ""}</p>
+              {slide.p.caption && <p className="text-[17px] text-white mt-0.5 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]">{slide.p.caption}</p>}
             </div>
           )}
           {slide.kind === "end" && (
@@ -358,12 +415,14 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                   </div>
                 )}
                 <div className="flex flex-wrap items-center gap-x-5 mt-1 pointer-events-auto">
-                  {m.full && <button type="button" onClick={() => setFull((f) => !f)} className="inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">{full ? "Less" : `${cover?.her || "Her"} full note`}</button>}
+                  {m.full && <button type="button" onClick={() => setFull((f) => !f)} className="inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">{full ? "Less" : m.fullLabel || `${cover?.her || "Her"} full note`}</button>}
                   {m.map && <a href={m.map} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">Maps ↗</a>}
                   {m.hit && m.hit.photos.length > 1 && (
                     <button type="button" onClick={() => setGallery(true)} className="inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">{m.hit.photos.length} photos</button>
                   )}
                 </div>
+                {/* (what the photo is, when it's an example — "Mount Daimonji, as an example" — said with its credit) */}
+                {m.hit && m.photoWords && <p className="text-[12px] text-white/75">{m.photoWords}</p>}
                 {m.hit?.photos[0]?.credit && <p className="text-[11px] text-white/55">Photo: {m.hit.photos[0].credit} · Google</p>}
               </div>
             );
@@ -398,7 +457,12 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                 className="flex-1 min-w-0 min-h-[54px] pl-5 pr-4 rounded-full bg-white text-[#2a231c] text-[16px] flex items-center justify-between gap-3 shadow-[0_4px_18px_rgba(0,0,0,.35)] active:scale-[.98] transition-transform">
                 {/* (two lines, so the name has the width — "Ginza Premiu…" on one) */}
                 <span className="min-w-0 text-left flex flex-col leading-tight py-1.5">
-                  {nextMoment ? (
+                  {nextSlide?.kind === "photo" ? (
+                    <>
+                      <span className="text-[12px] text-[#6b5d4a]"><span className="font-semibold text-[#2a231c]">{slide.kind === "cover" ? "Start" : "Next"}</span>{photoTime(nextSlide.p) ? ` · ${photoTime(nextSlide.p)}` : ""}</span>
+                      <span className="text-[16px] font-medium truncate">{nextSlide.p.mine ? "Your photo" : `${nextSlide.p.authorName}'s photo`}</span>
+                    </>
+                  ) : nextMoment ? (
                     <>
                       <span className="text-[12px] text-[#6b5d4a]"><span className="font-semibold text-[#2a231c]">{slide.kind === "cover" ? "Start" : "Next"}</span>{nextMoment.at ? ` · ${nextMoment.at}` : nextMoment.time ? ` · ${startOf(nextMoment.time)}` : ""}</span>
                       <span className="text-[16px] font-medium truncate">{nextMoment.title}</span>

@@ -55,6 +55,7 @@ import tripNoteRoutes from "./routes/tripNotes.js";
 import tellKenRoutes from "./routes/tellKen.js";
 import wanderIdeaRoutes from "./routes/wanderIdeas.js";
 import expenseRoutes from "./routes/expenses.js";
+import tripPhotoRoutes from "./routes/tripPhotos.js";
 import placePhotoRoutes from "./routes/placePhotos.js";
 import cityPhotoRoutes from "./routes/cityPhoto.js";
 import phoneReportRoutes from "./routes/phoneReports.js";
@@ -122,6 +123,8 @@ app.use("/api/phone-reports", express.json({ limit: "2kb" }));
 app.use("/api/papers", express.json({ limit: "15mb" }));
 // (an idea for Wander: up to six screenshots, each shrunk on the phone — Oct 15)
 app.use("/api/wander-ideas", express.json({ limit: "20mb" }));
+// (one photo at a time: ~1800 px and a small copy, as base64)
+app.use("/api/trip-photos", express.json({ limit: "8mb" }));
 app.use(express.json({ limit: "10mb" })); // Reduced from 50mb
 
 // API routes
@@ -189,6 +192,7 @@ app.use("/api/maybes", maybeRoutes);
 app.use("/api/trip-notes", tripNoteRoutes);
 app.use("/api/tell-ken", tellKenRoutes);
 app.use("/api/expenses", expenseRoutes);
+app.use("/api/trip-photos", tripPhotoRoutes);
 app.use("/api/wander-ideas", wanderIdeaRoutes);
 app.use("/api/place-photos", placePhotoRoutes);
 app.use("/api/city-photo", cityPhotoRoutes);

@@ -30,6 +30,27 @@ const DAY_CACHE = 'wander-days-v1';
 const MAP_CACHE = 'wander-maps-v1';
 const IMAGE_CACHE = 'wander-images-v1';
 
+// ── Your own photos: asked fresh each time, the saved copy only with no signal ──
+// (a photo made private again or deleted stops showing at once: its saved copy goes when the answer is "not there"; each
+// link is made for one person, so one person's saved copy is never another's — tourist75, Oct 15 2026)
+const PHOTO_CACHE = 'wander-photos-v1';
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/api/trip-photos/image/'),
+  // (no time limit on the answer: on a weak signal the saved copy of a photo its taker had just made private showed after
+  // 4 s — tourist77. A slow photo loads slowly; the saved copy is only for no signal at all)
+  new NetworkFirst({
+    cacheName: PHOTO_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [200] }),
+      new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 3 * 24 * 60 * 60 }),
+      { fetchDidSucceed: async ({ request, response }: { request: Request; response: Response }) => {
+        if (response.status === 404 || response.status === 403) await (await caches.open(PHOTO_CACHE)).delete(request);
+        return response;
+      } },
+    ],
+  })
+);
+
 // ── Static assets: StaleWhileRevalidate — but NOT the precached app bundle ──
 // The main JS/CSS bundles are handled by precacheAndRoute above (which uses
 // cache-first with hash-based versioning). This route is for other static
@@ -122,7 +143,8 @@ registerRoute(
 // browser ran out of connections and Wander went blank. Those go straight to the network.
 // (trip notes too: this copy is the phone's, not the person's — on a phone handed to someone else, a saved copy of one
 // person's notes showed to the next with no signal. The Notes screen keeps its own copy, per person. Oct 1 2026)
-const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat', '/api/trip-notes'];
+// (and the photo lists, for the same reason: the Day screen keeps its own copy, per person — Oct 15 2026)
+const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat', '/api/trip-notes', '/api/trip-photos'];
 registerRoute(
   ({ url, request }) =>
     url.pathname.startsWith('/api/') && request.method === 'GET' &&

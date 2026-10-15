@@ -69,7 +69,7 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
 
 export function broadcastChange(
   tripId: string,
-  data: { userCode: string; displayName: string; description: string },
+  data: { userCode: string; displayName: string; description: string; quiet?: boolean },
 ) {
   const clients = connections.get(tripId);
   if (!clients || clients.size === 0) return;
@@ -79,6 +79,8 @@ export function broadcastChange(
     userCode: data.userCode,
     displayName: data.displayName,
     description: data.description,
+    // (quiet: open screens catch up, with no notice over them — a photo shared or taken back, Oct 15 2026)
+    ...(data.quiet ? { quiet: true } : {}),
     timestamp: Date.now(),
   });
 
