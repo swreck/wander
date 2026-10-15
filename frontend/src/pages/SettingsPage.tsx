@@ -88,7 +88,7 @@ export default function SettingsPage() {
           {confirmSignOut ? (
             <div className="rounded-xl border border-[#e0d8cc] bg-white p-4">
               <p className="text-sm text-[#3a3128]">This phone doesn't have Face ID set up for Wander.</p>
-              <p className="text-sm text-[#6b5d4a] mt-1">After signing out, you'll need your link from Ken or Larisa to get back in.</p>
+              <p className="text-sm text-[#6b5d4a] mt-1">{/^(ken|larisa)\b/i.test(authUser?.displayName || "") ? "After signing out, you'll need your personal Wander link, or Face ID, to get back in." : "After signing out, you'll need your link from Ken or Larisa to get back in."}</p>
               <div className="flex gap-2 mt-3">
                 <button onClick={() => setConfirmSignOut(false)} className="min-h-[44px] flex-1 rounded-lg bg-[#514636] text-white text-sm">Stay signed in</button>
                 <button onClick={signOut} className="min-h-[44px] flex-1 rounded-lg border border-[#d6ccbc] text-[#8a3a2a] text-sm">Sign out anyway</button>
@@ -209,7 +209,10 @@ function SheetSyncSection() {
           <div key={s.id} className="p-3 text-[13px]">
             <p className="text-[#3a3128] font-medium">{samePerson(s.owner, me) ? `Your ${s.name.toLowerCase()}` : `${s.owner}'s ${s.name.toLowerCase()}`}</p>
             <p className="text-[#6b5d4a] mt-0.5">
-              {s.authorship ? `${s.authorship[0].toUpperCase()}${s.authorship.slice(1)}. ` : ""}Read every few minutes{s.readAt ? ` — last ${japanWhen(s.readAt)}` : ""}.
+              {/* ("Written with AI help. Read every few minutes — last Oct 9" said a week-old date beside "every few minutes",
+                  and AI help as a label; user-ken1, Oct 16) */}
+              {s.authorship && /\bAI\b/.test(s.authorship) ? `${samePerson(s.owner, me) ? "You keep" : `${s.owner} keeps`} it with AI's help. ` : s.authorship ? `${s.authorship[0].toUpperCase()}${s.authorship.slice(1)}. ` : ""}
+              Wander looks at it every few minutes{(s.lastError ? s.readAt : s.lastTriedAt || s.readAt) ? ` — last ${japanWhen((s.lastError ? s.readAt : s.lastTriedAt || s.readAt)!)}` : ""}.
               {s.lastError ? " Its latest read didn't work, so Wander is showing the copy before that." : ""}
             </p>
           </div>

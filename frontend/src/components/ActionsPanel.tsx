@@ -366,7 +366,10 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
   };
 
   // One to-do, as a card — yours, or in someone else's list opened in place
-  const renderTodo = (a: PlanningAction, firstEarlier = false) => {
+  // (inGroup: opened under a list's own row — "Under “LT actions” in your Actions tab" — which already says where it's
+  // from; each item said it three more times: "Marked 'LT' in your sheet", "in your Guide", "In your 'LT actions' list";
+  // user-larisa1, Oct 16)
+  const renderTodo = (a: PlanningAction, firstEarlier = false, inGroup = false) => {
                 const dest = getActionDestination(a);
                 return (
                   <Fragment key={a.id}>
@@ -422,7 +425,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                           {a.dueDate && a.dueDate !== "TBD" && a.dueDate !== "null" && (
                             <span>{isPastDue(a.dueDate, todayStart) ? "was aiming for " : "by "}{dueWords(a.dueDate)}</span>
                           )}
-                          <span className="text-xs text-[#6b5d4a]">{whoAdded(a)}</span>
+                          {!inGroup && <span className="text-xs text-[#6b5d4a]">{whoAdded(a)}</span>}
                           {takeOut(a)}
                         </div>
 
@@ -484,7 +487,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                               <button onClick={() => handleSaveNotes(a.id)} className="min-h-[44px] px-4 text-sm text-white bg-[#514636] rounded-lg font-medium">Save</button>
                             </div>
                           </div>
-                        ) : a.notes ? (
+                        ) : a.notes && !(inGroup && /^In her “[^”]+” list$/.test(a.notes)) ? (
                           <p
                             className={`text-sm text-[#6b5d4a] mt-2 leading-relaxed bg-[#faf8f5] rounded-lg px-3 py-2 ${a.sheetRowRef ? "" : "cursor-text"}`}
                             onClick={() => { if (!a.sheetRowRef) { setEditingId(a.id); setEditNotes(a.notes || ""); } }}
@@ -646,7 +649,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
               {/* (not "Coming up": a to-do with no date — her April "Activities", TBD — isn't coming up; round 12) */}
               {upcoming.length > 0 ? "Still to do" : open.length > 0 ? "Earlier to-dos in the Guide" : "Still to do"}
             </div>
-            {open.length === 0 && <p className="text-sm text-[#6b5d4a] mb-3">Nothing for you right now.</p>}
+            {/* ("named for you": a list under a heading below can still hold something — user-larisa1, Oct 16: "Nothing for
+                you right now" sat over "Your 'LT actions' list · 1" and she couldn't tell whether it was hers) */}
+            {open.length === 0 && <p className="text-sm text-[#6b5d4a] mb-3">Nothing named for you right now.</p>}
             <div className="space-y-2">
               {open.map((a, idx) => renderTodo(a, upcoming.length > 0 && idx === upcoming.length))}
             </div>
@@ -660,9 +665,9 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                           Oct 10 re-audit: "LT's to-dos" meant nothing to Julie and Andy, nor to Ken) */}
                       {/* (a heading in her Actions tab that names no one we know — "LT actions" over "Chase Sapphire" — is
                           quoted as her heading, never read as a person; Ken, Oct 10: "There is no LT") */}
-                      {(whoFor(list[0]) || []).every((n) => /^[A-Z]{2,3}$/.test(n)) ? `${voiceFor(me).Her} “${who} actions” list` : `${who}'s to-dos`} · {list.length} {openList === who ? "‹" : "›"}
+                      {(whoFor(list[0]) || []).every((n) => /^[A-Z]{2,3}$/.test(n)) ? `Under “${who} actions” in ${voiceFor(me).her} Actions tab` : `${who}'s to-dos`} · {list.length} {openList === who ? "‹" : "›"}
                     </button>
-                    {openList === who && <div className="space-y-2 mt-2">{list.map((a) => renderTodo(a))}</div>}
+                    {openList === who && <div className="space-y-2 mt-2">{list.map((a) => renderTodo(a, false, true))}</div>}
                   </div>
                 ))}
               </div>

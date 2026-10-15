@@ -360,7 +360,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
               )}
               {/* (a long summary says there's more — tourist65: clamped with no way to read it) */}
               {summary.length > 190 && (
-                <button type="button" onClick={() => setFull((f) => !f)} className="pointer-events-auto inline-flex items-center min-h-[44px] text-[15px] text-white underline underline-offset-4">{full ? "Less" : "More"}</button>
+                <button type="button" onClick={() => setFull((f) => !f)} className="pointer-events-auto inline-flex items-center min-h-[44px] min-w-[44px] pr-2 text-[15px] text-white underline underline-offset-4">{full ? "Less" : "More"}</button>
               )}
               {(cover?.notes || []).map((n) => <p key={n} className="text-[13px] mt-2 bg-[#fff8ec]/90 text-[#6a4512] rounded-lg px-2.5 py-1.5">{n}</p>)}
               <p className="text-[14px] text-white/75 mt-2">{moments.length} moments{span ? ` · ${span}` : ""}{cover?.sunset != null ? ` · sunset about ${Math.floor(cover.sunset / 60) % 12 || 12}:${String(cover.sunset % 60).padStart(2, "0")} PM` : ""}</p>
@@ -411,6 +411,8 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                 {/* (all her words for the line, here in Play — Ken's lunch note stopped at "gourmet fresh salads from…") */}
                 {full && m.full && (
                   <div data-scroll className="pointer-events-auto mt-2 max-h-[40vh] overflow-y-auto rounded-lg bg-black/35 px-3 py-2">
+                    {/* (whose words, still said once open — the button that named them turns into "Less"; user-ken1) */}
+                    {m.fullLabel && <p className="text-[11px] uppercase tracking-[.12em] text-white/60 mb-1">{m.fullLabel}</p>}
                     <p className="text-[15px] leading-snug text-white/95 whitespace-pre-line">{m.full}</p>
                   </div>
                 )}

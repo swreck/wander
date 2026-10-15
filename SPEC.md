@@ -873,7 +873,7 @@ This section requires GPS to be active. If GPS is unavailable, no opportunistic 
 
 ## 20. Leave-Time Calculation
 
-*[Superseded: see Part II §2.4. Walk, Train and Taxi open Apple Maps from where the phone is; on the last day her own way to the airport is used.]*
+*[Superseded: see Part II §2.4. Walk, Train and Taxi open Google Maps from where the phone is; on the last day her own way to the airport is used.]*
 
 ### 20.1 Calculation Logic
 
@@ -1415,11 +1415,13 @@ reads "Larisa's Guide" and "Ken's rail sheet". Wander's own lines never talk abo
 
 ### 1.4 The screens
 
-The bottom bar, on every screen: **Home · Maybes · Next · Notes · Actions · Scout**, and a small **日** at its right end
-for the phrase card. Tapping Home while on Home closes Actions and Scout and goes back to the top. A dot on a tab means
+The bottom bar, on every screen: **Home · Maybes · Next · Notes · Budget · Scout**, and a small **日** at its right end
+for the phrase card. Budget took Actions' place on Oct 15 (Ken: "There seems to be no need for the [Actions] button in
+the main navigation menu, so you can replace that with budget"); to-dos and deadlines open from Home (§11). Budget's
+icon says who pays next (§9.9). Tapping Home while on Home closes any open panel and Scout and goes back to the top. A dot on a tab means
 something new there.
 
-Other screens: a day (tap any day on Home's calendar), the whole trip on one page, History ("What's changed in
+Other screens: a day (tap any day on Home's calendar), the budget page, the story of the trip, the whole trip on one page, History ("What's changed in
 Wander"), People, Settings, Profile (travel documents), How Wander works, the ticket pickup page, and Ideas for Wander.
 The old Plan screen's address now opens Maybes.
 
@@ -1442,6 +1444,10 @@ Home is the trip at a glance, with today first. From the top:
   from noon in Japan, tonight's town leads. Rain hours aren't on Home: Ken asked for one line there (§6).
 - **The trip map** (§2.3).
 - **The Today card** (§2.2), or before the trip the countdown and your first days, or after it "Welcome home".
+- **The budget line**, just under the Today card: "Budget: ¥… shared so far" (or "nothing kept yet"), with "Who pays
+  next: …" and what would make the couples even under it. A tap opens the budget page (§9.9). Ken (Oct 15): "a button on
+  the homepage that actually shows the total and then has all the detail below it."
+- **To-dos and deadlines ›**, one quiet line under it, opening what the Actions tab used to open (§11).
 - **Quiet notes**: the Safety tips note under the day's card (§6.7); and one ask per visit, in order, the leaving card,
   Face ID, then the welcome (§17.1).
 - **The calendar**: every day of the trip in its city's colour with a small map (hidden when Google's maps can't be
@@ -1451,7 +1457,6 @@ Home is the trip at a glance, with today first. From the top:
 - **Recent activity**: what people did in Wander (maybes, shared notes, picks, plans added). One person's quick changes
   of mind on one line within half an hour merge into the latest. Something added and taken back is left out (History
   keeps both). A private note never appears.
-- **Who pays next: … ›**, pointing to the couple with the smaller total and opening the Money page (§9.9).
 - **A Maybes line** when there's something new: "Andy has a maybe for Tokyo: "…" · and 1 more ›". No phone alerts.
 
 **The leaving card** (Oct 2). For anyone whose own first flight is after the trip begins (Andy and Julie), once a day
@@ -1537,9 +1542,15 @@ Rules that keep it right:
 **What Next shows.** One strong card at a time; a second card is a step quieter.
 - **The Next card**: the time, how long until it, her transit and dress notes ("Notes from your Guide ›"), the group's
   pick or "2 places to choose from", whether her tabs differ. Under it: **Find in Maps**, and **Get there from where
-  you are: Walk · Train · Taxi**, each opening Apple Maps with directions from the phone to her own place (the pin of a
-  place she linked, the address she wrote, a hotel's booked address). Nobody types an address. Not shown for a flight,
-  or for a stop with no place.
+  you are: Walk · Train · Taxi**, each opening Google Maps with walking, transit or driving directions from the phone to
+  her own place (the pin of a place she linked, the address she wrote, a hotel's booked address). Nobody types an
+  address. Not shown for a flight, or for a stop with no place.
+
+**Every map link opens Google Maps** (Oct 15): a day's "Maps ↗", Next's Find in Maps and Walk / Train / Taxi, the
+airport-to-hotel route, Play's Maps and Scout's directions. Ken: "Apple Maps sent us to the wrong place for dinner
+tonight. Putting address into Google Maps went to right place. Please have the map link go to Google Maps if you can."
+Her own Apple Maps search links in her cells open the same search in Google Maps. Her Apple Maps guides, which she made
+in Apple Maps, stay Apple's.
 - **The train card**: "Next train · in 2 hr 57 min", car, seats, reservation number, any check before boarding, and the
   seat from a ticket you kept (§5.5).
 - **The landing card**, for the person landing: the status by the schedule (§18.4), and how to get from the airport to
@@ -1685,9 +1696,9 @@ cells (§4.6). Phone numbers can be tapped only when they're shaped like a phone
 
 ### 3.5 Reference, last
 
-At the foot of the day: her note for a whole stay, folded to one row ("Larisa's note for the Okayama stay, Oct 6–8 ›");
-"Also in her Guide for today" for what has no line of hers; where everyone sleeps ("Tonight", or "The night of Wed,
-Oct 14" on another day); the papers kept for that day (§9.6); and the gray footer: "Larisa's Guide, as Wander last read
+At the foot of the day: "Also in her Guide for today" for what has no line of hers; where everyone sleeps ("Tonight",
+or "The night of Wed, Oct 14" on another day); "Photos from the day" (§3.8); her note for a whole stay, folded to one
+row ("Larisa's note for the Okayama stay, Oct 6–8 ›"); the papers kept for that day (§9.6); and the gray footer: "Larisa's Guide, as Wander last read
 it …" and "The trains are from your rail sheet, as Wander last read it … Japan time."
 
 ### 3.6 Send this day
@@ -1703,7 +1714,21 @@ name, day, time, address and confirmation, for a concierge.
 The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' feels right"; for 2.0, "treat current as
 1.0… make it fabulous".
 
-- **Where**: "▶ Play the day" beside "Larisa's plan for the day", on days with her plan.
+- **Every day plays** (Oct 15). Ken, on a Backroads day: "Looking ahead I don't see it every day… I wanted to see Nikko
+  and looked ahead at this backroads day. But nothing." Then: "Create play every day. Use what you have from the
+  backroads content."
+  - **Where**: "▶ Play the day" beside "Larisa's plan for the day" on a day with her timed plan; beside "The day with
+    Backroads" on a Backroads day; beside "The day in her Guide" on any other day.
+  - **A Backroads day** plays Backroads' own itinerary (the one Ken gave Wander, §4.5), moment by moment in its order:
+    their words exactly ("Backroads' words" opens the whole passage, keeping its "…" where a sentence runs on), a short
+    title, the length they give ("13 or 26 miles by bike", "1 hour"), and a photo of each place they name, each checked
+    by AI to be that place. Where Backroads describes a place without naming it, a stand-in photo says so beside its
+    credit. Her Guide's own lines are those moments where she has them (the morning meeting, each dinner by her name for
+    it, the check-outs). Times only where she gives one; Backroads gives lengths. A choice in their day reads as one
+    moment ("…, or a climb to a viewpoint"). Play on a Backroads day waits for Backroads' moments before it offers itself.
+    The cover says: "From Backroads' general itinerary, Day N (page N). Details can differ for your departure; Larisa's
+    Guide has your bookings." Backroads' current web page describes another departure and isn't used.
+  - **Any other day** without her timed plan plays her lines in the day list's order.
 - **A moment**: the photo, the time, the name, a line of her note, a train's booking, her bookings and dress code, the
   stop her tab names for the line, Maps, "6 photos". "Her full note" shows all her words for the line.
 - **The list's corrections come along**: each moment carries what the day's list says about it (a booked arrival, "the
@@ -1715,8 +1740,8 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
   and right moves between moments; taps on the picture still work; swipe down, ✕ or Back closes. It never moves on by
   itself. Keyboard focus stays inside Play while it's open.
 - **The cover**: a day that isn't under way opens on the date and city over the day's own first stop photo (or the
-  city's), the day in a few sentences (her Itinerary line when there's no summary), "13 moments · 6:45 AM to 6:30 PM",
-  and **Start**. To Larisa the summary speaks in her voice ("your tab"), as the day page does. When her tab has two
+  city's), the day in a few sentences (her Itinerary line when there's no summary), "13 moments · 6:45 AM to 6:30 PM"
+  (the span only when the first and last moments have times), and **Start**. To Larisa the summary speaks in her voice ("your tab"), as the day page does. When her tab has two
   versions of the day, the cover says which one Play follows. Today opens on Now, with the cover one step back.
 - **Rain and sunset** (Oct 15). Play has no weather band, so the band's rain hours are said on the moments they touch:
   "The forecast has rain likely 2–6 PM" on the first moment of that span, "One forecast sees showers 9–10 AM" likewise.
@@ -1733,9 +1758,34 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
   shows whole over a blur of itself.
 - **On a booked train**, its moment leads with the booked times and gives her plan's time beneath. Once you're on the
   train, no "Getting there" shows.
+- **Your own photos**: photos shared with the trip, and your own, play right after the moment they were taken in
+  ("Next · 1:42 PM / Andy's photo"), whole and uncropped, with their words under them when someone added a few. A photo
+  with no clock comes after the timed ones. Someone else's photo shows only once its picture has come, and drops within
+  seconds when its taker makes it private or deletes it (§3.8).
 - **Motion**: photos drift slowly closer and fade into each other; none of that under Reduce Motion.
-- **The end**: "That's the day.", ‹ back to the last moment, and **Play tomorrow** when the next day has her plan, or
-  **See tomorrow** (the next day's page) when it doesn't.
+- **The end**: "That's the day.", ‹ back to the last moment, and **Play tomorrow**, straight into the next day's Play,
+  or **See tomorrow** (the next day's page) when that day has nothing to play.
+
+### 3.8 Your own photos
+
+Each of the four keeps their own photos on the trip day they took them (Oct 15). Ken: "Yes. Value, delight. Not
+gimmicks. Go", to: "let each of you add your own photos to a day… private by default, with a choice to share with the
+trip".
+
+- **Where**: "Photos from the day" near the foot of each day page (§3.5). With none yet: "Your photos from this day,
+  kept with it. Just yours unless you share them."
+- **Adding**: "+ Add photos" on today or an earlier day, several at once. Each is filed under the day its own clock
+  says it was taken (else the day you're on), and shrunk on the phone. "Share with the trip" starts where you left it
+  last time. Wander says where they went: "3 added, shared with the trip (some on Oct 14, when they were taken)".
+- **The strip** shows your photos and the ones the others shared, by when they were taken; your private ones are marked
+  "just you". Photos with no clock sit after the timed ones.
+- **The viewer**: a tap shows them full screen, a swipe for the next, with who and when ("You · 1:42 PM · just you"). On
+  your own: "Add a few words" (a caption, shown under it there and in Play), "Share with the trip" or "Keep it just for
+  me", and Delete, which asks first ("Delete for good" or "Don't delete") and is gone for real.
+- **Through Scout**: send a photo and say "keep this for today" (just yours) or "…share it" (keep_photo, prompt rule
+  62). A receipt or a ticket stays a paper (§9.6).
+- **Also in**: Play the day (§3.7) and the story of the trip, where shared photos lead their day (§9.8).
+- **Privacy**: nobody else ever sees a photo its taker hasn't shared (§19).
 
 ---
 
@@ -2068,17 +2118,28 @@ for word"). Escape closes the Sources panel, and only it.
   what it opened, and steps down to the slim bar. ↩ Back, a typed or spoken "back" and the phone's Back each go one
   screen. Scout never moves the screen while you're typing.
 - **The microphone**: tap to start, tap to stop; the words wait in the box for a glance and Send (Ken's choice, Oct 1).
-  No auto-send, no hold-to-talk. Send stops the mic. After six seconds with no words: "I'm not hearing any words yet…".
-  Pauses in a long recording are joined with a space, and a period where the iPhone signals a fresh sentence; the words
-  themselves are never changed (Oct 14).
-- **Dictation is never lost** (Oct 15). Ken: "Larisa was dictating something that started with the phrase, ask Ken with
-  a major new feature, and her phone just shut off and lost the dictation, and it was all wasted time. There is something
-  about scout getting dictation that needs to keep the phone from turning off". The screen stays on while Wander listens
-  and may sleep again when listening stops. Scout's unsent words, typed or dictated, are kept on the phone as they come,
-  so a screen going off, a reload or an update never loses them. They're back in the box the next time Scout opens.
-  Sending clears them. Each person's are their own.
+  No auto-send, no hold-to-talk. Send stops the mic. Before the first word, after six seconds with nothing heard: "I'm
+  not hearing any words yet…". Pauses in a long recording are joined with a space, and a period where the iPhone signals
+  a fresh sentence; the words themselves are never changed (Oct 14).
+- **The mic keeps listening until you tap stop** (Oct 16). Ken (Oct 15): "When dictating a note or message to scout,
+  wander seems to time out and iPhone sleeps while dictating." An iPhone ends a recording by itself after a pause; Wander
+  now starts listening again for the same person, the words heard so far kept in front. It doesn't start again once
+  they've tapped stop, while Wander is in the background, or when the phone keeps ending it at once. The same holds for
+  Notes' Talk.
+- **The screen stays on while words are coming** (Oct 15–16): while Wander's mic listens (Scout's mic, Notes' Talk), and
+  while any box in Wander has the cursor and words are arriving, since the keyboard's own microphone is the iPhone's and
+  Wander isn't told about it. It may sleep again when listening stops, when the box is left, or after 3 minutes with no
+  new words.
+- **Unsent words are never lost** (Oct 15). Ken: "Larisa was dictating something that started with the phrase, ask Ken
+  with a major new feature, and her phone just shut off and lost the dictation, and it was all wasted time. There is
+  something about scout getting dictation that needs to keep the phone from turning off". Scout's unsent words, typed or
+  dictated, are kept on the phone as they come, so a screen going off, a reload or an update never loses them. They're
+  back in the box the next time Scout opens. Sending clears them. Each person's are their own.
 - **Under each answer**: Sources, **Copy** (the whole answer as plain words), **Read aloud** (the phone's own voice,
-  Japanese in a Japanese voice, nothing sent anywhere), and any buttons the answer offers. Tables are drawn as tables.
+  Japanese in a Japanese voice, nothing sent anywhere), and any buttons the answer offers. On an iPhone the voice follows
+  silent mode, which Safari can't report, so while it reads a line says: "Hear nothing? Silent mode on your iPhone
+  silences this voice too." (Oct 15; the voice now starts a moment after any stop and holds each part until it's said,
+  since Safari had dropped it on Ken's iPhone.) Tables are drawn as tables.
   Web addresses show as short tappable names.
 - **While it works** it says what it's doing: "Reading your picture", "Reading what you sent", "Going through the trip",
   then "Still working — a long answer takes a minute or two". The phone waits up to two and a half minutes.
@@ -2135,8 +2196,8 @@ direction of your hotel".
   so it works for any wording. iOS forgets a Home Screen app's location answer each time it's opened, so this is the
   usual way on a fresh open. If they say no, a short reply says so; a second no says how to change it.
 - **Directions**: asked how to get somewhere, Scout names the stop and its time, quotes her own route for that leg, and
-  adds a button ("Walk to … ↗" with "Google Maps ↗" beside it): the way they asked, else the way her plan names, else
-  Walk and Train. It never writes turn-by-turn steps or travel times of its own. The destination is hers, best first
+  adds a button for each way, each opening Google Maps ("Walk to … ↗", "Taxi to … ↗"; §2.4): the way they asked, else
+  the way her plan names, else Walk and Train. It never writes turn-by-turn steps or travel times of its own. The destination is hers, best first
   (her linked pin, her address, a hotel's booked address, her map's pin); it never sends you to a different place of
   hers. When it can only search, the button says so: "Maps will search for … Check it's the right place before you go."
 - **The phone's position** is sent only with a question that needs it, goes to Google only for "near me" questions,
@@ -2163,6 +2224,7 @@ Scout's tools for Wander's own additions match the screens (§1.3 rule 11):
   it in Wander, never in her list.
 - **Getting around and weather**: directions, offer_location, places_near_me, get_weather, packing_tips.
 - **Money**: add_expense, remove_expense, money_so_far (§9.9).
+- **Your photos**: keep_photo, for the day, just yours or shared (§3.8).
 - **To Ken**: tell_ken (§13), add_wander_idea (§12).
 - **Screens**: opening any screen Scout can describe.
 
@@ -2254,7 +2316,8 @@ Trip notes are kept word for word, the original always kept. The design for late
 
 - **Where**: the Notes tab; "+ Add a note for this day" on every day page; Scout's evening question; telling Scout.
 - **Write or talk**. Every word is kept exactly and read back with its count ("Saved — 142 words, every one kept";
-  "spoken" for a spoken note). While Talk listens, the screen stays on (§7.5).
+  "spoken" for a spoken note). Talk keeps listening through the iPhone's pauses until you tap stop, and the screen stays
+  on while it listens or while you're writing (§7.5).
 - **Just me or the trip**: each new note starts as "Just me"; sharing is per note.
 - **About**: a place on the trip, "Backroads", or "Japan overall", on the phone's own list. A new note starts at where
   you are once you've landed; before that, "Japan overall".
@@ -2324,6 +2387,10 @@ stops with their photos (or her plan's lines in her words, or her Itinerary's li
 own words from Notes exactly, and **Play the day** / **Open the day**. It is headed "The story so far" during the trip
 and "The story of the trip" after it. No AI writing.
 
+Photos: shared photos lead their day (§3.8), whole over a soft blur of themselves so a tall photo keeps its shape; your
+own private ones show to you, marked "just you". Its full-screen viewer follows the live photos, so Delete and "Keep it
+just for me" show at once.
+
 Whose notes: your own; someone else's only when shared with the trip and their writer said yes to trip stories (the
 note's own choice, else their setting; a question not yet answered counts as no). Never Scout's answers kept in Notes.
 
@@ -2339,15 +2406,28 @@ to the couple that currently has the smaller total." Ken's answers (Oct 15): sha
 and you should convert)"; all four see it; "It didn't need to be exact!"
 
 - **Keeping a payment**: any of the four tells Scout what a couple paid and for what ("we paid … for dinner", "Larisa got
-  the taxi"), or keeps it on the Money page. Scout answers "who pays next?" and takes a payment away when asked.
+  the taxi"), or uses **+ Add entry** on the budget page. Scout answers "who pays next?" and takes a payment away when
+  asked.
 - **The couples** are her Guide's: Ken & Larisa, and Julie & Andy.
 - **The sums**: each payment is shared half and half, so the couple that has paid less owes the other half the
   difference. Who pays next is the couple with the smaller total.
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.
-- **Taking one away**: only the person who kept it, or Ken. It is hidden, never deleted.
-- **Where**: Home ("Who pays next: … ›"), the Money page (/money), and Scout (add_expense, remove_expense,
-  money_so_far; prompt rule 61). Data: trip_expenses.
+- **Taking one away**: only the person who kept it, or Ken ("Remove", then "Take it away"). It is hidden, never deleted.
+- **The Budget tab** (bottom bar, Oct 15) opens the budget page. Its icon says who pays next: "KL" in purple when Ken &
+  Larisa do, "AJ" in orange when Andy & Julie do, a coin when they're even or nothing is kept. Ken: "So it will toggle
+  based on who is the next to pay, so it can be done in a glance or tapped to see the total. Make the KL version
+  purple. And AJ version orange." A payment kept or taken away, on the page or through Scout, quietly tells every open
+  screen, so the icon turns at once on all four phones.
+- **The budget page** leads with the total ("¥… shared so far", or "Nothing kept yet"), what each couple paid, who pays
+  next ("either — you're even" when they are) and what would make them even ("To be even now, … would pay … ¥…"). Then
+  **+ Add entry**, always there, which opens the form (Ken: "should always be another button that says add entry for
+  another one to be added then"). Then every entry, with what it was for when someone said, and nothing when no one did.
+  Ken: "It should show exactly what the item is if it is included in the entry, but can be blank if the topic is never
+  added."
+- **Home** has the budget line under the Today card (§2.1).
+- **Scout**: add_expense, remove_expense, money_so_far (prompt rule 61); Scout's map of the app knows Budget. Data:
+  trip_expenses.
 
 ---
 
@@ -2395,6 +2475,9 @@ The 日 card: Japanese phrases to say, and characters to find.
 ## 11. Actions and Deadlines
 
 Ken (Oct 9): "it seems to include old actions, non actions, and actions not for me".
+
+Since Oct 15 Actions has no tab of its own (Budget took its place). It opens from **To-dos and deadlines ›** on Home,
+under the budget line.
 
 ### 11.1 The Actions screen
 
@@ -2541,7 +2624,9 @@ setting never replaces the others.
 
 - **Other people's changes**: when someone else changes the plan, every open screen reloads at once, and a dark notice at
   the bottom says what changed, with "Got it" (gone by itself after 8 seconds). Screens catch up after a dropped
-  connection too. Someone taking back their own addition doesn't pop a notice.
+  connection too. Someone taking back their own addition doesn't pop a notice. A payment kept or taken away, and a
+  photo made private or deleted, reach every open screen quietly (the Budget icon turns; the photo drops within
+  seconds), and photos are looked at again whenever Wander comes back to the front.
 - **The day turning**: the day and Home screens update at midnight and whenever the phone is unlocked.
 - **A new version of Wander** loads by itself, but waits until no box on the screen holds unsent words (Oct 15). (Claude)
   The service worker's stale bundle is the main trap when checking a deploy; the global rule in ~/.claude/CLAUDE.md says
@@ -2573,7 +2658,10 @@ setting never replaces the others.
 - **Her pictures**, full screen from tab by tab and from Sources (§4.6). A picture holding people's own travel numbers is
   never shown (§19).
 - **Papers' photos** open in the phone's own viewer (§9.6).
-- **Photos sent to Scout** are read and never kept (§7.6).
+- **Your own photos**, kept on the day they were taken, private unless shared, in the day's strip, Play and the story
+  (§3.8). Until Oct 15 every photo in Wander came from Google or the city.
+- **Photos sent to Scout** are read and never kept (§7.6), unless someone asks Scout to keep one for the day (§3.8) or
+  as a paper (§9.6).
 
 ---
 
@@ -2668,6 +2756,18 @@ night of Wed, Oct 14". "As Wander last read it" is in Japan time on every phone.
   Larisa's by each other.
 - **Location** is sent only with a question that needs it and never stored (§7.7).
 - **Signals** for the Tell Ken offer are added up on the phone and never sent or kept (§13).
+- **Your own photos** (§3.8) are a new kind of personal data, kept with Ken's yes (Oct 15). They're private by
+  default. Nobody else ever sees a photo its taker hasn't shared:
+  - the photo lists the phone keeps are each person's own and go at sign-out, so on a shared phone one person never
+    sees another's "just you" photos; a list is tied to the sign-in that asked for it and dropped if someone else is
+    signed in when it lands;
+  - each picture link is made for one person, and the server checks every time that the photo is still theirs or still
+    shared, so a photo made private or deleted stops showing at once;
+  - the phone asks again before showing a saved copy (the saved copy is only for no signal at all), the service worker
+    drops its copy when the answer is "not there" and never saves the photo lists, and the phone's copies of photos no
+    longer in your lists go after each fresh list;
+  - someone else's photo shows only once its picture has come, never as a name and caption over black; a picture that's
+    gone hides rather than show a broken tile.
 - **What each couple paid, and for what**, is shared with all four (Who pays next, §9.9). A new kind of shared data,
   approved by Ken on Oct 15.
 - **Any new kind of personal data** (location, photos, documents) is Ken's call, raised in one line before it's built
@@ -2689,8 +2789,9 @@ PostgreSQL; one Railway service, with Express serving the built front end. Chang
 - **Her Guide**: snapshot .xlsx copies Ken provides, read on the server; pictures read by AI. Ken's rail sheet: the Google
   Sheets API, read-only.
 - **Weather**: Open-Meteo (forecast and several models); Japan's weather agency for the storm watch.
-- **Places and photos**: Google Maps on Home; Google Places for city photos, stop photos and "near me"; Apple Maps
-  and Google Maps links for directions.
+- **Places and photos**: Google Maps on Home; Google Places for city photos, stop photos, opening hours and "near me";
+  Google Maps links for every map link and direction (her Apple Maps guides stay Apple's). The travelers' own photos are
+  stored by Wander.
 - **The phone**: a service worker for the offline copy and updates; Web Push for Scout's and Tell Ken's buzz; the
   phone's own speech recognition (one microphone for the app) and voice for Read aloud.
 - Part I's ratings services, capture pipeline and spatial canvas aren't part of the trip product (§21).
@@ -2701,7 +2802,7 @@ Her Guide is a layer Wander replaces with each good copy: snapshots, Guide items
 Guide pictures. Everything people add lives apart from it and survives every re-read: plans for a day and picks, maybes
 and their marks and removals, notes on ideas, trip notes, papers, phrases and each person's order and removals, to-dos
 added in Wander and the done marks on hers (keyed to stable places in her list), Ideas for Wander, Tell Ken messages, payments for Who pays next,
-push subscriptions, the conversation with Scout and each answer's sources, place photos, Wander's place notes, and other
+the travelers' own photos and their captions, push subscriptions, the conversation with Scout and each answer's sources, place photos, Wander's place notes, and other
 sources (Ken's rail sheet and its copies, Backroads' itinerary, her maps).
 
 ### 20.3 How it's checked

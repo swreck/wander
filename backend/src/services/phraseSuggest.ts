@@ -33,7 +33,7 @@ Each option: {"kind":"say"|"show"|"recognize","english":"...","romaji":"...","pr
 - For something to recognize: romaji is only the characters with what each means, short ("大 = full flush; 小 = light flush"), pronunciation null. Never a rule of thumb or advice ("red curtain is usually women"): signs vary, and a wrong guess sends someone the wrong way.
 - Never add a fact they didn't give: no street address, phone number, opening hours or name they didn't supply (for "take me to the Imperial Hotel", the hotel's name in Japanese, not an address from memory; a small inn's address from memory could send a taxi to the wrong place).
 - No em dashes anywhere; plain short words.
-- note: null when there is one option. When there are two or three, at most 6 words each telling them apart ("polite, to staff" / "casual, to a friend"; "the bill at a restaurant" / "checking in at a hotel").
+- note: null when there is one option. When there are two or three, a few plain words each telling them apart, as a person would say it — a phrase with its little words, never a label (user-julie1, Oct 16: "hand to staff, full allergy" read like a code): "the polite way, to staff" / "the casual way, to a friend"; "asking for the bill" / "checking in at a hotel"; "the full allergy, to show the server" / "a quick question, to say". Under 8 words.
 
 Give ONE option when one natural phrase serves. Give two, at most three, only when the Japanese really differs in nuance or politeness in a way that matters to a traveler, or the English could mean two different things. If they ask for something that isn't a phrase or that you can't put honestly into Japanese, return no options and say why in a few plain words.`;
 

@@ -713,6 +713,13 @@ export default function TripOverview() {
         <button type="button" onClick={() => setShowActions(true)} className="w-full text-left mb-3 min-h-[44px] px-3 rounded-lg text-sm text-[#514636] flex items-center justify-between">
           <span>To-dos and deadlines</span><span aria-hidden>›</span>
         </button>
+        {/* The story so far, during the trip (user-julie1, Oct 16: she found no way to it — Settings spoke of "trip stories"
+            and nothing led there; after the trip the welcome-home card has it) */}
+        {trip?.startDate && trip?.endDate && (() => { const d = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }); return d >= String(trip.startDate).slice(0, 10) && d <= String(trip.endDate).slice(0, 10); })() && (
+          <button type="button" onClick={() => navigate("/story")} className="w-full text-left -mt-2 mb-3 min-h-[44px] px-3 rounded-lg text-sm text-[#514636] flex items-center justify-between">
+            <span>The story so far</span><span aria-hidden>›</span>
+          </button>
+        )}
         {/* Safety tips, Japan's warning app — a quiet note for Larisa, Andy and Julie from Ken (Oct 13 2026); after
             the day's own news (Andy's "You leave tomorrow" and his flight came second when it sat above) */}
         <SafetyTipsNote />
