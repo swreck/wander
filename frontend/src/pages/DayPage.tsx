@@ -1637,8 +1637,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         const words = (d.words || "").trim();
         const note = words ? (/^…/.test(words) ? `…${firstSentence(words)}` : firstSentence(words)) : her ? herDetail(her)[0] || null : null;
         const full = [words, d.bring || ""].filter(Boolean).join("\n\n");
-        // (the lookup's "same place?" check reads the moment in Backroads' words, or what the photo is meant to show)
-        if (d.place) places[id] = { query: d.place, line: d.photoNote ? `${d.place} — ${d.photoNote}` : `${d.title} — ${note || d.place}`, note: d.photoNote };
+        // (the lookup's "same place?" check is asked about the place itself — chosen from Backroads' own words — or what
+        // the photo is meant to show: given the whole sentence it refused towns and lakes as "not a single venue", Lake
+        // Chuzenji among them; Oct 16)
+        if (d.place) places[id] = { query: d.place, line: d.photoNote ? `${d.place} — ${d.photoNote}` : d.place, note: d.photoNote };
         else if (named && d.her === "dinner") places[id] = { query: her!.title, line: her!.title };
         return [{ ...base, id, title: named ? itemTitle(her!, stays, date) : d.title, note,
           // (no countdown from a check-out's time: that's the hotel's latest — on Oct 18 they leave before the 8:30
