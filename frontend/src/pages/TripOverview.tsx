@@ -31,6 +31,7 @@ import { voiceFor } from "../lib/guideDisplay";
 import { changeRest } from "../lib/changeWords";
 import AddToHomeScreen, { isIPhoneSafari, isHomeScreenApp } from "../components/AddToHomeScreen";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
+import IdeasLink from "../components/IdeasLink";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -581,6 +582,8 @@ export default function TripOverview() {
           >
             <span className="w-6 h-6 rounded-full border border-[#c8bba8] flex items-center justify-center text-xs">?</span>
           </button>
+          {/* Ideas for Wander — Ken and Andy only (components/IdeasLink.tsx) */}
+          <IdeasLink tripId={trip?.id} />
           <button
             onClick={() => navigate("/history")}
             className="text-sm text-[#6b5d4a] hover:text-[#6b5d4a] transition-colors px-2 py-2.5 min-h-[44px] flex items-center"

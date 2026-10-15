@@ -130,6 +130,7 @@ model Trip {
   // Papers kept from the trip (Oct 12 2026): receipts, tickets, bills
   tripPapers        TripPaper[]
   tellKen           TellKen[]
+  wanderIdeas       WanderIdea[]
 
   @@map("trips")
 }
@@ -718,6 +719,56 @@ model TellKen {
 
   @@index([tripId, createdAt])
   @@map("tell_ken")
+}
+
+/// "Ideas for Wander" (Oct 15 2026). Ken: "Can wander have place used most by andy and me to place screenshots and ideas
+/// to improve wander? … Should not get in the way of travel flow. Product focused only. With all inputs durable and
+/// optimized to support planning. So ideally you or Scott are a participant. Perhaps even for you to be able to respond
+/// in that context with 'I get the goal. What about….'" An idea (parentId null) or a reply to one; written by a person,
+/// by Scout's product helper, or by Wander's engineer (Claude, in its working sessions). Never deleted: "not now" instead.
+model WanderIdea {
+  id         String   @id @default(cuid())
+  tripId     String   @map("trip_id")
+  travelerId String?  @map("traveler_id")            // the person; none for Scout or the engineer
+  authorName String   @map("author_name")
+  role       String   @default("person")             // person | helper | engineer
+  parentId   String?  @map("parent_id")              // the idea a reply answers
+  words      String
+  screen     String?                                 // "the Oct 15 page", "Home"
+  status     String   @default("new")                // an idea's: new | talking | planned | built | not-now
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  trip     Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  pictures WanderIdeaPicture[]
+
+  @@index([tripId, createdAt])
+  @@map("wander_ideas")
+}
+
+/// A screenshot or photo with an idea or a reply, as the phone sent it (shrunk on the phone first)
+model WanderIdeaPicture {
+  id        String   @id @default(cuid())
+  ideaId    String   @map("idea_id")
+  imageType String   @map("image_type")
+  image     Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  idea WanderIdea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@index([ideaId])
+  @@map("wander_idea_pictures")
+}
+
+/// Who's in Ideas for Wander for a trip (Ken, Oct 15: "used most by andy and me"), and when each last looked — for the
+/// quiet dot beside "Ideas" on Home
+model WanderIdeaMember {
+  tripId     String    @map("trip_id")
+  travelerId String    @map("traveler_id")
+  seenAt     DateTime? @map("seen_at")
+
+  @@id([tripId, travelerId])
+  @@map("wander_idea_members")
 }
 
 /// A phone's address for "Scout answered" notifications (Oct 12, Ken: a buzz when an answer is ready, like ChatGPT's).

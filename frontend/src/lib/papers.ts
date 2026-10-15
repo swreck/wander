@@ -38,6 +38,8 @@ async function shrink(file: File): Promise<{ data: string; thumb: string } | nul
     return full && thumb ? { data: full.split(",")[1], thumb } : null;
   } catch { return null; } finally { URL.revokeObjectURL(url); }
 }
+/** The same shrinking, for a screenshot sent with an idea for Wander (lib/wanderIdeas.ts) */
+export { shrink as shrinkPicture };
 const asBase64 = (file: File) => new Promise<string | null>((ok) => {
   const r = new FileReader();
   r.onload = () => ok(String(r.result || "").split(",")[1] || null);

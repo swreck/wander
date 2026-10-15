@@ -2,6 +2,25 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday, 9:45 AM in Japan) — Ideas for Wander; Updates Wait for Unsent Words
+
+### Added
+- Ideas for Wander: Ken and Andy's place for screenshots and ideas to make Wander better, apart from the trip. Ken
+  (Oct 15): "a place used most by andy and me to place screenshots and ideas to improve wander… Should not get in the
+  way of travel flow. Product focused only. With all inputs durable and optimized to support planning. So ideally you
+  or Scott are a participant" and "it should be easy and evident for Andy and me without conflicting with daily
+  reference use". Each idea keeps its words exactly, up to six screenshots, the screen it came from, replies, and a
+  status (New, Talking, Planned, Built, Not now) with filters. Scout answers each new idea in about ten seconds ("I
+  get the goal… What about…?"), reading only Wander's features and the idea list (about 2 cents a reply); Claude,
+  Wander's engineer, answers in its working sessions and moves statuses. Words being written are kept as a draft.
+  Where: "Ideas" at the top of Home (members only, a dot when something's new) and a row in Settings; Scout ("For
+  Ideas for Wander: …", rule 60, tool add_wander_idea). Tables wander_ideas, wander_idea_pictures,
+  wander_idea_members. Tell Ken stays Ken's alone. SPEC UPDATE NEEDED.
+
+### Fixed
+- A new version of Wander reloaded the page the moment it arrived, even while someone was typing to Scout (whose box
+  keeps no draft). It now waits until no box on the screen holds unsent words. Where: everywhere (UpdatePrompt).
+
 ## 2026-10-15 (Thursday, 10:00 AM in Japan) — Scout Stays Ready for Less; Scout's Weekdays
 
 ### Changed

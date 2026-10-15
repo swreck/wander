@@ -15,6 +15,7 @@ import HistoryPage from "./pages/HistoryPage";
 import ChecklistPage from "./pages/ChecklistPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
+import IdeasForWanderPage from "./pages/IdeasForWanderPage";
 import ProfilePage from "./pages/ProfilePage";
 import GuidePage from "./pages/GuidePage";
 import NotesPage from "./pages/NotesPage";
@@ -328,6 +329,7 @@ function AppRoutes() {
       <Route path="/checklist/:sourceId/:tab" element={<ProtectedRoute><ChecklistPage /></ProtectedRoute>} />
       <Route path="/capture-share" element={<ProtectedRoute><CaptureSharePage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/ideas-for-wander" element={<ProtectedRoute><IdeasForWanderPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/city/:cityId" element={<ProtectedRoute><CityBoard /></ProtectedRoute>} />
       <Route path="/story" element={<ProtectedRoute><TripStoryPage /></ProtectedRoute>} />

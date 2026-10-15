@@ -53,6 +53,7 @@ import maybeRoutes from "./routes/maybes.js";
 import { bodyTripGuard } from "./middleware/tripGuard.js";
 import tripNoteRoutes from "./routes/tripNotes.js";
 import tellKenRoutes from "./routes/tellKen.js";
+import wanderIdeaRoutes from "./routes/wanderIdeas.js";
 import cityPhotoRoutes from "./routes/cityPhoto.js";
 import phoneReportRoutes from "./routes/phoneReports.js";
 import pushRoutes from "./routes/push.js";
@@ -117,6 +118,8 @@ app.use("/api/chat", express.json({ limit: "25mb" }));
 app.use("/api/phone-reports", express.json({ limit: "2kb" }));
 // (a paper: a photo or a PDF up to 10 MB, sent as text — Oct 12)
 app.use("/api/papers", express.json({ limit: "15mb" }));
+// (an idea for Wander: up to six screenshots, each shrunk on the phone — Oct 15)
+app.use("/api/wander-ideas", express.json({ limit: "20mb" }));
 app.use(express.json({ limit: "10mb" })); // Reduced from 50mb
 
 // API routes
@@ -183,6 +186,7 @@ app.use("/api/action-marks", actionMarkRoutes);
 app.use("/api/maybes", maybeRoutes);
 app.use("/api/trip-notes", tripNoteRoutes);
 app.use("/api/tell-ken", tellKenRoutes);
+app.use("/api/wander-ideas", wanderIdeaRoutes);
 app.use("/api/city-photo", cityPhotoRoutes);
 app.use("/api/phone-reports", phoneReportRoutes);
 app.use("/api/push", pushRoutes);
