@@ -250,7 +250,8 @@ export default function BottomNav({ pendingChanges }: Props) {
             ? actionsOpen
             : tab.path === "/"
             ? location.pathname === "/" && !actionsOpen
-            : location.pathname.startsWith(tab.path);
+            // (the tab's own screen or one under it — "/ideas-for-wander" isn't Maybes' "/ideas"; verify62)
+            : location.pathname === tab.path || location.pathname.startsWith(`${tab.path}/`);
 
           return (
             <button

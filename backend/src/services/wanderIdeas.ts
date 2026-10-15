@@ -21,7 +21,8 @@ const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MOST_PICTURES = 6;
 
 export const HELPER_NAME = "Scout";
-export const ENGINEER_NAME = "Claude, Wander's engineer";
+// (as the page says it: "Wander's engineer" meant nothing to Andy — verify62)
+export const ENGINEER_NAME = "Claude, who builds Wander with Ken";
 
 export async function isMember(tripId: string, travelerId: string | undefined | null): Promise<boolean> {
   if (!travelerId) return false;
@@ -105,8 +106,8 @@ What doesn't change: Wander never edits her Guide; Scout never states what it ca
 const HELPER_RULES = `You are Scout, taking part in "Ideas for Wander": Ken and Andy's place to suggest how Wander could be better. Someone just posted an idea (with screenshots, if any). Reply once, briefly, as a thoughtful product partner.
 - Start with "I get the goal:" and the goal behind their idea, in their terms, in one sentence (what they're trying to get, not what they asked for).
 - Then one concrete suggestion that might serve that goal better or more simply, as a question: "What about …?" One only, and specific to Wander's real screens.
-- Only if an earlier idea's own words ask for the same thing, say so in one short sentence, naming who and when, and quoting its words exactly ("Close to Andy's idea from Oct 15: '…'"). Never say what an earlier idea covers or means beyond its own words; if none plainly asks for the same thing, say nothing about earlier ideas.
-- If it reports something broken or wrong, skip "What about": say what you understand they saw, and ask the one detail that would help fix it (which screen, what they expected).
+- Only if an earlier idea's own words ask for the same thing, say so in one short sentence, naming who and when, quoting its words exactly, and saying where it stands from its [status] in plain words ("Close to Andy's idea from Oct 15, already planned: '…'"). Never say what an earlier idea covers or means beyond its own words; if none plainly asks for the same thing, say nothing about earlier ideas.
+- If it reports something broken or wrong, skip "What about": say what you understand they saw, and ask exactly one question — the single detail that would help most (which screen, or what they expected).
 - 2 to 4 sentences in all. Plain words, one thought per sentence, no marketing words, no exclamation marks, no lists, no headings.
 - Never promise it will be built, or when. Never say a feature exists unless it's described above. Nothing about the trip itself (times, places, bookings) — only Wander.`;
 
@@ -119,7 +120,8 @@ export async function helperReply(ideaId: string): Promise<string | null> {
   if (!idea || idea.parentId || idea.role !== "person") return null;
   const others = await prisma.wanderIdea.findMany({ where: { tripId: idea.tripId, parentId: null, id: { not: idea.id } }, orderBy: { createdAt: "desc" }, take: 40,
     select: { authorName: true, words: true, status: true, createdAt: true } });
-  const list = others.map((o) => `- ${o.authorName}, ${o.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Tokyo" })} [${o.status}]: ${o.words.slice(0, 200).replace(/\s+/g, " ")}`).join("\n") || "(none yet)";
+  const STATUS_SAID: Record<string, string> = { new: "new", talking: "being talked over", planned: "already planned", built: "already built", "not-now": "set aside for now" };
+  const list = others.map((o) => `- ${o.authorName}, ${o.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Tokyo" })} [${STATUS_SAID[o.status] || o.status}]: ${o.words.slice(0, 200).replace(/\s+/g, " ")}`).join("\n") || "(none yet)";
   const content: Anthropic.ContentBlockParam[] = [
     ...idea.pictures.slice(0, MOST_PICTURES).map((p) => ({ type: "image" as const, source: { type: "base64" as const, media_type: p.imageType as "image/jpeg", data: Buffer.from(p.image).toString("base64") } })),
     { type: "text", text: `EARLIER IDEAS:\n${list}\n\nTHE NEW IDEA, from ${idea.authorName}${idea.screen ? `, on ${idea.screen}` : ""}${idea.pictures.length ? `, with ${idea.pictures.length} screenshot${idea.pictures.length > 1 ? "s" : ""}` : ""}:\n${idea.words || "(no words — just the screenshot)"}` },

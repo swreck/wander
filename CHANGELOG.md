@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday, 10:10 AM in Japan) — Ideas for Wander, Polished
+
+### Fixed
+- On Ideas for Wander the bottom bar marked Maybes as the screen you're on ("/ideas-for-wander" began with Maybes'
+  "/ideas") and hid the Maybes dot (verify62). Where: the bottom bar.
+- What's new since you last looked is marked "new"; every button is at least 44 pt; choosing seven screenshots says
+  six is the most; the header scrolls away; Claude's replies are signed "Claude, who builds Wander with Ken". Scout
+  says where a repeated idea stands ("already planned") and asks one question about a bug report. Where: Ideas for
+  Wander.
+
 ## 2026-10-15 (Thursday, 9:45 AM in Japan) — Ideas for Wander; Updates Wait for Unsent Words
 
 ### Added
