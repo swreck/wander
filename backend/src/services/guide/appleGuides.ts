@@ -23,7 +23,8 @@ export interface AppleGuide {
   places: AppleGuidePlace[];
 }
 
-export const isGuideLink = (s: unknown): s is string => typeof s === "string" && /^https:\/\/maps\.apple\/ug\/[\w~-]+$/.test(s);
+// (a dot too: her Oct 15 Tokyo Day 1 map's share link has one)
+export const isGuideLink = (s: unknown): s is string => typeof s === "string" && /^https:\/\/maps\.apple\/ug\/[\w.~-]+$/.test(s);
 
 export async function appleGuidesOf(tripId: string): Promise<AppleGuide[]> {
   const cfg = await prisma.sheetSyncConfig.findUnique({ where: { tripId }, select: { tabMappings: true } });

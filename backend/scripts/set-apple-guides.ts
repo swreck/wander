@@ -22,7 +22,7 @@ const tabNames = (((snap?.tabs as unknown) as { name: string }[]) || []).map((t)
 
 const guides = [];
 for (const g of read.guides) {
-  if (!/^https:\/\/maps\.apple\/ug\/[\w~-]+$/.test(g.link)) { console.log(`skipped "${g.name}": not an Apple Maps guide link`); continue; }
+  if (!/^https:\/\/maps\.apple\/ug\/[\w.~-]+$/.test(g.link)) { console.log(`skipped "${g.name}": not an Apple Maps guide link`); continue; }
   // "<City> … Day <n>" in the map's name → her tab "<City> Day <n> …"
   const city = g.name.match(/^\s*([A-Za-z]+)/)?.[1];
   const n = g.name.match(/\bDay\s*(\d+)\b/i)?.[1];
