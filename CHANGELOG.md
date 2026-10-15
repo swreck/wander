@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-15 (Thursday evening in Japan) — Who Pays Next
+
+### Added
+- Who pays next — Larisa's idea, through Ken: "one should be able to say to scout it any time that the unit that is Ken
+  and Larisa has paid a certain amount of money for something… at the end of the trip… the difference [is] the amount
+  that one owes to the other… there should always be a simple button that is something like who pays next and it just
+  points to the couple that currently has the smaller total." Ken's answers (Oct 15): shared half and half; "In yen
+  (or dollars and you should convert)"; all four see it; "It didn't need to be exact!" Any of the four tells Scout
+  ("we paid ¥12,400 for dinner", "Andy just spent 12400", "Larisa got the taxi, $30") or keeps it on the Money page;
+  Scout answers "who pays next?" and takes one away when asked. The couples are her Guide's ("Ken & Larisa", "Julie &
+  Andy"). Each payment is shared half and half, so the couple that paid less owes the other half the difference. Yen as
+  said; dollars kept with that day's yen (the European Central Bank's rate). Taken away only by who kept it or Ken, and
+  then hidden, never deleted. Where: Home ("Who pays next: … ›"), /money, Scout (add_expense, remove_expense,
+  money_so_far; rule 61). Data: trip_expenses. SPEC UPDATE NEEDED (new: money).
+
 ## 2026-10-15 (Thursday night in Japan) — The Story of the Trip
 
 ### Fixed

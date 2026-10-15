@@ -131,6 +131,7 @@ model Trip {
   tripPapers        TripPaper[]
   tellKen           TellKen[]
   wanderIdeas       WanderIdea[]
+  expenses          TripExpense[]
 
   @@map("trips")
 }
@@ -1117,4 +1118,30 @@ model DedupSuggestion {
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@map("dedup_suggestions")
+}
+
+/// Who paid for what, couple by couple (Oct 15 2026, Larisa's idea through Ken: "one should be able to say to scout it any
+/// time that the unit that is Ken and Larisa has paid a certain amount of money for something… at the end of the trip
+/// … the difference [is] the amount that one owes to the other… a simple button that is something like who pays next").
+/// Shared half and half; kept as said (yen or dollars) with its yen at that day's rate. Removed only by who added it or
+/// the trip's first member, and then hidden, never deleted.
+model TripExpense {
+  id          String    @id @default(cuid())
+  tripId      String    @map("trip_id")
+  party       String                                   // "Ken & Larisa" — the couple that paid
+  amount      Float                                    // as said: 12400 (yen) or 85.5 (dollars)
+  currency    String                                   // JPY | USD
+  yen         Int                                      // its yen: the amount, or dollars at that day's rate
+  rate        Float?                                   // yen per dollar used, for a dollar amount
+  what        String?                                  // "dinner at Yazawa", as said
+  dayDate     String?   @map("day_date")               // the trip day it was spent, YYYY-MM-DD
+  addedById   String?   @map("added_by_id")
+  addedByName String    @map("added_by_name")
+  removedAt   DateTime? @map("removed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, createdAt])
+  @@map("trip_expenses")
 }

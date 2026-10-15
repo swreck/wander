@@ -16,6 +16,7 @@ import ChecklistPage from "./pages/ChecklistPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
 import IdeasForWanderPage from "./pages/IdeasForWanderPage";
+import MoneyPage from "./pages/MoneyPage";
 import { primePlacePhotos } from "./lib/placePhotos";
 import ProfilePage from "./pages/ProfilePage";
 import GuidePage from "./pages/GuidePage";
@@ -333,6 +334,7 @@ function AppRoutes() {
       <Route path="/capture-share" element={<ProtectedRoute><CaptureSharePage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/ideas-for-wander" element={<ProtectedRoute><IdeasForWanderPage /></ProtectedRoute>} />
+      <Route path="/money" element={<ProtectedRoute><MoneyPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/city/:cityId" element={<ProtectedRoute><CityBoard /></ProtectedRoute>} />
       <Route path="/story" element={<ProtectedRoute><TripStoryPage /></ProtectedRoute>} />
