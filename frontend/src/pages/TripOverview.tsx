@@ -32,6 +32,7 @@ import { changeRest } from "../lib/changeWords";
 import AddToHomeScreen, { isIPhoneSafari, isHomeScreenApp } from "../components/AddToHomeScreen";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
 import IdeasLink from "../components/IdeasLink";
+import WhoPaysNextLine from "../components/WhoPaysNextLine";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
@@ -705,6 +706,8 @@ export default function TripOverview() {
         {/* Something new on Maybes from someone else — one quiet line (Oct 2 2026) */}
         {trip && <MaybesLine tripId={trip.id} />}
         <TripGlance tripId={trip.id} />
+        {/* Who pays next — Larisa's idea (Oct 15 2026): one quiet line, a tap for the money page */}
+        {trip && <WhoPaysNextLine tripId={trip.id} />}
         {/* Safety tips, Japan's warning app — a quiet note for Larisa, Andy and Julie from Ken (Oct 13 2026); after
             the day's own news (Andy's "You leave tomorrow" and his flight came second when it sat above) */}
         <SafetyTipsNote />
