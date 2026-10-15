@@ -16,6 +16,7 @@ import ChecklistPage from "./pages/ChecklistPage";
 import CaptureSharePage from "./pages/CaptureSharePage";
 import SettingsPage from "./pages/SettingsPage";
 import IdeasForWanderPage from "./pages/IdeasForWanderPage";
+import { primePlacePhotos } from "./lib/placePhotos";
 import ProfilePage from "./pages/ProfilePage";
 import GuidePage from "./pages/GuidePage";
 import NotesPage from "./pages/NotesPage";
@@ -307,6 +308,8 @@ function AppRoutes() {
   // Each screen as it opens, so a back button can say where it goes (lib/cameFrom)
   const { pathname } = useLocation();
   useEffect(() => { notePath(pathname); }, [pathname]);
+  // (the stops' photos Wander already knows, kept on the phone as it opens — lib/placePhotos)
+  useEffect(() => { if (user) primePlacePhotos(); }, [user]);
 
   if (loading) return null;
 

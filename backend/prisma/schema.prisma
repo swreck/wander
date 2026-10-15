@@ -760,6 +760,25 @@ model WanderIdeaPicture {
   @@map("wander_idea_pictures")
 }
 
+/// A stop's photos (Oct 15 2026, "Wander in pictures": the day as moments, each led by a photo of that exact place).
+/// Found once a week per Maps search — the same words her stop's Maps button searches — from Google's listing of the
+/// place, and kept only when a check says it's the place her line means (verdict "yes"); "no" and "none" are kept too,
+/// so a stop that has no sure photo isn't searched again every visit.
+model PlacePhoto {
+  id        String   @id @default(cuid())
+  query     String   @unique                    // "Tsukiji Outer Market, Ginza, Japan"
+  line      String                              // her line it was found for, as checked
+  placeId   String?  @map("place_id")
+  name      String?                             // Google's name for the place
+  address   String?
+  photos    Json     @default("[]")             // [{ ref, credit }] — up to six
+  verdict   String                              // yes | no | none
+  why       String?                             // the check's reason, for review
+  checkedAt DateTime @default(now()) @map("checked_at")
+
+  @@map("place_photos")
+}
+
 /// Who's in Ideas for Wander for a trip (Ken, Oct 15: "used most by andy and me"), and when each last looked — for the
 /// quiet dot beside "Ideas" on Home
 model WanderIdeaMember {

@@ -1,0 +1,140 @@
+/**
+ * A stop's photos, for the day as moments (Oct 15 2026). Andy, through Ken: he comes from "the world of Instagram and
+ * Facebook with a sort of visual flow about the trip"; Ken: "simply adding a photo on each day page does not seem to
+ * fulfill Andy's social media vision… It might be an option when you see a picture to see more pictures". Each stop of
+ * her plan is led by photos of that exact place, and a tap shows more of them.
+ *
+ * Found from the very words her stop's Maps button searches ("Tsukiji Outer Market, Ginza, Japan"), near the day's
+ * city, from Google's listing of the place (Wikipedia has the temples but not Yazawa, Itoya or Hassun). A photo is never
+ * a guess: before it's kept, a check reads her line and Google's place (name, address, kind) and says whether they're
+ * the same place — "Ginza Premium Retail Walk" is a walk, not a shop, and gets no photo. Kept a week per search.
+ */
+import Anthropic from "@anthropic-ai/sdk";
+import prisma from "./db.js";
+
+const WEEK = 7 * 24 * 3600_000;
+const MOST = 6;
+/** v: when it was last checked — in the photo's address, so a phone never keeps showing one Wander has replaced */
+export type PlaceHit = { id: string; v: number; name: string | null; photos: { credit: string | null }[] } | null;
+type Ref = { ref: string; credit: string | null };
+
+const asking = new Map<string, Promise<PlaceHit>>();
+let client: Anthropic | null = null;
+
+/** The photos for one stop (her line, and the words its Maps button searches), near its city */
+export function placePhotosFor(query: string, line: string, near: { lat: number; lng: number } | null): Promise<PlaceHit> {
+  const q = query.trim().slice(0, 300);
+  if (!q) return Promise.resolve(null);
+  if (!asking.has(q)) asking.set(q, resolve(q, line.trim().slice(0, 400), near).finally(() => asking.delete(q)));
+  return asking.get(q)!;
+}
+
+export const knownHit = (row: { id: string; name: string | null; photos: unknown; verdict: string; checkedAt: Date }): PlaceHit => hit(row);
+const hit = (row: { id: string; name: string | null; photos: unknown; verdict: string; checkedAt: Date }): PlaceHit =>
+  row.verdict === "yes" && Array.isArray(row.photos) && row.photos.length
+    ? { id: row.id, v: row.checkedAt.getTime(), name: row.name, photos: (row.photos as Ref[]).map((p) => ({ credit: p.credit })) } : null;
+
+async function resolve(query: string, line: string, near: { lat: number; lng: number } | null): Promise<PlaceHit> {
+  const kept = await prisma.placePhoto.findUnique({ where: { query } });
+  // (checked again when her words for it changed — a new Guide copy, or the stop her tab names)
+  if (kept && kept.line === line && Date.now() - kept.checkedAt.getTime() < WEEK) return hit(kept);
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) return kept ? hit(kept) : null;
+  let found: { placeId: string; name: string; address: string; types: string[]; photos: Ref[] } | null = null;
+  try {
+    const where = near ? `&location=${near.lat},${near.lng}&radius=20000` : "";
+    const s: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}${where}&language=en&key=${key}`)).json();
+    const top = (s?.results || [])[0];
+    if (top?.place_id) {
+      const d: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${top.place_id}&fields=name,formatted_address,types,photos&language=en&key=${key}`)).json();
+      const r = d?.result || top;
+      found = {
+        placeId: top.place_id, name: r.name || top.name, address: r.formatted_address || top.formatted_address || "", types: r.types || top.types || [],
+        photos: (r.photos || top.photos || []).slice(0, MOST).map((p: any) => ({ ref: p.photo_reference, credit: ((p.html_attributions || [])[0] || "").replace(/<[^>]+>/g, "").trim() || null })),
+      };
+    }
+  } catch (e: any) {
+    console.warn("[place-photos] google:", e?.message || e);
+    return kept ? hit(kept) : null;   // (a hiccup: last week's answer, or none — asked again next time)
+  }
+  let verdict: "yes" | "no" | "none" = "none", why: string | null = null;
+  if (found && found.photos.length) {
+    const c = await samePlace(line, query, found).catch((e) => { console.warn("[place-photos] check:", e?.message || e); return null; });
+    if (!c) return kept ? hit(kept) : null;   // (unchecked is never shown)
+    verdict = c.same ? "yes" : "no"; why = c.why;
+    // …and the photo that leads is one that shows what her line means — Google's first photo of Ginza Mitsukoshi was a
+    // handbag shop, for her "LIGHT LUNCH – Ginza Mitsukoshi Depachika" (tourist63). None of the first three: no photo.
+    if (verdict === "yes") {
+      const pick = await bestPhoto(line, found.name, found.photos.slice(0, 3), key).catch((e) => { console.warn("[place-photos] pick:", e?.message || e); return null; });
+      if (pick === null) return kept ? hit(kept) : null;
+      if (pick < 0) { verdict = "no"; why = `${why}; none of its first photos shows it`; }
+      else found.photos = [found.photos[pick], ...found.photos.filter((_, i) => i !== pick)];
+    }
+  }
+  const data = { line, placeId: found?.placeId ?? null, name: found?.name ?? null, address: found?.address ?? null, photos: found?.photos ?? [], verdict, why, checkedAt: new Date() };
+  const row = await prisma.placePhoto.upsert({ where: { query }, create: { query, ...data }, update: data });
+  console.log(`[place-photos] "${line.slice(0, 50)}" → ${found?.name || "nothing"}: ${verdict}${why ? ` (${why.slice(0, 80)})` : ""}`);
+  return hit(row);
+}
+
+/** Is Google's place the one her line means? Asked once per search a week — a few tenths of a cent */
+async function samePlace(line: string, query: string, g: { name: string; address: string; types: string[] }): Promise<{ same: boolean; why: string } | null> {
+  client ??= new Anthropic();
+  const res = await client.messages.create({
+    model: "claude-opus-5", max_tokens: 1500,
+    system: "You check whether a photo of a place may stand beside a line of a travel plan. Say same=true only when Google's place is plainly the very place the line means to visit (the same shop, restaurant, temple, market, museum, station or hotel — a branch in another town is not the same). A line that isn't one place (a walk, a stroll through an area, \"refresh at the hotel\" when the hotel isn't named, free time, lunch with no place named) is same=false. A line about getting somewhere — a taxi, train, bus or walk to a place, a transfer, \"continue to\", \"return to\" — is same=false: the photo belongs on the line for the place itself. When unsure, false: a wrong photo beside her plan is worse than none.",
+    messages: [{ role: "user", content: `Her plan's line: "${line}"\nThe Maps search for it: "${query}"\nGoogle's place: "${g.name}", ${g.address} (kinds: ${g.types.slice(0, 6).join(", ")})\nAnswer in JSON only: {"same": true|false, "why": "a few words"}` }],
+  });
+  const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  const j = JSON.parse(m[0]);
+  return typeof j.same === "boolean" ? { same: j.same, why: String(j.why || "") } : null;
+}
+
+/** Which of a place's first photos best shows what her line means — its index, -1 for none, null when it couldn't be
+ *  looked at. Each photo is fetched small (640 wide) to be looked at; a few cents a place, once a week. */
+async function bestPhoto(line: string, name: string, refs: Ref[], key: string): Promise<number | null> {
+  const imgs: Anthropic.ImageBlockParam[] = [];
+  for (const r of refs) {
+    const res = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=640&photo_reference=${r.ref}&key=${key}`);
+    if (!res.ok) return null;
+    const type = (res.headers.get("content-type") || "image/jpeg").split(";")[0] as "image/jpeg";
+    imgs.push({ type: "image", source: { type: "base64", media_type: type, data: Buffer.from(await res.arrayBuffer()).toString("base64") } });
+  }
+  if (!imgs.length) return -1;
+  client ??= new Anthropic();
+  const res = await client.messages.create({
+    model: "claude-opus-5", max_tokens: 1500,
+    system: "You choose the photo to show beside a line of a travel plan. It must show the place the way the line means it: the market's stalls for a market, the temple for a temple, the food hall for a department store's food hall (depachika), the restaurant's room or food for a restaurant, the museum or its art for a museum, the hotel for a hotel. Not a different shop inside a department store, not a sign, a map, a menu board alone, a selfie or a person filling the frame. When none of them shows it, say -1.",
+    messages: [{ role: "user", content: [...imgs, { type: "text", text: `Her plan's line: "${line}" — the place: "${name}". The ${imgs.length} photos above are numbered 0 to ${imgs.length - 1} in order. Answer in JSON only: {"best": <number or -1>, "why": "a few words"}` }] }],
+  });
+  const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
+  const j = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "null");
+  if (!j || typeof j.best !== "number") return null;
+  console.log(`[place-photos] photo for "${line.slice(0, 40)}": ${j.best} (${String(j.why || "").slice(0, 60)})`);
+  return j.best >= 0 && j.best < imgs.length ? j.best : -1;
+}
+
+// ── the pictures themselves, through Wander's server (the Google key never reaches a phone) ──
+const pictures = new Map<string, { bytes: Buffer; type: string; at: number }>();
+const MOST_KEPT = 400;
+/** A photo at the size it's shown: small (640 wide) in the day's list — a fifth of the bytes on hotel Wi-Fi — and large
+ *  (1200) full screen */
+export async function placePicture(id: string, n: number, small = false): Promise<{ bytes: Buffer; type: string } | null> {
+  const row = await prisma.placePhoto.findUnique({ where: { id } }).catch(() => null);
+  const ref = row?.verdict === "yes" && Array.isArray(row.photos) ? (row.photos as Ref[])[n]?.ref : null;
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!ref || !key) return null;
+  // (kept by Google's own reference: a re-check that puts another photo first never shows the old one)
+  const k = `${ref}:${small ? "s" : "l"}`;
+  const had = pictures.get(k);
+  if (had && Date.now() - had.at < WEEK) return had;
+  const r = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=${small ? 640 : 1200}&photo_reference=${ref}&key=${key}`).catch(() => null);
+  if (!r?.ok) return null;
+  const p = { bytes: Buffer.from(await r.arrayBuffer()), type: r.headers.get("content-type") || "image/jpeg", at: Date.now() };
+  pictures.set(k, p);
+  // (the oldest go first past a few hundred — they're a phone's to keep a week anyway)
+  if (pictures.size > MOST_KEPT) pictures.delete(pictures.keys().next().value!);
+  return p;
+}
