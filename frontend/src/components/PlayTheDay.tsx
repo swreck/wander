@@ -147,6 +147,14 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
   const [noPhoto, setNoPhoto] = useState<Record<string, boolean>>({});
   const [small, setSmall] = useState<Record<string, boolean>>({});
   const [drag, setDrag] = useState(0);
+  // It moves on by itself (Ken, Oct 16: "Play day should auto advance after a few seconds… people don't wait. Maybe even
+  // first change after only 2-3 seconds to teach users about auto before they tap then slow to 5 seconds for rest"):
+  // the first time after 3 seconds, then 5; the bar at the top fills to show it. It waits while a finger rests on the
+  // screen, while a moment's full words or its photos are open, and while Wander isn't on screen; never past the end.
+  const [held, setHeld] = useState(false);
+  const [hidden, setHidden] = useState(typeof document !== "undefined" && document.visibilityState === "hidden");
+  const movedOn = useRef(false);
+  const [second, setSecond] = useState(false);
   const touch = useRef<{ x: number; y: number; t: number } | null>(null);
   const swiped = useRef(0);
   const slide = slides[Math.min(at, slides.length - 1)];
@@ -211,11 +219,26 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
     return () => { unlock(); window.removeEventListener("keydown", onKey); try { before?.focus({ preventScroll: true }); } catch { /* gone */ } };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // (the photos either side, fetched ahead, so a tap or a swipe shows them at once)
+  // (the photos either side, fetched ahead, so a tap or a swipe shows them at once — and a moment's second photo)
   useEffect(() => {
-    for (const k of [at + 1, at - 1]) { const n = momentAt(k); if (n?.hit) { const i = new Image(); i.src = placePhotoUrl(n.hit, 0); } }
+    for (const k of [at, at + 1, at - 1]) { const n = momentAt(k); if (n?.hit) for (const j of k === at ? [1] : [0, 1]) if (j === 0 || n.hit.photos[j]?.ok) { const i = new Image(); i.src = placePhotoUrl(n.hit, j); } }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [at]);
+  useEffect(() => { const v = () => setHidden(document.visibilityState === "hidden"); document.addEventListener("visibilitychange", v); return () => document.removeEventListener("visibilitychange", v); }, []);
+  const waiting = held || hidden || full || gallery;
+  const stepMs = movedOn.current ? 5000 : 3000;
+  // (a fresh count each time it starts again, so the bar's fill and the timer begin together)
+  const [round, setRound] = useState(0);
+  useEffect(() => { setSecond(false); }, [at]);
+  useEffect(() => {
+    if (waiting || slide.kind === "end") return;
+    setRound((r) => r + 1);
+    const two = slide.kind === "moment" && !!m?.hit?.photos[1]?.ok && !small[m.id];
+    const half = two ? setTimeout(() => setSecond(true), stepMs / 2) : null;
+    const t = setTimeout(() => { movedOn.current = true; keys.current.next(); }, stepMs);
+    return () => { clearTimeout(t); if (half) clearTimeout(half); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at, waiting]);
 
   // When a moment is, today: Now, in 45 min, under way (someone else's line), earlier
   const whenOf = (x: Moment): string | null => {
@@ -277,6 +300,11 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
             onError={() => setNoPhoto((s2) => ({ ...s2, [x.id]: true }))}
             className={`absolute inset-0 w-full h-full ${small[x.id] ? "object-contain" : "object-cover play-drift"}`}
             style={{ transformOrigin: k % 2 ? "30% 40%" : "70% 60%" }} />
+          {/* (a second photo of the place, checked to show it too — Ken, Oct 16: "Increase to two photos in play day only") */}
+          {x.hit.photos[1]?.ok && !small[x.id] && (
+            <img src={placePhotoUrl(x.hit, 1)} alt="" className={`absolute inset-0 w-full h-full object-cover play-drift transition-opacity duration-1000 ${k === at && second ? "opacity-100" : "opacity-0"}`}
+              style={{ transformOrigin: k % 2 ? "70% 60%" : "30% 40%" }} />
+          )}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 42%, rgba(0,0,0,.85) 100%)" }} />
         </div>
       );
@@ -316,6 +344,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
         const dx = e.touches[0].clientX - touch.current.x, dy = e.touches[0].clientY - touch.current.y;
         if (Math.abs(dx) > Math.abs(dy)) setDrag(Math.max(-90, Math.min(90, dx * 0.45)));
       }}
+      onPointerDown={() => setHeld(true)} onPointerUp={() => setHeld(false)} onPointerCancel={() => setHeld(false)} onPointerLeave={() => setHeld(false)}
       onTouchEnd={(e) => {
         const t0 = touch.current; touch.current = null; setDrag(0);
         if (!t0) return;
@@ -331,7 +360,12 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
         <div className="flex gap-1" aria-hidden>
           {moments.map((x, i) => {
             const k = momentSlide(i);
-            return <span key={x.id} className={`flex-1 h-[3px] rounded-full transition-colors duration-300 ${k < at ? "bg-white/85" : k === at ? "bg-white" : "bg-white/30"}`} />;
+            return (
+              <span key={x.id} className={`relative flex-1 h-[3px] rounded-full overflow-hidden ${k < at ? "bg-white/85" : "bg-white/30"}`}>
+                {k === at && <span key={`fill-${at}-${round}`} className="absolute inset-y-0 left-0 bg-white play-fill"
+                  style={{ animationDuration: `${stepMs}ms`, animationPlayState: waiting ? "paused" : "running" }} />}
+              </span>
+            );
           })}
         </div>
         <div className="flex items-center justify-between mt-1.5">
@@ -425,7 +459,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                 </div>
                 {/* (what the photo is, when it's an example — "Mount Daimonji, as an example" — said with its credit) */}
                 {m.hit && m.photoWords && <p className="text-[12px] text-white/75">{m.photoWords}</p>}
-                {m.hit?.photos[0]?.credit && <p className="text-[11px] text-white/55">Photo: {m.hit.photos[0].credit} · Google</p>}
+                {(() => { const c = m.hit?.photos[second && m.hit.photos[1]?.ok ? 1 : 0]?.credit; return c ? <p className="text-[11px] text-white/55">Photo: {c} · Google</p> : null; })()}
               </div>
             );
           })()}

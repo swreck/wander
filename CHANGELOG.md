@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday morning in Japan) — More of the trip in pictures; Play moves on by itself
+
+Ken (Oct 16): "integrated photos are great but don't change the essence of a wall of text that much… 50-100% further";
+"Play day should auto advance after a few seconds… Maybe even first change after only 2-3 seconds to teach users about
+auto before they tap then slow to 5 seconds for rest. Try hard to have targeted accurate photos… Increase to two photos
+in play day only (not on main page)."
+
+### Added
+- Home: each of today's lines of her plan shows its place's photo, small at the line's end — the same checked photo the
+  day's screen shows (one reading of where a line is, now in lib/linePlaces.ts for both). Next's box shows its place's
+  photo on its right side, fading into the box; the box keeps its size, so nothing below moves as photos come
+  (measured: the photos add 0.003 to Home's layout shift).
+- Play moves on by itself: the first time after 3 seconds, then every 5; the bar at the top fills for the moment showing.
+  It waits while a finger rests on the screen, while a moment's full words or its photos are open, and while Wander isn't
+  on screen; it stops at "That's the day." and never goes into the next day by itself.
+- Play: a second photo of a place, where one shows it too, fades in halfway through its moment, with its own credit.
+  Wander's photo check now looks at a place's first five photos and names the best and a second, clearly different
+  view (never a menu, sign, receipt, car park or selfie); places checked before today are looked at once more, in the
+  background, from the photos already found. A place whose first photo changes gets a new address, so no phone keeps
+  the old one under the new credit. SPEC §3.7.
+
+### Known, not this batch
+- Home's own layout shift on a first open is over 0.1 on the test copy (0.12–0.17), with or without photos: the "Opening
+  today…" card and what's below it moving as the card fills. To look at separately.
+
 ## 2026-10-16 (Friday, 8:30 AM in Japan) — Budget rows; one request where there were ten
 
 ### Changed
