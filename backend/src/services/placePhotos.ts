@@ -10,12 +10,34 @@
  * the same place — "Ginza Premium Retail Walk" is a walk, not a shop, and gets no photo. Kept a week per search.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { Prisma } from "@prisma/client";
 import prisma from "./db.js";
 
 const WEEK = 7 * 24 * 3600_000;
 const MOST = 6;
+/**
+ * Google's hours for a place her line means (Oct 15, Ken: "the feature or info or view the user would want before they
+ * realize they want it" — Kyoto's temples close at 4:30 or 5): the week as Google lists it ("0900"–"1700", day 0 =
+ * Sunday), the next days' own hours with their dates (holidays and special days included), and whether Google says
+ * it's closed for now. Said on a line only when her plan's time runs past them (lib/placeHours on the phone).
+ */
+export type Hours = {
+  weekly: { open: { day: number; time: string }; close?: { day: number; time: string } }[];
+  dated: { open: { date: string; time: string }; close?: { date: string; time: string } }[];
+  status: string | null;
+  at: number;
+};
 /** v: when it was last checked — in the photo's address, so a phone never keeps showing one Wander has replaced */
-export type PlaceHit = { id: string; v: number; name: string | null; photos: { credit: string | null }[] } | null;
+export type PlaceHit = { id: string; v: number; name: string | null; photos: { credit: string | null }[]; hours?: Hours | null } | null;
+const HOURS_FIELDS = "opening_hours,current_opening_hours,business_status";
+const hoursOf = (r: any): Hours | null => {
+  const weekly = (r?.opening_hours?.periods || []).filter((x: any) => x?.open).map((x: any) => ({ open: { day: x.open.day, time: x.open.time }, ...(x.close ? { close: { day: x.close.day, time: x.close.time } } : {}) }));
+  const dated = (r?.current_opening_hours?.periods || []).filter((x: any) => x?.open?.date).map((x: any) => ({ open: { date: x.open.date, time: x.open.time }, ...(x.close?.date ? { close: { date: x.close.date, time: x.close.time } } : {}) }));
+  if (!weekly.length && !dated.length && !r?.business_status) return null;
+  return { weekly, dated, status: r?.business_status || null, at: Date.now() };
+};
+// (a place's hours are looked at again after three days — the dated ones only run a week ahead)
+const HOURS_FRESH = 3 * 24 * 3600_000;
 type Ref = { ref: string; credit: string | null };
 
 const asking = new Map<string, Promise<PlaceHit>>();
@@ -29,25 +51,65 @@ export function placePhotosFor(query: string, line: string, near: { lat: number;
   return asking.get(q)!;
 }
 
-export const knownHit = (row: { id: string; name: string | null; photos: unknown; verdict: string; checkedAt: Date }): PlaceHit => hit(row);
-const hit = (row: { id: string; name: string | null; photos: unknown; verdict: string; checkedAt: Date }): PlaceHit =>
+type Row = { id: string; name: string | null; photos: unknown; verdict: string; checkedAt: Date; hours?: unknown };
+export const knownHit = (row: Row): PlaceHit => hit(row);
+const hit = (row: Row): PlaceHit =>
   row.verdict === "yes" && Array.isArray(row.photos) && row.photos.length
-    ? { id: row.id, v: row.checkedAt.getTime(), name: row.name, photos: (row.photos as Ref[]).map((p) => ({ credit: p.credit })) } : null;
+    ? { id: row.id, v: row.checkedAt.getTime(), name: row.name, photos: (row.photos as Ref[]).map((p) => ({ credit: p.credit })), hours: (row.hours as Hours | null) ?? null } : null;
+
+/**
+ * Every place her lines mean whose hours Wander lacks or has had three days: looked at again, one at a time, in the
+ * background. Phones learn the known places at start (GET /known) and don't ask for each one again, so the hours are
+ * kept fresh here rather than on a stop's own lookup. One run at a time.
+ */
+let refreshingHours = false;
+export function freshenHours(): void {
+  if (refreshingHours || !process.env.GOOGLE_MAPS_API_KEY) return;
+  refreshingHours = true;
+  (async () => {
+    const rows = await prisma.placePhoto.findMany({ where: { verdict: "yes" }, select: { id: true, placeId: true, hours: true } });
+    for (const r of rows) {
+      const h = r.hours as Hours | null;
+      if (!h || Date.now() - (h.at || 0) > HOURS_FRESH) await refreshHours(r);
+    }
+  })().catch((e) => console.warn("[place-photos] hours run:", e?.message || e)).finally(() => { refreshingHours = false; });
+}
+
+/** Google's hours for a place already found and checked, looked at again (a few tenths of a cent) */
+async function refreshHours(row: { id: string; placeId: string | null }): Promise<void> {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key || !row.placeId) return;
+  try {
+    const d: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${row.placeId}&fields=${HOURS_FIELDS}&language=en&key=${key}`)).json();
+    const h = hoursOf(d?.result);
+    await prisma.placePhoto.update({ where: { id: row.id }, data: { hours: (h ?? { weekly: [], dated: [], status: null, at: Date.now() }) as unknown as Prisma.InputJsonValue } });
+  } catch (e: any) { console.warn("[place-photos] hours:", e?.message || e); }
+}
 
 async function resolve(query: string, line: string, near: { lat: number; lng: number } | null): Promise<PlaceHit> {
   const kept = await prisma.placePhoto.findUnique({ where: { query } });
   // (checked again when her words for it changed — a new Guide copy, or the stop her tab names)
-  if (kept && kept.line === line && Date.now() - kept.checkedAt.getTime() < WEEK) return hit(kept);
+  if (kept && kept.line === line && Date.now() - kept.checkedAt.getTime() < WEEK) {
+    // (a place her line means: its hours, when Wander has none yet or they're three days old)
+    const h = kept.hours as Hours | null;
+    if (kept.verdict === "yes" && (!h || Date.now() - (h.at || 0) > HOURS_FRESH)) {
+      await refreshHours(kept);
+      return hit((await prisma.placePhoto.findUnique({ where: { id: kept.id } })) || kept);
+    }
+    return hit(kept);
+  }
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return kept ? hit(kept) : null;
   let found: { placeId: string; name: string; address: string; types: string[]; photos: Ref[] } | null = null;
+  let hoursFound: Hours | null = null;
   try {
     const where = near ? `&location=${near.lat},${near.lng}&radius=20000` : "";
     const s: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}${where}&language=en&key=${key}`)).json();
     const top = (s?.results || [])[0];
     if (top?.place_id) {
-      const d: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${top.place_id}&fields=name,formatted_address,types,photos&language=en&key=${key}`)).json();
+      const d: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${top.place_id}&fields=name,formatted_address,types,photos,${HOURS_FIELDS}&language=en&key=${key}`)).json();
       const r = d?.result || top;
+      hoursFound = hoursOf(d?.result);
       found = {
         placeId: top.place_id, name: r.name || top.name, address: r.formatted_address || top.formatted_address || "", types: r.types || top.types || [],
         photos: (r.photos || top.photos || []).slice(0, MOST).map((p: any) => ({ ref: p.photo_reference, credit: ((p.html_attributions || [])[0] || "").replace(/<[^>]+>/g, "").trim() || null })),
@@ -71,7 +133,9 @@ async function resolve(query: string, line: string, near: { lat: number; lng: nu
       else found.photos = [found.photos[pick], ...found.photos.filter((_, i) => i !== pick)];
     }
   }
-  const data = { line, placeId: found?.placeId ?? null, name: found?.name ?? null, address: found?.address ?? null, photos: found?.photos ?? [], verdict, why, checkedAt: new Date() };
+  // (hours kept only for the place her line means)
+  const data = { line, placeId: found?.placeId ?? null, name: found?.name ?? null, address: found?.address ?? null, photos: found?.photos ?? [], verdict, why,
+    hours: verdict === "yes" ? (hoursFound ?? { weekly: [], dated: [], status: null, at: Date.now() }) as unknown as Prisma.InputJsonValue : Prisma.DbNull, checkedAt: new Date() };
   const row = await prisma.placePhoto.upsert({ where: { query }, create: { query, ...data }, update: data });
   console.log(`[place-photos] "${line.slice(0, 50)}" → ${found?.name || "nothing"}: ${verdict}${why ? ` (${why.slice(0, 80)})` : ""}`);
   return hit(row);

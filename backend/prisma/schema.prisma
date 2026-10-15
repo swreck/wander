@@ -774,6 +774,10 @@ model PlacePhoto {
   photos    Json     @default("[]")             // [{ ref, credit }] — up to six
   verdict   String                              // yes | no | none
   why       String?                             // the check's reason, for review
+  /// Google's hours for the place, when it's the place her line means (Oct 15: "before they realize they want it" —
+  /// a stop that closes before her plan leaves it): { weekly: [{ open: {day,time}, close: {day,time} }], special:
+  /// [{ date, open, close } | { date, closed }], status, at }
+  hours     Json?
   checkedAt DateTime @default(now()) @map("checked_at")
 
   @@map("place_photos")
