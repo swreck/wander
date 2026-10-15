@@ -9,6 +9,7 @@ import { sourcesData, type OtherSource } from "../lib/sources";
 import { voiceFor, samePerson } from "../lib/guideDisplay";
 import { showMeAround } from "../components/ShowMeAround";
 import TellKenSettings from "../components/TellKenSettings";
+import { IdeasSettingsRow } from "../components/IdeasLink";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -74,6 +75,7 @@ export default function SettingsPage() {
         </section>
 
         <TellKenSettings />
+        <IdeasSettingsRow />
         <FaceIdSetup variant="settings" />
         <NotesSettingsSection />
         <SheetSyncSection />

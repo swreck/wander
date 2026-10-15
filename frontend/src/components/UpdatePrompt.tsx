@@ -35,10 +35,22 @@ export default function UpdatePrompt() {
       return () => clearInterval(checkInterval);
     });
 
-    // Also detect controller change (another tab triggered the update)
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      window.location.reload();
-    });
+    // The new version takes over by itself (sw.ts skipWaiting): reload into it — but never over words being written.
+    // Oct 15: a reload mid-question lost what someone had typed to Scout (Notes keeps a draft; Scout's box didn't).
+    // Waits while any box on screen holds unsent words or has the cursor, looking again every few seconds.
+    let reloading = false;
+    const busy = () => {
+      const a = document.activeElement as HTMLElement | null;
+      if (a && (a.tagName === "TEXTAREA" || a.isContentEditable || (a.tagName === "INPUT" && !["button", "checkbox", "radio", "submit", "file", "range"].includes((a as HTMLInputElement).type)))) return true;
+      return [...document.querySelectorAll<HTMLTextAreaElement | HTMLInputElement>("textarea, input[type='text'], input[type='search'], input:not([type])")]
+        .some((el) => el.value.trim().length > 0 && el.offsetParent !== null);
+    };
+    const reloadWhenFree = () => {
+      if (reloading) return;
+      if (!busy()) { reloading = true; window.location.reload(); return; }
+      setTimeout(reloadWhenFree, 4000);
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", reloadWhenFree);
   }, []);
 
   function handleUpdate() {

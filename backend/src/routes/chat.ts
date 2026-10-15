@@ -1007,6 +1007,18 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "add_wander_idea",
+    description: "Post an idea about WANDER ITSELF to Ideas for Wander — Ken and Andy's place for making Wander better — when its member asks: 'For Ideas for Wander: …', 'add that to Ideas for Wander', 'put this in Ideas'. Their own words exactly; any picture they sent with it goes along. Members only: for anyone else, use tell_ken instead (on their yes). Rule 60.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        words: { type: "string", description: "Their words exactly as they said them, without 'For Ideas for Wander' — never your summary." },
+      },
+      required: ["tripId", "words"],
+    },
+  },
+  {
     name: "keep_in_my_notes",
     description: "Keep what the person tells you about the trip in their Notes (the Notes tab), word for word, on the day it's about. Their notes are the trip's story — later summaries are made from them. Use it when they tell you something that happened, what they saw or learned, who they met, or why the day went as it did ('we came here because our guide drove us…', 'the potter's family has fired kilns for ten generations'), or ask you to note or remember something. Not for questions, and not for plans (that's add_same_day_plan — when they tell both, do both). Only they see it unless they ask for the trip to see it.",
     input_schema: {
@@ -3812,6 +3824,24 @@ export async function executeTool(
     // Ken, Oct 10: telling Scout what happened today ("we came to this town because our guide drove us…") had nowhere
     // to go. Kept in their Notes, every word theirs: a note once kept "themes" instead of what he said (ChatGPT, before
     // Wander), so the words Scout passes are kept only when they are the person's own; otherwise all they said is kept.
+    case "add_wander_idea": {
+      const me = (user as any).travelerId as string | undefined;
+      const { isMember, postIdea } = await import("../services/wanderIdeas.js");
+      if (!me || !(await isMember(input.tripId, me))) {
+        return { result: { error: "Ideas for Wander is Ken and Andy's. Offer to pass it to Ken word for word instead (tell_ken, on their yes)." } };
+      }
+      const { keptWords } = await import("../services/tripNotes/kept.js");
+      const raw = String(input.words || "").replace(/^\s*(for|add to|put (this|that) in)\s+(the\s+)?ideas(\s+for\s+wander)?\s*[:,]?\s*/i, "");
+      const words = keptWords(raw, said || []) || raw;
+      const r = await postIdea({ tripId: input.tripId, travelerId: me, authorName: user.displayName, words, screen: asked?.screen ?? null,
+        pictures: asked?.image ? [asked.image] : [] });
+      if ("error" in r) return { result: { error: r.error } };
+      return {
+        result: { posted: true, words, withPicture: !!asked?.image,
+          say: "One short line: it's in Ideas for Wander, word for word (with the picture if any), and Scout will answer it there; Ideas is at the top of Home." },
+        actionDescription: "Added to Ideas for Wander",
+      };
+    }
     case "tell_ken": {
       const me = (user as any).travelerId as string | undefined;
       if (!me) return { result: { error: "Messages to Ken go from a person's own sign-in." } };
@@ -5255,6 +5285,7 @@ RULES:
 52. Use restore_entity when someone says "undo that delete", "bring back [name of something deleted]", or "I didn't mean to remove that" — never for "bring it back" about something you said or they kept (rule 41b). First use get_change_log to find the changeLogId for the deletion, then call restore_entity with it.
 54. Use create_day_choice when someone says "some of us might want to do X while others do Y", "we could split up", or "there are two options for the afternoon". This creates a Decision tied to a specific day so everyone can vote on what they want to do.
 59. Telling Ken about Wander (Ken, Oct 14: "if they would like a feature added to wander or anything about the way wander works is confusing, they can speak or type at that moment what they want and it will become a message to Ken to try to fix"). Only when they ask for it — "Tell Ken…", "let Ken know…", "send that to Ken", or yes to your offer — a message about WANDER ITSELF goes to Ken with tell_ken: their words exactly, one thought per message (two wishes in one breath: two calls). "I wish Wander…", "Wander should…", "this is confusing", "I can't find…" said without asking: answer what you can, then offer once, in one short line: "Want me to pass that to Ken, word for word?" — never send without their yes (their words go to Ken only when they choose). Dictation can garble "Ken" ("tell can…", "tell Kent…"): if it's plainly meant, send it; if not, ask. Then one or two short lines: it's sent to Ken word for word (with the screen they're on, and the picture if they sent one), and they can send another. Never say Ken will fix it or when. If what they said is also a question you can answer ("I can't find the Maybes"), answer it too. Not about Wander — "tell Ken I'll be late", "tell Ken to meet us at 7", "tell Ken I love the trip" — is theirs to text: say so in one line, and send nothing. If it's unclear which, ask in one line. Never pass on anything they didn't ask you to.
+60. Ideas for Wander (Ken, Oct 15: "a place used most by andy and me to place screenshots and ideas to improve wander"): when Ken or Andy says "For Ideas for Wander: …", "add that to Ideas", "put this in Ideas for Wander", call add_wander_idea with their words exactly (and their picture goes along). It's theirs alone: anyone else who asks gets one line saying it's Ken and Andy's, and the offer to pass it to Ken (rule 59). "Tell Ken…" stays tell_ken, even from Ken or Andy. Never post on your own, and never move something said to you into Ideas without their asking.
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
 
@@ -5561,7 +5592,7 @@ RULES:
           // (where they are, and the first picture they sent — for tell_ken)
           const firstPicture = photo || sent.find((a) => /^image\/(jpeg|png|webp|gif)$/.test(a.mediaType)) || null;
           const { result, actionDescription, placeCards: cards, navigate, route, forecasts } = await executeTool(toolBlock.name, toolBlock.input, user, theirWords, scoutWords,
-            toolBlock.name === "tell_ken" ? { screen: tellKenScreen(context), image: firstPicture } : undefined);
+            toolBlock.name === "tell_ken" || toolBlock.name === "add_wander_idea" ? { screen: tellKenScreen(context), image: firstPicture } : undefined);
           if (forecasts) for (const f of forecasts) if (!forecastsRead.some((x) => x.date === f.date)) forecastsRead.push(f);
           if (route && !routes.some((w) => w.apple === route.apple) && routes.length < 3) routes.push(route);
           if (actionDescription) actions.push(actionDescription);
