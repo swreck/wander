@@ -1143,6 +1143,9 @@ model TripExpense {
   addedByName String    @map("added_by_name")
   removedAt   DateTime? @map("removed_at")
   createdAt   DateTime  @default(now()) @map("created_at")
+  // the phone's one-time tag for this Keep: the same tag again (a reply lost on a weak signal, then Keep again) is the
+  // same payment, never a second one (Ken, Oct 16: "There will not be errors")
+  clientKey   String?   @unique @map("client_key")
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 

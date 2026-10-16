@@ -825,7 +825,6 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
     </div>
   );
 }
-import PhraseCard from "../components/PhraseCard";
 import EveningQuestion from "../components/EveningQuestion";
 import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
 import { CityTitle, warmCityPhoto, photoWanted, useCityBandPhoto } from "../components/CityArrival";
@@ -1905,8 +1904,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] px-2 top-bar pb-2">
         <div className="flex items-center gap-1">
           {now ? (
-            // Quick Japanese phrases, up here — floating over the day they covered its cards
-            <div className="min-w-[44px]"><PhraseCard inHeader trip={trip} /></div>
+            // (the phrases are the bar's 日, on every screen — Ken, Oct 16: "Why are phrases now in the upper left and bottom
+            // right?"; one way in. The room is kept so the day stays centred)
+            <div className="min-w-[44px]" aria-hidden />
           ) : (
             <button
               // Step back to where they came from (Home, Ideas), so Back afterwards doesn't reopen this day

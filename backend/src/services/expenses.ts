@@ -32,11 +32,30 @@ export type Ledger = {
 
 const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
 
+/** A couple by its people, whatever order her Guide names them in: "Julie & Andy" and "Andy & Julie" are "andy+julie" */
+export const coupleKey = (label: string) => label.split(/\s*&\s*|\s+and\s+/i).map((x) => x.trim()).filter(Boolean).map(first).sort().join("+");
+/** A kept payment's couple as the trip names it now — a payment kept as "Julie & Andy" still counts if a new copy of her
+ *  Guide says "Andy & Julie" (the sums matched couples by spelling; one flip and every payment under the old one would
+ *  have dropped out of them, unseen) */
+export const canonCouple = (parties: string[], label: string) => parties.find((p) => coupleKey(p) === coupleKey(label)) || label;
+
 /** The trip's couples, as her Guide names them ("Ken & Larisa", "Andy & Julie") — both of each a member of the trip */
 export async function partiesOf(tripId: string): Promise<string[]> {
+  const found = await couplesInGuide(tripId);
+  if (found.length >= 2) return found;
+  // (her Guide naming fewer than two — a new copy that drops its "&" lines: the couples payments were already kept for,
+  // so the sums never lose one)
+  const kept = await prisma.tripExpense.findMany({ where: { tripId }, select: { party: true }, distinct: ["party"], orderBy: { createdAt: "asc" } });
+  const out = [...found];
+  for (const k of kept) if (!out.some((p) => coupleKey(p) === coupleKey(k.party))) out.push(k.party);
+  return out.slice(0, 2);
+}
+
+async function couplesInGuide(tripId: string): Promise<string[]> {
   const members = await prisma.tripMember.findMany({ where: { tripId }, include: { traveler: { select: { displayName: true } } }, orderBy: { joinedAt: "asc" } });
   const names = new Set(members.map((m) => first(m.traveler.displayName)));
-  const rows = await prisma.guideItem.findMany({ where: { tripId, forWhom: { contains: "&" } }, select: { forWhom: true } });
+  // (in a fixed order, so the same Guide always gives the same spelling)
+  const rows = await prisma.guideItem.findMany({ where: { tripId, forWhom: { contains: "&" } }, select: { forWhom: true }, orderBy: [{ date: "asc" }, { id: "asc" }] });
   const count = new Map<string, { label: string; n: number }>();
   for (const r of rows) {
     const people = String(r.forWhom).split(/\s*&\s*/).map((x) => x.trim()).filter(Boolean);
@@ -72,7 +91,8 @@ export async function yenPerDollar(): Promise<{ rate: number; approx: boolean }>
 
 export async function ledger(tripId: string, who?: { travelerId?: string | null; displayName?: string | null }): Promise<Ledger> {
   const parties = await partiesOf(tripId);
-  const rows = await prisma.tripExpense.findMany({ where: { tripId, removedAt: null }, orderBy: { createdAt: "desc" } });
+  const rows = (await prisma.tripExpense.findMany({ where: { tripId, removedAt: null }, orderBy: { createdAt: "desc" } }))
+    .map((r) => ({ ...r, party: canonCouple(parties, r.party), forParty: r.forParty ? canonCouple(parties, r.forParty) : null }));
   const totals: Record<string, number> = Object.fromEntries(parties.map((p) => [p, 0]));
   for (const r of rows) totals[r.party] = (totals[r.party] || 0) + r.yen;
   // What the other couple owes for each payment: half of one shared, all of one wholly theirs (Ken, Oct 16: Julie's
@@ -114,13 +134,23 @@ async function logChange(tripId: string, expenseId: string, by: { travelerId?: s
 }
 /** Who may change or take away a payment: who kept it, or Ken (the trip's first member) — his rule for Maybes */
 async function mayChange(tripId: string, row: { addedById: string | null; addedByName: string }, who: { travelerId?: string | null; displayName: string }) {
-  const org = await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true } });
-  return (!!who.travelerId && (row.addedById === who.travelerId || org?.travelerId === who.travelerId)) || first(row.addedByName) === first(who.displayName);
+  return mayChangeAs(await organizerOf(tripId), row, who);
 }
+const organizerOf = async (tripId: string) => (await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true } }))?.travelerId || null;
+const mayChangeAs = (org: string | null, row: { addedById: string | null; addedByName: string }, who: { travelerId?: string | null; displayName: string }) =>
+  (!!who.travelerId && (row.addedById === who.travelerId || org === who.travelerId)) || (!!who.displayName && first(row.addedByName) === first(who.displayName));
 
 /** A payment: who paid (a couple, or anyone in it), how much, in what, for what, on which day */
-export async function addExpense(input: { tripId: string; paidBy: string; amount: number; currency?: string; what?: string | null; dayDate?: string | null; forParty?: string | null; addedById: string | null; addedByName: string }):
-  Promise<{ id: string; party: string; forParty: string | null; yen: number; rate: number | null; approx: boolean } | { error: string }> {
+export async function addExpense(input: { tripId: string; paidBy: string; amount: number; currency?: string; what?: string | null; dayDate?: string | null; forParty?: string | null; addedById: string | null; addedByName: string; clientKey?: string | null }):
+  Promise<{ id: string; party: string; forParty: string | null; yen: number; rate: number | null; approx: boolean; again?: boolean } | { error: string }> {
+  // The same Keep again (its reply lost on a weak signal, "That didn't save", Keep tapped again): the payment already kept
+  const clientKey = typeof input.clientKey === "string" && /^[\w-]{8,64}$/.test(input.clientKey) ? input.clientKey : null;
+  const already = async () => {
+    const r = clientKey ? await prisma.tripExpense.findUnique({ where: { clientKey } }) : null;
+    return r && r.tripId === input.tripId ? { id: r.id, party: r.party, forParty: r.forParty, yen: r.yen, rate: r.rate, approx: false, again: true } : null;
+  };
+  const seen = await already();
+  if (seen) return seen;
   const parties = await partiesOf(input.tripId);
   const party = parties.find((p) => p.toLowerCase() === input.paidBy.trim().toLowerCase()) || partyFor(parties, input.paidBy);
   if (!party) return { error: `Which couple paid? ${parties.join(" or ") || "No couples found in her Guide."}` };
@@ -136,7 +166,14 @@ export async function addExpense(input: { tripId: string; paidBy: string; amount
     forParty = parties.find((p) => p.toLowerCase() === String(input.forParty).trim().toLowerCase()) || partyFor(parties, String(input.forParty));
     if (!forParty) return { error: `Who is it for? ${parties.join(", ")}, or shared` };
   }
-  const row = await prisma.tripExpense.create({ data: { tripId: input.tripId, party, forParty, amount, currency, yen, rate, what: (input.what || "").trim().slice(0, 200) || null, dayDate, addedById: input.addedById, addedByName: input.addedByName } });
+  let row;
+  try {
+    row = await prisma.tripExpense.create({ data: { tripId: input.tripId, party, forParty, amount, currency, yen, rate, what: (input.what || "").trim().slice(0, 200) || null, dayDate, addedById: input.addedById, addedByName: input.addedByName, clientKey } });
+  } catch (e: any) {
+    // (two copies of the same Keep arriving together: the second finds the first)
+    if (e?.code === "P2002") { const r = await already(); if (r) return r; }
+    throw e;
+  }
   await logChange(input.tripId, row.id, { travelerId: input.addedById, displayName: input.addedByName }, `added ${moneyWords(amount, currency)} (${party})${forWords(forParty)}`);
   tellScreens(input.tripId, input.addedByName);
   return { id: row.id, party, forParty, yen, rate, approx };
@@ -153,6 +190,19 @@ export async function removeExpense(tripId: string, id: string, who: { travelerI
   return true;
 }
 
+/** Put back (Ken, Oct 16, on "Nothing is lost": brought back into the live flow) — a payment taken away counts again, as
+ *  it was; by who kept it, or Ken */
+export async function restoreExpense(tripId: string, id: string, who: { travelerId?: string | null; displayName: string }): Promise<{ party: string; amount: number; currency: string } | "not-yours" | "gone" | "already"> {
+  const row = await prisma.tripExpense.findFirst({ where: { id, tripId } });
+  if (!row) return "gone";
+  if (!row.removedAt) return "already";
+  if (!(await mayChange(tripId, row, who))) return "not-yours";
+  await prisma.tripExpense.update({ where: { id }, data: { removedAt: null } });
+  await logChange(tripId, id, who, `put back ${moneyWords(row.amount, row.currency)} (${row.party})`);
+  tellScreens(tripId, who.displayName);
+  return { party: row.party, amount: row.amount, currency: row.currency };
+}
+
 /** Changed: how much, in what, which couple paid, what for (Ken, Oct 16: "add edit button to budget page to go back and
  *  add reason, change total, or change payer") — by who kept it, or Ken. A dollar amount keeps the rate it was kept at,
  *  unless it's newly in dollars (then that day's). */
@@ -163,6 +213,9 @@ export async function changeExpense(tripId: string, id: string, who: { travelerI
   if (!row) return "gone";
   if (!(await mayChange(tripId, row, who))) return "not-yours";
   const parties = await partiesOf(tripId);
+  // (as the trip names the couples now — a kept "Julie & Andy" read against "Andy & Julie" would log a change that isn't one)
+  row.party = canonCouple(parties, row.party);
+  if (row.forParty) row.forParty = canonCouple(parties, row.forParty);
   let party = row.party;
   if (change.paidBy !== undefined && String(change.paidBy).trim()) {
     const p = parties.find((x) => x.toLowerCase() === String(change.paidBy).trim().toLowerCase()) || partyFor(parties, String(change.paidBy));
@@ -204,18 +257,30 @@ export async function changeExpense(tripId: string, id: string, who: { travelerI
 
 /** Budget's History, newest first: when, who, what they did. Payments kept before History began (Oct 16) show when they
  *  were added and taken away, from what each payment already held. */
-export async function expenseHistory(tripId: string): Promise<{ at: string; by: string; action: string }[]> {
+export async function expenseHistory(tripId: string, who?: { travelerId?: string | null; displayName: string }): Promise<{ at: string; by: string; action: string; putBack?: string }[]> {
   const logs = await prisma.tripExpenseLog.findMany({ where: { tripId }, orderBy: { at: "desc" }, take: 300 });
   const rows = await prisma.tripExpense.findMany({ where: { tripId } });
   const added = new Set(logs.filter((l) => l.action.startsWith("added ")).map((l) => l.expenseId));
   const removed = new Set(logs.filter((l) => l.action.startsWith("removed ")).map((l) => l.expenseId));
   const before = [
-    ...rows.filter((r) => !added.has(r.id)).map((r) => ({ at: r.createdAt, by: r.addedByName, action: `added ${moneyWords(r.amount, r.currency)} (${r.party})` })),
-    ...rows.filter((r) => r.removedAt && !removed.has(r.id)).map((r) => ({ at: r.removedAt!, by: "", action: `removed ${moneyWords(r.amount, r.currency)} (${r.party})` })),
+    ...rows.filter((r) => !added.has(r.id)).map((r) => ({ at: r.createdAt, by: r.addedByName, action: `added ${moneyWords(r.amount, r.currency)} (${r.party})`, id: r.id })),
+    ...rows.filter((r) => r.removedAt && !removed.has(r.id)).map((r) => ({ at: r.removedAt!, by: "", action: `removed ${moneyWords(r.amount, r.currency)} (${r.party})`, id: r.id })),
   ];
-  return [...logs.map((l) => ({ at: l.at, by: l.byName, action: l.action })), ...before]
-    .sort((a, b) => b.at.getTime() - a.at.getTime())
-    .map((x) => ({ at: x.at.toISOString(), by: x.by, action: x.action }));
+  // "Put it back" on the latest removal of a payment that's still taken away, for whoever may (who kept it, or Ken)
+  const offNow = new Map<string, (typeof rows)[number]>(rows.filter((r) => r.removedAt).map((r) => [r.id, r]));
+  const offered = new Set<string>();
+  // (who the organizer is, asked once — asked for each removed payment, the Log took seconds to come back)
+  const org = who ? await organizerOf(tripId) : null;
+  const lines = [...logs.map((l) => ({ at: l.at, by: l.byName, action: l.action, id: l.expenseId })), ...before].sort((a, b) => b.at.getTime() - a.at.getTime());
+  // (what each was for, as it says now — "Removed ¥2,000 (Ken & Larisa)" didn't say which ¥2,000 to put back; fresh tester)
+  const whatOf = new Map(rows.map((r) => [r.id, r.what]));
+  return lines.map((x) => {
+    const row = offNow.get(x.id);
+    const putBack = !!who && !!row && x.action.startsWith("removed ") && !offered.has(x.id) && mayChangeAs(org, row, who);
+    if (putBack) offered.add(x.id);
+    const what = /^(added|removed|put back) /.test(x.action) ? whatOf.get(x.id) : null;
+    return { at: x.at.toISOString(), by: x.by, action: what ? `${x.action}: ${what}` : x.action, ...(putBack ? { putBack: x.id } : {}) };
+  });
 }
 
 /** "¥12,400" */

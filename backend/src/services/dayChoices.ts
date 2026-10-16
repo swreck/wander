@@ -30,6 +30,13 @@ export function plainDay(date: string): string {
 }
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** Ideas taken off the Maybes list: a day they were put on leaves that day too, and comes back with Put it back (the
+ *  maybes walk, Oct 16: taken off the list, it stayed on Oct 17's page) — nothing deleted */
+export async function offListIdeas(ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  return new Set((await prisma.experience.findMany({ where: { id: { in: ids }, removedAt: { not: null } }, select: { id: true } })).map((e) => e.id));
+}
+
 export async function listDayChoices(tripId: string, date?: string): Promise<DayChoiceView[]> {
   const rows = await prisma.dayChoice.findMany({
     where: { tripId, ...(date ? { date } : {}) },
@@ -40,7 +47,8 @@ export async function listDayChoices(tripId: string, date?: string): Promise<Day
   const guideIdeas = new Set(ideaIds.length
     ? (await prisma.experience.findMany({ where: { id: { in: ideaIds }, sheetRowRef: { not: null }, NOT: { sheetRowRef: { startsWith: "Removed from Guide|" } } }, select: { id: true } })).map((e) => e.id)
     : []);
-  return rows.map((r) => ({
+  const off = await offListIdeas(ideaIds);
+  return rows.filter((r) => !r.experienceId || !off.has(r.experienceId)).map((r) => ({
     id: r.id, date: r.date, time: r.time, text: r.text, experienceId: r.experienceId,
     addedBy: r.traveler.displayName, addedById: r.travelerId, createdAt: r.createdAt.toISOString(),
     fromGuideIdea: !!r.experienceId && guideIdeas.has(r.experienceId),

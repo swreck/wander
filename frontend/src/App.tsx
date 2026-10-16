@@ -369,7 +369,7 @@ export default function App() {
               <UpdatePrompt />
               <BottomNav />
               <TellKenOffer />
-              {/* The one phrase card, opened by the bar's 日 or Next's "日 Phrases" */}
+              {/* The one phrase card, opened by the bar's 日 */}
               <PhraseCard mode="sheet" />
               {/* "Show me around" — only when asked for */}
               <ShowMeAround />

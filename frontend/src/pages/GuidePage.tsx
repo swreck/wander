@@ -15,7 +15,7 @@ const sectionsFor = (mine: boolean, meName: string) => [
 
 **Home** opens on what matters now. Under the trip's dates is today's weather, and **Go to today ›** opens today's full page. Below that: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.
 
-Along the bottom: **Today** (all of today: ${mine ? "your" : "Larisa's"} plan by the clock, its places, Play the day), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what each couple has paid for the group, and who pays next: KL for Ken & Larisa, AJ for Julie & Andy, as Budget names them), and **Scout**, which you can ask anything about the trip. **日** at the right end opens Japanese phrases. To-dos and deadlines, and **Maybes**, open from Home.`,
+Along the bottom: **Today** (all of today: ${mine ? "your" : "Larisa's"} plan by the clock, its places, Play the day), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what each couple has paid for the group, and who pays next: KL for Ken & Larisa, AJ for Julie & Andy, as Budget names them), and **Scout**, which you can ask anything about the trip. **日 Phrases** at the right end opens Japanese phrases. To-dos and deadlines, and **Maybes**, open from Home.`,
   },
   {
     id: "getting-around",
@@ -50,7 +50,7 @@ Before the trip, Next shows the first day. After it, the last.`,
   {
     id: "phrases",
     title: "Japanese Phrases",
-    body: `Tap **日** at the right end of the bar along the bottom, on any screen. The card has the phrases you'll use most, like "Excuse me" and "Check, please", with how to say each one. Ask Scout how to say something and it's added to the card for everyone, first on yours.
+    body: `Tap **日 Phrases** at the right end of the bar along the bottom, on any screen. The card has the phrases you'll use most, like "Excuse me" and "Check, please", with how to say each one. Ask Scout how to say something and it's added to the card for everyone, first on yours.
 
 **Edit** on the card puts the phrases in your order (↑ and ↓) and takes off the ones you don't need. Your order is yours alone. **Put back** brings back anything you removed.`,
   },
