@@ -12,8 +12,8 @@ Ken (Oct 3): "'the goal' hasn't changed. The only change is Wander is in the han
 unstable." Ken (Oct 4): "be double careful, ask yourself what bad thing can happen with each change since someone else
 is in the product."
 - (Claude) Changes are additive; one careful deploy per batch; no deploy while travelers are waking or mid-use;
-  cosmetic fixes ride with a deploy needed for a real reason. Each deploy restarts the server and empties what it holds
-  (Google charges to fill it again): batch work into few deploys. Docs-only commits don't deploy (railway.toml).
+  cosmetic fixes ride with a deploy needed for a real reason. A deploy empties the server's photo memory: batch
+  into few deploys. Docs-only commits don't deploy (railway.toml).
 - Deploy path: (1) `npx tsx trip-data/session-tools/backup-prod.ts <label>` (Neon branch + JSON in
   ~/Documents/WanderBackups; keeps the 2 newest; Ken, Oct 10: "even 10 backups is more than I would expect");
   (2) schema change → `prisma db push` to production FIRST (preview: schema-diff-prod.mjs); (3) merge 2.0 → main with
@@ -31,16 +31,16 @@ is in the product."
 ## Tests
 - Type-check: `frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.app.json` has 93 errors (measured Oct 16
   2026); never add one. Backend: `cd backend && npx tsc --noEmit`. (`cd frontend && npx tsc --noEmit` checks nothing.)
-- Backend suite, when backend/src or prisma changed: `cd backend && npx vitest run 2>&1 | tail -30`, foreground, timeout 600000 (~45 min). Never in the
+- Backend suite (backend/src or prisma changed): `cd backend && npx vitest run 2>&1 | tail -30`, foreground, timeout 600000 (~45 min). Never in the
   background, never through `tee | grep`, never two runs at once, never start a single vitest file while the suite
   runs (its setup deletes the running suite's Neon branch), never edit backend src during a run.
   tests/vitest-setup.ts's `pg` SELECT 1 warmup must stay: without it nearly every test fails "Can't reach database
   server". Vitest workers bind :3001, so local walks use :3004 / :5182.
 - Browser: Playwright on its own headless shell (trip-data/session-tools/playwright.prod.config.ts). Never
   `npx playwright install`. Installed Chrome hangs Playwright at close. Every suite reads BASE; stop old preview servers
-  first. Production walks skip Google's billed map (prod-walk.mjs; MAPS=1 to review maps).
-- backend/.env is PRODUCTION. Local walks use the test copy (e2e-backend.mjs: production's background jobs off unless
-  --warm; --stub-scout for walks not about Scout's words). Stop servers and previews when idle: they keep Neon's test
+  first. Production walks skip Google's billed map (prod-walk.mjs; MAPS=1 for maps).
+- backend/.env is PRODUCTION. Local walks use the test copy (e2e-backend.mjs: background jobs off unless --warm;
+  --stub-scout unless testing Scout's words). Stop servers and previews when idle: they keep Neon's test
   copy awake. Keep them up while a fresh agent is using them.
 - Data-changing behaviour gets chaos tests: normal, repeated, invalid or deleted ids, empty input, interaction with
   existing features. Scout tools above all, because people ask unpredictable things.

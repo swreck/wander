@@ -161,4 +161,5 @@ Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engine
   Wander's own additions. When a UI action changes Wander-owned data, Scout gets a matching
   tool (definition, executeTool case, numbered prompt rule), and the reverse. Never for Guide-derived data.
   Ken (Oct 13), on Scout arranging the phrase card in words: "Good job ensuring scout can reorder like a user. that is
-  big picture thinking. Keep it."
+  big picture thinking. Keep it." Ken (Oct 16), on receipts kept by Scout: "Good disciple ensuring scout can do any
+  function".
