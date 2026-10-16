@@ -713,6 +713,10 @@ export default function TripOverview() {
         <button type="button" onClick={() => setShowActions(true)} className="w-full text-left mb-3 min-h-[44px] px-3 rounded-lg text-sm text-[#514636] flex items-center justify-between">
           <span>To-dos and deadlines</span><span aria-hidden>›</span>
         </button>
+        {/* Maybes, its place in the bar given to Today (Ken, Oct 16) — the group's maybes and her ideas, one tap from Home */}
+        <button type="button" onClick={() => navigate("/ideas")} className="w-full text-left -mt-2 mb-3 min-h-[44px] px-3 rounded-lg text-sm text-[#514636] flex items-center justify-between">
+          <span>Maybes</span><span aria-hidden>›</span>
+        </button>
         {/* The story so far, during the trip (user-julie1, Oct 16: she found no way to it — Settings spoke of "trip stories"
             and nothing led there; after the trip the welcome-home card has it) */}
         {trip?.startDate && trip?.endDate && (() => { const d = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }); return d >= String(trip.startDate).slice(0, 10) && d <= String(trip.endDate).slice(0, 10); })() && (

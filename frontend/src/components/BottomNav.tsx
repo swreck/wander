@@ -7,6 +7,24 @@ import PhraseCard from "./PhraseCard";
 import { loadLedger, savedLedger, MONEY_CHANGED } from "../lib/expenses";
 import PayNextBadge from "./PayNextBadge";
 import { api } from "../lib/api";
+import { savedGuideData } from "../lib/guideData";
+import { travelerToday } from "../lib/guideDisplay";
+
+/** The traveler's own today: Japan's date once they've landed, from the Guide this phone keeps (else Japan's date) */
+function todayPath(): string {
+  const japan = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+  try {
+    const tripId = localStorage.getItem("wander:last-trip-id");
+    const me = (JSON.parse(localStorage.getItem("wander_user") || "null") as { displayName?: string } | null)?.displayName || null;
+    const g = tripId ? savedGuideData(tripId) : null;
+    if (g) {
+      const d = new Date();
+      const phone = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return `/day/${travelerToday(g.items, me, g.trip.timeZone || "Asia/Tokyo", phone)}`;
+    }
+  } catch { /* nothing kept: Japan's date */ }
+  return `/day/${japan}`;
+}
 
 interface Props {
   pendingChanges?: number;
@@ -24,14 +42,14 @@ const tabs = [
       </svg>
     ),
   },
+  // Today's full day where Maybes was — Ken (Oct 16): "Replace 'maybes' with 'full itinerary for today'". "Today" fits the
+  // bar; it opens the traveler's own today (Japan's date once landed). Maybes moved to a row on Home.
   {
-    path: "/ideas",
-    // "Maybes" (Oct 2 2026, Ken: "a shared list of maybes") — her ideas and the group's own "maybe we should…"
-    label: "Maybes",
+    path: "__today__",
+    label: "Today",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 18h6" /><path d="M10 22h4" />
-        <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z" />
+        <rect x="3" y="4.5" width="18" height="16.5" rx="2" /><path d="M3 9.5h18M8 2.5v4M16 2.5v4" /><path d="M7.5 13.5h4M7.5 17h7" />
       </svg>
     ),
   },
@@ -275,6 +293,8 @@ export default function BottomNav({ pendingChanges }: Props) {
             ? actionsOpen
             : tab.path === "/"
             ? location.pathname === "/" && !actionsOpen
+            : tab.path === "__today__"
+            ? location.pathname === todayPath()
             // (the tab's own screen or one under it — "/ideas-for-wander" isn't Maybes' "/ideas"; verify62)
             : location.pathname === tab.path || location.pathname.startsWith(`${tab.path}/`);
 
@@ -284,7 +304,9 @@ export default function BottomNav({ pendingChanges }: Props) {
               data-tour={tab.label}
               aria-current={isActive ? "page" : undefined}
               onClick={() => {
-                if (tab.path === "__scout__") {
+                if (tab.path === "__today__") {
+                  navigate(todayPath());
+                } else if (tab.path === "__scout__") {
                   window.dispatchEvent(new CustomEvent("wander-open-chat", { detail: {} }));
                 } else if (tab.path === "__actions__") {
                   // Actions opens over Home — from any screen, go Home and open it there
@@ -312,7 +334,7 @@ export default function BottomNav({ pendingChanges }: Props) {
                 <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" />
               ) : null}
               {/* Something new on Maybes (not while you're looking at it) */}
-              {tab.path === "/ideas" && maybesNew && !isActive ? (
+              {false && maybesNew && !isActive ? (
                 <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" aria-label="Something new" />
               ) : null}
               {/* Glow dot for Actions needing attention */}

@@ -1415,8 +1415,9 @@ reads "Larisa's Guide" and "Ken's rail sheet". Wander's own lines never talk abo
 
 ### 1.4 The screens
 
-The bottom bar, on every screen: **Home · Maybes · Next · Notes · Budget · Scout**, and a small **日** at its right end
-for the phrase card. Budget took Actions' place on Oct 15 (Ken: "There seems to be no need for the [Actions] button in
+The bottom bar, on every screen: **Home · Today · Next · Notes · Budget · Scout**, and a small **日** at its right end
+for the phrase card. **Today** (Oct 16, where Maybes was — Ken: "Replace 'maybes' with 'full itinerary for today'") opens
+the traveler's own today's full day page and is lit there; Maybes opens from a row on Home. Budget took Actions' place on Oct 15 (Ken: "There seems to be no need for the [Actions] button in
 the main navigation menu, so you can replace that with budget"); to-dos and deadlines open from Home (§11). Budget's
 icon says who pays next (§9.9). Tapping Home while on Home closes any open panel and Scout and goes back to the top. A dot on a tab means
 something new there.
@@ -2294,7 +2295,7 @@ interface." Exams are named with their rough question count before a run; full r
 The group's shared list of "maybe we should…". Ken (Oct 2): "a shared list of maybes", light enough for "tea or ice
 cream?". No polls, votes or alerts.
 
-- **Where**: the Maybes tab (it was Ideas until Oct 3). It opens on the next city ahead of you that has ideas.
+- **Where**: "Maybes ›" on Home (a bottom-bar tab until Oct 16, when Today took its place; called Ideas until Oct 3). It opens on the next city ahead of you that has ideas.
 - **Each city's list** starts with a box: "Maybe we should…". A few words, a link if there is one (kept as its link:
   "Instagram post ↗"), Send, and it's on that city's list for everyone. Saying it means you're in on it. With no signal
   it waits on the phone.
@@ -2317,7 +2318,7 @@ cream?". No polls, votes or alerts.
   Removing hides the item for everyone and never deletes: notes, I'm ins and a day it was put on all stay. Where the
   card was: "… is off Tokyo's list for everyone. Put it back". At the bottom: "Taken off the list · n ›", with who took
   each off and Put it back for the same people. A new copy of her Guide keeps it off.
-- **Something new**: a dot on the Maybes tab and one quiet line on Home.
+- **Something new**: one quiet line on Home.
 - **Scout**: "maybe we should…", "I'm in", "Julie's in too", "never mind the ice cream", remove and put back, by the same
   rules (§7.9).
 
