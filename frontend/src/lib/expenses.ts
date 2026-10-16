@@ -32,6 +32,14 @@ export async function readReceiptPhoto(tripId: string, file: File): Promise<{ ph
     return { photo, read: null };
   }
 }
+/** A receipt's photo added to a payment already kept (who kept it, or Ken). Null when kept; else what went wrong. */
+export async function attachReceiptPhoto(tripId: string, id: string, file: File): Promise<string | null> {
+  const { shrinkPicture } = await import("./papers");
+  const p = await shrinkPicture(file);
+  if (!p) return "That picture couldn't be read on this phone. A screenshot of it works.";
+  try { await api.post(`/expenses/trip/${tripId}/${id}/receipt`, { file: { mediaType: "image/jpeg", data: p.data, thumb: p.thumb } }); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
+  catch (e: any) { return e?.status ? e.message : "That didn't go through. Try again when you have signal."; }
+}
 /** A payment's receipt photo, for showing (fetched with the person's sign-in; an object address the page lets go of) */
 export async function receiptImage(tripId: string, id: string, small = false): Promise<string | null> {
   try {

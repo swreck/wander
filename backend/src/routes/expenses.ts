@@ -2,11 +2,12 @@
 import { Router } from "express";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { tripMemberParam } from "../middleware/role.js";
-import { ledger, addExpense, removeExpense, changeExpense, restoreExpense, expenseHistory, readReceipt, receiptOf } from "../services/expenses.js";
+import { ledger, addExpense, removeExpense, changeExpense, restoreExpense, expenseHistory, readReceipt, receiptOf, attachReceipt } from "../services/expenses.js";
 import { paperFile } from "../services/papers.js";
 
 /** A receipt photo as the phone sent it (a JPEG it shrank), or null — anything else isn't a receipt photo */
-const receiptFile = (x: unknown) => { const f = paperFile(x); return typeof f === "string" || !f.mediaType.startsWith("image/") ? null : f; };
+// (and a real photo: a few bytes claiming to be a JPEG were kept as one — fresh tester)
+const receiptFile = (x: unknown) => { const f = paperFile(x); return typeof f === "string" || !f.mediaType.startsWith("image/") || f.data.length < 2000 ? null : f; };
 
 const router = Router();
 router.use(requireAuth);
@@ -34,6 +35,16 @@ router.post("/trip/:tripId/receipt", async (req: AuthRequest, res) => {
   const file = receiptFile(req.body?.file);
   if (!file) { res.status(400).json({ error: "Only a photo of the receipt can be read." }); return; }
   res.json({ read: await readReceipt(req.params.tripId as string, file) });
+});
+
+// POST /trip/:tripId/:id/receipt — { file } — a receipt's photo added to a payment already kept (who kept it, or Ken)
+router.post("/trip/:tripId/:id/receipt", async (req: AuthRequest, res) => {
+  const file = receiptFile(req.body?.file);
+  if (!file) { res.status(400).json({ error: "Only a photo of the receipt can be kept with it." }); return; }
+  const r = await attachReceipt(req.params.tripId as string, req.params.id as string, { travelerId: req.user?.travelerId, displayName: req.user?.displayName || "" }, file);
+  if (r === "not-yours") { res.status(403).json({ error: "Only whoever kept it, or Ken, can add its receipt." }); return; }
+  if (r === "gone") { res.status(404).json({ error: "That payment isn't there anymore." }); return; }
+  res.json({ ok: true });
 });
 
 // GET /trip/:tripId/:id/receipt[?small=1] — a payment's receipt photo, for the trip's members

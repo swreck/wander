@@ -265,7 +265,8 @@ export async function changeExpense(tripId: string, id: string, who: { travelerI
 export async function expenseHistory(tripId: string, who?: { travelerId?: string | null; displayName: string }): Promise<{ at: string; by: string; action: string; putBack?: string; putBackBy?: string }[]> {
   const logs = await prisma.tripExpenseLog.findMany({ where: { tripId }, orderBy: { at: "desc" }, take: 300 });
   const rows = await prisma.tripExpense.findMany({ where: { tripId } });
-  const added = new Set(logs.filter((l) => l.action.startsWith("added ")).map((l) => l.expenseId));
+  // (the add itself — "added ¥…" or "added $…" — not "added its receipt")
+  const added = new Set(logs.filter((l) => /^added [¥$]/.test(l.action)).map((l) => l.expenseId));
   const removed = new Set(logs.filter((l) => l.action.startsWith("removed ")).map((l) => l.expenseId));
   const before = [
     ...rows.filter((r) => !added.has(r.id)).map((r) => ({ at: r.createdAt, by: r.addedByName, action: `added ${moneyWords(r.amount, r.currency)} (${r.party})`, id: r.id })),
@@ -290,7 +291,7 @@ export async function expenseHistory(tripId: string, who?: { travelerId?: string
     const keeper = row ? row.addedByName.split(/\s+/)[0] : "";
     const putBackBy = latestOff && !putBack ? (keeper && keeper !== orgName ? `${keeper} or ${orgName}` : orgName) : undefined;
     // (a change too, unless the change is to what it was for — it says that itself)
-    const what = /^(added|removed|put back|changed) /.test(x.action) && !/what it was for/.test(x.action) ? whatOf.get(x.id) : null;
+    const what = /^(added|removed|put back|changed|replaced) /.test(x.action) && !/what it was for/.test(x.action) ? whatOf.get(x.id) : null;
     return { at: x.at.toISOString(), by: x.by, action: what ? `${x.action}: ${what}` : x.action, ...(putBack ? { putBack: x.id } : {}), ...(putBackBy ? { putBackBy } : {}) };
   });
 }
@@ -356,6 +357,20 @@ export async function keepReceipt(tripId: string, expenseId: string, file: Paper
   const thumb = file.thumb ? Buffer.from(file.thumb.split(",")[1], "base64") : null;
   const data = { tripId, mimeType: file.mediaType, bytes: Buffer.from(file.data, "base64"), ...(thumb ? { thumb } : {}) };
   await prisma.expenseReceipt.upsert({ where: { expenseId }, create: { expenseId, ...data }, update: data });
+}
+
+/** A receipt's photo added to a payment already kept (typed in the taxi, the photo later — Oct 16: Larisa kept the ¥5,200
+ *  taxi; Ken had the receipt). Who kept it, or Ken. Logged. */
+export async function attachReceipt(tripId: string, expenseId: string, who: { travelerId?: string | null; displayName: string }, file: PaperFile): Promise<true | "gone" | "not-yours"> {
+  const row = await prisma.tripExpense.findFirst({ where: { id: expenseId, tripId, removedAt: null } });
+  if (!row) return "gone";
+  if (!(await mayChange(tripId, row, who))) return "not-yours";
+  // (a wrong photo replaced by the right one — said as a replacement in the Log)
+  const had = await prisma.expenseReceipt.findUnique({ where: { expenseId }, select: { expenseId: true } });
+  await keepReceipt(tripId, expenseId, file);
+  await logChange(tripId, expenseId, who, `${had ? "replaced" : "added"} its receipt (${moneyWords(row.amount, row.currency)}, ${row.party})`);
+  tellScreens(tripId, who.displayName);
+  return true;
 }
 
 /** The receipt photo of a payment on this trip, or null */

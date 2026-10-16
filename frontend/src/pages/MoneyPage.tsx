@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
-import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, readReceiptPhoto, receiptImage, sharedOf, yen, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine, type ReceiptPhoto } from "../lib/expenses";
+import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, readReceiptPhoto, attachReceiptPhoto, receiptImage, sharedOf, yen, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine, type ReceiptPhoto } from "../lib/expenses";
 import PayNextBadge from "../components/PayNextBadge";
 import useBackToClose from "../hooks/useBackToClose";
 
@@ -307,9 +307,29 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
           {!receipt && readNote && <p className="text-[13px] text-[#514636] mt-1" role="status">{readNote}</p>}
         </div>
       )}
-      {item?.hasReceipt && tripId && (
-        <button type="button" onClick={() => setShowReceipt(true)} className="self-start min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See the receipt</button>
+      {/* (one kept by typing, the receipt's photo later — Oct 16: Larisa kept the ¥5,200 taxi, Ken had its receipt; and a
+          wrong one replaced — chosen from the camera roll by mistake, it couldn't be undone; fresh testers. One line.) */}
+      {item && tripId && (
+        <div className="flex flex-wrap items-center gap-x-5 -my-1">
+          {item.hasReceipt && (
+            <button type="button" onClick={() => setShowReceipt(true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See the receipt</button>
+          )}
+          <button type="button" disabled={reading} onClick={() => receiptInput.current?.click()} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2 disabled:opacity-60">
+            {reading ? "Keeping the receipt…" : item.hasReceipt ? "📷 Replace the receipt's photo" : "📷 Add the receipt's photo"}
+          </button>
+        </div>
       )}
+      {item && <input ref={receiptInput} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1}
+        onChange={async (e) => {
+          const f = e.target.files?.[0]; e.target.value = "";
+          if (!f || !tripId) return;
+          setReading(true); setError(null);
+          const err = await attachReceiptPhoto(tripId, item.id, f);
+          if (closed.current) return;
+          setReading(false);
+          if (err) { setError(err); return; }
+          onClose(`${item.hasReceipt ? "Receipt replaced" : "Receipt kept with it"}: ${item.party}, ${money(item.amount, item.currency)}${item.what ? `, ${item.what}` : ""}`);
+        }} />}
       {showReceipt && item && tripId && <ReceiptView tripId={tripId} id={item.id} onClose={() => setShowReceipt(false)} />}
       {/* (opened before the ledger came: says so, and Keep it waits — user-julie3: "Which couple paid?" with no way to answer) */}
       {!l && <p className="text-[15px] text-[#6b5d4a] min-h-[48px] flex items-center" role="status">Getting the two couples…</p>}
