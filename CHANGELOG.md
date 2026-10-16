@@ -18,6 +18,11 @@ Ken and Larisa, so you can use it for both testing and functionality."
   (the picture, beside its payment). SPEC §Budget.
 - A payment with a receipt shows "Receipt" on its line, for all four; it opens the photo full screen ("Done"). In its
   Change pop-up: "See the receipt".
+- One kept by typing gets its receipt later: its Change pop-up has "📷 Add the receipt's photo" (who kept it, or Ken) →
+  "✓ Receipt kept with it: …", the amount untouched; the Log says "Added its receipt (¥…, couple): what · who". (Larisa
+  kept tonight's ¥5,200 taxi by typing; Ken had the receipt.) With one kept, "📷 Replace the receipt's photo" sits
+  beside "See the receipt" (a wrong picture couldn't be undone); the Log says "Replaced its receipt". A few bytes that
+  aren't a photo are refused.
 - Scout: a receipt photo with who paid ("Ken and Larisa paid this") is kept with add_expense receipt: true — the photo
   kept as its receipt; never a card number read out.
 

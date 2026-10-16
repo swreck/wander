@@ -2481,7 +2481,9 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   says "From the receipt: ¥5,200, Taxi. Check it, then tap who paid." Who paid then waits for a tap (without a photo it
   starts on your own couple, as always). Another photo replaces what the last one filled in; words typed by hand stay.
   Kept, the photo stays with the payment: "Receipt" on its line opens it for all four; its Change pop-up has "See the
-  receipt". A total it can't read is typed by hand, the photo still kept. No card number is ever put into words. Scout
+  receipt" — or, for one kept by typing, "📷 Add the receipt's photo" (who kept it, or Ken; the amount untouched; the
+  Log says "Added its receipt"); with one kept, "📷 Replace the receipt's photo" too ("Replaced its receipt"). A total it
+  can't read is typed by hand, the photo still kept. No card number is ever put into words. Scout
   does the same from a photo sent with who paid.
   Scout too (put_back_expense).
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
