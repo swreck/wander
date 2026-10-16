@@ -2,6 +2,38 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, 9:30 AM in Japan) — What's now stands out on today's page
+
+Ken (Oct 16): "In any daily itinerary, be sensitive to current timing in particular way: imagine the full orientation being
+visible but the 'now' gets more prominence, e.g., 1-2 point larger text, color change to deep maroon, picture evident,
+other best practice. So that exact page changes as hours pass on what pops out. What pops is likely identical or closely
+related to what the 'next' button does."
+
+### Changed
+- Today's day page: the line that's under way — or, until it starts, your next — stands out: a deep maroon edge and wash,
+  its title two points larger in maroon, and above it "Now" or "Next · in 50 min". The rest of the day stays in view;
+  lines already past stay quieter. It moves down the day as the hours pass, on the same line Next reckons, on a day of
+  her plan and on any other (a Backroads day: the 8:30 meeting). A day that isn't today has none. SPEC §3.4.
+- Under the day's summary, today: "Now · Kappabashi Dougu Street ↓" (or "Next · in 50 min …"), a tap down to that line —
+  it was one or two screens below the summary, so on opening "now" couldn't be seen (stability walk). It reads the line
+  marked on the page, so it never names another.
+- The line that stands out shows its place's two checked photos side by side; every other line one (Ken: "one or two
+  more visuals to that prominent now that then go back to only one picture when the next itinerary item becomes the
+  prominent now").
+- A meal under way counts as now, as Next reckons it (two hours from its booking's start): at 7:30 PM on Oct 16 Next said
+  "Now · Une Immersion" while the day page marked nothing, her 7 PM line having no end time (stability walk).
+- **Next is just next** (Ken: "Next should just be next. It shouldn't then scroll to the equivalent of what is on the
+  today tab"): what's now and what's next — each with its place's photos (one or two) and Maps, Next with Walk / Train /
+  Taxi — then "All of today ›". The day's list, photos and notes are Today's. Tapping "Now, in Larisa's plan · …" opens
+  Today at that line. SPEC §2.
+
+### Fixed (stability walk 2)
+- Next at dinner: "Now · Une Immersion, booked for 7:00 PM" had no photo and no Maps; the only Maps on Next went to the
+  hotel. It now shows the restaurant's photos and "Maps ↗" to its address, and tapping it opens Today at that line.
+- "Now · … ↓" scrolled the line to the very top, with "NOW" and its time behind the sticky header; it now stops clear of it.
+- Budget: "Plus ¥5,000 paid for one couple alone" now names the couple ("…for Ken & Larisa alone") when every such
+  entry is for the same one. SPEC §Budget.
+
 ## 2026-10-16 (Friday morning in Japan) — Today in the bar, where Maybes was
 
 Ken (Oct 16): "Replace 'maybes' with 'full itinerary for today.'"

@@ -53,7 +53,11 @@ export default function MoneyPage() {
           <p className="text-[12px] uppercase tracking-[.14em] text-[#5b6b52] mt-1">Budget</p>
           <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight mt-0.5">{!l ? "…" : l.items.length ? `${yen(sharedOf(l))} shared so far` : "Nothing kept yet"}</h1>
           {/* (paid for one couple alone — Julie's ¥5,000 for Larisa's jacket: not shared, but owed back in full; Oct 16) */}
-          {l && (l.alone || 0) > 0 && <p className="text-[14px] text-[#514636] mt-1">Plus {yen(l.alone!)} paid for one couple alone.</p>}
+          {/* (which couple, when it's all one's — stability walk: "doesn't say which couple") */}
+          {l && (l.alone || 0) > 0 && (() => {
+            const fors = [...new Set(l.items.filter((x) => x.forParty).map((x) => x.forParty!))];
+            return <p className="text-[14px] text-[#514636] mt-1">Plus {yen(l.alone!)} paid for {fors.length === 1 ? `${fors[0]} alone` : "one couple alone"}.</p>;
+          })()}
           {l && <p className="text-[15px] text-[#3a3128] mt-2">Who pays next: {l.next && <PayNextBadge party={l.next} className="mr-1" />}<span className="font-medium">{l.next || (l.items.length ? "either — you're even" : "either couple")}</span></p>}
           {l?.owes && <p className="text-[14px] text-[#514636] mt-1">To be even now, {l.owes.from} would pay {l.owes.to} {yen(l.owes.yen)}.</p>}
           {l && !l.items.length && <p className="text-[14px] text-[#514636] mt-1">When one couple pays for the group, add it here. Each cost is shared half and half.</p>}
