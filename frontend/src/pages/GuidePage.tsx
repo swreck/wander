@@ -15,7 +15,7 @@ const sectionsFor = (mine: boolean, meName: string) => [
 
 **Home** opens on what matters now. Under the trip's dates is today's weather, and **Go to today ›** opens today's full page. Below that: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.
 
-Along the bottom: **Maybes** (the group's "maybe we should…" and ${mine ? "your" : "Larisa's"} ideas, city by city), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what each couple has paid for the group, and who pays next: KL for Ken & Larisa, AJ for Julie & Andy, as Budget names them), and **Scout**, which you can ask anything about the trip. **日** at the right end opens Japanese phrases. To-dos and deadlines open from Home.`,
+Along the bottom: **Today** (all of today: ${mine ? "your" : "Larisa's"} plan by the clock, its places, Play the day), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what each couple has paid for the group, and who pays next: KL for Ken & Larisa, AJ for Julie & Andy, as Budget names them), and **Scout**, which you can ask anything about the trip. **日** at the right end opens Japanese phrases. To-dos and deadlines, and **Maybes**, open from Home.`,
   },
   {
     id: "getting-around",
@@ -90,7 +90,7 @@ Trains come from a second place: ${/^ken$/i.test(meName) ? "your rail sheet, whi
   {
     id: "notes",
     title: "Maybes and Your Own Notes",
-    body: `**Maybes** is the group's shared list of "maybe we should…", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. ${mine ? "Your" : "Larisa's"} ideas from ${mine ? "your" : "her"} Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. "Interested" shows everyone who's in, from ${mine ? "your" : "her"} X marks and from Wander together. A dot on the Maybes tab means something new. ${mine ? "Your" : "Larisa's"} Guide stays as it is.
+    body: `**Maybes** (on Home) is the group's shared list of "maybe we should…", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. ${mine ? "Your" : "Larisa's"} ideas from ${mine ? "your" : "her"} Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. "Interested" shows everyone who's in, from ${mine ? "your" : "her"} X marks and from Wander together. A line on Home says when there's something new. ${mine ? "Your" : "Larisa's"} Guide stays as it is.
 
 **Notes** keeps what you want to remember of the trip, every word as you type or say it, on the day it's about. Only you see a note unless you share it with the trip. You can also tell Scout what happened ("we came here because our guide drove us, so we saw Arita too"), and it keeps your words in your Notes for that day.
 

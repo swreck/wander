@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday morning in Japan) — Today in the bar, where Maybes was
+
+Ken (Oct 16): "Replace 'maybes' with 'full itinerary for today.'"
+
+### Changed
+- The bottom bar's second tab is **Today** (a calendar): today's full day page — her plan by the clock with each place's
+  photo, its map, and Play the day. It opens the traveler's own today (Japan's date once landed, from the Guide the phone
+  keeps; Japan's date on a first open), and is lit there. "Today" fits the bar; "Full itinerary for today" doesn't.
+- **Maybes** moved to a row on Home, "Maybes ›", under "To-dos and deadlines" — the group's maybes and her ideas stay one
+  tap away; Home's line about something new on Maybes stays. The tour, "How Wander works", and Scout's and the ideas
+  helper's picture of the app say so. SPEC §1 (the bar), §5 (Maybes).
+
 ## 2026-10-16 (Friday, 9 AM in Japan) — Budget: who it's for; Log
 
 Ken (Oct 16): "Change 'history' to 'Log' and put at bottom (it's an admin log, only for me or moments of audit)". And:

@@ -15,8 +15,8 @@ const stepsFor = (mine: boolean) => {
   return [
     // (plain words, no word that could mean two things — "a place for notes" in a travel app reads as a location; Ken)
     { tab: "Home", text: "Today at a glance: what's coming up, where you sleep tonight, and any deadlines. Below that is a calendar of the whole trip. Tap any day to see its plan." },
-    // (Maybes, Oct 2 2026: the group's shared list of "maybe we should…", with her ideas)
-    { tab: "Maybes", text: `When you think "maybe we should…", write it here and everyone on the trip sees it. Tap "I'm in" on anything you'd like to do. ${mine ? "Your" : "Larisa's"} ideas from ${her === "your" ? "your" : "her"} Activities tab are here too, city by city.` },
+    // (Today, Oct 16 2026, where Maybes was — Ken: "Replace 'maybes' with 'full itinerary for today'"; Maybes is on Home)
+    { tab: "Today", text: `All of today in one tap: ${mine ? "your" : "Larisa's"} plan by the clock, with each place's photo, its map, and Play the day. Maybes, the group's "maybe we should…" list, is on Home.` },
     { tab: "Next", text: "Your next stop today, and how long until it. The Walk, Train and Taxi buttons open Google Maps with directions from wherever you're standing." },
     { tab: "Notes", text: "Write down anything you want to remember from the trip. Type or speak, and every word is kept." },
     // (Budget took Actions' place in the bar, Oct 15 — the tour still pointed at Actions; user-ken2, Oct 16)
