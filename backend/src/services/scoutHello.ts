@@ -66,7 +66,8 @@ async function weatherWords(tripId: string, displayName: string, now: Date): Pro
  *  waits on a cold lookup (cold, it took 3.2 s of the 4 s Scout's opening allows) */
 export function startHelloWarmer() {
   // (not inside the backend suite's workers — the local test server sets VITEST too, and should warm like production)
-  if (process.env.VITEST_WORKER_ID) return;
+  // (WARMERS=off: a local test server, unless a check needs warming — they kept the test database awake; cost audit)
+  if (process.env.VITEST_WORKER_ID || process.env.WARMERS === "off") return;
   const warm = async () => {
     const now = new Date();
     const live = PLANNED.filter((p) => p.wordsNow && now.getTime() < Date.parse(p.until));

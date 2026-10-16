@@ -911,7 +911,8 @@ function NowJump() {
     <button type="button" data-now-jump onClick={() => { const el = document.querySelector("[data-now]"); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: "smooth" }); }}
       className="w-full text-left mb-4 -mt-1 min-h-[44px] flex items-center gap-2 text-[15px]" style={{ color: NOW_MAROON }}>
       <span className="text-[12px] uppercase tracking-wide font-semibold shrink-0">{line.label}</span>
-      <span className="flex-1 min-w-0 truncate font-medium">{line.title}</span>
+      {/* (two lines, not one: "DINNER RESERVATION: UN…" cut the restaurant's name off; fresh tester, Oct 16) */}
+      <span className="flex-1 min-w-0 line-clamp-2 font-medium">{line.title}</span>
       <span aria-hidden className="shrink-0">↓</span>
     </button>
   );
@@ -1211,11 +1212,16 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   useEffect(() => {
     if (!tripId) return;
     let cancelled = false;
-    const get = () => api.get<{ days: typeof watch }>(`/weather/trip/${tripId}/watch`)
-      .then((w) => { if (!cancelled && w?.days && typeof w.days === "object") setWatch(w.days); }).catch(() => {});
+    let askedAt = 0;
+    const get = () => { askedAt = Date.now(); api.get<{ days: typeof watch }>(`/weather/trip/${tripId}/watch`)
+      .then((w) => { if (!cancelled && w?.days && typeof w.days === "object") setWatch(w.days); }).catch(() => {}); };
     get();
-    const t = setInterval(get, 10 * 60_000);
-    return () => { cancelled = true; clearInterval(t); };
+    // (not while the page is hidden — a tab left open on a Mac asked every 10 minutes all night and kept the database
+    // awake; back in view after 10 minutes or more, it asks at once — cost audit, Oct 16)
+    const t = setInterval(() => { if (document.visibilityState !== "hidden") get(); }, 10 * 60_000);
+    const onShow = () => { if (document.visibilityState === "visible" && Date.now() - askedAt >= 10 * 60_000) get(); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => { cancelled = true; clearInterval(t); document.removeEventListener("visibilitychange", onShow); };
   }, [tripId]);
   // The hours rain is likeliest, from the same forecast the band says (days up to 3 ahead), for "Play the day" — which
   // has no band: said there on the moment it first touches (Oct 15: "before they realize they want it")

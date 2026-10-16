@@ -1,6 +1,9 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
+# Only what the build uses deploys: a SPEC or CHANGELOG commit doesn't rebuild and restart production (each restart empties
+# the server's photo memory, which Google then charges to fill again; cost audit, Oct 16 2026)
+watchPatterns = ["/backend/**", "/frontend/**", "/Dockerfile", "/railway.toml"]
 
 [deploy]
 startCommand = "node dist/index.js"

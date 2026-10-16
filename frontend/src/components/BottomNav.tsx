@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { loadMaybeNews } from "../lib/maybesNews";
+
+/** The Maybes tab's "something new" dot — off while Maybes is a row on Home, not a tab (Oct 16) */
+const MAYBES_DOT = false as boolean;
 import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import PhraseCard from "./PhraseCard";
@@ -127,6 +130,10 @@ export default function BottomNav({ pendingChanges }: Props) {
   const [maybesNew, setMaybesNew] = useState(false);
 
   useEffect(() => {
+    // (the dot is off since Maybes left the bar, Oct 16 — so its check asks nothing: every open screen asked every three
+    // minutes, which kept the database awake; Home's Maybes line asks for itself. Kept, for when the dot comes back —
+    // cost audit, Oct 16)
+    if (!MAYBES_DOT) return;
     let alive = true;
     const look = () => {
       const tripId = localStorage.getItem("wander:last-trip-id");
@@ -334,7 +341,7 @@ export default function BottomNav({ pendingChanges }: Props) {
                 <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" />
               ) : null}
               {/* Something new on Maybes (not while you're looking at it) */}
-              {false && maybesNew && !isActive ? (
+              {MAYBES_DOT && maybesNew && !isActive ? (
                 <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" aria-label="Something new" />
               ) : null}
               {/* Glow dot for Actions needing attention */}

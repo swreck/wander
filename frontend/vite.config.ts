@@ -23,6 +23,16 @@ export default defineConfig({
       },
     }),
   ],
+  // The libraries in a file of their own: its name (and the phone's saved copy) stays the same from one deploy to the
+  // next, so a phone fetches only Wander's own code again — it re-fetched all 1.1 MB on each deploy, on roaming data in
+  // Japan (cost audit, Oct 16 2026). The app's file keeps its index-*.js name, which the deploy checks look for.
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => (id.includes('/node_modules/') ? 'vendor' : undefined),
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

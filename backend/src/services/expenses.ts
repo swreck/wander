@@ -257,7 +257,7 @@ export async function changeExpense(tripId: string, id: string, who: { travelerI
 
 /** Budget's History, newest first: when, who, what they did. Payments kept before History began (Oct 16) show when they
  *  were added and taken away, from what each payment already held. */
-export async function expenseHistory(tripId: string, who?: { travelerId?: string | null; displayName: string }): Promise<{ at: string; by: string; action: string; putBack?: string }[]> {
+export async function expenseHistory(tripId: string, who?: { travelerId?: string | null; displayName: string }): Promise<{ at: string; by: string; action: string; putBack?: string; putBackBy?: string }[]> {
   const logs = await prisma.tripExpenseLog.findMany({ where: { tripId }, orderBy: { at: "desc" }, take: 300 });
   const rows = await prisma.tripExpense.findMany({ where: { tripId } });
   const added = new Set(logs.filter((l) => l.action.startsWith("added ")).map((l) => l.expenseId));
@@ -270,16 +270,23 @@ export async function expenseHistory(tripId: string, who?: { travelerId?: string
   const offNow = new Map<string, (typeof rows)[number]>(rows.filter((r) => r.removedAt).map((r) => [r.id, r]));
   const offered = new Set<string>();
   // (who the organizer is, asked once — asked for each removed payment, the Log took seconds to come back)
-  const org = who ? await organizerOf(tripId) : null;
+  const orgRow = who ? await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true, traveler: { select: { displayName: true } } } }) : null;
+  const org = orgRow?.travelerId || null;
+  const orgName = orgRow?.traveler.displayName.split(/\s+/)[0] || "Ken";
   const lines = [...logs.map((l) => ({ at: l.at, by: l.byName, action: l.action, id: l.expenseId })), ...before].sort((a, b) => b.at.getTime() - a.at.getTime());
   // (what each was for, as it says now — "Removed ¥2,000 (Ken & Larisa)" didn't say which ¥2,000 to put back; fresh tester)
   const whatOf = new Map(rows.map((r) => [r.id, r.what]));
   return lines.map((x) => {
     const row = offNow.get(x.id);
-    const putBack = !!who && !!row && x.action.startsWith("removed ") && !offered.has(x.id) && mayChangeAs(org, row, who);
-    if (putBack) offered.add(x.id);
-    const what = /^(added|removed|put back) /.test(x.action) ? whatOf.get(x.id) : null;
-    return { at: x.at.toISOString(), by: x.by, action: what ? `${x.action}: ${what}` : x.action, ...(putBack ? { putBack: x.id } : {}) };
+    const latestOff = !!who && !!row && x.action.startsWith("removed ") && !offered.has(x.id);
+    if (latestOff) offered.add(x.id);
+    const putBack = latestOff && mayChangeAs(org, row!, who!);
+    // (for someone who may not: who can — Andy saw no button and no reason; fresh tester)
+    const keeper = row ? row.addedByName.split(/\s+/)[0] : "";
+    const putBackBy = latestOff && !putBack ? (keeper && keeper !== orgName ? `${keeper} or ${orgName}` : orgName) : undefined;
+    // (a change too, unless the change is to what it was for — it says that itself)
+    const what = /^(added|removed|put back|changed) /.test(x.action) && !/what it was for/.test(x.action) ? whatOf.get(x.id) : null;
+    return { at: x.at.toISOString(), by: x.by, action: what ? `${x.action}: ${what}` : x.action, ...(putBack ? { putBack: x.id } : {}), ...(putBackBy ? { putBackBy } : {}) };
   });
 }
 

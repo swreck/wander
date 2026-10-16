@@ -500,13 +500,16 @@ export async function stormWatch(tripId: string, person: string, today: string, 
 /** Each traveler's watch made ahead — at start, then every 10 minutes — so no first question of the day, and none just
  *  after a deploy, waits 6–9 s on JMA or goes without the storm lines (verify46). Only for active trips. */
 export function startWatchWarmer() {
-  if (process.env.VITEST_WORKER_ID || process.env.STORM_WATCH_FAKE) return;
+  // (WARMERS=off: a local test server, unless a check needs warming — it kept the test database awake; cost audit)
+  if (process.env.VITEST_WORKER_ID || process.env.STORM_WATCH_FAKE || process.env.WARMERS === "off") return;
   const warm = async () => {
     // (not overnight in Japan, midnight to 5 AM — nobody's asking, and production's database can rest; verify47)
     const hourJapan = new Date(Date.now() + 9 * 3600_000).getUTCHours();
     if (hourJapan < 5) return;
     const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-    const trips = await prisma.trip.findMany({ where: { status: "active" }, select: { id: true, tripMembers: { select: { traveler: { select: { displayName: true } } } } } });
+    // (only a trip under way or starting within the eight days it warms — after the trip, or for a placeholder trip, it
+    // woke the database 19 hours a day for nobody; cost audit, Oct 16)
+    const trips = await prisma.trip.findMany({ where: { status: "active", endDate: { gte: new Date(`${today}T00:00:00Z`) }, startDate: { lte: new Date(`${addDays(today, 8)}T00:00:00Z`) } }, select: { id: true, tripMembers: { select: { traveler: { select: { displayName: true } } } } } });
     for (const t of trips) for (const m of t.tripMembers) {
       // (made fresh each round; the last copy keeps serving meanwhile)
       await stormWatch(t.id, m.traveler.displayName, today, new Date(), false, true).catch(() => null);

@@ -100,13 +100,16 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     // Ken, Oct 15, on her Tokyo tabs' map: "The map is old and should not be the target. Text under is correct"; with the
     // sentence in its context Scout ended "What's the plan today?" on "worth checking with Larisa". Her pictures' own
     // words still reach Scout under HER PICTURES, for when they ask about the picture.)
-    prisma.guideItem.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }] })
+    prisma.guideItem.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }, { id: "asc" }] })
       .then((all) => all.map((i) => (i.detail && OLD_PICTURE.test(i.detail) ? { ...i, detail: i.detail.replace(OLD_PICTURE, "") } : i))),
-    prisma.accommodation.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: { checkInDate: "asc" } }),
-    prisma.day.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: { date: "asc" } }),
+    prisma.accommodation.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: [{ checkInDate: "asc" }, { id: "asc" }] }),
+    prisma.day.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: [{ date: "asc" }, { id: "asc" }] }),
+    // (in a fixed order — with none, Postgres can hand rows back reordered after any update, and a new order rewrote the
+    // whole cached Guide for Scout, ~$1.45, with nothing changed; cost audit, Oct 16)
     prisma.experience.findMany({
       where: { tripId, sheetRowRef: { not: null } },
-      include: { city: { select: { name: true } }, interests: { select: { displayName: true } }, day: { select: { date: true } } },
+      include: { city: { select: { name: true } }, interests: { select: { displayName: true }, orderBy: [{ displayName: "asc" }, { id: "asc" }] }, day: { select: { date: true } } },
+      orderBy: { id: "asc" },
     }),
     prisma.sheetNote.findMany({ where: { tripId }, orderBy: [{ tabName: "asc" }, { rowIndex: "asc" }], select: { tabName: true, text: true, rowIndex: true } }),
   ]);
@@ -141,8 +144,8 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
 
   // Who is on this trip in Wander (People shows the same list) — the Guide's travelers, plus anyone let in
   const [members, pending] = await Promise.all([
-    prisma.tripMember.findMany({ where: { tripId }, include: { traveler: { select: { displayName: true } } } }),
-    prisma.tripInvite.findMany({ where: { tripId, claimedAt: null }, select: { expectedName: true } }),
+    prisma.tripMember.findMany({ where: { tripId }, include: { traveler: { select: { displayName: true } } }, orderBy: [{ joinedAt: "asc" }, { id: "asc" }] }),
+    prisma.tripInvite.findMany({ where: { tripId, claimedAt: null }, select: { expectedName: true }, orderBy: { id: "asc" } }),
   ]);
   const memberNames = members.map((m) => m.traveler.displayName);
   const waiting = Array.from(new Set(pending.map((p) => p.expectedName).filter((n): n is string => !!n && !memberNames.includes(n))));
@@ -212,7 +215,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   }
 
   // (not a day plan whose idea was taken off the Maybes list — it left the day too)
-  const allChoices = await prisma.dayChoice.findMany({ where: { tripId }, include: { traveler: { select: { displayName: true } } }, orderBy: { createdAt: "asc" } });
+  const allChoices = await prisma.dayChoice.findMany({ where: { tripId }, include: { traveler: { select: { displayName: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   const offIdeas = await offListIdeas(Array.from(new Set(allChoices.map((c) => c.experienceId).filter(Boolean) as string[])));
   const choices = allChoices.filter((c) => !c.experienceId || !offIdeas.has(c.experienceId));
   const choicesByDate = new Map<string, typeof choices>();
