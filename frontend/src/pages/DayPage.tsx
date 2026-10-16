@@ -48,7 +48,7 @@ import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
-import { choicesOf, planMapHref, areaOf, TRAVEL } from "../lib/linePlaces";
+import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos } from "../lib/linePlaces";
 
 /** How long a first open waits for the rest of the day (rail sheet, summaries…) after her Guide, when the phone has no
  *  copy of them yet — they're asked for together, so on a normal signal they come with the Guide and this is never hit */
@@ -448,6 +448,14 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // (none while you're on a booked train — the train is where you are; Sweep B, Oct 29 2 PM: "NOW ~2:00–2:30 Arrive KIX"
   // while the 1:30 HARUKA was still running to 2:50)
   const current = nowAt === null || riding ? null : currentPlanLine(blocks, nowAt, me) || currentUnownedLine(blocks, nowAt) || null;
+  // The line that stands out today (NOW_MAROON): the one under way, else your next timed line — as Next reckons it
+  const startOf = (b: GuideItem) => (b.time ? Number(b.time.slice(0, 2)) * 60 + Number(b.time.slice(3, 5)) : Infinity);
+  // (and a meal under way, as Next reckons it — two hours from its booking's start: at 7:30 PM on Oct 16 Next said "Now ·
+  // Une Immersion" while her last line, the 7 PM dinner with no end time, already counted as over; stability walk)
+  const mealNow = nowAt === null || riding ? undefined : mealUnderWay(bookings, nowAt, me);
+  const mealLine = mealNow ? blocks.find((b) => b.time === mealNow.time && saidAgain(b, mealNow)) || blocks.find((b) => b.time === mealNow.time) : undefined;
+  const focusLine = nowAt === null || riding ? null : current || mealLine
+    || blocks.filter((b) => b.time && startOf(b) >= nowAt && (!b.forWhom || isFor(b, me))).sort((a, b) => startOf(a) - startOf(b))[0] || null;
   const addedSorted = [...added].sort((a, b) => a.time.localeCompare(b.time));
   let nextAdded = 0;
   // "Play the day": her lines as moments, in her order — today from the one you're on now
@@ -638,16 +646,20 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           const pickedHere = choices.map((c) => `${b.title}: ${c.split(" — ")[0]}`).filter((t) => picked.has(t));
           const isNow = current?.id === b.id;
           const past = nowAt !== null && b.time && !isNow && endOf(b) <= nowAt;
-          const ring = highlight === b.id || isNow ? "ring-2 ring-[#c8a060] rounded-xl" : "";
+          const focus = focusLine?.id === b.id ? nowWords(isNow ? 0 : startOf(b) - nowAt!) : null;
+          const ring = highlight === b.id ? "ring-2 ring-[#c8a060] rounded-xl" : focus ? "rounded-r-xl border-l-4 bg-[#fbf3f1]" : "";
           return [...lead, (
-            <li key={b.id} id={`item-${b.id}`} className={`flex gap-3 p-3 transition-shadow ${ring} ${past ? "opacity-60" : ""}`}>
+            <li key={b.id} id={`item-${b.id}`} data-now={focus || undefined} data-now-title={focus ? b.title.replace(/^./, (c) => c.toUpperCase()) : undefined}
+              className={`flex gap-3 p-3 transition-shadow ${ring} ${past && !focus ? "opacity-60" : ""}`} style={focus ? { borderLeftColor: NOW_MAROON } : undefined}>
               <div className="w-20 shrink-0 text-right text-sm text-[#3a3128] [overflow-wrap:anywhere]" title={estimate ? "Larisa's estimate" : undefined}>
-                {isNow && <span className="block text-[11px] uppercase tracking-wide text-[#8a5a1a]">Now</span>}
+                {!focus && isNow && <span className="block text-[11px] uppercase tracking-wide text-[#8a5a1a]">Now</span>}
                 {time}
               </div>
               <div className="flex-1 min-w-0">
+                {/* (above the title, where it has room — in the time column "Next · in 50 min" broke over two lines) */}
+                {focus && <p className="text-[12px] uppercase tracking-wide font-semibold mb-0.5" style={{ color: NOW_MAROON }}>{focus}</p>}
                 <div className="flex items-start gap-2">
-                  <p className="flex-1 text-[15px] leading-snug text-[#3a3128] [overflow-wrap:anywhere]">{b.title.replace(/^./, (c) => c.toUpperCase())}
+                  <p className={`flex-1 leading-snug [overflow-wrap:anywhere] ${focus ? "text-[17px] font-medium" : "text-[15px] text-[#3a3128]"}`} style={focus ? { color: NOW_MAROON } : undefined}>{b.title.replace(/^./, (c) => c.toUpperCase())}
                     {/* (her arrival for a train the rail sheet books at another time: the booked arrival, as on Home —
                         Sweep A, Oct 29: "arrives 2:50 PM" above, "~2:00–2:30 Arrive KIX" below, only one flagged) */}
                     {railArrivals?.[b.id] && <span className="block text-sm text-[#8a5a1a] mt-0.5">Timed for the train in {v.her} tab — the booked train arrives {railArrivals[b.id]}</span>}
@@ -658,7 +670,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                   )}
                 </div>
                 {/* the place itself, under its name — the time stays on the left, the facts below (the day as moments) */}
-                {hit && <MomentPhoto hit={hit} title={b.title} onOpen={() => setGallery(b)} />}
+                {hit && (focus ? <PlacePhotos hit={hit} title={b.title} onOpen={() => setGallery(b)} /> : <MomentPhoto hit={hit} title={b.title} onOpen={() => setGallery(b)} />)}
                 {b.forWhom && <p className="text-sm text-[#514636] mt-0.5">{isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`}</p>}
                 {/* (round 13: a picture in her tab can name the group her table leaves out — quoted, never assigned) */}
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
@@ -828,6 +840,83 @@ import { loadMarks, savedMarks, deadlineKey, markDay, type Mark } from "../lib/a
 import { DayPapers } from "../components/Papers";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * Today, the line that's now — or, until it starts, next — stands out where the whole day is in view (Ken, Oct 16: "imagine
+ * the full orientation being visible but the 'now' gets more prominence, e.g., 1-2 point larger text, color change to deep
+ * maroon, picture evident… So that exact page changes as hours pass on what pops out. What pops is likely identical or
+ * closely related to what the 'next' button does"). The same line Next reckons; a deep maroon edge and wash, its title two
+ * points larger in maroon, and above its time "Now" or "Next · in 25 min".
+ */
+const NOW_MAROON = "#7a1f2b";
+const nowWords = (startsIn: number) => (startsIn <= 0 ? "Now" : `Next · in ${startsIn < 60 ? `${Math.max(1, Math.round(startsIn))} min` : `${Math.floor(startsIn / 60)} hr${startsIn % 60 ? ` ${Math.round(startsIn % 60)} min` : ""}`}`);
+
+/**
+ * A place's checked photos, more than one (Ken, Oct 16: "Add more visuals to next" and, on today's line that stands out,
+ * "one or two more visuals… that then go back to only one picture when the next itinerary item becomes the prominent
+ * now"): the best one full width, and the second one Wander's check passed (a different view of the same place) beside it
+ * or under it. Only checked photos — never an unchecked one.
+ */
+function PlacePhotos({ hit, title, onOpen, dark = false }: { hit: PlaceHit; title: string; onOpen?: () => void; dark?: boolean }) {
+  const [gone, setGone] = useState<Record<number, boolean>>({});
+  const shown = [0, ...(hit.photos[1]?.ok ? [1] : [])].filter((n) => !gone[n]);
+  if (!shown.length) return null;
+  const credit = hit.photos.filter((_, n) => shown.includes(n)).map((p) => p.credit).filter(Boolean).join(", ");
+  return (
+    <div className="mt-2">
+      <button type="button" onClick={onOpen} disabled={!onOpen} aria-label={`Photos of ${hit.name || title}`} className="block w-full">
+        <span className={`grid gap-1.5 ${shown.length > 1 ? "grid-cols-[3fr_2fr]" : "grid-cols-1"}`}>
+          {shown.map((n) => (
+            // (two side by side share one height — at 4:3 each, the narrower second one stood shorter)
+            <span key={n} className={`relative block overflow-hidden rounded-lg ${dark ? "bg-white/10" : "bg-[#efe8dc]"} ${shown.length > 1 ? "h-40" : "aspect-[16/9]"}`}>
+              <img src={placePhotoUrl(hit, n, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover"
+                onError={() => setGone((g) => ({ ...g, [n]: true }))} />
+            </span>
+          ))}
+        </span>
+      </button>
+      {credit && <p className={`text-[10px] mt-1 truncate ${dark ? "text-white/60" : "text-[#8a7d68]"}`}>Photo: {credit} · Google</p>}
+    </div>
+  );
+}
+
+/** One line of her plan's checked photos, looked up by itself (Next's cards) */
+function LinePhotos({ tripId, cityId, block, ctx, dark = false }: { tripId: string | null; cityId?: string | null; block: GuideItem; ctx: { hotel?: string | null; dayWords?: string; bookings?: GuideItem[] }; dark?: boolean }) {
+  const photoOf = useLinePhotos(tripId, cityId, [block], ctx);
+  const h = photoOf(block);
+  return h ? <PlacePhotos hit={h} title={block.title} dark={dark} /> : null;
+}
+
+/**
+ * Under the day's summary, today: what's now (or next) and a tap down to it — the line itself is a screen or two below
+ * the summary, and on opening "now" couldn't be seen (stability walk, Oct 16). It reads the line marked on the page
+ * (data-now), so it can never name a different one; the page keeps the summary first (the day screen's order).
+ */
+function NowJump() {
+  const [line, setLine] = useState<{ label: string; title: string } | null>(null);
+  useEffect(() => {
+    const look = () => {
+      const el = document.querySelector<HTMLElement>("[data-now]");
+      const next = el ? { label: el.dataset.now || "", title: el.dataset.nowTitle || "" } : null;
+      setLine((was) => (was?.label === next?.label && was?.title === next?.title ? was : next));
+    };
+    look();
+    // (the day fills in after it opens, and "Next · in 50 min" counts down: looked at again as the page changes)
+    const mo = new MutationObserver(look);
+    mo.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-now", "data-now-title"] });
+    return () => mo.disconnect();
+  }, []);
+  if (!line) return null;
+  return (
+    // (clear of the sticky header — scrolled to the very top, "NOW" and the time sat behind it; stability walk 2)
+    <button type="button" data-now-jump onClick={() => { const el = document.querySelector("[data-now]"); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: "smooth" }); }}
+      className="w-full text-left mb-4 -mt-1 min-h-[44px] flex items-center gap-2 text-[15px]" style={{ color: NOW_MAROON }}>
+      <span className="text-[12px] uppercase tracking-wide font-semibold shrink-0">{line.label}</span>
+      <span className="flex-1 min-w-0 truncate font-medium">{line.title}</span>
+      <span aria-hidden className="shrink-0">↓</span>
+    </button>
+  );
+}
 
 /** words in a Backroads moment's title that don't name anything ("then", "your") — for choosing the sentences it quotes */
 const SAID_STOP = new Set("with from into your yours their then this that there over back time some they them".split(" "));
@@ -1517,6 +1606,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const myTonight = myNight(night, me);
   // "The hotel" in her plan: tonight's one stay for you, or unknown
   const tonightHotel = myTonight.stays.length === 1 ? stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)) : null;
+  // (Next's own lines' photos — the same checked ones the day's list finds, each looked up by its own LinePhotos: a hook
+  // here would sit below the loading screen's early return — React #310, caught before shipping)
+  const lineCtx = { hotel: tonightHotel, dayWords: itineraryLines.map((l) => l.title).join(" "), bookings: dayItems.filter((m) => m.kind === "meal") };
   // The day's weather in the city band: the live forecast for where you are (components/DayForecast — Ken, Oct 10: "It
   // should be your best internet forecast available at run time"); her pre-trip line only when there's none
   const forecastCity = trip?.cities.find((c) => c.name === cityName) || null;
@@ -2078,6 +2170,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 <p className="text-xs text-[#6b5d4a] mt-1">Wander's summary of {v.owners} plan</p>
               </section>
             )}
+            {!now && isToday && <NowJump />}
             {/* What you can't get wrong this day, each once, pointing down to its line (the Next tab keeps its own order) */}
             {!now && (
               <DontMiss heading={isToday ? "Today, don't miss" : "Don't miss"} checks={checks}
@@ -2205,18 +2298,23 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             )}
 
             {/* Your booked meal, under way — named as booked, with its confirmation (it leads her line at that hour) */}
-            {now && mealNow && (
-              <button onClick={() => document.getElementById(`item-${mealNow.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                className="block w-full text-left mb-2 min-h-[44px] text-[15px] text-[#3a3128]">
+            {/* (the meal under way, as prominent as Next's other Now: its photos and Maps — at 7:30 PM the dinner had neither and
+                the only Maps on Next went to the hotel; stability walk 2. It opens Today at that line: the list isn't on Next) */}
+            {now && mealNow && (<div className="mb-3">
+              <button onClick={() => navigate(`/day/${date}#item-${(planBlocks.find((x) => x.time === mealNow.time && saidAgain(x, mealNow)) || mealNow).id}`)}
+                className="block w-full text-left min-h-[44px] text-[15px] text-[#3a3128]">
                 <span className="text-[#6b5d4a]">Now · </span>{mealNow.title}
                 <span className="text-[#6b5d4a]">, booked for {clock(mealNow.time!)}</span>
                 {mealNow.confirmation && <span className="block text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">Confirmation {confirmationWords(mealNow.confirmation)}</span>}
                 {tabsDiffer(mealNow).map((d) => <span key={d} className="block text-sm text-[#8a5a1a] mt-0.5">{differWordsFor(d, v, "below")}</span>)}
               </button>
-            )}
-            {now && currentBlock && !mealLeads && !(currentBlock.time && otherSources.some((s) => s.differs.some((d) => d.date === date && d.guideSays === (currentBlock.endTime ? `${twelveHour(currentBlock.time!)}–${twelveHour(currentBlock.endTime)}` : twelveHour(currentBlock.time!))))) && (
-              <button onClick={() => document.getElementById(`item-${currentBlock.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                className="block w-full text-left mb-2 min-h-[44px] text-[15px] text-[#3a3128]">
+              {(() => { const line = planBlocks.find((x) => x.time === mealNow.time && saidAgain(x, mealNow)); return line ? <LinePhotos tripId={tripId} cityId={bandCity?.id} block={line} ctx={lineCtx} /> : null; })()}
+              {mapsQueryFor(mealNow) && <a href={mapsLink(mapsQueryFor(mealNow)!)} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>}
+            </div>)}
+            {now && currentBlock && !mealLeads && !(currentBlock.time && otherSources.some((s) => s.differs.some((d) => d.date === date && d.guideSays === (currentBlock.endTime ? `${twelveHour(currentBlock.time!)}–${twelveHour(currentBlock.endTime)}` : twelveHour(currentBlock.time!))))) && (<div className="mb-3">
+              {/* (to that line on Today — the day's list is Today's now, not under Next) */}
+              <button onClick={() => navigate(`/day/${date}#item-${currentBlock.id}`)}
+                className="block w-full text-left min-h-[44px] text-[15px] text-[#3a3128]">
                 <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{currentBlock.title.replace(/^./, (c) => c.toUpperCase())}
                 <span className="text-[#6b5d4a]">{currentBlock.endTime ? `, until ${/^~/.test(currentBlock.timeText || "") || (currentBlock.detail || "").includes("Times are Larisa's estimate.") ? "about " : ""}${clock(currentBlock.endTime)}` : planLineEndSaid(currentBlock, planBlocks) !== null ? `, until about ${minutesToClock(planLineEndSaid(currentBlock, planBlocks)!)}` : ""}</span>
                 {tabsDiffer(currentBlock).map((d) => <span key={d} className="block text-sm text-[#8a5a1a] mt-0.5">{differWordsFor(d, v, "below")}</span>)}
@@ -2227,7 +2325,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   </span> : null;
                 })()}
               </button>
-            )}
+              <LinePhotos tripId={tripId} cityId={bandCity?.id} block={currentBlock} ctx={lineCtx} />
+              {/* (Maps from Now too — Ken, Oct 16: "Be able to hop to maps at any time based on either of them") */}
+              {(() => {
+                const href = planMapHref(currentBlock, { hotel: tonightHotel, dayWords: itineraryLines.map((l) => l.title).join(" "), bookings: dayItems.filter((m) => m.kind === "meal") });
+                return href ? <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a> : null;
+              })()}
+            </div>)}
             {now && currentUnowned && (
               <p className="mb-2 text-[15px] text-[#3a3128]">
                 <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{currentUnowned.title.replace(/^./, (c) => c.toUpperCase())}
@@ -2286,6 +2390,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 <div className={`mb-3 rounded-xl text-white ${unownedSoon ? "bg-[#7a6d5c] p-3" : "bg-[#514636] p-4"}`}>
                   <p className="text-xs uppercase tracking-wide text-white/70">{unownedSoon ? "Then" : "Next"} · {inWords(toMin(u.time!) - nowFor(u))}</p>
                   <p className="text-lg leading-snug mt-1">{u.kind === "block" ? timeLabel(u) : clock(u.time)} · {itemTitle(u, stays, date)}{pickOpt ? ` — ${pickOpt.name}` : ""}</p>
+                  {u.kind === "block" && !pickOpt && <LinePhotos tripId={tripId} cityId={bandCity?.id} block={u} ctx={lineCtx} dark />}
                   {/* Whose is what: her plan lists the places; the pick was made in Wander (round 7: "added in
                       Wander by Ken" then "From Larisa's plan" read as if the pick were hers) */}
                   {pick && pickOpt && (
@@ -2404,6 +2509,14 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               </div>
             )}
 
+            {/* Next is just next (Ken, Oct 16: "Next should just be next. It shouldn't then scroll to the equivalent of what is on
+                the today tab"): the day, its photos and notes are Today's; Next ends with the way there */}
+            {now && isToday && (
+              <button type="button" onClick={() => navigate(`/day/${date}`)} className="w-full text-left mt-2 min-h-[44px] px-1 text-[15px] text-[#514636] underline underline-offset-2">
+                All of today ›
+              </button>
+            )}
+            {!now && (<>
             {/* The day, in Larisa's words */}
             {/* (a Backroads day says so in the city band — "With Backroads · day 3 of 8"; the summary says the rest) */}
             {/* A day with her detailed plan: the plan leads (round 6 — "See Larisa's full plan" landed on a
@@ -2509,6 +2622,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // timed lines at their times — each opens its full card in Trains — and lines her Guide gives no time say so
                   const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} quotedAbove={headline?.title} compact
                     autoOpen={nowLine?.key === `item-${i.id}`} past={pastLine(i)}
+                    focus={isToday && nowLine?.key === `item-${i.id}` ? nowWords(nowLine.at - tripNow) : null}
                     doneMark={i.kind === "deadline" ? doneMarks.get(deadlineKey(i)) : undefined} />;
                   // (on a day with her plan, a train her plan names sits under that line; any other joins here at its time)
                   const trains = timelineTrains;
@@ -2765,6 +2879,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* Papers kept for this day — receipts, tickets, bills (Ken, Oct 12): reference, at the end */}
             {tripId && date && <DayPapers tripId={tripId} date={date} />}
 
+            </>)}
             {/* How current this is */}
             {status?.current && (() => {
               const f = freshness(status.current.importedAt, new Date(), tripZone);
@@ -2820,7 +2935,9 @@ function AskedQuestion({ i, me, owner, sources, className = "" }: { i: GuideItem
   );
 }
 
-function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false, doneMark }: {
+function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false, doneMark, focus = null }: {
+  /** today, the line that's now or next (NOW_MAROON): "Now" or "Next · in 25 min" */
+  focus?: string | null;
   /** a deadline marked done in Wander by the person it's for (Oct 9): said as done, not amber */
   doneMark?: Mark;
   i: GuideItem; date: string; today: string; tripZone: string; stays: TripGuideData["stays"]; me: string | null; highlight: boolean; day: GuideItem[];
@@ -3020,7 +3137,9 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   return (
     <Box id={`item-${i.id}`} className={nested
       ? `scroll-mt-24 mt-2 rounded-lg border p-2.5 transition-shadow ${tone === "bg-white border-[#e0d8cc]" ? "bg-[#faf8f5] border-[#efe8dc]" : tone} ${highlight ? "ring-2 ring-[#c8a060]" : ""}`
-      : `scroll-mt-24 rounded-xl border p-3 transition-shadow ${tone} ${highlight ? "ring-2 ring-[#c8a060] shadow-md" : ""}`}>
+      : `scroll-mt-24 rounded-xl border p-3 transition-shadow ${focus && !highlight ? "border-l-4 bg-[#fbf3f1] border-[#ead9d4]" : tone} ${highlight ? "ring-2 ring-[#c8a060] shadow-md" : ""}`}
+      style={focus && !highlight && !nested ? { borderLeftColor: NOW_MAROON } : undefined}
+      data-now={focus && !nested ? focus : undefined} data-now-title={focus && !nested ? itemTitle(i, stays, date) : undefined}>
       <div className="flex gap-3">
         <div className={nested ? "hidden" : "w-16 shrink-0 text-right"}>
           {i.time && !split ? (
@@ -3035,7 +3154,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`${nested ? "text-sm" : "text-[15px]"} leading-snug ${over ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
+          {focus && !nested && <p className="text-[12px] uppercase tracking-wide font-semibold mb-0.5" style={{ color: NOW_MAROON }}>{focus}</p>}
+          <p className={`${nested ? "text-sm" : focus ? "text-[17px] font-medium" : "text-[15px]"} leading-snug ${focus ? "" : over ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`} style={focus && !nested ? { color: NOW_MAROON } : undefined}>
             {deadline && <span className="font-medium">{over ? (startsSomething(i) ? "Started · " : "Passed · ") : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}{lineTitle}
           </p>
           {theirs && <p className="text-xs text-[#514636] mt-0.5">{named ? `For ${i.forWhom}` : "The others' plan"}</p>}

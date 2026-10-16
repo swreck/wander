@@ -1525,6 +1525,12 @@ Next (the Now tab until Oct 2) answers what's next, when, and how to get there. 
 of day that you know, I would think you would realize that when I tapped on next, you would know that I was already in
 Hakata at the hotel, and so when I tapped on next, it would not tell me we were taking a local train to Hakata."
 
+**Just next** (Oct 16 — Ken: "Next should just be next. It shouldn't then scroll to the equivalent of what is on the
+today tab. Add more visuals to next… Be able to hop to maps at any time based on either of them"): what's now and what's
+next, each with its place's checked photos (one or two) and Maps; Next also has Walk / Train / Taxi. Then "All of today ›"
+(the Today tab's page). The day's list, its photos and notes are Today's, not Next's. "Now, in Larisa's plan · …" opens
+Today at that line.
+
 **How Wander decides what's next.** One reckoning for Next, Home and the day screen: the train you're on; otherwise the
 sooner of your next booked train and her next timed line for you. A plan added in Wander counts. "This morning" lines
 show before the first clock time. Once you've reached tonight's place (the evening, tonight's check-in time, or the
@@ -1621,6 +1627,12 @@ day.
 ### 3.4 The day by the clock
 
 One list, in the order the day is lived.
+
+**What's now stands out** (Oct 16, today only). The line under way — or, until it starts, your next — has a deep maroon
+edge and wash, its title two points larger in maroon, and above it "Now" or "Next · in 50 min": the same line the Next tab
+reckons, moving down the day as the hours pass. The rest stays in view; lines already past are quieter. Ken: "imagine the
+full orientation being visible but the 'now' gets more prominence… So that exact page changes as hours pass on what pops
+out."
 
 **At its top**, her Itinerary's heading for the day as one quiet line: "In her Itinerary for today: …".
 
@@ -2432,7 +2444,8 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   for jacket to help Larisa but that jacket is not split, it is just Larisa's… Split should probably be an option
   generally also with split as default and either as full owner of item"). Shared: the other couple owes half. For the
   other couple alone: they owe it all. For the payer's own couple alone: nothing is owed. Who pays next is the couple
-  that owes; "To be even now" says how much.
+  that owes; "To be even now" says how much. Under "shared so far", what was paid for one couple alone: "Plus ¥5,000 paid
+  for Ken & Larisa alone." (it names the couple when every such entry is for the same one).
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.
 - **Changing or taking one away** (Oct 16): only the person who kept it, or Ken. Tapping the entry (it shows a "›") opens a pop-up
