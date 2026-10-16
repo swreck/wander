@@ -1445,9 +1445,10 @@ Home is the trip at a glance, with today first. From the top:
   from noon in Japan, tonight's town leads. Rain hours aren't on Home: Ken asked for one line there (§6).
 - **The trip map** (§2.3).
 - **The Today card** (§2.2), or before the trip the countdown and your first days, or after it "Welcome home".
-- **The budget line**, just under the Today card: "Budget: ¥… shared so far" (or "nothing kept yet"), with "Who pays
-  next: …" and what would make the couples even under it. A tap opens the budget page (§9.9). Ken (Oct 15): "a button on
-  the homepage that actually shows the total and then has all the detail below it."
+- **The budget line**, just under the Today card: the next action only — "Who pays next: KL Ken & Larisa · ¥23,475 to
+  be even" ("Budget: nothing kept yet" before anything is). A tap opens the budget page (§9.9). Ken (Oct 16, replacing
+  his Oct 15 "a button on the homepage that actually shows the total"): "people do not want to be reminded how much
+  they've paid. They simply want to understand the next action, which is who pays next and what the difference is."
 - **To-dos and deadlines ›**, one quiet line under it, opening what the Actions tab used to open (§11).
 - **Quiet notes**: the Safety tips note under the day's card (§6.7); and one ask per visit, in order, the leaving card,
   Face ID, then the welcome (§17.1).
@@ -2458,7 +2459,8 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   money which is not what to emphasize. Bottom of page"; the "alone" line "a result. Not a top line topic"): at the top,
   "Who pays next", the couple in large type, then "To be even now…". At the foot, under every entry and above Log, small:
   "¥198,090 shared so far." and what was paid for one couple alone, each couple named ("Plus ¥4,810 paid for Ken &
-  Larisa alone and ¥1,980 for Julie & Andy alone."). Home's Budget line still shows the total (Oct 15).
+  Larisa alone and ¥1,980 for Julie & Andy alone."). Home's Budget line shows only who pays next and the difference.
+  Scout too: who pays next and the difference; totals only when asked.
 - **Never counted twice, never dropped** (Oct 16 — Ken: "There will not be errors. There will not be omissions. Nothing
   will be forgotten, and the math will be correct"). Each Keep carries a one-time tag: sent again (its reply lost on a
   weak signal, "That didn't save", Keep again) it's the same payment. A payment counts for its couple by the people in
@@ -2505,8 +2507,8 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   based on who is the next to pay, so it can be done in a glance or tapped to see the total. Make the KL version
   purple. And AJ version orange." A payment kept or taken away, on the page or through Scout, quietly tells every open
   screen, so the icon turns at once on all four phones.
-- **The budget page** leads with the total ("¥… shared so far", or "Nothing kept yet"), who pays
-  next ("either — you're even" when they are) and what would make them even ("To be even now, … would pay … ¥…"). Then
+- **The budget page** leads with who pays next ("Either — you're even" when they are; "Nothing kept yet" before
+  anything is) and what would make them even ("To be even now, … would pay … ¥…"); the total is at the foot. Then
   **+ Add entry**, always there. Add entry opens a pop-up near the top of the screen (above where an
   iPhone's keyboard comes up) with the cursor in the amount, the number keyboard, ¥ chosen and a small ¥ / $ switch (Ken:
   "should always be another button that says add entry for another one to be added then"; "including the pop up and
