@@ -114,8 +114,9 @@ function rememberCountries(tripId: string, countries: string[]) {
 
 /** One phrase card for the whole app, opened from anywhere (Ken, Oct 13: "a clear convenient but subtle way to have
  *  phrase button always available"). mode "sheet" (mounted once, beside the bottom bar) draws the card when asked;
- *  "bar" is the small 日 at the bottom bar's right end, on every screen; "header" is Next's labelled "日 Phrases", where
- *  people learn what the 日 means. Both buttons ask the one sheet ("wander-open-phrases"), so two cards never open.
+ *  "bar" is the 日 at the bottom bar's right end, on every screen, with "Phrases" under it — the one way in since Oct 16
+ *  (Ken: "Why are phrases now in the upper left and bottom right?"; Next's labelled "日 Phrases", where people learned what
+ *  the 日 means, is gone, so the bar's says it). "header" is kept, unused. Both ask the one sheet ("wander-open-phrases").
  *  trip: the trip the screen already has, so a button is there in its first drawing (Oct 10: it arrived 1.5 s after the
  *  Next tab drew, widened the header row and moved the whole day down) */
 export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "sheet" | "bar" | "header"; inHeader?: boolean; trip?: { name: string; cities: { name: string; country?: string | null }[] } | null } = {}) {
@@ -374,11 +375,11 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
 
   if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
   // (the bar draws before Wander knows who's signed in on a first opening — the room is kept then too)
-  if (!user) return kind === "bar" ? <span className="shrink-0 w-11" aria-hidden /> : null;
+  if (!user) return kind === "bar" ? <span className="shrink-0 w-12" aria-hidden /> : null;
   const activePhrases = tripCountries.length ? COUNTRY_PHRASES[activeCountry] : undefined;
   // (the bar keeps the 日's room while the trip is still being read, and on a trip with no phrases, so its tabs never
   // slide sideways under a thumb)
-  if (!activePhrases) return kind === "bar" ? <span className="shrink-0 w-11" aria-hidden /> : null;
+  if (!activePhrases) return kind === "bar" ? <span className="shrink-0 w-12" aria-hidden /> : null;
 
   const ask = () => window.dispatchEvent(new CustomEvent("wander-open-phrases", { detail: { countries: tripCountries, tripId } }));
   if (kind === "header") {
@@ -394,20 +395,20 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
     );
   }
   if (kind === "bar") {
-    // Unlabelled, so it reads as an extra beside the tabs, never a seventh tab; never shown as the current one. 44 pt wide,
-    // a full fingertip (verify27: 36 pt sat right against Scout)
+    // A quieter extra at the end of the tabs, never shown as the current one; its word under it, a size smaller than the
+    // tabs' (Ken, Oct 16: "if there's no room and it would overwhelm the bar, I sort of liked… very subtle in the corner").
+    // 48 pt wide, a full fingertip (verify27: 36 pt sat right against Scout)
     return (
       <button
         onClick={ask}
         data-tour="Phrases"
-        // (in line with the tabs' icons, over an empty label line like theirs: centred, it sat lower and was cut off when
-        // the bar slides down on scroll — user-ken4)
-        className="shrink-0 w-11 min-h-[48px] py-1 flex flex-col items-center justify-center gap-0.5 rounded-lg text-[#7a6b55] active:bg-[#f0ebe3]"
+        // (in line with the tabs' icons, its word on their label line: centred, it sat lower and was cut off when the bar
+        // slides down on scroll — user-ken4)
+        className="shrink-0 w-12 min-h-[48px] py-1 flex flex-col items-center justify-center gap-0.5 rounded-lg text-[#7a6b55] active:bg-[#f0ebe3]"
         aria-label={`${activePhrases.language} phrases`}
-        title={`${activePhrases.language} phrases`}
       >
         <span className="text-lg font-bold leading-none h-5 flex items-center" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
-        <span className="text-xs leading-tight invisible" aria-hidden>.</span>
+        <span data-phrases-word className="text-[11px] leading-tight whitespace-nowrap" aria-hidden>Phrases</span>
       </button>
     );
   }

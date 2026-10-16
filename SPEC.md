@@ -1566,7 +1566,7 @@ in Apple Maps, stay Apple's.
 - **The last day**: her own way to the airport (her train) replaces Wander's "leave for the airport" estimate; that
   estimate shows, labelled as one, only when her Guide gives no way.
 - **Tomorrow**, naming its clock on a phone not on Japan time.
-- A labelled **日 Phrases** button in the header, where people learn what the 日 means (§10).
+- (Until Oct 16 a labelled **日 Phrases** button sat in the header; the bar's **日 Phrases** is now the one way in, §10.)
 
 A screen opened from Next says "‹ What's next".
 
@@ -2326,10 +2326,14 @@ cream?". No polls, votes or alerts.
 - **Remove.** Ken (Oct 3): "I should be able to remove items on any list, e.g., Maybes… I know we're going to TeamLab in
   Kyoto, so I can remove it as a maybe for Tokyo." Then: "remove is NOT for everyone. It is for the person who added it
   and me." Anyone can remove their own maybe; Larisa can remove her Guide's ideas; Ken can remove anything. Nobody else
-  sees the button (a quiet ×). It asks first ("Take this off Tokyo's list for everyone? Larisa's Guide keeps it.").
-  Removing hides the item for everyone and never deletes: notes, I'm ins and a day it was put on all stay. Where the
-  card was: "… is off Tokyo's list for everyone. Put it back". At the bottom: "Taken off the list · n ›", with who took
-  each off and Put it back for the same people. A new copy of her Guide keeps it off.
+  sees the button (a quiet ×). The × takes it off at once (Oct 16: it used to ask first, and the question sat at the foot
+  of a long card behind the tab bar, so "nothing happens"). Removing hides the item for everyone and never deletes: notes
+  and I'm ins stay; a day it was put on leaves that day's page (and Scout's view of the day) while it's off. Where the
+  card was: "… is off Tokyo's list and off Sat, Oct 17 for everyone. Larisa's Guide keeps it. Put it back" (the day and
+  the Guide only when they apply); Put it back returns it to the list and to its day. At the bottom: "Taken off the list
+  · n ›", with who took each off and Put it back for the same people. A new copy of her Guide keeps it off.
+- **Done or out of date isn't shown** (Ken, Oct 14: "if it is done or out of date, you don't show it"): a maybe or one of
+  her ideas whose every day (on her plan, or put on in Wander) has passed leaves the list (Oct 16).
 - **Something new**: one quiet line on Home.
 - **Scout**: "maybe we should…", "I'm in", "Julie's in too", "never mind the ice cream", remove and put back, by the same
   rules (§7.9).
@@ -2444,8 +2448,25 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   for jacket to help Larisa but that jacket is not split, it is just Larisa's… Split should probably be an option
   generally also with split as default and either as full owner of item"). Shared: the other couple owes half. For the
   other couple alone: they owe it all. For the payer's own couple alone: nothing is owed. Who pays next is the couple
-  that owes; "To be even now" says how much. Under "shared so far", what was paid for one couple alone: "Plus ¥5,000 paid
-  for Ken & Larisa alone." (it names the couple when every such entry is for the same one).
+  that owes; "To be even now" says how much. Under "shared so far", what was paid for one couple alone, each couple
+  named: "Plus ¥5,000 paid for Ken & Larisa alone." or "Plus ¥4,810 paid for Ken & Larisa alone and ¥1,980 for Julie &
+  Andy alone."
+- **Never counted twice, never dropped** (Oct 16 — Ken: "There will not be errors. There will not be omissions. Nothing
+  will be forgotten, and the math will be correct"). Each Keep carries a one-time tag: sent again (its reply lost on a
+  weak signal, "That didn't save", Keep again) it's the same payment. A payment counts for its couple by the people in
+  it, whatever order her Guide names them in ("Julie & Andy" or "Andy & Julie"); if a new copy of her Guide named fewer
+  than two couples, the couples payments were kept for still count. Nothing about money waits on the phone. With no
+  answer, the phone asks once more by itself; if that fails too it says "Wander didn't hear back, so this may or may not
+  have saved. Tap Keep it again when you have signal. It won't be kept twice." The phone holds the tag for those words
+  from Keep until Wander answers, through Cancel and through closing Wander, so the same payment typed again is still
+  one. A Keep that hangs says after six seconds "Still waiting for Wander to answer. You can keep waiting, or Cancel: if
+  it got through, it shows in the list, and typing it again won't keep it twice."; one that lands after Cancel holds its
+  words for ten minutes. After that, the same words are a new payment (a second taxi).
+- **Put it back** (Oct 16 — Ken: "can I assume that means the data can be brought back into the live flow"): right after
+  a removal, "✓ Removed: … · Put it back" beside + Add entry for 12 seconds; and on that removal's line in the Log, for
+  the same people who may remove it. Put back, it counts exactly as before; the Log says "Put back ¥… (couple): what
+  it was for · who" (adds and removals name what it was for too).
+  Scout too (put_back_expense).
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.
 - **Changing or taking one away** (Oct 16): only the person who kept it, or Ken. Tapping the entry (it shows a "›") opens a pop-up
@@ -2453,7 +2474,7 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   removed one is hidden, never deleted. Ken: "add edit button to budget page to go back and add reason, change total, or
   change payer with a pop up, or remove item". A dollar amount keeps the rate it was kept at, unless it's newly dollars.
 - **Log** (Oct 16; "History" until Ken: "Change 'history' to 'Log' and put at bottom (it's an admin log, only for me or
-  moments of audit)"), a quiet link at the foot of the page: every add, change and removal, newest first, each line the day and time, what was done
+  moments of audit)"), a quiet link at the foot of the page: every add, change, removal and put back, newest first, each line the day and time, what was done
   ("Changed ¥2,150 → $15", "Changed who paid: Julie & Andy → Ken & Larisa") and, at the end, who did it. Ken: "date,
   person, action only" and "add the individuals user who made change at end of record". Removals before Oct 16 say who
   wasn't recorded. Data: trip_expense_logs.
@@ -2481,8 +2502,9 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
 The 日 card: Japanese phrases to say, and characters to find.
 
 - **Where**: a small 日 at the right end of the bottom bar on every screen opens it in one tap (Oct 13). Ken: "a clear
-  convenient but subtle way to have phrase button always available". Next keeps its labelled "日 Phrases". Both open the
-  same card. It closes on Back, Close, a tap on the page, or a change of screen.
+  convenient but subtle way to have phrase button always available". Since Oct 16 the word "Phrases" sits under it, a
+  size smaller than the tabs' labels, and it's the one way in (Ken: "Why are phrases now in the upper left and bottom
+  right?"; Next's labelled header copy is gone). It closes on Back, Close, a tap on the page, or a change of screen.
 - **Each line leads with its English title**, then the Japanese in romaji and how to say it: "Hello", then "Konnichiwa
   (Koh-nee-chee-wah)". Ken (Oct 14): "all phrases titles should be English to find what is needed".
 - **Characters to find on a device.** Ken (Oct 14): "Language list should generally not use kanji. But in this case (and

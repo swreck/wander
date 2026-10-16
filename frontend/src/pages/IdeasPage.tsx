@@ -269,14 +269,6 @@ export default function IdeasPage() {
   // found no "Taken off the list"; the slim line in its place was the only sign)
   const offList = useMemo(() => allHere.filter((i) => i.removedAt)
     .sort((a, b) => (b.removedAt || "").localeCompare(a.removedAt || "")), [allHere]);
-  // "Larisa (maybe)", "Julie (via Andy)" and "Andy B" are Larisa, Julie and Andy for the filter (her columns hold first
-  // names; Wander's "I'm in" carries the full name); the card keeps the "(maybe)"
-  const people = useMemo(() => {
-    const set = new Set<string>();
-    for (const i of cityIdeas) for (const p of i.interests || []) set.add(personOf(p.displayName));
-    return Array.from(set).sort();
-  }, [cityIdeas]);
-  const byPerson = person === "everyone" ? cityIdeas : cityIdeas.filter((i) => (i.interests || []).some((p) => personOf(p.displayName) === personOf(person)));
   const cityDays = useMemo(() => (guide?.days || []).filter((d) => d.cityId === cityId).map((d) => ymd(d.date)).sort(), [guide, cityId]);
   // The days her own plan already has each idea (Bamboo Forest said "Nobody has marked this yet" though it opens her
   // Oct 26; Julie's two marks are both on her days — round 15)
@@ -300,12 +292,28 @@ export default function IdeasPage() {
     }
     return out;
   }, [guide, cityIdeas, cityDays]);
+  // Done or out of date isn't shown (Ken, Oct 14: "if it is done or out of date, you don't show it"): a maybe or one of
+  // her ideas whose every day — on her plan, or put on in Wander — has passed (the maybes walk, Oct 16)
+  const current = useMemo(() => cityIdeas.filter((e) => {
+    if (e.removedAt) return true;
+    const dates = [...(planDays.get(e.id) || []), ...choices.filter((c) => c.experienceId === e.id).map((c) => c.date)];
+    return !dates.length || dates.some((d) => d >= today);
+  }), [cityIdeas, planDays, choices, today]);
+  // "Larisa (maybe)", "Julie (via Andy)" and "Andy B" are Larisa, Julie and Andy for the filter (her columns hold first
+  // names; Wander's "I'm in" carries the full name); the card keeps the "(maybe)"
+  const people = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of current) for (const p of i.interests || []) set.add(personOf(p.displayName));
+    return Array.from(set).sort();
+  }, [current]);
+  const byPerson = person === "everyone" ? current : current.filter((i) => (i.interests || []).some((p) => personOf(p.displayName) === personOf(person)));
   // Today / Tomorrow: on that day's plan, put on that day, or a small maybe said today (Ken, Oct 3: "highlight if within
   // 48 hours… filter to things in the next 2 days")
   const tomorrow = (() => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
   const whenOf = (e: Experience): "Today" | "Tomorrow" | null => {
     const dates = [...(planDays.get(e.id) || []), ...choices.filter((c) => c.experienceId === e.id).map((c) => c.date)];
-    if (dates.includes(today) || (!e.sheetRowRef && !e.sourceUrl && !e.dayId && localDay(e.createdAt) === today)) return "Today";
+    // (put on a day, that day says when — "Today" beside "Sat, Oct 17 · added by Julie"; fresh tester, Oct 16)
+    if (dates.includes(today) || (!dates.length && !e.sheetRowRef && !e.sourceUrl && !e.dayId && localDay(e.createdAt) === today)) return "Today";
     return dates.includes(tomorrow) ? "Tomorrow" : null;
   };
   // A theme each (her restaurant section, or read once by Wander) — for the filter only
@@ -319,7 +327,9 @@ export default function IdeasPage() {
   const shown = filtered.filter((i) => !!i.sheetRowRef).sort((a, b) => sheetRow(a) - sheetRow(b));
   const maybes = filtered.filter((i) => !i.sheetRowRef).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   // A small maybe ("tea or ice cream?" — no link, not on a day) from a day before today folds into "Earlier"
-  const earlierThan = (e: Experience) => !e.sourceUrl && !e.dayId && localDay(e.createdAt) < today;
+  // (never one put on today or a day ahead — on Sat Oct 17 Julie's maybe for that day sat folded under "Earlier"; fresh tester)
+  const earlierThan = (e: Experience) => !e.sourceUrl && !e.dayId && localDay(e.createdAt) < today
+    && !choices.some((c) => c.experienceId === e.id && c.date >= today);
   const maybesNow = maybes.filter((e) => !earlierThan(e));
   const maybesEarlier = maybes.filter(earlierThan);
   const eat = shown.filter((i) => (i.themes || []).includes("food"));
@@ -454,7 +464,11 @@ export default function IdeasPage() {
           const card = (exp: Experience) => exp.removedAt ? (
             // Just taken off: a slim line in its place, so it's clear what happened and it can go straight back
             <li key={exp.id} className="flex flex-wrap items-center gap-x-3 rounded-xl border border-dashed border-[#d6cbb8] px-3 py-1" role="status">
-              <span className="flex-1 min-w-0 text-sm text-[#6b5d4a]">“{exp.name}” is off {city?.name}'s list for everyone.</span>
+              {/* (what happened, plainly: off the list for everyone, off a day it was put on too; hers stays in her Guide) */}
+              <span className="flex-1 min-w-0 text-sm text-[#6b5d4a]">“{exp.name}” is off {city?.name}'s list{(() => {
+                const days = choices.filter((c) => c.experienceId === exp.id && c.date >= today).map((c) => shortDay(c.date));
+                return days.length ? ` and off ${days.join(" and ")}` : "";
+              })()} for everyone.{exp.sheetRowRef ? ` ${voiceFor(me).mine ? "Your" : "Larisa's"} Guide keeps it.` : ""}</span>
               <button onClick={() => putBack(exp)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Put it back</button>
             </li>
           ) : (
@@ -555,12 +569,9 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
   const isMaybe = !exp.sheetRowRef;
   const interests = exp.interests || [];
   const myName = personOf(me).toLowerCase();
-  const myMaybe = isMaybe && personOf(exp.createdBy).toLowerCase() === myName;
-  const [confirmGone, setConfirmGone] = useState(false);
   // Off the list for everyone (plans change; or it's settled elsewhere — "we're doing TeamLab in Kyoto"). Nothing is
-  // deleted: notes, "I'm in"s and a day it was put on all stay, and it can be put back.
+  // deleted: notes and "I'm in"s stay, a day it was put on leaves that day while it's off, and it can be put back.
   async function removeIt() {
-    setConfirmGone(false);
     try {
       await inOrder(() => api.delete(`/maybes/${exp.id}`));
       onRemoved();
@@ -680,9 +691,11 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
         </p>
         {shortPlace && <span className="shrink-0 text-sm text-[#6b5d4a]">{exp.description}</span>}
         {/* Remove as a quiet × at the end of the name's line: as a word it took a row of its own on every card Larisa
-            (all of hers) and Ken (everything) see — it asks before anything happens */}
-        {mayRemove && !confirmGone && (
-          <button onClick={() => setConfirmGone(true)} aria-label={`Remove ${exp.name} from the list`}
+            (all of hers) and Ken (everything) see. It takes it off at once, and "Put it back" stands in the card's place
+            (the maybes walk, Oct 16: the question it asked first sat at the foot of a long card, behind the tab bar, so
+            "nothing happens") */}
+        {mayRemove && (
+          <button onClick={removeIt} aria-label={`Remove ${exp.name} from the list`}
             className="shrink-0 -my-3 -mr-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-xl leading-none text-[#a89880]">×</button>
         )}
       </div>
@@ -807,18 +820,6 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
           {/* Anything on the list to the group text — a maybe with its writer's name, one of hers as from her Guide */}
           <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName, isMaybe ? undefined : "Larisa's Guide"))}
             className="min-h-[44px] text-sm text-[#514636]">Tell the group</button>
-        </div>
-      )}
-      {mayRemove && confirmGone && (
-        <div className="flex flex-wrap items-center gap-x-3 mt-1">
-          {/* (what happens, plainly: off the list for everyone; hers stays in her Guide) */}
-          <span className="text-sm text-[#3a3128]">
-            {myMaybe ? "Remove this maybe?"
-              : isMaybe ? `Take ${personOf(exp.createdBy)}'s maybe off the list for everyone?`
-              : `Take this off ${cityName}'s list for everyone? ${voiceFor(me).mine ? "Your" : "Larisa's"} Guide keeps it.`}
-          </span>
-          <button onClick={removeIt} className="min-h-[44px] text-sm text-[#8a3a1a]">Remove</button>
-          <button onClick={() => setConfirmGone(false)} className="min-h-[44px] text-sm text-[#514636]">Keep it</button>
         </div>
       )}
       {message && <p className="text-sm text-[#6b5d4a] mt-1" role="status">{message}</p>}

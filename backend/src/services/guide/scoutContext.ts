@@ -8,6 +8,7 @@
 
 import prisma from "../db.js";
 import { deadlineKey, listMarks } from "../actionMarks.js";
+import { offListIdeas } from "../dayChoices.js";
 import { appleGuidesOf, guideLines } from "./appleGuides.js";
 import { myMapOf, myMapLines, viewLink } from "./googleMyMap.js";
 import { tripDocumentsOf, dayWords, placeIn, whose } from "./tripDocuments.js";
@@ -210,7 +211,10 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     }
   }
 
-  const choices = await prisma.dayChoice.findMany({ where: { tripId }, include: { traveler: { select: { displayName: true } } }, orderBy: { createdAt: "asc" } });
+  // (not a day plan whose idea was taken off the Maybes list — it left the day too)
+  const allChoices = await prisma.dayChoice.findMany({ where: { tripId }, include: { traveler: { select: { displayName: true } } }, orderBy: { createdAt: "asc" } });
+  const offIdeas = await offListIdeas(Array.from(new Set(allChoices.map((c) => c.experienceId).filter(Boolean) as string[])));
+  const choices = allChoices.filter((c) => !c.experienceId || !offIdeas.has(c.experienceId));
   const choicesByDate = new Map<string, typeof choices>();
   for (const c of choices) choicesByDate.set(c.date, [...(choicesByDate.get(c.date) || []), c]);
 

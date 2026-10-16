@@ -2,6 +2,51 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday afternoon in Japan) — Budget you can trust; Put it back; Maybes; one way to the phrases
+
+Ken (Oct 16): "Please confirm I can trust the financial tracking. There will not be errors. There will not be omissions.
+Nothing will be forgotten, and the math will be correct." Then, on "Nothing is lost": "can I assume that means the data
+can be brought back into the live flow". And: "fix the Maybes"; on Phrases, one way in.
+
+### Fixed
+- Budget: a payment kept twice when its reply was lost on a weak signal ("That didn't save", Keep again). Each Keep now
+  carries a one-time tag; the same tag again is the same payment. Data: trip_expenses.client_key (unique). With no
+  answer the phone asks once more by itself. If that fails too it says so truthfully ("Wander didn't hear back, so this
+  may or may not have saved. Tap Keep it again when you have signal. It won't be kept twice."). From the moment Keep is
+  tapped until Wander answers, the phone keeps the tag for those words (on the phone, so it lasts through closing
+  Wander); the same payment typed again — after Cancel, or after reopening — is still one payment. A Keep that hangs
+  says after six seconds "Still waiting for Wander to answer. You can keep waiting, or Cancel: if it got through, it
+  shows in the list, and typing it again won't keep it twice."; if it lands after Cancel, the same words for ten more
+  minutes are that payment, and the late answer no longer closes a pop-up opened since (fresh testers). SPEC §Budget.
+- Budget: "✓ Kept: …" says what it was for, as Removed and Put back do.
+- Maybes: on its own day, a maybe put on that day was folded under "Earlier"; it now stays in view, badged Today.
+- Budget: the Log and "✓ Removed: …" now say what a payment was for ("Removed ¥2,000 (Ken & Larisa): coffee at the
+  station · Larisa") — which ¥2,000 to put back wasn't clear (fresh tester).
+- Maybes: a maybe put on a day showed "Today" beside "Sat, Oct 17 · added by Julie"; the day it's on now decides.
+- Budget: payments matched to their couple by its people, not the spelling of its name — "Julie & Andy" and "Andy & Julie"
+  are the same couple. Before, a new copy of her Guide naming them the other way round would have dropped every payment
+  kept under the old spelling from the sums, unseen. The couples are also read from her Guide in a fixed order, and if a
+  copy named fewer than two, the couples already in the Budget still count.
+- Budget header: "Plus ¥6,790 paid for one couple alone" when it was ¥4,810 for Ken & Larisa and ¥1,980 for Julie & Andy;
+  now each couple is named.
+- Maybes: × asked "Remove this maybe? / Take this off…" at the foot of the card, often behind the tab bar ("nothing
+  happens"). × now takes it off at once and "Put it back" stands in the card's place.
+- Maybes: a maybe taken off the list stayed on the day it had been put on. It now leaves that day's page (and Scout's
+  view of the day) while it's off, and comes back with Put it back. The line says so: "… is off Tokyo's list and off
+  Sat, Oct 17 for everyone."
+
+### Added
+- Budget **Put it back**: beside "✓ Removed: …" right after a removal (12 seconds), and on the removal's line in the Log —
+  for whoever kept it, or Ken. It counts again exactly as before; the Log says "Put back ¥… · who". Scout:
+  put_back_expense (money_so_far now lists what's taken away). SPEC §Budget.
+
+### Changed
+- Maybes: a maybe or one of her ideas whose every day has passed isn't shown (Ken's rule: "if it is done or out of
+  date, you don't show it").
+- Phrases: one way in, the bar's 日, now with "Phrases" under it (a size smaller than the tabs' labels; it fits at 375,
+  393, 402 and 440 pt). The labelled "日 Phrases" at the top of Next is gone (Ken: "Why are phrases now in the upper left
+  and bottom right?"). How Wander works and Scout say where it is. SPEC §10.
+
 ## 2026-10-16 (Friday, 9:30 AM in Japan) — What's now stands out on today's page
 
 Ken (Oct 16): "In any daily itinerary, be sensitive to current timing in particular way: imagine the full orientation being
