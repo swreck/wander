@@ -2310,7 +2310,7 @@ interface." Exams are named with their rough question count before a run; full r
 The group's shared list of "maybe we should…". Ken (Oct 2): "a shared list of maybes", light enough for "tea or ice
 cream?". No polls, votes or alerts.
 
-- **Where**: "Maybes ›" on Home (a bottom-bar tab until Oct 16, when Today took its place; called Ideas until Oct 3). It opens on the next city ahead of you that has ideas.
+- **Where**: "Maybes ›" on Home (a bottom-bar tab until Oct 16, when Today took its place; called Ideas until Oct 3). It opens on the next city ahead of you that has ideas. A city has a tab only while it has something on its list and a day today or ahead (Oct 16: Osaka showed only "Taken off the list · 1"; Nagoya's days were over) — and the city you're in today always has one, so a maybe in Nikko goes on Nikko's list. Sideways rows of filters fade at their right edge while more is off to the right. A day chip on your own maybe says "added by you".
 - **Each city's list** starts with a box: "Maybe we should…". A few words, a link if there is one (kept as its link:
   "Instagram post ↗"), Send, and it's on that city's list for everyone. Saying it means you're in on it. With no signal
   it waits on the phone.
@@ -2470,7 +2470,11 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
 - **Put it back** (Oct 16 — Ken: "can I assume that means the data can be brought back into the live flow"): right after
   a removal, "✓ Removed: … · Put it back" beside + Add entry for 12 seconds; and on that removal's line in the Log, for
   the same people who may remove it. Put back, it counts exactly as before; the Log says "Put back ¥… (couple): what
-  it was for · who" (adds and removals name what it was for too, and so do "✓ Kept: …" and "✓ Removed: …").
+  it was for · who" (adds and removals name what it was for too, and so do "✓ Kept: …" and "Removed: …", which has no
+  tick). Someone who may not put a removed payment back sees who can: "Julie or Ken can put it back." A Keep closed before
+  Wander answered that lands after all says "✓ Kept after all: …"; the same payment typed again says "✓ Already kept: …"
+  (the phone's own retry after a lost reply still says "✓ Kept: …"). These lines stay 8 seconds; a removal's, with Put
+  it back, 12. The Log's "Changed …" lines say what the payment was for too.
   Scout too (put_back_expense).
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.

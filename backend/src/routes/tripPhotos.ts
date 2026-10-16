@@ -19,13 +19,20 @@ router.get("/image/:id/:size", async (req, res) => {
   const viewer = viewerFromLink(id, String(req.query.t || ""));
   if (!viewer) { res.status(403).json({ error: "This photo link has expired. Reopen the page." }); return; }
   const thumb = req.params.size === "thumb";
-  const row = await prisma.tripPhoto.findUnique({ where: { id }, select: { image: !thumb, thumb, imageType: true, shared: true, travelerId: true } });
+  const row = await prisma.tripPhoto.findUnique({ where: { id }, select: { imageType: true, shared: true, travelerId: true } });
   // (still theirs, or still shared — asked every time, so a photo made private again stops showing at once)
   if (!row || !(row.shared || row.travelerId === viewer)) { res.status(404).json({ error: "That photo isn't there anymore." }); return; }
   res.setHeader("Content-Type", row.imageType || "image/jpeg");
   // (the phone asks again each time it shows it — answered "not changed" when it hasn't — never shows a copy on its own)
   res.setHeader("Cache-Control", "private, no-cache");
-  res.send(Buffer.from((thumb ? row.thumb : row.image) as Uint8Array));
+  // (a photo's picture never changes once kept — only its caption and who sees it — so "not changed" is answered from
+  // its id, without loading the picture from the database; it was loaded on every view — cost audit, Oct 16)
+  const tag = `"${id}-${thumb ? "t" : "f"}"`;
+  res.setHeader("ETag", tag);
+  if (String(req.headers["if-none-match"] || "").split(/\s*,\s*/).includes(tag)) { res.status(304).end(); return; }
+  const pic = await prisma.tripPhoto.findUnique({ where: { id }, select: thumb ? { thumb: true } : { image: true } });
+  if (!pic) { res.status(404).json({ error: "That photo isn't there anymore." }); return; }
+  res.send(Buffer.from(((pic as any).thumb ?? (pic as any).image) as Uint8Array));
 });
 
 router.use(requireAuth);

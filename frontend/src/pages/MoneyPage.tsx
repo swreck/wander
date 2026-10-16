@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
-import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, sharedOf, yen, MONEY_CHANGED, type Ledger, type LogLine } from "../lib/expenses";
+import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, sharedOf, yen, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine } from "../lib/expenses";
 import PayNextBadge from "../components/PayNextBadge";
 import useBackToClose from "../hooks/useBackToClose";
 
@@ -44,10 +44,17 @@ export default function MoneyPage() {
     window.addEventListener(MONEY_CHANGED, get);
     return () => { live = false; window.removeEventListener(MONEY_CHANGED, get); };
   }, [tripId]);
+  // (a Keep closed before Wander answered, then answered: said, not just appearing in the list — fresh tester)
+  useEffect(() => {
+    const late = (e: Event) => setKept({ said: `Kept after all: ${(e as CustomEvent<string>).detail}` });
+    window.addEventListener(MONEY_KEPT_LATE, late);
+    return () => window.removeEventListener(MONEY_KEPT_LATE, late);
+  }, []);
   // (the couple you're in, ready as "paid by")
   const mine = l?.parties.find((p) => p.split(/\s*&\s*/).some((x) => first(x) === first(me))) || null;
-  // (a removal stays offered back longer — 12 seconds — than a plain "Kept")
-  useEffect(() => { if (!kept) return; const t = setTimeout(() => setKept(null), kept.putBack ? 12000 : 4000); return () => clearTimeout(t); }, [kept]);
+  // (a removal stays offered back longer — 12 seconds — than a plain "Kept", which stays 8: at 4 someone glancing away in
+  // a taxi missed it; fresh tester, Oct 16)
+  useEffect(() => { if (!kept) return; const t = setTimeout(() => setKept(null), kept.putBack ? 12000 : 8000); return () => clearTimeout(t); }, [kept]);
   const putBack = async (id: string, said: string) => {
     if (!tripId) return;
     setBackErr(null);
@@ -84,7 +91,8 @@ export default function MoneyPage() {
         <input ref={keyboard} inputMode="decimal" aria-hidden tabIndex={-1} className="fixed -top-20 left-0 w-px h-px opacity-0" />
         <div ref={saidRow} className="flex flex-wrap items-center gap-3 scroll-mt-4">
           <button type="button" onClick={openAdd} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium">+ Add entry</button>
-          {kept && <span className="text-sm text-[#4a6a3a]" role="status">✓ {kept.said}</span>}
+          {/* (no tick on a removal — it read as success; fresh tester) */}
+          {kept && <span className={`text-sm ${/^Removed/.test(kept.said) ? "text-[#514636]" : "text-[#4a6a3a]"}`} role="status">{/^Removed/.test(kept.said) ? "" : "✓ "}{kept.said}</span>}
           {kept?.putBack && <button type="button" onClick={() => putBack(kept.putBack!, kept.said.replace(/^Removed/, "Put back"))} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Put it back</button>}
         </div>
         {backErr && <p className="text-sm text-[#8a3a1a] -mt-3" role="alert">{backErr}</p>}
@@ -187,10 +195,11 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
     if (!paidBy || !(n > 0)) { setError(!paidBy ? "Which couple paid?" : "How much was it?"); return; }
     setBusy(true); setError(null);
     let err: string | null;
+    let again = false;
     if (!item) {
       const words = JSON.stringify([paidBy, n, currency, what.trim(), forParty]);
       if (keepKey.current?.words !== words) keepKey.current = { words, key: keepKeyFor(tripId, words) };
-      err = await addPayment(tripId, { paidBy, amount: n, currency, what: what.trim() || undefined, forParty, clientKey: keepKey.current.key }, words);
+      ({ err, again } = await addPayment(tripId, { paidBy, amount: n, currency, what: what.trim() || undefined, forParty, clientKey: keepKey.current.key }, words));
     }
     else {
       const body: { paidBy?: string; amount?: number; currency?: "JPY" | "USD"; what?: string; forParty?: string | null } = {};
@@ -207,7 +216,8 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
     if (err) { setError(err); return; }
     // (what for too, as Removed and Put back say — "Kept: Julie & Andy, ¥3,400" didn't say which ¥3,400; fresh tester)
     const forWords = what.trim() ? `, ${what.trim()}` : "";
-    onClose(item ? `Changed: ${paidBy}, ${money(n, currency)}${forWords}` : `Kept: ${paidBy}, ${money(n, currency)}${forWords}`);
+    // ("Already kept" when Wander had this very payment — typed again after no answer; fresh tester: "Kept" read as new)
+    onClose(item ? `Changed: ${paidBy}, ${money(n, currency)}${forWords}` : `${again ? "Already kept" : "Kept"}: ${paidBy}, ${money(n, currency)}${forWords}`);
   };
   const remove = async () => {
     if (!item || !tripId) return;
@@ -308,6 +318,7 @@ function HistorySheet({ tripId, onClose }: { tripId: string; onClose: () => void
                 {h.action.replace(/^./, (c) => c.toUpperCase())}
                 <span className="text-[#6b5d4a]"> · {h.by ? h.by.split(/\s+/)[0] : "who wasn't recorded"}</span>
                 {h.putBack && <button type="button" onClick={() => back(h.putBack!)} className="block min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Put it back</button>}
+                {h.putBackBy && <span className="block text-xs text-[#6b5d4a] mt-0.5">{h.putBackBy} can put it back.</span>}
               </li>
             ))}
           </ul>}

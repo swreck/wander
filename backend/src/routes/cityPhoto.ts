@@ -18,22 +18,41 @@ const kept = new Map<string, Photo | null>();
 const missedAt = new Map<string, number>();
 const asking = new Map<string, Promise<Photo | null>>();
 const KEEP_MS = 7 * 24 * 3600_000;
-const MISS_MS = 3600_000; // a city with no photo is asked about again after an hour (Google may have hiccupped)
+const MISS_MS = 3600_000; // a lookup that failed (Google or Claude hiccupped) is tried again after an hour
 
 function photoFor(cityId: string): Promise<Photo | null> {
   const had = kept.get(cityId);
   if (had && Date.now() - had.at < KEEP_MS) return Promise.resolve(had);
   if (had === null && Date.now() - (missedAt.get(cityId) || 0) < MISS_MS) return Promise.resolve(null);
   // the splash asks for /info and then /image at once: one Google lookup serves both
-  if (!asking.has(cityId)) asking.set(cityId, lookUp(cityId).then((p) => { kept.set(cityId, p); if (!p) missedAt.set(cityId, Date.now()); return p; }).finally(() => asking.delete(cityId)));
+  if (!asking.has(cityId)) asking.set(cityId, chosen(cityId).then((p) => { kept.set(cityId, p); if (!p) missedAt.set(cityId, Date.now()); return p; }).finally(() => asking.delete(cityId)));
   return asking.get(cityId)!;
+}
+
+/** The photo as chosen this week — kept in the database, so a restart (every deploy) fetches just that one photo instead
+ *  of a search and up to five photos judged by Claude; and "none fits" holds for the week (it was asked again hourly).
+ *  Only a lookup that failed is tried again within the week. (cost audit, Oct 16) */
+async function chosen(cityId: string): Promise<Photo | null> {
+  const pick = await prisma.cityPhotoPick.findUnique({ where: { cityId } }).catch(() => null);
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (pick && Date.now() - pick.checkedAt.getTime() < KEEP_MS) {
+    if (!pick.ref) return null;
+    const img = key ? await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${pick.ref}&key=${key}`).catch(() => null) : null;
+    if (img?.ok) return { bytes: Buffer.from(await img.arrayBuffer()), type: img.headers.get("content-type") || "image/jpeg", place: pick.place, credit: pick.credit, at: pick.checkedAt.getTime() };
+    // (the kept photo can't be fetched: looked at afresh)
+  }
+  const found = await lookUp(cityId);
+  if (found === "failed") return null;
+  const data = found ? { ref: found.ref, place: found.photo.place, credit: found.photo.credit, checkedAt: new Date() } : { ref: null, place: null, credit: null, checkedAt: new Date() };
+  await prisma.cityPhotoPick.upsert({ where: { cityId }, create: { cityId, ...data }, update: data }).catch((e) => console.warn("[city-photo] not kept:", e?.message || e));
+  return found ? found.photo : null;
 }
 
 /** A photo that can stand for the city this trip (autumn): a view of the place, nothing in it saying another season.
  *  Claude looks at the whole picture and names what it sees before judging (Oct 10 re-audit: a one-word glance by a
  *  small model passed Fukuoka Tower with Christmas trees and Santa figures along its foot, and Okayama's winter garden).
- *  True: fits. False: doesn't, or couldn't be judged (an error, a decline) — never shown on a guess. With no key at all
- *  (local work) every photo stands. */
+ *  True: fits. False: doesn't. Null: couldn't be judged (an error, a decline) — never shown on a guess, and never kept
+ *  as "none fits". With no key at all (local work) every photo stands. */
 const SEASON_SCHEMA = {
   type: "object",
   properties: {
@@ -43,7 +62,7 @@ const SEASON_SCHEMA = {
   required: ["seen", "fits"],
   additionalProperties: false,
 };
-export async function fitsTheSeason(bytes: Buffer, type: string, cityName: string): Promise<boolean> {
+export async function fitsTheSeason(bytes: Buffer, type: string, cityName: string): Promise<boolean | null> {
   if (!process.env.ANTHROPIC_API_KEY) return true;
   if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) return false;
   try {
@@ -56,23 +75,25 @@ export async function fitsTheSeason(bytes: Buffer, type: string, cityName: strin
         { type: "text", text: `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, Japan, in mid-to-late October. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait or a sign) and nothing in it belongs to another season: no Christmas trees, Santa figures, Christmas or New Year decorations or illuminations; no snow or ice; no bare leafless trees or brown dormant lawns (winter); no cherry blossoms (spring). Green trees or autumn color are fine. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".` },
       ] }],
     });
-    if (r.stop_reason === "refusal" || r.stop_reason === "max_tokens") return false;
+    if (r.stop_reason === "refusal" || r.stop_reason === "max_tokens") return null;
     const text = r.content.filter((c): c is Anthropic.TextBlock => c.type === "text").map((c) => c.text).join("");
     const said = JSON.parse(text) as { seen: string; fits: boolean };
     console.log(`[city-photo] ${cityName}: ${said.fits ? "fits" : "doesn't fit"} — ${said.seen}`);
     return said.fits === true;
   } catch (err) {
     console.warn(`[city-photo] ${cityName}: couldn't judge the photo —`, err instanceof Error ? err.message : err);
-    return false;
+    return null;
   }
 }
 
-async function lookUp(cityId: string): Promise<Photo | null> {
+/** The photo that fits and Google's reference for it; null when none fits; "failed" when the look itself failed */
+async function lookUp(cityId: string): Promise<{ photo: Photo; ref: string } | null | "failed"> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   const city = await prisma.city.findUnique({ where: { id: cityId }, select: { name: true, country: true, latitude: true, longitude: true } }).catch(() => null);
   // Only a city that's on the map: its photo is looked for near where it is, so a place whose location isn't settled
   // (Oct 1: Shirakabeso) shows no photo rather than somewhere else's
-  if (!key || !city || city.latitude == null || city.longitude == null) return null;
+  if (!key) return "failed";
+  if (!city || city.latitude == null || city.longitude == null) return null;
   try {
     // The city's best-known sight: the most-reviewed tourist attraction near it (a "<city> landmark" search took
     // Google's first hit — for Nikko, a supermarket called Nikko)
@@ -90,24 +111,28 @@ async function lookUp(cityId: string): Promise<Photo | null> {
     // The best-known sight's photo — unless it shows another season or isn't a view of the place (Oct 10 audit: Hakata's
     // was Fukuoka Tower with Santas and a Christmas tree, in October); then the next sight's. A careful look by Claude,
     // once per city while it's kept. None that fits: no photo (Oct 10 re-audit: the first one used to stand anyway).
-    let best: any = null, bytes: Buffer | null = null, type = "image/jpeg";
+    if (find?.status && !["OK", "ZERO_RESULTS"].includes(find.status)) return "failed";
+    let best: any = null, bytes: Buffer | null = null, type = "image/jpeg", unsure = false;
     for (const s of sights.slice(0, 5)) {
       // (1200 wide: a phone's full screen, at a third less to send than 1600 — it has to be ready before the day draws)
       const img = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${s.photos[0].photo_reference}&key=${key}`);
-      if (!img.ok) continue;
+      if (!img.ok) { unsure = true; continue; }
       const b = Buffer.from(await img.arrayBuffer());
       const t = img.headers.get("content-type") || "image/jpeg";
-      if (await fitsTheSeason(b, t, city.name)) { best = s; bytes = b; type = t; break; }
+      const fits = await fitsTheSeason(b, t, city.name);
+      if (fits === null) unsure = true;
+      if (fits) { best = s; bytes = b; type = t; break; }
     }
     const p = best?.photos?.[0];
-    if (!p || !bytes) return null;
+    // (none fit — or none could be judged: only a plain "none fits" is kept for the week)
+    if (!p || !bytes) return unsure ? "failed" : null;
     // "<a href=…>Name</a>" → "Name"
     const who = ((p.html_attributions || [])[0] || "").replace(/<[^>]+>/g, "").trim();
     // the sight spelled as her Guide spells places ("Nikko", not Google's "Nikkō")
     const place = best.name ? String(best.name).normalize("NFD").replace(/\p{M}/gu, "") : null;
-    return { bytes, type, place, credit: who ? `Photo: ${who}` : null, at: Date.now() };
+    return { photo: { bytes, type, place, credit: who ? `Photo: ${who}` : null, at: Date.now() }, ref: p.photo_reference };
   } catch {
-    return null;
+    return "failed";
   }
 }
 

@@ -35,6 +35,13 @@ const router = Router();
 router.use(requireAuth);
 
 const anthropic = new Anthropic();
+// SCOUT_STUB (a local test server's --stub-scout, never set on Railway): a fixed answer and no model call — for walks of
+// screens and plumbing, which paid for real answers nobody read (cost audit, Oct 16)
+const scoutCreate = (params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> => process.env.SCOUT_STUB
+  ? Promise.resolve({ id: "stub", type: "message", role: "assistant", model: SCOUT_MODEL, stop_reason: "end_turn", stop_sequence: null,
+      content: [{ type: "text", text: "(Scout's test answer: on this test server Scout doesn't call the model.)", citations: null }],
+      usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } as unknown as Anthropic.Message)
+  : anthropic.messages.create(params);
 
 /** The town a note is about, as Scout names it — only when the person's own words name it (a note's place is theirs) */
 export function placeInWords(place: unknown, words: string): string | null {
@@ -5556,14 +5563,15 @@ RULES:
     const startedAt = Date.now();
 
     for (let turn = 0; turn < 8; turn++) {
-      const response = await anthropic.messages.create({
+      const response = await scoutCreate({
         model: SCOUT_MODEL,
-        // (4,096: a full answer on one place across every source, or a table of eight days, ran past 2,048 and was cut
-        // off mid-row — Ken, Oct 2)
-        // SCOUT_THINKING (test server only, Oct 4): Scout thinks before answering — measured against the same questions
-        // before it's offered for production (Ken: "Should I assume Scout will always be stupider than ChatGPT?")
+        // (a full answer on one place across every source, or a table of eight days, ran past 2,048 and was cut off
+        // mid-row — Ken, Oct 2. Since Sep 28 Scout's model thinks by default when `thinking` is left out, and that
+        // thinking counts toward max_tokens, so 4,096 could cut a long answer off; 16,000, billed only as used —
+        // cost audit, Oct 16)
+        // SCOUT_THINKING (test server only, Oct 4): asks for adaptive thinking explicitly — the same as the default now
         ...(process.env.SCOUT_THINKING ? { thinking: { type: "adaptive" } as any } : {}),
-        max_tokens: process.env.SCOUT_THINKING ? 16000 : 4096,
+        max_tokens: 16000,
         system,
         tools: offeredTools,
         messages,

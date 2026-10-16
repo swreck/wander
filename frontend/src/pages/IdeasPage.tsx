@@ -9,7 +9,7 @@
  * With no signal it opens from what this phone saved, and says so.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { queuedBodies, phonePerson } from "../lib/offlineStore";
@@ -169,11 +169,17 @@ export default function IdeasPage() {
     return () => { cancelled = true; window.removeEventListener("online", load); window.removeEventListener("wander:data-changed", load); };
   }, [tripId, attempt]);
 
-  // Cities that have ideas, in the trip's order
+  // Cities that have ideas still on the list and a day today or ahead, in the trip's order (Ken, Oct 14: "if it is done or
+  // out of date, you don't show it" — an Osaka tab showed only "Taken off the list · 1", and Nagoya's days were over)
   const cities = useMemo(() => {
     if (!guide || !ideas) return [];
-    const withIdeas = new Set(ideas.map((i) => i.cityId));
-    return [...guide.trip.cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder).filter((c) => withIdeas.has(c.id) && !c.hidden);
+    const withIdeas = new Set(ideas.filter((i) => !i.removedAt).map((i) => i.cityId));
+    const day0 = phoneToday();
+    const ahead = new Set(guide.days.filter((d) => ymd(d.date) >= day0).map((d) => d.cityId));
+    // (and the city you're in today, ideas or not — in Nikko, with none, Maybes opened on Kyoto and a maybe for the
+    // onsen went on Kyoto's list; fresh tester, Oct 16)
+    const here = guide.days.find((d) => ymd(d.date) === day0)?.cityId;
+    return [...guide.trip.cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder).filter((c) => ((withIdeas.has(c.id) && ahead.has(c.id)) || c.id === here) && !c.hidden);
   }, [guide, ideas]);
 
   // Which city: the one asked for, else where you are today, else the first
@@ -429,7 +435,7 @@ export default function IdeasPage() {
         {/* Two rows of filters, each one line that scrolls sideways: whose, then when and what kind (Ken, Oct 3) */}
         <div className="mt-5 pt-2 border-t border-[#e0d8cc] mb-2">
           {people.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4" role="group" aria-label="Show what one person is in on">
+            <SideRow className="flex items-center gap-2 overflow-x-auto -mx-4 px-4" label="Show what one person is in on">
               <span className="shrink-0 text-xs text-[#6b5d4a]">Show:</span>
               {["everyone", ...people].map((p) => (
                 <button key={p} onClick={() => setPerson(p)} aria-pressed={person === p}
@@ -437,9 +443,9 @@ export default function IdeasPage() {
                   {p === "everyone" ? "Everyone" : p.toLowerCase() === myName ? "What you're in on" : `${p}'s`}
                 </button>
               ))}
-            </div>
+            </SideRow>
           )}
-          <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 mt-1.5" role="group" aria-label="Show by day or kind">
+          <SideRow className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 mt-1.5" label="Show by day or kind">
             <button onClick={() => setSoon((v) => !v)} aria-pressed={soon}
               className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${soon ? "bg-[#514636] text-white border-[#514636]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
               Next 2 days
@@ -450,7 +456,7 @@ export default function IdeasPage() {
                 {THEME_LABEL[t]}
               </button>
             ))}
-          </div>
+          </SideRow>
         </div>
         {(soon || activeTheme) && filtered.length === 0 && (
           <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-3 mb-4">
@@ -721,7 +727,7 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
         ))}
         {choices.map((c) => (
           <button key={c.id} onClick={() => onOpenDay(c.date)} className="min-h-[44px] -my-2 flex items-center">
-            <span className="px-2.5 py-1 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs whitespace-nowrap">{shortDay(c.date)} · added by {c.addedBy} ›</span>
+            <span className="px-2.5 py-1 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs whitespace-nowrap">{shortDay(c.date)} · added by {personOf(c.addedBy).toLowerCase() === myName ? "you" : c.addedBy} ›</span>
           </button>
         ))}
       </div>
@@ -824,6 +830,28 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
       )}
       {message && <p className="text-sm text-[#6b5d4a] mt-1" role="status">{message}</p>}
     </li>
+  );
+}
+
+/** A row that scrolls sideways, fading at its right edge while more of it is off to the right (fresh tester, Oct 16: the
+ *  filter chips ran off the edge, "Shopp…", with nothing saying the row scrolls) */
+function SideRow({ className, label, children }: { className: string; label: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const look = () => setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    look();
+    el.addEventListener("scroll", look, { passive: true });
+    window.addEventListener("resize", look);
+    return () => { el.removeEventListener("scroll", look); window.removeEventListener("resize", look); };
+  });
+  const fade = "linear-gradient(to right, black calc(100% - 48px), transparent)";
+  return (
+    <div ref={ref} role="group" aria-label={label} className={className} style={more ? { maskImage: fade, WebkitMaskImage: fade } : undefined}>
+      {children}
+    </div>
   );
 }
 

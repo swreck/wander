@@ -64,6 +64,7 @@ import paperRoutes from "./routes/papers.js";
 import weatherRoutes from "./routes/weather.js";
 import { startMyMapReader } from "./services/guide/googleMyMap.js";
 import { startHelloWarmer } from "./services/scoutHello.js";
+import { noteActivity } from "./services/activity.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -128,6 +129,8 @@ app.use("/api/wander-ideas", express.json({ limit: "20mb" }));
 // (one photo at a time: ~1800 px and a small copy, as base64)
 app.use("/api/trip-photos", express.json({ limit: "8mb" }));
 app.use(express.json({ limit: "10mb" })); // Reduced from 50mb
+// (when anyone last used Wander — background readers rest while nobody is, and the database sleeps; services/activity.ts)
+app.use("/api", (_req, _res, next) => { noteActivity(); next(); });
 
 // API routes
 app.use("/api/auth", authRoutes);

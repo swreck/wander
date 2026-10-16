@@ -1153,6 +1153,19 @@ model TripExpense {
   @@map("trip_expenses")
 }
 
+/// A city's arrival photo as chosen (cost audit, Oct 16 2026): Google's reference for the photo that fit the season, or
+/// none — so a restart fetches that one photo instead of searching again and judging up to five with Claude. The
+/// picture itself isn't kept here; a week on, the city is looked at afresh.
+model CityPhotoPick {
+  cityId    String   @id @map("city_id")
+  ref       String?                                       // null: no photo fit
+  place     String?
+  credit    String?
+  checkedAt DateTime @default(now()) @map("checked_at")
+
+  @@map("city_photo_picks")
+}
+
 /// Budget's history (Oct 16 2026 — Ken: "Add log history button adding date, person, action only for checking details
 /// later"): one line per add, change or removal, never edited.
 model TripExpenseLog {

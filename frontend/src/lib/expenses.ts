@@ -58,8 +58,15 @@ const setUnsure = (list: Unsure[]) => { try { localStorage.setItem(UNSURE, JSON.
 let unsureHere: Unsure[] = [];
 const allUnsure = () => [...unsure(), ...unsureHere.filter(live)];
 export const keepKeyFor = (tripId: string, words: string) => allUnsure().find((u) => u.words === `${tripId}|${words}`)?.key || newKeepKey();
-export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: "JPY" | "USD"; what?: string; forParty?: string | null; clientKey?: string }, words = ""): Promise<string | null> {
-  const send = () => api.post(`/expenses/trip/${tripId}`, body);
+/** A Keep whose pop-up was closed, answered after all: the Budget page says so ("Kept after all: …") */
+export const MONEY_KEPT_LATE = "wander:money-kept-late";
+/** err: what to say when it didn't (or may not have) saved; again: Wander already had this very payment ("Already kept") */
+export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: "JPY" | "USD"; what?: string; forParty?: string | null; clientKey?: string }, words = ""): Promise<{ err: string | null; again: boolean }> {
+  let again = false;
+  // (only the first send says "already kept": the phone's own second try finds the first one that got through, and
+  // that's still her one Keep — "Already kept" after one tap read as if she'd typed it twice)
+  let first = true;
+  const send = async () => { const isFirst = first; first = false; const r = await api.post<{ again?: boolean }>(`/expenses/trip/${tripId}`, body); if (isFirst) again = !!r?.again; };
   // (no answer at all — not a refusal: a weak signal; one more try with the same tag, which can never keep it twice)
   const noAnswer = (e: any) => !e?.status || e.status >= 500;
   const mark = body.clientKey ? { words: `${tripId}|${words}`, key: body.clientKey, at: Date.now() } : null;
@@ -73,14 +80,16 @@ export async function addPayment(tripId: string, body: { paidBy: string; amount:
       const kept = { ...mark, at: Date.now(), ttl: 10 * 60_000 };
       unsureHere = [...unsureHere.filter((u) => u.key !== mark.key), kept];
       setUnsure([...unsure().filter((u) => u.key !== mark.key), kept]);
+      // (and says so — it used to just appear in the list; fresh tester)
+      if (!again) window.dispatchEvent(new CustomEvent(MONEY_KEPT_LATE, { detail: `${body.paidBy}, ${body.currency === "USD" ? `$${body.amount}` : yen(body.amount)}${body.what ? `, ${body.what}` : ""}` }));
     } else forget();
     window.dispatchEvent(new Event(MONEY_CHANGED));
-    return null;
+    return { err: null, again };
   } catch (e: any) {
-    if (!noAnswer(e)) { forget(); return e?.message && !/^Request failed/i.test(e.message) ? e.message : "That didn't save. Try again in a moment."; }
+    if (!noAnswer(e)) { forget(); return { err: e?.message && !/^Request failed/i.test(e.message) ? e.message : "That didn't save. Try again in a moment.", again: false }; }
     // (it may have reached Wander: the list shows it if it did)
     window.dispatchEvent(new Event(MONEY_CHANGED));
-    return "Wander didn't hear back, so this may or may not have saved. Tap Keep it again when you have signal. It won't be kept twice.";
+    return { err: "Wander didn't hear back, so this may or may not have saved. Tap Keep it again when you have signal. It won't be kept twice.", again: false };
   }
 }
 /** Changed: only what's given (Ken, Oct 16: "go back and add reason, change total, or change payer") */
@@ -88,7 +97,8 @@ export async function changePayment(tripId: string, id: string, body: { paidBy?:
   try { await api.patch(`/expenses/trip/${tripId}/${id}`, body); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
   catch (e: any) { return e?.message && !/^Request failed|Failed to fetch|Load failed/i.test(e.message) ? e.message : "That didn't save — try again in a moment."; }
 }
-export type LogLine = { at: string; by: string; action: string; /** a removed payment you may put back: its id */ putBack?: string };
+export type LogLine = { at: string; by: string; action: string; /** a removed payment you may put back: its id */ putBack?: string;
+  /** a removed payment you may not put back: who can ("Julie or Ken") */ putBackBy?: string };
 /** Budget's History, newest first (Ken, Oct 16: "date, person, action only") */
 export async function loadHistory(tripId: string): Promise<LogLine[] | null> {
   try { return (await api.get<{ history: LogLine[] }>(`/expenses/trip/${tripId}/history`)).history; } catch { return null; }

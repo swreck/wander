@@ -6,6 +6,7 @@
  */
 import prisma from "../db.js";
 import { readGoogleSheet, type SheetRead } from "./googleSheet.js";
+import { quietFor } from "../activity.js";
 
 const KEEP_COPIES = 20;
 
@@ -42,29 +43,48 @@ export async function refreshSource(sourceId: string, read: SheetReader = readGo
   }
 }
 
+/** When the next source is due, as of the last look — so the minute's check needs no database query until then (a source
+ *  added straight to the database is picked up at the next due read, within its minutes) */
+let nextDueAt = 0;
+
 /** Every enabled source due for a read ("every 10 minutes" by default) */
 export async function refreshDueSources(read?: SheetReader): Promise<number> {
   const sources = await prisma.tripSource.findMany({ where: { enabled: true } });
   let n = 0;
+  let next = Infinity;
   for (const s of sources) {
     const due = !s.lastTriedAt || Date.now() - s.lastTriedAt.getTime() >= s.refreshMinutes * 60_000;
     if (due) { await refreshSource(s.id, read); n++; }
+    next = Math.min(next, (due ? Date.now() : s.lastTriedAt!.getTime()) + s.refreshMinutes * 60_000);
   }
+  nextDueAt = next;
   return n;
 }
 
 let timer: NodeJS.Timeout | null = null;
-/** Started once by the server (not in tests). Checks every minute which sources are due. */
+let running: Promise<unknown> | null = null;
+const QUIET = 30 * 60_000;
+/** Started once by the server (not in tests). Each minute: is a source due? — answered from memory, so the database is
+ *  asked only when one is (it was asked every minute, all day and night, and Neon never slept; cost audit, Oct 16). While
+ *  nobody has used Wander for half an hour the reads rest; the first question after that waits for one (currentSources). */
 export function startSourceRefresher() {
   if (timer || process.env.VITEST || process.env.NODE_ENV === "test" || process.env.WANDER_NO_SOURCE_REFRESH) return;
-  const tick = () => { refreshDueSources().catch((e) => console.warn("[sources] refresh failed:", e?.message)); };
+  const tick = () => {
+    if (running || Date.now() < nextDueAt || (nextDueAt > 0 && quietFor(QUIET))) return;
+    running = refreshDueSources().catch((e) => console.warn("[sources] refresh failed:", e?.message)).finally(() => { running = null; });
+  };
   setTimeout(tick, 5_000);
   timer = setInterval(tick, 60_000);
   timer.unref?.();
 }
 
-/** A trip's enabled sources with their current copy (null when none has been read yet) */
+/** A trip's enabled sources with their current copy (null when none has been read yet). After a quiet spell, when a read
+ *  is due, it waits up to 3 s for it — so an answer after the night isn't given from a copy the sheet has moved past. */
 export async function currentSources(tripId: string) {
+  if (timer && !running && nextDueAt > 0 && Date.now() >= nextDueAt) {
+    running = refreshDueSources().catch((e) => console.warn("[sources] refresh failed:", e?.message)).finally(() => { running = null; });
+  }
+  if (running) await Promise.race([running, new Promise((r) => setTimeout(r, 3_000))]);
   const sources = await prisma.tripSource.findMany({ where: { tripId, enabled: true }, orderBy: { createdAt: "asc" } });
   return Promise.all(sources.map(async (s) => ({
     source: s,

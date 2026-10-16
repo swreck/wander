@@ -51,6 +51,35 @@ registerRoute(
   })
 );
 
+// ── A place's or a city's photo, through Wander's server: the saved copy first ──
+// (each address names its photo — ?v= changes when the photo does — and the server marks them unchanging for a week; under
+// the general image rule below, every view asked the server again, and after a deploy the server asks Google again: cost
+// audit, Oct 16. Their own store, so other images don't push them out)
+registerRoute(
+  ({ url }) => url.origin === self.location.origin && /^\/api\/(place-photos\/[^/]+\/\d+|city-photo\/[^/]+\/image)$/.test(url.pathname) && url.searchParams.has('v'),
+  new CacheFirst({
+    cacheName: 'wander-place-photos-v1',
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [200] }),
+      new ExpirationPlugin({ maxEntries: 400, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+    ],
+  })
+);
+
+// ── Google Maps Static API images (city thumbnails, experience maps): the saved copy first ──
+// (above the general image rule, which caught them first, so this rule never ran and each view was a billed Static Maps
+// request — cost audit, Oct 16)
+registerRoute(
+  ({ url }) => url.hostname === 'maps.googleapis.com' && url.pathname.includes('/staticmap'),
+  new CacheFirst({
+    cacheName: MAP_CACHE,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+    ],
+  })
+);
+
 // ── Static assets: StaleWhileRevalidate — but NOT the precached app bundle ──
 // The main JS/CSS bundles are handled by precacheAndRoute above (which uses
 // cache-first with hash-based versioning). This route is for other static
@@ -65,18 +94,6 @@ registerRoute(
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 }),
-    ],
-  })
-);
-
-// ── Google Maps Static API images (city thumbnails, experience maps) ──
-registerRoute(
-  ({ url }) => url.hostname === 'maps.googleapis.com' && url.pathname.includes('/staticmap'),
-  new CacheFirst({
-    cacheName: MAP_CACHE,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 30 * 24 * 60 * 60 }),
     ],
   })
 );

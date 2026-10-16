@@ -11,6 +11,7 @@
 import { createHash } from "crypto";
 import prisma from "../db.js";
 import { closeness, distanceWords, pinKey, type AppleGuide } from "./appleGuides.js";
+import { quietFor } from "../activity.js";
 
 export interface MyMapPlace { name: string; note: string | null; lat: number; lng: number }
 export interface MyMapLayer { name: string; places: MyMapPlace[] }
@@ -102,14 +103,21 @@ export async function refreshMyMap(tripId: string, mid?: string): Promise<"new" 
   const hash = fingerprint(read);
   const was = tm.googleMap as MyMap | undefined;
   const same = !!was && was.mid === id && was.hash === hash;
-  const next: MyMap = same ? { ...was!, checkedAt: now } : { mid: id, title: read.title, layers: read.layers, readAt: now, checkedAt: now, hash };
+  // (the same places: nothing written — the write only noted the look, which nothing reads, and woke the database to
+  // rewrite her whole tab map; cost audit, Oct 16)
+  if (same) return "same";
+  const next: MyMap = { mid: id, title: read.title, layers: read.layers, readAt: now, checkedAt: now, hash };
   await prisma.sheetSyncConfig.update({ where: { tripId }, data: { tabMappings: { ...tm, googleMap: next } } });
-  return same ? "same" : "new";
+  return "new";
 }
 
 /** Every trip with her map: looked at again every few hours, from a minute after the server starts */
 export function startMyMapReader(everyMs = 3 * 3600_000): void {
+  // (WARMERS=off: a local test server, unless a check needs it; cost audit, Oct 16)
+  if (process.env.WARMERS === "off") return;
   const pass = async () => {
+    // (while nobody has used Wander for the whole interval, the look rests and the database sleeps; cost audit, Oct 16)
+    if (quietFor(everyMs)) return;
     const cfgs = await prisma.sheetSyncConfig.findMany({ select: { tripId: true, tabMappings: true } }).catch(() => []);
     for (const c of cfgs) {
       if (!isMid((c.tabMappings as any)?.googleMap?.mid)) continue;

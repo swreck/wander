@@ -65,6 +65,8 @@ const hit = (row: Row): PlaceHit =>
  * kept fresh here rather than on a stop's own lookup. One run at a time.
  */
 let refreshingHours = false;
+// (a place whose look keeps failing is tried again at most every six hours — it was tried on every app open; cost audit)
+const hoursTried = new Map<string, number>();
 export function freshenHours(): void {
   if (refreshingHours || !process.env.GOOGLE_MAPS_API_KEY) return;
   refreshingHours = true;
@@ -72,7 +74,8 @@ export function freshenHours(): void {
     const rows = await prisma.placePhoto.findMany({ where: { verdict: "yes" }, select: { id: true, placeId: true, hours: true } });
     for (const r of rows) {
       const h = r.hours as Hours | null;
-      if (!h || Date.now() - (h.at || 0) > HOURS_FRESH) await refreshHours(r);
+      if ((hoursTried.get(r.id) || 0) > Date.now() - 6 * 3600_000) continue;
+      if (!h || Date.now() - (h.at || 0) > HOURS_FRESH) { hoursTried.set(r.id, Date.now()); await refreshHours(r); }
     }
   })().catch((e) => console.warn("[place-photos] hours run:", e?.message || e)).finally(() => { refreshingHours = false; });
 }
@@ -80,6 +83,9 @@ export function freshenHours(): void {
 /** Places checked before Play's second photo existed (Oct 16): each looked at once more, one at a time, in the
  *  background — a phone gets them through /known, which never reaches resolve() for a place already checked */
 let secondsRunning = false;
+// (a place whose second-photo look keeps failing — five photos and a model call each time — is tried at most once a day;
+// it was tried on every app open; cost audit, Oct 16)
+const secondsTried = new Map<string, number>();
 export function freshenSecondPhotos(): void {
   if (secondsRunning || !process.env.GOOGLE_MAPS_API_KEY) return;
   secondsRunning = true;
@@ -87,7 +93,8 @@ export function freshenSecondPhotos(): void {
     const rows = await prisma.placePhoto.findMany({ where: { verdict: "yes" }, select: { id: true, line: true, name: true, query: true, photos: true } });
     for (const r of rows) {
       const refs = r.photos as Ref[];
-      if (Array.isArray(refs) && refs.length > 1 && !refs[0]?.two) await secondPhotoFor(r.id, r.line, r.name || r.query, refs);
+      if ((secondsTried.get(r.id) || 0) > Date.now() - 86400_000) continue;
+      if (Array.isArray(refs) && refs.length > 1 && !refs[0]?.two) { secondsTried.set(r.id, Date.now()); await secondPhotoFor(r.id, r.line, r.name || r.query, refs); }
     }
   })().catch((e) => console.warn("[place-photos] second run:", e?.message || e)).finally(() => { secondsRunning = false; });
 }
@@ -206,7 +213,10 @@ async function bestPhoto(line: string, name: string, refs: Ref[], key: string): 
     const res = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=640&photo_reference=${r.ref}&key=${key}`);
     if (!res.ok) return null;
     const type = (res.headers.get("content-type") || "image/jpeg").split(";")[0] as "image/jpeg";
-    imgs.push({ type: "image", source: { type: "base64", media_type: type, data: Buffer.from(await res.arrayBuffer()).toString("base64") } });
+    const bytes = Buffer.from(await res.arrayBuffer());
+    // (the same 640-wide photo the day's list shows: kept, not fetched from Google again to show it — cost audit, Oct 16)
+    keepPicture(`${r.ref}:s`, { bytes, type: res.headers.get("content-type") || "image/jpeg", at: Date.now() });
+    imgs.push({ type: "image", source: { type: "base64", media_type: type, data: bytes.toString("base64") } });
   }
   if (!imgs.length) return { best: -1, also: -1 };
   client ??= new Anthropic();
@@ -241,8 +251,11 @@ export async function placePicture(id: string, n: number, small = false): Promis
   const r = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=${small ? 640 : 1200}&photo_reference=${ref}&key=${key}`).catch(() => null);
   if (!r?.ok) return null;
   const p = { bytes: Buffer.from(await r.arrayBuffer()), type: r.headers.get("content-type") || "image/jpeg", at: Date.now() };
+  keepPicture(k, p);
+  return p;
+}
+function keepPicture(k: string, p: { bytes: Buffer; type: string; at: number }) {
   pictures.set(k, p);
   // (the oldest go first past a few hundred — they're a phone's to keep a week anyway)
   if (pictures.size > MOST_KEPT) pictures.delete(pictures.keys().next().value!);
-  return p;
 }
