@@ -2,6 +2,23 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, 9 AM in Japan) — Budget: who it's for; Log
+
+Ken (Oct 16): "Change 'history' to 'Log' and put at bottom (it's an admin log, only for me or moments of audit)". And:
+"Julie pays 5000 yen for jacket to help Larisa but that jacket is not split, it is just Larisa's… Split should probably
+be an option generally also with split as default and either as full owner of item."
+
+### Added
+- Budget: each entry says who it's for — "Shared, half each" (chosen unless changed), or one couple alone. Paid by one
+  couple for the other alone, the other couple owes it back in full; paid for one's own couple alone, nothing is owed.
+  Who pays next and "To be even now" count both. "¥… shared so far" counts only what's shared; "Plus ¥… paid for one
+  couple alone." says the rest. The row says "For Ken & Larisa alone · Ken & Larisa owe it back in full". The Log says
+  who it was for, and any change of it. Scout: "the jacket was just Larisa's" keeps or changes it that way. New column
+  trip_expenses.for_party. SPEC §9.9.
+
+### Changed
+- Budget's "History" is "Log", a quiet link at the foot of the page.
+
 ## 2026-10-16 (Friday morning in Japan) — More of the trip in pictures; Play moves on by itself
 
 Ken (Oct 16): "integrated photos are great but don't change the essence of a wall of text that much… 50-100% further";
@@ -14,7 +31,8 @@ in play day only (not on main page)."
   day's screen shows (one reading of where a line is, now in lib/linePlaces.ts for both). Next's box shows its place's
   photo on its right side, fading into the box; the box keeps its size, so nothing below moves as photos come
   (measured: the photos add 0.003 to Home's layout shift).
-- Play moves on by itself: the first time after 3 seconds, then every 5; the bar at the top fills for the moment showing.
+- Play moves on by itself: the first time after 3 seconds, then every 4 (5 at first; Ken: "with more photos, auto
+  advance can be 1-2 seconds faster"); the bar at the top fills for the moment showing.
   It waits while a finger rests on the screen, while a moment's full words or its photos are open, and while Wander isn't
   on screen; it stops at "That's the day." and never goes into the next day by itself.
 - Play: a second photo of a place, where one shows it too, fades in halfway through its moment, with its own credit.

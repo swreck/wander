@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loadLedger, savedLedger, yen, MONEY_CHANGED, type Ledger } from "../lib/expenses";
+import { loadLedger, savedLedger, yen, MONEY_CHANGED, type Ledger, sharedOf } from "../lib/expenses";
 import PayNextBadge from "./PayNextBadge";
 
 export default function WhoPaysNextLine({ tripId }: { tripId: string }) {
@@ -20,7 +20,7 @@ export default function WhoPaysNextLine({ tripId }: { tripId: string }) {
     return () => { live = false; window.removeEventListener(MONEY_CHANGED, get); window.removeEventListener("focus", get); };
   }, [tripId]);
   if (!l || l.parties.length !== 2) return null;
-  const total = Object.values(l.totals).reduce((a, b) => a + b, 0);
+  const total = sharedOf(l);
   return (
     <button type="button" onClick={() => navigate("/money")}
       className="w-full text-left mb-3 min-h-[44px] px-3 py-2 rounded-lg bg-white border border-[#e0d8cc] text-sm text-[#514636] flex items-center justify-between gap-2">

@@ -1136,6 +1136,8 @@ model TripExpense {
   yen         Int                                      // its yen: the amount, or dollars at that day's rate
   rate        Float?                                   // yen per dollar used, for a dollar amount
   what        String?                                  // "dinner at Yazawa", as said
+  forParty    String?   @map("for_party")              // null: shared half and half; else the couple it's wholly for
+                                                       // (Ken, Oct 16: Julie pays ¥5,000 for a jacket that's Larisa's alone)
   dayDate     String?   @map("day_date")               // the trip day it was spent, YYYY-MM-DD
   addedById   String?   @map("added_by_id")
   addedByName String    @map("added_by_name")

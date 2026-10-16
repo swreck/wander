@@ -1769,7 +1769,8 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
   with no clock comes after the timed ones. Someone else's photo shows only once its picture has come, and drops within
   seconds when its taker makes it private or deletes it (§3.8).
 - **Motion**: photos drift slowly closer and fade into each other; none of that under Reduce Motion.
-- **Moving on by itself** (Oct 16): the first time after 3 seconds, then every 5, the bar at the top filling for the
+- **Moving on by itself** (Oct 16): the first time after 3 seconds, then every 4 (Ken: "with more photos, auto advance
+  can be 1-2 seconds faster"; it was 5), a second photo at 2 seconds, the bar at the top filling for the
   moment showing. It waits while a finger rests on the screen, while a moment's full words or its photos are open, and
   while Wander isn't on screen; it stops at the end and never goes into the next day by itself. Ken: "Play day should
   auto advance after a few seconds… first change after only 2-3 seconds to teach users about auto… then slow to 5
@@ -2426,15 +2427,19 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   the taxi"), or uses **+ Add entry** on the budget page. Scout answers "who pays next?" and takes a payment away when
   asked.
 - **The couples** are her Guide's: Ken & Larisa, and Julie & Andy.
-- **The sums**: each payment is shared half and half, so the couple that has paid less owes the other half the
-  difference. Who pays next is the couple with the smaller total.
+- **The sums**: a payment is shared half and half unless it's for one couple alone (Oct 16 — Ken: "Julie pays 5000 yen
+  for jacket to help Larisa but that jacket is not split, it is just Larisa's… Split should probably be an option
+  generally also with split as default and either as full owner of item"). Shared: the other couple owes half. For the
+  other couple alone: they owe it all. For the payer's own couple alone: nothing is owed. Who pays next is the couple
+  that owes; "To be even now" says how much.
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.
 - **Changing or taking one away** (Oct 16): only the person who kept it, or Ken. Tapping the entry (it shows a "›") opens a pop-up
-  with the couple, the amount, ¥ or $, and what it was for, and "Remove this entry" ("Remove it for everyone?"). A
+  with the couple, the amount, ¥ or $, what it was for and who it's for ("Shared, half each", or one couple alone), and "Remove this entry" ("Remove it for everyone?"). A
   removed one is hidden, never deleted. Ken: "add edit button to budget page to go back and add reason, change total, or
   change payer with a pop up, or remove item". A dollar amount keeps the rate it was kept at, unless it's newly dollars.
-- **History** (Oct 16): every add, change and removal, newest first, each line the day and time, what was done
+- **Log** (Oct 16; "History" until Ken: "Change 'history' to 'Log' and put at bottom (it's an admin log, only for me or
+  moments of audit)"), a quiet link at the foot of the page: every add, change and removal, newest first, each line the day and time, what was done
   ("Changed ¥2,150 → $15", "Changed who paid: Julie & Andy → Ken & Larisa") and, at the end, who did it. Ken: "date,
   person, action only" and "add the individuals user who made change at end of record". Removals before Oct 16 say who
   wasn't recorded. Data: trip_expense_logs.
@@ -2445,7 +2450,7 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   screen, so the icon turns at once on all four phones.
 - **The budget page** leads with the total ("¥… shared so far", or "Nothing kept yet"), who pays
   next ("either — you're even" when they are) and what would make them even ("To be even now, … would pay … ¥…"). Then
-  **+ Add entry**, always there, and **History**. Add entry opens a pop-up near the top of the screen (above where an
+  **+ Add entry**, always there. Add entry opens a pop-up near the top of the screen (above where an
   iPhone's keyboard comes up) with the cursor in the amount, the number keyboard, ¥ chosen and a small ¥ / $ switch (Ken:
   "should always be another button that says add entry for another one to be added then"; "including the pop up and
   keyboard for money with tiny pop up for dollars yen (yen default)"). Then every entry, with what it was for when someone said, and nothing when no one did.
