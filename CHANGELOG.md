@@ -2,6 +2,28 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday night in Japan) — Receipts on the Budget
+
+Ken (Oct 16, with his taxi receipt): "We need to be able to take pictures of receipts and add them and simply note who
+paid for them and have the option of adding what the item is. This is a good example and it is real. It was paid for by
+Ken and Larisa, so you can use it for both testing and functionality."
+
+### Added
+- Budget, "+ Add entry": "📷 Photo of the receipt" beside the heading (Take Photo, Photo Library or a file). Wander reads
+  the grand total and what it was for ("From the receipt: ¥5,200, Taxi. Check it, then tap who paid."), and its day; who
+  paid then waits for a tap (neither couple picked — the one already picked read as taken from the receipt; fresh
+  tester), Keep. The photo is kept with the payment (Remove before keeping; "📷 Take another photo", which replaces what
+  the last photo filled in — words typed by hand stay). No total found: "Wander couldn't find a total on it. If it's a
+  receipt, type the amount; the photo is kept with it." No card number ever goes into words. Data: expense_receipts
+  (the picture, beside its payment). SPEC §Budget.
+- A payment with a receipt shows "Receipt" on its line, for all four; it opens the photo full screen ("Done"). In its
+  Change pop-up: "See the receipt".
+- Scout: a receipt photo with who paid ("Ken and Larisa paid this") is kept with add_expense receipt: true — the photo
+  kept as its receipt; never a card number read out.
+
+### Changed
+- The add pop-up's hint is one line ("Or tell Scout: “We paid ¥8,000 for lunch.”") so Keep stays above the keyboard.
+
 ## 2026-10-16 (Friday evening in Japan) — What Wander costs to run and to change; the last small items
 
 Ken (Oct 16): "Please do a complete audit on architectural changes to reduce the variable cost of running and editing

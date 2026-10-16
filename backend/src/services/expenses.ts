@@ -12,8 +12,10 @@
  * yen or dollars; a dollar amount is kept with its yen at that day's rate (the European Central Bank's, via
  * frankfurter.app — free, no key).
  */
+import Anthropic from "@anthropic-ai/sdk";
 import prisma from "./db.js";
 import { broadcastChange } from "../routes/sse.js";
+import { tripDays, type PaperFile } from "./papers.js";
 
 export type Ledger = {
   parties: string[];
@@ -27,7 +29,7 @@ export type Ledger = {
   next: string | null;
   /** half the difference: what the couple behind owes the other, to be even */
   owes: { from: string; to: string; yen: number } | null;
-  items: { id: string; party: string; forParty: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean }[];
+  items: { id: string; party: string; forParty: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean; hasReceipt: boolean }[];
 };
 
 const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
@@ -111,11 +113,12 @@ export async function ledger(tripId: string, who?: { travelerId?: string | null;
       owes = { from: behind, to: ahead, yen: Math.round(Math.abs(net)) };
     }
   }
+  const withReceipt = new Set((await prisma.expenseReceipt.findMany({ where: { tripId }, select: { expenseId: true } })).map((r) => r.expenseId));
   const org = await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true } });
   const mine = (r: { addedById: string | null; addedByName: string }) => !!who && ((!!who.travelerId && r.addedById === who.travelerId) || (!!who.displayName && first(r.addedByName) === first(who.displayName)) || (!!who.travelerId && org?.travelerId === who.travelerId));
   return {
     parties, totals, shared, alone, next, owes,
-    items: rows.map((r) => ({ id: r.id, party: r.party, forParty: r.forParty, amount: r.amount, currency: r.currency, yen: r.yen, rate: r.rate, what: r.what, dayDate: r.dayDate, addedByName: r.addedByName, createdAt: r.createdAt.toISOString(), mayRemove: mine(r) })),
+    items: rows.map((r) => ({ id: r.id, party: r.party, forParty: r.forParty, amount: r.amount, currency: r.currency, yen: r.yen, rate: r.rate, what: r.what, dayDate: r.dayDate, addedByName: r.addedByName, createdAt: r.createdAt.toISOString(), mayRemove: mine(r), hasReceipt: withReceipt.has(r.id) })),
   };
 }
 
@@ -141,7 +144,7 @@ const mayChangeAs = (org: string | null, row: { addedById: string | null; addedB
   (!!who.travelerId && (row.addedById === who.travelerId || org === who.travelerId)) || (!!who.displayName && first(row.addedByName) === first(who.displayName));
 
 /** A payment: who paid (a couple, or anyone in it), how much, in what, for what, on which day */
-export async function addExpense(input: { tripId: string; paidBy: string; amount: number; currency?: string; what?: string | null; dayDate?: string | null; forParty?: string | null; addedById: string | null; addedByName: string; clientKey?: string | null }):
+export async function addExpense(input: { tripId: string; paidBy: string; amount: number; currency?: string; what?: string | null; dayDate?: string | null; forParty?: string | null; addedById: string | null; addedByName: string; clientKey?: string | null; receipt?: PaperFile | null }):
   Promise<{ id: string; party: string; forParty: string | null; yen: number; rate: number | null; approx: boolean; again?: boolean } | { error: string }> {
   // The same Keep again (its reply lost on a weak signal, "That didn't save", Keep tapped again): the payment already kept
   const clientKey = typeof input.clientKey === "string" && /^[\w-]{8,64}$/.test(input.clientKey) ? input.clientKey : null;
@@ -174,6 +177,8 @@ export async function addExpense(input: { tripId: string; paidBy: string; amount
     if (e?.code === "P2002") { const r = await already(); if (r) return r; }
     throw e;
   }
+  // (its receipt, when it was kept from a photo of one — a failure to keep the picture never loses the payment)
+  if (input.receipt) await keepReceipt(input.tripId, row.id, input.receipt).catch((e) => console.warn("[budget] receipt not kept:", e?.message || e));
   await logChange(input.tripId, row.id, { travelerId: input.addedById, displayName: input.addedByName }, `added ${moneyWords(amount, currency)} (${party})${forWords(forParty)}`);
   tellScreens(input.tripId, input.addedByName);
   return { id: row.id, party, forParty, yen, rate, approx };
@@ -292,3 +297,71 @@ export async function expenseHistory(tripId: string, who?: { travelerId?: string
 
 /** "¥12,400" */
 export const yenWords = (n: number) => `¥${Math.round(n).toLocaleString("en-US")}`;
+
+// ── Receipts (Ken, Oct 16: "take pictures of receipts and add them and simply note who paid for them and have the option
+// of adding what the item is") ──
+
+const RECEIPT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["total", "currency", "what", "date"],
+  properties: {
+    total: { type: "number", description: "The total paid, as printed (the grand total: 合計 / 合計金額 / Total), a number; 0 when no total can be read" },
+    currency: { type: "string", enum: ["JPY", "USD"], description: "JPY for yen (¥, 円), USD for dollars" },
+    what: { type: "string", description: "What it was for, in one to four plain English words a traveller would say: \"Taxi\", \"Lunch at Maisen\", \"Train tickets\", \"Pharmacy\" — empty when it can't be told" },
+    date: { type: "string", description: "The day it was paid, YYYY-MM-DD, from the list given — empty when the receipt doesn't say or it isn't one of them" },
+  },
+};
+const RECEIPT_SYSTEM = `You read a receipt someone on a trip in Japan photographed, to keep the payment in the group's shared budget.
+Be faithful: only what the receipt shows. The total is the grand total paid (合計, 合計金額, お支払, Total), never a subtotal, the tax line (内消費税等) or change given back.
+"what" names what was bought the way a traveller would, in plain English: a taxi receipt (メータ運賃, a car number, a taxi company) is "Taxi"; a restaurant's is "Dinner at <name>" or "Lunch at <name>" by the time if its name is clear, else "Meal"; a shop's is the shop's kind or name.
+Never put a card number, an approval or slip number, a phone number, a person's name or a registration number in "what".`;
+
+let receiptClient: Anthropic | null = null;
+/** What a receipt says: its total, in yen or dollars, what it was for, and the trip day it was paid — null when it can't
+ *  be read (the person types the amount; the photo is still kept with the payment) */
+export async function readReceipt(tripId: string, file: PaperFile): Promise<{ amount: number | null; currency: "JPY" | "USD"; what: string; date: string | null } | null> {
+  if (!file.mediaType.startsWith("image/")) return null;
+  receiptClient ??= new Anthropic();
+  const days = await tripDays(tripId);
+  try {
+    const response = await receiptClient.messages.create({
+      model: "claude-opus-5",
+      max_tokens: 2000,
+      output_config: { effort: "low", format: { type: "json_schema", schema: RECEIPT_SCHEMA } },
+      system: RECEIPT_SYSTEM,
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: file.mediaType, data: file.data } },
+        { type: "text", text: `The trip's days:\n${days.map((d) => `${d.date} ${d.town}`).join("\n")}` },
+      ] }],
+    } as any, { timeout: 45_000, maxRetries: 0 });
+    if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") return null;
+    const text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text;
+    const r = text ? JSON.parse(text) : null;
+    if (!r) return null;
+    const amount = typeof r.total === "number" && r.total > 0 && r.total < 10_000_000 ? r.total : null;
+    const date = typeof r.date === "string" && days.some((d) => d.date === r.date) ? r.date : null;
+    // (never a run of digits in what it says it was for — a card or slip number slipped in would be shown to all four)
+    const what = String(r.what || "").replace(/[\d*]{4,}/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+    return { amount, currency: r.currency === "USD" ? "USD" : "JPY", what, date };
+  } catch (e: any) {
+    console.warn(`[budget] couldn't read a receipt: ${e?.status ?? e?.message ?? "unknown"}`);
+    return null;
+  }
+}
+
+/** A payment's receipt photo, kept with it */
+export async function keepReceipt(tripId: string, expenseId: string, file: PaperFile): Promise<void> {
+  if (!file.mediaType.startsWith("image/")) return;
+  const thumb = file.thumb ? Buffer.from(file.thumb.split(",")[1], "base64") : null;
+  const data = { tripId, mimeType: file.mediaType, bytes: Buffer.from(file.data, "base64"), ...(thumb ? { thumb } : {}) };
+  await prisma.expenseReceipt.upsert({ where: { expenseId }, create: { expenseId, ...data }, update: data });
+}
+
+/** The receipt photo of a payment on this trip, or null */
+export async function receiptOf(tripId: string, expenseId: string, small = false): Promise<{ bytes: Buffer; type: string } | null> {
+  const r = await prisma.expenseReceipt.findUnique({ where: { expenseId } });
+  if (!r || r.tripId !== tripId) return null;
+  if (small && r.thumb) return { bytes: Buffer.from(r.thumb), type: "image/jpeg" };
+  return { bytes: Buffer.from(r.bytes), type: r.mimeType };
+}

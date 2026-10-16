@@ -12,8 +12,34 @@ export type Ledger = {
   shared?: number; alone?: number;
   next: string | null;
   owes: { from: string; to: string; yen: number } | null;
-  items: { id: string; party: string; forParty?: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean }[];
+  items: { id: string; party: string; forParty?: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean; hasReceipt?: boolean }[];
 };
+
+/** A receipt photo, shrunk on the phone, ready to read and to keep with its payment */
+export type ReceiptPhoto = { mediaType: "image/jpeg"; data: string; thumb: string };
+/** Ken, Oct 16: "take pictures of receipts and add them and simply note who paid for them and have the option of adding
+ *  what the item is". The photo shrunk, then read by Wander: its total, yen or dollars, what it was for, the trip day —
+ *  null fields when it couldn't be read (the person types the amount; the photo still goes with the payment). */
+export async function readReceiptPhoto(tripId: string, file: File): Promise<{ photo: ReceiptPhoto | null; read: { amount: number | null; currency: "JPY" | "USD"; what: string; date: string | null } | null; error?: string }> {
+  const { shrinkPicture } = await import("./papers");
+  const p = await shrinkPicture(file);
+  if (!p) return { photo: null, read: null, error: "That picture couldn't be read on this phone. A screenshot of it works." };
+  const photo: ReceiptPhoto = { mediaType: "image/jpeg", data: p.data, thumb: p.thumb };
+  try {
+    const r = await api.post<{ read: { amount: number | null; currency: "JPY" | "USD"; what: string; date: string | null } | null }>(`/expenses/trip/${tripId}/receipt`, { file: photo });
+    return { photo, read: r.read };
+  } catch {
+    return { photo, read: null };
+  }
+}
+/** A payment's receipt photo, for showing (fetched with the person's sign-in; an object address the page lets go of) */
+export async function receiptImage(tripId: string, id: string, small = false): Promise<string | null> {
+  try {
+    const r = await fetch(`/api/expenses/trip/${tripId}/${id}/receipt${small ? "?small=1" : ""}`, { headers: { Authorization: `Bearer ${localStorage.getItem("wander_token") || ""}` } });
+    if (!r.ok) return null;
+    return URL.createObjectURL(await r.blob());
+  } catch { return null; }
+}
 
 const key = (tripId: string) => `wander:money:${tripId}`;
 export const MONEY_CHANGED = "wander:money-changed";
@@ -61,7 +87,7 @@ export const keepKeyFor = (tripId: string, words: string) => allUnsure().find((u
 /** A Keep whose pop-up was closed, answered after all: the Budget page says so ("Kept after all: …") */
 export const MONEY_KEPT_LATE = "wander:money-kept-late";
 /** err: what to say when it didn't (or may not have) saved; again: Wander already had this very payment ("Already kept") */
-export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: "JPY" | "USD"; what?: string; forParty?: string | null; clientKey?: string }, words = ""): Promise<{ err: string | null; again: boolean }> {
+export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: "JPY" | "USD"; what?: string; forParty?: string | null; clientKey?: string; dayDate?: string; receipt?: ReceiptPhoto }, words = ""): Promise<{ err: string | null; again: boolean }> {
   let again = false;
   // (only the first send says "already kept": the phone's own second try finds the first one that got through, and
   // that's still her one Keep — "Already kept" after one tap read as if she'd typed it twice)

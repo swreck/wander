@@ -1153,6 +1153,21 @@ model TripExpense {
   @@map("trip_expenses")
 }
 
+/// A payment's receipt, photographed (Ken, Oct 16 2026: "We need to be able to take pictures of receipts and add them and
+/// simply note who paid for them and have the option of adding what the item is"). Seen by the trip, as the Budget is;
+/// kept with its payment (a removed payment's receipt stays, as the payment does).
+model ExpenseReceipt {
+  expenseId String   @id @map("expense_id")
+  tripId    String   @map("trip_id")
+  mimeType  String   @map("mime_type")
+  bytes     Bytes
+  thumb     Bytes?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tripId])
+  @@map("expense_receipts")
+}
+
 /// A city's arrival photo as chosen (cost audit, Oct 16 2026): Google's reference for the photo that fit the season, or
 /// none — so a restart fetches that one photo instead of searching again and judging up to five with Claude. The
 /// picture itself isn't kept here; a week on, the city is looked at afresh.
