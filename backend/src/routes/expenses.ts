@@ -2,7 +2,11 @@
 import { Router } from "express";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { tripMemberParam } from "../middleware/role.js";
-import { ledger, addExpense, removeExpense, changeExpense, restoreExpense, expenseHistory } from "../services/expenses.js";
+import { ledger, addExpense, removeExpense, changeExpense, restoreExpense, expenseHistory, readReceipt, receiptOf } from "../services/expenses.js";
+import { paperFile } from "../services/papers.js";
+
+/** A receipt photo as the phone sent it (a JPEG it shrank), or null — anything else isn't a receipt photo */
+const receiptFile = (x: unknown) => { const f = paperFile(x); return typeof f === "string" || !f.mediaType.startsWith("image/") ? null : f; };
 
 const router = Router();
 router.use(requireAuth);
@@ -18,9 +22,27 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
 router.post("/trip/:tripId", async (req: AuthRequest, res) => {
   const b = req.body || {};
   const r = await addExpense({ tripId: req.params.tripId as string, paidBy: String(b.paidBy || ""), amount: Number(b.amount), currency: b.currency, what: b.what ?? null, dayDate: b.dayDate ?? null, forParty: b.forParty ?? null,
-    addedById: req.user?.travelerId ?? null, addedByName: req.user?.displayName || "Someone", clientKey: typeof b.clientKey === "string" ? b.clientKey : null });
+    addedById: req.user?.travelerId ?? null, addedByName: req.user?.displayName || "Someone", clientKey: typeof b.clientKey === "string" ? b.clientKey : null,
+    receipt: b.receipt ? receiptFile(b.receipt) : null });
   if ("error" in r) { res.status(400).json(r); return; }
   res.json(r);
+});
+
+// POST /trip/:tripId/receipt — { file: { mediaType, data, thumb? } } → what the receipt says: { amount, currency, what, date }
+// (nothing kept yet: the person checks it, says who paid, and keeps it with the payment)
+router.post("/trip/:tripId/receipt", async (req: AuthRequest, res) => {
+  const file = receiptFile(req.body?.file);
+  if (!file) { res.status(400).json({ error: "Only a photo of the receipt can be read." }); return; }
+  res.json({ read: await readReceipt(req.params.tripId as string, file) });
+});
+
+// GET /trip/:tripId/:id/receipt[?small=1] — a payment's receipt photo, for the trip's members
+router.get("/trip/:tripId/:id/receipt", async (req: AuthRequest, res) => {
+  const r = await receiptOf(req.params.tripId as string, req.params.id as string, req.query.small === "1");
+  if (!r) { res.status(404).json({ error: "No receipt kept with that payment." }); return; }
+  res.setHeader("Content-Type", r.type);
+  res.setHeader("Cache-Control", "private, max-age=86400");
+  res.send(r.bytes);
 });
 
 // GET /trip/:tripId/history — every add, change and removal, newest first: { at, by, action }

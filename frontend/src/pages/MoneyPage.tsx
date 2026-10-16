@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
-import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, sharedOf, yen, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine } from "../lib/expenses";
+import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, readReceiptPhoto, receiptImage, sharedOf, yen, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine, type ReceiptPhoto } from "../lib/expenses";
 import PayNextBadge from "../components/PayNextBadge";
 import useBackToClose from "../hooks/useBackToClose";
 
@@ -28,6 +28,8 @@ export default function MoneyPage() {
   // up and keyboard for money with tiny pop up for dollars yen (yen default)")
   const [sheet, setSheet] = useState<{ id: string | null } | null>(null);
   const [history, setHistory] = useState(false);
+  // a payment's receipt, open full screen
+  const [viewing, setViewing] = useState<string | null>(null);
   // (an iPhone raises the keyboard only for a field focused in the tap itself: this one takes it on the tap, and the
   // sheet's amount takes it over when it's drawn)
   const keyboard = useRef<HTMLInputElement>(null);
@@ -122,6 +124,10 @@ export default function MoneyPage() {
                         <span aria-hidden className="text-xl leading-none text-[#a89880]">›</span>
                       </button>
                     ) : <div className="px-4 py-3 pr-8">{lines}</div>}
+                    {/* (its receipt, for all four to see — the Budget is shared) */}
+                    {x.hasReceipt && (
+                      <button type="button" onClick={() => setViewing(x.id)} className="-mt-2 mb-1 ml-4 min-h-[44px] text-[13px] text-[#514636] underline underline-offset-2">Receipt</button>
+                    )}
                   </li>
                 );
               })}
@@ -138,6 +144,7 @@ export default function MoneyPage() {
       {sheet && <EntrySheet key={sheet.id || "new"} tripId={tripId} l={l} mine={mine} item={sheet.id && l ? l.items.find((x) => x.id === sheet.id) || null : null}
         onClose={(said, removedId) => { setSheet(null); if (said) setKept({ said, ...(removedId ? { putBack: removedId } : {}) }); }} />}
       {history && tripId && <HistorySheet tripId={tripId} onClose={() => setHistory(false)} />}
+      {viewing && tripId && <ReceiptView tripId={tripId} id={viewing} onClose={() => setViewing(null)} />}
     </div>
   );
 }
@@ -162,10 +169,19 @@ function Card({ label, onClose, children }: { label: string; onClose: () => void
 function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null; l: Ledger | null; mine: string | null; item: Item | null; onClose: (said?: string, removedId?: string) => void }) {
   const [paidBy, setPaidBy] = useState<string | null>(item?.party || mine);
   // (opened before the couples came: her couple, once they do)
-  useEffect(() => { if (!paidBy && !item && mine) setPaidBy(mine); }, [mine, paidBy, item]);
+  // (…unless a receipt's photo is in: then who paid waits for a tap)
+  const [askWho, setAskWho] = useState(false);
+  useEffect(() => { if (!paidBy && !item && mine && !askWho) setPaidBy(mine); }, [mine, paidBy, item, askWho]);
   const [amount, setAmount] = useState(item ? String(item.amount) : "");
   const [currency, setCurrency] = useState<"JPY" | "USD">(item?.currency === "USD" ? "USD" : "JPY");
   const [what, setWhat] = useState(item?.what || "");
+  // A photo of the receipt (Ken, Oct 16: "take pictures of receipts and add them and simply note who paid for them and have
+  // the option of adding what the item is"): Wander reads the total and what it was for; the photo goes with the payment
+  const [receipt, setReceipt] = useState<{ photo: ReceiptPhoto; date: string | null } | null>(null);
+  const [reading, setReading] = useState(false);
+  const [readNote, setReadNote] = useState<string | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const receiptInput = useRef<HTMLInputElement>(null);
   // who it's for: shared half and half (the usual), or wholly one couple's (Ken, Oct 16: "Split should probably be an
   // option generally also with split as default and either as full owner of item")
   const [forParty, setForParty] = useState<string | null>(item?.forParty || null);
@@ -189,6 +205,39 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
   useEffect(() => { if (paidBy) setError((e) => (e === "Which couple paid?" ? null : e)); }, [paidBy]);
   const money = (n: number, c: string) => (c === "USD" ? `$${n}` : yen(n));
 
+  // What the last photo filled in — a new photo, or Remove, replaces it; words the person typed themselves stay (fresh
+  // tester, Oct 16: a second photo kept the first one's ¥5,200 and "Lunch", and an unreadable one kept "Taxi")
+  const filled = useRef({ amount: "", what: "" });
+  const fromReceipt = async (file: File) => {
+    if (!tripId) return;
+    setReading(true); setReadNote(null); setError(null);
+    const r = await readReceiptPhoto(tripId, file);
+    if (closed.current) return;
+    setReading(false);
+    if (!r.photo) { setError(r.error || "That picture couldn't be read on this phone."); return; }
+    setReceipt({ photo: r.photo, date: r.read?.date || null });
+    const prev = filled.current;
+    const amountTheirs = !!amount.trim() && amount !== prev.amount;
+    const whatTheirs = !!what.trim() && what !== prev.what;
+    const amt = r.read?.amount ? String(r.read.amount) : "";
+    if (amt) { setAmount(amt); setCurrency(r.read!.currency); } else if (!amountTheirs) setAmount("");
+    const said = r.read?.what || "";
+    if (!whatTheirs) setWhat(said);
+    filled.current = { amount: amt || (amountTheirs ? prev.amount : ""), what: whatTheirs ? prev.what : said };
+    // (who paid is asked, not assumed, once there's a photo — the couple already picked read as something taken from it)
+    setPaidBy(null); setAskWho(true);
+    setReadNote(amt
+      ? `From the receipt: ${r.read!.currency === "USD" ? `$${r.read!.amount}` : yen(r.read!.amount!)}${said ? `, ${said}` : ""}. Check it, then tap who paid.`
+      : "Wander couldn't find a total on it. If it's a receipt, type the amount; the photo is kept with it.");
+  };
+  const dropReceipt = () => {
+    const prev = filled.current;
+    if (amount === prev.amount) setAmount("");
+    if (what === prev.what) setWhat("");
+    filled.current = { amount: "", what: "" };
+    setReceipt(null); setReadNote(null); setAskWho(false);
+    if (!paidBy) setPaidBy(mine);
+  };
   const save = async () => {
     const n = Number(amount.replace(/[,¥$\s]/g, ""));
     if (!tripId || !l) return;
@@ -199,7 +248,8 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
     if (!item) {
       const words = JSON.stringify([paidBy, n, currency, what.trim(), forParty]);
       if (keepKey.current?.words !== words) keepKey.current = { words, key: keepKeyFor(tripId, words) };
-      ({ err, again } = await addPayment(tripId, { paidBy, amount: n, currency, what: what.trim() || undefined, forParty, clientKey: keepKey.current.key }, words));
+      ({ err, again } = await addPayment(tripId, { paidBy, amount: n, currency, what: what.trim() || undefined, forParty, clientKey: keepKey.current.key,
+        ...(receipt ? { receipt: receipt.photo, ...(receipt.date ? { dayDate: receipt.date } : {}) } : {}) }, words));
     }
     else {
       const body: { paidBy?: string; amount?: number; currency?: "JPY" | "USD"; what?: string; forParty?: string | null } = {};
@@ -232,7 +282,35 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
 
   return (
     <Card label={item ? "Change entry" : "Add entry"} onClose={close}>
-      <h2 className="text-[17px] font-medium text-[#3a3128]">{item ? "Change entry" : "Add entry"}</h2>
+      {/* (the receipt's photo on the heading's line: a row of its own pushed Keep under the number keyboard) */}
+      <div className="flex items-center gap-2 -my-1">
+        <h2 className="flex-1 text-[17px] font-medium text-[#3a3128]">{item ? "Change entry" : "Add entry"}</h2>
+        {!item && (
+          <button type="button" onClick={() => receiptInput.current?.click()} disabled={reading || !l}
+            className="min-h-[44px] px-3 rounded-xl border border-dashed border-[#c8b89c] bg-white text-[14px] text-[#514636] disabled:opacity-60">
+            {reading ? "Reading the receipt…" : receipt ? "📷 Take another photo" : "📷 Photo of the receipt"}
+          </button>
+        )}
+        {/* (an iPhone offers Take Photo, Photo Library and Choose File from this) */}
+        {!item && <input ref={receiptInput} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1}
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void fromReceipt(f); }} />}
+      </div>
+      {!item && (receipt || readNote) && (
+        <div>
+          {receipt && (
+            <div className="flex items-center gap-3 mt-2">
+              <img src={receipt.photo.thumb} alt="The receipt" className="w-10 h-12 object-cover rounded border border-[#e0d8cc]" />
+              <p className="flex-1 text-[13px] text-[#514636]" role="status">{readNote}</p>
+              <button type="button" onClick={dropReceipt} className="min-h-[44px] text-sm text-[#6b5d4a] underline underline-offset-2">Remove</button>
+            </div>
+          )}
+          {!receipt && readNote && <p className="text-[13px] text-[#514636] mt-1" role="status">{readNote}</p>}
+        </div>
+      )}
+      {item?.hasReceipt && tripId && (
+        <button type="button" onClick={() => setShowReceipt(true)} className="self-start min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See the receipt</button>
+      )}
+      {showReceipt && item && tripId && <ReceiptView tripId={tripId} id={item.id} onClose={() => setShowReceipt(false)} />}
       {/* (opened before the ledger came: says so, and Keep it waits — user-julie3: "Which couple paid?" with no way to answer) */}
       {!l && <p className="text-[15px] text-[#6b5d4a] min-h-[48px] flex items-center" role="status">Getting the two couples…</p>}
       {/* (said, now that "Who it's for" has its own row of couples below) */}
@@ -280,13 +358,36 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
           <button type="button" onClick={() => setRemoving(false)} className="min-h-[44px] text-sm text-[#514636] underline">Keep it</button>
         </div>
       ) : <button type="button" onClick={() => setRemoving(true)} className="self-start min-h-[44px] text-sm text-[#8a3a1a] underline underline-offset-2 border-t border-[#ece5da] pt-2">Remove this entry</button>)}
-      {!item && <p className="text-[12px] text-[#8a7d68]">Or tell Scout: “We paid ¥8,000 for lunch.” Dollars are kept with that day's yen.</p>}
+      {/* (not with a receipt in: the pop-up is taller then, and Keep stays higher) */}
+      {!item && !receipt && <p className="text-[12px] text-[#8a7d68]">Or tell Scout: “We paid ¥8,000 for lunch.”</p>}
     </Card>
   );
 }
 
 /** Budget's Log: when, who, what they did — newest first (Ken, Oct 16: "date, person, action only"; "an admin log, only
  *  for me or moments of audit") */
+/** A payment's receipt photo, over everything, to read it (Done or a tap closes it) */
+function ReceiptView({ tripId, id, onClose }: { tripId: string; id: string; onClose: () => void }) {
+  const [src, setSrc] = useState<string | null | "none">(null);
+  useEffect(() => {
+    let live = true, made: string | null = null;
+    receiptImage(tripId, id).then((u) => { made = u; if (live) setSrc(u || "none"); else if (u) URL.revokeObjectURL(u); });
+    return () => { live = false; if (made) URL.revokeObjectURL(made); };
+  }, [tripId, id]);
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/85 flex flex-col" role="dialog" aria-label="Receipt" onClick={onClose}>
+      <div className="flex justify-end p-2" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
+        <button type="button" onClick={onClose} className="min-h-[44px] min-w-[44px] px-3 text-[15px] text-white underline underline-offset-2">Done</button>
+      </div>
+      <div className="flex-1 min-h-0 flex items-center justify-center p-3">
+        {src === null ? <p className="text-white/80 text-sm">Getting the receipt…</p>
+          : src === "none" ? <p className="text-white/80 text-sm">The receipt didn't load. Try again when you have signal.</p>
+          : <img src={src} alt="The receipt" className="max-w-full max-h-full object-contain" onClick={(e) => e.stopPropagation()} />}
+      </div>
+    </div>
+  );
+}
+
 function HistorySheet({ tripId, onClose }: { tripId: string; onClose: () => void }) {
   const [lines, setLines] = useState<LogLine[] | null | "none">(null);
   const [tick, setTick] = useState(0);

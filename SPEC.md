@@ -2475,6 +2475,14 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   Wander answered that lands after all says "✓ Kept after all: …"; the same payment typed again says "✓ Already kept: …"
   (the phone's own retry after a lost reply still says "✓ Kept: …"). These lines stay 8 seconds; a removal's, with Put
   it back, 12. The Log's "Changed …" lines say what the payment was for too.
+- **Receipts** (Oct 16 — Ken: "take pictures of receipts and add them and simply note who paid for them and have the
+  option of adding what the item is"). "📷 Photo of the receipt" on the add pop-up's heading line: Wander reads the
+  grand total (合計, never the tax line), yen or dollars, what it was for in a few plain words ("Taxi") and the day, and
+  says "From the receipt: ¥5,200, Taxi. Check it, then tap who paid." Who paid then waits for a tap (without a photo it
+  starts on your own couple, as always). Another photo replaces what the last one filled in; words typed by hand stay.
+  Kept, the photo stays with the payment: "Receipt" on its line opens it for all four; its Change pop-up has "See the
+  receipt". A total it can't read is typed by hand, the photo still kept. No card number is ever put into words. Scout
+  does the same from a photo sent with who paid.
   Scout too (put_back_expense).
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.
