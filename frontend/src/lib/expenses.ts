@@ -7,9 +7,12 @@ import { api } from "./api";
 export type Ledger = {
   parties: string[];
   totals: Record<string, number>;
+  /** the yen shared half and half ("¥… shared so far"), and the yen wholly one couple's (Oct 16) — older copies kept on a
+   *  phone have neither */
+  shared?: number; alone?: number;
   next: string | null;
   owes: { from: string; to: string; yen: number } | null;
-  items: { id: string; party: string; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean }[];
+  items: { id: string; party: string; forParty?: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean }[];
 };
 
 const key = (tripId: string) => `wander:money:${tripId}`;
@@ -30,12 +33,14 @@ export async function loadLedger(tripId: string): Promise<Ledger | null> {
     return l;
   } catch { return savedLedger(tripId); }
 }
-export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: "JPY" | "USD"; what?: string }): Promise<string | null> {
+/** What's shared so far: the yen shared half and half (a phone's older copy: everything kept) */
+export const sharedOf = (l: Ledger) => l.shared ?? Object.values(l.totals).reduce((a, b) => a + b, 0);
+export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: "JPY" | "USD"; what?: string; forParty?: string | null }): Promise<string | null> {
   try { await api.post(`/expenses/trip/${tripId}`, body); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
   catch (e: any) { return e?.message && !/^Request failed|Failed to fetch|Load failed/i.test(e.message) ? e.message : "That didn't save — try again in a moment."; }
 }
 /** Changed: only what's given (Ken, Oct 16: "go back and add reason, change total, or change payer") */
-export async function changePayment(tripId: string, id: string, body: { paidBy?: string; amount?: number; currency?: "JPY" | "USD"; what?: string }): Promise<string | null> {
+export async function changePayment(tripId: string, id: string, body: { paidBy?: string; amount?: number; currency?: "JPY" | "USD"; what?: string; forParty?: string | null }): Promise<string | null> {
   try { await api.patch(`/expenses/trip/${tripId}/${id}`, body); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
   catch (e: any) { return e?.message && !/^Request failed|Failed to fetch|Load failed/i.test(e.message) ? e.message : "That didn't save — try again in a moment."; }
 }

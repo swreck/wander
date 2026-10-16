@@ -17,12 +17,17 @@ import { broadcastChange } from "../routes/sse.js";
 
 export type Ledger = {
   parties: string[];
+  /** what each couple has paid, everything they kept */
   totals: Record<string, number>;
+  /** the yen of payments shared half and half — "¥… shared so far" */
+  shared: number;
+  /** the yen of payments wholly for one couple (Oct 16) */
+  alone: number;
   /** the couple behind, who pays next — null when even */
   next: string | null;
   /** half the difference: what the couple behind owes the other, to be even */
   owes: { from: string; to: string; yen: number } | null;
-  items: { id: string; party: string; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean }[];
+  items: { id: string; party: string; forParty: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean }[];
 };
 
 const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
@@ -70,20 +75,27 @@ export async function ledger(tripId: string, who?: { travelerId?: string | null;
   const rows = await prisma.tripExpense.findMany({ where: { tripId, removedAt: null }, orderBy: { createdAt: "desc" } });
   const totals: Record<string, number> = Object.fromEntries(parties.map((p) => [p, 0]));
   for (const r of rows) totals[r.party] = (totals[r.party] || 0) + r.yen;
+  // What the other couple owes for each payment: half of one shared, all of one wholly theirs (Ken, Oct 16: Julie's
+  // ¥5,000 for Larisa's jacket is Ken & Larisa's to pay back in full), none of one wholly the payer's own
+  const owedBack = (r: { party: string; forParty: string | null; yen: number }) => (!r.forParty ? r.yen / 2 : r.forParty !== r.party ? r.yen : 0);
+  const shared = rows.filter((r) => !r.forParty).reduce((a, r) => a + r.yen, 0);
+  const alone = rows.filter((r) => !!r.forParty).reduce((a, r) => a + r.yen, 0);
   let next: string | null = null, owes: Ledger["owes"] = null;
   if (parties.length === 2) {
     const [a, b] = parties;
-    if (totals[a] !== totals[b]) {
-      const behind = totals[a] < totals[b] ? a : b, ahead = behind === a ? b : a;
+    // (positive: b owes a)
+    const net = rows.reduce((n, r) => n + (r.party === a ? owedBack(r) : r.party === b ? -owedBack(r) : 0), 0);
+    if (Math.round(net) !== 0) {
+      const behind = net > 0 ? b : a, ahead = behind === a ? b : a;
       next = behind;
-      owes = { from: behind, to: ahead, yen: Math.round(Math.abs(totals[a] - totals[b]) / 2) };
+      owes = { from: behind, to: ahead, yen: Math.round(Math.abs(net)) };
     }
   }
   const org = await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true } });
   const mine = (r: { addedById: string | null; addedByName: string }) => !!who && ((!!who.travelerId && r.addedById === who.travelerId) || (!!who.displayName && first(r.addedByName) === first(who.displayName)) || (!!who.travelerId && org?.travelerId === who.travelerId));
   return {
-    parties, totals, next, owes,
-    items: rows.map((r) => ({ id: r.id, party: r.party, amount: r.amount, currency: r.currency, yen: r.yen, rate: r.rate, what: r.what, dayDate: r.dayDate, addedByName: r.addedByName, createdAt: r.createdAt.toISOString(), mayRemove: mine(r) })),
+    parties, totals, shared, alone, next, owes,
+    items: rows.map((r) => ({ id: r.id, party: r.party, forParty: r.forParty, amount: r.amount, currency: r.currency, yen: r.yen, rate: r.rate, what: r.what, dayDate: r.dayDate, addedByName: r.addedByName, createdAt: r.createdAt.toISOString(), mayRemove: mine(r) })),
   };
 }
 
@@ -93,6 +105,7 @@ function tellScreens(tripId: string, name: string) {
   try { broadcastChange(tripId, { userCode: "", displayName: name, description: "updated the budget", quiet: true }); } catch { /* no one listening */ }
 }
 
+const forWords = (forParty: string | null) => (forParty ? ` for ${forParty} alone` : "");
 const moneyWords = (amount: number, currency: string) => (currency === "USD" ? `$${Number(amount.toFixed(2))}` : yenWords(amount));
 /** One line of Budget's History (Ken, Oct 16: "date, person, action only") */
 async function logChange(tripId: string, expenseId: string, by: { travelerId?: string | null; displayName: string }, action: string) {
@@ -106,8 +119,8 @@ async function mayChange(tripId: string, row: { addedById: string | null; addedB
 }
 
 /** A payment: who paid (a couple, or anyone in it), how much, in what, for what, on which day */
-export async function addExpense(input: { tripId: string; paidBy: string; amount: number; currency?: string; what?: string | null; dayDate?: string | null; addedById: string | null; addedByName: string }):
-  Promise<{ id: string; party: string; yen: number; rate: number | null; approx: boolean } | { error: string }> {
+export async function addExpense(input: { tripId: string; paidBy: string; amount: number; currency?: string; what?: string | null; dayDate?: string | null; forParty?: string | null; addedById: string | null; addedByName: string }):
+  Promise<{ id: string; party: string; forParty: string | null; yen: number; rate: number | null; approx: boolean } | { error: string }> {
   const parties = await partiesOf(input.tripId);
   const party = parties.find((p) => p.toLowerCase() === input.paidBy.trim().toLowerCase()) || partyFor(parties, input.paidBy);
   if (!party) return { error: `Which couple paid? ${parties.join(" or ") || "No couples found in her Guide."}` };
@@ -117,10 +130,16 @@ export async function addExpense(input: { tripId: string; paidBy: string; amount
   let yen = Math.round(amount), rate: number | null = null, approx = false;
   if (currency === "USD") { const r = await yenPerDollar(); rate = r.rate; approx = r.approx; yen = Math.round(amount * r.rate); }
   const dayDate = typeof input.dayDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.dayDate) ? input.dayDate : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
-  const row = await prisma.tripExpense.create({ data: { tripId: input.tripId, party, amount, currency, yen, rate, what: (input.what || "").trim().slice(0, 200) || null, dayDate, addedById: input.addedById, addedByName: input.addedByName } });
-  await logChange(input.tripId, row.id, { travelerId: input.addedById, displayName: input.addedByName }, `added ${moneyWords(amount, currency)} (${party})`);
+  // (wholly one couple's: "Ken & Larisa", "Larisa", "hers" said by Larisa — or shared when not said)
+  let forParty: string | null = null;
+  if (input.forParty && !/^(shared|split|both|everyone|all of us|half)$/i.test(String(input.forParty).trim())) {
+    forParty = parties.find((p) => p.toLowerCase() === String(input.forParty).trim().toLowerCase()) || partyFor(parties, String(input.forParty));
+    if (!forParty) return { error: `Who is it for? ${parties.join(", ")}, or shared` };
+  }
+  const row = await prisma.tripExpense.create({ data: { tripId: input.tripId, party, forParty, amount, currency, yen, rate, what: (input.what || "").trim().slice(0, 200) || null, dayDate, addedById: input.addedById, addedByName: input.addedByName } });
+  await logChange(input.tripId, row.id, { travelerId: input.addedById, displayName: input.addedByName }, `added ${moneyWords(amount, currency)} (${party})${forWords(forParty)}`);
   tellScreens(input.tripId, input.addedByName);
-  return { id: row.id, party, yen, rate, approx };
+  return { id: row.id, party, forParty, yen, rate, approx };
 }
 
 /** Taken away (hidden, never deleted) — by who added it, or the trip's first member */
@@ -138,7 +157,7 @@ export async function removeExpense(tripId: string, id: string, who: { travelerI
  *  add reason, change total, or change payer") — by who kept it, or Ken. A dollar amount keeps the rate it was kept at,
  *  unless it's newly in dollars (then that day's). */
 export async function changeExpense(tripId: string, id: string, who: { travelerId?: string | null; displayName: string },
-  change: { amount?: number; currency?: string; paidBy?: string; what?: string | null }):
+  change: { amount?: number; currency?: string; paidBy?: string; what?: string | null; forParty?: string | null }):
   Promise<{ party: string; yen: number; said: string } | "not-yours" | "gone" | { error: string }> {
   const row = await prisma.tripExpense.findFirst({ where: { id, tripId, removedAt: null } });
   if (!row) return "gone";
@@ -161,12 +180,22 @@ export async function changeExpense(tripId: string, id: string, who: { travelerI
   if (currency === "USD" && (row.currency !== "USD" || !rate)) rate = (await yenPerDollar()).rate;
   const yen = currency === "USD" ? Math.round(amount * (rate || 150)) : Math.round(amount);
   const what = change.what === undefined ? row.what : (String(change.what || "").trim().slice(0, 200) || null);
+  let forParty = row.forParty;
+  if (change.forParty !== undefined) {
+    if (!change.forParty || /^(shared|split|both|everyone|half)$/i.test(String(change.forParty).trim())) forParty = null;
+    else {
+      const f = parties.find((x) => x.toLowerCase() === String(change.forParty).trim().toLowerCase()) || partyFor(parties, String(change.forParty));
+      if (!f) return { error: `Who is it for? ${parties.join(", ")}, or shared` };
+      forParty = f;
+    }
+  }
   const said: string[] = [];
   if (amount !== row.amount || currency !== row.currency) said.push(`changed ${moneyWords(row.amount, row.currency)} → ${moneyWords(amount, currency)}`);
   if (party !== row.party) said.push(`changed who paid: ${row.party} → ${party}`);
   if ((what || "") !== (row.what || "")) said.push(what ? (row.what ? `changed what it was for to “${what}”` : `added what it was for: “${what}”`) : "took out what it was for");
+  if (forParty !== row.forParty) said.push(`changed who it's for: ${row.forParty ? `${row.forParty} alone` : "shared"} → ${forParty ? `${forParty} alone` : "shared"}`);
   if (!said.length) return { party, yen, said: "" };
-  await prisma.tripExpense.update({ where: { id }, data: { party, amount, currency, yen, rate, what } });
+  await prisma.tripExpense.update({ where: { id }, data: { party, amount, currency, yen, rate, what, forParty } });
   const line = `${said.join("; ")}${amount === row.amount && currency === row.currency ? ` (${moneyWords(amount, currency)})` : ""}`;
   await logChange(tripId, id, who, line);
   tellScreens(tripId, who.displayName);

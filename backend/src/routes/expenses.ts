@@ -13,10 +13,11 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   res.json(await ledger(req.params.tripId as string, { travelerId: req.user?.travelerId, displayName: req.user?.displayName }));
 });
 
-// POST /trip/:tripId — { paidBy: "Andy & Julie" | "Andy", amount, currency: "JPY" | "USD", what?, dayDate? }
+// POST /trip/:tripId — { paidBy: "Andy & Julie" | "Andy", amount, currency: "JPY" | "USD", what?, dayDate?, forParty? }
+// (forParty: the couple it's wholly for; left out, it's shared half and half)
 router.post("/trip/:tripId", async (req: AuthRequest, res) => {
   const b = req.body || {};
-  const r = await addExpense({ tripId: req.params.tripId as string, paidBy: String(b.paidBy || ""), amount: Number(b.amount), currency: b.currency, what: b.what ?? null, dayDate: b.dayDate ?? null,
+  const r = await addExpense({ tripId: req.params.tripId as string, paidBy: String(b.paidBy || ""), amount: Number(b.amount), currency: b.currency, what: b.what ?? null, dayDate: b.dayDate ?? null, forParty: b.forParty ?? null,
     addedById: req.user?.travelerId ?? null, addedByName: req.user?.displayName || "Someone" });
   if ("error" in r) { res.status(400).json(r); return; }
   res.json(r);
@@ -27,11 +28,11 @@ router.get("/trip/:tripId/history", async (req: AuthRequest, res) => {
   res.json({ history: await expenseHistory(req.params.tripId as string) });
 });
 
-// PATCH /trip/:tripId/:id — { amount?, currency?, paidBy?, what? }, by who added it or the trip's first member
+// PATCH /trip/:tripId/:id — { amount?, currency?, paidBy?, what?, forParty? (null: shared) }, by who added it or the trip's first member
 router.patch("/trip/:tripId/:id", async (req: AuthRequest, res) => {
   const b = req.body || {};
   const r = await changeExpense(req.params.tripId as string, req.params.id as string, { travelerId: req.user?.travelerId, displayName: req.user?.displayName || "Someone" },
-    { amount: b.amount === undefined ? undefined : Number(b.amount), currency: b.currency, paidBy: b.paidBy, what: b.what });
+    { amount: b.amount === undefined ? undefined : Number(b.amount), currency: b.currency, paidBy: b.paidBy, what: b.what, forParty: b.forParty });
   if (r === "not-yours") { res.status(403).json({ error: "Only whoever added it, or Ken, can change it." }); return; }
   if (r === "gone") { res.status(404).json({ error: "That payment isn't there anymore." }); return; }
   if ("error" in r) { res.status(400).json(r); return; }

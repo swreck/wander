@@ -149,7 +149,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
   const [drag, setDrag] = useState(0);
   // It moves on by itself (Ken, Oct 16: "Play day should auto advance after a few seconds… people don't wait. Maybe even
   // first change after only 2-3 seconds to teach users about auto before they tap then slow to 5 seconds for rest"):
-  // the first time after 3 seconds, then 5; the bar at the top fills to show it. It waits while a finger rests on the
+  // the first time after 3 seconds, then 4; the bar at the top fills to show it. It waits while a finger rests on the
   // screen, while a moment's full words or its photos are open, and while Wander isn't on screen; never past the end.
   const [held, setHeld] = useState(false);
   const [hidden, setHidden] = useState(typeof document !== "undefined" && document.visibilityState === "hidden");
@@ -226,7 +226,8 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
   }, [at]);
   useEffect(() => { const v = () => setHidden(document.visibilityState === "hidden"); document.addEventListener("visibilitychange", v); return () => document.removeEventListener("visibilitychange", v); }, []);
   const waiting = held || hidden || full || gallery;
-  const stepMs = movedOn.current ? 5000 : 3000;
+  // (4 s after the first — Ken, Oct 16: "with more photos, auto advance can be 1-2 seconds faster"; was 5)
+  const stepMs = movedOn.current ? 4000 : 3000;
   // (a fresh count each time it starts again, so the bar's fill and the timer begin together)
   const [round, setRound] = useState(0);
   useEffect(() => { setSecond(false); }, [at]);
