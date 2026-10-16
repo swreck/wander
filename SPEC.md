@@ -1481,7 +1481,8 @@ During the trip the Today card is today from her Guide, on Japan's date for you:
   a line to a station or airport, and a line still waiting for a pick ("Lunch · 2 places to choose from ›") are never
   folded away. When other lines are left out, "and 9 more from 11:35 AM ›" sits at the gap and opens the day there.
 - **Now** and **Next** by the clock (§2.4). A booked meal under way is "Now · <restaurant>, booked for 6:00 PM" with its
-  confirmation, for two hours.
+  confirmation, for two hours, with the restaurant's checked photos and "Maps ↗" to its address; tapping it opens Today
+  at that line (Oct 16, stability walk 2: at 7:30 PM it had no photo and the only Maps on Next went to the hotel).
 - **Tonight**: where you sleep, both hotels when her Guide lists two, each one tap to Maps by its name. The check-in
   row leaves once you're there.
 - **Tomorrow**: the earliest of her Itinerary, her day plan and your booked trains. "her Guide lists two places" when
@@ -1630,9 +1631,11 @@ One list, in the order the day is lived.
 
 **What's now stands out** (Oct 16, today only). The line under way — or, until it starts, your next — has a deep maroon
 edge and wash, its title two points larger in maroon, and above it "Now" or "Next · in 50 min": the same line the Next tab
-reckons, moving down the day as the hours pass. The rest stays in view; lines already past are quieter. Ken: "imagine the
-full orientation being visible but the 'now' gets more prominence… So that exact page changes as hours pass on what pops
-out."
+reckons, moving down the day as the hours pass. A booked meal under way counts as now. The rest stays in view; lines
+already past are quieter. The line that stands out shows its place's two checked photos side by side; every other line
+one. Under the day's summary, "Now · Kappabashi Dougu Street ↓" (or "Next · in 50 min …") names it and scrolls down to
+it, stopping clear of the header. Ken: "imagine the full orientation being visible but the 'now' gets more prominence…
+So that exact page changes as hours pass on what pops out."
 
 **At its top**, her Itinerary's heading for the day as one quiet line: "In her Itinerary for today: …".
 
@@ -2312,11 +2315,13 @@ cream?". No polls, votes or alerts.
   "Instagram post ↗"), Send, and it's on that city's list for everyone. Saying it means you're in on it. With no signal
   it waits on the phone.
 - **The group's maybes**, newest first, sit above Larisa's ideas ("Things to do · from Larisa's Guide"). Each says who and
-  when ("Andy · 12 min ago · New"). A small maybe from a day before today folds into "Earlier · n ›".
+  when ("Andy · 12 min ago · New"). A small maybe from a day before today folds into "Earlier · n ›", unless it's put on
+  today or a day ahead (Oct 16: on its own day it sat folded away).
 - **I'm in** on any maybe or any of her ideas; tap again to take it back. "Interested:" is one line: her Activities tab's
   X marks and Wander's I'm ins together, one name a person, "you" for yourself. Your own X in her Guide already counts.
 - **Seen by** lists the others who have looked at that city's list since.
-- **Tags and filters**: "Today" / "Tomorrow" beside an idea on that day's plan; "In Larisa's plan for Mon, Oct 26 ›" on
+- **Tags and filters**: "Today" / "Tomorrow" beside an idea on that day's plan or put on that day in Wander (a day it's
+  put on decides; a small maybe on no day says "Today" only on the day it was said); "In Larisa's plan for Mon, Oct 26 ›" on
   ideas her days already have (matched by her words, a long word one letter off still matching). Under "Show:", one
   sideways row: Next 2 days, and themes (Food & drink · Temples & history · Art & craft · Shopping · Nature · Other), one
   at a time. A theme is only ever a filter, never stated as a fact. Who: Everyone · What you're in on · a person's.
@@ -2465,7 +2470,7 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
 - **Put it back** (Oct 16 — Ken: "can I assume that means the data can be brought back into the live flow"): right after
   a removal, "✓ Removed: … · Put it back" beside + Add entry for 12 seconds; and on that removal's line in the Log, for
   the same people who may remove it. Put back, it counts exactly as before; the Log says "Put back ¥… (couple): what
-  it was for · who" (adds and removals name what it was for too).
+  it was for · who" (adds and removals name what it was for too, and so do "✓ Kept: …" and "✓ Removed: …").
   Scout too (put_back_expense).
 - **Currency**: yen as said. Dollars are kept with that day's yen, at the European Central Bank's rate.
 - **Who sees it**: all four.
