@@ -73,17 +73,19 @@ export default function MoneyPage() {
         <div className="max-w-xl mx-auto px-4">
           <button type="button" onClick={back} className="min-h-[44px] min-w-[44px] pr-2 text-sm text-[#514636]">‹ Back</button>
           <p className="text-[12px] uppercase tracking-[.14em] text-[#5b6b52] mt-1">Budget</p>
-          <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight mt-0.5">{!l ? "…" : l.items.length ? `${yen(sharedOf(l))} shared so far` : "Nothing kept yet"}</h1>
-          {/* (paid for one couple alone — Julie's ¥5,000 for Larisa's jacket: not shared, but owed back in full; Oct 16) */}
-          {/* (which couple — stability walk: "doesn't say which couple"; and each, when there are payments for both: "¥6,790
-              paid for one couple alone" was ¥4,810 for Ken & Larisa and ¥1,980 for Julie & Andy) */}
-          {l && (l.alone || 0) > 0 && (() => {
-            const by = new Map<string, number>();
-            for (const x of l.items) if (x.forParty) by.set(x.forParty, (by.get(x.forParty) || 0) + x.yen);
-            const parts = [...by.entries()].map(([p, n]) => `${yen(n)} for ${p} alone`);
-            return <p className="text-[14px] text-[#514636] mt-1">Plus {parts.length ? parts.map((s, i) => (i === 0 ? s.replace(" for ", " paid for ") : s)).join(" and ") : `${yen(l.alone!)} paid for one couple alone`}.</p>;
-          })()}
-          {l && <p className="text-[15px] text-[#3a3128] mt-2">Who pays next: {l.next && <PayNextBadge party={l.next} className="mr-1" />}<span className="font-medium">{l.next || (l.items.length ? "either — you're even" : "either couple")}</span></p>}
+          {/* Who pays next leads (Ken, Oct 16, marking the page: "Yellow: top importance"); what's been spent is at the foot
+              ("not at top. A reminder of spending money which is not what to emphasize. Bottom of page") */}
+          {!l ? <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight mt-0.5">…</h1>
+            : !l.items.length ? <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight mt-0.5">Nothing kept yet</h1>
+            : (
+              <>
+                <p className="text-[15px] text-[#514636] mt-1">Who pays next</p>
+                <h1 className="text-[32px] font-light text-[#2f3a2a] leading-tight flex items-center gap-2">
+                  {l.next && <PayNextBadge party={l.next} />}
+                  <span>{l.next || "Either — you're even"}</span>
+                </h1>
+              </>
+            )}
           {l?.owes && <p className="text-[14px] text-[#514636] mt-1">To be even now, {l.owes.from} would pay {l.owes.to} {yen(l.owes.yen)}.</p>}
           {l && !l.items.length && <p className="text-[14px] text-[#514636] mt-1">When one couple pays for the group, add it here. Each cost is shared half and half.</p>}
         </div>
@@ -134,6 +136,19 @@ export default function MoneyPage() {
             </ul>
           </section>
         )}
+        {/* What's been spent, at the foot, quiet (Ken, Oct 16: the shared total "not at top… Bottom of page"; what was paid for
+            one couple alone "a result. Not a top line topic") — each couple named (stability walk: "doesn't say which couple") */}
+        {l && l.items.length > 0 && (() => {
+          const by = new Map<string, number>();
+          for (const x of l.items) if (x.forParty) by.set(x.forParty, (by.get(x.forParty) || 0) + x.yen);
+          const parts = [...by.entries()].map(([p, n]) => `${yen(n)} for ${p} alone`);
+          return (
+            <p className="text-[13px] text-[#6b5d4a]" data-spent>
+              {yen(sharedOf(l))} shared so far.
+              {(l.alone || 0) > 0 && <> Plus {parts.length ? parts.map((s, i) => (i === 0 ? s.replace(" for ", " paid for ") : s)).join(" and ") : `${yen(l.alone!)} paid for one couple alone`}.</>}
+            </p>
+          );
+        })()}
         {/* (Ken, Oct 16: "Change 'history' to 'Log' and put at bottom (it's an admin log, only for me or moments of audit)") */}
         <div className="flex justify-end">
           <button type="button" onClick={() => setHistory(true)} className="min-h-[44px] min-w-[44px] px-1 text-[13px] text-[#6b5d4a] underline underline-offset-2">Log</button>
