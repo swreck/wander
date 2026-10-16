@@ -2,6 +2,17 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, 11:30 PM in Japan) — Home's Budget line: the next action only
+
+Ken (Oct 16): "people do not want to be reminded how much they've paid. They simply want to understand the next action,
+which is who pays next and what the difference is."
+
+### Changed
+- Home's Budget line: "Budget: ¥204,090 shared so far" is gone; it reads "Who pays next: KL Ken & Larisa · ¥23,475 to be
+  even" ("Budget: nothing kept yet" before anything is kept). Replaces Ken's Oct 15 "shows the total". SPEC §2.1.
+- Scout: "who pays next?", "where are we on money?", and its line after keeping a payment, say who pays next and what
+  they'd pay to be even — never the totals unless asked. Rule 61.
+
 ## 2026-10-16 (Friday, 11 PM in Japan) — The Budget leads with who pays next
 
 Ken, marking his Budget page: who pays next — "Yellow: top importance"; the "Plus … alone" line — "a result. Not a top

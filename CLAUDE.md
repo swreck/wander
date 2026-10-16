@@ -131,6 +131,8 @@ auditing them.
   Removing a phrase asks "Just your card, or everyone's?" Ken (Oct 14): "yes, good suggestion. But ensure just your
   card is default. I don't want Larisa or Julie to accidentally remove for andy!"
 - Scout's mic: tap to start, tap to stop, words wait in the box (Oct 1). No auto-send, no hold-to-talk.
+- Budget shows the next action, not the spending. Ken (Oct 16): "people do not want to be reminded how much they've paid.
+  They simply want to understand the next action, which is who pays next and what the difference is".
 - Ken (Oct 3): "stop the map" (no more spending on the Home map's polish). Ask him before building Scout streaming,
   before using "Team Fun", and never bring back the travelerProfiles nudges (they invent facts).
 - Old April trips are placeholders. Ken (Sep 27): "No need to worry about keeping existing data in Wander. No one is
@@ -151,12 +153,11 @@ Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engine
 
 ## 8. Docs
 
-- SPEC.md is the canonical product spec (v3.0, March 2026); where Ken's later decisions differ (sheet is master, Scout
-  can't change the Guide, show what changed), his decisions win. Ken (Oct 13): "Product spec should be up to date!" and,
+- SPEC.md is the canonical product spec; where Ken's later decisions differ, his decisions win. Ken (Oct 13): "Product spec should be up to date!" and,
   when I listed it as a choice: "yes. Always! Should not need my approval!" (Claude) Kept current, in every batch.
 - After any change in behaviour, add an entry at the TOP of CHANGELOG.md under the date: what changed (behaviour), where
   it lives in the UI, which SPEC sections it touches, and "SPEC UPDATE NEEDED" when behaviour now differs from SPEC.
-  Use Added / Changed / Fixed / Removed headings as they apply. Never rewrite old entries.
+  Never rewrite old entries.
 - Chat parity: "anything that can be done by the visual UI should be able to be done by the agent" (Apr), now only for
   Wander's own additions. When a UI action changes Wander-owned data, Scout gets a matching
   tool (definition, executeTool case, numbered prompt rule), and the reverse. Never for Guide-derived data.

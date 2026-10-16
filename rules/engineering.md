@@ -12,8 +12,7 @@ Ken (Oct 3): "'the goal' hasn't changed. The only change is Wander is in the han
 unstable." Ken (Oct 4): "be double careful, ask yourself what bad thing can happen with each change since someone else
 is in the product."
 - (Claude) Changes are additive; one careful deploy per batch; no deploy while travelers are waking or mid-use;
-  cosmetic fixes ride with a deploy needed for a real reason. A deploy empties the server's photo memory: batch
-  into few deploys. Docs-only commits don't deploy (railway.toml).
+  cosmetic fixes ride with a deploy needed for a real reason. Docs-only commits don't deploy (railway.toml).
 - Deploy path: (1) `npx tsx trip-data/session-tools/backup-prod.ts <label>` (Neon branch + JSON in
   ~/Documents/WanderBackups; keeps the 2 newest; Ken, Oct 10: "even 10 backups is more than I would expect");
   (2) schema change → `prisma db push` to production FIRST (preview: schema-diff-prod.mjs); (3) merge 2.0 → main with
@@ -38,7 +37,7 @@ is in the product."
   server". Vitest workers bind :3001, so local walks use :3004 / :5182.
 - Browser: Playwright on its own headless shell (trip-data/session-tools/playwright.prod.config.ts). Never
   `npx playwright install`. Installed Chrome hangs Playwright at close. Every suite reads BASE; stop old preview servers
-  first. Production walks skip Google's billed map (prod-walk.mjs; MAPS=1 for maps).
+  first. Production walks skip Google's map (MAPS=1 to include).
 - backend/.env is PRODUCTION. Local walks use the test copy (e2e-backend.mjs: background jobs off unless --warm;
   --stub-scout unless testing Scout's words). Stop servers and previews when idle: they keep Neon's test
   copy awake. Keep them up while a fresh agent is using them.
@@ -56,8 +55,7 @@ is in the product."
   with and without it; tell Ken it's unverifiable until his phone, and give the reset (swipe Wander away and reopen).
 - Review sizes: 393, 402 and 440 pt wide plus iPad. The 375 SE must work but isn't polished for.
 - Every map added or changed: a fresh agent reviews it against a rubric written first, at those sizes, on production
-  data. (Claude) Oct 1: place names and markers covered the iPhone map, and a test-copy review passed what production
-  failed.
+  data. (Claude) Oct 1: a test-copy review passed a map that production's real places covered.
 
 ## React hooks
 Before committing a component with early returns, check that every hook (useState, useEffect, useMemo, useCallback,
