@@ -2453,9 +2453,12 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   for jacket to help Larisa but that jacket is not split, it is just Larisa's… Split should probably be an option
   generally also with split as default and either as full owner of item"). Shared: the other couple owes half. For the
   other couple alone: they owe it all. For the payer's own couple alone: nothing is owed. Who pays next is the couple
-  that owes; "To be even now" says how much. Under "shared so far", what was paid for one couple alone, each couple
-  named: "Plus ¥5,000 paid for Ken & Larisa alone." or "Plus ¥4,810 paid for Ken & Larisa alone and ¥1,980 for Julie &
-  Andy alone."
+  that owes; "To be even now" says how much.
+- **The page's order** (Oct 16 — Ken: who pays next "top importance"; the total "not at top. A reminder of spending
+  money which is not what to emphasize. Bottom of page"; the "alone" line "a result. Not a top line topic"): at the top,
+  "Who pays next", the couple in large type, then "To be even now…". At the foot, under every entry and above Log, small:
+  "¥198,090 shared so far." and what was paid for one couple alone, each couple named ("Plus ¥4,810 paid for Ken &
+  Larisa alone and ¥1,980 for Julie & Andy alone."). Home's Budget line still shows the total (Oct 15).
 - **Never counted twice, never dropped** (Oct 16 — Ken: "There will not be errors. There will not be omissions. Nothing
   will be forgotten, and the math will be correct"). Each Keep carries a one-time tag: sent again (its reply lost on a
   weak signal, "That didn't save", Keep again) it's the same payment. A payment counts for its couple by the people in

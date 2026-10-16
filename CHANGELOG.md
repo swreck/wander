@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-16 (Friday, 11 PM in Japan) — The Budget leads with who pays next
+
+Ken, marking his Budget page: who pays next — "Yellow: top importance"; the "Plus … alone" line — "a result. Not a top
+line topic"; the shared total — "not at top. A reminder of spending money which is not what to emphasize. Bottom of
+page."
+
+### Changed
+- Budget page: at the top, "Who pays next", the couple in large type with its badge, then "To be even now, … would pay
+  … ¥…". "¥… shared so far." and the "Plus … paid for … alone" line sit together, small and quiet, at the foot of the
+  page under every entry, above Log. Home's Budget line is unchanged (Ken, Oct 15: "a button on the homepage that
+  actually shows the total"). SPEC §Budget.
+
 ## 2026-10-16 (Friday night in Japan) — Receipts on the Budget
 
 Ken (Oct 16, with his taxi receipt): "We need to be able to take pictures of receipts and add them and simply note who
