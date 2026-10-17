@@ -2,6 +2,30 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, ~10 PM in Japan) — Notes keeps the box in sight when opened from the evening question
+
+### Fixed
+- Notes, opened from Scout's evening question: the box is focused as it's drawn, so tapping it isn't a new focus and the
+  hold that keeps the page with the box never started. Ken's first letter threw the page to its foot, the cursor out of
+  sight (Oct 17, 9:15 PM). The hold now starts when the box already has the focus, and at a key pressed in it. A scroll
+  by hand is still never undone. Lives in NotesPage (frontend). SPEC unchanged.
+
+## 2026-10-17 (Saturday, late evening in Japan) — From the fresh photo check of every day; a note's day can move
+
+A fresh agent looked at all 430 photos on 74 places, every day page: 2 wrong (Kinugawa River's lowland riverbed and
+farmland), 1 wrong in spirit (a stranger eating at Shoraian), 2 doubtful (a snowy valley for Irohazaka, a farmhouse for
+Café ENSOU). Those five were taken off on production after a look (trip-data/session-tools/photo-drop.mts).
+
+### Fixed
+- The photo check leaves out a stranger who is a photo's subject, another stretch of a river, road, trail or coast far
+  from where the line goes, and a season that hides the place.
+- A Backroads day doesn't show the hotel's photo twice (as their stop, and again as tonight's hotel).
+- A to-do marked done isn't shown on the day ("Passed · Reconfirm the La Table… Done — you, Oct 14" sat on Oct 10–14).
+- Google's opening hours aren't said on a day already lived ("closed on Wednesdays" under the visit they made).
+- "Backroads: Fushimi Inari + Tofuku-ji" looks its photo up by the place, not by "Backroads".
+- A saved note can move to another day: Day in its Change editor ("Now for Fri, Oct 16"), and Scout's change_my_note
+  takes a day ("that note was about yesterday").
+
 ## 2026-10-17 (Saturday, 7:45 PM in Japan) — Notes: the fresh re-check's fixes
 
 ### Fixed

@@ -89,7 +89,8 @@ export default function NotesPage() {
   const [busy, setBusy] = useState<string | null>(null);
   // (start: the words the change began from — the tidied ones when the note shows those; Oct 10 audit: "Change" opened
   // the untidied, lower-case words instead of the ones being read)
-  const [editing, setEditing] = useState<{ id: string; text: string; start?: string; place?: string } | null>(null);
+  // (day: a saved note moved to another day — fresh re-check, Oct 17: "Once saved, a note's day cannot be changed")
+  const [editing, setEditing] = useState<{ id: string; text: string; start?: string; place?: string; day?: string } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -297,6 +298,18 @@ export default function NotesPage() {
       settle = setTimeout(() => tell("settled"), 900);
     };
     const onBlur = (e: FocusEvent) => { if (e.target === boxRef.current) heldAt = null; };
+    // (also when the box already had the focus — opened from the evening question it's focused as it's drawn, before this
+    // listens, and the tap that brings the keyboard up isn't a new focus: nothing held the page, and Ken's first letter
+    // threw it to its foot again, the cursor gone; Oct 17, 9:15 PM. And at a key pressed in the box with nothing held.)
+    const arm = (why: "focus" | "settled" | "held" = "focus") => {
+      if (heldAt !== null || document.activeElement !== boxRef.current) return;
+      heldAt = window.scrollY; holds = 0; sent = 0; byHandOut = false;
+      tell(why);
+    };
+    const onKey = (e: Event) => { if (e.target === boxRef.current) arm(); };
+    arm();
+    // (the box drawn a moment after this starts — it waits for the notes — and focused as it's drawn)
+    const late = setTimeout(arm, 1500);
     // (a finger on the screen, or its fling still running, or a wheel: the person is scrolling. A touch on the box itself
     // isn't — the tap that starts typing counted for 1.5 s, and Ken's throw came at the first letter: verify42)
     const onTouch = (e: Event) => { if (!(e.target instanceof Node && boxRef.current?.contains(e.target))) fingerAt = Date.now(); };
@@ -324,6 +337,8 @@ export default function NotesPage() {
     };
     document.addEventListener("focusin", onFocus);
     document.addEventListener("focusout", onBlur);
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("beforeinput", onKey, true);
     window.addEventListener("touchstart", onTouch, { passive: true });
     window.addEventListener("touchmove", onTouch, { passive: true });
     window.addEventListener("touchend", onTouch, { passive: true });
@@ -331,8 +346,11 @@ export default function NotesPage() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       clearTimeout(settle);
+      clearTimeout(late);
       document.removeEventListener("focusin", onFocus);
       document.removeEventListener("focusout", onBlur);
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("beforeinput", onKey, true);
       window.removeEventListener("touchstart", onTouch);
       window.removeEventListener("touchmove", onTouch);
       window.removeEventListener("touchend", onTouch);
@@ -473,13 +491,14 @@ export default function NotesPage() {
     } catch { /* asked again next time */ }
   }
 
-  async function changeNote(n: TripNote, change: { text?: string; visibility?: "private" | "trip"; city?: string }) {
+  async function changeNote(n: TripNote, change: { text?: string; visibility?: "private" | "trip"; city?: string; dayDate?: string | null }) {
     setBusy(n.id);
     try {
       const r = await api.patch<{ note: TripNote }>(`/trip-notes/${n.id}`, change);
       setNotes((all) => { const next = all.map((x) => (x.id === n.id ? r.note : x)); if (tripId) keepCopy(tripId, next); return next; });
       setEditing(null);
-      setLine((l) => ({ ...l, [n.id]: change.visibility === "trip" ? "Shared with everyone on the trip" : change.visibility === "private" ? "Just you again" : change.city && !change.text ? `Now about ${change.city}` : "" }));
+      setLine((l) => ({ ...l, [n.id]: change.visibility === "trip" ? "Shared with everyone on the trip" : change.visibility === "private" ? "Just you again"
+        : change.dayDate !== undefined && !change.text ? (change.dayDate ? `Now for ${dayWords(change.dayDate)}` : "Now for no particular day") : change.city && !change.text ? `Now about ${change.city}` : "" }));
     } catch {
       setLine((l) => ({ ...l, [n.id]: navigator.onLine === false ? "No signal — that change waits until there's a bar or two." : "That didn't change — try again?" }));
     } finally {
@@ -829,8 +848,18 @@ export default function NotesPage() {
                               <textarea value={editing.text} onChange={(e) => setEditing({ ...editing, id: n.id, text: e.target.value })} rows={5} aria-label="Change the words"
                                 className="mt-1 w-full bg-[#f0ebe3] rounded-xl px-3 py-2 text-[16px] text-[#3a3128] outline-none resize-y" />
                               <p className="text-xs text-[#6b5d4a]">The words as first saved are kept too.</p>
+                              {days.length > 0 && (
+                                <label className="flex items-center gap-2 mt-1 text-[13px] text-[#514636]">
+                                  <span className="text-[#6b5d4a]">Day</span>
+                                  <select value={editing.day ?? n.dayDate ?? ""} onChange={(e) => setEditing({ ...editing, day: e.target.value })} aria-label="Which day this note is about"
+                                    className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2 text-[#3a3128]">
+                                    <option value="">No particular day</option>
+                                    {days.map((d) => <option key={d.date} value={d.date}>{dayWords(d.date)}{d.city ? ` · ${d.city}` : ""}{d.date === today ? " — today" : ""}</option>)}
+                                  </select>
+                                </label>
+                              )}
                               <label className="flex items-center gap-2 mt-1 text-[13px] text-[#514636]">
-                                <span className="text-[#6b5d4a]">About</span>
+                                <span className="text-[#6b5d4a]">Place</span>
                                 <select value={editing.place ?? placeOf(n)} onChange={(e) => setEditing({ ...editing, place: e.target.value })} aria-label="What this note is about"
                                   className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2 text-[#3a3128]">
                                   {places.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
@@ -838,8 +867,14 @@ export default function NotesPage() {
                                 </select>
                               </label>
                               <div className="flex gap-2 mt-1">
-                                <button onClick={() => changeNote(n, { ...(editing.text !== (editing.start ?? n.text) ? { text: editing.text } : {}), ...(editing.place && editing.place !== placeOf(n) ? { city: editing.place } : {}) })}
-                                  disabled={!editing.text.trim() || busy === n.id || (editing.text === (editing.start ?? n.text) && (!editing.place || editing.place === placeOf(n)))} className="min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">Save the change</button>
+                                {(() => {
+                                  const dayMoved = editing.day !== undefined && editing.day !== (n.dayDate ?? "");
+                                  const same = editing.text === (editing.start ?? n.text) && (!editing.place || editing.place === placeOf(n)) && !dayMoved;
+                                  return (
+                                    <button onClick={() => changeNote(n, { ...(editing.text !== (editing.start ?? n.text) ? { text: editing.text } : {}), ...(editing.place && editing.place !== placeOf(n) ? { city: editing.place } : {}), ...(dayMoved ? { dayDate: editing.day || null } : {}) })}
+                                      disabled={!editing.text.trim() || busy === n.id || same} className="min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">Save the change</button>
+                                  );
+                                })()}
                                 <button onClick={() => setEditing(null)} className="min-h-[44px] px-4 text-sm text-[#514636]">Cancel</button>
                               </div>
                             </>

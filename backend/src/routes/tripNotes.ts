@@ -180,7 +180,7 @@ router.param("id", ownNote);
 router.patch("/:id", async (req: AuthRequest, res) => {
   const me = req.user!.travelerId!;
   const id = req.params.id as string;
-  const { text, visibility, storyUse, city } = req.body || {};
+  const { text, visibility, storyUse, city, dayDate } = req.body || {};
   const data: Record<string, unknown> = {};
   if (typeof text === "string") {
     if (!text.trim()) { res.status(400).json({ error: "A note can't be empty — to take it away, remove it." }); return; }
@@ -195,6 +195,9 @@ router.patch("/:id", async (req: AuthRequest, res) => {
   if (storyUse === null || typeof storyUse === "boolean") data.storyUse = storyUse;
   // What it's about — a place on the trip, "Backroads" or "Japan overall" (Ken, Oct 2); the words stay as they are
   if (typeof city === "string" && city.trim()) data.city = city.trim().slice(0, 80);
+  // The day it's about — moved after it was saved (fresh notes re-check, Oct 17: "Once saved, a note's day cannot be
+  // changed"); null is no particular day
+  if (dayDate === null || (typeof dayDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dayDate))) data.dayDate = dayDate;
   const note = await prisma.tripNote.update({ where: { id }, data });
   // (words changed by hand are as the person wants them — never tidied; confirmation tester k2)
   res.json({ note: shape(note, me) });

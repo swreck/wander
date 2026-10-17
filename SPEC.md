@@ -2418,7 +2418,8 @@ about ›".
 
 ### 9.3 Changing, sending, exporting
 
-**Change** on your own note keeps the words as first saved one tap away, and can move it to another place. **Send a
+**Change** on your own note keeps the words as first saved one tap away, and can move it to another day or place (Day
+and Place in its editor; Scout, asked, does the same). **Send a
 copy** goes to anyone (family at home). **Export mine** is a text file, led by place; with notes kept from Scout it asks
 **Just my words** or **With Scout's notes too** (Ken: notes are source material for a journal, "so exporting should allow
 with or without Scout's notes").
