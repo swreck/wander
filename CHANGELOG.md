@@ -2,6 +2,49 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, 7:30 PM in Japan) — Photos on every day
+
+Ken, on Oct 18's page with none: "Why aren't there pictures on the day? Please tell me why then audit every day."
+Why: photos went only on lines of her detailed day tab; Backroads' own stops were only in Play; a line naming a place
+with no Maps link had nothing to look up by.
+
+### Added
+- A day without her detailed plan: each booking, meal, stay, tour and check-in/out line shows its place's checked
+  photo, the one Play shows (tap: its photos full screen).
+- A Backroads day: their stops are listed on the day's page, each with its photo and length, in place of the one-line
+  outline ("Backroads' general itinerary for their Day 2 — Play the day shows each, in their words").
+- Tonight's hotel shows its photo on a day without her detailed plan.
+- Her plan's lines that name a place with no Maps link ("Confirmed visit with Yosuke Kimura at Bizen KIBIDO") look up
+  a photo by the place her words name, in the day's town; Wander's same-place check decides; no Maps link is made from it.
+Audit (test copy, every day, two passes): every day but Oct 5 now has photos on its page; Backroads days went from
+none to 3–6 lines each.
+SPEC UPDATE NEEDED: §3.5 her stops' photos (lines without her detailed plan; Backroads stops; tonight's hotel).
+
+## 2026-10-17 (Saturday, 7:30 PM in Japan) — Notes, from a fresh audit as the travelers
+
+Ken: "If people are going to use notes, the experience has to be easy, fast, seamless, intuitive, delightful. Audit it
+as a user… Use a fresh uninformed agent. Use your best judgement without asking me."
+
+### Fixed
+- Scout never says someone "hasn't written" or "wrote nothing" about something: it sees only what they've shared, and
+  says "nothing they've shared mentions it" (it had told Ken "he hasn't written a note on it" of a private note of
+  Andy's). Rule 46e.
+- Scout can change one of the asker's own notes — its words, or who sees it — as the note's Change and Share buttons
+  do (change_my_note; get_my_notes gives their own notes' ids). The first wording is kept; never someone else's note;
+  taking one out stays on the Notes tab. CLAUDE.md §8 chat parity.
+- A note kept with no signal stops saying "waiting for signal" as soon as Wander sends it (it said so for 20 s after).
+- Writing a note: the day and place in one line, "For Sat, Oct 17, today · Tokyo · change", in place of two
+  dropdowns above the box; "Place" for "About".
+- Typing while the microphone listens stops the listening (the two ran together mid-word).
+- An empty search offers "Ask Scout — it finds a note by what it's about ›".
+- Today's page has "✎ A note about today" near its top (the one at the foot stays).
+- Opening Notes from the evening question or a day page holds the iPhone's keyboard up from the tap.
+- Scout's box says "Listening — tap the mic again when you're done" while the mic listens.
+- No "Sources" under a short "In your Notes…" reply; a hand-written citation tag never reaches the screen.
+- Home's evening question checks the notes Wander has, not only the phone's copy; "Shared" for "Others'"; no "your
+  time" on a note card; a failed Send a copy says to press and hold the words.
+SPEC updated: §9.1 Writing a note.
+
 ## 2026-10-17 (Saturday, 2:00 PM in Japan) — Scout asks each night, on the lock screen
 
 Ken, on Home's evening question: "It's not even reaching me!"; to a 9 PM notification for everyone: "Yes, build the

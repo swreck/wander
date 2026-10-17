@@ -8,8 +8,10 @@ import { useNavigate } from "react-router-dom";
 import { guideData, savedGuideData, type GuideItem, type TripGuideData } from "../lib/guideData";
 import { isFor, isLanding, homeOnJapanDate, mealUnderWay } from "../lib/guideDisplay";
 import { visitAsk, takeVisitAsk } from "../lib/visitAsks";
-import { savedCopy, tripToday } from "../lib/tripNotes";
+import { savedCopy, keepCopy, tripToday, type TripNote } from "../lib/tripNotes";
+import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { holdKeyboard } from "../lib/keyboardHold";
 
 /** Whether to ask tonight, from the trip's lines (the day it's for, or null) */
 function askFor(g: TripGuideData, tripId: string, me: string | null): string | null {
@@ -63,9 +65,12 @@ export default function EveningQuestion({ tripId, className = "" }: { tripId: st
   useEffect(() => {
     if (!tripId) return;
     let alive = true;
-    const check = () => guideData(tripId).then((g) => {
-      if (alive && !askFor(g, tripId, me)) setAsk(null);
-    }).catch(() => { /* the phone's copy stands */ });
+    // (with the notes Wander has, not only this phone's copy: a note just written elsewhere, or on a phone that hadn't
+    // opened Notes yet, still asked — fresh notes audit, Oct 17)
+    const check = () => api.get<TripNote[]>(`/trip-notes/trip/${tripId}`).then((list) => keepCopy(tripId, list)).catch(() => { /* this phone's copy */ })
+      .then(() => guideData(tripId)).then((g) => {
+        if (alive && !askFor(g, tripId, me)) setAsk(null);
+      }).catch(() => { /* the phone's copy stands */ });
     check();
     const every = setInterval(check, 5 * 60_000);
     return () => { alive = false; clearInterval(every); };
@@ -81,7 +86,7 @@ export default function EveningQuestion({ tripId, className = "" }: { tripId: st
       <div className="flex flex-wrap gap-2 mt-3">
         {/* (it stays until a note about today is written — opening Notes and leaving without one put it away for the
             night; tester t1) */}
-        <button onClick={() => navigate(`/notes?from=evening&day=${ask}`)} className="min-h-[44px] px-4 rounded-xl bg-white text-[#3a3128] text-sm font-medium">Write a note</button>
+        <button onClick={() => { holdKeyboard(); navigate(`/notes?from=evening&day=${ask}`); }} className="min-h-[44px] px-4 rounded-xl bg-white text-[#3a3128] text-sm font-medium">Write a note</button>
         <button onClick={putAway} className="min-h-[44px] px-4 rounded-xl text-white/85 text-sm">Not tonight</button>
       </div>
     </section>

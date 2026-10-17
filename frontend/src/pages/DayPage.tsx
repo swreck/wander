@@ -49,7 +49,7 @@ import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
-import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf } from "../lib/linePlaces";
+import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf, photoQueryOf } from "../lib/linePlaces";
 
 /** How long a first open waits for the rest of the day (rail sheet, summaries…) after her Guide, when the phone has no
  *  copy of them yet — they're asked for together, so on a normal signal they come with the Guide and this is never hit */
@@ -228,6 +228,26 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
   );
 }
 
+/** A line's own place photo on a day without her detailed plan — a booking, a meal, a hotel — found as Play finds it, and
+ *  only when Wander's check says it's that place (Ken, Oct 17: "Why aren't there pictures on the day?") */
+function ItemPhoto({ tripId, cityId, query, line, title, time }: { tripId: string; cityId: string | null; query: string; line: string; title: string; time: string | null }) {
+  const ask = useMemo(() => [{ query, line }], [query, line]);
+  const [hit, setHit] = useState<PlaceHit | null>(() => keptPlacePhotos(ask)[query] ?? null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    lookUpPlacePhotos(tripId, cityId, ask).then((h) => { if (live) setHit(h[query] ?? null); }).catch(() => { /* drawn without */ });
+    return () => { live = false; };
+  }, [tripId, cityId, ask, query]);
+  if (!hit) return null;
+  return (
+    <>
+      <MomentPhoto hit={hit} title={title} onOpen={() => setOpen(true)} />
+      {open && <PlaceGallery hit={hit} title={title} time={time} map={null} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 // Rain and sunset on the moments they touch, in Play (it has no band): the forecast's likeliest rain hours on the first
 // moment of each span still ahead ("Rain likely 3–7 PM", as the band says it), showers one forecast sees, and the
 // sunset on the moment the sun goes down in — worked out on the phone, "about" (Oct 15: "before they realize")
@@ -255,8 +275,11 @@ function addSky(moments: Moment[], playCover: PlayCover | undefined, nowAt: numb
 
 /** "Play the day" for a day her Guide gives no timed plan (Oct 15 2026 — Ken: "Create play every day. Use what you have
  *  from the backroads content."): the moments come built — Backroads' day with her lines in it, or her lines in order */
-function DayPlay({ tripId, cityId, date, moments: built, places, heading, outline, playWords, cover, nowAt, playTomorrow }: {
+function DayPlay({ tripId, cityId, date, moments: built, places, heading, outline, playWords, cover, nowAt, playTomorrow, stops = null }: {
   tripId: string | null; cityId?: string | null; date: string; moments: Moment[];
+  /** Backroads' own stops (moment ids), listed on the day's page with their photos in place of the one-line outline (Ken,
+   *  Oct 17: "Why aren't there pictures on the day?" — they were only in Play) */
+  stops?: { ids: string[]; head: string } | null;
   /** what to look up for a moment's photo, by moment id ({ query, line } as the plan's photos are found; `note` says what
    *  the photo is when it's an example, shown only with the photo) */
   places: Record<string, { query: string; line: string; note?: string }>;
@@ -267,6 +290,7 @@ function DayPlay({ tripId, cityId, date, moments: built, places, heading, outlin
   playTomorrow: { words: string; date: string; play: boolean } | null;
 }) {
   const [playing, setPlaying] = useState(false);
+  const [galleryOf, setGalleryOf] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const asked = Object.values(places);
@@ -320,7 +344,21 @@ function DayPlay({ tripId, cityId, date, moments: built, places, heading, outlin
       {playing && <PlayTheDay moments={moments} dayWords={playWords} start={playFrom} onClose={() => setPlaying(false)}
         cover={fullCover} nowAt={nowAt} tomorrow={playTomorrow && goTomorrow ? { words: playTomorrow.words, play: playTomorrow.play, go: goTomorrow } : null} />}
     </div>
-    {outline && <p className="text-[13px] text-[#514636] mb-3">{outline}</p>}
+    {stops ? (
+      <>
+        <p className="text-[13px] text-[#514636] mb-2">{stops.head}</p>
+        <ol className="space-y-2 mb-4">
+          {stops.ids.map((id) => moments.find((m) => m.id === id)).filter((m): m is (typeof moments)[number] => !!m).map((m) => (
+            <li key={m.id} className="rounded-xl border border-[#e0d8cc] bg-white p-3">
+              <p className="text-[15px] leading-snug text-[#3a3128]">{m.title}</p>
+              {m.info?.[0] && <p className="text-xs text-[#6b5d4a] mt-0.5">{m.info[0]}</p>}
+              {m.hit && <MomentPhoto hit={m.hit} title={m.title} onOpen={() => setGalleryOf(m.id)} />}
+            </li>
+          ))}
+        </ol>
+      </>
+    ) : outline && <p className="text-[13px] text-[#514636] mb-3">{outline}</p>}
+    {(() => { const g = galleryOf ? moments.find((m) => m.id === galleryOf) : null; return g?.hit ? <PlaceGallery hit={g.hit} title={g.title} time={g.time} map={g.map} onClose={() => setGalleryOf(null)} /> : null; })()}
     </>
   );
 }
@@ -380,7 +418,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // the place's, on its own line; tourist63 saw TeamLab's three times in a row)
   // (and her booking for it, when the line's place is her booking's — Robuchon: her Dining Resos tab books La Table)
   const queries = useMemo(() => blocks.map((b) => {
-    return { id: b.id, query: TRAVEL.test(b.title) ? null : mapsQueryOf(mapOf[b.id]), line: photoLineOf(b, { hotel, dayWords, bookings }) };
+    // (the day's city for a place her line names with no Maps link: "Sat, Oct 17 · Tokyo" → Tokyo)
+    return { id: b.id, query: TRAVEL.test(b.title) || choicesOf(b).length ? null : mapsQueryOf(mapOf[b.id]) || photoQueryOf(b, { hotel, dayWords, bookings, city: (playWords || "").split(" · ")[1] || null }), line: photoLineOf(b, { hotel, dayWords, bookings }) };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }).filter((x): x is { id: string; query: string; line: string } => !!x.query), [blocks, mapOf]);
   const [photos, setPhotos] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(queries));
@@ -850,6 +889,7 @@ import GuideText from "../components/GuideText";
 import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwner";
 import { loadMarks, savedMarks, deadlineKey, markDay, type Mark } from "../lib/actionMarks";
 import { DayPapers } from "../components/Papers";
+import { holdKeyboard } from "../lib/keyboardHold";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -1698,7 +1738,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // the list's order. A time only where she gives one — Backroads gives lengths, never start times.
   const dayPlay = (() => {
     const places: Record<string, { query: string; line: string; note?: string }> = {};
-    if (planBlocks.length) return { moments: [] as Moment[], places, notes: [] as string[] };
+    if (planBlocks.length) return { moments: [] as Moment[], places, stops: [] as string[], notes: [] as string[] };
     const hm = (t: string | null | undefined) => (t && /^\d{2}:\d{2}/.test(t) ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : null);
     const firstSentence = (t: string) => (t.replace(/^…/, "").match(/^.*?[.!?](?=\s|$)/)?.[0] || t).trim();
     const herDetail = (i: GuideItem) => (i.detail || "").split("\n").map((l) => l.trim()).filter((l) => l && !/^(Her Dining Resos tab lists|Her note: see|Wander )/.test(l));
@@ -1768,9 +1808,14 @@ export default function DayPage({ now = false }: { now?: boolean }) {
           ],
           kind: KIND[d.kind || ""] }];
       });
+      // (the day's own lines' photos too — her check-out, her dinner — for their cards on the day's page; Ken, Oct 17:
+      // "Why aren't there pictures on the day?")
+      for (const i of dayItems) if (["meal", "stop", "tour", "checkin", "checkout"].includes(i.kind)) places[`line-${i.id}`] = { query: i.title.replace(/^(Check (in|out)) · /, "").trim(), line: i.title };
+      // (Backroads' own stops — not her lines — listed with their photos on the day's page, as Play shows them)
+      const stops = docDay.moments.map((d, k) => (d.place && !d.her ? `doc-${date}-${k}` : null)).filter((x): x is string => !!x);
       // (said of the moments, not the summary above it — under Wander's summary of her plan, "From Backroads' general
       // itinerary" read as if the summary were Backroads'; user-larisa1)
-      return { moments, places, notes: [`The moments that follow are ${docDay.from}' general itinerary for their Day ${docDay.day}, with ${v.owners} Guide's own lines where they're the same moment. Details can differ for your departure.`] };
+      return { moments, places, stops, notes: [`The moments that follow are ${docDay.from}' general itinerary for their Day ${docDay.day}, with ${v.owners} Guide's own lines where they're the same moment. Details can differ for your departure.`] };
     }
     const shown = listItems.filter((i) => !["deadline", "weather"].includes(i.kind));
     // (the day you land, as the list has it: her lines with no time follow your landing — Oct 6 played "Osaka → Okayama"
@@ -1789,7 +1834,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       return { ...base, id, title: itemTitle(i, stays, date), time: i.time ? timeLabel(i, dayItems) : null, start: hm(i.time),
         note: detail[0] && detail[0].length <= 140 ? detail[0] : null, full: detail.join("\n") || null, info: [] };
     });
-    return { moments, places, notes: [] as string[] };
+    return { moments, places, stops: [] as string[], notes: [] as string[] };
   })();
   const timelineTrains = listDrawn ? bookedMine.filter((x) => !nestedTrains.has(railKey(x))) : [];
   const landingInList = !!myLanding && alsoItems.includes(myLanding);
@@ -2206,6 +2251,14 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               </section>
             )}
             {!now && isToday && <NowJump />}
+            {/* A note about today, from the top of the day (fresh notes audit, Oct 17: "+ Add a note for this day" sat four
+                screens down; it stays there too — Ken, Oct 13) */}
+            {!now && isToday && (
+              <button type="button" onClick={() => { holdKeyboard(); navigate(`/notes?day=${date}`); }}
+                className="-mt-2 mb-2 min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+                ✎ A note about today
+              </button>
+            )}
             {/* What you can't get wrong this day, each once, pointing down to its line (the Next tab keeps its own order) */}
             {!now && (
               <DontMiss heading={isToday ? "Today, don't miss" : "Don't miss"} checks={checks}
@@ -2617,6 +2670,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* (every day plays — a Backroads day from their itinerary, any other from her lines; Ken, Oct 15) */}
             {!planBlocks.length && docAsked && dayPlay.moments.length > 0 && (
               <DayPlay tripId={tripId} cityId={bandCity?.id} date={date} moments={dayPlay.moments} places={dayPlay.places}
+                stops={docDay && dayPlay.stops.length ? { ids: dayPlay.stops, head: `${docDay.from}' general itinerary for their Day ${docDay.day} — Play the day shows each, in their words.` } : null}
                 heading={docDay ? "The day with Backroads" : `The day in ${v.her} Guide`}
                 outline={docDay ? (() => {
                   // (their own moments, by their titles and lengths; her check-out, meeting and dinner are in the list below)
@@ -2656,6 +2710,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // landing, and the booked 6:17 PM NOZOMI 77 sat at the bottom under Trains): your booked trains join the
                   // timed lines at their times — each opens its full card in Trains — and lines her Guide gives no time say so
                   const card = (i: GuideItem) => <ItemCard key={i.id} i={i} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === i.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} quotedAbove={headline?.title} compact
+                    photo={dayPlay.places[`line-${i.id}`] || null} cityId={bandCity?.id ?? null}
                     autoOpen={nowLine?.key === `item-${i.id}`} past={pastLine(i)}
                     focus={isToday && nowLine?.key === `item-${i.id}` ? nowWords(nowLine.at - tripNow) : null}
                     doneMark={i.kind === "deadline" ? doneMarks.get(deadlineKey(i)) : undefined} />;
@@ -2834,7 +2889,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               )}
               {/* A note about this day, from the day itself (Ken, Oct 13: "there also should be a button on each day page that
                   says, add a note for this day") — Notes opens on this day and its town */}
-              <button onClick={() => navigate(`/notes?day=${date}`)} className="block min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
+              <button onClick={() => { holdKeyboard(); navigate(`/notes?day=${date}`); }} className="block min-h-[44px] text-sm text-[#514636] underline underline-offset-2">
                 + Add a note for this day
               </button>
               {notice && <p className="text-sm text-[#6b5d4a] mt-2" role="status">{notice}</p>}
@@ -2874,6 +2929,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                             {ymd(s.checkInDate) === date && s.checkInTime && <span>Check in from {/^\d{1,2}:\d{2}$/.test(s.checkInTime) ? clock(s.checkInTime) : s.checkInTime}</span>}
                             {s.confirmationNumber && <span className="[overflow-wrap:anywhere]">Confirmation {confirmationWords(s.confirmationNumber)}</span>}
                           </div>
+                          {/* (where they sleep, as it looks — on a travel day the one place photo the day has; Ken, Oct 17:
+                              "Why aren't there pictures on the day?") */}
+                          {/* (only on a day without her detailed plan — on one with it, the hotel's own line may show it already) */}
+                          {tripId && !planBlocks.length && <ItemPhoto tripId={tripId} cityId={s.cityId ?? null} query={stayMapsQuery(s, cityOf(s.cityId))} line={`Tonight's hotel: ${s.name}`} title={s.name} time={null} />}
                           <a href={mapsLink(stayMapsQuery(s, cityOf(s.cityId)))} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
                             {s.address ? `${s.address} ↗` : "Find in Maps ↗"}
                           </a>
@@ -2970,7 +3029,9 @@ function AskedQuestion({ i, me, owner, sources, className = "" }: { i: GuideItem
   );
 }
 
-function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false, doneMark, focus = null }: {
+function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false, doneMark, focus = null, photo = null, cityId = null }: {
+  /** what to look up for this line's place photo, as Play does ({ query, line }); its city to find it near */
+  photo?: { query: string; line: string } | null; cityId?: string | null;
   /** today, the line that's now or next (NOW_MAROON): "Now" or "Next · in 25 min" */
   focus?: string | null;
   /** a deadline marked done in Wander by the person it's for (Oct 9): said as done, not amber */
@@ -3193,6 +3254,9 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           <p className={`${nested ? "text-sm" : focus ? "text-[17px] font-medium" : "text-[15px]"} leading-snug ${focus ? "" : over ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`} style={focus && !nested ? { color: NOW_MAROON } : undefined}>
             {deadline && <span className="font-medium">{over ? (startsSomething(i) ? "Started · " : "Passed · ") : othersJob ? `${actor}'s to-do · ` : "Deadline · "}</span>}{lineTitle}
           </p>
+          {/* (the place's checked photo, the one Play shows for this line — a day without her detailed plan showed none:
+              Ken, Oct 17, "Why aren't there pictures on the day?") */}
+          {photo && !nested && tripId && <ItemPhoto tripId={tripId} cityId={cityId} query={photo.query} line={photo.line} title={lineTitle} time={i.time ? timeLabel(i, day) : null} />}
           {theirs && <p className="text-xs text-[#514636] mt-0.5">{named ? `For ${i.forWhom}` : "The others' plan"}</p>}
           {/* Her Guide asking the person looking (round 12: "1 day to Mashiko-Julie interested?" shown to Julie, with
               nothing saying what to do about it) — Wander can't answer for her; the answer goes to Larisa */}
