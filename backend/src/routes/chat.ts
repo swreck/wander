@@ -1015,7 +1015,7 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: "change_my_note",
-    description: "Change one of the asker's OWN kept notes, as its Change and Share buttons on the Notes tab do: new words for it ('fix the typo in my sorbet note', 'make that note say Thursday, not Wednesday'), or who sees it ('share my La Table note with everyone', 'make that one just me'). Find it first with get_my_notes (its id), and name it by its first words in your reply. The words you pass are the WHOLE note as it should now read — their words with only the change they asked for, never tidied; the first wording is always kept. Never someone else's note. Taking a note out is only on the Notes tab. Rule 46e.",
+    description: "Change one of the asker's OWN kept notes, as its Change and Share buttons on the Notes tab do: new words for it ('fix the typo in my sorbet note', 'make that note say Thursday, not Wednesday'), or who sees it ('share my La Table note with everyone', 'make that one just me'), or the day it's about ('that note was about yesterday'). Find it first with get_my_notes (its id), and name it by its first words in your reply. The words you pass are the WHOLE note as it should now read — their words with only the change they asked for, never tidied; the first wording is always kept. Never someone else's note. Taking a note out is only on the Notes tab. Rule 46e.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1023,6 +1023,7 @@ const tools: Anthropic.Tool[] = [
         noteId: { type: "string", description: "The note's id from get_my_notes" },
         words: { type: "string", description: "The whole note as it should now read (only when its words change)" },
         share: { type: "string", enum: ["trip", "just me"], description: "Who sees it (only when they asked to change that)" },
+        day: { type: "string", description: "The trip day it's about, YYYY-MM-DD, or \"none\" (only when they asked to move it: 'that note is about yesterday')" },
       },
       required: ["tripId", "noteId"],
     },
@@ -3923,12 +3924,14 @@ export async function executeTool(
         if (w !== (note.tidied || note.text)) { data.text = w; data.editedAt = new Date(); data.tidied = null; data.tidyStatus = null; }
       }
       if (input.share === "trip" || input.share === "just me") data.visibility = input.share === "trip" ? "trip" : "private";
+      if (input.day === "none") data.dayDate = null;
+      else if (typeof input.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.day) && input.day !== note.dayDate) data.dayDate = input.day;
       if (!Object.keys(data).length) return { result: { unchanged: true, say: "Nothing to change — say so in a line." } };
       const after = await prisma.tripNote.update({ where: { id: note.id }, data });
       const first = (after.text.split(/\s+/).slice(0, 6).join(" ") + (after.text.split(/\s+/).length > 6 ? "…" : ""));
       return {
         result: { changed: true, note: first, wordsChanged: "text" in data, shared: after.visibility === "trip",
-          say: `One short line naming the note by its first words ("${first}"): what changed — its words, or that it's now ${after.visibility === "trip" ? "shared with everyone on the trip" : "just theirs"}${"text" in data ? "; its first wording is kept" : ""}.` },
+          say: `One short line naming the note by its first words ("${first}"): what changed — ${"dayDate" in data ? `it's now filed under ${after.dayDate ? plainDay(after.dayDate) : "no particular day"}, ` : ""}its words, or that it's now ${after.visibility === "trip" ? "shared with everyone on the trip" : "just theirs"}${"text" in data ? "; its first wording is kept" : ""}.` },
         actionDescription: `${"text" in data ? "Changed" : "Updated"} your note “${first}”${"visibility" in data ? (after.visibility === "trip" ? " — shared with the trip" : " — just you") : ""}`,
       };
     }

@@ -83,7 +83,9 @@ export function photoQueryOf(b: GuideItem, ctx: MapContext = {}): string | null 
   const q = mapsQueryOf(planMapHref(b, ctx));
   if (q) return q;
   if (NOT_A_PLACE.test(b.title.trim()) || /^(tabs differ|flexible|free time|back in|after|before|start making|begin heading)/i.test(b.title.trim())) return null;
-  const t = b.title.replace(/^[^\p{L}\p{N}]+/u, "").replace(/^[A-Z][A-Z &-]+\s+[–:-]\s+/, "").trim();
+  // (a label before a colon is who or what, not the place — "Backroads: Fushimi Inari + Tofuku-ji" searched
+  // "Backroads"; the first place after it is searched; fresh photo check, Oct 17)
+  const t = b.title.replace(/^[^\p{L}\p{N}]+/u, "").replace(/^[A-Z][A-Z &-]+\s+[–:-]\s+/, "").replace(/^[A-Z][\w'-]*:\s+(?=\S)/, "").trim();
   const at = t.match(/\b(?:at|visit to|visit)\s+(?:the\s+)?([A-Z][^,;:()—–]*)/)?.[1];
   const core = (at || t.split(/\s+[—–]\s+|:\s+|\s+\+\s+/)[0]).replace(/[.,;]+$/, "").trim();
   // (a name, not a sentence: capitalised, a few words)

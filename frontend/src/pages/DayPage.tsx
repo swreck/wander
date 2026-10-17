@@ -228,6 +228,13 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
   );
 }
 
+/** A place's words that name the same stay ("The Ritz-Carlton, Nikko" in "Ritz-Carlton, Nikko"; "Shirakabeso") */
+function sameStay(place: string, stay: string): boolean {
+  const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter((w) => w.length >= 4 && !["hotel", "the", "ryokan", "resort", "japan", "kyoto", "tokyo", "nikko"].includes(w));
+  const w = new Set(words(place));
+  return words(stay).some((x) => w.has(x));
+}
+
 /** A line's own place photo on a day without her detailed plan — a booking, a meal, a hotel — found as Play finds it, and
  *  only when Wander's check says it's that place (Ken, Oct 17: "Why aren't there pictures on the day?") */
 function ItemPhoto({ tripId, cityId, query, line, title, time }: { tripId: string; cityId: string | null; query: string; line: string; title: string; time: string | null }) {
@@ -440,6 +447,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     // (only on the line that is the stop — the one with its photo — never "Taxi to X" or "Finish X": tourist70)
     const h = hitOf(b);
     if (!h?.hours || !b.time) return null;
+    // (not on a day already lived — "Google lists KIBIDO as closed on Wednesdays" sat under the visit they'd made;
+    // fresh photo check, Oct 17)
+    if (String(b.date).slice(0, 10) < new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" })) return null;
     const start = Number(b.time.slice(0, 2)) * 60 + Number(b.time.slice(3, 5));
     return hoursWords(h.hours, h.name || b.title, String(b.date).slice(0, 10), start, planLineEndSaid(b, blocks));
   };
@@ -1712,7 +1722,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     && alsoItems.some((o) => o !== i && o.kind !== "checkout"));
   const headlineMore = headline ? (headline.detail || "").split("\n").map((l) => l.trim())
     .filter((l) => l && !alsoItems.some((o) => o !== headline && (o.detail || "").includes(l))) : [];
-  const listItems = headline ? alsoItems.filter((o) => o !== headline) : alsoItems;
+  // (a to-do marked done isn't shown — Ken, Oct 14: "if it is done or out of date, you don't show it"; the fresh photo
+  // check, Oct 17: "Passed · Reconfirm the La Table… Done — you, Oct 14" sat on Oct 10 through 14)
+  const listItems = (headline ? alsoItems.filter((o) => o !== headline) : alsoItems).filter((o) => !(o.kind === "deadline" && doneMarks.has(deadlineKey(o))));
   // Your trains, each said once in the day itself (day review, Oct 4: every booked train was said twice — in the day and in
   // full under "Trains"): under her line when it names the train ("Board reserved HARUKA" ↔ HARUKA 31), else at its time;
   // on your landing day the airport leg with no booking follows the landing. Only what's drawn here leaves "Trains".
@@ -2932,7 +2944,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                           {/* (where they sleep, as it looks — on a travel day the one place photo the day has; Ken, Oct 17:
                               "Why aren't there pictures on the day?") */}
                           {/* (only on a day without her detailed plan — on one with it, the hotel's own line may show it already) */}
-                          {tripId && !planBlocks.length && <ItemPhoto tripId={tripId} cityId={s.cityId ?? null} query={stayMapsQuery(s, cityOf(s.cityId))} line={`Tonight's hotel: ${s.name}`} title={s.name} time={null} />}
+                          {/* (…nor when Backroads' own stops that day are the hotel — the Ritz showed twice, one under the
+                              other; fresh photo check, Oct 17) */}
+                          {tripId && !planBlocks.length && !(docDay?.moments || []).some((m) => !!m.place && sameStay(m.place, s.name)) && <ItemPhoto tripId={tripId} cityId={s.cityId ?? null} query={stayMapsQuery(s, cityOf(s.cityId))} line={`Tonight's hotel: ${s.name}`} title={s.name} time={null} />}
                           <a href={mapsLink(stayMapsQuery(s, cityOf(s.cityId)))} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
                             {s.address ? `${s.address} ↗` : "Find in Maps ↗"}
                           </a>
