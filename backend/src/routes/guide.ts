@@ -22,6 +22,7 @@ import { guideLinksByDay } from "../services/guide/appleGuides.js";
 import { currentSummaries } from "../services/guide/daySummaries.js";
 import { tripDocumentsOf, dayMomentsOf } from "../services/guide/tripDocuments.js";
 import { tabsOfCopy, cellsOfItem, completeCells, spotsOf } from "../services/guide/sources.js";
+import { withDaySwaps } from "../services/guide/daySwaps.js";
 import { withoutFinancialDetails, holdsPersonalNumbers } from "../services/sources/filter.js";
 
 const router = Router();
@@ -103,10 +104,11 @@ router.get("/items/:tripId", async (req: AuthRequest, res) => {
   const tripId = req.params.tripId as string;
   if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
   const date = typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
-  const items = await prisma.guideItem.findMany({
+  // (a day set aside for another list of hers shows that list — services/guide/daySwaps.ts)
+  const items = await withDaySwaps(tripId, await prisma.guideItem.findMany({
     where: { tripId, ...(date ? { date: new Date(`${date}T00:00:00Z`) } : {}) },
     orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }],
-  });
+  }));
   // Her cells' words travel with Scout's answers ("Sources"), not with every screen's download (103 KB, not 222) —
   // only where each line is in her sheet: its tabs and cell addresses, so a day screen can open that spot (round 16:
   // settling "your tabs differ" was a reason to open the sheet instead). Completed as Scout's lines are (sources.ts).

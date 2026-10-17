@@ -16,6 +16,7 @@ import { tripDocumentsOf, dayWords, placeIn, whose } from "./tripDocuments.js";
 /** A deadline whose own words say charges START that day ("cancellation charges start", "60% charge from this date") */
 export const CHARGES_FROM = /\bcharges? (?:start|begin)s?\b|\bcharges? from this date\b|% (?:charge )?from this date\b/i;
 import { placeNotesOf, noteFor, placeNoteWords } from "./placeNotes.js";
+import { withDaySwaps, daySwapWords } from "./daySwaps.js";
 import { tabsOfCopy, wordsAt, cellsOfItem, ideaRef, completeCells, type ContextLine, type SourceView, type SourcePart } from "./sources.js";
 
 const ymd = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
@@ -93,6 +94,7 @@ export interface GuideContextParts {
 const OLD_PICTURE = / A picture in her .*? labels Day \d+ .*? — a different date; worth checking with Larisa\./;
 
 export async function buildGuideContextParts(tripId: string, opts: { phoneZone?: string; now?: Date } = {}): Promise<GuideContextParts> {
+  let swapWords: string[] = [];
   const [trip, snapshot, items, stays, days, ideas, notes] = await Promise.all([
     prisma.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true, endDate: true, timeZone: true } }),
     prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true, sourceName: true, importedAt: true, report: true } }),
@@ -100,7 +102,9 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     // Ken, Oct 15, on her Tokyo tabs' map: "The map is old and should not be the target. Text under is correct"; with the
     // sentence in its context Scout ended "What's the plan today?" on "worth checking with Larisa". Her pictures' own
     // words still reach Scout under HER PICTURES, for when they ask about the picture.)
+    // (a day set aside for another list of hers is that list — daySwaps.ts; what it set aside is said on the day)
     prisma.guideItem.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }, { id: "asc" }] })
+      .then(async (all) => { swapWords = await daySwapWords(tripId, all); return withDaySwaps(tripId, all); })
       .then((all) => all.map((i) => (i.detail && OLD_PICTURE.test(i.detail) ? { ...i, detail: i.detail.replace(OLD_PICTURE, "") } : i))),
     prisma.accommodation.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: [{ checkInDate: "asc" }, { id: "asc" }] }),
     prisma.day.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: [{ date: "asc" }, { id: "asc" }] }),
@@ -243,6 +247,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     const nightHere = stays.find((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= k && k < ymd(s.checkOutDate));
     say(out, `${weekday(k)} (${k}) — ${d.city.name}${d.dayType === "guided" ? ", with Backroads" : ""}`,
       worked("Which city Wander files this day under, from her Itinerary", nightHere ? [{ label: nightHere.name, cells: dedupeCells(stayCells(nightHere)) }] : []));
+    for (const w of swapWords.filter((x) => x.startsWith(`${k}: `))) say(out, `  - [THIS DAY'S PLAN — ${w.slice(k.length + 2)}]`, worked("Whose list this day's plan follows, and what it set aside", []));
     for (const a of arrivals) {
       if (k < a.departJapanDay) {
         // This Japan date on their own clock, spelled out: with only "still at home" Scout still told Julie

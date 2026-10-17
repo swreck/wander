@@ -2,6 +2,25 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, 11:00 AM in Japan) — A day can follow another list of hers
+
+Ken (Oct 17), sending Larisa's Google Maps list "Tokyo Day 3": "Adjust this day on wander to reflect these places.
+Remove existing wander places not on the Google map. (Ie, treat as a replacement set). If order is not clear pick an
+order that makes sense and we can use the day plan without trusting "next." Robichon is last".
+
+### Added
+- A day's plan can follow another list of hers (day_plan_swaps; services/guide/daySwaps.ts). Her tab's lines for that
+  day are hidden in Wander, never deleted; her list's places stand in their place, in Wander's order, untimed; lines
+  she named to keep follow them (the dinner). Her sheet and Wander's copy of it are untouched; a new Guide copy doesn't
+  undo it. Applied wherever a day's lines are read: the day page, Home, Play, Next, Scout, the day's summary.
+- Sat Oct 17 follows her "Tokyo Day 3" list: Onitsuka Tiger Shinjuku → Muji → Shinjuku Takashimaya → Takashimaya Times
+  Square → mont-bell → Ginza Natsuno (Omotesando) → On Cat Street → Shibuya Crossing → the 6 PM Robuchon dinner. Each
+  line shows only her list's word for the place (its kind); each Maps search was checked to land on her pin. Wander's
+  straight-line distances between her pins go to Scout, said as Wander's.
+- The day's plan heading says "From her Google Maps list "Tokyo Day 3"" (no link to her sheet, which doesn't hold it).
+- Scout: the day's plan is her map list, Ken's choice; what was set aside, and that her list's places have no times.
+SPEC UPDATE NEEDED: §day screen (a day following another list of hers).
+
 ## 2026-10-16 (Friday, 11:30 PM in Japan) — Home's Budget line: the next action only
 
 Ken (Oct 16): "people do not want to be reminded how much they've paid. They simply want to understand the next action,

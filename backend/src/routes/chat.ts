@@ -3742,7 +3742,8 @@ export async function executeTool(
         let hash = "";
         const want = typeof input.item === "string" ? input.item.toLowerCase().split(/[^a-z0-9]+/).filter((w: string) => w.length > 2) : [];
         if (want.length) {
-          const items = await prisma.guideItem.findMany({ where: { tripId, date: new Date(`${date}T00:00:00.000Z`), kind: { not: "stop" } }, select: { id: true, title: true, kind: true } });
+          const { withDaySwaps } = await import("../services/guide/daySwaps.js");
+          const items = await withDaySwaps(tripId, await prisma.guideItem.findMany({ where: { tripId, date: new Date(`${date}T00:00:00.000Z`), kind: { not: "stop" } }, select: { id: true, title: true, kind: true, date: true, source: true, sortOrder: true } }));
           const scored = items
             .map((i) => ({ i, n: want.filter((w: string) => i.title.toLowerCase().includes(w)).length }))
             .filter((x) => x.n > 0)
