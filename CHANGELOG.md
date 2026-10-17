@@ -2,6 +2,19 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, 12:15 PM in Japan) — Fixes from the fresh check of Oct 17
+
+### Fixed
+- A place's photos checked again stay on the Google place already found (by its id, never searched again): the re-check
+  had moved Onitsuka Tiger's Shinjuku flagship to a small Onitsuka shop in a mall. The check also turns down another
+  branch of the same brand nearby. Onitsuka was put back on the flagship on production (photo-repoint.mts) and its six
+  photos looked at: the yellow front, the floors inside.
+- A day that follows another list of hers no longer offers "Why this plan is on this day" (it explained her tab's plan,
+  set aside).
+- Her note for a stay no longer shows a part she marked done (Oct 17: "…ASK KENJI TO INTEGRATE THE 2 TOURS AND FINISH
+  3:45-4p AT TRAIN — DONE"); Ken (Oct 14): "if it is done or out of date, you don't show it".
+- Scout quotes only the few of Ken's words for the day that answer the question.
+
 ## 2026-10-17 (Saturday, midday in Japan) — Up to six checked photos for every place; La Table for Robuchon
 
 Ken (Oct 17), on Play's Robuchon dinner with no photo: "I would expect four to six pictures of the restaurant and food";

@@ -149,11 +149,17 @@ async function lookUp(words: string, near: { lat: number; lng: number } | null, 
   const s: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(words)}${where}&language=en&key=${key}`)).json();
   const top = (s?.results || [])[0];
   if (!top?.place_id) return null;
-  const d: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${top.place_id}&fields=name,formatted_address,types,photos,${HOURS_FIELDS}&language=en&key=${key}`)).json();
+  return byId(top.place_id, key, top);
+}
+
+/** Google's listing of one place, by its id: name, address, kinds, up to ten photos, hours */
+async function byId(placeId: string, key: string, top: any = {}): Promise<{ found: Found; hours: Hours | null } | null> {
+  const d: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,types,photos,${HOURS_FIELDS}&language=en&key=${key}`)).json();
   const r = d?.result || top;
+  if (!r?.name && !top?.name) return null;
   return {
     found: {
-      placeId: top.place_id, name: r.name || top.name, address: r.formatted_address || top.formatted_address || "", types: r.types || top.types || [],
+      placeId, name: r.name || top.name, address: r.formatted_address || top.formatted_address || "", types: r.types || top.types || [],
       photos: (r.photos || top.photos || []).slice(0, LOOKED_AT).map((p: any) => ({ ref: p.photo_reference, credit: ((p.html_attributions || [])[0] || "").replace(/<[^>]+>/g, "").trim() || null })),
     },
     hours: hoursOf(d?.result),
@@ -187,7 +193,11 @@ async function resolve(query: string, line: string, near: { lat: number; lng: nu
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return kept ? hit(kept) : null;
   let got: { found: Found; hours: Hours | null } | null = null;
-  try { got = await lookUp(query, near, key); } catch (e: any) {
+  // (a place already found and checked for these words is looked at again by Google's own id for it, never searched for
+  // again — the re-check of Oct 17 searched "Onitsuka Tiger Shinjuku Flagship Store" again and settled on a small Onitsuka
+  // shop in a Shinjuku mall: the fresh check saw its photos where the flagship's had been)
+  const knownId = kept && kept.verdict === "yes" && kept.placeId && sameLine ? kept.placeId : null;
+  try { got = knownId ? await byId(knownId, key) : await lookUp(query, near, key); } catch (e: any) {
     console.warn("[place-photos] google:", e?.message || e);
     return kept ? hit(kept) : null;   // (a hiccup: last week's answer, or none — asked again next time)
   }
@@ -229,7 +239,7 @@ async function samePlace(line: string, query: string, g: { name: string; address
   client ??= new Anthropic();
   const res = await client.messages.create({
     model: "claude-opus-5", max_tokens: 1500,
-    system: "You check whether a photo of a place may stand beside a line of a travel plan. Say same=true only when Google's place is plainly the very place the line means to visit (the same shop, restaurant, temple, market, museum, station or hotel — a branch in another town is not the same). When the line gives her booking for it (\"her booking for it: …\"), the place is the one her booking names: Google's place is the same when it is that booking's restaurant or venue, even when the line's own words name another room of the same building; a place that isn't her booking's is not the same. A food hall, floor or counter inside a department store is the same place as the store when Google lists only the store. A line that isn't one place (a walk, a stroll through an area, \"refresh at the hotel\" when the hotel isn't named, free time, lunch with no place named) is same=false. A line about getting somewhere — a taxi, train, bus or walk to a place, a transfer, \"continue to\", \"return to\" — is same=false: the photo belongs on the line for the place itself. When unsure, false: a wrong photo beside her plan is worse than none.",
+    system: "You check whether a photo of a place may stand beside a line of a travel plan. Say same=true only when Google's place is plainly the very place the line means to visit (the same shop, restaurant, temple, market, museum, station or hotel — a branch in another town is not the same, and nor is another branch of the same brand in the same district: when the line names a flagship, a main store or a branch by its place, Google's place must be that one, not a smaller shop of the brand nearby). When the line gives her booking for it (\"her booking for it: …\"), the place is the one her booking names: Google's place is the same when it is that booking's restaurant or venue, even when the line's own words name another room of the same building; a place that isn't her booking's is not the same. A food hall, floor or counter inside a department store is the same place as the store when Google lists only the store. A line that isn't one place (a walk, a stroll through an area, \"refresh at the hotel\" when the hotel isn't named, free time, lunch with no place named) is same=false. A line about getting somewhere — a taxi, train, bus or walk to a place, a transfer, \"continue to\", \"return to\" — is same=false: the photo belongs on the line for the place itself. When unsure, false: a wrong photo beside her plan is worse than none.",
     messages: [{ role: "user", content: `Her plan's line: "${line}"\nThe Maps search for it: "${query}"\nGoogle's place: "${g.name}", ${g.address} (kinds: ${g.types.slice(0, 6).join(", ")})\nAnswer in JSON only: {"same": true|false, "why": "a few words"}` }],
   });
   const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
