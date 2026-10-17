@@ -1633,8 +1633,9 @@ One list, in the order the day is lived.
 **What's now stands out** (Oct 16, today only). The line under way — or, until it starts, your next — has a deep maroon
 edge and wash, its title two points larger in maroon, and above it "Now" or "Next · in 50 min": the same line the Next tab
 reckons, moving down the day as the hours pass. A booked meal under way counts as now. The rest stays in view; lines
-already past are quieter. The line that stands out shows its place's two checked photos side by side; every other line
-one. Under the day's summary, "Now · Kappabashi Dougu Street ↓" (or "Next · in 50 min …") names it and scrolls down to
+already past are quieter. The line that stands out shows its place's checked photos (Oct 17: up to six — the best wide,
+the rest small beneath it, each opening the full-screen photos at itself; two side by side; one alone); every other
+line one. Under the day's summary, "Now · Kappabashi Dougu Street ↓" (or "Next · in 50 min …") names it and scrolls down to
 it, stopping clear of the header. Ken: "imagine the full orientation being visible but the 'now' gets more prominence…
 So that exact page changes as hours pass on what pops out."
 
@@ -1664,6 +1665,23 @@ are the same place. A tap opens that place's photos full screen, swiping across,
 below. Trains, walks and "refresh at the hotel" stay compact text rows. The time column stays on the left; nothing of
 her plan moves or is reordered. Ken (Oct 15): "simply adding a photo on each day page does not seem to fulfill Andy's
 social media vision of a visual flow… It might be an option when you see a picture to see more pictures".
+- **Every photo checked, up to six** (Oct 17). Ken, on Robuchon with none: "I would expect four to six pictures of the
+  restaurant and food", and for "the rest of Wander". Google's up-to-10 photos of the place are each looked at; only
+  those that show it as her line means it (a restaurant's room or food, a market's stalls, a food hall's counters) are
+  kept, best first, up to six; a lesser place keeps fewer, and none means no photo. Phones are only given checked photos.
+- **Her booking's place.** When a line's Maps search is her booking's address, the check reads her booking's name too
+  ("her booking for it: LeTable de Joel Robuchon - 1F"): her Oct 17 day plan says Gastronomy, her Dining Resos tab books
+  La Table in the same château, and Ken: "we're at la table". "Her tabs differ" stays on the line.
+- A "no" is searched once more by her line's own words, and asked again after a day.
+
+**A day that follows another list of hers** (Oct 17). Ken, sending her Google Maps list "Tokyo Day 3": "Adjust this day
+on wander to reflect these places. Remove existing wander places not on the Google map. (Ie, treat as a replacement
+set). If order is not clear pick an order that makes sense… Robichon is last". Her tab's lines for the day are hidden in
+Wander, never deleted, and her list's places stand in their place in an order Wander chose, untimed; the lines she keeps
+(the dinner) follow. The plan's heading says "From her Google Maps list "Tokyo Day 3"". Each line shows her list's words
+for the place (its kind, or her note on the pin: "3D panda billboard"); each Maps search was checked to land on her pin.
+Scout knows the day follows her list by Ken's choice, what was set aside, and Wander's straight-line distances between
+her pins, said as Wander's. Her sheet is untouched; a new Guide copy doesn't undo it (day_plan_swaps).
 
 **When a stop is open** (Oct 15). Ken: "the feature or info or view the user would want before they realize they want
 it". When her plan's time doesn't fit the place's hours as Google lists them, the stop's line says so, as Google's:
@@ -1792,8 +1810,9 @@ The day's moments full screen, one per screen (Oct 15). Ken: "'Play the day' fee
   while Wander isn't on screen; it stops at the end and never goes into the next day by itself. Ken: "Play day should
   auto advance after a few seconds… first change after only 2-3 seconds to teach users about auto… then slow to 5
   seconds for rest."
-- **Two photos** (Oct 16, Play only): where Wander's check finds a second photo that also shows the place (a clearly
-  different view, never a menu, sign or selfie), it fades in halfway through the moment, with its own credit.
+- **All its checked photos** (Oct 16 two; Oct 17 up to six): each fades in over the last, 2 seconds each (six photos,
+  12 seconds; a tap moves on), with its own credit; after a pause it goes on from the photo showing, the bar filling over
+  what's left. "6 photos" opens them full screen at the one showing.
 - **On Home** (Oct 16): today's lines carry their places' photos, small at each line's end, and Next's box its place's
   photo on its right side — the same checked photos as the day's screen.
 - **The end**: "That's the day.", ‹ back to the last moment, and **Play tomorrow**, straight into the next day's Play,

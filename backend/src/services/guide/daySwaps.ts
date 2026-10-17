@@ -12,14 +12,14 @@ import prisma from "../db.js";
 /** detail: her list's own words for the place (shown); note: Wander's (distances between her pins — Scout only, said as
  *  Wander's, never shown as hers) */
 export type SwapLine = { title: string; detail?: string | null; note?: string | null; link?: string | null; time?: string | null };
-type Swap = { date: string; fromTab: string; keep: string[]; lines: SwapLine[]; label: string; setBy: string; createdAt: Date };
+type Swap = { date: string; fromTab: string; keep: string[]; lines: SwapLine[]; label: string; setBy: string; why: string; createdAt: Date };
 type Line = { id?: string; date: Date | null; kind: string; source: string; title: string; sortOrder?: number };
 
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 export async function daySwapsOf(tripId: string): Promise<Swap[]> {
   const rows = await prisma.dayPlanSwap.findMany({ where: { tripId }, orderBy: { date: "asc" } });
-  return rows.map((r) => ({ date: r.date, fromTab: r.fromTab, keep: (r.keep as string[]) || [], lines: (r.lines as SwapLine[]) || [], label: r.label, setBy: r.setBy, createdAt: r.createdAt }));
+  return rows.map((r) => ({ date: r.date, fromTab: r.fromTab, keep: (r.keep as string[]) || [], lines: (r.lines as SwapLine[]) || [], label: r.label, setBy: r.setBy, why: r.why, createdAt: r.createdAt }));
 }
 
 /** Her tab's line that a swap sets aside (not one it keeps) */
@@ -73,6 +73,6 @@ export async function daySwapWords(tripId: string, items: Line[]): Promise<strin
     const aside = items.filter((i) => setAside(s, i)).map((i) => i.title.split("\n")[0]);
     if (!aside.length) return "";
     const notes = s.lines.filter((l) => l.note).map((l) => `${l.title}: ${l.note}`);
-    return `${s.date}: ${s.setBy} chose (${s.createdAt.toISOString().slice(0, 10)}) to follow ${s.label} for this day, in the order its lines are given here; her "${s.fromTab.trim()}" tab's plan for the day is set aside in Wander (her sheet still has it): ${aside.join("; ")}. The order of her list's places is Wander's, not hers, and they have no times — never give one. If asked about a line set aside, say ${s.setBy} chose her map list instead.${notes.length ? ` Wander's own notes on her list's places (straight-line distances between her pins — say they're Wander's, never hers): ${notes.join(" · ")}` : ""}`;
+    return `${s.date}: ${s.setBy} chose (${s.createdAt.toISOString().slice(0, 10)}) to follow ${s.label} for this day, in the order its lines are given here; her "${s.fromTab.trim()}" tab's plan for the day is set aside in Wander (her sheet still has it): ${aside.join("; ")}. The order of her list's places is Wander's, not hers, and they have no times — never give one. If asked about a line set aside, say ${s.setBy} chose her map list instead. ${s.setBy}'s own words for this day (quote them when they answer the question, as his): ${s.why}${notes.length ? ` Wander's own notes on her list's places (straight-line distances between her pins — say they're Wander's, never hers): ${notes.join(" · ")}` : ""}`;
   }).filter(Boolean);
 }

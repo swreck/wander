@@ -44,20 +44,19 @@ is in the product."
 - Data-changing behaviour gets chaos tests: normal, repeated, invalid or deleted ids, empty input, interaction with
   existing features. Scout tools above all, because people ask unpredictable things.
 - Screens and plumbing are tested on synthetic data with Scout stubbed. Real Scout calls only check Scout's own answers:
-  exams, and 1–3 questions on a day a new Guide copy changed. Maps are the exception that also needs production data
-  (read-only), because real coordinates move everything.
+  exams, and 1–3 questions on a day a new Guide copy changed. Maps also need production data (read-only):
+  real coordinates move everything.
 - Timing bars: layout shift under 0.1, no freeze over 0.3 s at CPU 2×; time pages through gzip-serve.mjs.
 
 ## iPhone
-- (Claude) Oct 9, mid-trip: a page-wide tab-bar change for the iPhone keyboard quirk broke Scout's panel. Ken: "Wander is
-  not stable." For any change touching the keyboard, visualViewport, fixed or bottom elements or scrolling: keep it
-  inside the one component; simulate the misreport (session-tools/scout-panel-check.mjs) and check every fixed element
-  with and without it; tell Ken it's unverifiable until his phone, and give the reset (swipe Wander away and reopen).
+- (Claude) Oct 9, mid-trip: a page-wide tab-bar change for the iPhone keyboard broke Scout's panel. Ken: "Wander is
+  not stable." A change touching the keyboard, visualViewport, fixed or bottom elements or scrolling stays inside one
+  component; simulate the misreport (session-tools/scout-panel-check.mjs) on every fixed element; tell Ken only his
+  phone can confirm it, with the reset (swipe Wander away and reopen).
 - Review sizes: 393, 402 and 440 pt wide plus iPad. The 375 SE must work but isn't polished for.
 - Every map added or changed: a fresh agent reviews it against a rubric written first, at those sizes, on production
   data. (Claude) Oct 1: a test-copy review passed a map that production's real places covered.
 
 ## React hooks
-Before committing a component with early returns, check that every hook (useState, useEffect, useMemo, useCallback,
-useContext, useRef, custom hooks) sits ABOVE every early return. A hook below one crashes the app, and no test catches
-it. Check by reading.
+Before committing a component with early returns, read it: every hook sits ABOVE every early return. One below crashes
+the app, and no test catches it.

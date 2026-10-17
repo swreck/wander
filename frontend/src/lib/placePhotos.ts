@@ -8,8 +8,9 @@ import type { Hours } from "./placeHours";
 /** (hours: Google's, for the place her line means — lib/placeHours says when her time runs past them) */
 /** `ok` on a photo after the first: checked to show the place too — Play shows it as the moment's second photo */
 export type PlaceHit = { id: string; v?: number; name: string | null; photos: { credit: string | null; ok?: boolean }[]; hours?: Hours | null };
-// (2: answers that carry when each was checked — the test runs' earlier copies are dropped; 3: with Google's hours)
-const KEY = "wander:place-photos:3";
+// (2: answers that carry when each was checked — the test runs' earlier copies are dropped; 3: with Google's hours;
+// 4: only checked photos, up to six — a phone's earlier copies listed six of Google's with two checked, Oct 17)
+const KEY = "wander:place-photos:4";
 const KEEP = 3 * 24 * 3600_000;
 type Kept = Record<string, { hit: PlaceHit | null; at: number }>;
 const read = (): Kept => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } };
