@@ -252,6 +252,74 @@ export async function dayPlaces(tripId: string, person: string, date: string): P
   return out;
 }
 
+/** Hour by hour at one point on one day: the temperature and the chance of rain from the day page's forecast, and how
+ *  far Europe's and the US forecasts run from it in those hours (Ken, Oct 17, the night before the Nikko ride: "What's
+ *  the temperature in Nikko where we start biking from 1pm to 6pm?" — Scout had only the day's low and high, though
+ *  Open-Meteo gives every hour). `from`–`to`: Japan's hours, both included. The ground's height, so a reader can tell
+ *  which Nikko it is (the town, or the lake 2,000 ft above it). Kept 30 minutes. */
+export type Hourly = { feet: number | null; hours: { hour: number; f: number; rain: number | null }[]; others: { cooler: number; warmer: number } | null };
+const hourly = new Map<string, { at: number; v: Hourly | null }>();
+export async function hoursAt(p: Pt, date: string, from: number, to: number): Promise<Hourly | null> {
+  const key = `${p.lat.toFixed(3)},${p.lng.toFixed(3)}|${date}|${from}-${to}`;
+  const k = hourly.get(key);
+  if (k && Date.now() - k.at < (k.v ? 30 : 2) * 60_000) return k.v;
+  let v: Hourly | null = null;
+  try {
+    const r = await meteo(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lng}&hourly=temperature_2m,precipitation_probability&models=best_match,${MODELS.join(",")}&temperature_unit=fahrenheit&timezone=Asia%2FTokyo&start_date=${date}&end_date=${date}`);
+    const d = r.ok ? await r.json() : null;
+    const h = d?.hourly;
+    if (Array.isArray(h?.time) && h.time.length === 24) {
+      const hours: Hourly["hours"] = [];
+      let cooler = 0, warmer = 0, compared = false;
+      for (let hr = Math.max(0, from); hr <= Math.min(23, to); hr++) {
+        const f = h.temperature_2m_best_match?.[hr];
+        if (typeof f !== "number") continue;
+        // (a chance of rain is for the hour before its stamp: 1–2 PM is the 2:00 figure — as wetHours reads it)
+        const rain = h.precipitation_probability_best_match?.[Math.min(23, hr + 1)];
+        hours.push({ hour: hr, f: Math.round(f), rain: typeof rain === "number" ? rain : null });
+        for (const m of ["ecmwf_ifs025", "gfs_seamless"]) {
+          const o = h[`temperature_2m_${m}`]?.[hr];
+          if (typeof o !== "number") continue;
+          compared = true;
+          cooler = Math.max(cooler, Math.round(f - o)); warmer = Math.max(warmer, Math.round(o - f));
+        }
+      }
+      if (hours.length) v = { feet: typeof d.elevation === "number" ? Math.round(d.elevation * 3.281 / 10) * 10 : null, hours, others: compared ? { cooler, warmer } : null };
+    }
+  } catch { /* none: kept 2 minutes */ }
+  hourly.set(key, { at: Date.now(), v });
+  return v;
+}
+
+/** An Hourly in plain words, for Scout: "1 PM: 61°F, 0% chance of rain" and the other forecasts' spread */
+export function hourlyWords(place: string, x: Hourly) {
+  const at = (h: number) => (h === 0 ? "midnight" : h === 12 ? "noon" : `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`);
+  const o = x.others;
+  return {
+    place,
+    ...(x.feet != null ? { height: `about ${x.feet.toLocaleString("en-US")} ft above sea level` } : {}),
+    hours: x.hours.map((y) => `${at(y.hour)}: ${y.f}°F${y.rain != null ? `, ${y.rain}% chance of rain` : ""}`),
+    ...(o ? { otherForecasts: o.cooler <= 2 && o.warmer <= 2 ? "Europe's and the US forecasts agree within 2°F in these hours"
+      : `Europe's and the US forecasts run ${[o.cooler > 0 ? `up to ${o.cooler}°F cooler` : "", o.warmer > 0 ? `up to ${o.warmer}°F warmer` : ""].filter(Boolean).join(" and ")} in these hours` } : {}),
+  };
+}
+
+/** The points a day's forecast lines are for: where her plan takes them first (a day trip, or a travel morning), then
+ *  where they sleep — the same choice dayWeather makes, for hour-by-hour readings at each */
+export async function dayPoints(tripId: string, person: string, date: string): Promise<{ place: string; pt: Pt }[]> {
+  const at = await dayPlaces(tripId, person, date);
+  if (!at) return [];
+  const first = at.dayTrip || at.morning;
+  return [...(first ? [{ place: first.place, pt: first }] : []), { place: at.night.place, pt: at.night }];
+}
+
+/** Where a town is, as townWeather finds it (the trip's own city first, else a map search), in Japan only */
+export async function townPoint(tripId: string, name: string): Promise<{ place: string; pt: Pt } | null> {
+  const city = await prisma.city.findFirst({ where: { tripId, name: { equals: name.trim(), mode: "insensitive" } }, select: { name: true, latitude: true, longitude: true } });
+  const p = city?.latitude != null && city.longitude != null ? { lat: city.latitude, lng: city.longitude } : await hotelPoint(`${name.trim()} Japan`);
+  return p && inJapan(p) ? { place: short(city?.name || name.trim()), pt: p } : null;
+}
+
 /** The forecast at a point that isn't where they sleep — an airport on a flight day — named as given */
 export async function weatherAt(p: { lat: number; lng: number }, name: string, date: string, today: string): Promise<DayWeather | null> {
   const away = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);

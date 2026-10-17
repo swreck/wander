@@ -2,6 +2,20 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, ~11:30 PM in Japan) — Scout gives the weather hour by hour, and checks another source when asked
+
+Ken, the night before the Nikko ride, asked the temperature "where we start biking from 1pm to 6pm". Scout said the
+forecast had only the day's low and high, guessed the ride's valley "milder", then refused another source: "for
+weather in Japan I work only from Wander's forecast".
+
+### Changed
+- Scout's get_weather takes hours: each hour's temperature and chance of rain at each of the day's places (or a town),
+  the place's height, and how far Europe's and the US forecasts run (services/dayWeather.ts hoursAt). Asked about a
+  ride's town (Kanuma), Scout reads it instead of guessing.
+- Asked for another source, or to check a weather app or screenshot, Scout searches online and gives both, Wander's
+  first; differences worked pair by pair. Unasked, it still gives only Wander's forecast for Japan. Lives in Scout
+  (rule 46g). SPEC §7.8 updated.
+
 ## 2026-10-17 (Saturday, ~10 PM in Japan) — Notes keeps the box in sight when opened from the evening question
 
 ### Fixed
