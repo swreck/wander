@@ -30,6 +30,7 @@ import {
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
   samePerson, travelerToday, askedParts, othersPartysJob, startsSomething, inHerVoice, speaksAsHer, arrivedForTonight, getsYouTo,
+  withoutDone,
 } from "../lib/guideDisplay";
 import { sourcesData, savedSources, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, isSettledStatus, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings, RailLeg } from "../components/RailSheet";
@@ -430,7 +431,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   const tab = blocks[0].source.split(" · ")[0];
   const heading = blocks[0].source.split(" · ").slice(1).join(" · ");
   // Wander's own match of an undated tab to this day — said once, as Wander's
-  const matchedRaw = (blocks.map((b) => (b.detail || "").split("\n").find((l) => l.startsWith("Wander matched this plan"))).find(Boolean)) || null;
+  // (not on a day that follows another list of hers — it's about her tab's plan, set aside; fresh check, Oct 17: "Why this
+  // plan is on this day" said the plan came from her tab)
+  const matchedRaw = blocks[0]?.id.startsWith("swap-") ? null : (blocks.map((b) => (b.detail || "").split("\n").find((l) => l.startsWith("Wander matched this plan"))).find(Boolean)) || null;
   // A picture in her Guide that dates this plan's day differently is her earlier plan: it isn't shown or talked about.
   // Ken, Oct 15, on her Tokyo Day 1 tab (its picture: "Day 1 – Tue, Oct 13", the plan she wrote under it on Oct 15):
   // "The map is old and should not be the target. Text under is correct"; and Oct 14: "if it is done or out of date,
@@ -824,7 +827,8 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
       </button>
       {open && (
         <div className="pb-1">
-          <p>{note.title}</p>
+          {/* (what she marked done isn't shown — Ken, Oct 14: "if it is done or out of date, you don't show it") */}
+          <p>{withoutDone(note.title)}</p>
           {travel.map((t) => <p key={t} className="mt-0.5"><span className="text-[#6b5d4a]">{v.Owners} travel note: </span>{t}</p>)}
         </div>
       )}

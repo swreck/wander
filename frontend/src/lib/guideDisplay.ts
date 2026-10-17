@@ -1172,6 +1172,9 @@ export function withWebLinks(text: string): { text: string; url?: string }[] {
  *  Haruka from Kyoto to KIX - DONE'" on the list and in Play). Ken (Oct 14): "if it is done or out of date, you don't
  *  show it". (The same mark as an open question's, below.) */
 const MARKED_DONE = /(?:^|[—–:(\[,]\s*|\s-\s*)(?:done|completed?|resolved|sorted)\b|\b(?:done|completed?|resolved|sorted)\s*(?:[)\].!]|$)|[✓✔☑✅]/i;
+/** Her words without a part she marked done — her note for the Tokyo stay ended "- ASK KENJI TO INTEGRATE THE 2 TOURS AND
+ *  FINISH 3:45-4p AT TRAIN — DONE" (fresh check, Oct 17). Parts are her " - " pieces and lines; nothing else changes. */
+export const withoutDone = (text: string) => text.split("\n").map((l) => l.split(/\s+-\s+/).filter((part) => !MARKED_DONE.test(part)).join(" - ")).filter((l) => l.trim()).join("\n");
 export const tabsDiffer = (i: GuideItem) => (i.detail || "").split("\n").filter((l) => l.startsWith("Tabs differ: ")).map((l) => l.slice(13))
   .filter((d) => !(d.match(/"([^"]+)"|“([^”]+)”/g) || []).some((q) => MARKED_DONE.test(q.slice(1, -1))));
 
