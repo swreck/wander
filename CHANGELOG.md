@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, ~10 PM in Japan) — Notes keeps the box in sight when opened from the evening question
+
+### Fixed
+- Notes, opened from Scout's evening question: the box is focused as it's drawn, so tapping it isn't a new focus and the
+  hold that keeps the page with the box never started. Ken's first letter threw the page to its foot, the cursor out of
+  sight (Oct 17, 9:15 PM). The hold now starts when the box already has the focus, and at a key pressed in it. A scroll
+  by hand is still never undone. Lives in NotesPage (frontend). SPEC unchanged.
+
 ## 2026-10-17 (Saturday, late evening in Japan) — From the fresh photo check of every day; a note's day can move
 
 A fresh agent looked at all 430 photos on 74 places, every day page: 2 wrong (Kinugawa River's lowland riverbed and

@@ -298,6 +298,18 @@ export default function NotesPage() {
       settle = setTimeout(() => tell("settled"), 900);
     };
     const onBlur = (e: FocusEvent) => { if (e.target === boxRef.current) heldAt = null; };
+    // (also when the box already had the focus — opened from the evening question it's focused as it's drawn, before this
+    // listens, and the tap that brings the keyboard up isn't a new focus: nothing held the page, and Ken's first letter
+    // threw it to its foot again, the cursor gone; Oct 17, 9:15 PM. And at a key pressed in the box with nothing held.)
+    const arm = (why: "focus" | "settled" | "held" = "focus") => {
+      if (heldAt !== null || document.activeElement !== boxRef.current) return;
+      heldAt = window.scrollY; holds = 0; sent = 0; byHandOut = false;
+      tell(why);
+    };
+    const onKey = (e: Event) => { if (e.target === boxRef.current) arm(); };
+    arm();
+    // (the box drawn a moment after this starts — it waits for the notes — and focused as it's drawn)
+    const late = setTimeout(arm, 1500);
     // (a finger on the screen, or its fling still running, or a wheel: the person is scrolling. A touch on the box itself
     // isn't — the tap that starts typing counted for 1.5 s, and Ken's throw came at the first letter: verify42)
     const onTouch = (e: Event) => { if (!(e.target instanceof Node && boxRef.current?.contains(e.target))) fingerAt = Date.now(); };
@@ -325,6 +337,8 @@ export default function NotesPage() {
     };
     document.addEventListener("focusin", onFocus);
     document.addEventListener("focusout", onBlur);
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("beforeinput", onKey, true);
     window.addEventListener("touchstart", onTouch, { passive: true });
     window.addEventListener("touchmove", onTouch, { passive: true });
     window.addEventListener("touchend", onTouch, { passive: true });
@@ -332,8 +346,11 @@ export default function NotesPage() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       clearTimeout(settle);
+      clearTimeout(late);
       document.removeEventListener("focusin", onFocus);
       document.removeEventListener("focusout", onBlur);
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("beforeinput", onKey, true);
       window.removeEventListener("touchstart", onTouch);
       window.removeEventListener("touchmove", onTouch);
       window.removeEventListener("touchend", onTouch);
