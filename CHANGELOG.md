@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, 7:45 PM in Japan) — Notes: the fresh re-check's fixes
+
+### Fixed
+- Words typed right after opening Notes from a day page or the evening question, before the box is drawn (slow
+  signal), come into the box — they went into the box that held the keyboard up, and were lost.
+- A session that began on Notes and went offline found its notes again (it said this phone had none).
+- Search finds a note by who wrote it; the chip that shows others' notes reads "From others".
+- A note filed under another day says so: "Saved for Fri, Oct 16 — …".
+- A citation written out as words in an answer kept earlier never shows.
+
 ## 2026-10-17 (Saturday, 7:30 PM in Japan) — Photos on every day
 
 Ken, on Oct 18's page with none: "Why aren't there pictures on the day? Please tell me why then audit every day."

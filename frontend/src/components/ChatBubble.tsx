@@ -81,7 +81,9 @@ const tableRule = (line: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\
 const cellsOf = (line: string) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 
 /** Lightweight markdown: **bold**, *italic*, `- ` list items, and tables */
-function renderMarkdown(text: string): ReactNode {
+function renderMarkdown(raw: string): ReactNode {
+  // (a citation Scout wrote out as words, in an answer kept before the server took them out — fresh re-check, Oct 17)
+  const text = raw.replace(/\s*<\/?citation\b[^>]*>/g, "");
   // A bold heading at a line's start that runs straight into its text ("**In your carry-on**Larisa's…" — the break is
   // lost where cited pieces join) gets its own line (Ken's demo, Oct 1)
   // (a link written as "[JR Central](https://…)" shows as its name, tapped to open — the address showed as code in the

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import { takeHeldWords } from "../lib/keyboardHold";
 import type { Trip } from "../lib/types";
 import { guideData } from "../lib/guideData";
 import { replayQueue, dropQueued } from "../lib/offlineStore";
@@ -142,6 +143,9 @@ export default function NotesPage() {
         let trip: Trip | null = id ? await api.get<Trip>(`/trips/${id}`).catch(() => null) : null;
         if (!trip) { trip = await api.get<Trip | null>("/trips/active"); id = trip?.id || null; }
         if (!trip || !id) throw new Error("no trip");
+        // (kept here too: a session that began on Notes, offline later, found no trip and said it had no copy of the
+        // notes it had — fresh notes re-check, Oct 17)
+        try { localStorage.setItem("wander:last-trip-id", id); } catch { /* private */ }
         setTripId(id);
         setTripName(trip.name);
         // the notes and the days together (notes waited ~3 s on the days — tester t4)
@@ -156,6 +160,8 @@ export default function NotesPage() {
         setState("ready");
         await days;
       } catch {
+        // (no trip known on this phone: the trip of a notes copy it keeps)
+        if (!id) { try { const k = Object.keys(localStorage).find((x) => x.startsWith("wander:notes-copy:")); id = k ? k.split(":")[2] || null : null; } catch { /* private */ } }
         const copy = id ? savedCopy(id) : null;
         if (id && copy) {
           setTripId(id); setNotes(copy.notes); setSavedAt(copy.savedAt); setState("ready");
@@ -193,6 +199,16 @@ export default function NotesPage() {
     return () => window.removeEventListener("wander:offline-synced", synced);
   }, [tripId, load]);
 
+  // Words typed before the box was drawn — into the box that held the keyboard up from the tap (lib/keyboardHold) — come
+  // into it, after anything already there (fresh re-check, Oct 17: on slow signal "Fast typer" was lost)
+  useEffect(() => {
+    if (state !== "ready") return;
+    const t = setTimeout(() => {
+      const w = takeHeldWords();
+      if (w.trim()) setText((old) => (old.trim() ? `${old.replace(/\s+$/, "")} ${w}` : w));
+    }, 0);
+    return () => clearTimeout(t);
+  }, [state]);
   // A draft typed or said before Wander closed comes back
   // (with the day it was about — not whatever day it is when Wander opens again)
   useEffect(() => {
@@ -515,7 +531,8 @@ export default function NotesPage() {
     // (Mine and Others' are people's own words; Scout is what Scout kept at someone's asking)
     const fromScout = (n: TripNote) => n.source === "scout-answer";
     const whose = notes.filter((n) => view.whose === "all" || (view.whose === "scout" ? fromScout(n) : !fromScout(n) && (view.whose === "mine" ? n.mine : !n.mine)));
-    return q ? whose.filter((n) => [n.text, n.original, n.tidied || ""].some((t) => t.toLowerCase().includes(q))) : whose;
+    // (and who wrote it — "Julie" found none of Julie's notes; fresh re-check, Oct 17)
+    return q ? whose.filter((n) => [n.text, n.original, n.tidied || "", n.mine ? "" : n.authorName || ""].some((t) => t.toLowerCase().includes(q))) : whose;
   }, [notes, query, view.whose]);
   // Newest first: one list, the newest note on top. Trip order: Japan overall first, then each place in the order the
   // trip reaches it, and within a place the notes in the order they were written — the trip read as it happened.
@@ -649,7 +666,8 @@ export default function NotesPage() {
                 <div className="mt-3 rounded-lg bg-[#f3f7ef] border border-[#cfe0c2] px-3 py-2" role="status">
                   <p className="text-sm text-[#3f5a2a]">
                     {/* ("spoken" said here too — on the note's own line below it went unseen; Ken, Oct 2) */}
-                    Saved — {result.note.wordCount} word{result.note.wordCount === 1 ? "" : "s"}, every one kept{result.note.visibility === "trip" ? ", shared with the trip" : ", just for you"}.
+                    {/* (the day it's filed under, when it isn't today — fresh re-check, Oct 17) */}
+                    Saved{result.note.dayDate && result.note.dayDate !== today ? ` for ${dayWords(result.note.dayDate)}` : ""} — {result.note.wordCount} word{result.note.wordCount === 1 ? "" : "s"}, every one kept{result.note.visibility === "trip" ? ", shared with the trip" : ", just for you"}.
                     {result.note.wordCount !== result.sentWords && ` (This phone counted ${result.sentWords} — tap below and check the words.)`}
                   </p>
                   <button onClick={() => setShowSaved((s) => !s)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">{showSaved ? "Hide the saved words" : "Show the saved words"}</button>
@@ -745,8 +763,9 @@ export default function NotesPage() {
               {notes.length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
                   <div role="radiogroup" aria-label="Whose notes" className="flex rounded-xl bg-[#f0ebe3] p-0.5">
-                    {/* ("Others'" read oddly as a button — fresh notes audit, Oct 17) */}
-                    {([["all", "Everyone's"], ["mine", "Mine"], ["others", "Shared"], ["scout", "Scout"]] as const).map(([k, label]) => (
+                    {/* ("Others'" read oddly as a button — fresh notes audit; "Shared" left out your own shared notes — the
+                        re-check: it's the others' notes shared with you) */}
+                    {([["all", "Everyone's"], ["mine", "Mine"], ["others", "From others"], ["scout", "Scout"]] as const).map(([k, label]) => (
                       <button key={k} role="radio" aria-checked={view.whose === k} onClick={() => changeView({ whose: k })}
                         className={`min-h-[44px] px-3 rounded-lg ${view.whose === k ? "bg-white text-[#3a3128] shadow-sm" : "text-[#6b5d4a]"}`}>{label}</button>
                     ))}
