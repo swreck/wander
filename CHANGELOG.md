@@ -18,7 +18,7 @@ with no Maps link had nothing to look up by.
   a photo by the place her words name, in the day's town; Wander's same-place check decides; no Maps link is made from it.
 Audit (test copy, every day, two passes): every day but Oct 5 now has photos on its page; Backroads days went from
 none to 3–6 lines each.
-SPEC UPDATE NEEDED: §3.5 her stops' photos (lines without her detailed plan; Backroads stops; tonight's hotel).
+SPEC updated: §3.5 her stops' photos (photos on every day).
 
 ## 2026-10-17 (Saturday, 7:30 PM in Japan) — Notes, from a fresh audit as the travelers
 
