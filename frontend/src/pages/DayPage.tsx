@@ -433,7 +433,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // Wander's own match of an undated tab to this day — said once, as Wander's
   // (not on a day that follows another list of hers — it's about her tab's plan, set aside; fresh check, Oct 17: "Why this
   // plan is on this day" said the plan came from her tab)
-  const matchedRaw = blocks[0]?.id.startsWith("swap-") ? null : (blocks.map((b) => (b.detail || "").split("\n").find((l) => l.startsWith("Wander matched this plan"))).find(Boolean)) || null;
+  const swapped = !!blocks[0]?.id.startsWith("swap-");
+  const matchedRaw = swapped ? null : (blocks.map((b) => (b.detail || "").split("\n").find((l) => l.startsWith("Wander matched this plan"))).find(Boolean)) || null;
   // A picture in her Guide that dates this plan's day differently is her earlier plan: it isn't shown or talked about.
   // Ken, Oct 15, on her Tokyo Day 1 tab (its picture: "Day 1 – Tue, Oct 13", the plan she wrote under it on Oct 15):
   // "The map is old and should not be the target. Text under is correct"; and Oct 14: "if it is done or out of date,
@@ -599,11 +600,13 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       {/* Her pictures in this day's tab — her illustrated map of these days, full screen, pinch to zoom (Oct 2: they sat
           at the top of her day tabs, out of sight in Wander) */}
       {/* (not the one whose panel heads the day — its tap opens the same map: each fact once) */}
-      {tripId && !oldPicture && pictures.filter((p, i, all) => p.tab === tab && p.sha256 !== panelOf && all.findIndex((q) => q.tab === tab && q.sha256 === p.sha256) === i).map((p) => (
+      {/* (neither on a day that follows another list of hers: her tab's map and her Apple guide are the plan set aside —
+          fresh check, Oct 17: "See her map from this tab" opened Spiral and Louis Vuitton at their old times) */}
+      {tripId && !oldPicture && !swapped && pictures.filter((p, i, all) => p.tab === tab && p.sha256 !== panelOf && all.findIndex((q) => q.tab === tab && q.sha256 === p.sha256) === i).map((p) => (
         <DayPicture key={p.sha256} tripId={tripId} picture={p} her={v.her} tab={tabLabel(tab)} />
       ))}
       {/* Her Apple Maps guide for the day — a map she made in Apple Maps, opened as it is now (Oct 2) */}
-      {maps.map((m) => (
+      {!swapped && maps.map((m) => (
         <a key={m.link} href={m.link} target="_blank" rel="noreferrer" className="flex w-fit items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636]">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" />
@@ -1518,6 +1521,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   }
   // …and while you're on it, her plan's "now" line waits: the train is where you are (Sweep B, Oct 29 at 2 PM: "On the
   // train now… arriving 2:50 PM" under "Now, in Larisa's plan · Arrive KIX, until about 2:30 PM")
+  // (a day that follows another list of hers — Oct 17, her "Tokyo Day 3" map list: her tab's map of the day is the plan set
+  // aside, so it doesn't lead the day or Play)
+  const daySwapped = planBlocks.some((b) => b.id.startsWith("swap-"));
   const currentBlock = isToday && !riding ? currentPlanLine(planBlocks, tripNow, me) : undefined;
   // Your booked meal under way leads her line at that hour (Sweep B: the Robuchon dinner's name flipped at 6:00 PM)
   // (never on a Japan date you're still at home — verify 4: "Now · Tapas Molecular Bar" for Julie the morning she flies)
@@ -2187,7 +2193,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             )}
             {/* Her own map of the day leads, on a day her illustrated map covers (Kyoto) — not on Next, where the next stop
                 leads */}
-            {!now && tripId && panels[date] && (
+            {!now && tripId && panels[date] && !daySwapped && (
               <DayPanelCard tripId={tripId} panel={panels[date]} Her={v.Owners} days={Object.values(panels).filter((p) => p.of === panels[date].of).length} />
             )}
             {!now && summariesByDay[date] && (
@@ -2556,7 +2562,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 cityId={bandCity?.id}
                 playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
                 playCover={{ summary: summariesByDay[date] ? v.say(summariesByDay[date]) : null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
-                  panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null,
+                  panel: panels[date] && !daySwapped ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null,
                   photos: dayPhotos,
                   sunset: forecastCity?.latitude != null && forecastCity?.longitude != null ? sunsetMinutes(forecastCity.latitude, forecastCity.longitude, date) : null,
                   rain: dayRain && (dayRain.wet?.length || dayRain.showers?.length) ? { wet: dayRain.wet || [], showers: dayRain.showers || [] } : null }}
@@ -2619,7 +2625,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 })() : null}
                 playWords={`${longDate(date)}${cityName ? ` · ${cityName}` : ""}`}
                 cover={{ summary: summariesByDay[date] ? v.say(summariesByDay[date]) : null, photo: bandPhoto?.src ? { src: bandPhoto.src, credit: bandPhoto.credit, place: bandPhoto.place } : null,
-                  notes: dayPlay.notes, panel: panels[date] ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null, photos: dayPhotos, her: v.Her,
+                  notes: dayPlay.notes, panel: panels[date] && !daySwapped ? { src: panels[date].url, label: `${v.Owners} map of the day` } : null, photos: dayPhotos, her: v.Her,
                   sunset: forecastCity?.latitude != null && forecastCity?.longitude != null ? sunsetMinutes(forecastCity.latitude, forecastCity.longitude, date) : null,
                   rain: dayRain && (dayRain.wet?.length || dayRain.showers?.length) ? { wet: dayRain.wet || [], showers: dayRain.showers || [] } : null }}
                 nowAt={isToday ? tripNow : null}
