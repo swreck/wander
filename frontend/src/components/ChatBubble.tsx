@@ -14,6 +14,7 @@ import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import { whereAmI, hereNow, type Here } from "../lib/whereAmI";
 import { canOfferBuzz, declineBuzz, turnOnBuzz, keepBuzzCurrent } from "../lib/buzz";
+import SelectText from "./SelectText";
 import { keepDayForecast } from "../lib/forecast";
 
 /** Phone numbers in an answer can be tapped to call */
@@ -923,6 +924,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // Which answer was just copied (Copy under each answer — Ken, Oct 4: a long answer he wanted elsewhere couldn't be
   // selected or copied)
   const [copied, setCopied] = useState<number | null>(null);
+  // (an answer open full screen to choose the words to copy — Ken, Oct 17: "add a select to copy parts")
+  const [selecting, setSelecting] = useState<string | null>(null);
   // The answer being read aloud (its first bubble), if any — one at a time; it stops when Scout closes
   const [reading, setReading] = useState<number | null>(null);
   useEffect(() => {
@@ -1783,6 +1786,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   return (
     <>
       {sourcesOf &&<ScoutSources sources={sourcesOf} tripId={context.tripId} onClose={() => setSourcesOf(null)} />}
+      {selecting !== null && <SelectText text={selecting} onClose={() => setSelecting(null)} />}
       {/* The page behind: lightly dimmed at half height (still readable), tap it to make Scout small */}
       <div
         className={`fixed inset-0 z-[60] sm:hidden ${size === "full" || keyboardUp ? "bg-black/20" : "bg-black/10"}`}
@@ -2025,6 +2029,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                       aria-label="Copy this answer"
                       className="min-h-[44px] min-w-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
                       {copied === i ? "✓ Copied the answer" : "Copy"}
+                    </button>
+                    <button onClick={() => setSelecting(msg.text.replace(/\*\*/g, "").replace(/(^|\s)\*(\S[^*\n]*\S)\*(?=\s|$)/g, "$1$2").trim())}
+                      aria-label="Choose words from this answer to copy"
+                      className="min-h-[44px] min-w-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
+                      Select
                     </button>
                     {/* The whole answer read aloud — from this bubble to the next question (an answer can come in two) */}
                     {canRead() && messages[i - 1]?.role !== "assistant" && (

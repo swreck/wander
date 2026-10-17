@@ -2,6 +2,30 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, 2:00 PM in Japan) — Scout asks each night, on the lock screen
+
+Ken, on Home's evening question: "It's not even reaching me!"; to a 9 PM notification for everyone: "Yes, build the
+request for others"; then: "Ask for notification permission when anyone opens next, e.g., tonight or tomorrow (for
+today). At that point ask if you can ask each night. Options: yes, no, ask me again tomorrow."
+
+### Added
+- At 9 PM in Japan (10 PM when your plan has a line from 7:30 PM on), once a night, to each phone that allowed Wander's
+  notifications: "Scout asks · Anything worth remembering from today? A line or a page, kept word for word." A tap
+  opens Notes for that day. Not on the trip's last day or a day you fly; not when you've already written about the
+  evening (a note about today after 6 PM, or one from the evening question). services/eveningNudge.ts.
+- Home, on the next opening during the trip, on a phone that hasn't decided: "Can I ask you each night what's worth
+  remembering from the day?" — Yes (the iPhone's own box), No (final), Ask me again tomorrow. One ask per visit. Its
+  yes also lets Scout's answers buzz the phone, and it says so. components/EveningNudgeOffer.tsx.
+- Scout: "Select" beside Copy under each answer (Ken: "I see the copy button for a scout message. Can you add a select to
+  copy parts"). It opens the answer alone, full screen, in a box that can't be changed: press and hold, drag the handles,
+  Copy; "Copy all"; Done or Back closes it. In the panel a long press had "tactile feedback but doesn't actually select
+  anything" (Oct 4). components/SelectText.tsx.
+
+### Fixed
+- Home's evening question no longer goes away for the day because of a note written earlier in the day (Ken writes
+  notes most days, so it never asked him); a note from the question itself, or one kept after 6 PM, still does.
+SPEC updated: §9.1 Writing a note (Scout asks each night).
+
 ## 2026-10-17 (Saturday, 1:00 PM in Japan) — Second fresh check: her tab's old map off the swapped day
 
 ### Fixed
