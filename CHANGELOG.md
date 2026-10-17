@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, 1:00 PM in Japan) — Second fresh check: her tab's old map off the swapped day
+
+### Fixed
+- A day that follows another list of hers no longer offers "See her map from this tab", her Apple Maps guide for the
+  day, or her tab's map of the day at the top or in Play — they're the plan set aside (Oct 17's opened Spiral and Louis
+  Vuitton at their old times). Days on her tab's own plan keep them.
+- The photo check keeps a shop's goods only on its own shelves: every photo must be taken at the place (the On store's
+  sixth photo was a pair of On shoes on someone's floor). The On store was checked again on production; I looked at all
+  six.
+
 ## 2026-10-17 (Saturday, 12:15 PM in Japan) — Fixes from the fresh check of Oct 17
 
 ### Fixed
