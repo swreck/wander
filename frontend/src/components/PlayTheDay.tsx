@@ -15,6 +15,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 
 import useBackToClose from "../hooks/useBackToClose";
 import { placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
 import PlaceGallery from "./PlaceGallery";
+
+/** A place's checked photos, in the order shown (the first, and each after it marked ok — at most six) */
+const shotsOf = (h: PlaceHit) => h.photos.map((p, n) => (n === 0 || p.ok ? n : -1)).filter((n) => n >= 0).slice(0, 6);
 import { lockScroll } from "../lib/scrollLock";
 import { PHOTOS_CHANGED, useShowable, type TripPhoto } from "../lib/tripPhotos";
 
@@ -154,7 +157,9 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
   const [held, setHeld] = useState(false);
   const [hidden, setHidden] = useState(typeof document !== "undefined" && document.visibilityState === "hidden");
   const movedOn = useRef(false);
-  const [second, setSecond] = useState(false);
+  // (which of a moment's checked photos is showing — Oct 17, Ken on Robuchon: "I would expect four to six pictures of the
+  // restaurant and food"; was a second photo only)
+  const [shot, setShot] = useState(0);
   const touch = useRef<{ x: number; y: number; t: number } | null>(null);
   const swiped = useRef(0);
   const slide = slides[Math.min(at, slides.length - 1)];
@@ -219,25 +224,35 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
     return () => { unlock(); window.removeEventListener("keydown", onKey); try { before?.focus({ preventScroll: true }); } catch { /* gone */ } };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // (the photos either side, fetched ahead, so a tap or a swipe shows them at once — and a moment's second photo)
+  // (the photos either side, fetched ahead, so a tap or a swipe shows them at once — and this moment's other photos)
   useEffect(() => {
-    for (const k of [at, at + 1, at - 1]) { const n = momentAt(k); if (n?.hit) for (const j of k === at ? [1] : [0, 1]) if (j === 0 || n.hit.photos[j]?.ok) { const i = new Image(); i.src = placePhotoUrl(n.hit, j); } }
+    for (const k of [at, at + 1, at - 1]) { const n = momentAt(k); if (n?.hit) for (const j of k === at ? shotsOf(n.hit).slice(1) : [0]) { const i = new Image(); i.src = placePhotoUrl(n.hit, j); } }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [at]);
   useEffect(() => { const v = () => setHidden(document.visibilityState === "hidden"); document.addEventListener("visibilitychange", v); return () => document.removeEventListener("visibilitychange", v); }, []);
   const waiting = held || hidden || full || gallery;
-  // (4 s after the first — Ken, Oct 16: "with more photos, auto advance can be 1-2 seconds faster"; was 5)
-  const stepMs = movedOn.current ? 4000 : 3000;
-  // (a fresh count each time it starts again, so the bar's fill and the timer begin together)
+  // (4 s after the first — Ken, Oct 16: "with more photos, auto advance can be 1-2 seconds faster"; was 5. A moment with
+  // more checked photos stays 2 s on each, the pace its two photos had — six photos, 12 s; a tap moves on at once)
+  const shots = slide.kind === "moment" && m?.hit && !small[m.id] ? shotsOf(m.hit) : [0];
+  const PER_PHOTO = 2000;
+  const stepMs = shots.length > 1 ? shots.length * PER_PHOTO : movedOn.current ? 4000 : 3000;
+  // (a fresh count each time it starts again, so the bar's fill and the timer begin together; after a pause it goes on
+  // from the photo showing, and the bar fills over what's left)
   const [round, setRound] = useState(0);
-  useEffect(() => { setSecond(false); }, [at]);
+  const [runMs, setRunMs] = useState(stepMs);
+  useEffect(() => { setShot(0); }, [at]);
+  // (a new moment starts at its first photo — the photo showing is only kept across a pause on the same moment)
+  const runFor = useRef(at);
   useEffect(() => {
     if (waiting || slide.kind === "end") return;
+    const from = runFor.current === at && shots.length > 1 ? Math.min(shot, shots.length - 1) : 0;
+    runFor.current = at;
+    const left = shots.length > 1 ? (shots.length - from) * PER_PHOTO : stepMs;
     setRound((r) => r + 1);
-    const two = slide.kind === "moment" && !!m?.hit?.photos[1]?.ok && !small[m.id];
-    const half = two ? setTimeout(() => setSecond(true), stepMs / 2) : null;
-    const t = setTimeout(() => { movedOn.current = true; keys.current.next(); }, stepMs);
-    return () => { clearTimeout(t); if (half) clearTimeout(half); };
+    setRunMs(left);
+    const steps = shots.slice(from + 1).map((_, k) => setTimeout(() => setShot(from + k + 1), (k + 1) * PER_PHOTO));
+    const t = setTimeout(() => { movedOn.current = true; keys.current.next(); }, left);
+    return () => { clearTimeout(t); steps.forEach(clearTimeout); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [at, waiting]);
 
@@ -301,11 +316,12 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
             onError={() => setNoPhoto((s2) => ({ ...s2, [x.id]: true }))}
             className={`absolute inset-0 w-full h-full ${small[x.id] ? "object-contain" : "object-cover play-drift"}`}
             style={{ transformOrigin: k % 2 ? "30% 40%" : "70% 60%" }} />
-          {/* (a second photo of the place, checked to show it too — Ken, Oct 16: "Increase to two photos in play day only") */}
-          {x.hit.photos[1]?.ok && !small[x.id] && (
-            <img src={placePhotoUrl(x.hit, 1)} alt="" className={`absolute inset-0 w-full h-full object-cover play-drift transition-opacity duration-1000 ${k === at && second ? "opacity-100" : "opacity-0"}`}
-              style={{ transformOrigin: k % 2 ? "70% 60%" : "30% 40%" }} />
-          )}
+          {/* (the place's other checked photos, each fading in over the last — Ken, Oct 16: "Increase to two photos in play
+              day only"; Oct 17, on Robuchon: "four to six pictures of the restaurant and food") */}
+          {k === at && !small[x.id] && shotsOf(x.hit).slice(1).map((j, n) => (
+            <img key={j} src={placePhotoUrl(x.hit!, j)} alt="" className={`absolute inset-0 w-full h-full object-cover play-drift transition-opacity duration-1000 ${shot >= n + 1 ? "opacity-100" : "opacity-0"}`}
+              style={{ transformOrigin: (k + n) % 2 ? "30% 40%" : "70% 60%" }} />
+          ))}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 42%, rgba(0,0,0,.85) 100%)" }} />
         </div>
       );
@@ -364,7 +380,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
             return (
               <span key={x.id} className={`relative flex-1 h-[3px] rounded-full overflow-hidden ${k < at ? "bg-white/85" : "bg-white/30"}`}>
                 {k === at && <span key={`fill-${at}-${round}`} className="absolute inset-y-0 left-0 bg-white play-fill"
-                  style={{ animationDuration: `${stepMs}ms`, animationPlayState: waiting ? "paused" : "running" }} />}
+                  style={{ animationDuration: `${runMs}ms`, animationPlayState: waiting ? "paused" : "running" }} />}
               </span>
             );
           })}
@@ -460,7 +476,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
                 </div>
                 {/* (what the photo is, when it's an example — "Mount Daimonji, as an example" — said with its credit) */}
                 {m.hit && m.photoWords && <p className="text-[12px] text-white/75">{m.photoWords}</p>}
-                {(() => { const c = m.hit?.photos[second && m.hit.photos[1]?.ok ? 1 : 0]?.credit; return c ? <p className="text-[11px] text-white/55">Photo: {c} · Google</p> : null; })()}
+                {(() => { const c = m.hit?.photos[shots[Math.min(shot, shots.length - 1)] ?? 0]?.credit; return c ? <p className="text-[11px] text-white/55">Photo: {c} · Google</p> : null; })()}
               </div>
             );
           })()}
@@ -513,7 +529,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
           )}
         </div>
       </div>
-      {gallery && m?.hit && <PlaceGallery hit={m.hit} title={m.title} time={m.time} map={m.map} onClose={() => setGallery(false)} />}
+      {gallery && m?.hit && <PlaceGallery hit={m.hit} start={shots[Math.min(shot, shots.length - 1)] ?? 0} title={m.title} time={m.time} map={m.map} onClose={() => setGallery(false)} />}
     </div>
   );
 }

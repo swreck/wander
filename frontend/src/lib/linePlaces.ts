@@ -57,7 +57,7 @@ export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   if (where) return mapsLink(`${where}, ${areaOf(b, ctx.dayWords)}Japan`);
   // The same place as one of her bookings that day: the booking's own address (round 12: her Oct 26 "Hassun" line
   // searched a name; the Hassun booking has her Gion address)
-  const booked = (ctx.bookings || []).find((m) => m.time === b.time && saidAgain(b, m));
+  const booked = bookingFor(b, ctx);
   if (booked) {
     const q = mapsQueryFor(booked);
     if (q) return mapsLink(q);
@@ -71,6 +71,22 @@ export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   if (p && hotel && bare(hotel).includes(bare(p))) return mapsLink(hotel);
   return p ? mapsLink(`${p}, ${areaOf(b, ctx.dayWords)}Japan`) : null;
 }
+/** Her booking that day for the same line (the same time, and her words name it again) */
+const bookingFor = (b: GuideItem, ctx: MapContext): GuideItem | null => (ctx.bookings || []).find((m) => m.time === b.time && saidAgain(b, m)) || null;
+
+/**
+ * Her line as the photo check reads it: with the stop her tab names for it, or — when its Maps search is her booking's
+ * address — her booking's name (Oct 17: her day plan says "Gastronomy "Joël Robuchon"", her Dining Resos tab books La
+ * Table in the same château, and Ken: "we're at la table"; checked without the booking, La Table's photos were turned
+ * down as another restaurant)
+ */
+export function photoLineOf(b: GuideItem, ctx: MapContext = {}): string {
+  const where = (b.detail || "").match(/^Where: (.+?) — the stop her tab lists/m)?.[1];
+  if (where) return `${b.title} (her tab names the stop: ${where})`;
+  const booked = !linksIn(b.link)[0] && !/^Tabs differ: .* puts it in /m.test(b.detail || "") ? bookingFor(b, ctx) : null;
+  return booked ? `${b.title} (her booking for it: ${booked.title.split("\n")[0]})` : b.title;
+}
+
 /**
  * The city her day tab is about, for a Maps search ("Kyoto Tue, 1027…" → "Kyoto, "). Round 7: "TeamLab,
  * Japan" could land on the Tokyo teamLab. Only the city: the rest of a tab name is cut short by the
@@ -98,8 +114,7 @@ export function useLinePhotos(tripId: string | null, cityId: string | null | und
   const queries = useMemo(() => blocks.map((b) => {
     if (choicesOf(b).length || TRAVEL.test(b.title)) return null;
     const query = mapsQueryOf(planMapHref(b, ctx));
-    const where = (b.detail || "").match(/^Where: (.+?) — the stop her tab lists/m)?.[1];
-    return query ? { id: b.id, query, line: where ? `${b.title} (her tab names the stop: ${where})` : b.title } : null;
+    return query ? { id: b.id, query, line: photoLineOf(b, ctx) } : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }).filter((x): x is { id: string; query: string; line: string } => !!x), [blocks.map((b) => b.id).join(), ctx.hotel, ctx.dayWords, (ctx.bookings || []).map((m) => m.id).join()]);
   const [photos, setPhotos] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(queries));

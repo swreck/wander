@@ -1,10 +1,8 @@
 # Wander — how we work on it
 
-Ken's instructions for every project are in ~/.claude/CLAUDE.md. This file holds Wander's product truths and Wander's
-engineering. Where it differs from the global file it says so with [Overrides global: …]. Each rule has one home.
+This file holds Wander's product truths and Wander's engineering. Where it differs from the global file it says so with [Overrides global: …]. Each rule has one home.
 Ken's words are quoted and dated; anything marked (Claude) is my judgement beside them. This repo is PUBLIC: no ids,
-links, keys, booking codes or people's personal details here. Those live in trip-data/ (git-ignored) or private memory.
-A git hook blocks commits that add them. After a compaction or /clear, read trip-data/HANDOFF.md's CURRENT block first.
+links, keys, booking codes or people's personal details here. Those live in trip-data/ (git-ignored) or private memory. After a compaction or /clear, read trip-data/HANDOFF.md's CURRENT block first.
 
 @rules/engineering.md
 
@@ -55,9 +53,8 @@ you need to parse accurately."
 Ken (Oct 10): "Faithfulness continues to be Key. But your judgement as head of engineering with faithfulness as a goal
 is just as important. Perhaps more because 'you are the head of engineering creating a great product that has
 faithfulness at its core.' This optimization would be clear to a human."
-- (Claude) What happened Oct 10: her pre-trip forecast showed as the day's weather for days. Ask two questions of every
-  fact on screen: is her word kept exactly, and is this the best a traveler can have right now? Show both when they
-  differ (live first, hers labelled hers). Ken (Oct 13), when I proposed hiding a far-off rain amount: "Why hide rain if
+- (Claude) Oct 10: her pre-trip forecast showed as the day's weather for days. Of every fact on screen: is her word
+  kept, and is it the best a traveler can have now? Show both when they differ (live first, hers labelled hers). Ken (Oct 13), when I proposed hiding a far-off rain amount: "Why hide rain if
   a legitimate forecast has it? If it is real, use it. If not, don't. Scout does not lie." Never trust "accepted" on an import: a sentence she typed in the hotel
   column became a second hotel (Oct 4). Fix the reader with a general rule tested on her real cells; never her sheet.
 - Ken approved (Oct 11): everything she wrote is data Wander holds and Scout can answer from; how much screen work each
@@ -65,8 +62,8 @@ faithfulness at its core.' This optimization would be clear to a human."
   different time, place or booking. Conflicts between her tabs are shown, never silently resolved.
 - Done or out of date isn't shown. Ken (Oct 14, on "Still open in her Guide: ASK KENJI TO INTEGRATE THE 2 TOURS…",
   which her cell ends "— DONE", on the train home from Mashiko): "You don't change her sheet. You add value to it. So
-  if it is done or out of date, you don't show it" · "Just don't show it in wander". (Claude) Scout had told him Wander
-  can't hide a line; hiding what's done or past is Wander's job, never a change to her sheet.
+  if it is done or out of date, you don't show it" · "Just don't show it in wander". (Claude) Hiding what's done or
+  past is Wander's job, never a change to her sheet.
 - Before asking Ken about her sheet, read the cell. Ken (Oct 10): "There is no lt. why do you keep asking?" ("LT
   actions" is a heading in her Actions tab.)
 - Personal information. Ken (Oct 4): "unless the info passes through the vault in a safe way, Wander should not surprise
@@ -79,8 +76,8 @@ Ken (Oct 2): "if they go to the airport on the wrong day because of Wander, I wi
 Ken (Oct 2, directions): "Scout cannot lie… we could end up in the wrong place"
 Scout may honestly not know. It never states a time, place, booking or fact it can't support. It gives the Guide's
 answer with its tab; the web when the Guide is silent, labelled as found online, not the plan; plain words for what's
-unknown. (Claude) Oct 4: past his rail sheet it described a JR West page it never opened and gave a dead link. The
-web is where it lied, so links and website steps are only ones it has seen.
+unknown. (Claude) Oct 4 it described a JR West page it never opened: links and website steps are only ones it
+has seen.
 - Sources. Ken (Sep 30): "make sure we're not trying to surface the sources unless they're requested." Ken (Oct 2): "be
   sure the source button goes to the right tab and right cells… a button to open it". Recorded at answer time.
 - "What's near me?". Ken (Oct 11): "the two closest places that attracted Larisa are X about 4 blocks from you and Y a
@@ -96,10 +93,8 @@ web is where it lied, so links and website steps are only ones it has seen.
 
 ## 5. Words in the app
 
-The test: could this string appear unchanged in Jira, a banking app, or a form builder? If yes, it's wrong for Wander.
-Rewrite it. Ken (Oct 2): "remember to use table for two, and don't use ambiguous nouns." The full tone rule, with its
-three tiers and examples, is in rules/tone.md. Read it before writing or changing any words people see, and when
-auditing them.
+The test: could this string appear unchanged in Jira, a banking app, or a form builder? If yes, rewrite it. Ken (Oct 2): "remember to use table for two, and don't use ambiguous nouns." The full tone rule, with its
+three tiers and examples, is in rules/tone.md: read it before writing or auditing words people see.
 
 ## 6. Ken's product decisions (each stands until he changes it)
 
@@ -125,11 +120,16 @@ auditing them.
 - Phrase card: romaji, except characters to find on a Japanese device. Ken (Oct 14): "Language list should generally
   not use kanji. But in this case (and possibly future ones) the purpose is finding something on a Japanese device."
   And: "title is Toilet flush ( in English) because that is what an English speaker scans for. Then my line. Use that
-  approach if I add anything else like this. That should be obvious to you!" (Claude) I had made "大 / 小" the title.
+  approach if I add anything else like this. That should be obvious to you!"
   A line to show a Japanese reader has "Show large", and its small English says what the Japanese says. Ken (Oct 14):
   "make sure the small type English always makes it clear to the user what they are giving to the Japanese reader".
   Removing a phrase asks "Just your card, or everyone's?" Ken (Oct 14): "yes, good suggestion. But ensure just your
   card is default. I don't want Larisa or Julie to accidentally remove for andy!"
+- Place photos. Ken (Oct 17), on Robuchon with none: "I would expect four to six pictures of the restaurant and food."
+  Then: "Add to my documentation agreement with your plan that would then apply to the Robichon restaurant as well as
+  the rest of Wander." (Claude) Each photo shown is checked; up to six, best first.
+- A day can follow another list of hers. Ken (Oct 17), sending her "Tokyo Day 3" map list: "Remove existing wander
+  places not on the Google map. (Ie, treat as a replacement set)". (Claude) Her tab's lines hide, never deleted.
 - Scout's mic: tap to start, tap to stop, words wait in the box (Oct 1). No auto-send, no hold-to-talk.
 - Budget shows the next action, not the spending. Ken (Oct 16): "people do not want to be reminded how much they've paid.
   They simply want to understand the next action, which is who pays next and what the difference is".
@@ -154,7 +154,7 @@ Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engine
 ## 8. Docs
 
 - SPEC.md is the canonical product spec; where Ken's later decisions differ, his decisions win. Ken (Oct 13): "Product spec should be up to date!" and,
-  when I listed it as a choice: "yes. Always! Should not need my approval!" (Claude) Kept current, in every batch.
+  when I listed it as a choice: "yes. Always! Should not need my approval!" (Claude) Kept current every batch.
 - After any change in behaviour, add an entry at the TOP of CHANGELOG.md under the date: what changed (behaviour), where
   it lives in the UI, which SPEC sections it touches, and "SPEC UPDATE NEEDED" when behaviour now differs from SPEC.
   Never rewrite old entries.

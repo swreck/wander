@@ -48,7 +48,7 @@ import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
-import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos } from "../lib/linePlaces";
+import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf } from "../lib/linePlaces";
 
 /** How long a first open waits for the rest of the day (rail sheet, summaries…) after her Guide, when the phone has no
  *  copy of them yet — they're asked for together, so on a normal signal they come with the Guide and this is never hit */
@@ -377,9 +377,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // on the title alone it was turned down)
   // (no photo on a line about getting somewhere — "Taxi to Raku Museum", "Continue same taxi to TeamLab": the photo is
   // the place's, on its own line; tourist63 saw TeamLab's three times in a row)
+  // (and her booking for it, when the line's place is her booking's — Robuchon: her Dining Resos tab books La Table)
   const queries = useMemo(() => blocks.map((b) => {
-    const where = (b.detail || "").match(/^Where: (.+?) — the stop her tab lists/m)?.[1];
-    return { id: b.id, query: TRAVEL.test(b.title) ? null : mapsQueryOf(mapOf[b.id]), line: where ? `${b.title} (her tab names the stop: ${where})` : b.title };
+    return { id: b.id, query: TRAVEL.test(b.title) ? null : mapsQueryOf(mapOf[b.id]), line: photoLineOf(b, { hotel, dayWords, bookings }) };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }).filter((x): x is { id: string; query: string; line: string } => !!x.query), [blocks, mapOf]);
   const [photos, setPhotos] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(queries));
@@ -404,6 +404,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     return hoursWords(h.hours, h.name || b.title, String(b.date).slice(0, 10), start, planLineEndSaid(b, blocks));
   };
   const [gallery, setGallery] = useState<GuideItem | null>(null);
+  // (the photo a tap opened them on — the standout line's small photos each open at their own)
+  const [galleryAt, setGalleryAt] = useState(0);
   const [playing, setPlaying] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -571,7 +573,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       </div>
       {playing && <PlayTheDay moments={moments} dayWords={playWords || ""} start={playFrom} onClose={() => setPlaying(false)}
         cover={cover} nowAt={nowAt} tomorrow={playTomorrow && goTomorrow ? { words: playTomorrow.words, play: playTomorrow.play, go: goTomorrow } : null} />}
-      {gallery && hitOf(gallery) && <PlaceGallery hit={hitOf(gallery)!} title={gallery.title.replace(/^./, (c) => c.toUpperCase())} time={planTime(gallery) || null} map={mapOf[gallery.id] ?? null} onClose={() => setGallery(null)} />}
+      {gallery && hitOf(gallery) && <PlaceGallery hit={hitOf(gallery)!} start={galleryAt} title={gallery.title.replace(/^./, (c) => c.toUpperCase())} time={planTime(gallery) || null} map={mapOf[gallery.id] ?? null} onClose={() => setGallery(null)} />}
       {/* (the tab's plan table, opened in her sheet — round 16) */}
       {/* (a day that follows another list of hers — Ken, Oct 17, her Google Maps list "Tokyo Day 3": that list, by name; it
           isn't in her sheet, so no link there — backend services/guide/daySwaps.ts) */}
@@ -674,7 +676,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                   )}
                 </div>
                 {/* the place itself, under its name — the time stays on the left, the facts below (the day as moments) */}
-                {hit && (focus ? <PlacePhotos hit={hit} title={b.title} onOpen={() => setGallery(b)} /> : <MomentPhoto hit={hit} title={b.title} onOpen={() => setGallery(b)} />)}
+                {hit && (focus ? <PlacePhotos hit={hit} title={b.title} onOpen={(n) => { setGalleryAt(n); setGallery(b); }} /> : <MomentPhoto hit={hit} title={b.title} onOpen={() => { setGalleryAt(0); setGallery(b); }} />)}
                 {b.forWhom && <p className="text-sm text-[#514636] mt-0.5">{isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`}</p>}
                 {/* (round 13: a picture in her tab can name the group her table leaves out — quoted, never assigned) */}
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
@@ -860,24 +862,37 @@ const nowWords = (startsIn: number) => (startsIn <= 0 ? "Now" : `Next · in ${st
  * now"): the best one full width, and the second one Wander's check passed (a different view of the same place) beside it
  * or under it. Only checked photos — never an unchecked one.
  */
-function PlacePhotos({ hit, title, onOpen, dark = false }: { hit: PlaceHit; title: string; onOpen?: () => void; dark?: boolean }) {
+// (Oct 17, Ken on Robuchon: "I would expect four to six pictures of the restaurant and food" — every photo Wander keeps is
+// checked, up to six: three or more show as the best one wide and the rest small beneath it, each opening there)
+function PlacePhotos({ hit, title, onOpen, dark = false }: { hit: PlaceHit; title: string; onOpen?: (n: number) => void; dark?: boolean }) {
   const [gone, setGone] = useState<Record<number, boolean>>({});
-  const shown = [0, ...(hit.photos[1]?.ok ? [1] : [])].filter((n) => !gone[n]);
+  const shown = hit.photos.map((p, n) => (n === 0 || p.ok ? n : -1)).filter((n) => n >= 0 && !gone[n]).slice(0, 6);
   if (!shown.length) return null;
   const credit = hit.photos.filter((_, n) => shown.includes(n)).map((p) => p.credit).filter(Boolean).join(", ");
+  const bg = dark ? "bg-white/10" : "bg-[#efe8dc]";
+  const img = (n: number) => <img src={placePhotoUrl(hit, n, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={() => setGone((g) => ({ ...g, [n]: true }))} />;
+  const label = (n: number) => `Photo ${n + 1} of ${shown.length}, ${hit.name || title}`;
   return (
     <div className="mt-2">
-      <button type="button" onClick={onOpen} disabled={!onOpen} aria-label={`Photos of ${hit.name || title}`} className="block w-full">
-        <span className={`grid gap-1.5 ${shown.length > 1 ? "grid-cols-[3fr_2fr]" : "grid-cols-1"}`}>
-          {shown.map((n) => (
-            // (two side by side share one height — at 4:3 each, the narrower second one stood shorter)
-            <span key={n} className={`relative block overflow-hidden rounded-lg ${dark ? "bg-white/10" : "bg-[#efe8dc]"} ${shown.length > 1 ? "h-40" : "aspect-[16/9]"}`}>
-              <img src={placePhotoUrl(hit, n, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover"
-                onError={() => setGone((g) => ({ ...g, [n]: true }))} />
-            </span>
-          ))}
-        </span>
-      </button>
+      {shown.length < 3 ? (
+        <button type="button" onClick={() => onOpen?.(0)} disabled={!onOpen} aria-label={`Photos of ${hit.name || title}`} className="block w-full">
+          <span className={`grid gap-1.5 ${shown.length > 1 ? "grid-cols-[3fr_2fr]" : "grid-cols-1"}`}>
+            {shown.map((n) => (
+              // (two side by side share one height — at 4:3 each, the narrower second one stood shorter)
+              <span key={n} className={`relative block overflow-hidden rounded-lg ${bg} ${shown.length > 1 ? "h-40" : "aspect-[16/9]"}`}>{img(n)}</span>
+            ))}
+          </span>
+        </button>
+      ) : (
+        <>
+          <button type="button" onClick={() => onOpen?.(shown[0])} disabled={!onOpen} aria-label={label(0)} className={`relative block w-full aspect-[16/9] overflow-hidden rounded-lg ${bg}`}>{img(shown[0])}</button>
+          <span className={`grid gap-1.5 mt-1.5`} style={{ gridTemplateColumns: `repeat(${shown.length - 1}, minmax(0, 1fr))` }}>
+            {shown.slice(1).map((n, k) => (
+              <button key={n} type="button" onClick={() => onOpen?.(n)} disabled={!onOpen} aria-label={label(k + 1)} className={`relative block aspect-square overflow-hidden rounded-md ${bg}`}>{img(n)}</button>
+            ))}
+          </span>
+        </>
+      )}
       {credit && <p className={`text-[10px] mt-1 truncate ${dark ? "text-white/60" : "text-[#8a7d68]"}`}>Photo: {credit} · Google</p>}
     </div>
   );

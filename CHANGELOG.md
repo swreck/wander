@@ -2,6 +2,28 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-17 (Saturday, midday in Japan) — Up to six checked photos for every place; La Table for Robuchon
+
+Ken (Oct 17), on Play's Robuchon dinner with no photo: "I would expect four to six pictures of the restaurant and food";
+then "Add to my documentation agreement with your plan that would then apply to the Robichon restaurant as well as the
+rest of Wander. And yes, we're at la table."
+
+### Changed
+- Every place's photos: Google's up-to-10 are each looked at; only the ones that show the place (its room or food for a
+  restaurant) are kept, best first, up to six. Phones are only ever given checked photos — before, the full-screen
+  photos showed four of Google's six that were never checked. Places checked before are checked again once, one at a
+  time, in the background (services/placePhotos.ts freshenPlaces).
+- A line whose place is her booking's ("her booking for it: LeTable de Joel Robuchon - 1F") is checked as that booking:
+  Sat Oct 17's dinner shows La Table's room and five of its dishes. "Her tabs differ" stays on the line.
+- A "no" is searched once more by her line's own words, and asked again after a day, not a week.
+- The check: a food hall inside a department store counts as the store (Mitsukoshi Ginza's depachika now has photos).
+- Today's line that stands out: the best photo wide and the rest small beneath; each opens the full-screen photos at
+  itself. Play: each moment shows all its checked photos, 2 s each (the pace its two had); the credit follows the photo;
+  after a pause it goes on from the photo showing. "N photos" counts checked photos only.
+- Phones drop their earlier photo lists once (wander:place-photos:4).
+SPEC updated: §3.5 (what's now stands out; her stops' photos; a day that follows another list of hers — the entry
+below), §3.7 Play (all its checked photos).
+
 ## 2026-10-17 (Saturday, 11:00 AM in Japan) — A day can follow another list of hers
 
 Ken (Oct 17), sending Larisa's Google Maps list "Tokyo Day 3": "Adjust this day on wander to reflect these places.
