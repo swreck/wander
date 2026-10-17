@@ -573,8 +573,12 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
         cover={cover} nowAt={nowAt} tomorrow={playTomorrow && goTomorrow ? { words: playTomorrow.words, play: playTomorrow.play, go: goTomorrow } : null} />}
       {gallery && hitOf(gallery) && <PlaceGallery hit={hitOf(gallery)!} title={gallery.title.replace(/^./, (c) => c.toUpperCase())} time={planTime(gallery) || null} map={mapOf[gallery.id] ?? null} onClose={() => setGallery(null)} />}
       {/* (the tab's plan table, opened in her sheet — round 16) */}
-      <SheetSpots tripId={tripId} wholeTable label={`From the ${tabLabel(tab)} tab${heading ? ` — ${heading}` : ""}`} className="mt-0.5"
-        spots={[{ tab: blocks[0].spots?.[0]?.tab || tab, a1s: blocks.flatMap((b) => b.spots?.find((x) => x.tab === (blocks[0].spots?.[0]?.tab || tab))?.a1s || []) }]} />
+      {/* (a day that follows another list of hers — Ken, Oct 17, her Google Maps list "Tokyo Day 3": that list, by name; it
+          isn't in her sheet, so no link there — backend services/guide/daySwaps.ts) */}
+      {blocks[0].id.startsWith("swap-")
+        ? <p className="text-sm text-[#6b5d4a] mt-0.5">From {heading.replace(/^her /, `${v.her} `)}</p>
+        : <SheetSpots tripId={tripId} wholeTable label={`From the ${tabLabel(tab)} tab${heading ? ` — ${heading}` : ""}`} className="mt-0.5"
+            spots={[{ tab: blocks[0].spots?.[0]?.tab || tab, a1s: blocks.flatMap((b) => b.spots?.find((x) => x.tab === (blocks[0].spots?.[0]?.tab || tab))?.a1s || []) }]} />}
       {/* Her whole route for the day, as she made it in Google Maps (charm item C4, Oct 1 2026) */}
       {(() => {
         const url = blocks.map((b) => (b.detail || "").match(/^Her whole route for the day: (\S+)$/m)?.[1]).find(Boolean);

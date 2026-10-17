@@ -214,6 +214,25 @@ model SourceCopy {
   @@map("source_copies")
 }
 
+// ── A day of her plan set aside for another list of hers (Oct 17 2026, services/guide/daySwaps.ts) ──
+// Her tab's lines for the day are hidden, never deleted; her list's places stand in their place, in this order. Her
+// sheet and Wander's copy of it are untouched, and a new Guide copy doesn't undo it.
+model DayPlanSwap {
+  id        String   @id @default(cuid())
+  tripId    String   @map("trip_id")
+  date      String                          // YYYY-MM-DD, the trip's local date
+  fromTab   String   @map("from_tab")       // the start of her tab's source label whose lines it sets aside
+  keep      Json     @default("[]")         // the starts of her lines' titles that stay (the dinner)
+  lines     Json                            // [{ title, detail, link, time? }] in the order lived
+  label     String                          // whose list, as said: 'her Google Maps list "Tokyo Day 3"'
+  setBy     String   @map("set_by")         // who asked: "Ken"
+  why       String                          // his words
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([tripId, date])
+  @@map("day_plan_swaps")
+}
+
 // ── Day choices (Wander's own, never the Guide's) ─────────────
 // A same-day plan someone adds on the road: "Ken and Andy: Musée Tomo this afternoon".
 // Kept apart from the Guide so a re-read of Larisa's sheet never touches it, and shown

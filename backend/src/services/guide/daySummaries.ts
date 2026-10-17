@@ -11,14 +11,16 @@
 import crypto from "crypto";
 import prisma from "../db.js";
 import { buildGuideContextParts } from "./scoutContext.js";
+import { withDaySwaps } from "./daySwaps.js";
 
 export interface DaySummary { text: string; hash: string; writtenAt: string }
 
 /** Each day's fingerprint: her lines that day and the words on her pictures in those tabs (not Wander's wording of
  *  them, so a change to how Scout's text is laid out doesn't hide every summary) */
 export async function dayHashes(tripId: string): Promise<Record<string, { hash: string; tabs: string[] }>> {
-  const items = await prisma.guideItem.findMany({ where: { tripId, date: { not: null } }, orderBy: [{ time: "asc" }, { sortOrder: "asc" }],
-    select: { date: true, time: true, endTime: true, kind: true, title: true, detail: true, forWhom: true, source: true } });
+  // (a day set aside for another list of hers is fingerprinted as that list: its summary is hidden until rewritten)
+  const items = await withDaySwaps(tripId, await prisma.guideItem.findMany({ where: { tripId, date: { not: null } }, orderBy: [{ time: "asc" }, { sortOrder: "asc" }],
+    select: { date: true, time: true, endTime: true, kind: true, title: true, detail: true, forWhom: true, source: true, sortOrder: true } }));
   const notes = await prisma.sheetNote.findMany({ where: { tripId, rowIndex: { gte: 100000 } }, select: { tabName: true, text: true } });
   const byDate = new Map<string, typeof items>();
   for (const i of items) { const d = i.date!.toISOString().slice(0, 10); (byDate.get(d) || byDate.set(d, []).get(d)!).push(i); }
