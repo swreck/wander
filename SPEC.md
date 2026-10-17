@@ -1673,6 +1673,11 @@ social media vision of a visual flow… It might be an option when you see a pic
   ("her booking for it: LeTable de Joel Robuchon - 1F"): her Oct 17 day plan says Gastronomy, her Dining Resos tab books
   La Table in the same château, and Ken: "we're at la table". "Her tabs differ" stays on the line.
 - A "no" is searched once more by her line's own words, and asked again after a day.
+- **Photos on every day** (Oct 17; Ken: "Why aren't there pictures on the day?"). On a day without her detailed plan,
+  each booking, meal, stay, tour and check-in/out line shows its place's checked photo (the one Play shows); on a
+  Backroads day their stops are listed with their photos and lengths; tonight's hotel shows its photo. A line of her
+  plan that names a place with no Maps link ("…at Bizen KIBIDO") is looked up by the place her words name, in the day's
+  town — for its photo only, never a Maps link; the same-place check decides.
 
 **A day that follows another list of hers** (Oct 17). Ken, sending her Google Maps list "Tokyo Day 3": "Adjust this day
 on wander to reflect these places. Remove existing wander places not on the Google map. (Ie, treat as a replacement
@@ -2386,8 +2391,16 @@ Trip notes are kept word for word, the original always kept. The design for late
   "spoken" for a spoken note). Talk keeps listening through the iPhone's pauses until you tap stop, and the screen stays
   on while it listens or while you're writing (§7.5).
 - **Just me or the trip**: each new note starts as "Just me"; sharing is per note.
-- **About**: a place on the trip, "Backroads", or "Japan overall", on the phone's own list. A new note starts at where
+- **The day and place in one line** (Oct 17, fresh notes audit: two dropdowns above the box read as a form): "For Sat,
+  Oct 17, today · Tokyo · change"; "change" brings the Day and Place choices.
+- **Place**: a place on the trip, "Backroads", or "Japan overall", on the phone's own list. A new note starts at where
   you are once you've landed; before that, "Japan overall".
+- **Typing while the microphone listens** stops the listening. **No signal**: the note is kept on the phone, waiting,
+  and the waiting card goes as soon as Wander has it.
+- **Scout** keeps a note when told something, finds notes by what they're about, and changes one of the asker's own
+  notes (its words, or who sees it) when asked; it never says someone "hasn't written" something — it sees only what
+  they've shared. Taking a note out is on the Notes tab.
+- Today's page has "✎ A note about today" near its top, beside the one at its foot.
 - **Day**: any trip day, or "No particular day" (Oct 13). Ken: "there also should be a button on each day page that says,
   add a note for this day". About follows the day's town unless chosen. Before 4 AM the night belongs to the evening, so
   notes about tonight's dinner written after midnight stay with tonight. A date Wander set itself moves on with the
@@ -2396,11 +2409,12 @@ Trip notes are kept word for word, the original always kept. The design for late
 
 ### 9.2 Reading notes
 
-Under the search box: **Everyone's · Mine · Others' · Scout** (Scout: only what Scout kept at your asking; Ken, Oct 13:
+Under the search box: **Everyone's · Mine · Shared · Scout** (Scout: only what Scout kept at your asking; Ken, Oct 13:
 "Memory notes works. Add scout to this view") and **Newest first · Trip order**. Trip order reads the trip as it
 happened: Japan overall first, then each place in the order the trip reaches it, Backroads in its week. Each note says
-who wrote it, where, the day (one tap to that day) and when; a note written at home says "your time". Long notes fold.
-Search marks the words found.
+who wrote it, where, the day (one tap to that day) and when; one written on another date says "written Fri, Oct 16,
+5:52 PM". Long notes fold. Search marks the words found; when nothing matches, "Ask Scout — it finds a note by what it's
+about ›".
 
 ### 9.3 Changing, sending, exporting
 

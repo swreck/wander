@@ -41,7 +41,7 @@ export function placeOf(label: string): string | null {
  * is that night's stay (hotel: its Maps search), and no link when Wander can't tell which (round 11: "Strict
  * Formalwear Prep at the Hotel" searched Maps for any hotel in Tokyo, not the Imperial)
  */
-export interface MapContext { hotel?: string | null; dayWords?: string; bookings?: GuideItem[] }
+export interface MapContext { hotel?: string | null; dayWords?: string; bookings?: GuideItem[]; city?: string | null }
 export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   const hotel = ctx.hotel ?? null;
   // A line with choices ("Lunch") isn't a place — each choice is (round 6: "Test lunch, Kyoto")
@@ -71,6 +71,28 @@ export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   if (p && hotel && bare(hotel).includes(bare(p))) return mapsLink(hotel);
   return p ? mapsLink(`${p}, ${areaOf(b, ctx.dayWords)}Japan`) : null;
 }
+/**
+ * The words to look a line's PHOTO up by: its Maps search, or — when her line names a place but Wander gives it no Maps
+ * link ("2:00 PM Confirmed visit with Yosuke Kimura at Bizen KIBIDO", "Hidden Kyoto E-Biking Tour") — the place her words
+ * name, in her day's town. Only for the photo: Wander's same-place check decides whether any photo shows (a stroll or
+ * "flexible time" gets none), and no Maps link is made from it (Ken, Oct 17: "Why aren't there pictures on the day?";
+ * Oct 7 and Oct 25 had none at all).
+ */
+export function photoQueryOf(b: GuideItem, ctx: MapContext = {}): string | null {
+  if (choicesOf(b).length || TRAVEL.test(b.title)) return null;
+  const q = mapsQueryOf(planMapHref(b, ctx));
+  if (q) return q;
+  if (NOT_A_PLACE.test(b.title.trim()) || /^(tabs differ|flexible|free time|back in|after|before|start making|begin heading)/i.test(b.title.trim())) return null;
+  const t = b.title.replace(/^[^\p{L}\p{N}]+/u, "").replace(/^[A-Z][A-Z &-]+\s+[–:-]\s+/, "").trim();
+  const at = t.match(/\b(?:at|visit to|visit)\s+(?:the\s+)?([A-Z][^,;:()—–]*)/)?.[1];
+  const core = (at || t.split(/\s+[—–]\s+|:\s+|\s+\+\s+/)[0]).replace(/[.,;]+$/, "").trim();
+  // (a name, not a sentence: capitalised, a few words)
+  if (!/[A-Z]/.test(core) || core.split(/\s+/).length > 7) return null;
+  // (the day's city when her tab's name gives none — "Inside the Bizen Studio, Japan" found a studio in Okayama Castle)
+  const area = areaOf(b, ctx.dayWords) || (ctx.city ? `${ctx.city}, ` : "");
+  return `${core}, ${area}Japan`;
+}
+
 /** Her booking that day for the same line (the same time, and her words name it again) */
 const bookingFor = (b: GuideItem, ctx: MapContext): GuideItem | null => (ctx.bookings || []).find((m) => m.time === b.time && saidAgain(b, m)) || null;
 
@@ -112,8 +134,7 @@ export const TRAVEL = /^\W*(taxi|train|bus|shuttle|ride|drive|board|transfer|con
  *  named stop), each place once, on the first of its lines. For Home's list (Oct 16: "50-100% further" toward the visual). */
 export function useLinePhotos(tripId: string | null, cityId: string | null | undefined, blocks: GuideItem[], ctx: MapContext): (b: GuideItem) => PlaceHit | null {
   const queries = useMemo(() => blocks.map((b) => {
-    if (choicesOf(b).length || TRAVEL.test(b.title)) return null;
-    const query = mapsQueryOf(planMapHref(b, ctx));
+    const query = photoQueryOf(b, ctx);
     return query ? { id: b.id, query, line: photoLineOf(b, ctx) } : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }).filter((x): x is { id: string; query: string; line: string } => !!x), [blocks.map((b) => b.id).join(), ctx.hotel, ctx.dayWords, (ctx.bookings || []).map((m) => m.id).join()]);

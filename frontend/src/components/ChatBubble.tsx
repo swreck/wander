@@ -2012,7 +2012,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                     as plain words, to paste anywhere */}
                 {msg.role === "assistant" && !msg.error && !msg.quiet && (
                   <div className="-mb-1.5 flex flex-wrap gap-x-5">
-                    {hasSources(msg.sources) && (
+                    {/* (not under a short "In your Notes for today — just you": there's nothing to source — fresh notes audit) */}
+                    {hasSources(msg.sources) && !((msg.actions || []).some((a) => /^In your Notes/.test(a)) && msg.text.length < 200) && (
                       <button onClick={() => { sourcesTipDone(); setSourcesOf(msg.sources!); }}
                         className="min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">
                         Sources
@@ -2233,7 +2234,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               // Stays open while Scout answers: the next question can be typed now (Send waits for the answer)
               // Short enough for one line on a 375pt phone (round 12: "…back online" was cut off); the line above
               // the box says Scout answers once the signal is back
-              placeholder={!online ? "No signal right now" : sending ? "Your next question…" : files.length ? "Ask about it…" : "Ask about the trip…"}
+              // (listening, said in words as Notes does — the mic only turned pink; fresh notes audit, Oct 17)
+              placeholder={listening ? "Listening — tap the mic again when you're done" : !online ? "No signal right now" : sending ? "Your next question…" : files.length ? "Ask about it…" : "Ask about the trip…"}
               aria-label="Ask Scout about the trip"
               rows={1}
               className="flex-1 min-h-[44px] bg-[#f0ebe3] rounded-xl px-3.5 py-2.5 text-[16px] text-[#3a3128] placeholder:text-[#6b5d4a] outline-none focus:ring-2 focus:ring-[#514636]/20 disabled:opacity-50 resize-none"

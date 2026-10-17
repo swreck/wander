@@ -75,6 +75,9 @@ export default function NotesPage() {
   const [storyLater, setStoryLater] = useState(() => { try { return Number(localStorage.getItem(STORY_LATER) || 0) > Date.now(); } catch { return false; } });
   const [showSaved, setShowSaved] = useState(false);
   const [listening, setListening] = useState(false);
+  // (the day and place it's about, said in one line until "change" is tapped — two labelled dropdowns above the box read
+  // as a form; fresh notes audit, Oct 17)
+  const [whenOpen, setWhenOpen] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<VoiceHandlers | null>(null);
   const [voiceQuiet, setVoiceQuiet] = useState(false);
@@ -181,6 +184,14 @@ export default function NotesPage() {
     window.addEventListener("focus", onShow);
     return () => { clearInterval(every); document.removeEventListener("visibilitychange", onShow); window.removeEventListener("focus", onShow); };
   }, [tripId, waiting.length, load]);
+  // …and the moment Wander has sent what was waiting (App's replay): the card said "waiting for signal" for 20 s after
+  // the note had gone, under "You're back — caught up on 1 thing" (fresh notes audit, Oct 17)
+  useEffect(() => {
+    if (!tripId) return;
+    const synced = () => { load(tripId).catch(() => { /* next time */ }); };
+    window.addEventListener("wander:offline-synced", synced);
+    return () => window.removeEventListener("wander:offline-synced", synced);
+  }, [tripId, load]);
 
   // A draft typed or said before Wander closed comes back
   // (with the day it was about — not whatever day it is when Wander opens again)
@@ -477,7 +488,7 @@ export default function NotesPage() {
     const when = n.dayDate ? `${dayWords(n.dayDate)}${n.city ? `, ${n.city}` : ""}` : "";
     const r = await sendCopy(`${n.tidied || n.text}\n\n— ${n.authorName}${when ? `, ${when}` : ""}`, "A note from the trip");
     if (r === "copied") setLine((l) => ({ ...l, [n.id]: "The words are copied — paste them into a message." }));
-    if (r === "failed") setLine((l) => ({ ...l, [n.id]: "This phone wouldn't share or copy them — try again?" }));
+    if (r === "failed") setLine((l) => ({ ...l, [n.id]: "This phone wouldn't share or copy it. Press and hold the words to copy them instead." }));
   }
 
   async function exportAll(withScout = true) {
@@ -535,7 +546,7 @@ export default function NotesPage() {
     const d = new Date(n.createdAt);
     const phoneDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     return n.dayDate && n.dayDate !== phoneDay
-      ? `written ${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}, ${timeOf(n.createdAt)} your time`
+      ? `written ${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}, ${timeOf(n.createdAt)}`
       : timeOf(n.createdAt);
   };
 
@@ -572,7 +583,14 @@ export default function NotesPage() {
                   whole — the phone's own list, one tap (Ken, Oct 2) */}
               {/* Which day it's about: today, or any trip day — a note written later about an earlier day (Ken, Oct 13: a
                   day's "+ Add a note for this day", "a date picker on the notes page", or Scout). The place follows the day. */}
-              {days.length > 0 && (
+              {!whenOpen && (
+                <p className="mt-1 text-[13px] text-[#6b5d4a] flex flex-wrap items-center gap-x-1.5">
+                  <span>{day ? `For ${dayWords(day)}${day === today ? ", today" : ""}` : "For no particular day"} · {aboutPlace}</span>
+                  <button type="button" onClick={() => setWhenOpen(true)} aria-label="Change the day or place this note is about"
+                    className="min-h-[44px] text-[#514636] underline underline-offset-2">change</button>
+                </p>
+              )}
+              {whenOpen && days.length > 0 && (
                 <label className="flex items-center gap-2 mt-2 text-[13px] text-[#514636]">
                   <span className="text-[#6b5d4a]">Day</span>
                   <select value={day ?? ""} onChange={(e) => { setDay(e.target.value || null); noDayChosen.current = !e.target.value; setPlace(null); }} aria-label="Which day this note is about"
@@ -582,16 +600,23 @@ export default function NotesPage() {
                   </select>
                 </label>
               )}
-              <label className="flex items-center gap-2 mt-1 text-[13px] text-[#514636]">
-                <span className="text-[#6b5d4a]">About</span>
-                <select value={aboutPlace} onChange={(e) => setPlace(e.target.value)} aria-label="What this note is about"
-                  className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2 text-[#3a3128]">
-                  {places.map((p) => <option key={p.name} value={p.name}>{p.name}{p.name === herePlace && inJapan ? " — where you are" : ""}</option>)}
-                  {!places.some((p) => p.name === aboutPlace) && <option value={aboutPlace}>{aboutPlace}</option>}
-                </select>
-              </label>
+              {whenOpen && (
+                <label className="flex items-center gap-2 mt-1 text-[13px] text-[#514636]">
+                  <span className="text-[#6b5d4a]">Place</span>
+                  <select value={aboutPlace} onChange={(e) => setPlace(e.target.value)} aria-label="Which place this note is about"
+                    className="min-h-[44px] text-[16px] bg-[#f0ebe3] rounded-lg px-2 text-[#3a3128]">
+                    {places.map((p) => <option key={p.name} value={p.name}>{p.name}{p.name === herePlace && inJapan ? " — where you are" : ""}</option>)}
+                    {!places.some((p) => p.name === aboutPlace) && <option value={aboutPlace}>{aboutPlace}</option>}
+                  </select>
+                </label>
+              )}
 
-              <textarea ref={boxRef} value={text} onChange={(e) => { setText(e.target.value); if (result?.kind !== "error") setResult(null); }}
+              {/* (typing while it listens stops the listening: the two ran together mid-word — "We fo Dinner at seven…und
+                  a tiny…"; fresh notes audit, Oct 17) */}
+              <textarea ref={boxRef} value={text} onChange={(e) => {
+                  if (listening && voiceLiveRef.current) { stopVoice(recognitionRef.current ?? undefined); voiceLiveRef.current = false; setListening(false); }
+                  setText(e.target.value); if (result?.kind !== "error") setResult(null);
+                }}
                 rows={4} placeholder={listening ? "Listening — tap Stop when you're done" : "What's worth remembering?"}
                 aria-label="Your note"
                 // (answering Scout's evening question: ready to write — tester t4)
@@ -720,7 +745,8 @@ export default function NotesPage() {
               {notes.length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
                   <div role="radiogroup" aria-label="Whose notes" className="flex rounded-xl bg-[#f0ebe3] p-0.5">
-                    {([["all", "Everyone's"], ["mine", "Mine"], ["others", "Others'"], ["scout", "Scout"]] as const).map(([k, label]) => (
+                    {/* ("Others'" read oddly as a button — fresh notes audit, Oct 17) */}
+                    {([["all", "Everyone's"], ["mine", "Mine"], ["others", "Shared"], ["scout", "Scout"]] as const).map(([k, label]) => (
                       <button key={k} role="radio" aria-checked={view.whose === k} onClick={() => changeView({ whose: k })}
                         className={`min-h-[44px] px-3 rounded-lg ${view.whose === k ? "bg-white text-[#3a3128] shadow-sm" : "text-[#6b5d4a]"}`}>{label}</button>
                     ))}
@@ -744,6 +770,14 @@ export default function NotesPage() {
                     : view.whose === "mine" ? "You haven't written a note yet — the box above is yours."
                     : othersCount === 0 ? "Nobody else has shared a note with the trip yet." : "Nothing here."}
                 </p>
+              )}
+              {/* (search looks for those letters; Scout finds a note by what it's about — "the knife shop" found a note of
+                  hers about Kama-asa; fresh notes audit, Oct 17: the empty search was a dead end) */}
+              {notes.length > 0 && shown.length === 0 && query.trim() && (
+                <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `Find my note about ${query.trim()}` } }))}
+                  className="mt-1 min-h-[44px] text-sm text-[#514636] underline underline-offset-2 text-left">
+                  Ask Scout — it finds a note by what it's about ›
+                </button>
               )}
 
               {groups.map(({ place: g, list }) => (
