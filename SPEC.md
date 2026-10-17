@@ -2375,6 +2375,13 @@ Trip notes are kept word for word, the original always kept. The design for late
 ### 9.1 Writing a note
 
 - **Where**: the Notes tab; "+ Add a note for this day" on every day page; Scout's evening question; telling Scout.
+- **Scout asks each night** (Oct 17; Ken: "It's not even reaching me!", then "Ask for notification permission when anyone
+  opens next… ask if you can ask each night. Options: yes, no, ask me again tomorrow"). On the next opening during the
+  trip, a phone that hasn't decided sees on Home: "Can I ask you each night what's worth remembering from the day?" —
+  Yes (the iPhone's own box), No (final), Ask me again tomorrow. With a yes, at 9 PM (10 PM when the plan runs past 7:30)
+  a notification, "Anything worth remembering from today?", opens Notes for that day — once a night, not on the trip's
+  last day or a day you fly, not when you've written about the evening already. Home's evening question asks the same
+  in the app; a note written earlier in the day no longer puts it away.
 - **Write or talk**. Every word is kept exactly and read back with its count ("Saved — 142 words, every one kept";
   "spoken" for a spoken note). Talk keeps listening through the iPhone's pauses until you tap stop, and the screen stays
   on while it listens or while you're writing (§7.5).

@@ -22,6 +22,7 @@ import FaceIdSetup from "../components/FaceIdSetup";
 import { warmGuideData } from "../lib/guideData";
 import TripGlance from "../components/TripGlance";
 import EveningQuestion from "../components/EveningQuestion";
+import EveningNudgeOffer from "../components/EveningNudgeOffer";
 import WelcomeOnce from "../components/WelcomeOnce";
 import LeavingSoonCard from "../components/LeavingSoonCard";
 import SafetyTipsNote from "../components/SafetyTipsNote";
@@ -701,6 +702,12 @@ export default function TripOverview() {
             Face ID key made here in Safari is the one the Home Screen app signs in with — proven on her iPhone) */}
         {settingUpHere && <FaceIdSetup variant="card" />}
         {settingUpHere && faceIdHere && <AddToHomeScreen variant="card" />}
+        {/* Scout asks, on the next opening, whether it may ask each night (Ken, Oct 17: "Ask for notification permission
+            when anyone opens next… Options: yes, no, ask me again tomorrow") — during the trip, its last day aside */}
+        <EveningNudgeOffer className="mb-3" today={trip?.startDate && trip?.endDate ? (() => {
+          const d = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+          return d >= String(trip.startDate).slice(0, 10) && d < String(trip.endDate).slice(0, 10) ? d : null;
+        })() : null} />
         {/* Scout's evening question — after 6 PM on a trip day, once (Oct 1 2026) */}
         <EveningQuestion tripId={trip?.id} className="mb-3" />
         {/* Something new on Maybes from someone else — one quiet line (Oct 2 2026) */}

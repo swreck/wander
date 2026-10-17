@@ -16,6 +16,26 @@ export function canOfferBuzz(): boolean {
   try { if (localStorage.getItem(NO_KEY)) return false; } catch { /* unreadable: offer */ }
   return true;
 }
+/** The evening nudge's own offer on Home (Oct 17): its "No thanks" is its own — a "Not now" to Scout's buzz isn't a no
+ *  to this */
+const NUDGE_NO_KEY = "wander:nudge-declined";
+const NUDGE_LATER_KEY = "wander:nudge-later";
+/** today: the trip's date now ("2026-10-17") — "Ask me again tomorrow" holds it back until the date has moved on */
+export function canOfferNudge(today: string): boolean {
+  if (!supported() || Notification.permission !== "default") return false;
+  try {
+    if (localStorage.getItem(NUDGE_NO_KEY)) return false;
+    const later = localStorage.getItem(NUDGE_LATER_KEY);
+    if (later && later >= today) return false;
+  } catch { /* unreadable: offer */ }
+  return true;
+}
+export function declineNudge() {
+  try { localStorage.setItem(NUDGE_NO_KEY, new Date().toISOString()); } catch { /* private: the offer may come again */ }
+}
+export function nudgeTomorrow(today: string) {
+  try { localStorage.setItem(NUDGE_LATER_KEY, today); } catch { /* private: the offer may come again */ }
+}
 export function declineBuzz() {
   try { localStorage.setItem(NO_KEY, new Date().toISOString()); } catch { /* private: the offer may come again */ }
 }

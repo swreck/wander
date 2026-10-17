@@ -241,4 +241,6 @@ app.listen(PORT, async () => {
   startHelloWarmer();
   // The storm watch for each traveler, made ahead every few minutes (stormWatch.ts)
   import("./services/stormWatch.js").then((m) => m.startWatchWarmer()).catch(() => {});
+  // Scout's evening question on the lock screen at 9 PM, for the phones that allowed it (eveningNudge.ts)
+  import("./services/eveningNudge.js").then((m) => m.startEveningNudge()).catch(() => {});
 });

@@ -19,7 +19,10 @@ function askFor(g: TripGuideData, tripId: string, me: string | null): string | n
   const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hourCycle: "h23" }).format(new Date()));
   let dismissed = false;
   try { dismissed = localStorage.getItem(`wander:evening-question:${today}`) === "done"; } catch { /* storage off */ }
-  const wroteToday = (savedCopy(tripId)?.notes || []).some((n) => n.mine && n.dayDate === today);
+  // (written about the evening: a note from this question, or one about today kept after 6 PM — a note from the morning
+  // put it away all day: Ken, Oct 17, "It's not even reaching me!", who writes notes most days)
+  const sixPm = new Date(`${today}T18:00:00${tz === "Asia/Tokyo" ? "+09:00" : "Z"}`).getTime();
+  const wroteToday = (savedCopy(tripId)?.notes || []).some((n) => n.mine && n.dayDate === today && (n.source === "evening" || new Date(n.createdAt).getTime() >= sixPm));
   // (not on the last day — that evening is the flight home; it asked above "Should be in the air"; tester k1)
   const lastDay = [...tripDays].sort().pop();
   // …nor the evening you land (Julie's first night: it stood where the way to the hotel should be; round 15)
