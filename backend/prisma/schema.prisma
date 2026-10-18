@@ -134,8 +134,45 @@ model Trip {
   expenses          TripExpense[]
   expenseLog        TripExpenseLog[]
   photos            TripPhoto[]
+  alerts            TripAlert[]
 
   @@map("trips")
+}
+
+// ── "Let everyone know" (Oct 18 2026) ─────────────────────────
+// Ken: "Alert on next login function from anyone using anything to scout like 'let everyone know' with 'got it' and
+// 'remind me' as options. This is for logistics not general messaging." Told to Scout by anyone on the trip; each other
+// member sees it the next time they open Wander, until they tap Got it ("Remind me" shows it again the next day). Gone
+// after 3 days, or once its moment has passed. The sender, or the trip's first member, can take it back (hidden, never
+// deleted).
+model TripAlert {
+  id           String    @id @default(cuid())
+  tripId       String    @map("trip_id")
+  fromId       String    @map("from_id")              // who asked Scout to tell everyone
+  fromName     String    @map("from_name")            // as named then
+  text         String                                  // the words shown, as Scout confirmed them to the sender
+  until        DateTime?                               // when its moment has passed ("bus leaves at 8:15"): shown no more
+  createdAt    DateTime  @default(now()) @map("created_at")
+  withdrawnAt  DateTime? @map("withdrawn_at")
+
+  trip  Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  seen  TripAlertSeen[]
+
+  @@index([tripId])
+  @@map("trip_alerts")
+}
+
+model TripAlertSeen {
+  id          String   @id @default(cuid())
+  alertId     String   @map("alert_id")
+  travelerId  String   @map("traveler_id")
+  state       String                                  // "got" | "later"
+  at          DateTime @default(now())
+
+  alert TripAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, travelerId])
+  @@map("trip_alert_seen")
 }
 
 // ── Trip notes (Oct 1 2026) ───────────────────────────────────

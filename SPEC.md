@@ -1533,6 +1533,12 @@ next, each with its place's checked photos (one or two) and Maps; Next also has 
 (the Today tab's page). The day's list, its photos and notes are Today's, not Next's. "Now, in Larisa's plan · …" opens
 Today at that line.
 
+**Pictures on Next** (Oct 18; Ken, on the Nikko day's Next with only "Tonight" and "Tomorrow": "Next page should have
+pictures"): a booking, a meal or a tour as the Next card has its own checked photo, as the day's list does. When nothing
+with a time is left on a Backroads day, Backroads' stops for the day come first, "Today with Backroads, in their order",
+side by side with their photos and no times (their itinerary has none); a tap opens a stop's photos. Tonight's hotel
+shows its photo.
+
 **How Wander decides what's next.** One reckoning for Next, Home and the day screen: the train you're on; otherwise the
 sooner of your next booked train and her next timed line for you. A plan added in Wander counts. "This morning" lines
 show before the first clock time. Once you've reached tonight's place (the evening, tonight's check-in time, or the
@@ -2176,6 +2182,12 @@ for word"). Escape closes the Sources panel, and only it.
 - **Showing you things**: "Show me the day Andy and Julie arrive", "show me the deadlines": Scout opens the screen, says
   what it opened, and steps down to the slim bar. ↩ Back, a typed or spoken "back" and the phone's Back each go one
   screen. Scout never moves the screen while you're typing.
+- **The box** (Oct 18; Ken: "ability to include a new line via return, etc. Just like this field with you"): on a phone,
+  Return makes a new line and the arrow sends; at a Mac's keyboard, Return sends and Shift-Return makes a new line.
+- **Stop** (Oct 18; Ken: "should be able to stop scout thinking as I can with you… to question or edit the question"):
+  while Scout answers, the arrow is a Stop. A tap ends the answer, takes the question off the conversation and puts it
+  back in the box (with anything sent with it) to change or ask again; Wander is told, so that answer is never saved and
+  never turns up later. Anything a tool already did before the Stop stays done.
 - **The microphone**: tap to start, tap to stop; the words wait in the box for a glance and Send (Ken's choice, Oct 1).
   No auto-send, no hold-to-talk. Send stops the mic. Before the first word, after six seconds with nothing heard: "I'm
   not hearing any words yet…". Pauses in a long recording are joined with a space, and a period where the iPhone signals
@@ -2261,6 +2273,23 @@ direction of your hotel".
   hers. When it can only search, the button says so: "Maps will search for … Check it's the right place before you go."
 - **The phone's position** is sent only with a question that needs it, goes to Google only for "near me" questions,
   rounded to about 100 m, and is never stored (Ken approved, Oct 12).
+
+### 7.7a Letting everyone know
+
+Ken (Oct 18): "Alert on next login function from anyone using anything to scout like 'let everyone know' with 'got it'
+and 'remind me' as options. This is for logistics not general messaging." Anyone on the trip tells Scout ("let everyone
+know…"). Scout confirms first, in Ken's words: "Got it. Here's what I'll send: “…”", says who gets it and asks; it sends
+only on their yes, those exact words, short and in their voice, never a list of names ("a wall of text"). Each other
+member sees it whenever Wander is next on their screen (opened, or come back to), on whatever screen opens, as a card
+just above the bottom bar: "From Ken, for everyone · 10:33 AM", the words, **Got it** and **Remind me**. One at a time,
+oldest first. Got it ends it for that person; Remind me brings it back on the next day (Ken: "start with the first login
+the following day"). It's gone from everyone's screen after 3 days, or once its moment has passed: a message about a
+moment ("the bus leaves at 8:15 tomorrow") ends then (Ken: "Expires in 3 days or the moment that the moment has
+passed"). It waits while Scout's panel is up. Scout's own answers agree with what everyone has been told (asked "who are
+our guides?" after a message that the spellings may be off, the names come with that). Only logistics: a feeling or a chat Scout
+declines in a line, offering a shared note or a text. Asked "has everyone seen it?", Scout says who tapped Got it, who
+asked to be reminded and who hasn't tapped either (Wander knows only taps). The sender, or Ken, can have Scout take one
+back: hidden from everyone, never deleted. No notification is sent.
 
 ### 7.8 Weather answers
 

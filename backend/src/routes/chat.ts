@@ -1029,6 +1029,32 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "tell_everyone",
+    description: "Let everyone else on the trip know something about the trip's logistics: each of them sees it the next time they open Wander, with 'Got it' and 'Remind me'. Use when they ask: 'let everyone know…', 'tell everyone…', 'alert the group…', 'make sure everyone sees…'. Only for what the group needs to know or do: a time, a place, a meeting point, a change, a booking, a correction everyone should see. Never general messaging, chat or feelings. Rule 63.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        words: { type: "string", description: "What everyone will read, in the asker's voice, short and plain: their own words when they gave them, with only what they asked you to add." },
+        confirmed: { type: "boolean", description: "true only when the asker has just said yes to these exact words, shown to them first. Without it, nothing is sent: you show them the words." },
+        until: { type: "string", description: "Japan time, YYYY-MM-DDTHH:MM, when its moment has passed (a bus leaving at 8:15 tomorrow → that time). Only for a message about a moment; otherwise leave out (it shows for 3 days)." },
+      },
+      required: ["tripId", "words", "confirmed"],
+    },
+  },
+  {
+    name: "my_alerts",
+    description: "What the asker has told everyone through you (Ken, the trip's first member, sees everyone's), each with who has tapped Got it, who asked to be reminded, and who hasn't tapped either yet. With takeBack: take one back — hidden from everyone, never deleted; only the sender or Ken. Use for 'has everyone seen my message?', 'did Julie get it?', 'take back that message'. Rule 63.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        tripId: { type: "string" },
+        takeBack: { type: "string", description: "The id of one to take back (only when they asked)" },
+      },
+      required: ["tripId"],
+    },
+  },
+  {
     name: "tell_ken",
     description: "Pass a message about WANDER ITSELF to Ken, who builds it: a wish for something it could do, something confusing or hard to find, something that looks wrong. Use only when they ask you to: 'Tell Ken…', 'let Ken know…', 'send that to Ken', or yes to your offer to pass it on — never on your own. Their own words, exactly as they said them (leave out only 'Tell Ken'); one message per thought. Never for a personal message to Ken ('tell Ken I'll be late', 'tell Ken to meet us at 7') — that's a text from them, not you. Any picture they sent with it goes along. Rule 59.",
     input_schema: {
@@ -3936,6 +3962,52 @@ export async function executeTool(
         actionDescription: `${"text" in data ? "Changed" : "Updated"} your note “${first}”${"visibility" in data ? (after.visibility === "trip" ? " — shared with the trip" : " — just you") : ""}`,
       };
     }
+    // "Let everyone know" (Ken, Oct 18): shown to each other member at their next opening, Got it / Remind me —
+    // services/tripAlerts.ts
+    case "tell_everyone": {
+      const me = (user as any).travelerId as string | undefined;
+      if (!me) return { result: { error: "This sign-in has no person to send it from." } };
+      const member = await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: String(input.tripId || ""), travelerId: me } } });
+      if (!member) return { result: { error: "They aren't on this trip." } };
+      const words = String(input.words || "").trim();
+      if (!words) return { result: { error: "Nothing to send: ask what everyone should know." } };
+      const { tellEveryone, othersOn } = await import("../services/tripAlerts.js");
+      const others = await othersOn(input.tripId, me);
+      if (!others.length) return { result: { error: "Nobody else is on the trip yet." } };
+      const names = others.map((o) => o.name);
+      const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+      // (when its moment passes — Japan time; Ken: "Expires in 3 days or the moment that the moment has passed")
+      const untilRaw = typeof input.until === "string" ? input.until.trim() : "";
+      const until = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(untilRaw) ? new Date(`${untilRaw}:00+09:00`) : null;
+      if (untilRaw && (!until || isNaN(until.getTime()))) return { result: { error: "until must be Japan time as YYYY-MM-DDTHH:MM, or left out." } };
+      if (until && until.getTime() <= Date.now()) return { result: { error: "That moment has already passed — say so to them; nothing was sent." } };
+      const whenGone = until ? `, until ${until.toLocaleString("en-US", { timeZone: "Asia/Tokyo", weekday: "short", hour: "numeric", minute: "2-digit" })}` : "";
+      // (Ken, Oct 18: "Confirm: 'got it. Here's what I'll send: ….'" — never sent before their yes to these exact words)
+      if (input.confirmed !== true) {
+        return { result: { notSentYet: true, words, to: names,
+          say: `Nothing is sent yet. Reply with: Got it. Here's what I'll send: “${words}” — then one line: it goes to ${list} the next time each opens Wander${whenGone}; send it? Then wait for their yes. On yes, call tell_everyone again with these exact words and confirmed: true; if they change it, show the new words the same way.` } };
+      }
+      const a = await tellEveryone(input.tripId, me, user.displayName || "Someone", words, until);
+      if (!a) return { result: { error: "Nothing to send." } };
+      return {
+        result: { sent: true, id: a.id, words: a.text, to: names,
+          say: `One short line: sent — ${list} will see it the next time each opens Wander${whenGone}. Don't quote it again. They can ask you whether everyone has seen it, or to take it back.` },
+        actionDescription: `Everyone will see this when they next open Wander: “${a.text.length > 80 ? a.text.slice(0, 80) + "…" : a.text}”`,
+      };
+    }
+    case "my_alerts": {
+      const me = (user as any).travelerId as string | undefined;
+      if (!me) return { result: { error: "This sign-in has no person." } };
+      const { sentOn, takeBack } = await import("../services/tripAlerts.js");
+      if (typeof input.takeBack === "string" && input.takeBack) {
+        const r = await takeBack(input.takeBack, me);
+        if (r === "none") return { result: { error: "No message with that id — list them first." } };
+        if (r === "not-yours") return { result: { error: "Only the person who sent it, or Ken, can take it back." } };
+        return { result: { takenBack: true, say: "One line: it's taken back — nobody will see it now (anyone who already tapped Got it has read it)." }, actionDescription: "Taken back: nobody will see it now" };
+      }
+      const sent = await sentOn(String(input.tripId || ""), me);
+      return { result: { sent, say: sent.length ? "Say who has tapped Got it, who asked to be reminded, and who hasn't tapped either yet (noTapYet — never 'hasn't seen it': Wander only knows taps), by name, for the one they asked about (the newest when they didn't say)." : "Nothing sent to everyone yet: say so in a line." } };
+    }
     // Ken, Oct 10: telling Scout what happened today ("we came to this town because our guide drove us…") had nowhere
     // to go. Kept in their Notes, every word theirs: a note once kept "themes" instead of what he said (ChatGPT, before
     // Wander), so the words Scout passes are kept only when they are the person's own; otherwise all they said is kept.
@@ -5041,6 +5113,23 @@ router.post("/fresh", async (req: AuthRequest, res) => {
   res.json({ ok: true });
 });
 
+/** Stop: the person stopped Scout while it was answering (Ken, Oct 18: "should be able to stop scout thinking as I can
+ *  with you… to question or edit the question"). The answer stops at its next step and nothing is saved or buzzed, so
+ *  the stopped question never comes back as an answer later. Kept 10 minutes, by person and question tag. A lost line
+ *  never stops an answer: only this. */
+const stoppedAsks = new Map<string, number>();
+const stopKey = (travelerId: string, askId: string) => `${travelerId}:${askId}`;
+const wasStopped = (travelerId: string | undefined, askId: string | null) => !!travelerId && !!askId && stoppedAsks.has(stopKey(travelerId, askId));
+router.post("/stop", (req: AuthRequest, res) => {
+  const askId = typeof req.body?.askId === "string" && /^[\w-]{8,64}$/.test(req.body.askId) ? req.body.askId as string : "";
+  const travelerId = req.user?.travelerId;
+  if (!askId || !travelerId) { res.status(400).json({ error: "Which question?" }); return; }
+  const now = Date.now();
+  for (const [k, at] of stoppedAsks) if (now - at > 10 * 60_000) stoppedAsks.delete(k);
+  stoppedAsks.set(stopKey(travelerId, askId), now);
+  res.json({ ok: true });
+});
+
 router.post("/", async (req: AuthRequest, res) => {
   // (the question is saved as of when it arrived, its answer just after — so each answer stays under its own question
   // in the order they were asked, even when a later, quicker one finishes first; verify8, Oct 11)
@@ -5344,6 +5433,19 @@ router.post("/", async (req: AuthRequest, res) => {
       } catch (e: any) { console.warn("[scout] storm watch unavailable:", e.message); }
     }
 
+    // What the trip has been told through "let everyone know", still showing (services/tripAlerts): Scout's own answers
+    // agree with it — asked "who are our guides?", the names came without the spelling caveat everyone had just been told
+    // (Oct 18)
+    let toldLines: string[] = [];
+    if (tripId) {
+      try {
+        const { liveOn } = await import("../services/tripAlerts.js");
+        const told = await liveOn(tripId);
+        if (told.length) toldLines = ["TOLD TO EVERYONE (through you, still showing on their screens — keep your answers in line with these; a caveat one carries goes with what it's about, e.g. the names it says may be misspelled):",
+          ...told.map((a) => `- From ${a.fromName}, ${plainDay(new Date(a.createdAt.getTime() + 9 * 3600_000).toISOString().slice(0, 10))}: “${a.text}”`)];
+      } catch (e: any) { console.warn("[scout] told-to-everyone unavailable:", e.message); }
+    }
+
     // Build system prompt with page context
     const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
 
@@ -5490,6 +5592,7 @@ RULES:
 60. Ideas for Wander (Ken, Oct 15: "a place used most by andy and me to place screenshots and ideas to improve wander"): when Ken or Andy says "Wander idea: …" (the short way, often spoken), "For Ideas for Wander: …", "add that to Ideas", "put this in Ideas for Wander", call add_wander_idea with their words exactly (and their picture goes along). "Wander idea" means this only at the start of what they say — "an idea for dinner" or "any ideas for tonight?" is a question for you, never a post. It's theirs alone: anyone else who asks gets one line saying it's Ken and Andy's, and the offer to pass it to Ken (rule 59). "Tell Ken…" stays tell_ken, even from Ken or Andy. Never post on your own, and never move something said to you into Ideas without their asking.
 61. Who pays next (Larisa's idea, Oct 15: one couple pays for something, it's kept, and at the end the couple that paid less owes the other half the difference; "a simple button that is something like who pays next"). When someone says a couple, or anyone in it, paid for something — "we paid ¥12,400 for dinner", "Andy just spent 12400", "Larisa got the taxi, $30" — keep it with add_expense: who paid (their name, or the person talking for "we"/"I"), the amount as said, yen unless they said dollars, and what it was for if they said. Don't ask what it was for: it isn't needed. A number with no currency in Japan is yen. Then one or two lines: kept for which couple, and who pays next. "Who pays next?", "where are we on money?": money_so_far, then who pays next and what they'd pay to be even, in a line — never how much has been spent unless asked (Ken, Oct 16: "people do not want to be reminded how much they've paid. They simply want to understand the next action, which is who pays next and what the difference is"). A payment wholly for one couple — "Julie paid ¥5,000 for a jacket that's just Larisa's" — is kept with forCouple (that couple owes it back in full); anything else is shared half and half (leave forCouple out). A payment kept by mistake: remove_expense (only who kept it, or Ken). One taken away by mistake ("put the coffee back"): put_back_expense, from money_so_far's takenAway list (the same people can); it counts again. A photo of a receipt sent with who paid ("Ken and Larisa paid this", "we got the taxi"): read its grand total (合計, never the tax line) and add_expense with receipt: true, what it was for read from it in a few plain words ("Taxi") — it's a payment, not a paper; if it's unclear who paid, ask in one line. Never read a card number off it. A payment that's wrong — the amount, yen or dollars, which couple paid, or what it was for ("make the coffee ¥4,300", "that was Julie, not me", "it was for the taxi"): change_expense, giving only what changes (the same people can). Budget's page: tap a payment to change it (who paid, the amount, what for, who it's for, or remove it); "Log" at the foot lists who added, changed, removed or put back what, when, and a removed payment can be put back there. Never keep money in Notes for this. If it's unclear who paid, ask in one line. It's shared by the two couples, all four see it. Say money plainly, in short sentences, without dashes.
 62. Their photos (Oct 15: each of the four keeps their own photos on the day they took them; just theirs unless shared with the trip). A photo of the trip sent with "keep this", "add this to my photos", "save these for Tuesday": keep_photo — today unless they name a day; shared only when they ask to share it; their own words about it as its caption. A receipt, bill, ticket or booking is a paper (keep_paper), not a photo; if it's unclear which, ask in one line. Never share a photo they didn't ask to share. "Did Andy share any photos?", "what photos do we have from Tuesday?": answer from THEIR PHOTOS — who, which day and time, the caption — and say they're on that day's page under "Photos from the day" (and in Play the day). You know who took a photo, when and its caption, not what it shows. Never say there are no photos when THEIR PHOTOS lists some; when it has none for that day, say none have been shared for that day yet.
+63. Letting everyone know (Ken, Oct 18: "Alert on next login function from anyone using anything to scout like 'let everyone know' with 'got it' and 'remind me' as options. This is for logistics not general messaging."): "let everyone know…", "tell everyone…", "can you alert everyone when they log in…" → tell_everyone, and never say Wander can't reach them. Only the trip's logistics: a time, a place, a meeting point, a change, a booking, a correction everyone should see (that the guides' names may be misspelled is one). Chat, jokes, greetings or feelings: say in a line that it's for the trip's logistics, and that a shared note or a text reaches them. The words: theirs when they gave them, in their voice ("I" is the sender), short, with only what they asked you to add; never news of your own, and never a list of names or a wall of text — say what's there to ask you about (Ken, Oct 18: "I do not expect to send out a message with all the names, which seems annoying and a wall of text"). Always confirm first (Ken, Oct 18: "Confirm: 'got it. Here's what I'll send: ….'"): call tell_everyone without confirmed and reply as it says; send (confirmed: true, the same words) only after their yes. A message about a moment (a bus leaving, a meeting time) gets until: that moment, Japan time; it's gone from everyone's screen then, and after 3 days in any case. "Has everyone seen it?", "did Julie get it?", "take it back" → my_alerts.
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
 
@@ -5578,6 +5681,7 @@ RULES:
       ...paperLinesNow,
       ...photoLinesNow,
       ...watchLines,
+      ...toldLines,
       notesLine,
       keptLine,
       phraseLine,
@@ -5621,6 +5725,8 @@ RULES:
     const startedAt = Date.now();
 
     for (let turn = 0; turn < 8; turn++) {
+      // (stopped by the person: no further step — services already done by a tool stay done)
+      if (wasStopped(req.user?.travelerId, askId)) break;
       const response = await scoutCreate({
         model: SCOUT_MODEL,
         // (a full answer on one place across every source, or a table of eight days, ran past 2,048 and was cut off
@@ -5884,6 +5990,8 @@ RULES:
     // A "Message for Larisa:" draft only when someone asked for one (rule 46c) — the prompt rule alone
     // still let a plain "what time should we leave for the airport?" end in a draft, and the app turns
     // that line into a Send button. Never for Larisa herself.
+    // (stopped: nothing saved, nothing buzzed, nothing sent — the phone already let it go)
+    if (wasStopped(req.user?.travelerId, askId)) { console.log(`Scout stopped by its asker after ${((Date.now() - startedAt) / 1000).toFixed(1)} s`); if (!res.headersSent) res.status(409).json({ error: "stopped" }); return; }
     finalReply = withoutUnaskedDraft(finalReply, message, history, req.user?.displayName);
     // The words and the button agree: an answer that says "tap Use my location" has the button whenever it can help
     // (Oct 12: "Is there somewhere to sit down for a coffee?" said it and never called offer_location — a button that
