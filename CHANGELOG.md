@@ -2,6 +2,32 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-18 (Sunday, the Nikko day) — Ken's four asks: Return, Stop, pictures on Next, letting everyone know
+
+Held until Ken and I agree to deploy (Ken: "All can be batched until we agree to deploy. This is to minimize testing and
+cost.").
+
+### Added
+- Scout's Stop: while Scout answers, the arrow is a Stop; the question goes back into the box, and Wander is told so the
+  answer is never saved (POST /api/chat/stop; the answer loop checks it each step). Scout's panel. SPEC §7.5.
+- Letting everyone know: tell_everyone and my_alerts (Scout, rule 63); trip_alerts and trip_alert_seen tables; GET
+  /api/alerts/pending, POST /api/alerts/:id/seen; the card above the bottom bar (TripAlerts) with Got it / Remind me.
+  SPEC §7.7a.
+- Pictures on Next: Backroads' stops with photos when nothing timed is left; tonight's hotel photo; a booking's photo on
+  the Next card. SPEC §2.4.
+
+### Changed
+- Notes (Ken: "adjust notes so I can change after saving… a general note like the latest sake brewery note allowing me
+  to add details during the visit… Edit is base requirement"): each of your notes has **Add to it** (your words go under
+  the note with the time, "3:05 PM — …") and **Edit** (the whole note in the box, the cursor at its end), first and
+  underlined. Scout's change_my_note takes `add` ("add to my sake note: …"). The first wording is always kept. SPEC §9.
+- Scout's box on a phone: Return makes a new line; the arrow sends. At a Mac, Return still sends. SPEC §7.5.
+- Letting everyone know, Ken's decisions: Scout confirms the words first ("Got it. Here's what I'll send: …"); Remind me
+  returns the next day; gone after 3 days or when its moment passes (`until`, trip_alerts.until); looked for whenever
+  Wander is on the screen again; Scout's answers carry what everyone was told. SPEC §7.7a.
+- Backroads' itinerary is now their travel planner for this departure (data, recorded Oct 18 ~11 AM): Scout says its
+  days by date, never "Day 4"; no page numbers for a web page. Oct 23's summary says Backroads' ride and her "hike" line.
+
 ## 2026-10-17 (Saturday, ~11:30 PM in Japan) — Scout gives the weather hour by hour, and checks another source when asked
 
 Ken, the night before the Nikko ride, asked the temperature "where we start biking from 1pm to 6pm". Scout said the

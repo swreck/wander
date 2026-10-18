@@ -709,6 +709,8 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // One question at a time, known the instant it's sent (the `sending` state a callback holds can be from before)
   const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  /** the question the person stopped (its tag), so its abort isn't read as a lost line */
+  const stoppedRef = useRef<string | null>(null);
   // Looking for answers the phone lost the line to (verify8, Oct 11: the look lived only inside one send, so a reload,
   // asking again, a stalled line or a long answer all ended in "couldn't" though Wander had the answer). Each waiting
   // line in the conversation has its own look, keyed by the line's time; it ends when the answer is found, when the
@@ -1281,6 +1283,21 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       clearTimeout(timeoutId);
       clearInterval(peeking);
       clearTimeout(peek.cut);
+      // (stopped by the person: the question comes off the conversation and back into the box, with what was sent with
+      // it, to change or ask again — nothing said about it; Ken, Oct 18)
+      if (stoppedRef.current === askId) {
+        stoppedRef.current = null;
+        setMessages((prev) => {
+          const out = prev.filter((m) => !(m.role === "user" && m.askId === askId));
+          // (a Try again keeps its earlier copy of the question: that one comes off too when it's the last thing said)
+          const last = out[out.length - 1];
+          return retryText && last?.role === "user" && sameWords(last.text, text) ? out.slice(0, -1) : out;
+        });
+        setInput((cur) => (cur.trim() ? `${text}\n${cur}` : text));
+        if (sendFiles.length) setFiles(sendFiles);
+        requestAnimationFrame(() => { const box = inputRef.current; if (box) { box.focus(); const end = box.value.length; try { box.setSelectionRange(end, end); } catch { /* ignore */ } } });
+        return;
+      }
       // (a stalled line, and the answer was already saved: shown as if it had come — the stalled request is let go — and
       // the screens read again, in case Scout added something)
       if (peek.found) {
@@ -1337,6 +1354,18 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
       abortRef.current = null;
     }
   }, [input, sending, context, onDataChanged, messages, files, answerHello, startLook]);
+
+  // Stop: while Scout answers, the send arrow is a Stop (Ken, Oct 18: "should be able to stop scout thinking as I can
+  // with you… to question or edit the question"). Wander is told first, so the answer isn't saved and never turns up
+  // later; then the phone lets the question go (sendMessage's catch puts it back in the box).
+  const stopAnswer = useCallback(() => {
+    const c = abortRef.current, askId = retryAskRef.current;
+    if (!c || !sendingRef.current || !askId) return;
+    stoppedRef.current = askId;
+    const token = localStorage.getItem("wander_token");
+    void fetch("/api/chat/stop", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ askId }), keepalive: true }).catch(() => { /* the answer may still be saved: it's found only if asked again */ });
+    c.abort();
+  }, []);
 
   // "Use my location" under an answer that needed it (Oct 12): the phone is asked — the iPhone's box comes up when it
   // hasn't been allowed since Wander opened — and the same question goes again with where it is. No position: said
@@ -1452,8 +1481,11 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     };
   }, []);
 
+  // On a phone, Return is a new line and the arrow sends (Ken, Oct 18: "ability to include a new line via return, etc.
+  // Just like this field with you"); at a Mac's keyboard, Return sends and Shift-Return is a new line
+  const returnSends = !window.matchMedia?.("(pointer: coarse)").matches;
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (returnSends && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       sendMessage();
     }
@@ -1462,7 +1494,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
   // Catches insertLineBreak on iOS when keyDown doesn't fire
   const handleBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const nativeEvent = e.nativeEvent as InputEvent;
-    if (nativeEvent.inputType === "insertLineBreak") {
+    if (returnSends && nativeEvent.inputType === "insertLineBreak") {
       e.preventDefault();
       sendMessage();
     }
@@ -2232,7 +2264,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               onChange={(e) => { setInput(e.target.value); autoResize(); }}
               onKeyDown={handleKeyDown}
               onBeforeInput={handleBeforeInput}
-              enterKeyHint="send"
+              enterKeyHint={returnSends ? "send" : "enter"}
               // Stays open while Scout answers: the next question can be typed now (Send waits for the answer)
               // Short enough for one line on a 375pt phone (round 12: "…back online" was cut off); the line above
               // the box says Scout answers once the signal is back
@@ -2278,17 +2310,37 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                 </svg>
               </button>
             )}
-            <button
-              type="submit"
-              disabled={sending || (!input.trim() && !files.length) || !online || filesReading > 0}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-30"
-              style={{ backgroundColor: "#514636", color: "#faf8f5" }}
-              aria-label="Send message"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-              </svg>
-            </button>
+            {sending ? (
+              // (the tap mustn't take the focus from the box: the question comes back into it)
+              // (its own button, never the send arrow changed: one element, its type switched to "submit" inside the tap,
+              // sent the question straight back — b90-walk B)
+              <button
+                key="stop"
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => { e.preventDefault(); stopAnswer(); }}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors"
+                style={{ backgroundColor: "#514636", color: "#faf8f5" }}
+                aria-label="Stop Scout's answer"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <rect x="5" y="5" width="14" height="14" rx="2" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                key="send"
+                type="submit"
+                disabled={(!input.trim() && !files.length) || !online || filesReading > 0}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-30"
+                style={{ backgroundColor: "#514636", color: "#faf8f5" }}
+                aria-label="Send message"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                </svg>
+              </button>
+            )}
           </div>
         </form>
       </div>

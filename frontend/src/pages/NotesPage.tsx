@@ -91,6 +91,9 @@ export default function NotesPage() {
   // the untidied, lower-case words instead of the ones being read)
   // (day: a saved note moved to another day — fresh re-check, Oct 17: "Once saved, a note's day cannot be changed")
   const [editing, setEditing] = useState<{ id: string; text: string; start?: string; place?: string; day?: string } | null>(null);
+  // "Add to it": more for a saved note, under it with the time (Ken, Oct 18, on the sake brewery note: "allowing me to add
+  // details during the visit… a more creative way to think of the first note also hierarchically to add more")
+  const [adding, setAdding] = useState<{ id: string; text: string } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -497,6 +500,7 @@ export default function NotesPage() {
       const r = await api.patch<{ note: TripNote }>(`/trip-notes/${n.id}`, change);
       setNotes((all) => { const next = all.map((x) => (x.id === n.id ? r.note : x)); if (tripId) keepCopy(tripId, next); return next; });
       setEditing(null);
+      setAdding(null);
       setLine((l) => ({ ...l, [n.id]: change.visibility === "trip" ? "Shared with everyone on the trip" : change.visibility === "private" ? "Just you again"
         : change.dayDate !== undefined && !change.text ? (change.dayDate ? `Now for ${dayWords(change.dayDate)}` : "Now for no particular day") : change.city && !change.text ? `Now about ${change.city}` : "" }));
     } catch {
@@ -504,6 +508,15 @@ export default function NotesPage() {
     } finally {
       setBusy(null);
     }
+  }
+
+  // An addition goes under the note's words, with when it was added: "2:40 PM — …" (and its day, when that's another day
+  // than the note was written)
+  function addTo(n: TripNote, more: string) {
+    const now = new Date();
+    const sameDay = new Date(n.createdAt).toDateString() === now.toDateString();
+    const at = now.toLocaleString("en-US", { ...(sameDay ? {} : { weekday: "short", month: "short", day: "numeric" }), hour: "numeric", minute: "2-digit" });
+    return changeNote(n, { text: `${(n.tidied || n.text).replace(/\s+$/, "")}\n\n${at} — ${more.trim()}` });
   }
 
   async function removeNote(n: TripNote) {
@@ -845,7 +858,10 @@ export default function NotesPage() {
                           </p>
                           {isEditing ? (
                             <>
-                              <textarea value={editing.text} onChange={(e) => setEditing({ ...editing, id: n.id, text: e.target.value })} rows={5} aria-label="Change the words"
+                              {/* (the whole note in view, the cursor at its end — to add a line in the middle of a visit; Oct 18) */}
+                              <textarea value={editing.text} onChange={(e) => setEditing({ ...editing, id: n.id, text: e.target.value })} aria-label="Edit the words"
+                                rows={Math.min(14, Math.max(4, editing.text.split("\n").length + Math.ceil(editing.text.length / 40)))} autoFocus
+                                onFocus={(e) => { const end = e.currentTarget.value.length; try { e.currentTarget.setSelectionRange(end, end); } catch { /* ignore */ } }}
                                 className="mt-1 w-full bg-[#f0ebe3] rounded-xl px-3 py-2 text-[16px] text-[#3a3128] outline-none resize-y" />
                               <p className="text-xs text-[#6b5d4a]">The words as first saved are kept too.</p>
                               {days.length > 0 && (
@@ -916,7 +932,19 @@ export default function NotesPage() {
                             </>
                           )}
                           {line[n.id] && <p className="text-xs text-[#6b5d4a] mt-1" role="status">{line[n.id]}</p>}
-                          {n.mine && !isEditing && (
+                          {n.mine && !isEditing && adding?.id === n.id && (
+                            <div className="mt-2">
+                              <textarea value={adding.text} onChange={(e) => setAdding({ id: n.id, text: e.target.value })} autoFocus rows={3}
+                                aria-label="Add to this note" placeholder="What else? It goes under the note, with the time."
+                                className="w-full bg-[#f0ebe3] rounded-xl px-3 py-2 text-[16px] text-[#3a3128] placeholder:text-[#6b5d4a] outline-none resize-y" />
+                              <div className="flex gap-2">
+                                <button onClick={() => addTo(n, adding.text)} disabled={!adding.text.trim() || busy === n.id}
+                                  className="min-h-[44px] px-4 rounded-xl bg-[#514636] text-white text-sm disabled:opacity-40">Add it</button>
+                                <button onClick={() => setAdding(null)} className="min-h-[44px] px-4 text-sm text-[#514636]">Cancel</button>
+                              </div>
+                            </div>
+                          )}
+                          {n.mine && !isEditing && adding?.id !== n.id && (
                             confirmRemove === n.id ? (
                               // (the question, then both answers side by side — "Keep it" sat alone far below; tester t4)
                               <div className="mt-1">
@@ -928,7 +956,11 @@ export default function NotesPage() {
                               </div>
                             ) : (
                               <div className="flex flex-wrap gap-x-4 -mb-1">
-                                <button onClick={() => setEditing({ id: n.id, text: n.tidied || n.text, start: n.tidied || n.text })} className="min-h-[44px] text-sm text-[#514636]">Change</button>
+                                {/* (the two used mid-visit first, and easy to see — Ken, Oct 18: "so I can change after saving") */}
+                                {n.source !== "scout-answer" && (
+                                  <button onClick={() => { setEditing(null); setAdding({ id: n.id, text: "" }); }} className="min-h-[44px] text-sm font-medium text-[#514636] underline underline-offset-2">Add to it</button>
+                                )}
+                                <button onClick={() => { setAdding(null); setEditing({ id: n.id, text: n.tidied || n.text, start: n.tidied || n.text }); }} className="min-h-[44px] text-sm font-medium text-[#514636] underline underline-offset-2">Edit</button>
                                 <button onClick={() => changeNote(n, { visibility: n.visibility === "trip" ? "private" : "trip" })} disabled={busy === n.id} className="min-h-[44px] text-sm text-[#514636]">
                                   {n.visibility === "trip" ? "Make it just me" : "Share with the trip"}
                                 </button>

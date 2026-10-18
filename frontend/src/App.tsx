@@ -39,6 +39,7 @@ import TellKenOffer from "./components/TellKenOffer";
 import PhraseCard from "./components/PhraseCard";
 import ShowMeAround from "./components/ShowMeAround";
 import UpdatePrompt from "./components/UpdatePrompt";
+import TripAlerts from "./components/TripAlerts";
 import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { api } from "./lib/api";
 import { notePath } from "./lib/cameFrom";
@@ -369,6 +370,8 @@ export default function App() {
               <UpdatePrompt />
               <BottomNav />
               <TellKenOffer />
+              {/* "Let everyone know": what someone told Scout for the group, at each person's next opening */}
+              <TripAlerts />
               {/* The one phrase card, opened by the bar's 日 */}
               <PhraseCard mode="sheet" />
               {/* "Show me around" — only when asked for */}

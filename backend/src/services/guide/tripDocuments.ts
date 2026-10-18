@@ -88,5 +88,9 @@ export function dayWords(doc: Pick<TripDocument, "dayOne">, day: number): string
 /** "Backroads'" / "Ken's" */
 export const whose = (name: string) => (name.endsWith("s") ? `${name}'` : `${name}'s`);
 
-/** Where one paragraph sits: "Day 1 (Sun, Oct 18) · page 4" or "Meet & depart · page 9" */
-export const placeIn = (doc: TripDocument, s: TripDocumentSection) => `${s.day ? dayWords(doc, s.day) : s.heading} · page ${s.page}`;
+/** A document with pages (a PDF) — a web page has none (Backroads' travel planner, Oct 18) */
+export const hasPages = (doc: Pick<TripDocument, "file">) => !/^https?:\/\//i.test(doc.file);
+
+/** Where one paragraph sits: "Day 1 (Sun, Oct 18) · page 4" or "Meet & depart · page 9" ("Day 1 (Sun, Oct 18)" for a
+ *  web page) */
+export const placeIn = (doc: TripDocument, s: TripDocumentSection) => `${s.day ? dayWords(doc, s.day) : s.heading}${hasPages(doc) ? ` · page ${s.page}` : ""}`;

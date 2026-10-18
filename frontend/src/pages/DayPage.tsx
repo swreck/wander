@@ -255,6 +255,45 @@ function ItemPhoto({ tripId, cityId, query, line, title, time }: { tripId: strin
   );
 }
 
+/** Next, on a day with Backroads when nothing with a time is left: their stops for the day, in their order, each with its
+ *  checked photo, side by side (Ken, Oct 18 9:44 AM, Next on the Nikko day showed only "Tonight" and "Tomorrow": "Next
+ *  page should have pictures"). Their itinerary has no times, so none are said; a stop whose photo isn't checked shows
+ *  its name alone. A tap opens its photos. */
+function NextStops({ tripId, cityId, head, stops }: { tripId: string; cityId: string | null; head: string; stops: { id: string; title: string; query: string; line: string }[] }) {
+  const ask = useMemo(() => stops.map((s) => ({ query: s.query, line: s.line })), [stops]);
+  const [hits, setHits] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(ask));
+  const [open, setOpen] = useState<{ hit: PlaceHit; title: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    lookUpPlacePhotos(tripId, cityId, ask).then((h) => { if (live) setHits(h); }).catch(() => { /* names alone */ });
+    return () => { live = false; };
+  }, [tripId, cityId, ask]);
+  if (!stops.length) return null;
+  return (
+    <div className="mb-3" data-next-stops>
+      <p className="text-[15px] text-[#3a3128]">{head}</p>
+      <div className="mt-2 -mx-4 px-4 scroll-px-4 flex items-start gap-2.5 overflow-x-auto snap-x pb-1">
+        {stops.map((s) => {
+          const hit = hits[s.query] ?? null;
+          return (
+            <button key={s.id} type="button" disabled={!hit} onClick={() => hit && setOpen({ hit, title: s.title })}
+              aria-label={hit ? `Photos of ${s.title}` : s.title}
+              className="snap-start shrink-0 w-[150px] text-left">
+              <span className="relative block w-full aspect-[4/3] rounded-lg overflow-hidden bg-[#efe8dc]">
+                {hit && <img src={placePhotoUrl(hit, 0, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
+                {/* (the photographer, on the photo, as Google asks) */}
+                {hit?.photos[0]?.credit && <span className="absolute inset-x-0 bottom-0 px-1.5 pb-0.5 pt-3 bg-gradient-to-t from-black/50 to-transparent truncate text-[9px] text-white/85">Photo: {hit.photos[0].credit} · Google</span>}
+              </span>
+              <span className="block mt-1 text-[13px] leading-snug text-[#3a3128] line-clamp-2">{s.title}</span>
+            </button>
+          );
+        })}
+      </div>
+      {open && <PlaceGallery hit={open.hit} title={open.title} time={null} map={null} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
 // Rain and sunset on the moments they touch, in Play (it has no band): the forecast's likeliest rain hours on the first
 // moment of each span still ahead ("Rain likely 3–7 PM", as the band says it), showers one forecast sees, and the
 // sunset on the moment the sun goes down in — worked out on the phone, "about" (Oct 15: "before they realize")
@@ -2491,6 +2530,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   <p className="text-xs uppercase tracking-wide text-white/70">{unownedSoon ? "Then" : "Next"} · {inWords(toMin(u.time!) - nowFor(u))}</p>
                   <p className="text-lg leading-snug mt-1">{u.kind === "block" ? timeLabel(u) : clock(u.time)} · {itemTitle(u, stays, date)}{pickOpt ? ` — ${pickOpt.name}` : ""}</p>
                   {u.kind === "block" && !pickOpt && <LinePhotos tripId={tripId} cityId={bandCity?.id} block={u} ctx={lineCtx} dark />}
+                  {/* (a booking, a meal, a tour: its own checked photo, as the day's list has it — Ken, Oct 18: "Next page
+                      should have pictures") */}
+                  {u.kind !== "block" && tripId && dayPlay.places[`line-${u.id}`] && (
+                    <ItemPhoto tripId={tripId} cityId={bandCity?.id ?? null} query={dayPlay.places[`line-${u.id}`].query} line={dayPlay.places[`line-${u.id}`].line} title={itemTitle(u, stays, date)} time={clock(u.time)} />
+                  )}
                   {/* Whose is what: her plan lists the places; the pick was made in Wander (round 7: "added in
                       Wander by Ken" then "From Larisa's plan" read as if the pick were hers) */}
                   {pick && pickOpt && (
@@ -2555,6 +2599,12 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               <NextTrain sources={otherSources} date={date} nowMinutes={tripNow} quiet
                 isMine={(r, s) => { const a = railAudience(items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); }} />
             )}
+            {/* (a Backroads day with nothing timed left: their stops, with photos — Ken, Oct 18: "Next page should have
+                pictures") */}
+            {now && isToday && tripId && docDay && !upcomingGuide && !upcomingChoice && dayPlay.stops.length > 0 && (
+              <NextStops tripId={tripId} cityId={bandCity?.id ?? null} head={`Today with ${docDay.from}, in their order`}
+                stops={dayPlay.stops.flatMap((id) => { const m = dayPlay.moments.find((x) => x.id === id); const p = dayPlay.places[id]; return m && p ? [{ id, title: m.title, query: p.query, line: p.line }] : []; })} />
+            )}
             {now && isToday && !upcomingGuide && !upcomingChoice && !(leave && flightAt !== null && flightNow < flightAt) && (
               <div className="mb-3 rounded-xl bg-white border border-[#e0d8cc] p-3">
                 {/* Nothing timed is left: where you're headed tonight (just landed? the hotel, with Maps) */}
@@ -2567,6 +2617,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                       {/* (not in the evening — Sweep B: at 8 PM on Oct 27 it still said "check in any time from 3:00 PM") */}
                       {ymd(myTonight.stays[0].stay.checkInDate) === date && myTonight.stays[0].stay.checkInTime && !(isToday && tripNow >= 18 * 60) ? ` — check in any time from ${/^\d{1,2}:\d{2}$/.test(myTonight.stays[0].stay.checkInTime) ? clock(myTonight.stays[0].stay.checkInTime) : myTonight.stays[0].stay.checkInTime}` : ""}
                     </p>
+                    {/* (the hotel's own checked photo — Ken, Oct 18: "Next page should have pictures") */}
+                    {tripId && <ItemPhoto tripId={tripId} cityId={myTonight.stays[0].stay.cityId ?? null} query={stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId))} line={`Tonight's hotel: ${myTonight.stays[0].stay.name}`} title={myTonight.stays[0].stay.name} time={null} />}
                     <a href={mapsLink(stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)))}
                       className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Find in Maps ↗</a>
                   </>

@@ -1,0 +1,83 @@
+/**
+ * "Let everyone know" (Oct 18 2026). Ken: "Alert on next login function from anyone using anything to scout like 'let
+ * everyone know' with 'got it' and 'remind me' as options. This is for logistics not general messaging."
+ *
+ * Someone tells Scout (tell_everyone); each other member sees it here the next time they open Wander — on whatever screen
+ * opens — just above the bottom bar, one at a time, oldest first, until they tap Got it. Remind me brings it back the
+ * next day (the server keeps who tapped what: backend services/tripAlerts.ts). It waits while Scout's panel is up, and is
+ * never on the sign-in screens. Looked for whenever Wander is on the screen again, however briefly it was away (Ken, Oct
+ * 18: "just being the next time wander is active, whether they've been away or reopening it, because it's a
+ * notification. It's quick and timeliness is usually useful"); no timer while it's open.
+ */
+import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { api } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
+import { takeVisitAsk } from "../lib/visitAsks";
+
+type Alert = { id: string; tripId: string; from: string; text: string; at: string };
+const scoutUp = () => !!document.querySelector('[role="dialog"][aria-label="Scout"], [role="region"][aria-label="Scout"]');
+const when = (iso: string) => {
+  const d = new Date(iso);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return d.toLocaleString("en-US", { ...(sameDay ? {} : { weekday: "short" }), hour: "numeric", minute: "2-digit" });
+};
+
+export default function TripAlerts() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [hidden, setHidden] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const look = useCallback(() => {
+    if (!user || navigator.onLine === false) return;
+    api.get<{ alerts: Alert[] }>("/alerts/pending").then((r) => {
+      const list = Array.isArray(r?.alerts) ? r.alerts : [];
+      setAlerts(list);
+      // (a message from the group comes before Wander's own offers on this visit)
+      if (list.length) takeVisitAsk("alert");
+    }).catch(() => { /* next opening */ });
+  }, [user]);
+
+  // whenever Wander is on the screen again (no timer while it's open: among friends, the next look is soon enough)
+  useEffect(() => {
+    look();
+    const seen = () => { if (document.visibilityState === "visible") look(); };
+    document.addEventListener("visibilitychange", seen);
+    return () => document.removeEventListener("visibilitychange", seen);
+  }, [look]);
+
+  // (Scout's panel up: the card waits, so it never covers Scout's box)
+  useEffect(() => {
+    if (!alerts.length) return;
+    const t = setInterval(() => setHidden(scoutUp()), 700);
+    setHidden(scoutUp());
+    return () => clearInterval(t);
+  }, [alerts.length]);
+
+  const answer = (a: Alert, state: "got" | "later") => {
+    setBusy(true);
+    api.post(`/alerts/${a.id}/seen`, { state }).catch(() => { /* not saved: it shows again at the next opening */ })
+      .finally(() => { setBusy(false); setAlerts((prev) => prev.filter((x) => x.id !== a.id)); });
+  };
+
+  const a = alerts[0];
+  if (!a || hidden || !user || location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
+  const btn = "min-h-[44px] px-4 rounded-xl text-[15px] disabled:opacity-60";
+  return (
+    <div className="fixed inset-x-0 z-[56] flex justify-center px-3 pointer-events-none" style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)" }}>
+      <section role="alertdialog" aria-label={`From ${a.from}`} data-trip-alert
+        className="pointer-events-auto w-full max-w-md rounded-2xl bg-[#3a3128] text-white shadow-xl p-4">
+        <p className="text-xs uppercase tracking-wide text-white/70">
+          From {a.from}, for everyone · {when(a.at)}{alerts.length > 1 ? ` · 1 of ${alerts.length}` : ""}
+        </p>
+        <p className="text-[16px] leading-snug mt-1.5 whitespace-pre-line [overflow-wrap:anywhere] max-h-[40vh] overflow-y-auto">{a.text}</p>
+        <div className="flex gap-2 mt-3">
+          <button disabled={busy} onClick={() => answer(a, "got")} className={`${btn} bg-white text-[#3a3128] font-medium`}>Got it</button>
+          <button disabled={busy} onClick={() => answer(a, "later")} className={`${btn} text-white/85`}>Remind me</button>
+        </div>
+      </section>
+    </div>
+  );
+}

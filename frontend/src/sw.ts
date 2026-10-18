@@ -161,7 +161,8 @@ registerRoute(
 // (trip notes too: this copy is the phone's, not the person's — on a phone handed to someone else, a saved copy of one
 // person's notes showed to the next with no signal. The Notes screen keeps its own copy, per person. Oct 1 2026)
 // (and the photo lists, for the same reason: the Day screen keeps its own copy, per person — Oct 15 2026)
-const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat', '/api/trip-notes', '/api/trip-photos'];
+// (/api/alerts: a kept copy would show a message already marked Got it again, offline)
+const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat', '/api/trip-notes', '/api/trip-photos', '/api/alerts'];
 registerRoute(
   ({ url, request }) =>
     url.pathname.startsWith('/api/') && request.method === 'GET' &&

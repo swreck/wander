@@ -11,7 +11,7 @@ import { deadlineKey, listMarks } from "../actionMarks.js";
 import { offListIdeas } from "../dayChoices.js";
 import { appleGuidesOf, guideLines } from "./appleGuides.js";
 import { myMapOf, myMapLines, viewLink } from "./googleMyMap.js";
-import { tripDocumentsOf, dayWords, placeIn, whose } from "./tripDocuments.js";
+import { tripDocumentsOf, dayWords, placeIn, whose, hasPages } from "./tripDocuments.js";
 
 /** A deadline whose own words say charges START that day ("cancellation charges start", "60% charge from this date") */
 export const CHARGES_FROM = /\bcharges? (?:start|begin)s?\b|\bcharges? from this date\b|% (?:charge )?from this date\b/i;
@@ -525,10 +525,12 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   }
   // Documents someone gave Wander (Backroads' itinerary, Oct 4) — their words, by day and page, never her Guide
   for (const d of await tripDocumentsOf(tripId)) {
-    say(out, `\n${d.name.toUpperCase()} (${whose(d.from)} own words, given to Wander by ${d.addedBy} — NOT Larisa's Guide; ${d.version}). ${d.caution}${d.dayOne ? ` Its Day 1 is ${dayWords(d, 1).replace(/^Day 1 \((.*)\)$/, "$1")}, the day her Guide meets ${d.from}; Wander dated the days from that.` : ""}`);
+    // (its days by their date when you say them: asked about Fri, Oct 23, Scout called it "Day 4 of your week" — it is
+    // their Day 6; Oct 18)
+    say(out, `\n${d.name.toUpperCase()} (${whose(d.from)} own words, given to Wander by ${d.addedBy} — NOT Larisa's Guide; ${d.version}). ${d.caution}${d.dayOne ? ` Its Day 1 is ${dayWords(d, 1).replace(/^Day 1 \((.*)\)$/, "$1")}, the day her Guide meets ${d.from}; Wander dated the days from that. Say its days by their date ("Fri, Oct 23"), never by its day numbers.` : ""}`);
     for (const s of d.sections) {
       const place = placeIn(d, s);
-      say(out, `[${d.name} — ${s.day ? dayWords(d, s.day) : s.heading} (page ${s.page})]`);
+      say(out, `[${d.name} — ${s.day ? dayWords(d, s.day) : s.heading}${hasPages(d) ? ` (page ${s.page})` : ""}]`);
       for (const p of s.paragraphs) say(out, `- ${p}`, { type: "document", document: d.name, from: d.from, version: d.version, place, quote: p, ...(d.aside ? { aside: d.aside } : {}) });
     }
   }
