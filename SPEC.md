@@ -2458,8 +2458,12 @@ about ›".
 
 ### 9.3 Changing, sending, exporting
 
-**Change** on your own note keeps the words as first saved one tap away, and can move it to another day or place (Day
-and Place in its editor; Scout, asked, does the same). **Send a
+**Add to it** and **Edit** come first on each of your notes (Oct 18; Ken: "adjust notes so I can change after saving… a
+general note like the latest sake brewery note allowing me to add details during the visit… Edit is base requirement").
+Add to it puts your words under the note with the time ("3:05 PM — the brewer is the 14th generation"), the day too when
+it's another day, so a note grows through a visit; Scout does the same when asked to add to a note. **Edit** opens the
+whole note with the cursor at its end. Either keeps the words as first saved one tap away, and Edit can move it to
+another day or place (Day and Place in its editor; Scout, asked, does the same). **Send a
 copy** goes to anyone (family at home). **Export mine** is a text file, led by place; with notes kept from Scout it asks
 **Just my words** or **With Scout's notes too** (Ken: notes are source material for a journal, "so exporting should allow
 with or without Scout's notes").

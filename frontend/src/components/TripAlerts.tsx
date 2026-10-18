@@ -3,11 +3,11 @@
  * everyone know' with 'got it' and 'remind me' as options. This is for logistics not general messaging."
  *
  * Someone tells Scout (tell_everyone); each other member sees it here the next time they open Wander — on whatever screen
- * opens — just above the bottom bar, one at a time, oldest first, until they tap Got it. Remind me brings it back at an
- * the next day (the server keeps who tapped what: backend services/tripAlerts.ts). It waits while Scout's panel is up,
- * and is never on the sign-in screens. Looked for whenever Wander is on the screen again, however briefly it was away,
- * and every five minutes while it's open (Ken, Oct 18: "just being the next time wander is active, whether they've been
- * away or reopening it, because it's a notification. It's quick and timeliness is usually useful").
+ * opens — just above the bottom bar, one at a time, oldest first, until they tap Got it. Remind me brings it back the
+ * next day (the server keeps who tapped what: backend services/tripAlerts.ts). It waits while Scout's panel is up, and is
+ * never on the sign-in screens. Looked for whenever Wander is on the screen again, however briefly it was away (Ken, Oct
+ * 18: "just being the next time wander is active, whether they've been away or reopening it, because it's a
+ * notification. It's quick and timeliness is usually useful"); no timer while it's open.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -16,7 +16,6 @@ import { useAuth } from "../contexts/AuthContext";
 import { takeVisitAsk } from "../lib/visitAsks";
 
 type Alert = { id: string; tripId: string; from: string; text: string; at: string };
-const EVERY_MS = 5 * 60_000;
 const scoutUp = () => !!document.querySelector('[role="dialog"][aria-label="Scout"], [role="region"][aria-label="Scout"]');
 const when = (iso: string) => {
   const d = new Date(iso);

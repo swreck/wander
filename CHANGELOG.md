@@ -17,6 +17,10 @@ cost.").
   the Next card. SPEC §2.4.
 
 ### Changed
+- Notes (Ken: "adjust notes so I can change after saving… a general note like the latest sake brewery note allowing me
+  to add details during the visit… Edit is base requirement"): each of your notes has **Add to it** (your words go under
+  the note with the time, "3:05 PM — …") and **Edit** (the whole note in the box, the cursor at its end), first and
+  underlined. Scout's change_my_note takes `add` ("add to my sake note: …"). The first wording is always kept. SPEC §9.
 - Scout's box on a phone: Return makes a new line; the arrow sends. At a Mac, Return still sends. SPEC §7.5.
 - Letting everyone know, Ken's decisions: Scout confirms the words first ("Got it. Here's what I'll send: …"); Remind me
   returns the next day; gone after 3 days or when its moment passes (`until`, trip_alerts.until); looked for whenever
