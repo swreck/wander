@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-21 (Wednesday evening in Japan) — Backroads days summed up from Backroads' plan too
+
+Ken, on Thu, Oct 22's summary ("Her Guide keeps the hours with Backroads and doesn't spell out what fills them"):
+"Didn't the backroads pdf give more detail? The day summary odd based on all you know." The summary writer read only her
+lines. Now it also reads that day in Backroads' planner (services/guide/daySummaries.ts dayInputs/summaryPrompt), and
+says both where they differ. Oct 22 and Oct 24 rewritten by hand from the planner and published (data); days already
+past left as they are. No SPEC change (SPEC: a few sentences atop each day).
+
 ## 2026-10-18 (Sunday, the Nikko day) — Ken's four asks: Return, Stop, pictures on Next, letting everyone know
 
 Held until Ken and I agree to deploy (Ken: "All can be batched until we agree to deploy. This is to minimize testing and
