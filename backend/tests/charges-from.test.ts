@@ -32,12 +32,12 @@ const statusAt = async (iso: string, name: RegExp) => {
 
 describe("a date when charges start", () => {
   it("the day before: free through the end of that day; charges start the next", async () => {
-    expect(await statusAt("2031-10-09T20:00:00+09:00", /Harbor Grill/)).toMatch(/OPEN NOW — free through the end of 2031-10-09 in Japan; charges start 2031-10-10/);
+    expect(await statusAt("2031-10-09T20:00:00+09:00", /Harbor Grill/)).toMatch(/OPEN NOW — free through the end of 2031-10-09 \(Thu\) in Japan; charges start 2031-10-10 \(Fri\)/);
   });
   it("on the day itself: passed — charges apply", async () => {
     expect(await statusAt("2031-10-10T08:00:00+09:00", /Harbor Grill/)).toMatch(/PASSED — charges apply from 2031-10-10/);
   });
   it("a plain last-day deadline is still open all that day", async () => {
-    expect(await statusAt("2031-10-12T20:00:00+09:00", /Pier Hotel/)).toMatch(/OPEN NOW — last chance 2031-10-12, by the end of that day/);
+    expect(await statusAt("2031-10-12T20:00:00+09:00", /Pier Hotel/)).toMatch(/OPEN NOW — last chance 2031-10-12 \(Sun\), by the end of that day/);
   });
 });

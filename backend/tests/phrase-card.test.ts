@@ -69,7 +69,8 @@ describe("adding", () => {
 
 describe("removing and putting back", () => {
   it("the one who added it takes it off everyone's card — hidden, never deleted — and puts it back", async () => {
-    const r = await executeTool("arrange_my_phrases", { tripId, phrase: "Where is the station?", action: "remove" }, other());
+    // (everyone's card only when asked for — Ken, Oct 14: "ensure just your card is default")
+    const r = await executeTool("arrange_my_phrases", { tripId, phrase: "Where is the station?", action: "remove", forEveryone: true }, other());
     expect(r.result.offEveryonesCard).toBe(true);
     const row = await prisma.tripPhrase.findFirst({ where: { tripId, english: "Where is the station?" } });
     expect(row).toBeTruthy();

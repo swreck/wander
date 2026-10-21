@@ -30,11 +30,10 @@ is in the product."
 ## Tests
 - Type-check: `frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.app.json` has 93 errors (measured Oct 16
   2026); never add one. Backend: `cd backend && npx tsc --noEmit`. (`cd frontend && npx tsc --noEmit` checks nothing.)
-- Backend suite (backend/src or prisma changed): `cd backend && npx vitest run 2>&1 | tail -30`, foreground, timeout 600000 (~45 min). Never in the
-  background, never through `tee | grep`, never two runs at once, never start a single vitest file while the suite
-  runs (its setup deletes the running suite's Neon branch), never edit backend src during a run.
-  tests/vitest-setup.ts's `pg` SELECT 1 warmup must stay: without it nearly every test fails "Can't reach database
-  server". Vitest workers bind :3001, so local walks use :3004 / :5182.
+- Backend suite (backend/src or prisma changed): `cd backend && npx vitest run 2>&1 | tail -30`, ~2 min, on this
+  Mac's Postgres 17 (Homebrew service; tests/local-db.ts copies production's data every 12 h, read-only there;
+  WANDER_TEST_DB=neon uses a Neon branch). Never two runs at once, never edit backend src during a run. The `pg`
+  SELECT 1 warmup in tests/vitest-setup.ts stays. Vitest binds :3001, so local walks use :3004 / :5182.
 - Browser: Playwright on its own headless shell (trip-data/session-tools/playwright.prod.config.ts). Never
   `npx playwright install`. Installed Chrome hangs Playwright at close. Every suite reads BASE; stop old preview servers
   first. Production walks skip Google's map (MAPS=1 to include).

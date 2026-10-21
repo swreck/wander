@@ -67,7 +67,7 @@ describe("a day's summary", () => {
 describe("the instruction", () => {
   it("keeps to her lines, the people there, neutral disagreements, and plain times", () => {
     const p = summaryPrompt({ block: "Monday, May 3 (2027-05-03) — Town\n  - 19:00 meal: Dinner", pictures: "" });
-    expect(p).toMatch(/Only what these lines say/);
+    expect(p).toMatch(/Only what these lines \(and Backroads' day, when given\) say/);
     expect(p).toMatch(/never say "everyone" or "the group"/);
     expect(p).toMatch(/never "you" or "your"/);
     expect(p).toMatch(/never call its hours "open" or "free"/);
@@ -76,5 +76,13 @@ describe("the instruction", () => {
     // (Oct 18: "check-out due by 12:00 PM" on the morning everyone meets Backroads at 8:30 — day review, Oct 4)
     expect(p).toMatch(/never give the hotel's time as when they check out/);
     expect(p).toMatch(/Monday, May 3 \(2027-05-03\)/);
+    expect(p).not.toMatch(/Backroads' own itinerary/);
+  });
+  // (Oct 21, Ken: "Didn't the backroads pdf give more detail?" — a Backroads day is written from their day too)
+  it("gives the writer Backroads' day when there is one, and says to use it for the day's shape", () => {
+    const p = summaryPrompt({ block: "Thursday, Oct 22 (2026-10-22) — Izu", pictures: "", doc: "Backroads' itinerary (Backroads's own words, Day 5):\nShuttle to Toi Beach: 30 Minutes." });
+    expect(p).toMatch(/Backroads' own itinerary for this departure/);
+    expect(p).toMatch(/Shuttle to Toi Beach: 30 Minutes\./);
+    expect(p).toMatch(/never say the day's hours are unknown or unspelled when this has them/);
   });
 });

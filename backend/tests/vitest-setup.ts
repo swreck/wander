@@ -21,7 +21,8 @@ if (existsSync(BRANCH_URL_FILE)) {
     // from new processes, even after verification from the parent process.
     for (let attempt = 0; attempt < 10; attempt++) {
       try {
-        const client = new Client({ connectionString: branchUrl, ssl: { rejectUnauthorized: false } });
+        // (the local test database has no SSL — tests/local-db.ts)
+        const client = new Client({ connectionString: branchUrl, ssl: /sslmode=require/.test(branchUrl) ? { rejectUnauthorized: false } : false });
         await client.connect();
         await client.query("SELECT 1");
         await client.end();
