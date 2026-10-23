@@ -129,6 +129,11 @@ function tellScreens(tripId: string, name: string) {
 }
 
 const forWords = (forParty: string | null) => (forParty ? ` for ${forParty} alone` : "");
+/** What to ask when it would be a couple paying for themselves alone */
+const notSharedSelf = (party: string, parties: string[]) => {
+  const other = parties.find((p) => p !== party);
+  return `${party} paying for ${party} alone isn't shared at all, so the Budget has nothing to keep. Was it shared, half each${other ? `, or for ${other} alone (they'd owe it all back)` : ""}?`;
+};
 const moneyWords = (amount: number, currency: string) => (currency === "USD" ? `$${Number(amount.toFixed(2))}` : yenWords(amount));
 /** One line of Budget's History (Ken, Oct 16: "date, person, action only") */
 async function logChange(tripId: string, expenseId: string, by: { travelerId?: string | null; displayName: string }, action: string) {
@@ -169,6 +174,9 @@ export async function addExpense(input: { tripId: string; paidBy: string; amount
     forParty = parties.find((p) => p.toLowerCase() === String(input.forParty).trim().toLowerCase()) || partyFor(parties, String(input.forParty));
     if (!forParty) return { error: `Who is it for? ${parties.join(", ")}, or shared` };
   }
+  // (a couple paying for themselves alone isn't a shared cost at all — Andy kept four that way on Oct 23, meaning shared;
+  // Ken: "Make a shared expense as a clear default… Ask if the intent is unclear")
+  if (forParty && forParty === party) return { error: notSharedSelf(party, parties) };
   let row;
   try {
     row = await prisma.tripExpense.create({ data: { tripId: input.tripId, party, forParty, amount, currency, yen, rate, what: (input.what || "").trim().slice(0, 200) || null, dayDate, addedById: input.addedById, addedByName: input.addedByName, clientKey } });
@@ -247,6 +255,8 @@ export async function changeExpense(tripId: string, id: string, who: { travelerI
       forParty = f;
     }
   }
+  // (made into one a couple paid for themselves — never kept; one kept that way before can still be made shared)
+  if (forParty && forParty === party && (change.forParty !== undefined || change.paidBy !== undefined)) return { error: notSharedSelf(party, parties) };
   const said: string[] = [];
   if (amount !== row.amount || currency !== row.currency) said.push(`changed ${moneyWords(row.amount, row.currency)} → ${moneyWords(amount, currency)}`);
   if (party !== row.party) said.push(`changed who paid: ${row.party} → ${party}`);

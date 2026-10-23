@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, readReceiptPhoto, attachReceiptPhoto, receiptImage, sharedOf, yen, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine, type ReceiptPhoto } from "../lib/expenses";
-import PayNextBadge from "../components/PayNextBadge";
+import PayNextBadge, { partyColor, SHARED_BLUE, CHECK_RED } from "../components/PayNextBadge";
 import useBackToClose from "../hooks/useBackToClose";
 
 const shortDay = (d: string | null) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : "");
@@ -88,6 +88,27 @@ export default function MoneyPage() {
             )}
           {l?.owes && <p className="text-[14px] text-[#514636] mt-1">To be even now, {l.owes.from} would pay {l.owes.to} {yen(l.owes.yen)}.</p>}
           {l && !l.items.length && <p className="text-[14px] text-[#514636] mt-1">When one couple pays for the group, add it here. Each cost is shared half and half.</p>}
+          {/* Anything not shared, up top where the totals are read — it's probably a mistake (Ken, Oct 23: "in the summary,
+              make it clear and highlight anything that doesn't shared because it's probably an error") */}
+          {l && l.items.some((x) => x.forParty) && (
+            <section data-check-not-shared className="mt-3 rounded-xl border px-3 py-2.5" style={{ borderColor: CHECK_RED, background: "#fbefeb" }} aria-label="Not shared — check these">
+              <p className="text-[14px] font-medium" style={{ color: CHECK_RED }}>
+                {l.items.filter((x) => x.forParty).length === 1 ? "One payment isn't shared. Check it's right:" : `${l.items.filter((x) => x.forParty).length} payments aren't shared. Check they're right:`}
+              </p>
+              <ul className="mt-1">
+                {l.items.filter((x) => x.forParty).map((x) => {
+                  const words = `${x.what || "No description"} · ${x.currency === "USD" ? `$${x.amount}` : yen(x.amount)} — ${x.forParty === x.party ? `${x.party} for themselves` : `${x.forParty} owe it all`}`;
+                  return (
+                    <li key={x.id}>
+                      {x.mayRemove
+                        ? <button type="button" onClick={() => setSheet({ id: x.id })} className="w-full text-left min-h-[44px] text-[14px] text-[#3a3128] underline underline-offset-2">{words} ›</button>
+                        : <p className="min-h-[32px] py-1 text-[14px] text-[#3a3128]">{words}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
         </div>
       </header>
 
@@ -110,15 +131,18 @@ export default function MoneyPage() {
                 const lines = (
                   <>
                     <div className="flex items-baseline justify-between gap-3">
-                      <p className="text-[15px] text-[#3a3128]"><span className="font-medium">{x.party}</span>{x.what ? ` · ${x.what}` : ""}</p>
+                      {/* (who paid in their couple's color, as Home shows it — Ken, Oct 23) */}
+                      <p className="text-[15px] text-[#3a3128]"><PayNextBadge party={x.party} className="mr-1.5 -mt-0.5" /><span className="font-medium" style={{ color: partyColor(x.party) }}>{x.party}</span>{x.what ? ` · ${x.what}` : ""}</p>
                       <p className="text-[15px] text-[#3a3128] shrink-0">{x.currency === "USD" ? `$${x.amount}` : yen(x.amount)}</p>
                     </div>
-                    {x.forParty && <p className="text-[13px] text-[#514636] mt-0.5">For {x.forParty} alone · {x.forParty === x.party ? "not shared" : `${x.forParty} owe${/&/.test(x.forParty) ? "" : "s"} it back in full`}</p>}
+                    {/* (shared, the default, in blue; not shared said plainly and in red-brown — probably a mistake; Ken, Oct 23) */}
+                    {!x.forParty ? <p className="text-[13px] mt-0.5" style={{ color: SHARED_BLUE }}>Shared, half each</p>
+                      : <p className="text-[13px] font-medium mt-0.5" style={{ color: CHECK_RED }}>{notSharedWords(x)}{x.mayRemove ? " Tap to change." : ""}</p>}
                     <p className="text-xs text-[#6b5d4a] mt-0.5">{shortDay(x.dayDate)} · kept by {first(x.addedByName) === first(me) ? "you" : x.addedByName}{x.currency === "USD" ? ` · ${yen(x.yen)} at ${x.rate?.toFixed(2)} yen to the dollar` : ""}</p>
                   </>
                 );
                 return (
-                  <li key={x.id}>
+                  <li key={x.id} data-not-shared={x.forParty ? "" : undefined} style={x.forParty ? { background: "#fbefeb", boxShadow: `inset 3px 0 0 ${CHECK_RED}` } : undefined}>
                     {x.mayRemove ? (
                       <button type="button" onClick={() => setSheet({ id: x.id })} aria-label={`Change ${x.party}'s ${x.currency === "USD" ? `$${x.amount}` : yen(x.amount)}${x.what ? `, ${x.what}` : ""}`}
                         className="w-full text-left px-4 py-3 min-h-[56px] flex items-center gap-2 active:bg-[#f5f0ea]">
@@ -166,6 +190,14 @@ export default function MoneyPage() {
 
 type Item = Ledger["items"][number];
 
+/** A payment that isn't shared, in plain words: who owes what — or, paid by a couple for themselves, that it changes
+ *  nothing and is probably a mistake */
+function notSharedWords(x: Item): string {
+  if (!x.forParty) return "";
+  if (x.forParty === x.party) return `Not shared: ${x.party} paid for themselves, so it changes nothing here. Probably a mistake.`;
+  return `Not shared: ${x.forParty} owe ${x.party} the full ${x.currency === "USD" ? `$${x.amount}` : yen(x.amount)}. Is that right?`;
+}
+
 /** A card near the top of the screen — above where an iPhone's keyboard comes up — over the page; back or a tap outside
  *  closes it */
 function Card({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
@@ -200,6 +232,11 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
   // who it's for: shared half and half (the usual), or wholly one couple's (Ken, Oct 16: "Split should probably be an
   // option generally also with split as default and either as full owner of item")
   const [forParty, setForParty] = useState<string | null>(item?.forParty || null);
+  // (who paid changed while "Only X's" is chosen: it stays the other couple's — never the payer's own)
+  const choosePayer = (p: string) => {
+    setPaidBy(p);
+    if (forParty && forParty === p && forParty !== item?.forParty) setForParty(l?.parties.find((x) => x !== p) || null);
+  };
   const [busy, setBusy] = useState(false);
   // (a Keep with no answer for a while — bars showing, nothing coming back — says so, and that waiting or Cancel are both
   // safe: "Keeping…" alone for 40 seconds left Julie to guess; fresh tester)
@@ -352,8 +389,12 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
       {l && <p className="text-[13px] text-[#6b5d4a] -mb-2">Who paid</p>}
       <div className="grid grid-cols-2 gap-2" role="group" aria-label="Who paid">
         {(l?.parties || []).map((p) => (
-          <button key={p} type="button" onClick={() => setPaidBy(p)} aria-pressed={paidBy === p}
-            className={`min-h-[48px] rounded-xl border text-[15px] ${paidBy === p ? "bg-[#3a3128] text-white border-[#3a3128]" : "bg-white text-[#3a3128] border-[#e0d8cc]"}`}>{p}</button>
+          // (in their couple's color, as on Home — Ken, Oct 23)
+          <button key={p} type="button" onClick={() => choosePayer(p)} aria-pressed={paidBy === p}
+            className="min-h-[48px] rounded-xl border-2 text-[15px] inline-flex items-center justify-center gap-1.5"
+            style={paidBy === p ? { background: partyColor(p), borderColor: partyColor(p), color: "#fff" } : { background: "#fff", borderColor: "#e0d8cc", color: partyColor(p) }}>
+            {paidBy !== p && <PayNextBadge party={p} />}{p}
+          </button>
         ))}
       </div>
       <div className="flex gap-2">
@@ -369,19 +410,43 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
       </div>
       <input value={what} onChange={(e) => setWhat(e.target.value)} placeholder="What for (if you like)" aria-label="What for"
         className="min-h-[48px] rounded-xl border border-[#e0d8cc] px-3 text-[16px] text-[#3a3128] focus:outline-none focus:border-[#a89880]" />
-      {l && <div role="group" aria-label="Who it's for">
-        <p className="text-[13px] text-[#6b5d4a] mb-1">Who it's for</p>
-        <div className="flex flex-wrap gap-2">
-          {[null, ...l.parties].map((p) => (
-            <button key={p || "shared"} type="button" onClick={() => setForParty(p)} aria-pressed={forParty === p}
-              className={`min-h-[44px] px-3 rounded-full border text-[14px] ${forParty === p ? "bg-[#3a3128] text-white border-[#3a3128]" : "bg-white text-[#3a3128] border-[#e0d8cc]"}`}>
-              {p ? `${p} alone` : "Shared, half each"}
-            </button>
-          ))}
-        </div>
-      </div>}
+      {/* Shared, half each — the default, in blue, chosen unless someone means otherwise (Ken, Oct 23: "Folks are sometimes
+          misaligning whether in expense is shared… Make a shared expense as a clear default"). "Not shared" is one deliberate
+          tap away and offers only the other couple, with what it means said before Keep: Andy chose his own couple again under
+          a second row of the couples' names, four times. A couple paying for themselves alone (kept before) shows only on an
+          old entry, flagged. */}
+      {l && (() => {
+        const other = paidBy ? l.parties.find((p) => p !== paidBy) || null : null;
+        const sum = Number(amount.replace(/[,\s¥$]/g, ""));
+        const money = isFinite(sum) && sum > 0 ? (currency === "USD" ? `$${sum.toLocaleString()}` : yen(sum)) : "the full amount";
+        return (
+          <div role="group" aria-label="Shared or not">
+            {!forParty ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span aria-pressed="true" role="button" className="min-h-[40px] px-3 rounded-full text-[14px] text-white inline-flex items-center" style={{ background: SHARED_BLUE }}>✓ Shared, half each</span>
+                {other && <button type="button" onClick={() => setForParty(other)} className="min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2">Not shared? Only {other}'s</button>}
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setForParty(null)} aria-pressed={false}
+                    className="min-h-[44px] px-3 rounded-full border-2 text-[14px] bg-white" style={{ borderColor: SHARED_BLUE, color: SHARED_BLUE }}>Shared, half each</button>
+                  <span aria-pressed="true" role="button" className="min-h-[44px] px-3 rounded-full text-[14px] text-white inline-flex items-center" style={{ background: CHECK_RED }}>
+                    {forParty === paidBy ? `${forParty} alone` : `Only ${forParty}'s`}
+                  </span>
+                </div>
+                <p className="text-[13px] font-medium mt-1.5" style={{ color: CHECK_RED }}>
+                  {forParty === paidBy
+                    ? `Not shared at all: ${paidBy} paying for themselves changes nothing here. Shared, half each, is probably right.`
+                    : `Not shared: ${forParty} will owe ${paidBy} ${money}, all of it.`}
+                </p>
+              </>
+            )}
+          </div>
+        );
+      })()}
       <div className="flex items-center gap-3">
-        <button type="button" onClick={save} disabled={busy || !l} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? (item ? "Saving…" : "Keeping…") : item ? "Save" : "Keep it"}</button>
+        <button type="button" onClick={save} disabled={busy || !l} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? (item ? "Saving…" : "Keeping…") : item ? "Save" : forParty && forParty !== paidBy ? "Keep it — not shared" : "Keep it"}</button>
         <button type="button" onClick={close} className="min-h-[48px] px-2 text-[15px] text-[#514636] underline underline-offset-2">Cancel</button>
       </div>
       {slow && !item && <p className="text-sm text-[#514636]" role="status">Still waiting for Wander to answer. You can keep waiting, or Cancel: if it got through, it shows in the list, and typing it again won't keep it twice.</p>}

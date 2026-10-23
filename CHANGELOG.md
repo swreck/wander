@@ -2,6 +2,22 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-23 (Friday night in Japan) — Budget: shared is the clear default; anything not shared is flagged
+
+Ken: "Folks are sometimes misaligning whether in expense is shared by both parties. Make a shared expense as a clear
+default… highlight anything that doesn't shared because it's probably an error. Ask if the intent is unclear." · "Make the
+payer color equal the color in the home page. And shared a blue color." The log showed why: today Andy kept four
+payments as "for one couple alone" (three for his own couple — not shared at all) under a second row of the couples'
+names; Ken changed all four to shared.
+
+### Changed
+- Budget's add pop-up: who paid in the couple's Home color; "✓ Shared, half each" in blue, already chosen; "Not shared?
+  Only <other couple>'s" one tap away, with what it means said and Keep reading "Keep it — not shared". Every row says
+  shared in blue or not shared in red-brown on a tinted row; a red-brown box at the top lists anything not shared.
+  (pages/MoneyPage.tsx, components/PayNextBadge.tsx partyColor). SPEC §9 (Budget) updated.
+- The server refuses a couple paying for themselves alone, with a question (services/expenses.ts). Scout keeps shared
+  unless the words plainly say the other couple's, asks when unclear, and names anything not shared in money_so_far.
+
 ## 2026-10-21 (Wednesday evening in Japan) — Backroads days summed up from Backroads' plan too
 
 Ken, on Thu, Oct 22's summary ("Her Guide keeps the hours with Backroads and doesn't spell out what fills them"):
