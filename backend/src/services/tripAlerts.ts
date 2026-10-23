@@ -48,6 +48,39 @@ export const ONE_TIME_NOTES = [
     text: "Hi Andy. This is Scout. Ken said my UI was disappointing. I'm sorry and I tried to improve. Anytime you don't like something, just tap Scout & tell me. I'll let Ken know and try to fix it. Have fun in Kyoto!",
   },
 ];
+/** Ken hears how a note from Scout to someone went (Ken, Oct 23: "Tell me in an alert when you give andy the message and
+ *  give me the seconds it is open if possible to know if he reads it"): a buzz on his phone when it's on their screen,
+ *  and when they answer it, with how long it was open (seconds it was on their screen) and which button — also kept as a
+ *  card for him. Only for notes from Scout to one person; never for Ken's own. */
+const toldShown = new Set<string>();
+async function kenOf(tripId: string) {
+  return prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true, traveler: { select: { displayName: true } } } });
+}
+const jstTime = (d: Date) => d.toLocaleString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit" });
+export async function scoutNoteShown(alertId: string, travelerId: string) {
+  if (toldShown.has(alertId)) return;
+  const a = await prisma.tripAlert.findUnique({ where: { id: alertId } });
+  if (!a || a.toId !== travelerId || a.fromName !== "Scout") return;
+  const ken = await kenOf(a.tripId);
+  if (!ken || ken.travelerId === travelerId) return;
+  toldShown.add(alertId);
+  const who = (await prisma.traveler.findUnique({ where: { id: travelerId }, select: { displayName: true } }))?.displayName || "They";
+  const { sendToPhones } = await import("./push.js");
+  await sendToPhones(ken.travelerId, { title: `Scout's note to ${who}`, body: `It's on ${who}'s screen now (${jstTime(new Date())}).`, tag: `scout-note-${alertId}`, url: "/" });
+}
+async function scoutNoteAnswered(a: { id: string; tripId: string; toId: string | null; fromName: string }, travelerId: string, state: string, openSeconds: number | null, button: string | null) {
+  if (a.fromName !== "Scout" || a.toId !== travelerId) return;
+  const ken = await kenOf(a.tripId);
+  if (!ken || ken.travelerId === travelerId) return;
+  const who = (await prisma.traveler.findUnique({ where: { id: travelerId }, select: { displayName: true } }))?.displayName || "They";
+  const open = openSeconds == null ? "" : ` It was open ${openSeconds} second${openSeconds === 1 ? "" : "s"}.`;
+  const tapped = button === "tell" ? "Tell Scout" : state === "later" ? "Remind me" : "Got it";
+  const words = `${who} read Scout's note at ${jstTime(new Date())}.${open} ${who === "They" ? "They" : who} tapped ${tapped}.`;
+  const { sendToPhones } = await import("./push.js");
+  await sendToPhones(ken.travelerId, { title: `Scout's note to ${who}`, body: words, tag: `scout-note-${a.id}`, url: "/" });
+  await prisma.tripAlert.create({ data: { tripId: a.tripId, fromId: ken.travelerId, fromName: "Scout", toId: ken.travelerId, text: words } });
+}
+
 /** After a person does something (keeps a payment): any one-time note for them, made now */
 export async function afterDoing(tripId: string, person: { travelerId?: string | null; displayName: string }, what: "budget-add") {
   if (!person.travelerId) return;
@@ -77,12 +110,15 @@ export async function pendingFor(travelerId: string, now = Date.now()) {
 }
 
 /** Got it, or Remind me — only on an alert on one of this person's trips */
-export async function markSeen(alertId: string, travelerId: string, state: "got" | "later"): Promise<boolean> {
-  const a = await prisma.tripAlert.findUnique({ where: { id: alertId }, select: { tripId: true } });
+export async function markSeen(alertId: string, travelerId: string, state: "got" | "later", how: { openSeconds?: number | null; button?: string | null } = {}): Promise<boolean> {
+  const a = await prisma.tripAlert.findUnique({ where: { id: alertId }, select: { id: true, tripId: true, toId: true, fromName: true } });
   if (!a) return false;
   const member = await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: a.tripId, travelerId } } });
   if (!member) return false;
   await prisma.tripAlertSeen.upsert({ where: { alertId_travelerId: { alertId, travelerId } }, create: { alertId, travelerId, state }, update: { state, at: new Date() } });
+  // (a note from Scout to them: Ken hears how it went — never holds the answer up)
+  const secs = typeof how.openSeconds === "number" && isFinite(how.openSeconds) && how.openSeconds >= 0 ? Math.round(how.openSeconds) : null;
+  void scoutNoteAnswered(a, travelerId, state, secs, how.button ?? null).catch((e) => console.warn("[alerts] note answered:", e?.message || e));
   return true;
 }
 

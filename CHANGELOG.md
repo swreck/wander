@@ -14,6 +14,12 @@ names; Ken changed all four to shared.
 - Scout's one-time note to Andy, Ken's words, in the message card right after his next payment is kept (any path):
   "From Scout", Got it / Tell Scout; only Andy, only once (trip_alerts.to_id and .key; services/tripAlerts.ts
   ONE_TIME_NOTES, afterDoing from services/expenses.ts addExpense). SPEC §13.
+- Ken hears how Scout's note went (Ken: "Tell me in an alert when you give andy the message and give me the seconds it
+  is open"): a buzz when it's on Andy's screen (POST /api/alerts/:id/shown), and when he answers it, the seconds it was
+  on his screen and the button tapped — a buzz and a card for Ken.
+- Each phone reports once a day whether it can get the 9 PM question (from the Home Screen icon? allowed? a "No" kept?),
+  yes/no only, to the server's log ("[phone] Andy nudge …") — Andy's phones have never allowed notifications.
+- Tests and the test copy can never buzz a real phone (empty notification keys; the test copy's phone addresses cleared).
 - Scout passes something someone doesn't like about Wander to Ken without asking, and says so (rule 59, tell_ken) — the
   note's promise made true. Each session reads new Tell Ken messages (session-tools/prod-tellken-new.mts).
 

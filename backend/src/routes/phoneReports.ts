@@ -37,6 +37,10 @@ const FIELDS: Record<string, Record<string, (v: unknown) => boolean>> = {
   // (Home's map that Google wouldn't load — Andy, Oct 15 ~8:30 AM JST: "an error instead of his home page map"; Google's
   // refusals never reach this server otherwise)
   map: { result: oneOf("load-failed", "auth-failure"), online: (v) => typeof v === "boolean" },
+  // (whether this phone can get the 9 PM question at all, once a day — Ken, Oct 23, Andy "forgot about wander completely":
+  // no phone of his allows notifications, and only his phone knows why)
+  nudge: { can: (v) => typeof v === "boolean", homeScreen: (v) => typeof v === "boolean", permission: oneOf("default", "granted", "denied", "none"),
+    saidNo: (v) => typeof v === "boolean", askLater: (v) => typeof v === "boolean" },
 };
 // (a phone acting normally sends a few a day; more than 30 in 10 minutes from one person is not a phone)
 const sent = new Map<string, number[]>();

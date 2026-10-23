@@ -23,9 +23,20 @@ router.post("/:id/seen", async (req: AuthRequest, res) => {
   const state = req.body?.state;
   if (!me || (state !== "got" && state !== "later")) { res.status(400).json({ error: "Got it, or Remind me?" }); return; }
   try {
-    if (!(await markSeen(String(req.params.id), me, state))) { res.status(404).json({ error: "Not one of yours to see" }); return; }
+    const openSeconds = typeof req.body?.openSeconds === "number" ? req.body.openSeconds : null;
+    const button = req.body?.button === "tell" ? "tell" : null;
+    if (!(await markSeen(String(req.params.id), me, state, { openSeconds, button }))) { res.status(404).json({ error: "Not one of yours to see" }); return; }
     res.json({ ok: true });
   } catch (e: any) { console.warn("[alerts] seen:", e?.message); res.status(500).json({ error: "Couldn't save that just now" }); }
+});
+
+// POST /:id/shown — a note from Scout to this person is on their screen (Ken hears it; services/tripAlerts)
+router.post("/:id/shown", async (req: AuthRequest, res) => {
+  const me = req.user?.travelerId;
+  if (!me) { res.status(400).json({ error: "Who?" }); return; }
+  const { scoutNoteShown } = await import("../services/tripAlerts.js");
+  await scoutNoteShown(String(req.params.id), me).catch((e) => console.warn("[alerts] shown:", e?.message));
+  res.json({ ok: true });
 });
 
 export default router;

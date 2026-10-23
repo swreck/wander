@@ -108,8 +108,20 @@ describe("shared is the default; not shared is asked about and flagged", () => {
     expect((await pend(tok.Bsken)).some((x) => x.from === "Scout")).toBe(false);
     await request(app).post(`/api/expenses/trip/${tripId}`).set("Authorization", `Bearer ${at}`).send({ paidBy: "Bsandy", amount: 600, currency: "JPY", what: "andy's second coffee" });
     expect(await prisma.tripAlert.count({ where: { key: "andy-budget-2026-10-23" } })).toBe(1);
-    await request(app).post(`/api/alerts/${mine[0].id}/seen`).set("Authorization", `Bearer ${at}`).send({ state: "got" });
+    // (Ken hears it: on screen, then answered with how long it was open — a card for him, the trip's first member)
+    expect((await request(app).post(`/api/alerts/${mine[0].id}/shown`).set("Authorization", `Bearer ${at}`).send({})).status).toBe(200);
+    await request(app).post(`/api/alerts/${mine[0].id}/seen`).set("Authorization", `Bearer ${at}`).send({ state: "got", openSeconds: 12.4 });
     expect((await pend(at)).some((x) => x.from === "Scout")).toBe(false);
+    await new Promise((r) => setTimeout(r, 500));
+    const toKen = (await pend(tok.Bsken)).filter((x) => x.from === "Scout");
+    expect(toKen.length).toBe(1);
+    expect(toKen[0].text).toMatch(/^Andy Bstest read Scout's note at \d{1,2}:\d{2} (AM|PM)\. It was open 12 seconds\. Andy Bstest tapped Got it\.$/);
+    // (Ken's own card answered: no card about that)
+    await request(app).post(`/api/alerts/${toKen[0].id}/seen`).set("Authorization", `Bearer ${tok.Bsken}`).send({ state: "got", openSeconds: 3 });
+    await new Promise((r) => setTimeout(r, 300));
+    expect((await pend(tok.Bsken)).filter((x) => x.from === "Scout").length).toBe(0);
+    // (someone else can't say Andy's note was shown)
+    expect((await request(app).post(`/api/alerts/${mine[0].id}/shown`).set("Authorization", `Bearer ${tok.Bsjulie}`).send({})).status).toBe(200);
     // (never among the trip's messages to everyone, for Scout's answers or my_alerts)
     const { liveOn } = await import("../src/services/tripAlerts.js");
     expect((await liveOn(tripId)).some((x) => x.fromName === "Scout")).toBe(false);
