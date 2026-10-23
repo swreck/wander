@@ -20,6 +20,23 @@ export function canOfferBuzz(): boolean {
  *  to this */
 const NUDGE_NO_KEY = "wander:nudge-declined";
 const NUDGE_LATER_KEY = "wander:nudge-later";
+
+/** Once a day, to the server's log: whether this phone can get the 9 PM question, and if not, why — opened from the Home
+ *  Screen icon or not, what the iPhone says, a "No" or "Ask me again tomorrow" kept here (Ken, Oct 23: Andy "forgot about
+ *  wander completely… I question if he's getting the daily prompt"). Yes/no words only. */
+export function reportNudgeState() {
+  try {
+    const day = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+    if (localStorage.getItem("wander:nudge-reported") === day) return;
+    localStorage.setItem("wander:nudge-reported", day);
+    const homeScreen = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+    void import("./phoneReport").then(({ phoneReport }) => phoneReport("nudge", {
+      can: supported(), homeScreen: !!homeScreen,
+      permission: "Notification" in window ? Notification.permission : "none",
+      saidNo: !!localStorage.getItem(NUDGE_NO_KEY), askLater: !!localStorage.getItem(NUDGE_LATER_KEY),
+    }));
+  } catch { /* nothing to tell */ }
+}
 /** today: the trip's date now ("2026-10-17") — "Ask me again tomorrow" holds it back until the date has moved on */
 export function canOfferNudge(today: string): boolean {
   if (!supported() || Notification.permission !== "default") return false;

@@ -10228,10 +10228,12 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
         .set("Authorization", `Bearer ${aliceToken}`);
       expect(del.status).toBe(200);
 
-      // Verify gone
+      // Off everyone's card, never deleted: the organizer (Alice made the trip) still gets it, marked removed, so she can
+      // put it back (Ken, Oct 3: remove hides for everyone and never deletes)
       const after = await request(app).get(`/api/phrases/trip/${tripId}`)
         .set("Authorization", `Bearer ${aliceToken}`);
-      expect(after.body.length).toBe(0);
+      expect(after.body.length).toBe(1);
+      expect(after.body[0].removedAt).not.toBeNull();
     });
 
     it("S444: Create phrase with missing fields", async () => {

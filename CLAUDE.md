@@ -150,6 +150,9 @@ Ken (Oct 13): "Focus on what matters to users in Japan. Wander must be honest, n
 manual. What it says about Japan to andy and Julie while in California is not important." (Claude) Edge cases at home
 don't hold a deploy.
 Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engineering.md.
+Tell Ken (Oct 23, Scout promising Andy "I'll let Ken know and try to fix it"): "make it true by sending me a message of
+the request and your recommended fix. If response is clear to you, do IT during directive and just report the result to
+me." (Claude) Each session starts with session-tools/prod-tellken-new.mts.
 
 ## 8. Docs
 

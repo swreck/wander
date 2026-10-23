@@ -28,24 +28,20 @@ is in the product."
   changed cell before prod; after prod, rewrite only the changed days' summaries and read each before publishing.
 
 ## Tests
-- Type-check: `frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.app.json` has 93 errors (measured Oct 16
-  2026); never add one. Backend: `cd backend && npx tsc --noEmit`. (`cd frontend && npx tsc --noEmit` checks nothing.)
-- Backend suite (backend/src or prisma changed): `cd backend && npx vitest run 2>&1 | tail -30`, foreground, timeout 600000 (~45 min). Never in the
-  background, never through `tee | grep`, never two runs at once, never start a single vitest file while the suite
-  runs (its setup deletes the running suite's Neon branch), never edit backend src during a run.
-  tests/vitest-setup.ts's `pg` SELECT 1 warmup must stay: without it nearly every test fails "Can't reach database
-  server". Vitest workers bind :3001, so local walks use :3004 / :5182.
+- Type-check: `frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.app.json` has 93 errors; never add one. Backend: `cd backend && npx tsc --noEmit`. (`cd frontend && npx tsc --noEmit` checks nothing.)
+- Backend suite (backend/src or prisma changed): `cd backend && npx vitest run 2>&1 | tail -30`, ~2 min, on this
+  Mac's Postgres 17 (Homebrew service; tests/local-db.ts copies production's data every 12 h, read-only there;
+  WANDER_TEST_DB=neon uses a Neon branch). Never two runs at once, never edit backend src during a run. The `pg`
+  SELECT 1 warmup in tests/vitest-setup.ts stays. Vitest binds :3001, so local walks use :3004 / :5182.
 - Browser: Playwright on its own headless shell (trip-data/session-tools/playwright.prod.config.ts). Never
-  `npx playwright install`. Installed Chrome hangs Playwright at close. Every suite reads BASE; stop old preview servers
-  first. Production walks skip Google's map (MAPS=1 to include).
+  `npx playwright install`. Every suite reads BASE; stop old preview servers first. Production walks skip Google's map
+  (MAPS=1 to include).
 - backend/.env is PRODUCTION. Local walks use the test copy (e2e-backend.mjs: background jobs off unless --warm;
-  --stub-scout unless testing Scout's words). Stop servers and previews when idle: they keep Neon's test
-  copy awake. Keep them up while a fresh agent is using them.
+  --stub-scout unless testing Scout's words). Stop servers and previews when idle.
 - Data-changing behaviour gets chaos tests: normal, repeated, invalid or deleted ids, empty input, interaction with
-  existing features. Scout tools above all, because people ask unpredictable things.
+  existing features. Scout tools above all.
 - Screens and plumbing are tested on synthetic data with Scout stubbed. Real Scout calls only check Scout's own answers:
-  exams, and 1–3 questions on a day a new Guide copy changed. Maps also need production data (read-only):
-  real coordinates move everything.
+  exams, and 1–3 questions on a day a new Guide copy changed. Maps also need production data (read-only).
 - Timing bars: layout shift under 0.1, no freeze over 0.3 s at CPU 2×; time pages through gzip-serve.mjs.
 
 ## iPhone
@@ -59,4 +55,4 @@ is in the product."
 
 ## React hooks
 Before committing a component with early returns, read it: every hook sits ABOVE every early return. One below crashes
-the app, and no test catches it.
+the app.

@@ -2,6 +2,43 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-23 (Friday night in Japan) — Budget: shared is the clear default; anything not shared is flagged
+
+Ken: "Folks are sometimes misaligning whether in expense is shared by both parties. Make a shared expense as a clear
+default… highlight anything that doesn't shared because it's probably an error. Ask if the intent is unclear." · "Make the
+payer color equal the color in the home page. And shared a blue color." The log showed why: today Andy kept four
+payments as "for one couple alone" (three for his own couple — not shared at all) under a second row of the couples'
+names; Ken changed all four to shared.
+
+### Added
+- Scout's one-time note to Andy, Ken's words, in the message card right after his next payment is kept (any path):
+  "From Scout", Got it / Tell Scout; only Andy, only once (trip_alerts.to_id and .key; services/tripAlerts.ts
+  ONE_TIME_NOTES, afterDoing from services/expenses.ts addExpense). SPEC §13.
+- Ken hears how Scout's note went (Ken: "Tell me in an alert when you give andy the message and give me the seconds it
+  is open"): a buzz when it's on Andy's screen (POST /api/alerts/:id/shown), and when he answers it, the seconds it was
+  on his screen and the button tapped — a buzz and a card for Ken.
+- Each phone reports once a day whether it can get the 9 PM question (from the Home Screen icon? allowed? a "No" kept?),
+  yes/no only, to the server's log ("[phone] Andy nudge …") — Andy's phones have never allowed notifications.
+- Tests and the test copy can never buzz a real phone (empty notification keys; the test copy's phone addresses cleared).
+- Scout passes something someone doesn't like about Wander to Ken without asking, and says so (rule 59, tell_ken) — the
+  note's promise made true. Each session reads new Tell Ken messages (session-tools/prod-tellken-new.mts).
+
+### Changed
+- Budget's add pop-up: who paid in the couple's Home color; "✓ Shared, half each" in blue, already chosen; "Not shared?
+  Only <other couple>'s" one tap away, with what it means said and Keep reading "Keep it — not shared". Every row says
+  shared in blue or not shared in red-brown on a tinted row; a red-brown box at the top lists anything not shared.
+  (pages/MoneyPage.tsx, components/PayNextBadge.tsx partyColor). SPEC §9 (Budget) updated.
+- The server refuses a couple paying for themselves alone, with a question (services/expenses.ts). Scout keeps shared
+  unless the words plainly say the other couple's, asks when unclear, and names anything not shared in money_so_far.
+
+## 2026-10-21 (Wednesday evening in Japan) — Backroads days summed up from Backroads' plan too
+
+Ken, on Thu, Oct 22's summary ("Her Guide keeps the hours with Backroads and doesn't spell out what fills them"):
+"Didn't the backroads pdf give more detail? The day summary odd based on all you know." The summary writer read only her
+lines. Now it also reads that day in Backroads' planner (services/guide/daySummaries.ts dayInputs/summaryPrompt), and
+says both where they differ. Oct 22 and Oct 24 rewritten by hand from the planner and published (data); days already
+past left as they are. No SPEC change (SPEC: a few sentences atop each day).
+
 ## 2026-10-18 (Sunday, the Nikko day) — Ken's four asks: Return, Stop, pictures on Next, letting everyone know
 
 Held until Ken and I agree to deploy (Ken: "All can be batched until we agree to deploy. This is to minimize testing and

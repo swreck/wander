@@ -72,7 +72,8 @@ export async function createTestBranch(opts: { prefix?: string; cleanup?: boolea
     method: "POST",
     body: JSON.stringify({
       branch: { name: branchName },
-      endpoints: [{ type: "read_write" }],
+      // (at most 2 compute units: the suite scaled a branch to 8 for half an hour — most of the Neon bill; Oct 21)
+      endpoints: [{ type: "read_write", autoscaling_limit_min_cu: 0.25, autoscaling_limit_max_cu: 2 }],
     }),
   });
 

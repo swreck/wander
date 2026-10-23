@@ -12,6 +12,11 @@ import { Client } from "pg";
 
 const BRANCH_URL_FILE = join(import.meta.dirname, ".neon-branch-url");
 
+// (never a real phone's buzz from a test: the test database is a copy of production, Ken's phone address included —
+// empty keys, which dotenv won't fill in; Oct 23)
+process.env.VAPID_PUBLIC_KEY = "";
+process.env.VAPID_PRIVATE_KEY = "";
+
 if (existsSync(BRANCH_URL_FILE)) {
   const branchUrl = readFileSync(BRANCH_URL_FILE, "utf-8").trim();
   if (branchUrl) {
@@ -21,7 +26,8 @@ if (existsSync(BRANCH_URL_FILE)) {
     // from new processes, even after verification from the parent process.
     for (let attempt = 0; attempt < 10; attempt++) {
       try {
-        const client = new Client({ connectionString: branchUrl, ssl: { rejectUnauthorized: false } });
+        // (the local test database has no SSL — tests/local-db.ts)
+        const client = new Client({ connectionString: branchUrl, ssl: /sslmode=require/.test(branchUrl) ? { rejectUnauthorized: false } : false });
         await client.connect();
         await client.query("SELECT 1");
         await client.end();

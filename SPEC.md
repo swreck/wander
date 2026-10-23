@@ -2540,6 +2540,17 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   generally also with split as default and either as full owner of item"). Shared: the other couple owes half. For the
   other couple alone: they owe it all. For the payer's own couple alone: nothing is owed. Who pays next is the couple
   that owes; "To be even now" says how much.
+- **Shared is the clear default** (Oct 23 — Ken: "Folks are sometimes misaligning whether in expense is shared by both
+  parties. Make a shared expense as a clear default. And then in the summary, make it clear and highlight anything that
+  doesn't shared because it's probably an error. Ask if the intent is unclear." · "Make the payer color equal the color
+  in the home page. And shared a blue color"): in the add pop-up, who paid is in the couple's Home color (KL purple, AJ
+  orange); "✓ Shared, half each" is blue and already chosen; "Not shared? Only <the other couple>'s" is one deliberate
+  tap away and says what it means ("Not shared: Ken & Larisa will owe Julie & Andy ¥3,000, all of it."; Keep reads
+  "Keep it — not shared"). A couple paying for themselves alone is never kept (it's refused with a question); one kept
+  before shows flagged. Every row says "Shared, half each" in blue, or "Not shared: … Is that right?" in red-brown on a
+  tinted row; at the top, under "To be even now", a red-brown box lists each payment that isn't shared, each opening it.
+  Scout keeps payments shared unless the words plainly say they're the other couple's, asks when it could be either, and
+  names anything not shared when asked how things stand.
 - **The page's order** (Oct 16 — Ken: who pays next "top importance"; the total "not at top. A reminder of spending
   money which is not what to emphasize. Bottom of page"; the "alone" line "a result. Not a top line topic"): at the top,
   "Who pays next", the couple in large type, then "To be even now…". At the foot, under every entry and above Log, small:
@@ -2729,8 +2740,17 @@ the time, the screen they were on and any picture they attached (Oct 14). Ken: "
 wander or anything about the way wander works is confusing, they can speak or type at that moment what they want and it
 will become a message to Ken to try to fix. It cannot be a nuisance, and it should be very easy".
 
-- **Sending**: only on a clear "Tell Ken", or a yes to Scout's offer ("Want me to pass that to Ken, word for word?").
-  Never a personal message.
+- **Sending**: on a clear "Tell Ken", or a yes to Scout's offer ("Want me to pass that to Ken, word for word?") for a
+  wish. Something they don't like about Wander ("I don't like…", "this is annoying") goes to Ken without asking, and
+  Scout says it has (Oct 23: Scout's note to Andy promised "Anytime you don't like something, just tap Scout & tell me.
+  I'll let Ken know and try to fix it"). Never a personal message.
+- **Scout's note to Andy** (Oct 23, Ken's words, once): right after Andy's next payment is kept, a panel "From Scout":
+  "Hi Andy. This is Scout. Ken said my UI was disappointing. I'm sorry and I tried to improve. Anytime you don't like
+  something, just tap Scout & tell me. I'll let Ken know and try to fix it. Have fun in Kyoto!", with Got it and Tell
+  Scout (opens Scout). Only Andy sees it, and only once (the message card, §7.7a, addressed to one person).
+- **What happens next** (Ken, Oct 23: "sending me a message of the request and your recommended fix. If response is
+  clear to you, do IT during directive and just report the result to me"): each work session starts by reading what's
+  come in; a clear fix is built and reported; anything else goes to Ken with a recommended fix.
 - **Ken's side**: his phone buzzes ("Julie, about Wander") when it allows Scout's buzz. Settings → "About Wander, from
   the others", newest first, pictures opened in place, "Mark as read".
 - **The others' side**: Settings → "Tell Ken about Wander" opens Scout ready to write. A quiet line inside Scout with
