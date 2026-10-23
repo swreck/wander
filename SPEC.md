@@ -2740,8 +2740,17 @@ the time, the screen they were on and any picture they attached (Oct 14). Ken: "
 wander or anything about the way wander works is confusing, they can speak or type at that moment what they want and it
 will become a message to Ken to try to fix. It cannot be a nuisance, and it should be very easy".
 
-- **Sending**: only on a clear "Tell Ken", or a yes to Scout's offer ("Want me to pass that to Ken, word for word?").
-  Never a personal message.
+- **Sending**: on a clear "Tell Ken", or a yes to Scout's offer ("Want me to pass that to Ken, word for word?") for a
+  wish. Something they don't like about Wander ("I don't like…", "this is annoying") goes to Ken without asking, and
+  Scout says it has (Oct 23: Scout's note to Andy promised "Anytime you don't like something, just tap Scout & tell me.
+  I'll let Ken know and try to fix it"). Never a personal message.
+- **Scout's note to Andy** (Oct 23, Ken's words, once): right after Andy's next payment is kept, a panel "From Scout":
+  "Hi Andy. This is Scout. Ken said my UI was disappointing. I'm sorry and I tried to improve. Anytime you don't like
+  something, just tap Scout & tell me. I'll let Ken know and try to fix it. Have fun in Kyoto!", with Got it and Tell
+  Scout (opens Scout). Only Andy sees it, and only once (the message card, §7.7a, addressed to one person).
+- **What happens next** (Ken, Oct 23: "sending me a message of the request and your recommended fix. If response is
+  clear to you, do IT during directive and just report the result to me"): each work session starts by reading what's
+  come in; a clear fix is built and reported; anything else goes to Ken with a recommended fix.
 - **Ken's side**: his phone buzzes ("Julie, about Wander") when it allows Scout's buzz. Settings → "About Wander, from
   the others", newest first, pictures opened in place, "Mark as read".
 - **The others' side**: Settings → "Tell Ken about Wander" opens Scout ready to write. A quiet line inside Scout with

@@ -10,6 +10,13 @@ payer color equal the color in the home page. And shared a blue color." The log 
 payments as "for one couple alone" (three for his own couple — not shared at all) under a second row of the couples'
 names; Ken changed all four to shared.
 
+### Added
+- Scout's one-time note to Andy, Ken's words, in the message card right after his next payment is kept (any path):
+  "From Scout", Got it / Tell Scout; only Andy, only once (trip_alerts.to_id and .key; services/tripAlerts.ts
+  ONE_TIME_NOTES, afterDoing from services/expenses.ts addExpense). SPEC §13.
+- Scout passes something someone doesn't like about Wander to Ken without asking, and says so (rule 59, tell_ken) — the
+  note's promise made true. Each session reads new Tell Ken messages (session-tools/prod-tellken-new.mts).
+
 ### Changed
 - Budget's add pop-up: who paid in the couple's Home color; "✓ Shared, half each" in blue, already chosen; "Not shared?
   Only <other couple>'s" one tap away, with what it means said and Keep reading "Keep it — not shared". Every row says

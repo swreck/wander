@@ -188,6 +188,9 @@ export async function addExpense(input: { tripId: string; paidBy: string; amount
   // (its receipt, when it was kept from a photo of one — a failure to keep the picture never loses the payment)
   if (input.receipt) await keepReceipt(input.tripId, row.id, input.receipt).catch((e) => console.warn("[budget] receipt not kept:", e?.message || e));
   await logChange(input.tripId, row.id, { travelerId: input.addedById, displayName: input.addedByName }, `added ${moneyWords(amount, currency)} (${party})${forWords(forParty)}`);
+  // (a one-time note from Scout after this, when Ken left one — services/tripAlerts ONE_TIME_NOTES; never holds it up)
+  try { const { afterDoing } = await import("./tripAlerts.js"); await afterDoing(input.tripId, { travelerId: input.addedById, displayName: input.addedByName }, "budget-add"); }
+  catch (e: any) { console.warn("[budget] one-time note:", e?.message || e); }
   tellScreens(input.tripId, input.addedByName);
   return { id: row.id, party, forParty, yen, rate, approx };
 }

@@ -14,8 +14,9 @@ import { useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { takeVisitAsk } from "../lib/visitAsks";
+import { MONEY_CHANGED } from "../lib/expenses";
 
-type Alert = { id: string; tripId: string; from: string; text: string; at: string };
+type Alert = { id: string; tripId: string; from: string; text: string; at: string; toYou?: boolean };
 const scoutUp = () => !!document.querySelector('[role="dialog"][aria-label="Scout"], [role="region"][aria-label="Scout"]');
 const when = (iso: string) => {
   const d = new Date(iso);
@@ -40,12 +41,16 @@ export default function TripAlerts() {
     }).catch(() => { /* next opening */ });
   }, [user]);
 
-  // whenever Wander is on the screen again (no timer while it's open: among friends, the next look is soon enough)
+  // whenever Wander is on the screen again (no timer while it's open: among friends, the next look is soon enough) — and
+  // right after a payment is kept, here or through Scout: a one-time note from Scout can follow it (Ken, Oct 23: "When
+  // andy adds his next item to the budget, after it is done, send this message in a panel")
   useEffect(() => {
     look();
     const seen = () => { if (document.visibilityState === "visible") look(); };
+    const money = () => setTimeout(look, 600);
     document.addEventListener("visibilitychange", seen);
-    return () => document.removeEventListener("visibilitychange", seen);
+    window.addEventListener(MONEY_CHANGED, money);
+    return () => { document.removeEventListener("visibilitychange", seen); window.removeEventListener(MONEY_CHANGED, money); };
   }, [look]);
 
   // (Scout's panel up: the card waits, so it never covers Scout's box)
@@ -70,12 +75,15 @@ export default function TripAlerts() {
       <section role="alertdialog" aria-label={`From ${a.from}`} data-trip-alert
         className="pointer-events-auto w-full max-w-md rounded-2xl bg-[#3a3128] text-white shadow-xl p-4">
         <p className="text-xs uppercase tracking-wide text-white/70">
-          From {a.from}, for everyone · {when(a.at)}{alerts.length > 1 ? ` · 1 of ${alerts.length}` : ""}
+          {a.toYou ? `From ${a.from}` : `From ${a.from}, for everyone`} · {when(a.at)}{alerts.length > 1 ? ` · 1 of ${alerts.length}` : ""}
         </p>
         <p className="text-[16px] leading-snug mt-1.5 whitespace-pre-line [overflow-wrap:anywhere] max-h-[40vh] overflow-y-auto">{a.text}</p>
         <div className="flex gap-2 mt-3">
           <button disabled={busy} onClick={() => answer(a, "got")} className={`${btn} bg-white text-[#3a3128] font-medium`}>Got it</button>
-          <button disabled={busy} onClick={() => answer(a, "later")} className={`${btn} text-white/85`}>Remind me</button>
+          {/* (a note from Scout to them: its other answer is to tell Scout — the note's own offer) */}
+          {a.toYou
+            ? <button disabled={busy} onClick={() => { answer(a, "got"); window.dispatchEvent(new CustomEvent("wander-open-chat")); }} className={`${btn} text-white/85`}>Tell Scout</button>
+            : <button disabled={busy} onClick={() => answer(a, "later")} className={`${btn} text-white/85`}>Remind me</button>}
         </div>
       </section>
     </div>

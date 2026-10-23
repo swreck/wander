@@ -152,6 +152,8 @@ model TripAlert {
   fromName     String    @map("from_name")            // as named then
   text         String                                  // the words shown, as Scout confirmed them to the sender
   until        DateTime?                               // when its moment has passed ("bus leaves at 8:15"): shown no more
+  toId         String?   @map("to_id")                 // only this person (a note from Scout to one of them); null: everyone else
+  key          String?                                 // a one-time note's own name: never made twice (looked up first)
   createdAt    DateTime  @default(now()) @map("created_at")
   withdrawnAt  DateTime? @map("withdrawn_at")
 

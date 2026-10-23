@@ -91,6 +91,31 @@ describe("shared is the default; not shared is asked about and flagged", () => {
     expect(fix.status).toBeLessThan(300);
     expect((await ledger()).items.find((i: any) => i.what === "old self").forParty).toBeNull();
   });
+  it("a one-time note from Scout to Andy after his next payment: his alone, made once, never in the trip's messages", async () => {
+    // (the trip's Andy — "Bsandy" isn't him; a traveler whose first name is Andy is)
+    const a = (await prisma.traveler.findFirst({ where: { displayName: "Andy Bstest" } })) || await prisma.traveler.create({ data: { displayName: "Andy Bstest" } });
+    await prisma.tripMember.upsert({ where: { tripId_travelerId: { tripId, travelerId: a.id } }, create: { tripId, travelerId: a.id, joinedAt: new Date("2031-01-09") }, update: {} });
+    await prisma.tripAlert.deleteMany({ where: { key: "andy-budget-2026-10-23" } });
+    const at = signToken({ code: "Andy Bstest", displayName: "Andy Bstest", travelerId: a.id });
+    const pend = async (t: string) => (await request(app).get("/api/alerts/pending").set("Authorization", `Bearer ${t}`)).body.alerts as any[];
+    expect((await pend(at)).some((x) => x.from === "Scout")).toBe(false);
+    await request(app).post(`/api/expenses/trip/${tripId}`).set("Authorization", `Bearer ${at}`).send({ paidBy: "Bsandy", amount: 500, currency: "JPY", what: "andy's coffee" });
+    const mine = (await pend(at)).filter((x) => x.from === "Scout");
+    expect(mine.length).toBe(1);
+    expect(mine[0].toYou).toBe(true);
+    expect(mine[0].text).toBe("Hi Andy. This is Scout. Ken said my UI was disappointing. I'm sorry and I tried to improve. Anytime you don't like something, just tap Scout & tell me. I'll let Ken know and try to fix it. Have fun in Kyoto!");
+    expect((await pend(tok.Bsjulie)).some((x) => x.from === "Scout")).toBe(false);
+    expect((await pend(tok.Bsken)).some((x) => x.from === "Scout")).toBe(false);
+    await request(app).post(`/api/expenses/trip/${tripId}`).set("Authorization", `Bearer ${at}`).send({ paidBy: "Bsandy", amount: 600, currency: "JPY", what: "andy's second coffee" });
+    expect(await prisma.tripAlert.count({ where: { key: "andy-budget-2026-10-23" } })).toBe(1);
+    await request(app).post(`/api/alerts/${mine[0].id}/seen`).set("Authorization", `Bearer ${at}`).send({ state: "got" });
+    expect((await pend(at)).some((x) => x.from === "Scout")).toBe(false);
+    // (never among the trip's messages to everyone, for Scout's answers or my_alerts)
+    const { liveOn } = await import("../src/services/tripAlerts.js");
+    expect((await liveOn(tripId)).some((x) => x.fromName === "Scout")).toBe(false);
+    expect(JSON.stringify((await executeTool("my_alerts", { tripId }, who("Bsken"))).result)).not.toMatch(/This is Scout/);
+    await prisma.tripAlert.deleteMany({ where: { key: "andy-budget-2026-10-23" } });
+  });
   it("an amount, a description or the payer changed on a shared one stays shared", async () => {
     const lunch = (await ledger()).items.find((i: any) => i.what === "lunch");
     const r = await request(app).patch(`/api/expenses/trip/${tripId}/${lunch.id}`).set("Authorization", `Bearer ${tok.Bsandy}`).send({ amount: 4500, paidBy: "Bsken" });
