@@ -1197,6 +1197,10 @@ model TripExpense {
   forParty    String?   @map("for_party")              // null: shared half and half; else the couple it's wholly for
                                                        // (Ken, Oct 16: Julie pays ¥5,000 for a jacket that's Larisa's alone)
   dayDate     String?   @map("day_date")               // the trip day it was spent, YYYY-MM-DD
+  // not shared, and someone said that's right (Ken, Oct 23: "they're all correct. I don't know how to remove them from
+  // that page") — off the "check these" box until who paid, how much or who it's for changes
+  checkedAt   DateTime? @map("checked_at")
+  checkedBy   String?   @map("checked_by")
   addedById   String?   @map("added_by_id")
   addedByName String    @map("added_by_name")
   removedAt   DateTime? @map("removed_at")

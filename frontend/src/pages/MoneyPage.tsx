@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
-import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, readReceiptPhoto, attachReceiptPhoto, receiptImage, sharedOf, yen, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine, type ReceiptPhoto } from "../lib/expenses";
+import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, readReceiptPhoto, attachReceiptPhoto, receiptImage, sharedOf, yen, sayItsRight, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine, type ReceiptPhoto } from "../lib/expenses";
 import PayNextBadge, { partyColor, SHARED_BLUE, CHECK_RED } from "../components/PayNextBadge";
 import useBackToClose from "../hooks/useBackToClose";
 
@@ -90,25 +90,34 @@ export default function MoneyPage() {
           {l && !l.items.length && <p className="text-[14px] text-[#514636] mt-1">When one couple pays for the group, add it here. Each cost is shared half and half.</p>}
           {/* Anything not shared, up top where the totals are read — it's probably a mistake (Ken, Oct 23: "in the summary,
               make it clear and highlight anything that doesn't shared because it's probably an error") */}
-          {l && l.items.some((x) => x.forParty) && (
-            <section data-check-not-shared className="mt-3 rounded-xl border px-3 py-2.5" style={{ borderColor: CHECK_RED, background: "#fbefeb" }} aria-label="Not shared — check these">
-              <p className="text-[14px] font-medium" style={{ color: CHECK_RED }}>
-                {l.items.filter((x) => x.forParty).length === 1 ? "One payment isn't shared. Check it's right:" : `${l.items.filter((x) => x.forParty).length} payments aren't shared. Check they're right:`}
-              </p>
-              <ul className="mt-1">
-                {l.items.filter((x) => x.forParty).map((x) => {
-                  const words = `${x.what || "No description"} · ${x.currency === "USD" ? `$${x.amount}` : yen(x.amount)} — ${x.forParty === x.party ? `${x.party} for themselves` : `${x.forParty} owe it all`}`;
-                  return (
-                    <li key={x.id}>
-                      {x.mayRemove
-                        ? <button type="button" onClick={() => setSheet({ id: x.id })} className="w-full text-left min-h-[44px] text-[14px] text-[#3a3128] underline underline-offset-2">{words} ›</button>
-                        : <p className="min-h-[32px] py-1 text-[14px] text-[#3a3128]">{words}</p>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
+          {/* (each with "That's right": checked, it leaves the box — Ken, Oct 23: "they're all correct. I don't know how to
+              remove them from that page. make sure there's a way to remove them") */}
+          {l && l.items.some((x) => x.forParty && !x.checkedBy) && (() => {
+            const check = l.items.filter((x) => x.forParty && !x.checkedBy);
+            return (
+              <section data-check-not-shared className="mt-3 rounded-xl border px-3 py-2.5" style={{ borderColor: CHECK_RED, background: "#fbefeb" }} aria-label="Not shared — check these">
+                <p className="text-[14px] font-medium" style={{ color: CHECK_RED }}>
+                  {check.length === 1 ? "One payment isn't shared. Is it right?" : `${check.length} payments aren't shared. Are they right?`}
+                </p>
+                <ul className="mt-1 divide-y divide-[#f0d8cf]">
+                  {check.map((x) => {
+                    const words = `${x.what || "No description"} · ${x.currency === "USD" ? `$${x.amount}` : yen(x.amount)} — ${x.forParty === x.party ? `${x.party} for themselves` : `${x.forParty} owe it all`}`;
+                    return (
+                      <li key={x.id} className="flex items-center gap-2 py-0.5">
+                        {x.mayRemove
+                          ? <button type="button" onClick={() => setSheet({ id: x.id })} aria-label={`Change it: ${words}`} className="flex-1 min-w-0 text-left min-h-[44px] text-[14px] text-[#3a3128] underline underline-offset-2">{words} ›</button>
+                          : <p className="flex-1 min-w-0 min-h-[32px] py-1 text-[14px] text-[#3a3128]">{words}</p>}
+                        {x.forParty !== x.party && (
+                          <button type="button" onClick={async () => { if (!tripId) return; const err = await sayItsRight(tripId, x.id); setKept({ said: err || `Checked: ${x.what || "that payment"} is right as it is` }); }}
+                            className="shrink-0 min-h-[40px] px-3 rounded-full border text-[13px] bg-white" style={{ borderColor: CHECK_RED, color: CHECK_RED }}>That's right</button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })()}
         </div>
       </header>
 
@@ -137,12 +146,13 @@ export default function MoneyPage() {
                     </div>
                     {/* (shared, the default, in blue; not shared said plainly and in red-brown — probably a mistake; Ken, Oct 23) */}
                     {!x.forParty ? <p className="text-[13px] mt-0.5" style={{ color: SHARED_BLUE }}>Shared, half each</p>
+                      : x.checkedBy ? <p className="text-[13px] mt-0.5 text-[#6b5d4a]">Not shared: {x.forParty} owe{/&/.test(x.forParty) ? "" : "s"} it all back · checked by {first(x.checkedBy) === first(me) ? "you" : x.checkedBy}</p>
                       : <p className="text-[13px] font-medium mt-0.5" style={{ color: CHECK_RED }}>{notSharedWords(x)}{x.mayRemove ? " Tap to change." : ""}</p>}
                     <p className="text-xs text-[#6b5d4a] mt-0.5">{shortDay(x.dayDate)} · kept by {first(x.addedByName) === first(me) ? "you" : x.addedByName}{x.currency === "USD" ? ` · ${yen(x.yen)} at ${x.rate?.toFixed(2)} yen to the dollar` : ""}</p>
                   </>
                 );
                 return (
-                  <li key={x.id} data-not-shared={x.forParty ? "" : undefined} style={x.forParty ? { background: "#fbefeb", boxShadow: `inset 3px 0 0 ${CHECK_RED}` } : undefined}>
+                  <li key={x.id} data-not-shared={x.forParty && !x.checkedBy ? "" : undefined} style={x.forParty && !x.checkedBy ? { background: "#fbefeb", boxShadow: `inset 3px 0 0 ${CHECK_RED}` } : undefined}>
                     {x.mayRemove ? (
                       <button type="button" onClick={() => setSheet({ id: x.id })} aria-label={`Change ${x.party}'s ${x.currency === "USD" ? `$${x.amount}` : yen(x.amount)}${x.what ? `, ${x.what}` : ""}`}
                         className="w-full text-left px-4 py-3 min-h-[56px] flex items-center gap-2 active:bg-[#f5f0ea]">

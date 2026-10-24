@@ -69,6 +69,15 @@ router.post("/trip/:tripId/:id/back", async (req: AuthRequest, res) => {
   res.json({ ok: true, already: r === "already" });
 });
 
+// POST /trip/:tripId/:id/right — "That's right": a payment that isn't shared is as meant (off the "check these" box)
+router.post("/trip/:tripId/:id/right", async (req: AuthRequest, res) => {
+  const { checkNotShared } = await import("../services/expenses.js");
+  const r = await checkNotShared(req.params.tripId as string, req.params.id as string, { travelerId: req.user?.travelerId, displayName: req.user?.displayName || "Someone" });
+  if (r === "gone") { res.status(404).json({ error: "That payment isn't there anymore." }); return; }
+  if (r === "not-member") { res.status(403).json({ error: "Not on this trip." }); return; }
+  res.json({ ok: true, ...(r === "shared" ? { shared: true } : {}) });
+});
+
 // PATCH /trip/:tripId/:id — { amount?, currency?, paidBy?, what?, forParty? (null: shared) }, by who added it or the trip's first member
 router.patch("/trip/:tripId/:id", async (req: AuthRequest, res) => {
   const b = req.body || {};

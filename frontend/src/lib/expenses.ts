@@ -12,7 +12,7 @@ export type Ledger = {
   shared?: number; alone?: number;
   next: string | null;
   owes: { from: string; to: string; yen: number } | null;
-  items: { id: string; party: string; forParty?: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean; hasReceipt?: boolean }[];
+  items: { id: string; party: string; forParty?: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean; hasReceipt?: boolean; checkedBy?: string }[];
 };
 
 /** A receipt photo, shrunk on the phone, ready to read and to keep with its payment */
@@ -51,6 +51,12 @@ export async function receiptImage(tripId: string, id: string, small = false): P
 
 const key = (tripId: string) => `wander:money:${tripId}`;
 export const MONEY_CHANGED = "wander:money-changed";
+
+/** "That's right": a payment that isn't shared is as meant — off the "check these" box (Ken, Oct 23). null when kept. */
+export async function sayItsRight(tripId: string, id: string): Promise<string | null> {
+  try { await api.post(`/expenses/trip/${tripId}/${id}/right`, {}); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
+  catch { return navigator.onLine === false ? "No signal — try again when there's a bar or two." : "That didn't save — try again?"; }
+}
 // (someone else kept or took away a payment — or Scout did — and the server said so: every money view looks again)
 if (typeof window !== "undefined") window.addEventListener("wander:data-changed", () => window.dispatchEvent(new Event(MONEY_CHANGED)));
 

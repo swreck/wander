@@ -2548,7 +2548,10 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   tap away and says what it means ("Not shared: Ken & Larisa will owe Julie & Andy ¥3,000, all of it."; Keep reads
   "Keep it — not shared"). A couple paying for themselves alone is never kept (it's refused with a question); one kept
   before shows flagged. Every row says "Shared, half each" in blue, or "Not shared: … Is that right?" in red-brown on a
-  tinted row; at the top, under "To be even now", a red-brown box lists each payment that isn't shared, each opening it.
+  tinted row; at the top, under "To be even now", a red-brown box lists each payment that isn't shared, each opening it,
+  each with **That's right** (Oct 24; Ken: "they're all correct… make sure there's a way to remove them"): checked by
+  anyone, it leaves the box and its row reads "Not shared: … · checked by Ken", untinted; changing who paid, the amount
+  or who it's for puts it back.
   Scout keeps payments shared unless the words plainly say they're the other couple's, asks when it could be either, and
   names anything not shared when asked how things stand.
 - **The page's order** (Oct 16 — Ken: who pays next "top importance"; the total "not at top. A reminder of spending

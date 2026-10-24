@@ -29,7 +29,7 @@ export type Ledger = {
   next: string | null;
   /** half the difference: what the couple behind owes the other, to be even */
   owes: { from: string; to: string; yen: number } | null;
-  items: { id: string; party: string; forParty: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean; hasReceipt: boolean }[];
+  items: { id: string; party: string; forParty: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean; hasReceipt: boolean; checkedBy?: string }[];
 };
 
 const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
@@ -118,8 +118,25 @@ export async function ledger(tripId: string, who?: { travelerId?: string | null;
   const mine = (r: { addedById: string | null; addedByName: string }) => !!who && ((!!who.travelerId && r.addedById === who.travelerId) || (!!who.displayName && first(r.addedByName) === first(who.displayName)) || (!!who.travelerId && org?.travelerId === who.travelerId));
   return {
     parties, totals, shared, alone, next, owes,
-    items: rows.map((r) => ({ id: r.id, party: r.party, forParty: r.forParty, amount: r.amount, currency: r.currency, yen: r.yen, rate: r.rate, what: r.what, dayDate: r.dayDate, addedByName: r.addedByName, createdAt: r.createdAt.toISOString(), mayRemove: mine(r), hasReceipt: withReceipt.has(r.id) })),
+    items: rows.map((r) => ({ id: r.id, party: r.party, forParty: r.forParty, amount: r.amount, currency: r.currency, yen: r.yen, rate: r.rate, what: r.what, dayDate: r.dayDate, addedByName: r.addedByName, createdAt: r.createdAt.toISOString(), mayRemove: mine(r), hasReceipt: withReceipt.has(r.id),
+      ...(r.forParty && r.checkedAt ? { checkedBy: r.checkedBy || "someone" } : {}) })),
   };
+}
+
+/** "That's right": a payment that isn't shared is as meant — off the "check these" box (Ken, Oct 23: "they're all
+ *  correct. I don't know how to remove them from that page. make sure there's a way to remove them"). Anyone on the
+ *  trip; logged. Changing who paid, the amount or who it's for puts it back in the box. */
+export async function checkNotShared(tripId: string, id: string, who: { travelerId?: string | null; displayName: string }): Promise<"done" | "gone" | "shared" | "not-member"> {
+  const row = await prisma.tripExpense.findFirst({ where: { id, tripId, removedAt: null } });
+  if (!row) return "gone";
+  if (!row.forParty) return "shared";
+  if (who.travelerId && !(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId, travelerId: who.travelerId } } }))) return "not-member";
+  if (!row.checkedAt) {
+    await prisma.tripExpense.update({ where: { id }, data: { checkedAt: new Date(), checkedBy: who.displayName } });
+    await logChange(tripId, id, who, `said it's right that it isn't shared (${moneyWords(row.amount, row.currency)}, for ${row.forParty} alone)`);
+    tellScreens(tripId, who.displayName);
+  }
+  return "done";
 }
 
 /** Every open screen on the trip looks again (the bar's "who pays next", Home's total) — quietly, no notice; the person
@@ -266,7 +283,9 @@ export async function changeExpense(tripId: string, id: string, who: { travelerI
   if ((what || "") !== (row.what || "")) said.push(what ? (row.what ? `changed what it was for to “${what}”` : `added what it was for: “${what}”`) : "took out what it was for");
   if (forParty !== row.forParty) said.push(`changed who it's for: ${row.forParty ? `${row.forParty} alone` : "shared"} → ${forParty ? `${forParty} alone` : "shared"}`);
   if (!said.length) return { party, yen, said: "" };
-  await prisma.tripExpense.update({ where: { id }, data: { party, amount, currency, yen, rate, what, forParty } });
+  // (who paid, how much or who it's for changed: "that's right" was said of something else — back in the box)
+  const recheck = party !== row.party || amount !== row.amount || currency !== row.currency || forParty !== row.forParty;
+  await prisma.tripExpense.update({ where: { id }, data: { party, amount, currency, yen, rate, what, forParty, ...(recheck ? { checkedAt: null, checkedBy: null } : {}) } });
   const line = `${said.join("; ")}${amount === row.amount && currency === row.currency ? ` (${moneyWords(amount, currency)})` : ""}`;
   await logChange(tripId, id, who, line);
   tellScreens(tripId, who.displayName);
