@@ -2,6 +2,15 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-24 (Saturday evening in Japan) — Budget: "That's right" takes a checked payment off the box
+
+Ken: "There were only three items that were not shared in the budget, and they're all correct. I don't know how to
+remove them from that page. make sure there's a way to remove them, but in the meantime you can remove them."
+- Each line in the "not shared — check these" box has **That's right** (anyone on the trip): it leaves the box; its row
+  stays, untinted, "Not shared: … owe it all back · checked by Ken". A change of who paid, the amount or who it's for
+  puts it back. Logged. Scout: change_expense thatsRight. (trip_expenses.checked_at/checked_by; POST
+  /api/expenses/trip/:tripId/:id/right.) SPEC §9 Budget updated. Ken's three marked checked by Ken on production.
+
 ## 2026-10-23 (Friday night in Japan) — Budget: shared is the clear default; anything not shared is flagged
 
 Ken: "Folks are sometimes misaligning whether in expense is shared by both parties. Make a shared expense as a clear

@@ -1119,6 +1119,7 @@ const tools: Anthropic.Tool[] = [
         paidBy: { type: "string", description: "The couple (or anyone in it) who really paid" },
         what: { type: "string", description: "What it was for, in their words; an empty string takes it out" },
         forCouple: { type: "string", description: "Who it's wholly for — a couple or anyone in it — or 'shared' to make it half each again" },
+        thatsRight: { type: "boolean", description: "true when they say a payment that isn't shared is right as it is ('the sake cup one is right'): it comes off the Budget's 'check these' box — anyone on the trip may say so" },
       },
       required: ["tripId", "id"],
     },
@@ -4062,11 +4063,20 @@ export async function executeTool(
         const off = await prisma.tripExpense.findMany({ where: { tripId: input.tripId, removedAt: { not: null } }, orderBy: { removedAt: "desc" }, take: 10 });
         // (not shared, said apart, so a mistake shows — Ken, Oct 23: "highlight anything that doesn't shared because it's
         // probably an error")
-        const notShared = l.items.filter((x) => x.forParty).map((x) => `${x.currency === "USD" ? `$${x.amount}` : yenWords(x.amount)}${x.what ? ` (${x.what})` : ""}, paid by ${x.party}: ${x.forParty === x.party ? `${x.party} paid for themselves — not shared at all, probably a mistake` : `${x.forParty} owe it all back`}`);
+        // (one someone said is right isn't asked about again — the "check these" box drops it too)
+        const notShared = l.items.filter((x) => x.forParty && !x.checkedBy).map((x) => `${x.currency === "USD" ? `$${x.amount}` : yenWords(x.amount)}${x.what ? ` (${x.what})` : ""}, paid by ${x.party}: ${x.forParty === x.party ? `${x.party} paid for themselves — not shared at all, probably a mistake` : `${x.forParty} owe it all back`}`);
         return { result: { ...said(l), ...(notShared.length ? { notShared, notSharedHow: "Name these, plainly, as not shared — ask whether each is right" } : {}), payments: l.items.slice(0, 40).map((x) => ({ id: x.id, paidBy: x.party, for: x.forParty ? `${x.forParty} alone` : "shared", amount: x.currency === "USD" ? `$${x.amount}` : yenWords(x.amount), yen: x.currency === "USD" ? yenWords(x.yen) : undefined, what: x.what, day: x.dayDate, keptBy: x.addedByName, youMayRemove: x.mayRemove })),
           takenAway: off.map((x) => ({ id: x.id, paidBy: x.party, amount: x.currency === "USD" ? `$${x.amount}` : yenWords(x.amount), what: x.what, keptBy: x.addedByName })),
           // (Scout offered Larisa "tell me which and I'll take them off" for Andy's entries, then couldn't; user-larisa3)
           say: "Say who pays next and what they'd pay the other couple to be even, in a line. Totals and payments only if asked (Ken: people don't want to be reminded how much they've paid). Offer to change or take a payment away only when it's youMayRemove: true; for others, say who kept it and that they (or Ken) can." } };
+      }
+      if (toolName === "change_expense" && input.thatsRight === true && input.amount === undefined && input.paidBy === undefined && input.forCouple === undefined) {
+        const { checkNotShared } = await import("../services/expenses.js");
+        const r = await checkNotShared(input.tripId, String(input.id || ""), { travelerId: me, displayName: user.displayName });
+        if (r === "gone") return { result: { error: "That payment isn't there — look at money_so_far for its id." } };
+        if (r === "shared") return { result: { error: "That one is shared, half each — nothing to say is right." } };
+        if (r === "not-member") return { result: { error: "They aren't on this trip." } };
+        return { result: { checked: true, say: "One line: noted that it's right as it is; it's off the Budget's check list." }, actionDescription: "Checked: it's right that it isn't shared" };
       }
       if (toolName === "change_expense") {
         const r = await changeExpense(input.tripId, String(input.id || ""), { travelerId: me, displayName: user.displayName },

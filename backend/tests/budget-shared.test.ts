@@ -128,6 +128,32 @@ describe("shared is the default; not shared is asked about and flagged", () => {
     expect(JSON.stringify((await executeTool("my_alerts", { tripId }, who("Bsken"))).result)).not.toMatch(/This is Scout/);
     await prisma.tripAlert.deleteMany({ where: { key: "andy-budget-2026-10-23" } });
   });
+  it("'That's right': off the check list; any change of payer, amount or who it's for puts it back; a shared one can't be", async () => {
+    const scarf = (await ledger()).items.find((i: any) => i.what === "scarf");
+    expect(scarf.checkedBy).toBeUndefined();
+    const ok = await request(app).post(`/api/expenses/trip/${tripId}/${scarf.id}/right`).set("Authorization", `Bearer ${tok.Bsjulie}`).send({});
+    expect(ok.status).toBe(200);
+    expect((await ledger()).items.find((i: any) => i.what === "scarf").checkedBy).toBe("Bsjulie");
+    // (said twice: still once in the log)
+    await request(app).post(`/api/expenses/trip/${tripId}/${scarf.id}/right`).set("Authorization", `Bearer ${tok.Bsjulie}`).send({});
+    expect(await prisma.tripExpenseLog.count({ where: { expenseId: scarf.id, action: { contains: "said it's right" } } })).toBe(1);
+    // (Scout no longer names it)
+    const m = await executeTool("money_so_far", { tripId }, who("Bsken"));
+    expect((m.result.notShared || []).some((s: string) => /scarf/.test(s))).toBe(false);
+    // (what it says changes: back on the list)
+    await request(app).patch(`/api/expenses/trip/${tripId}/${scarf.id}`).set("Authorization", `Bearer ${tok.Bsandy}`).send({ what: "silk scarf" });
+    expect((await ledger()).items.find((i: any) => i.what === "silk scarf").checkedBy).toBe("Bsjulie");
+    await request(app).patch(`/api/expenses/trip/${tripId}/${scarf.id}`).set("Authorization", `Bearer ${tok.Bsandy}`).send({ amount: 3200 });
+    expect((await ledger()).items.find((i: any) => i.what === "silk scarf").checkedBy).toBeUndefined();
+    // (Scout can say it too)
+    const s = await executeTool("change_expense", { tripId, id: scarf.id, thatsRight: true }, who("Bsken"));
+    expect(s.result.checked).toBe(true);
+    expect((await ledger()).items.find((i: any) => i.what === "silk scarf").checkedBy).toBe("Bsken");
+    // (a shared one, a made-up id, someone off the trip)
+    const lunch = (await ledger()).items.find((i: any) => i.what === "lunch");
+    expect((await request(app).post(`/api/expenses/trip/${tripId}/${lunch.id}/right`).set("Authorization", `Bearer ${tok.Bsken}`).send({})).body.shared).toBe(true);
+    expect((await request(app).post(`/api/expenses/trip/${tripId}/nope/right`).set("Authorization", `Bearer ${tok.Bsken}`).send({})).status).toBe(404);
+  });
   it("an amount, a description or the payer changed on a shared one stays shared", async () => {
     const lunch = (await ledger()).items.find((i: any) => i.what === "lunch");
     const r = await request(app).patch(`/api/expenses/trip/${tripId}/${lunch.id}`).set("Authorization", `Bearer ${tok.Bsandy}`).send({ amount: 4500, paidBy: "Bsken" });
