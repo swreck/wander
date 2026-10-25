@@ -15,7 +15,7 @@ image is a dead end with no way to even go back after viewing".
   PictureViewer title/footer/pdf.)
 - A pinch in any full-screen picture (her pictures too) zoomed toward the middle; it now zooms toward the fingers.
 - A paper with no day printed on it (a welcome sheet, a menu, a temple ticket) went under "No day"; it now goes under the
-  day it was kept. Ken's six such papers are filed that way on production (paper-text-fill.mts).
+  day it was kept. Ken's seven such papers are filed that way on production (paper-text-fill.mts).
 - Scout saw only Wander's summary of a paper ("the sheet lists the 1F and 2F Wi-Fi networks"), never what it says. The
   words printed on a paper are now kept (trip_papers.text; never a card, booking or passport number, a guest's name or a
   room number) and given to Scout; Ken's 17 papers were read again for them.
