@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-25 (Sunday evening in Japan) — Papers: open inside Wander, zoom, who sees it, a card when shared
+
+Ken, with a photo of the Baian ryokan's welcome sheet: "Interface messed up? At this screen should be able to zoom in or
+change the distribution between self and group. Think through use case" · "If a note added for group alert each person
+on next login that the doc is available with a small picture that can expand" · "the current expansion of the paper
+image is a dead end with no way to even go back after viewing".
+### Fixed
+- Tapping a paper opened the bare photo in its own window: in the Home Screen app, no Done, no Back, no zoom. It now
+  opens full screen inside Wander (Notes, a day's page, the card): pinch toward the fingers or double-tap to zoom, Done
+  or Back closes it, what Wander read under it, **Save or send** (the share sheet). (components/Papers.tsx PaperViewer,
+  PictureViewer title/footer/pdf.)
+- A pinch in any full-screen picture (her pictures too) zoomed toward the middle; it now zooms toward the fingers.
+- A paper with no day printed on it (a welcome sheet, a menu, a temple ticket) went under "No day"; it now goes under the
+  day it was kept. Ken's six such papers are filed that way on production (paper-text-fill.mts).
+- Scout saw only Wander's summary of a paper ("the sheet lists the 1F and 2F Wi-Fi networks"), never what it says. The
+  words printed on a paper are now kept (trip_papers.text; never a card, booking or passport number, a guest's name or a
+  room number) and given to Scout; Ken's 17 papers were read again for them.
+### Added
+- **Who sees it**, on the paper's screen: Just me · Larisa and me (Ken and Larisa; how theirs are kept) · Everyone.
+  Scout: share_paper, keep_paper share. (trip_papers.share; POST /api/papers/:id/share.)
+- **Shared with everyone**: each other person's next opening shows a card, "Ken shared a paper", title and a small
+  picture that opens full size; Got it / Remind me. Kept back or removed: the card is taken back. (trip_alerts.paper_id;
+  services/tripAlerts.ts pendingFor.) "See it or share it" right after keeping one from Notes.
+SPEC §9.6, §16 (photos), §19 (privacy), Scout's tools updated.
+
 ## 2026-10-24 (Saturday evening in Japan) — Budget: "That's right" takes a checked payment off the box
 
 Ken: "There were only three items that were not shared in the budget, and they're all correct. I don't know how to

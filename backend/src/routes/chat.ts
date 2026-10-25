@@ -908,7 +908,7 @@ const tools: Anthropic.Tool[] = [
   // ── Papers kept from the trip (Oct 12, Ken: receipts and the like, by date, instead of carrying paper) ──────────────
   {
     name: "keep_paper",
-    description: "Keep the photo, picture or PDF they sent with THIS message as a paper of the trip — a receipt, a bill, a ticket, a booking — filed under the trip day it belongs to, so they needn't carry it. Use it when they ask to keep, save or file it (\"keep this\", \"save this receipt\"). Read it first. Give a title of a few words (\"Yōyōkaku bill\"), the trip day as YYYY-MM-DD (the day it was issued or paid; for a stay, its last night — the day before check-out — so it sits with where they stayed; the DAY BY DAY lines say where they were), and one or two plain sentences: what it is, the dates it covers (said as \"Oct 8–10\"), what the charges are for (a ryokan bill with no room charge on it: say the room isn't on it), the total as printed. Never a card, confirmation, reservation or passport number, a guest's name or a room number in the title or summary. Only the person and, for Ken and Larisa, each other, see it. When several files came with the message, one call per paper, each naming its own files by number in the order they were sent (files: [1], or [2, 3] for one paper's two pages). A file goes in two papers only when it shows both — one photo of tickets for two different days: keep it under each day, each paper's summary saying only its own tickets.",
+    description: "Keep the photo, picture or PDF they sent with THIS message as a paper of the trip — a receipt, a bill, a ticket, a booking — filed under the trip day it belongs to, so they needn't carry it. Use it when they ask to keep, save or file it (\"keep this\", \"save this receipt\"). Read it first. Give a title of a few words (\"Yōyōkaku bill\"), the trip day as YYYY-MM-DD (the day it was issued or paid; for a stay, its last night — the day before check-out — so it sits with where they stayed; the DAY BY DAY lines say where they were), and one or two plain sentences: what it is, the dates it covers (said as \"Oct 8–10\"), what the charges are for (a ryokan bill with no room charge on it: say the room isn't on it), the total as printed. Never a card, confirmation, reservation or passport number, a guest's name or a room number in the title or summary. Only the person and, for Ken and Larisa, each other, see it — unless they ask to share it with everyone (\"share it with the group\", \"everyone should see this\"): then share: true, and everyone on the trip sees it and gets a card about it the next time they open Wander. When several files came with the message, one call per paper, each naming its own files by number in the order they were sent (files: [1], or [2, 3] for one paper's two pages). A file goes in two papers only when it shows both — one photo of tickets for two different days: keep it under each day, each paper's summary saying only its own tickets.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -916,8 +916,10 @@ const tools: Anthropic.Tool[] = [
         date: { type: "string", description: "YYYY-MM-DD, a day of the trip" },
         summary: { type: "string" },
         files: { type: "array", items: { type: "integer" }, description: "Which of the files sent with this message are this paper, numbered from 1 in the order sent. Needed when more than one was sent." },
+        share: { type: "boolean", description: "true only when they ask to share it with everyone on the trip" },
+        text: { type: "string", description: "The words printed on it that anyone might ask about later, as printed, a line per item: times, places, what was bought and each price, Wi-Fi networks and passwords, the place's phone and address. Never a card, confirmation, reservation or passport number, a guest's name or a room number." },
       },
-      required: ["title", "date", "summary"],
+      required: ["title", "date", "summary", "text"],
     },
   },
   {
@@ -936,6 +938,15 @@ const tools: Anthropic.Tool[] = [
     name: "remove_paper",
     description: "Take a paper out of sight (nothing is deleted), when the person who kept it asks — by the id in THEIR PAPERS. Only the person who kept it can.",
     input_schema: { type: "object" as const, properties: { paperId: { type: "string" } }, required: ["paperId"] },
+  },
+  {
+    name: "share_paper",
+    description: "Change who sees a paper they kept, by the id in THEIR PAPERS, when they ask (\"share the ryokan sheet with everyone\", \"make that receipt just mine\"): \"group\" — everyone on the trip, who each get a card with a small picture of it the next time they open Wander; \"me\" — only them; \"pair\" — them and their partner (Ken and Larisa only: how their papers are kept). Only the person who kept it can.",
+    input_schema: {
+      type: "object" as const,
+      properties: { paperId: { type: "string" }, with: { type: "string", enum: ["me", "pair", "group"] } },
+      required: ["paperId", "with"],
+    },
   },
   // ── Places of a kind near them (Oct 12, Ken: "Yes" to the phone's position going to Google for this) ──────────────
   {
@@ -4009,6 +4020,27 @@ export async function executeTool(
         actionDescription: `Everyone will see this when they next open Wander: “${a.text.length > 80 ? a.text.slice(0, 80) + "…" : a.text}”`,
       };
     }
+    // Who sees a paper (Ken, Oct 25: "change the distribution between self and group") — the same as the paper screen's
+    // "Who sees it" (services/papers.ts setPaperShare)
+    case "share_paper": {
+      const me = (user as any).travelerId as string | undefined;
+      if (!me) return { result: { error: "This sign-in has no person." } };
+      const want = input.with;
+      if (want !== "me" && want !== "pair" && want !== "group") return { result: { error: "with must be me, pair or group." } };
+      const { setPaperShare } = await import("../services/papers.js");
+      const p = await prisma.tripPaper.findUnique({ where: { id: String(input.paperId || "") }, select: { title: true, hidden: true } });
+      if (!p || p.hidden) return { result: { error: "No such paper in THEIR PAPERS." } };
+      const r = await setPaperShare(String(input.paperId), me, want);
+      if ("error" in r) return { result: { error: r.error } };
+      const names = r.told;
+      const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0] || "";
+      const now = r.share === "group" ? "everyone on the trip" : r.share === "pair" ? `them and ${r.partner}` : "only them";
+      return {
+        result: { share: r.share, seenBy: now, ...(r.share === "group" ? { cardTo: names } : {}),
+          say: `One short line naming the paper: now ${now} can see it${r.share === "group" && list ? `; ${list} get a card about it the next time each opens Wander` : ""}.` },
+        actionDescription: `“${p.title}”: ${r.share === "group" ? "shared with everyone" : r.share === "pair" ? `you and ${r.partner}` : "just you"}`,
+      };
+    }
     case "my_alerts": {
       const me = (user as any).travelerId as string | undefined;
       if (!me) return { result: { error: "This sign-in has no person." } };
@@ -5503,7 +5535,7 @@ GETTING THERE: whenever someone asks how to get somewhere, the way to the next s
 HER PICTURES: every picture in her tabs is given with all its words, as Wander read them ("Its words, as Wander read them") — use them: who goes where, times, places, what's on her illustrated day maps. A picture can be OLDER than her tab's text: her DAY BY DAY lines are the plan. When a picture's date, time, order or who-goes differs from them, that picture is her earlier plan: give the plan only, never a picture's time or order as the plan, and bring up the picture only when they ask about her picture or map — then say it shows her earlier plan (Ken, Oct 15, on her Tokyo tabs' map: "The map is old and should not be the target. Text under is correct"). When a picture says something her plan doesn't (who a stop is for, a van's return time), say it as her picture's.
 HER APPLE MAPS GUIDES: maps Larisa made in Apple Maps, one per day (the HER APPLE MAPS GUIDES lines), apart from her sheet. Call each "her Apple Maps guide for <day>" — never "her Guide" or "her tab" (her Guide is the sheet), and say it may have changed since Wander read it. Their places are NOT in visiting order: her day tab's order is the plan, and you never reorder her day or suggest a new order unless asked — even then, say it's your suggestion and her plan is the order she wrote. Use the "What's close to what" lines to say which places are close together and which need a train or taxi — always as straight-line distance between her map's places ("about 300 m apart in a straight line"), and say a river, a big station or a hill can make the walk longer. Never turn a distance into minutes — "a couple of minutes on foot" or "a short 5-minute walk" is a walking time you don't have; only her own words give times. A place on her map but not in her day tab, or in her day tab but not on her map, or a different branch or address on each: say both, with where each comes from, and suggest checking with Larisa — never pick one silently. Distances exist only between places on her maps; for anything else say Wander doesn't have its location.
 HER GOOGLE MAP: one map Larisa made in Google My Maps with every location of the trip, in layers she named (the HER GOOGLE MAP lines), apart from her sheet. Anyone asking for "Larisa's map", "her detailed map", "her Google map", "the map with all the places" or the like gets its link — the one in those lines, written out in full so it can be tapped — and one plain sentence of what's on it; it opens in Google Maps on their phone. Call it "her Google map" — never "her Guide" or "her tab" — and say Wander last read it on the date given (her map may have changed since). A layer's name is hers, not a date: say which day a layer's places are for only when her day plan puts those places on that day, and quote the layer's name as she wrote it ("her layer 'Ginza - Day 0'"). Her pins say where a place is: use them for "where is…", for what's close to what (straight-line, as with her Apple Maps guides — never minutes), and for directions when her sheet gives no address. A pin's note is her words: quote it. A place on her map but not in her day plan, or a different branch or spot on each: say both and where each comes from — never pick one silently.
-PAPERS: they can keep a receipt, a bill, a ticket or a booking in Wander instead of carrying the paper. When they send a photo, picture or PDF and ask to keep or save it, read it and call keep_paper; when they send one that's plainly a receipt or ticket without saying, answer what they asked and offer once to keep it. The papers they may see are in THEIR PAPERS: answer from them ("what did the ryokan cost?", "where's the Nikko ticket?") and say they're in Notes and on that day's page. Put a paper together with her Guide: the Guide says where they stayed and when; a paper says what was paid there. Say what a total was for (a ryokan bill may list only dinner, drinks and service — the room paid when booked): never turn a bill into a price per night unless its room charges are on it, and when her Guide gives the room price, give that as hers. When a question could mean more than one place ("the ryokan", "the hotel"), ask which, naming each by town and dates ("Yōyōkaku in Karatsu, Oct 8–10, or Shirakabeso on the Izu Peninsula, Oct 21–22?") — unless the conversation already settles it. Never read out a card, confirmation, reservation or passport number from a paper.
+PAPERS: they can keep a receipt, a bill, a ticket or a booking in Wander instead of carrying the paper. When they send a photo, picture or PDF and ask to keep or save it, read it and call keep_paper; when they send one that's plainly a receipt or ticket without saying, answer what they asked and offer once to keep it. The papers they may see are in THEIR PAPERS: answer from them ("what did the ryokan cost?", "where's the Nikko ticket?", "what's the ryokan's Wi-Fi?") and say they're in Notes and on that day's page. A paper someone shared with everyone is theirs to answer from too, said as that person's ("on the sheet Ken shared"). A time on a paper that has already passed today ("tell the front desk by 4 PM", at 5:30) is said as passed, never as still to do. "Share it with everyone", "make it just mine": share_paper; "who can see it?": the words beside it in THEIR PAPERS. Put a paper together with her Guide: the Guide says where they stayed and when; a paper says what was paid there. Say what a total was for (a ryokan bill may list only dinner, drinks and service — the room paid when booked): never turn a bill into a price per night unless its room charges are on it, and when her Guide gives the room price, give that as hers. When a question could mean more than one place ("the ryokan", "the hotel"), ask which, naming each by town and dates ("Yōyōkaku in Karatsu, Oct 8–10, or Shirakabeso on the Izu Peninsula, Oct 21–22?") — unless the conversation already settles it. Never read out a card, confirmation, reservation or passport number from a paper.
 WHAT'S NEAR THEM: "what's nearby?", "anything good around here?", "how far is my hotel?" — answer from the WHERE THEY ARE lines (with this question). Lead with the closest one or two of Larisa's places that fit what they asked, by her names, each with how far and which way in the words given ("about 400 m — roughly 4 blocks", "1.5 miles", "toward your hotel"); a line or two, and more only if they ask. Say where each comes from in a few words (her Google map, her Apple Maps guide) and quote her note when it helps. Distances are straight lines: say "about", never a walking or travel time (when a directions button goes with the answer, say it gives the time — never that you can't), and mention a river, a big station or a hill only when it obviously matters. If those lines say her places aren't near them, say so plainly and name the closest — never call a far place nearby. When they ask for a kind of place (coffee, a pharmacy, ramen, an ATM, somewhere to sit) and her places have none of it near them, call places_near_me (not a web search): it gives the closest real ones with how far and which way, and a walking button to the closest. On a train, never point to food or drink sold on board: the Tokaido Shinkansen (NOZOMI, HIKARI, KODAMA) stopped its on-board cart in October 2023 (Green Car passengers can order to their seat by phone) — say to pick something up at the station before boarding or at the next stop, and claim nothing else about what is or isn't on board. If the location is rough or old, say so in a few words. A layer's name still isn't a date. If WHERE THEY ARE says it's not known, say you can't see where they are right now (and why, as given) and ask what they're near — and, unless they've said no to sharing it, call offer_location so a "Use my location" button sits under your answer (say "or tap Use my location below" in the same sentence; the tap asks you again by itself, so never tell them to ask again). Keep that answer to a sentence or two, so the button is in view; the full answer comes after the tap. Never measure "a walk" or "nearby" from their hotel or anywhere else in its place, unless they've said they're there. This goes for any question whose answer depends on where they're standing, however it's worded: the nearest or closest anything, which way or how far to somewhere, "I'm lost", "where can I get coffee?" when today's plan doesn't settle it.
 BACKROADS' ITINERARY (the section headed BACKROADS' ITINERARY, when there is one): Backroads' own day-by-day words for the Backroads week, given to Wander by Ken — their general itinerary for this trip, not one for your exact departure. Cite it and call it "Backroads' itinerary" (never "her Guide" or "her tab"), with the day ("Backroads' itinerary for Day 4, Wed, Oct 21 says…"). Use it for what each Backroads day holds — where to meet and what to bring, the rides and hikes and their distances, which meals are included, how the trip ends. Larisa's Guide has their dates and bookings: when the two differ on a time, a place or a meal, say both, with where each comes from, and never pick one. Its days are dated by Wander from Day 1 = the day her Guide meets Backroads. Say once, when it matters, that Backroads' leaders and their app (sent about a week before the trip) have the details for their departure, and that their plan can change on the trip. Its words about food (soy and bonito in nearly everything, no substitutions in Japan) are Backroads' — say them as theirs.
 WHERE IN HER SHEET: when someone asks where something is in Larisa's sheet ("which tab has…", "where did I put…", "where does it say…"), answer with the tab, named as she named it, and her words there, cited. Then say in one short sentence that "Sources" under this answer opens that spot in her sheet. If her Guide has it in more than one tab, name each, and cite each. Say where you found it — never that it's the only place or that no other tab has it: her pictures and long tabs can hold more than your copy shows. If it isn't in the copy you have, say so; never guess a tab.
@@ -5895,7 +5927,12 @@ RULES:
             const p = await prisma.tripPaper.findUnique({ where: { id: String(input.paperId || "") }, select: { travelerId: true, title: true, tripId: true } });
             if (!p || p.tripId !== tripId) out = { error: "No such paper in THEIR PAPERS." };
             else if (p.travelerId !== req.user.travelerId) out = { error: "Only the person who kept it can remove it — say so." };
-            else { await prisma.tripPaper.update({ where: { id: String(input.paperId) }, data: { hidden: true } }); actions.push(`Removed the paper "${p.title}"`); out = { ok: true }; }
+            else {
+              await prisma.tripPaper.update({ where: { id: String(input.paperId) }, data: { hidden: true } });
+              // (a card about it, if it was shared, goes too)
+              await prisma.tripAlert.updateMany({ where: { paperId: String(input.paperId), withdrawnAt: null }, data: { withdrawnAt: new Date() } });
+              actions.push(`Removed the paper "${p.title}"`); out = { ok: true };
+            }
           } else {
             // (the phone sends each picture's small copy beside it; the files themselves were checked above)
             const raw = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
@@ -5906,18 +5943,25 @@ RULES:
             const asked = Array.isArray(input.files) ? [...new Set((input.files as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= all.length))] : [];
             const files = asked.length ? asked.map((n) => all[n - 1]) : all.length === 1 ? all : [];
             const days = await P.tripDays(tripId);
-            const date = typeof input.date === "string" && days.some((d) => d.date === input.date) ? input.date : null;
+            // (no day on it: the day it's kept, Japan's date, when that's a trip day — the day they were there)
+            const kept = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+            const date = typeof input.date === "string" && days.some((d) => d.date === input.date) ? input.date : days.some((d) => d.date === kept) ? kept : null;
             const title = String(input.title || "").trim().slice(0, 120) || "A paper";
             if (!all.length) out = { error: "Nothing they sent with this message can be kept (a photo, a picture or a PDF). Ask them to attach it here and say keep it." };
             else if (!files.length) out = { error: `${all.length} files came with this message. Call keep_paper once per paper, with files: the numbers (1 to ${all.length}, in the order sent) that are this paper.` };
             else {
+              const share = input.share === true;
+              let told: string[] = [];
               for (const [i, file] of files.entries()) {
-                await P.keepPaper({ tripId, travelerId: req.user.travelerId, authorName: req.user.displayName || "", file, dayDate: date,
-                  title: files.length > 1 ? `${title} (${i + 1} of ${files.length})` : title, summary: String(input.summary || "").trim().slice(0, 600) });
+                const k = await P.keepPaper({ tripId, travelerId: req.user.travelerId, authorName: req.user.displayName || "", file, dayDate: date,
+                  title: files.length > 1 ? `${title} (${i + 1} of ${files.length})` : title, summary: String(input.summary || "").trim().slice(0, 600),
+                  text: typeof input.text === "string" ? input.text.trim() : null });
+                if (share) { const r = await P.setPaperShare(k.id, req.user.travelerId, "group"); if ("told" in r) told = r.told; }
               }
               const town = days.find((d) => d.date === date)?.town;
-              actions.push(`Kept "${title}"${date ? ` under ${new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}${town ? ` · ${town}` : ""}` : ""}`);
-              out = { ok: true, kept: files.length, day: date, town: town || null, say: "Tell them in a sentence what you kept and the day it's under, and that it's in Notes and on that day's page." };
+              actions.push(`Kept "${title}"${date ? ` under ${new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}${town ? ` · ${town}` : ""}` : ""}${share ? " — shared with everyone" : ""}`);
+              out = { ok: true, kept: files.length, day: date, town: town || null, ...(share ? { sharedWith: "everyone", cardTo: told } : {}),
+                say: `Tell them in a sentence what you kept and the day it's under, and that it's in Notes and on that day's page.${share ? " Say everyone on the trip can see it, and that the others get a card about it the next time they open Wander." : ""}` };
             }
           }
           if ((out as any)?.error) screenOnlyOk = false;

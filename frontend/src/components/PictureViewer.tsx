@@ -3,13 +3,16 @@
  * (round 16: her five-panel Kyoto map, 2048 px wide, was squeezed into a 308-point box with no way to enlarge it;
  * on a laptop the sheet showed it full size — a reason to open the sheet instead). Top of the delight list too.
  */
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import useBackToClose from "../hooks/useBackToClose";
 
 type T = { s: number; x: number; y: number };
 const MAX = 6;
 
-export default function PictureViewer({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+/** title: said at the top, beside Done; footer: under the picture (a paper's who-sees-it and save — Papers.tsx), told
+ *  whether the picture is zoomed in; pdf: the file drawn by the phone itself, no zoom of ours; missing: words said in
+ *  the picture's place (a paper no longer shared with them) */
+export default function PictureViewer({ src, alt, onClose, title, footer, pdf, missing }: { src: string; alt: string; onClose: () => void; title?: string; footer?: (zoomed: boolean) => ReactNode; pdf?: boolean; missing?: string }) {
   useBackToClose(true, onClose);
   const [t, setT] = useState<T>({ s: 1, x: 0, y: 0 });
   const [touched, setTouched] = useState(false);
@@ -40,10 +43,15 @@ export default function PictureViewer({ src, alt, onClose }: { src: string; alt:
 
   return (
     <div className="fixed inset-0 z-[90] bg-black flex flex-col" role="dialog" aria-modal="true" aria-label={alt}>
-      <div className="flex items-center justify-between px-3 text-white" style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 8px)" }}>
-        <p className="text-[13px] text-white/70 pl-1">{t.s > 1 ? "Drag to look around · double-tap to see it whole" : "Pinch or double-tap to zoom"}</p>
-        <button onClick={onClose} className="min-h-[44px] min-w-[64px] text-[15px] font-medium text-white">Done</button>
+      <div className="flex items-center justify-between gap-2 px-3 text-white" style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 8px)" }}>
+        <div className="min-w-0 pl-1">
+          {title && <p className="text-[15px] font-medium truncate">{title}</p>}
+          {!pdf && !missing && <p className="text-[13px] text-white/70">{t.s > 1 ? "Drag to look around · double-tap to see it whole" : "Pinch or double-tap to zoom"}</p>}
+        </div>
+        <button onClick={onClose} className="shrink-0 min-h-[44px] min-w-[64px] text-[15px] font-medium text-white">Done</button>
       </div>
+      {missing ? <p role="status" className="flex-1 flex items-center justify-center px-8 text-center text-[17px] text-white/85">{missing}</p> :
+      pdf ? <iframe src={src} title={alt} className="flex-1 w-full bg-white border-0" /> :
       <div ref={box} className="flex-1 overflow-hidden flex items-center justify-center select-none" style={{ touchAction: "none" }}
         onPointerDown={(e) => {
           (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -57,7 +65,14 @@ export default function PictureViewer({ src, alt, onClose }: { src: string; alt:
           pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
           const st = start.current, m = mid();
           if (Math.hypot(m.x - st.mx, m.y - st.my) > 6 || pts.current.size > 1) moved.current = true;
-          if (pts.current.size >= 2) setT(clampT({ s: st.t.s * (dist() / st.d), x: st.t.x + (m.x - st.mx), y: st.t.y + (m.y - st.my) }));
+          // (a pinch zooms toward the fingers: the spot between them stays under them — it zoomed toward the middle, so a
+          // pinch on a ryokan sheet's Wi-Fi line showed its blank centre; Oct 25)
+          if (pts.current.size >= 2) {
+            const r = box.current!.getBoundingClientRect();
+            const s = Math.min(MAX, Math.max(1, st.t.s * (dist() / st.d))), k = s / st.t.s;
+            const cx = st.mx - r.left - r.width / 2, cy = st.my - r.top - r.height / 2;
+            setT(clampT({ s, x: cx - (cx - st.t.x) * k + (m.x - st.mx), y: cy - (cy - st.t.y) * k + (m.y - st.my) }));
+          }
           else if (st.t.s > 1) setT(clampT({ s: st.t.s, x: st.t.x + (m.x - st.mx), y: st.t.y + (m.y - st.my) }));
         }}
         onPointerUp={(e) => {
@@ -75,7 +90,8 @@ export default function PictureViewer({ src, alt, onClose }: { src: string; alt:
         onPointerCancel={(e) => { pts.current.delete(e.pointerId); start.current = null; }}>
         <img src={src} alt={alt} draggable={false} className="max-w-full max-h-full object-contain"
           style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.s})`, transition: touched && pts.current.size ? "none" : "transform 160ms ease-out" }} />
-      </div>
+      </div>}
+      {footer?.(t.s > 1)}
     </div>
   );
 }

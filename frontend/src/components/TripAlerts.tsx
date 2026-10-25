@@ -16,8 +16,12 @@ import { useAuth } from "../contexts/AuthContext";
 import { takeVisitAsk } from "../lib/visitAsks";
 import { MONEY_CHANGED } from "../lib/expenses";
 import { reportNudgeState } from "../lib/buzz";
+import { PaperViewer } from "./Papers";
 
-type Alert = { id: string; tripId: string; from: string; text: string; at: string; toYou?: boolean };
+// (a paper shared with everyone — Ken, Oct 25: "alert each person on next login that the doc is available with a small
+// picture that can expand")
+type SharedPaper = { id: string; title: string; summary: string; dayDate: string | null; authorName: string; pdf: boolean; url: string; smallUrl: string | null };
+type Alert = { id: string; tripId: string; from: string; text: string; at: string; toYou?: boolean; paper?: SharedPaper };
 const scoutUp = () => !!document.querySelector('[role="dialog"][aria-label="Scout"], [role="region"][aria-label="Scout"]');
 const when = (iso: string) => {
   const d = new Date(iso);
@@ -31,6 +35,7 @@ export default function TripAlerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [viewing, setViewing] = useState<SharedPaper | null>(null);
 
   const look = useCallback(() => {
     if (!user || navigator.onLine === false) return;
@@ -99,7 +104,23 @@ export default function TripAlerts() {
         <p className="text-xs uppercase tracking-wide text-white/70">
           {a.toYou ? `From ${a.from}` : `From ${a.from}, for everyone`} · {when(a.at)}{alerts.length > 1 ? ` · 1 of ${alerts.length}` : ""}
         </p>
-        <p className="text-[16px] leading-snug mt-1.5 whitespace-pre-line [overflow-wrap:anywhere] max-h-[40vh] overflow-y-auto">{a.text}</p>
+        {a.paper ? (
+          <button onClick={() => setViewing(a.paper!)} className="mt-2 w-full flex gap-3 text-left" aria-label={`See ${a.paper.title} full size`}>
+            <span className="relative shrink-0 w-16 h-20 rounded-lg overflow-hidden bg-white/15 flex items-center justify-center">
+              {a.paper.pdf
+                ? <span className="text-[12px] font-medium">PDF</span>
+                : <img src={a.paper.smallUrl || a.paper.url} alt="" className="w-full h-full object-cover" />}
+              <span aria-hidden className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-black/55 text-[11px] leading-5 text-center">⤢</span>
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[15px] text-white/85">Shared a paper</span>
+              <span className="block text-[16px] font-medium leading-snug [overflow-wrap:anywhere]">{a.paper.title}</span>
+              <span className="block text-[13px] text-white/70 mt-0.5 underline underline-offset-2">Tap to see it full size</span>
+            </span>
+          </button>
+        ) : (
+          <p className="text-[16px] leading-snug mt-1.5 whitespace-pre-line [overflow-wrap:anywhere] max-h-[40vh] overflow-y-auto">{a.text}</p>
+        )}
         <div className="flex gap-2 mt-3">
           <button disabled={busy} onClick={() => answer(a, "got")} className={`${btn} bg-white text-[#3a3128] font-medium`}>Got it</button>
           {/* (a note from Scout to them: its other answer is to tell Scout — the note's own offer) */}
@@ -108,6 +129,9 @@ export default function TripAlerts() {
             : <button disabled={busy} onClick={() => answer(a, "later")} className={`${btn} text-white/85`}>Remind me</button>}
         </div>
       </section>
+      {/* (it stays in Notes and on its day's page for them afterwards, like any paper they can see) */}
+      {viewing && <PaperViewer partner={null} onClose={() => setViewing(null)}
+        paper={{ ...viewing, town: null, mine: false, createdAt: a.at, share: "group" }} />}
     </div>
   );
 }
