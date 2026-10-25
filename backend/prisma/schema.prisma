@@ -154,6 +154,7 @@ model TripAlert {
   until        DateTime?                               // when its moment has passed ("bus leaves at 8:15"): shown no more
   toId         String?   @map("to_id")                 // only this person (a note from Scout to one of them); null: everyone else
   key          String?                                 // a one-time note's own name: never made twice (looked up first)
+  paperId      String?   @map("paper_id")              // a paper shared with everyone: the card shows it (Oct 25)
   createdAt    DateTime  @default(now()) @map("created_at")
   withdrawnAt  DateTime? @map("withdrawn_at")
 
@@ -745,11 +746,17 @@ model TripPaper {
   dayDate    String?  @map("day_date")                 // the trip day it belongs to, "2026-10-10"
   title      String                                    // "Yōyōkaku bill"
   summary    String                                    // what it is, as read: "2 nights Oct 8–10; kaiseki for two on Oct 9; ¥40,794 paid by card"
+  // the words printed on it, as read (Oct 25: Andy's "what's the Wi-Fi password?" — the summary said only that the sheet
+  // lists the Wi-Fi), never a card, booking or passport number, a guest's name or a room number; Scout answers from it
+  text       String?
   fileName   String?  @map("file_name")
   mimeType   String   @map("mime_type")
   bytes      Bytes
   thumb      Bytes?                                    // a small JPEG made on the phone (pictures only)
   hidden     Boolean  @default(false)                  // "Remove": out of sight for everyone, never deleted
+  // who sees it (Ken, Oct 25: "change the distribution between self and group"): null — as kept (the keeper, and Ken
+  // and Larisa each other's); "me" — only the keeper; "group" — everyone on the trip
+  share      String?
   createdAt  DateTime @default(now()) @map("created_at")
 
   trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)

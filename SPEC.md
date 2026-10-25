@@ -2317,7 +2317,7 @@ Scout's tools for Wander's own additions match the screens (§1.3 rule 11):
 - **Maybes**: add_maybe, im_in, take_back_maybe, remove_from_maybes, put_back_on_maybes; notes on ideas (add, take back).
 - **Plans for a day**: add, list, remove.
 - **Notes**: keep_in_my_notes (what you told Scout, or Scout's own answer kept "from Scout"), get_my_notes.
-- **Papers**: keep_paper, remove_paper.
+- **Papers**: keep_paper (share: true to share it with everyone), remove_paper, share_paper (who sees it).
 - **The phrase card**: add_phrase, arrange_my_phrases.
 - **Actions**: get_todos, add_todo, set_todo_done, remove_todo, set_deadline_done. Marking one of her to-dos done marks
   it in Wander, never in her list.
@@ -2488,14 +2488,32 @@ what you say about places (never anything personal)? The choice lives in Setting
 A receipt, a bill, a ticket or a booking can be kept in Wander instead of carried (Oct 12).
 - **Keeping one**: "Keep a paper" in Notes (take a photo, choose one, or a PDF), or send it to Scout and say "keep this".
   Wander reads it and files it under the trip day it belongs to ("Kept '… bill' under Oct 9 · Karatsu"; a stay sits on its
-  last night), with a one-line description and the total as printed. Never a card, confirmation or passport number in the
-  words. Two photos are filed as the papers they are; one photo of tickets for two days is kept under each day.
-- **Who sees it**: whoever kept it; Ken's and Larisa's are visible to each other (Ken, Oct 12).
-- **Where**: Notes ("3 kept ↓" under the writing box, the list after the notes) and the end of that day's page. Tapping
-  one opens it in the phone's own viewer.
+  last night), with a one-line description and the total as printed, and the words printed on it (Oct 25). Never a card,
+  confirmation or passport number, a guest's name or a room number in any of it. Nothing on it says a day (a welcome
+  sheet, a menu, a temple ticket): it goes under the day it was kept (Oct 25). Two photos are filed as the papers they
+  are; one photo of tickets for two days is kept under each day.
+- **Opening one** (Oct 25; it had opened the bare photo in its own window, a dead end in the Home Screen app): full
+  screen inside Wander, from its row in Notes, from that day's page, from "See it or share it" right after keeping it, and
+  from the card below. Pinch (toward the fingers) or double-tap to zoom, drag to look around, double-tap for the whole
+  page; Done or Back closes it. Under the picture: what Wander read (two lines; tap for all), **Who sees it**, and
+  **Save or send** (the phone's share sheet: Save Image, Files, Messages, Print).
+- **Who sees it** (Ken, Oct 25: "change the distribution between self and group"): its keeper chooses, on that screen
+  or by asking Scout (share_paper): **Just me**; **Larisa and me** / **Ken and me** (how Ken's and Larisa's are kept,
+  Ken, Oct 12); **Everyone**. Andy and Julie choose Just me or Everyone; theirs start as Just me. Others see a line:
+  "Ken shared it with everyone". The list says who sees one when it isn't how theirs usually are.
+- **Shared with everyone** (Ken, Oct 25: "alert each person on next login that the doc is available with a small picture
+  that can expand"): each other person gets a card at their next opening, in the message card (§2.4): "From Ken, for
+  everyone", "Shared a paper", its title and a small picture; tap it for full size; Got it / Remind me. Shared again
+  within 3 days: the same card comes back, never to whoever already tapped Got it (Ken is told only who it reaches).
+  Kept back to Just me, or removed: the card is taken back, the paper leaves their Notes, and a card still on a screen
+  opens to "This paper isn't shared with you any more." (each picture link is for one person, checked when opened).
+  trip_papers.share, trip_alerts.paper_id.
+- **Where**: Notes ("3 kept ↓" under the writing box, the list after the notes) and the end of that day's page.
 - **Remove**: the person who kept it; nothing is deleted.
-- **Scout** knows the papers the asker may see ("what did the ryokan cost?"): it asks which when more than one place
-  fits, says what a total was for, and never makes up a price per night the paper doesn't show.
+- **Scout** knows the papers the asker may see, including any shared with everyone ("what did the ryokan cost?",
+  "what's the Wi-Fi password?" — from the words printed on it, said as the sharer's: "on the sheet Ken shared"): it asks
+  which when more than one place fits, says what a total was for, and never makes up a price per night the paper doesn't
+  show. keep_paper share: true keeps and shares at once.
 - **A send that breaks partway** is sent again by itself, up to three tries; a send cut off keeps nothing, so it can't
   make two.
 
@@ -2856,7 +2874,7 @@ setting never replaces the others.
   looked at again every three days, are said on the stop's line when her time doesn't fit them (§3.4).
 - **Her pictures**, full screen from tab by tab and from Sources (§4.6). A picture holding people's own travel numbers is
   never shown (§19).
-- **Papers' photos** open in the phone's own viewer (§9.6).
+- **Papers' photos** open full screen inside Wander, to zoom, choose who sees one, and save or send (§9.6).
 - **Your own photos**, kept on the day they were taken, private unless shared, in the day's strip, Play and the story
   (§3.8). Until Oct 15 every photo in Wander came from Google or the city.
 - **Photos sent to Scout** are read and never kept (§7.6), unless someone asks Scout to keep one for the day (§3.8) or
@@ -2952,7 +2970,7 @@ night of Wed, Oct 14". "As Wander last read it" is in Japan time on every phone.
 - **Cards** by their last four digits only ("[card ending 1234]"); a transit card's full ID is left out.
 - **The vault**: passport, visa and insurance details open with Face ID or PIN (§17.4).
 - **Notes** are private by default and shared per note (§9.5). Papers are seen by whoever kept them, and Ken's and
-  Larisa's by each other.
+  Larisa's by each other, unless its keeper chooses Just me or Everyone (§9.6).
 - **Location** is sent only with a question that needs it and never stored (§7.7).
 - **Signals** for the Tell Ken offer are added up on the phone and never sent or kept (§13).
 - **Your own photos** (§3.8) are a new kind of personal data, kept with Ken's yes (Oct 15). They're private by

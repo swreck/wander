@@ -6,9 +6,12 @@
 import { api } from "./api";
 import { phoneReport } from "./phoneReport";
 
+/** Who sees a paper (Ken, Oct 25: "change the distribution between self and group"): only its keeper; the keeper and
+ *  their partner (Ken and Larisa — how theirs are kept); everyone on the trip */
+export type PaperShare = "me" | "pair" | "group";
 export interface Paper {
   id: string; title: string; summary: string; dayDate: string | null; town: string | null; authorName: string;
-  mine: boolean; pdf: boolean; createdAt: string; url: string; smallUrl: string | null;
+  mine: boolean; pdf: boolean; createdAt: string; url: string; smallUrl: string | null; share: PaperShare;
 }
 export interface Papers { papers: Paper[]; sharedWith: string | null }
 
@@ -16,6 +19,13 @@ export const papersOf = (tripId: string, date?: string) =>
   api.get<Papers>(`/papers/trip/${tripId}${date ? `?date=${date}` : ""}`);
 
 export const removePaper = (id: string) => api.post<{ ok: boolean }>(`/papers/${id}/remove`, {});
+
+/** The keeper says who sees it; shared with everyone, the others each get a card the next time they open Wander (`told`) */
+export const sharePaper = (id: string, share: PaperShare) =>
+  api.post<{ share: PaperShare; told: string[]; partner: string | null }>(`/papers/${id}/share`, { share });
+
+/** "Andy, Julie and Larisa" */
+export const namesInWords = (names: string[]) => names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0] || "";
 
 /** A picture, shrunk on the phone so its words stay sharp (longest side 2000 px) — plus a small copy for the list */
 async function shrink(file: File): Promise<{ data: string; thumb: string } | null> {

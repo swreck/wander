@@ -104,9 +104,23 @@ export async function pendingFor(travelerId: string, now = Date.now()) {
     where: { tripId: { in: trips }, withdrawnAt: null, createdAt: { gt: new Date(now - KEEP_MS) }, OR: [{ toId: null, fromId: { not: travelerId } }, { toId: travelerId }] },
     include: { seen: { where: { travelerId } } }, orderBy: { createdAt: "asc" },
   });
-  return alerts.filter((a) => live(a, now))
-    .filter((a) => { const s = a.seen[0]; return !s || (s.state === "later" && japanDay(now) > japanDay(s.at.getTime())); })
-    .map((a) => ({ id: a.id, tripId: a.tripId, from: a.fromName, text: a.text, at: a.createdAt.toISOString(), ...(a.toId ? { toYou: true } : {}) }));
+  const waiting = alerts.filter((a) => live(a, now))
+    .filter((a) => { const s = a.seen[0]; return !s || (s.state === "later" && japanDay(now) > japanDay(s.at.getTime())); });
+  // (a paper shared with everyone: the card carries a small picture of it that opens full screen — Ken, Oct 25: "alert
+  // each person on next login that the doc is available with a small picture that can expand"; one kept back or removed
+  // since isn't shown)
+  const paperIds = waiting.map((a) => a.paperId).filter((x): x is string => !!x);
+  const papers = paperIds.length ? await prisma.tripPaper.findMany({ where: { id: { in: paperIds }, hidden: false, share: "group" },
+    select: { id: true, title: true, summary: true, dayDate: true, authorName: true, mimeType: true, thumb: true } }) : [];
+  const { paperLink } = await import("./papers.js");
+  return waiting.flatMap((a) => {
+    const base = { id: a.id, tripId: a.tripId, from: a.fromName, text: a.text, at: a.createdAt.toISOString(), ...(a.toId ? { toYou: true } : {}) };
+    if (!a.paperId) return [base];
+    const p = papers.find((x) => x.id === a.paperId);
+    if (!p) return [];
+    return [{ ...base, paper: { id: p.id, title: p.title, summary: p.summary, dayDate: p.dayDate, authorName: p.authorName, pdf: p.mimeType === "application/pdf",
+      url: paperLink(p.id, false, travelerId), smallUrl: p.thumb ? paperLink(p.id, true, travelerId) : null } }];
+  });
 }
 
 /** Got it, or Remind me — only on an alert on one of this person's trips */

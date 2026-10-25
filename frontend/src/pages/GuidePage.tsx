@@ -98,7 +98,7 @@ To write about another day, choose it under **Day**, or tap **+ Add a note for t
 
 Choose **Everyone's**, **Mine**, **Others'** or **Scout** to see whose notes. **Export mine** saves your notes as a text file, with or without what Scout kept for you.
 
-**Keep a paper**, under the writing box in Notes, keeps a photo of a receipt, a ticket or a booking on the day it belongs to, so you needn't carry the paper. ${mine ? "Ken sees yours, and you see his." : /^ken$/i.test(meName) ? "Larisa sees yours, and you see hers." : "Only you see yours."}`,
+**Keep a paper**, under the writing box in Notes, keeps a photo of a receipt, a ticket or a booking on the day it belongs to, so you needn't carry the paper. ${mine ? "Ken sees yours, and you see his." : /^ken$/i.test(meName) ? "Larisa sees yours, and you see hers." : "Only you see yours."} Tap one to see it full screen, pinch to zoom in, and choose who sees it. Share one with everyone, a hotel's welcome sheet say, and the others see a card about it the next time they open Wander.`,
   },
   {
     id: "no-signal",
