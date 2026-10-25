@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-26 (Monday morning in Japan) — Her Oct 26 Guide copy; a day planned as a table
+
+Ken: "Yes, please analyze that new Excel version for changes, based on the date, I'm not sure there are changes."
+Her copy changed three tabs: a new Shigaraki plan for Wed Oct 28 beside the old one (Time | You & Julie | Ken & Andy),
+one line on Mon Oct 26 (Gion Tsujiri), one on Flight info. Imported on production after the reader fix below; Ken's
+Yazawa ruling re-applied; Oct 15, 26 and 28 summaries rewritten, read and published.
+### Fixed
+- Wander read both of her Oct 28 plans into the day (two departures, Maruni Toryo at two times, two dinners): the
+  "two versions" rule knew only a plan written in one cell. planTableVersions (services/guide/importSnapshot.ts) treats
+  two plan tables with the same date as versions and follows the newer; a column per couple becomes each couple's lines
+  (Ken & Andy's MIHO Museum morning is theirs), "Together" rows are everyone's, her "you" in their column is Larisa.
+- "Enyu-an Kobayashi" (her tab) and "Enyuan Kobayashi" (Dining Resos) were called two restaurants ("Tabs differ").
+Backend only, used by the import scripts on the Mac; rides with the next deploy (the server's in-app upload uses it).
+SPEC §5 (two versions, a column per couple) updated.
+
 ## 2026-10-25 (Sunday evening in Japan) — Papers: open inside Wander, zoom, who sees it, a card when shared
 
 Ken, with a photo of the Baian ryokan's welcome sheet: "Interface messed up? At this screen should be able to zoom in or

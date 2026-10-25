@@ -1659,7 +1659,12 @@ stop names so the app finds every stop) and **See her Apple Maps guide for the d
 - Maps for a line comes from her stop list's own link, then her booking's address, then a place her words name; the
   town her tab names is added. "Leave …" and "Depart …" lines get no Maps. "The hotel" means tonight's hotel.
 - **Two versions of the day** in one tab: Wander follows the one she added most recently and says so ("Wander follows
-  the one she added most recently; the other has different times"). Scout sees the other as the earlier version.
+  the one she added most recently; the other has different times"). Scout sees the other as the earlier version. This
+  holds for a plan written in one cell and for a plan written as a table with a "Time" column (Oct 26 copy: her new
+  Shigaraki plan beside the old one): two tables whose titles name the same date are two versions.
+- **A column per couple** in a plan table ("Time | You & Julie | Ken & Andy"): each row is each couple's own line; a row
+  the other column marks "Together" is everyone's. Her "you" in a column that isn't hers is said as Larisa ("Rejoin
+  Larisa and Julie").
 - **Choices in a block.** When she lists several places for one time, each has **We're going here**. The pick is a plan
   added in Wander; her sheet is untouched. It shows "✓ The group's pick · Ken, in Wander" with **Undo** and **Tell
   Larisa**; the others offer **Switch to this**. One pick per line, kept on the server. With no signal, "✓ Your pick ·
