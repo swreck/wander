@@ -5,6 +5,7 @@
  *   GET  /file/:id?t=…[&small=1] one paper (or its small copy), by short-lived link — <img> can't send a sign-in
  *   POST /:id/remove            the person who kept it takes it out of sight (nothing is deleted)
  *   POST /:id/share             { share: "me" | "pair" | "group" } — the person who kept it says who sees it
+ *   POST /:id/edit              { data, thumb } — its photo fitted on the phone (the original kept); /:id/original undoes
  */
 import { Router } from "express";
 import jwt from "jsonwebtoken";
@@ -85,7 +86,7 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
   const [papers, days] = await Promise.all([
     prisma.tripPaper.findMany({ where: { ...(await visibleWhere(tripId, travelerId)), ...(date ? { dayDate: date } : {}) },
       orderBy: [{ dayDate: "desc" }, { createdAt: "desc" }],
-      select: { id: true, title: true, summary: true, dayDate: true, authorName: true, travelerId: true, mimeType: true, createdAt: true, share: true, thumb: false } }),
+      select: { id: true, title: true, summary: true, dayDate: true, authorName: true, travelerId: true, mimeType: true, createdAt: true, share: true, editedAt: true, thumb: false } }),
     prisma.day.findMany({ where: { tripId }, select: { date: true, city: { select: { name: true } } } }),
   ]);
   const withThumb = new Set((await prisma.tripPaper.findMany({ where: { id: { in: papers.map((p) => p.id) }, NOT: { thumb: null } }, select: { id: true } })).map((p) => p.id));
@@ -98,9 +99,48 @@ router.get("/trip/:tripId", async (req: AuthRequest, res) => {
       mine: p.travelerId === travelerId, pdf: p.mimeType === "application/pdf", createdAt: p.createdAt,
       // (who sees it: a paper of their partner's that they can see is never "me")
       share: shareOf(p.share, p.travelerId === travelerId ? !!partner : true),
+      ...(p.editedAt ? { edited: true } : {}),
       url: linkFor(p.id), smallUrl: withThumb.has(p.id) ? linkFor(p.id, true) : null })),
   });
 });
+
+// ── Its photo fitted (corners, Crisper — the phone's PaperEdit) by the person who kept it; the photo as first kept is
+// kept, once; Wander reads its words again (a straightened, crisper sheet reads better) ──
+router.post("/:id/edit", async (req: AuthRequest, res) => {
+  const p = await prisma.tripPaper.findUnique({ where: { id: String(req.params.id) }, select: { id: true, tripId: true, travelerId: true, hidden: true, mimeType: true, bytes: true, thumb: true, original: false, editedAt: true } });
+  if (!p || p.hidden) { res.status(404).json({ error: "That paper isn't here any more." }); return; }
+  if (p.travelerId !== req.user?.travelerId) { res.status(403).json({ error: "Only the person who kept a paper can edit it." }); return; }
+  if (p.mimeType === "application/pdf") { res.status(400).json({ error: "A PDF can't be edited here." }); return; }
+  const file = paperFile({ mediaType: "image/jpeg", data: req.body?.data, thumb: req.body?.thumb });
+  if (typeof file === "string") { res.status(400).json({ error: file }); return; }
+  await prisma.tripPaper.update({ where: { id: p.id }, data: {
+    ...(p.editedAt ? {} : { original: p.bytes, originalThumb: p.thumb }),
+    bytes: Buffer.from(file.data, "base64"), mimeType: "image/jpeg", editedAt: new Date(),
+    ...(file.thumb ? { thumb: Buffer.from(file.thumb.split(",")[1], "base64") } : {}),
+  } });
+  res.json({ ok: true });
+  void rereadWords(p.id, p.tripId, file);
+});
+
+// ── …and back to the photo as first kept ──
+router.post("/:id/original", async (req: AuthRequest, res) => {
+  const p = await prisma.tripPaper.findUnique({ where: { id: String(req.params.id) }, select: { id: true, tripId: true, travelerId: true, hidden: true, original: true, originalThumb: true } });
+  if (!p || p.hidden) { res.status(404).json({ error: "That paper isn't here any more." }); return; }
+  if (p.travelerId !== req.user?.travelerId) { res.status(403).json({ error: "Only the person who kept a paper can edit it." }); return; }
+  if (!p.original) { res.json({ ok: true }); return; }
+  await prisma.tripPaper.update({ where: { id: p.id }, data: { bytes: p.original, thumb: p.originalThumb, original: null, originalThumb: null, editedAt: null } });
+  res.json({ ok: true });
+  void rereadWords(p.id, p.tripId, { mediaType: "image/jpeg", data: Buffer.from(p.original).toString("base64") });
+});
+
+/** The words printed on it, read again from its photo now (only the words — its title, day and summary stay) */
+async function rereadWords(id: string, tripId: string, file: { mediaType: string; data: string }) {
+  if (process.env.VITEST && !process.env.WANDER_TEST_READ) return;   // (the suite never pays for a read)
+  try {
+    const r = await readPaper(file, await tripDays(tripId));
+    if (r?.text) await prisma.tripPaper.update({ where: { id }, data: { text: r.text } });
+  } catch (e: any) { console.warn("[papers] re-read after edit:", e?.message || e); }
+}
 
 router.post("/:id/share", async (req: AuthRequest, res) => {
   const want = req.body?.share;

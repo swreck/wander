@@ -372,7 +372,9 @@ export function markTabsDiffer(items: Item[]): void {
       // Gastronomy "Joël Robuchon" (Ebisu)" vs the booking "LeTable de Joel Robuchon - 1F" (round 12 — one building,
       // two restaurants, two dress codes; nothing flagged it). A place in brackets is the rule above's business.
       if (o.kind === "meal" && o.time === b.time) {
-        const nameWords = (s: string) => new Set(distinctWords(s.split("\n")[0].replace(/^[A-Z][A-Z &-]+\s+[–-]\s+/, "").replace(/\([^)]*\)/g, "")));
+        // (a hyphen inside a word is the same name: her tab's "Enyu-an Kobayashi" is the booking's "Enyuan Kobayashi" —
+        // Oct 26 copy)
+        const nameWords = (s: string) => new Set(distinctWords(s.split("\n")[0].replace(/^[A-Z][A-Z &-]+\s+[–-]\s+/, "").replace(/\([^)]*\)/g, "").replace(/(\p{L})-(\p{L})/gu, "$1$2")));
         const bw = nameWords(b.title), ow = nameWords(o.title);
         const shared = [...bw].some((w) => ow.has(w));
         const onlyB = [...bw].filter((w) => !ow.has(w)), onlyO = [...ow].filter((w) => !bw.has(w));
@@ -794,6 +796,89 @@ function isDayPlanTab(name: string, text: string): boolean {
 }
 
 /**
+ * A day's plan as a TABLE — a "Time" heading, its rows below, a title just above (Oct 26 copy: her Shigaraki tab kept
+ * the old plan in A48–B67 and added a new one beside it in G50–I65, "Time | You & Julie | Ken & Andy"; Wander read both
+ * into Oct 28 — two departures, Maruni Toryo at two times, two dinners).
+ * - Two tables in one tab whose titles name the same date are two versions of that day's plan: Wander follows the one
+ *   new since its last copy of her Guide (else the choice it made before; else the later one in the tab), and the other
+ *   stays in her tab, said on the day — the same rule as dayPlanVersions.
+ * - A table with a column per couple ("You & Julie", "Ken & Andy") is read row by row as each couple's own line; a row
+ *   whose other columns say "Together" is everyone's. In a column that isn't hers, her "you" is Larisa ("Rejoin you and
+ *   Julie", in Ken & Andy's column, is Ken and Andy rejoining Larisa and Julie).
+ */
+type PlanTable = { title: GuideTab["cells"][number] | null; header: GuideTab["cells"][number]; cells: GuideTab["cells"]; rows: number[]; lastCol: number; date: string | null };
+function planTablesOf(tab: GuideTab, tripDays: Set<string>): PlanTable[] {
+  const at = (r: number, c: number) => tab.cells.find((x) => x.r === r && x.c === c && (x.text || "").trim());
+  const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const dateOf = (t: string) => {
+    const m = t.match(/\b(\d{1,2})\/(\d{1,2})\b/) || (() => { const n = t.match(new RegExp(`\\b(${MONTHS.join("|")})[a-z]*\\.?\\s+(\\d{1,2})\\b`, "i")); return n ? [n[0], String(MONTHS.indexOf(n[1].toLowerCase().slice(0, 3)) + 1), n[2]] : null; })();
+    if (!m) return null;
+    const md = `-${String(Number(m[1])).padStart(2, "0")}-${String(Number(m[2])).padStart(2, "0")}`;
+    return [...tripDays].find((d) => d.endsWith(md)) || null;
+  };
+  const tables: PlanTable[] = [];
+  for (const header of tab.cells.filter((x) => /^\s*time\s*$/i.test(x.text || ""))) {
+    let lastCol = header.c;
+    while (at(header.r, lastCol + 1)) lastCol++;
+    if (lastCol === header.c) continue;
+    const rows: number[] = [];
+    for (let r = header.r + 1; at(r, header.c); r++) rows.push(r);
+    if (rows.length < 3) continue;
+    let title: PlanTable["title"] = null;
+    for (let r = header.r - 1; r >= header.r - 3 && !title; r--) title = at(r, header.c) || null;
+    const cells = tab.cells.filter((x) => x.c >= header.c && x.c <= lastCol && (x.r === header.r || rows.includes(x.r) || x === title));
+    tables.push({ title, header, cells, rows, lastCol, date: title ? dateOf(title.text) : null });
+  }
+  return tables;
+}
+export function planTableVersions(tab: GuideTab, prevTab: GuideTab | undefined, prevChoices: PlanChoiceKept[], tripDays: Set<string>, people: Set<string>, owner: string):
+  { superseded: Set<string>; notes: Map<string, { note: string; current: string; earlier: string[]; why: string }>; rowLines: Map<number, { cells: Set<string>; lines: string[] }> } {
+  const superseded = new Set<string>();
+  const notes = new Map<string, { note: string; current: string; earlier: string[]; why: string }>();
+  const tables = planTablesOf(tab, tripDays);
+  const before = new Set((prevTab?.cells || []).map((c) => (c.text || "").trim()));
+  const name = (t: PlanTable) => (t.title || t.header).a1;
+  const byDate = new Map<string, PlanTable[]>();
+  for (const t of tables) if (t.date) byDate.set(t.date, [...(byDate.get(t.date) || []), t]);
+  const followed = new Set<PlanTable>(tables);
+  for (const [date, list] of byDate) {
+    if (list.length < 2) continue;
+    const isNew = (t: PlanTable) => !!prevTab && t.cells.filter((c) => !before.has((c.text || "").trim())).length >= t.cells.length * 0.7;
+    const fresh = list.filter(isNew);
+    const kept = prevChoices.find((k) => k.tab === tab.name && k.day === date && k.why);
+    const keptTable = kept && !fresh.length ? list.find((t) => name(t) === kept.current) : undefined;
+    const current = keptTable ?? (fresh.length === 1 ? fresh[0] : [...list].sort((a, b) => b.header.c - a.header.c || b.header.r - a.header.r)[0]);
+    const why = keptTable ? kept!.why! : fresh.length === 1 ? "the one she added most recently" : "the later one in her tab";
+    const earlier = list.filter((t) => t !== current);
+    for (const t of earlier) { followed.delete(t); for (const c of t.cells) superseded.add(c.a1); }
+    notes.set(date, {
+      current: name(current), earlier: earlier.map(name), why,
+      note: `Her tab has ${list.length} versions of this day's plan: Wander follows the one at ${name(current)} (${why}); the one at ${earlier.map(name).join(" and ")} has other times and places — worth checking with Larisa which is current.`,
+    });
+  }
+  // (a column per couple: each row read as each couple's line, or everyone's when the others say "Together")
+  const rowLines = new Map<number, { cells: Set<string>; lines: string[] }>();
+  const together = (t: string) => /^\s*(together|same|everyone|all)\s*\.?\s*$/i.test(t);
+  for (const t of followed) {
+    const heads = t.cells.filter((c) => c.r === t.header.r && c.c > t.header.c).sort((a, b) => a.c - b.c);
+    const isParty = (h: string) => h.split(/\s*(?:&|\+|,|\band\b)\s*/i).every((w) => /^you$/i.test(w.trim()) || people.has(w.trim().toLowerCase()));
+    if (heads.length < 2 || !heads.every((h) => isParty(h.text))) continue;
+    for (const r of t.rows) {
+      const time = t.cells.find((c) => c.r === r && c.c === t.header.c)?.text.trim() || "";
+      const vals = heads.map((h) => ({ head: h.text.trim(), text: (t.cells.find((c) => c.r === r && c.c === h.c)?.text || "").trim() }));
+      const doing = vals.filter((v) => v.text && !together(v.text));
+      // (a row the others mark "Together" is said as everyone's — left unnamed, an old picture's "You & Julie (morning)"
+      // was read onto it, and Scout told Andy the Industry Hall "doesn't say which group it's for")
+      const lines = vals.slice(1).every((v) => !v.text || together(v.text))
+        ? [`${time} | ${vals.slice(1).some((v) => together(v.text)) ? "Everyone: " : ""}${vals[0].text}`]
+        : doing.map((v) => `${time} | ${v.head}: ${/\byou\b/i.test(v.head) ? v.text : v.text.replace(/\byou\b/gi, owner)}`);
+      rowLines.set(r, { cells: new Set(t.cells.filter((c) => c.r === r).map((c) => c.a1)), lines });
+    }
+  }
+  return { superseded, notes, rowLines };
+}
+
+/**
  * Two whole plans for the same day in one tab (Oct 2: she added a revised "Day 2" — other times, Akihabara moved to
  * midday — below the old one in A44, and kept the old). Wander follows one, the same way every time, and says so:
  * the one new since Wander's last copy of her Guide; with no last copy to tell by, the one lower in her tab. Only that
@@ -1172,10 +1257,20 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   const planTabs = read.tabs
     .filter((t) => t.name !== itin.tabName && !/^actions$/i.test(t.name) && !/activities template/i.test(t.name))
     .map((t) => {
-      const versions = dayPlanVersions(t, prevTabs.find((p) => p.name === t.name), prevChoices);
+      const prevTab = prevTabs.find((p) => p.name === t.name);
+      const versions = dayPlanVersions(t, prevTab, prevChoices);
+      // (and a plan written as a table — planTableVersions: its versions, and a column per couple read as their lines)
+      const tables = planTableVersions(t, prevTab, prevChoices, tripDays, groupNames, guideOwner);
+      for (const a1 of tables.superseded) versions.superseded.add(a1);
+      for (const [k, v] of tables.notes) versions.notes.set(k, v);
       const kept = versions.superseded.size ? { ...t, cells: t.cells.filter((c) => !versions.superseded.has(c.a1)) } : t;
       for (const [n, v] of versions.notes) report.supersededPlans!.push({ tab: t.name, day: n, current: v.current, earlier: v.earlier, why: v.why });
-      return { tab: t, versions, text: Array.from(rowsOf(kept).entries()).sort((a, b) => a[0] - b[0]).map(([, cs]) => cs.sort((a, b) => a.c - b.c).map((c) => c.text).join(" | ")).join("\n") };
+      const rowText = (r: number, cs: GuideTab["cells"]) => {
+        const table = tables.rowLines.get(r);
+        const rest = cs.filter((c) => !table?.cells.has(c.a1)).sort((a, b) => a.c - b.c).map((c) => c.text);
+        return [...(rest.length ? [rest.join(" | ")] : []), ...(table?.lines || [])].join("\n");
+      };
+      return { tab: t, versions, text: Array.from(rowsOf(kept).entries()).sort((a, b) => a[0] - b[0]).map(([r, cs]) => rowText(r, cs)).filter(Boolean).join("\n") };
     })
     .filter(({ tab, text }) => isDayPlanTab(tab.name, text));
   await Promise.all(planTabs.map(async ({ tab, text, versions }) => {
@@ -1288,7 +1383,7 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         ? `Wander matched this plan to ${plainDate(day)}, since her tab's words don't give a date. ${(p.matchReason || "").trim().replace(/^./, (c) => c.toUpperCase()).replace(/([^.!?])$/, "$1.")}${picSays}`
         : null;
       // (this day planned twice in her tab: which one Wander follows, said on the day — dayPlanVersions)
-      const twoVersions = dayNo ? versions.notes.get(dayNo)?.note || null : null;
+      const twoVersions = (dayNo ? versions.notes.get(dayNo)?.note : null) || versions.notes.get(day)?.note || null;
       for (const [bi, b] of p.blocks.entries()) {
         // Every block stays: her plan is shown whole, in her order (a duplicate check dropped "~8:00 Breakfast /
         // check out; leave luggage at Four Seasons" for looking like the check-out line). What it adds to the
@@ -1311,9 +1406,11 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         }
         // Who it's for, when she names people of the group ("You + Julie" → Larisa & Julie; she writes "You")
         const whoNames = b.who ? b.who.split(/\s*(?:\+|&|,|\band\b)\s*/i).map((w) => w.trim()).filter(Boolean) : [];
-        const party = whoNames.length && whoNames.every((w) => /^you$/i.test(w) || groupNames.has(w.toLowerCase()))
-          ? whoNames.map((w) => (/^you$/i.test(w) ? guideOwner : w)).join(" & ")
-          : null;
+        // ("Everyone" / "Together": the whole group — planTableVersions says a "Together" row that way)
+        const party = /^\s*(everyone|together)\s*$/i.test(b.who || "") ? "Everyone"
+          : whoNames.length && whoNames.every((w) => /^you$/i.test(w) || groupNames.has(w.toLowerCase()))
+            ? whoNames.map((w) => (/^you$/i.test(w) ? guideOwner : w)).join(" & ")
+            : null;
         // A line naming no one may be named in a picture in the tab — quoted, never assigned (round 13: her Kyoto map lists
         // "You & Julie (morning)" over Maruni Toryo, while Wander said her Guide didn't name the group)
         // (a picture pasted in several tabs counts in each — her one Kyoto map heads all five Kyoto day tabs)

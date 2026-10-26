@@ -12,7 +12,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import PictureViewer from "./PictureViewer";
-import { papersOf, keepPaperFile, removePaper, sharePaper, namesInWords, shortDay, type Paper, type PaperShare } from "../lib/papers";
+import PaperEdit, { type Edited } from "./PaperEdit";
+import { papersOf, keepPaperFile, removePaper, sharePaper, editPaper, paperOriginal, namesInWords, shortDay, type Paper, type PaperShare } from "../lib/papers";
 
 const CHANGED = "wander:papers-changed";
 
@@ -64,7 +65,21 @@ export function PaperViewer({ paper, partner, onClose, onShare }: { paper: Paper
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [more, setMore] = useState(false);
+  const [editing, setEditing] = useState(false);
   const { file, refused } = useFileFor(paper);
+  // (Edit: its photo fitted or made crisper — only the keeper's, only a photo; the original is kept)
+  const saveEdit = async (e: Edited) => {
+    await editPaper(paper.id, e);
+    setEditing(false);
+    setSaid({ text: "Saved. Wander is reading it again for Scout." });
+    changed();
+  };
+  const backToOriginal = async () => {
+    await paperOriginal(paper.id);
+    setEditing(false);
+    setSaid({ text: "The original photo is back." });
+    changed();
+  };
   const choose = async (s: PaperShare) => {
     if (s === share || busy) return;
     const was = share;
@@ -128,7 +143,11 @@ export function PaperViewer({ paper, partner, onClose, onShare }: { paper: Paper
             <p className="mt-2 text-[13px] text-white/70">{whoSees({ ...paper, share }, partner)}.</p>
           )}
           {said && <p role="status" className={`mt-2 text-[13px] ${said.bad ? "text-[#f3b39a]" : "text-white/85"}`}>{said.text}</p>}
-          <button onClick={() => void save()} className="mt-2 min-h-[44px] text-[15px] text-white underline underline-offset-2">Save or send</button>
+          <div className="mt-2 flex items-center gap-6">
+            <button onClick={() => void save()} className="min-h-[44px] text-[15px] text-white underline underline-offset-2">Save or send</button>
+            {paper.mine && !paper.pdf && <button onClick={() => setEditing(true)} className="min-h-[44px] text-[15px] text-white underline underline-offset-2">Edit</button>}
+          </div>
+          {editing && <PaperEdit src={paper.url} mode="kept" onKeep={saveEdit} onCancel={() => setEditing(false)} onOriginal={paper.edited ? backToOriginal : undefined} />}
         </div>
       )} />,
     document.body,
@@ -187,9 +206,17 @@ export function PapersKeep({ tripId }: { tripId: string }) {
   const { open, setOpenId } = useOpenPaper(papers);
   const [status, setStatus] = useState<{ kind: "reading" | "kept" | "error"; text: string; id?: string } | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const keep = async (file: File) => {
+  // (a photo is fitted first — four corners and Crisper, or Use as is; a PDF is kept as it is)
+  const [fitting, setFitting] = useState<{ file: File; url: string } | null>(null);
+  const endFitting = () => setFitting((f) => { if (f) URL.revokeObjectURL(f.url); return null; });
+  const chosen = (file: File) => {
+    if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) { void keep(file); return; }
+    setFitting({ file, url: URL.createObjectURL(file) });
+  };
+  const keep = async (file: File, fitted?: Edited) => {
+    endFitting();
     setStatus({ kind: "reading", text: "Reading it…" });
-    const r = await keepPaperFile(tripId, file);
+    const r = await keepPaperFile(tripId, file, fitted);
     if ("error" in r) { setStatus({ kind: "error", text: r.error }); return; }
     const p = r.paper;
     changed();
@@ -212,7 +239,7 @@ export function PapersKeep({ tripId }: { tripId: string }) {
         </button>
         {/* (an iPhone offers Take Photo, Photo Library and Choose File from this) */}
         <input ref={input} type="file" accept="image/*,application/pdf" className="hidden" aria-hidden tabIndex={-1}
-          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void keep(f); }} />
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) chosen(f); }} />
       </div>
       <p className="text-[13px] text-[#6b5d4a] mt-1">Receipts, tickets and bills, kept here so you needn't carry them. Wander files each under its day.</p>
       {status && status.kind !== "reading" && (
@@ -224,6 +251,7 @@ export function PapersKeep({ tripId }: { tripId: string }) {
         </p>
       )}
       {open && <PaperViewer paper={open} partner={sharedWith} onClose={() => setOpenId(null)} />}
+      {fitting && <PaperEdit src={fitting.url} mode="new" onKeep={(e) => keep(fitting.file, e)} onAsIs={() => void keep(fitting.file)} onCancel={endFitting} />}
     </section>
   );
 }

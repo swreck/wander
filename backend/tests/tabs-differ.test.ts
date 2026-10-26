@@ -67,6 +67,14 @@ describe("tabs differ", () => {
     expect(meal.detail).toContain("Tabs differ: her Tokyo Day 3 tab has \"DINNER RESERVATION – Gastronomy");
   });
 
+  it("the same restaurant spelt with a hyphen isn't two restaurants (Enyu-an Kobayashi / Enyuan Kobayashi, Oct 26 copy)", () => {
+    const block = line({ date: "2030-01-28", kind: "block", time: "20:00", title: "Dinner at Enyu-an Kobayashi", source: "Kyoto Wed, 1028 Shigaraki · Day 4" });
+    const meal = line({ date: "2030-01-28", kind: "meal", time: "20:00", title: "Enyuan Kobayashi", source: "Dining Resos (row 29)" });
+    markTabsDiffer([block, meal] as any);
+    expect(block.detail || "").not.toContain("Tabs differ");
+    expect(meal.detail || "").not.toContain("Tabs differ");
+  });
+
   it("the same restaurant named with its area isn't two restaurants (Yakiniku Yazawa Tokyo (Ginza))", () => {
     const block = line({ date: "2030-01-15", kind: "block", time: "18:30", title: "DINNER RESERVATION – Yakiniku Yazawa Tokyo (Ginza)", source: "Tokyo Day 1 Ginza · Day 1" });
     const meal = line({ date: "2030-01-15", kind: "meal", time: "18:30", title: "Yakiniku Yazawa Tokyo", source: "Dining Resos (row 5)" });

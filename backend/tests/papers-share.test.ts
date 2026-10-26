@@ -129,6 +129,29 @@ describe("who sees a paper", () => {
     expect((await executeTool("share_paper", { paperId, with: "all" }, who("PSKeeper"))).result.error).toBeTruthy();
     expect((await executeTool("share_paper", { paperId: "nope", with: "group" }, who("PSKeeper"))).result.error).toBeTruthy();
   });
+  it("Edit (corners, Crisper — Oct 26): only the keeper; the photo as first kept is kept once; Back to the original undoes", async () => {
+    const thumb = `data:image/jpeg;base64,${JPEG.toString("base64")}`;
+    const fitted = Buffer.concat([JPEG, Buffer.from("fitted")]).toString("base64");
+    const edit = (n: string, body: unknown) => request(app).post(`/api/papers/${paperId}/edit`).set(as(n)).send(body);
+    expect((await edit("PSFriend", { data: fitted, thumb })).status).toBe(403);
+    expect((await edit("PSKeeper", { data: "not a picture!" })).status).toBe(400);
+    expect((await request(app).post(`/api/papers/nope/edit`).set(as("PSKeeper")).send({ data: fitted })).status).toBe(404);
+    expect((await edit("PSKeeper", { data: fitted, thumb })).status).toBe(200);
+    let row = await prisma.tripPaper.findUnique({ where: { id: paperId } });
+    expect(Buffer.from(row!.bytes).toString("base64")).toBe(fitted);
+    expect(Buffer.from(row!.original!).equals(JPEG)).toBe(true);
+    expect((await list("PSKeeper"))!.find((p) => p.id === paperId)).toMatchObject({ edited: true });
+    // (edited twice: the original is still the first one)
+    await edit("PSKeeper", { data: JPEG.toString("base64"), thumb });
+    row = await prisma.tripPaper.findUnique({ where: { id: paperId } });
+    expect(Buffer.from(row!.original!).equals(JPEG)).toBe(true);
+    expect((await request(app).post(`/api/papers/${paperId}/original`).set(as("PSFriend"))).status).toBe(403);
+    expect((await request(app).post(`/api/papers/${paperId}/original`).set(as("PSKeeper"))).status).toBe(200);
+    row = await prisma.tripPaper.findUnique({ where: { id: paperId } });
+    expect(Buffer.from(row!.bytes).equals(JPEG)).toBe(true);
+    expect(row!.original).toBeNull();
+    expect((await list("PSKeeper"))!.find((p) => p.id === paperId)).not.toHaveProperty("edited");
+  });
   it("removed by its keeper: gone for everyone, its card too", async () => {
     expect((await request(app).post(`/api/papers/${paperId}/remove`).set(as("PSKeeper"))).status).toBe(200);
     expect(await list("PSFriend")).toEqual([]);

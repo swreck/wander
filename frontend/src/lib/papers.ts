@@ -12,7 +12,14 @@ export type PaperShare = "me" | "pair" | "group";
 export interface Paper {
   id: string; title: string; summary: string; dayDate: string | null; town: string | null; authorName: string;
   mine: boolean; pdf: boolean; createdAt: string; url: string; smallUrl: string | null; share: PaperShare;
+  /** its photo was fitted or made crisper after it was kept (the original is kept too) */
+  edited?: boolean;
 }
+
+/** A kept paper's photo, fitted (PaperEdit): the original is kept the first time; Wander reads its words again */
+export const editPaper = (id: string, e: { data: string; thumb: string }) => api.post<{ ok: boolean }>(`/papers/${id}/edit`, e);
+/** …and back to the photo as it was first kept */
+export const paperOriginal = (id: string) => api.post<{ ok: boolean }>(`/papers/${id}/original`, {});
 export interface Papers { papers: Paper[]; sharedWith: string | null }
 
 export const papersOf = (tripId: string, date?: string) =>
@@ -58,7 +65,7 @@ const asBase64 = (file: File) => new Promise<string | null>((ok) => {
 });
 
 /** Keep one paper: Wander reads it and files it under its day. The kept paper, or why it couldn't be kept. */
-export async function keepPaperFile(tripId: string, file: File): Promise<{ paper: { id: string; title: string; dayDate: string | null; town: string | null; read: boolean }; alsoKept?: { by: string; title: string } | null } | { error: string }> {
+export async function keepPaperFile(tripId: string, file: File, fitted?: { data: string; thumb: string }): Promise<{ paper: { id: string; title: string; dayDate: string | null; town: string | null; read: boolean }; alsoKept?: { by: string; title: string } | null } | { error: string }> {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return { error: "No signal right now. Keep it again when there's signal — the paper stays on your phone meanwhile." };
   let body: { mediaType: string; data: string; name: string; thumb?: string };
   if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
@@ -66,8 +73,9 @@ export async function keepPaperFile(tripId: string, file: File): Promise<{ paper
     const data = await asBase64(file);
     if (!data) return { error: "That file couldn't be read on this phone." };
     body = { mediaType: "application/pdf", data, name: file.name || "document.pdf" };
-  } else if (file.type.startsWith("image/") || !file.type) {
-    const p = await shrink(file);
+  } else if (fitted || file.type.startsWith("image/") || !file.type) {
+    // (fitted on the phone first — PaperEdit — or shrunk as it is)
+    const p = fitted ?? await shrink(file);
     if (!p) return { error: "That picture couldn't be read on this phone. A screenshot of it works." };
     body = { mediaType: "image/jpeg", data: p.data, name: file.name || "photo.jpg", thumb: p.thumb };
   } else {
