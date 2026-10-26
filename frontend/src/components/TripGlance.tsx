@@ -709,7 +709,10 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const rest = todays.filter((i) => !gotHere(i) && !(i.kind === "checkin" && arrived && tripNow >= 18 * 60) &&!itineraryLines.includes(i) && !besideHotel(i) && !/\binterested\?/i.test(i.title) && i !== next && i.kind !== "checkout" && !(showLeave && i === flight) && (!i.time || toMin(i.time) >= nowFor(i) || i.kind === "checkin" || isLanding(i)));
   // A pick among her choices shows on her plan's line, not again as its own row
   const inHerPlan = (g?: GuideItem) => !!g && g.kind !== "block" && plan.all.some((b) => saidAgain(b, g));
-  const todayChoices = choices.filter((c) => c.date === today && !plan.all.some((b) => c.text.startsWith(`${b.title}: `)));
+  // (…nor a plan given to Scout before her Guide had it, now her own line at that time naming the same place — Oct 27:
+  // Larisa's 13 Scout plans doubled her new Tuesday; the day screen shows what more they said under her line)
+  const todayChoices = choices.filter((c) => c.date === today && !plan.all.some((b) => c.text.startsWith(`${b.title}: `))
+    && !(c.time && plan.all.some((b) => b.time === c.time && sameThing(c.text.split(/\s[—–]\s|,|\(/)[0], b.title))));
   // A plan added in Wander that comes before her Guide's next line is "Next", as on Now (round 12: after adding a
   // 10:30 plan, Now said "Next 10:30" while Home still said "Next 11:45 …")
   const nextPlan = todayChoices.filter((c) => c.time && toMin(c.time) >= tripNow).sort((a, b) => a.time!.localeCompare(b.time!))[0];
