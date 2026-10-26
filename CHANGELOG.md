@@ -2,6 +2,18 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-27 (Tuesday morning in Japan) — Her Oct 27 copy; a plan given to Scout first is said once
+
+Her Oct 27 copy rewrote Tuesday's plan (7:30 leave Shiraume … teamLab 2:00–2:30 … Ristorante Dono 6:30); imported on
+production; her Itinerary tab still says teamLab 11:00–11:30, shown as "Tabs differ" on both lines. Larisa had given
+Scout the same plan at 11:29 PM the night before (13 of Wander's own plans), so every stop showed twice, hers marked
+"not in your Guide".
+### Fixed
+- A Wander plan at the same time as a line of her plan, naming the same place, is said once: her line, and under it
+  what more the plan said ("Larisa added: Bill settled, luggage transferred to Four Seasons, no return to the ryokan").
+  Nothing deleted. Day screen (DayPage foldedInto) and Home (TripGlance todayChoices). A plan about something else at the
+  same time still shows on its own. SPEC §3 (day screen) — the rule is the day screen's "each fact once".
+
 ## 2026-10-26 (Monday in Japan) — Papers: fit the photo before keeping (corners, Crisper), and Edit
 
 Ken: "I thought keep a paper was supposed to have crop? It should, and ideally would have full editing tools to change

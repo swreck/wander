@@ -1676,7 +1676,24 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const unownedSoon = isToday
     ? planBlocks.find((b) => b !== currentUnowned && noOwner.has(b.id) && b.time && toMin(b.time) >= tripNow && (!upcomingGuide?.time || toMin(b.time) < toMin(upcomingGuide.time)))
     : undefined;
-  const ownPlans = choices.filter((c) => !pickTexts.has(c.text));
+  // A plan someone gave Scout before her Guide had it, now a line of her plan at the same time and naming the same place:
+  // said once — her line, and under it whatever more they said (Oct 27: Larisa told Scout her new Tuesday the night
+  // before her sheet's copy came; every stop showed twice, each of hers marked "not in your Guide", which it now was)
+  const foldedInto = new Map<string, DayChoice[]>();
+  const folded = new Set<string>();
+  for (const c of choices) {
+    if (!c.time || c._pending || pickTexts.has(c.text)) continue;
+    const name = c.text.split(/\s[—–]\s|,|\(/)[0];
+    const b = planBlocks.find((x) => x.time === c.time && sameThing(name, x.title));
+    if (b) { foldedInto.set(b.id, [...(foldedInto.get(b.id) || []), c]); folded.add(c.id); }
+  }
+  const foldedNotes = (b: GuideItem) => (foldedInto.get(b.id) || []).flatMap((c) => {
+    // (only what the plan says beyond her line: the words after its dash — "Bill settled, luggage transferred…")
+    const more = c.text.includes(" — ") ? c.text.slice(c.text.indexOf(" — ") + 3).trim() : "";
+    return more ? [<p key={`folded-${c.id}`} data-folded-plan className="text-sm text-[#514636] mt-1 [overflow-wrap:anywhere]">
+      <span className="text-[#6b5d4a]">{me && c.addedBy === me ? "You added" : `${c.addedBy} added`}: </span>{more}</p>] : [];
+  });
+  const ownPlans = choices.filter((c) => !pickTexts.has(c.text) && !folded.has(c.id));
   // A plan added in Wander with a time sits in the day at its time, among her lines (Oct 8, Ken: "does it become an equal
   // item to activities extracted from the sheet?" — on Home and Next it did; here it waited in its own section); one with
   // no time stays under "Added in Wander". Always marked as added, never as hers.
@@ -2703,6 +2720,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 differAbove={(b) => isToday && !now && !!b.time && otherSources.some((s) => s.differs.some((d) => d.date === date && differLive(d)
                   && d.guideSays === (b.endTime ? `${twelveHour(b.time!)}–${twelveHour(b.endTime)}` : twelveHour(b.time!))))}
                 under={(b) => [
+                  ...foldedNotes(b),
                   ...(underLine.get(b.id) || []).map((o) => (
                     <ItemCard key={o.id} nested compact i={o} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === o.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />
                   )),
