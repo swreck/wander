@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-27 (Tuesday in Japan) — Notes: dictating no longer leaves the page at its bottom
+
+Ken (Oct 26 ~9:15 PM): "I open notes and could not see a cursor, but then look to dictate and it seemed to work, but
+when I went to reread my own copy, I was at the bottom of the page and could not see my copy anymore." His phone's own
+reports (Railway logs, 12:11 UTC): two taps, then iOS threw the page 14,734 pt to its foot four times in three seconds,
+each put back — then the six put-backs per tap were spent and the next throw stuck.
+### Fixed
+- NotesPage's hold: the six put-backs start again with new words in the box (a key, or a burst of dictation: keydown,
+  beforeinput, input) and after 0.4 s with no throw; a throw every frame (a real tug-of-war) is still given up on; a
+  scroll by hand is still never undone. The phone reports up to 16 times a tap (was 6). Replay (notes-dictation-throws):
+  live code FAILS at the 7th throw; fixed 5/5. Only an iPhone can confirm.
+- Next: a line's photos open full screen when tapped, at the one tapped (Ken, on Kiyomizu-dera's card: "Shouldn't I be
+  able to tap on these pictures and expand them and look at the little pictures?"). Next's LinePhotos never had the tap
+  the day's list has. next-photos-walk 8/8.
+
 ## 2026-10-27 (Tuesday morning in Japan) — Her Oct 27 copy; a plan given to Scout first is said once
 
 Her Oct 27 copy rewrote Tuesday's plan (7:30 leave Shiraume … teamLab 2:00–2:30 … Ristorante Dono 6:30); imported on

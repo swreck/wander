@@ -287,7 +287,8 @@ export default function NotesPage() {
     let settle: ReturnType<typeof setTimeout> | undefined;
     const tell = (when: "focus" | "settled" | "held", jump = 0) => {
       const el = boxRef.current, vv = window.visualViewport;
-      if (!el || sent >= 6) return;
+      // (up to 16 a tap — at six, Oct 26's reports stopped before the throw that stuck)
+      if (!el || sent >= 16) return;
       sent++;
       const r = el.getBoundingClientRect();
       phoneReport("notes-caret", { when, sy: Math.round(window.scrollY), vvTop: Math.round(vv?.offsetTop ?? -1), vvH: Math.round(vv?.height ?? -1),
@@ -309,7 +310,14 @@ export default function NotesPage() {
       heldAt = window.scrollY; holds = 0; sent = 0; byHandOut = false;
       tell(why);
     };
-    const onKey = (e: Event) => { if (e.target === boxRef.current) arm(); };
+    // (new words in the box — a key, or a burst of the keyboard's dictation — are a new chance for iOS to throw the page:
+    // the six put-backs start again. Ken's iPhone, Oct 26 9:11 PM: dictating, iOS threw the page to its foot four times
+    // in three seconds, each put back — then the six were spent and the next throw left him at the bottom, his words out
+    // of sight. His own scrolling is told apart by his finger, not by this count.)
+    const onKey = (e: Event) => {
+      if (e.target !== boxRef.current) return;
+      if (heldAt === null) arm(); else holds = 0;
+    };
     arm();
     // (the box drawn a moment after this starts — it waits for the notes — and focused as it's drawn)
     const late = setTimeout(arm, 1500);
@@ -318,6 +326,9 @@ export default function NotesPage() {
     const onTouch = (e: Event) => { if (!(e.target instanceof Node && boxRef.current?.contains(e.target))) fingerAt = Date.now(); };
     const onScroll = () => {
       const el = boxRef.current;
+      // (the six start again after 0.4 s with no throw: a tug-of-war with iOS is a throw every frame or two; a throw now and
+      // then while the keyboard rises or words arrive is not — Oct 26's four came within three seconds of the tap)
+      if (holds && Date.now() - putBackAt > 400) holds = 0;
       if (heldAt === null || !el || document.activeElement !== el || holds >= 6) return;
       // (the scroll of our own putting back)
       if (Date.now() - putBackAt < 150) return;
@@ -342,6 +353,7 @@ export default function NotesPage() {
     document.addEventListener("focusout", onBlur);
     document.addEventListener("keydown", onKey, true);
     document.addEventListener("beforeinput", onKey, true);
+    document.addEventListener("input", onKey, true);
     window.addEventListener("touchstart", onTouch, { passive: true });
     window.addEventListener("touchmove", onTouch, { passive: true });
     window.addEventListener("touchend", onTouch, { passive: true });
@@ -354,6 +366,7 @@ export default function NotesPage() {
       document.removeEventListener("focusout", onBlur);
       document.removeEventListener("keydown", onKey, true);
       document.removeEventListener("beforeinput", onKey, true);
+      document.removeEventListener("input", onKey, true);
       window.removeEventListener("touchstart", onTouch);
       window.removeEventListener("touchmove", onTouch);
       window.removeEventListener("touchend", onTouch);

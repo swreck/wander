@@ -994,11 +994,20 @@ function PlacePhotos({ hit, title, onOpen, dark = false }: { hit: PlaceHit; titl
   );
 }
 
-/** One line of her plan's checked photos, looked up by itself (Next's cards) */
+/** One line of her plan's checked photos, looked up by itself (Next's cards) — a tap opens them full screen at the one
+ *  tapped, as on the day's list (Ken, Oct 27, on Next's Kiyomizu-dera card: "Shouldn't I be able to tap on these pictures
+ *  and expand them and look at the little pictures?" — the tap was never connected here) */
 function LinePhotos({ tripId, cityId, block, ctx, dark = false }: { tripId: string | null; cityId?: string | null; block: GuideItem; ctx: { hotel?: string | null; dayWords?: string; bookings?: GuideItem[] }; dark?: boolean }) {
   const photoOf = useLinePhotos(tripId, cityId, [block], ctx);
+  const [at, setAt] = useState<number | null>(null);
   const h = photoOf(block);
-  return h ? <PlacePhotos hit={h} title={block.title} dark={dark} /> : null;
+  if (!h) return null;
+  return (
+    <>
+      <PlacePhotos hit={h} title={block.title} dark={dark} onOpen={(n) => setAt(n)} />
+      {at !== null && <PlaceGallery hit={h} start={at} title={block.title.replace(/^./, (c) => c.toUpperCase())} time={planTime(block) || null} map={null} onClose={() => setAt(null)} />}
+    </>
+  );
 }
 
 /**
