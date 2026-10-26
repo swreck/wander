@@ -48,6 +48,7 @@ import { photosOf, savedPhotos, PHOTOS_CHANGED, type TripPhoto } from "../lib/tr
 import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
+import AboutPlaceButton from "../components/PlaceAbout";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf, photoQueryOf } from "../lib/linePlaces";
 
@@ -250,6 +251,7 @@ function ItemPhoto({ tripId, cityId, query, line, title, time }: { tripId: strin
   return (
     <>
       <MomentPhoto hit={hit} title={title} onOpen={() => setOpen(true)} />
+      <AboutPlaceButton id={hit.id} title={title} />
       {open && <PlaceGallery hit={hit} title={title} time={time} map={null} onClose={() => setOpen(false)} />}
     </>
   );
@@ -771,6 +773,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 </div>
                 {/* the place itself, under its name — the time stays on the left, the facts below (the day as moments) */}
                 {hit && (focus ? <PlacePhotos hit={hit} title={b.title} onOpen={(n) => { setGalleryAt(n); setGallery(b); }} /> : <MomentPhoto hit={hit} title={b.title} onOpen={() => { setGalleryAt(0); setGallery(b); }} />)}
+                {/* (Ken, Oct 27: "another quick-access button… a summary description of the place") */}
+                {hit && <div><AboutPlaceButton id={hit.id} title={b.title} /></div>}
                 {b.forWhom && <p className="text-sm text-[#514636] mt-0.5">{isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`}</p>}
                 {/* (round 13: a picture in her tab can name the group her table leaves out — quoted, never assigned) */}
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
@@ -1005,6 +1009,7 @@ function LinePhotos({ tripId, cityId, block, ctx, dark = false }: { tripId: stri
   return (
     <>
       <PlacePhotos hit={h} title={block.title} dark={dark} onOpen={(n) => setAt(n)} />
+      <AboutPlaceButton id={h.id} title={block.title} dark={dark} />
       {at !== null && <PlaceGallery hit={h} start={at} title={block.title.replace(/^./, (c) => c.toUpperCase())} time={planTime(block) || null} map={null} onClose={() => setAt(null)} />}
     </>
   );

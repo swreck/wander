@@ -2,6 +2,25 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-10-27 (Tuesday in Japan) — "About this place" on the day's lines and on Next
+
+Ken: "add another quick-access button that's colored and bold so it's evident but tasteful that provides a summary
+description of the place, either reviews of its a restaurant or background if it's a historical site, the length should
+probably be about 3 to 5 paragraphs. Ask questions if needed".
+### Added
+- An amber, bold "About this place" button under the photos of every line naming a place Wander checked (day list,
+  Next, bookings/meals) — none on a taxi, a buffer or "freshen up". It opens full screen inside Wander: "What reviewers
+  say" (with Google's rating and count) for a place to eat or drink, "Background" for anything else; one bold sentence,
+  then 3–5 short paragraphs; "Written by Wander from Google's listing and reviews and pages on the web. It isn't from
+  Larisa's Guide."; "Where this comes from ›" opens the sources. Done/Back close it. (components/PlaceAbout.tsx,
+  lib/placeAbout.ts; services/placeAbout.ts; GET /api/place-photos/about/:id; table place_about.)
+- Written once per Google place by Claude from Google's listing (rating, five reviews, summary) and a web search, then
+  checked sentence by sentence against what it read (a fact-check of the first pieces found a misnamed measurement, a
+  hidden statue described as visible, a reviewer's price given as the price, an invented inference and words no reviewer
+  wrote). Honesty rules in the writer: reviewers' words only as written, no inferences, conflicts said, prices only from
+  the place or a dated guide, closures "as of". The trip's remaining days written ahead (place-about-prewrite.mts).
+SPEC §3 (day screen) and §7 (Scout's sources and honesty) — SPEC UPDATED.
+
 ## 2026-10-27 (Tuesday in Japan) — Notes: dictating no longer leaves the page at its bottom
 
 Ken (Oct 26 ~9:15 PM): "I open notes and could not see a cursor, but then look to dictate and it seemed to work, but

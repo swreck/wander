@@ -836,6 +836,24 @@ model WanderIdeaPicture {
 /// Found once a week per Maps search — the same words her stop's Maps button searches — from Google's listing of the
 /// place, and kept only when a check says it's the place her line means (verdict "yes"); "no" and "none" are kept too,
 /// so a stop that has no sure photo isn't searched again every visit.
+/// "About this place" (Ken, Oct 27: "a quick-access button… a summary description of the place, either reviews if it's a
+/// restaurant or background if it's a historical site… about 3 to 5 paragraphs"): written once per Google place, from its
+/// Google listing and reviews and the web, and shared by everyone. Never Larisa's Guide; said as Wander's.
+model PlaceAbout {
+  id          String   @id @default(cuid())
+  placeId     String   @unique @map("place_id")    // Google's id for the place
+  name        String
+  kind        String                               // "reviews" (a place to eat or drink) | "background" (anything else)
+  gist        String                               // one sentence, said first
+  text        String                               // 3 to 5 paragraphs, blank lines between
+  rating      Float?
+  ratingCount Int?     @map("rating_count")
+  sources     Json     @default("[]")              // [{ title, url }] — the pages it was written from
+  writtenAt   DateTime @default(now()) @map("written_at")
+
+  @@map("place_about")
+}
+
 model PlacePhoto {
   id        String   @id @default(cuid())
   query     String   @unique                    // "Tsukiji Outer Market, Ginza, Japan"
