@@ -38,6 +38,16 @@ router.get("/known", requireAuth, async (_req, res) => {
   freshenPlaces();
 });
 
+// GET /about/:id — "About this place" for a checked place (services/placeAbout.ts): kept, or written now (~15–30 s)
+// (before /:id/:n, which would take "about" for an id)
+router.get("/about/:id", requireAuth, async (req, res) => {
+  const { aboutPlace } = await import("../services/placeAbout.js");
+  const r = await aboutPlace(String(req.params.id)).catch((e) => { console.warn("[place-about]", e?.message || e); return { error: "Wander couldn't write this just now. Try again in a minute." }; });
+  if ("error" in r) { res.status(404).json(r); return; }
+  res.set("Cache-Control", "private, max-age=3600");
+  res.json(r);
+});
+
 router.get("/:id/:n", async (req, res) => {
   const n = Number(req.params.n);
   const p = Number.isInteger(n) && n >= 0 && n < 6 ? await placePicture(String(req.params.id), n, req.query.size === "small").catch(() => null) : null;

@@ -1745,6 +1745,15 @@ the day ↑".
 **Source links** are quiet: "From Larisa's Guide — the Itinerary tab ↗" in small gray, opening her sheet at the exact
 cells (§4.6). Phone numbers can be tapped only when they're shaped like a phone number.
 
+**About this place** (Ken, Oct 27: "a quick-access button that's colored and bold so it's evident but tasteful…
+reviews… or background… about 3 to 5 paragraphs"): an amber, bold button under the photos of each line that names a
+place Wander checked, here, on Next and on bookings. It opens full screen: "What reviewers say" with Google's rating for
+a place to eat or drink, "Background" for anything else; one bold sentence, then 3–5 short paragraphs; said as Wander's,
+from Google and the web, never her Guide; the sources behind "Where this comes from ›". Written once per place and
+checked sentence by sentence against what was read: reviewers' words only as written, no inferences, disagreements
+said, prices only from the place or a dated guide, closures "as of". The trip's coming days are written ahead; anything
+else is written on its first tap (about a minute) and then opens at once for everyone.
+
 ### 3.5 Reference, last
 
 At the foot of the day: "Also in her Guide for today" for what has no line of hers; where everyone sleeps ("Tonight",
