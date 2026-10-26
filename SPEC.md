@@ -2497,6 +2497,15 @@ A receipt, a bill, a ticket or a booking can be kept in Wander instead of carrie
   confirmation or passport number, a guest's name or a room number in any of it. Nothing on it says a day (a welcome
   sheet, a menu, a temple ticket): it goes under the day it was kept (Oct 25). Two photos are filed as the papers they
   are; one photo of tickets for two days is kept under each day.
+- **Fitting the photo** (Ken, Oct 26: "keep a paper was supposed to have crop… ideally would have full editing tools to
+  change parallax and contrast"; his yes to corners + Crisper): a photo chosen in Notes first opens "Fit it before
+  keeping", full screen: four circles to drag onto the paper's corners (crops it and straightens a sheet shot at an
+  angle; the page keeps its true shape, worked out from where the corners fall; corners dragged crossed still give the
+  upright page; a magnifier shows beside the finger), **Crisper** (white paper, darker print, measured on the page
+  itself), **Turn ↻** (a quarter turn), **Keep the photo as it is**, **Keep it**, **Cancel**. The circles start at the
+  photo's own corners, so Keep it untouched trims nothing. A PDF is kept as it is. A kept photo's viewer has **Edit** (the keeper's): the same, with **Save**, and
+  **Back to the original** once edited — the photo as first kept is always kept (trip_papers.original). After an edit
+  Wander reads its words again for Scout. Done on the phone; nothing is sent until Keep it or Save.
 - **Opening one** (Oct 25; it had opened the bare photo in its own window, a dead end in the Home Screen app): full
   screen inside Wander, from its row in Notes, from that day's page, from "See it or share it" right after keeping it, and
   from the card below. Pinch (toward the fingers) or double-tap to zoom, drag to look around, double-tap for the whole
