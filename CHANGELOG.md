@@ -13,6 +13,9 @@ each put back — then the six put-backs per tap were spent and the next throw s
   beforeinput, input) and after 0.4 s with no throw; a throw every frame (a real tug-of-war) is still given up on; a
   scroll by hand is still never undone. The phone reports up to 16 times a tap (was 6). Replay (notes-dictation-throws):
   live code FAILS at the 7th throw; fixed 5/5. Only an iPhone can confirm.
+- Next: a line's photos open full screen when tapped, at the one tapped (Ken, on Kiyomizu-dera's card: "Shouldn't I be
+  able to tap on these pictures and expand them and look at the little pictures?"). Next's LinePhotos never had the tap
+  the day's list has. next-photos-walk 8/8.
 
 ## 2026-10-27 (Tuesday morning in Japan) — Her Oct 27 copy; a plan given to Scout first is said once
 
