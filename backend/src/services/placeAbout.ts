@@ -33,6 +33,9 @@ Honesty rules (a fact-check found each of these broken):
 - Otherwise, when sources disagree on a number or a fact, say both briefly or leave it out. Never pick one silently.
 - Advice or a figure credited to "a guide" or "that guide" must be in that very guide, and be its main advice, not a side case (a section for families with small children isn't how long to allow).
 - Every sentence whole and grammatical.
+- Times as a traveller reads them: "9:00 AM", "6:30 PM" — never "17:00" or "6 a.m.".
+- Never describe your sources or how you know ("the five reviews shown on the listing", "sources differ on…" as an
+  opening). Say the fact; a disagreement in a short clause where it matters, never as a paragraph's first words.
 - A price only from the place's own site or a recent guide, with the source's date when it has one. Never a single reviewer's figure as the price.
 - Closed days, closures and renovations: say them when a source does, with "as of" its date or month.
 - Something visitors can't see (a hidden image, a closed room) is never described as if they will see it.

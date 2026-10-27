@@ -773,8 +773,6 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 </div>
                 {/* the place itself, under its name — the time stays on the left, the facts below (the day as moments) */}
                 {hit && (focus ? <PlacePhotos hit={hit} title={b.title} onOpen={(n) => { setGalleryAt(n); setGallery(b); }} /> : <MomentPhoto hit={hit} title={b.title} onOpen={() => { setGalleryAt(0); setGallery(b); }} />)}
-                {/* (Ken, Oct 27: "another quick-access button… a summary description of the place") */}
-                {hit && <div><AboutPlaceButton id={hit.id} title={b.title} /></div>}
                 {b.forWhom && <p className="text-sm text-[#514636] mt-0.5">{isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`}</p>}
                 {/* (round 13: a picture in her tab can name the group her table leaves out — quoted, never assigned) */}
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
@@ -851,6 +849,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                     // (round 13: "Your notes ›" on Larisa's phone read as her private notes, not her Guide's)
                     : <button onClick={() => setOpen((o) => ({ ...o, [b.id]: true }))} className="-mb-2 min-h-[44px] text-sm text-[#514636]">Notes from {v.guide} ›</button>
                 )}
+                {/* (Ken, Oct 27: "another quick-access button… a summary description of the place" — after the line's own
+                    words, who it's for and her warnings: under the photos it split them from the line; design review) */}
+                {hit && <AboutPlaceButton id={hit.id} title={b.title} />}
                 {below}
               </div>
             </li>
@@ -1009,9 +1010,23 @@ function LinePhotos({ tripId, cityId, block, ctx, dark = false }: { tripId: stri
   return (
     <>
       <PlacePhotos hit={h} title={block.title} dark={dark} onOpen={(n) => setAt(n)} />
-      <AboutPlaceButton id={h.id} title={block.title} dark={dark} />
       {at !== null && <PlaceGallery hit={h} start={at} title={block.title.replace(/^./, (c) => c.toUpperCase())} time={planTime(block) || null} map={null} onClose={() => setAt(null)} />}
     </>
+  );
+}
+
+/** A line's "About this place" and its Maps link in one row, after the line's own words (a fresh design review, Oct 27:
+ *  under the photos the amber button split a line from its "Yours · Ken & Andy" and its warnings, the words 3 pt under
+ *  it; and Maps, alone on its own line below, read as an afterthought). No checked place: Maps alone. */
+function LineAbout({ tripId, cityId, block, ctx, dark = false, beside }: { tripId: string | null; cityId?: string | null; block: GuideItem; ctx: { hotel?: string | null; dayWords?: string; bookings?: GuideItem[] }; dark?: boolean; beside?: ReactNode }) {
+  const photoOf = useLinePhotos(tripId, cityId, [block], ctx);
+  const h = photoOf(block);
+  if (!h && !beside) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
+      {h && <AboutPlaceButton id={h.id} title={block.title} dark={dark} inRow />}
+      {beside}
+    </div>
   );
 }
 
@@ -2478,8 +2493,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 {mealNow.confirmation && <span className="block text-sm text-[#514636] mt-0.5 [overflow-wrap:anywhere]">Confirmation {confirmationWords(mealNow.confirmation)}</span>}
                 {tabsDiffer(mealNow).map((d) => <span key={d} className="block text-sm text-[#8a5a1a] mt-0.5">{differWordsFor(d, v, "below")}</span>)}
               </button>
-              {(() => { const line = planBlocks.find((x) => x.time === mealNow.time && saidAgain(x, mealNow)); return line ? <LinePhotos tripId={tripId} cityId={bandCity?.id} block={line} ctx={lineCtx} /> : null; })()}
-              {mapsQueryFor(mealNow) && <a href={mapsLink(mapsQueryFor(mealNow)!)} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>}
+              {(() => {
+                const line = planBlocks.find((x) => x.time === mealNow.time && saidAgain(x, mealNow));
+                const maps = mapsQueryFor(mealNow) ? <a href={mapsLink(mapsQueryFor(mealNow)!)} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a> : null;
+                return line ? <><LinePhotos tripId={tripId} cityId={bandCity?.id} block={line} ctx={lineCtx} /><LineAbout tripId={tripId} cityId={bandCity?.id} block={line} ctx={lineCtx} beside={maps} /></> : maps;
+              })()}
             </div>)}
             {now && currentBlock && !mealLeads && !(currentBlock.time && otherSources.some((s) => s.differs.some((d) => d.date === date && d.guideSays === (currentBlock.endTime ? `${twelveHour(currentBlock.time!)}–${twelveHour(currentBlock.endTime)}` : twelveHour(currentBlock.time!))))) && (<div className="mb-3">
               {/* (to that line on Today — the day's list is Today's now, not under Next) */}
@@ -2496,10 +2514,12 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 })()}
               </button>
               <LinePhotos tripId={tripId} cityId={bandCity?.id} block={currentBlock} ctx={lineCtx} />
-              {/* (Maps from Now too — Ken, Oct 16: "Be able to hop to maps at any time based on either of them") */}
+              {/* (Maps from Now too — Ken, Oct 16: "Be able to hop to maps at any time based on either of them") — in one
+                  row with About this place */}
               {(() => {
                 const href = planMapHref(currentBlock, { hotel: tonightHotel, dayWords: itineraryLines.map((l) => l.title).join(" "), bookings: dayItems.filter((m) => m.kind === "meal") });
-                return href ? <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a> : null;
+                return <LineAbout tripId={tripId} cityId={bandCity?.id} block={currentBlock} ctx={lineCtx}
+                  beside={href ? <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a> : null} />;
               })()}
             </div>)}
             {now && currentUnowned && (
@@ -2599,11 +2619,12 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   })()}
                   {!pick && <p className="text-sm text-white/80 mt-1">{u.kind === "block" ? `From ${v.owners} plan for the day` : friendlySource(u.source, me)}</p>}
                   {u.confirmation && <p className="text-sm text-white/80 mt-1">Confirmation {u.confirmation}</p>}
-                  {mapHref && (
-                    <a href={mapHref} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm underline underline-offset-2">
-                      Find in Maps ↗
-                    </a>
-                  )}
+                  {/* (About this place beside Find in Maps, after the card's words — under the photos it jammed the
+                      description 6 pt below it; design review, Oct 27) */}
+                  {(() => {
+                    const find = mapHref ? <a href={mapHref} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm underline underline-offset-2">Find in Maps ↗</a> : null;
+                    return u.kind === "block" && !pickOpt ? <LineAbout tripId={tripId} cityId={bandCity?.id} block={u} ctx={lineCtx} dark beside={find} /> : find;
+                  })()}
                   {/* What's next, when, and how to get there — from where you're standing, in Apple Maps (Oct 2: Ken,
                       "what's next, when, and how do I get there" — nobody types an address into a map app) */}
                   {u.kind !== "flight" && directionsHref(mapHref) && (
