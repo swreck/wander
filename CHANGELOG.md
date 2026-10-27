@@ -4,6 +4,17 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 
 ## 2026-10-27 (Tuesday in Japan) — "About this place" on the day's lines and on Next
 
+### Afternoon — Walk · Train · Taxi on every line you'd go to
+- Ken (1:04 PM screenshots): "some pictures have a quick button that gives me directions by car or walking or subway,
+  and some only have a link to maps… the variation is just confusing." Next's card had the three; Now, a meal under
+  way, every line of Today, tonight's hotel and the bookings had "Maps ↗", "Find in Maps ↗" or "Directions ↗". Now one
+  component (components/GetThere.tsx) gives the same Walk ↗ Train ↗ Taxi ↗ everywhere, under About this place. Bookings
+  and the hotel show the address in words above them. A past day, a flight's airport, an unpicked choice and a non-map
+  link keep a plain "Maps ↗". Next's "Get there from where you are" label is gone (same buttons as everywhere).
+  Her own map link on a booking ("Check in · Four Seasons … Map ↗") gives the three too. A booking nested under its own
+  line (same thing, same time: Ristorante Dono, Enyu-an) shows no second map link; its Send › stays. (Fresh check.)
+  SPEC §"Walk · Train · Taxi, everywhere you'd go" (Part II, Next) updated.
+
 ### Later the same morning
 - Placement (Ken's 8:54 AM screenshot: the button flush against "Maps ↗"; a fresh design review): the button and
   Maps / Find in Maps share one row after the line's own words; on the day list it follows who it's for, the notes

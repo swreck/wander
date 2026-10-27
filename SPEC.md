@@ -1529,7 +1529,7 @@ Hakata at the hotel, and so when I tapped on next, it would not tell me we were 
 
 **Just next** (Oct 16 — Ken: "Next should just be next. It shouldn't then scroll to the equivalent of what is on the
 today tab. Add more visuals to next… Be able to hop to maps at any time based on either of them"): what's now and what's
-next, each with its place's checked photos (one or two) and Maps; Next also has Walk / Train / Taxi. Then "All of today ›"
+next, each with its place's checked photos (one or two) and Walk / Train / Taxi. Then "All of today ›"
 (the Today tab's page). The day's list, its photos and notes are Today's, not Next's. "Now, in Larisa's plan · …" opens
 Today at that line.
 
@@ -1556,12 +1556,18 @@ Rules that keep it right:
 
 **What Next shows.** One strong card at a time; a second card is a step quieter.
 - **The Next card**: the time, how long until it, her transit and dress notes ("Notes from your Guide ›"), the group's
-  pick or "2 places to choose from", whether her tabs differ. Under it: **Find in Maps**, and **Get there from where
-  you are: Walk · Train · Taxi**, each opening Google Maps with walking, transit or driving directions from the phone to
-  her own place (the pin of a place she linked, the address she wrote, a hotel's booked address). Nobody types an
-  address. Not shown for a flight, or for a stop with no place.
+  pick or "2 places to choose from", whether her tabs differ. Under it: About this place, then **Walk · Train · Taxi**.
 
-**Every map link opens Google Maps** (Oct 15): a day's "Maps ↗", Next's Find in Maps and Walk / Train / Taxi, the
+**Walk · Train · Taxi, everywhere you'd go** (Oct 27 — Ken: "The experience should be more consistent, and the simple
+ease of tapping walk or taxi or train to somewhere seemed a good innovation, and the variation is just confusing"): the
+same three buttons, in the same order, on every line naming a place on Today, on Now, a booked meal under way, the Next
+card, tonight's hotel and the day's bookings (the address in words above them, for a taxi driver). Each opens Google
+Maps with walking, transit or driving directions from the phone to her own place (the pin of a place she linked, the
+address she wrote, a hotel's booked address). Nobody types an address. On a line with choices, each choice keeps "Maps ↗"
+until the group picks one; then the line has the three to the pick. A day already past, a flight's airport, or a link
+that isn't a map (a Michelin page) keeps a plain "Maps ↗". Nothing for a stop with no place ("Taxi north").
+
+**Every map link opens Google Maps** (Oct 15): Walk / Train / Taxi, a past day's "Maps ↗", the
 airport-to-hotel route, Play's Maps and Scout's directions. Ken: "Apple Maps sent us to the wrong place for dinner
 tonight. Putting address into Google Maps went to right place. Please have the map link go to Google Maps if you can."
 Her own Apple Maps search links in her cells open the same search in Google Maps. Her Apple Maps guides, which she made
