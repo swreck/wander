@@ -45,4 +45,16 @@ describe("About this place", () => {
   it("only signed in", async () => {
     expect((await get(yesId, false)).status).toBe(401);
   });
+  it("a line with a piece of its own (no Google place): listed, and found by her words; one without isn't", async () => {
+    const title = `Studio 9: ${PLACE} and family`;
+    await prisma.placeAbout.create({ data: { placeId: `line:${title.toLowerCase()}`, name: `${PLACE} and family`, kind: "background", gist: "A family kiln.", text: "One.\n\nTwo.\n\nThree." } });
+    const lines = (await request(app).get("/api/place-photos/about-lines").set("Authorization", `Bearer ${tok}`)).body.lines as string[];
+    expect(lines).toContain(`line:${title.toLowerCase()}`);
+    const r = await request(app).get(`/api/place-photos/about-line?title=${encodeURIComponent(title)}`).set("Authorization", `Bearer ${tok}`);
+    expect(r.status).toBe(200);
+    expect(r.body.paragraphs).toEqual(["One.", "Two.", "Three."]);
+    expect((await request(app).get(`/api/place-photos/about-line?title=${encodeURIComponent("Taxi to nowhere")}`).set("Authorization", `Bearer ${tok}`)).status).toBe(404);
+    expect((await request(app).get("/api/place-photos/about-lines")).status).toBe(401);
+    await prisma.placeAbout.deleteMany({ where: { placeId: `line:${title.toLowerCase()}` } });
+  });
 });

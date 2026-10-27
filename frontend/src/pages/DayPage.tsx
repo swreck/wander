@@ -48,7 +48,8 @@ import { photosOf, savedPhotos, PHOTOS_CHANGED, type TripPhoto } from "../lib/tr
 import { daySummaries, savedDaySummaries } from "../lib/daySummaries";
 import { sheetLinks, savedSheetLinks, type SheetLinks } from "../lib/sheetLinks";
 import PictureViewer from "../components/PictureViewer";
-import AboutPlaceButton from "../components/PlaceAbout";
+import AboutPlaceButton, { useLineAbout } from "../components/PlaceAbout";
+import { aboutLines, lineKey } from "../lib/placeAbout";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf, photoQueryOf } from "../lib/linePlaces";
 
@@ -451,6 +452,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // Her Itinerary line(s) for the day, for a Maps search's town (areaOf)
   const dayWords = overview.map((o) => o.title).join(" ");
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // (lines with a piece of their own — no Google place: Wednesday's studios — get "About this place" too)
+  const [aboutKeys, setAboutKeys] = useState<Set<string>>(() => new Set());
+  useEffect(() => { let live = true; aboutLines().then((s) => { if (live) setAboutKeys(s); }); return () => { live = false; }; }, []);
   // The choice just tapped says "Saving…" until the pick is back from the server (a switch takes two steps)
   const [tapped, setTapped] = useState<string | null>(null);
   // Wander's reasoning for the day it put an undated plan on: one quiet line, the whole of it on a tap (delight audit:
@@ -851,7 +855,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 )}
                 {/* (Ken, Oct 27: "another quick-access button… a summary description of the place" — after the line's own
                     words, who it's for and her warnings: under the photos it split them from the line; design review) */}
-                {hit && <AboutPlaceButton id={hit.id} title={b.title} />}
+                {hit ? <AboutPlaceButton id={hit.id} title={b.title} />
+                  : aboutKeys.has(lineKey(b.title)) ? <AboutPlaceButton id={lineKey(b.title)} title={b.title} /> : null}
                 {below}
               </div>
             </li>
@@ -1020,11 +1025,13 @@ function LinePhotos({ tripId, cityId, block, ctx, dark = false }: { tripId: stri
  *  it; and Maps, alone on its own line below, read as an afterthought). No checked place: Maps alone. */
 function LineAbout({ tripId, cityId, block, ctx, dark = false, beside }: { tripId: string | null; cityId?: string | null; block: GuideItem; ctx: { hotel?: string | null; dayWords?: string; bookings?: GuideItem[] }; dark?: boolean; beside?: ReactNode }) {
   const photoOf = useLinePhotos(tripId, cityId, [block], ctx);
+  const own = useLineAbout(block.title);
   const h = photoOf(block);
-  if (!h && !beside) return null;
+  const id = h?.id ?? own;
+  if (!id && !beside) return null;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
-      {h && <AboutPlaceButton id={h.id} title={block.title} dark={dark} inRow />}
+      {id && <AboutPlaceButton id={id} title={block.title} dark={dark} inRow />}
       {beside}
     </div>
   );
