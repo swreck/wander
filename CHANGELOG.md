@@ -13,6 +13,9 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   link keep a plain "Maps ↗". Next's "Get there from where you are" label is gone (same buttons as everywhere).
   Her own map link on a booking ("Check in · Four Seasons … Map ↗") gives the three too. A booking nested under its own
   line (same thing, same time: Ristorante Dono, Enyu-an) shows no second map link; its Send › stays. (Fresh check.)
+  A line with no map link of hers but a place Wander checked for photos (Shigaraki Traditional Industry Hall) gets the
+  three by the words that place was found with. Every booking opens with Send › (Café ENSOU, with no link, had none).
+  A past day's hotel says "Maps ↗" like its lines. (Fresh re-check.)
   SPEC §"Walk · Train · Taxi, everywhere you'd go" (Part II, Next) updated.
 
 ### Later the same morning

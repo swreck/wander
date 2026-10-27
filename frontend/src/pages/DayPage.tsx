@@ -740,7 +740,10 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           // (the booking itself, under this line — then its "tabs differ" is right here, with no pointer down the page)
           // (the picked choice's place, once the group has picked one; else the line's own)
           const pickedName = (() => { const t = choices.map((c) => `${b.title}: ${c.split(" — ")[0]}`).find((x) => picked.has(x)); return t ? t.slice(b.title.length + 2) : null; })();
-          const wayHref = pickedName ? choiceMapHref({ name: pickedName }, b) : (mapOf[b.id] ?? null);
+          // …or, with no map link of hers, the place Wander found and checked for its photos, by the words it was found with
+          // (Shigaraki Traditional Industry Hall had photos and About but no way there; fresh re-check, Oct 27)
+          const foundBy = hitOf(b) ? queries.find((x) => x.id === b.id)?.query : undefined;
+          const wayHref = pickedName ? choiceMapHref({ name: pickedName }, b) : (mapOf[b.id] ?? (foundBy ? mapsLink(foundBy) : null));
           const below = under ? under(b, !!wayHref) : [];
           const saidAbove = !!differAbove && differAbove(b);
           const saidBelow = !saidAbove && !!differBelow && differBelow(b);
@@ -2631,8 +2634,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   })()}
                   {!pick && <p className="text-sm text-white/80 mt-1">{u.kind === "block" ? `From ${v.owners} plan for the day` : friendlySource(u.source, me)}</p>}
                   {u.confirmation && <p className="text-sm text-white/80 mt-1">Confirmation {u.confirmation}</p>}
-                  {/* (About this place beside Find in Maps, after the card's words — under the photos it jammed the
-                      description 6 pt below it; design review, Oct 27) */}
+                  {/* (About this place after the card's words — under the photos it jammed the description 6 pt below it;
+                      design review, Oct 27) */}
                   {/* What's next, when, and how to get there, from where you're standing (Oct 2: Ken, "what's next, when,
                       and how do I get there" — nobody types an address into a map app): the same three as every line */}
                   {(() => {
@@ -3055,7 +3058,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                           {tripId && !planBlocks.length && !(docDay?.moments || []).some((m) => !!m.place && sameStay(m.place, s.name)) && <ItemPhoto tripId={tripId} cityId={s.cityId ?? null} query={stayMapsQuery(s, cityOf(s.cityId))} line={`Tonight's hotel: ${s.name}`} title={s.name} time={null} />}
                           {date < today
                             ? <a href={mapsLink(stayMapsQuery(s, cityOf(s.cityId)))} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
-                                {s.address ? `${s.address} ↗` : "Find in Maps ↗"}
+                                {s.address ? `${s.address} ↗` : "Maps ↗"}
                               </a>
                             // (the address in words, for a taxi driver; then Walk, Train or Taxi there — Ken, Oct 27)
                             : <>
@@ -3476,11 +3479,12 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             {i.place && <p className="text-sm text-[#514636] mt-1 [overflow-wrap:anywhere]">{i.place}</p>}
             <GetThere href={goHref} name={i.title} />
           </>}
-          {(q || allHerLinks.length > 0) && (
+          {/* (Send › for every booking — Café ENSOU, with no link of its own, had none; fresh re-check, Oct 27) */}
+          {(q || allHerLinks.length > 0 || ["meal", "checkin", "tour", "reservation"].includes(i.kind)) && (
             <div className="flex flex-wrap gap-x-5">
               {q && !wayAbove && !goTrio && (
                 <a href={mapsLink(q)} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
-                  {i.place ? `${i.place} ↗` : "Find in Maps ↗"}
+                  {i.place ? `${i.place} ↗` : "Maps ↗"}
                 </a>
               )}
               {herLinks.map((u) => (
