@@ -412,8 +412,10 @@ function DayPlay({ tripId, cityId, date, moments: built, places, heading, outlin
   );
 }
 
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, trainWords, playWords, playCover, playTomorrow, playBookings, panelOf }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, trainWords, playWords, playCover, playTomorrow, playBookings, panelOf, pastDay = false }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
+  /** a day already over: Maps alone, no way there from here */
+  pastDay?: boolean;
   /** the day's city, for finding its stops' photos near it */
   cityId?: string | null;
   /** the trains under a line, in words ("NOZOMI 21 · Tokyo → Kyoto · 10:03 AM → 12:15 PM · Car 7, 3A–3D") */
@@ -435,7 +437,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   /** the sources' disagreement about this line's time is already said at the top of the day — a pointer here, not again */
   differAbove?: (b: GuideItem) => boolean;
   /** her booking for a line (the flight, the dinner, the check-out), drawn under her line — said once, there */
-  under?: (b: GuideItem) => ReactNode[];
+  /** what sits under a line; wayShown: the line itself already has the way there (Walk/Train/Taxi or Maps) */
+  under?: (b: GuideItem, wayShown: boolean) => ReactNode[];
   picked: Map<string, DayChoice>; onPick: (text: string, time: string | null, pickFor: string) => Promise<void>;
   onUndo: (c: DayChoice) => Promise<void>; tellName: string | null; onTell: (c: DayChoice) => void;
   nowAt: number | null; riding?: boolean; hotel: string | null; bookings: GuideItem[];
@@ -735,7 +738,13 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           const booking = choices.length ? undefined : (bookings || []).find((m) => m.time === b.time && saidAgain(b, m));
           const atBooking = !!booking && tabsDiffer(booking).length > 0;
           // (the booking itself, under this line — then its "tabs differ" is right here, with no pointer down the page)
-          const below = under ? under(b) : [];
+          // (the picked choice's place, once the group has picked one; else the line's own)
+          const pickedName = (() => { const t = choices.map((c) => `${b.title}: ${c.split(" — ")[0]}`).find((x) => picked.has(x)); return t ? t.slice(b.title.length + 2) : null; })();
+          // …or, with no map link of hers, the place Wander found and checked for its photos, by the words it was found with
+          // (Shigaraki Traditional Industry Hall had photos and About but no way there; fresh re-check, Oct 27)
+          const foundBy = hitOf(b) ? queries.find((x) => x.id === b.id)?.query : undefined;
+          const wayHref = pickedName ? choiceMapHref({ name: pickedName }, b) : (mapOf[b.id] ?? (foundBy ? mapsLink(foundBy) : null));
+          const below = under ? under(b, !!wayHref) : [];
           const saidAbove = !!differAbove && differAbove(b);
           const saidBelow = !saidAbove && !!differBelow && differBelow(b);
           const differ = atBooking || saidAbove || saidBelow ? [] : tabsDiffer(b);
@@ -745,8 +754,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           // Her "Transit: … Experience: …" on their own lines; a short note ("pending confirmation") in full
           const noteText = notes.join("\n").replace(/\s+(Experience|Transit|Note):/g, "\n$1:");
           const shortNote = noteText.length <= 90;
-          // With choices, each choice gets its own Maps link; the line itself ("Lunch") isn't a place
-          const map = mapOf[b.id] ?? null;
+          // (with choices, each choice gets its own Maps link; the line itself ("Lunch") isn't a place — mapOf is null)
           const hit = hitOf(b);
           const time = planTime(b);
           const pickedHere = choices.map((c) => `${b.title}: ${c.split(" — ")[0]}`).filter((t) => picked.has(t));
@@ -770,10 +778,6 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                         Sweep A, Oct 29: "arrives 2:50 PM" above, "~2:00–2:30 Arrive KIX" below, only one flagged) */}
                     {railArrivals?.[b.id] && <span className="block text-sm text-[#8a5a1a] mt-0.5">Timed for the train in {v.her} tab — the booked train arrives {railArrivals[b.id]}</span>}
                   </p>
-                  {map && (
-                    <a href={map} target="_blank" rel="noreferrer" aria-label={`${b.title} in Maps`}
-                      className="-mt-2.5 -mb-2 shrink-0 inline-flex items-center min-h-[44px] px-1 text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>
-                  )}
                 </div>
                 {/* the place itself, under its name — the time stays on the left, the facts below (the day as moments) */}
                 {hit && (focus ? <PlacePhotos hit={hit} title={b.title} onOpen={(n) => { setGalleryAt(n); setGallery(b); }} /> : <MomentPhoto hit={hit} title={b.title} onOpen={() => { setGalleryAt(0); setGallery(b); }} />)}
@@ -857,6 +861,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                     words, who it's for and her warnings: under the photos it split them from the line; design review) */}
                 {hit ? <AboutPlaceButton id={hit.id} title={b.title} />
                   : aboutKeys.has(lineKey(b.title)) ? <AboutPlaceButton id={lineKey(b.title)} title={b.title} /> : null}
+                {/* Walk, Train or Taxi there, as on Next (Ken, Oct 27: "the variation is just confusing") — or the picked
+                    choice's place, once the group has picked one */}
+                <GetThere href={wayHref} name={pickedName || b.title} mapOnly={pastDay} />
                 {below}
               </div>
             </li>
@@ -949,6 +956,7 @@ import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwn
 import { loadMarks, savedMarks, deadlineKey, markDay, type Mark } from "../lib/actionMarks";
 import { DayPapers } from "../components/Papers";
 import { holdKeyboard } from "../lib/keyboardHold";
+import GetThere from "../components/GetThere";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -1020,9 +1028,9 @@ function LinePhotos({ tripId, cityId, block, ctx, dark = false }: { tripId: stri
   );
 }
 
-/** A line's "About this place" and its Maps link in one row, after the line's own words (a fresh design review, Oct 27:
+/** A line's "About this place", then Walk, Train or Taxi there, after the line's own words (a fresh design review, Oct 27:
  *  under the photos the amber button split a line from its "Yours · Ken & Andy" and its warnings, the words 3 pt under
- *  it; and Maps, alone on its own line below, read as an afterthought). No checked place: Maps alone. */
+ *  it). The same order as every line of Today. No checked place: the way there alone. */
 function LineAbout({ tripId, cityId, block, ctx, dark = false, beside }: { tripId: string | null; cityId?: string | null; block: GuideItem; ctx: { hotel?: string | null; dayWords?: string; bookings?: GuideItem[] }; dark?: boolean; beside?: ReactNode }) {
   const photoOf = useLinePhotos(tripId, cityId, [block], ctx);
   const own = useLineAbout(block.title);
@@ -1030,7 +1038,7 @@ function LineAbout({ tripId, cityId, block, ctx, dark = false, beside }: { tripI
   const id = h?.id ?? own;
   if (!id && !beside) return null;
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
+    <div className="mt-3">
       {id && <AboutPlaceButton id={id} title={block.title} dark={dark} inRow />}
       {beside}
     </div>
@@ -2502,7 +2510,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               </button>
               {(() => {
                 const line = planBlocks.find((x) => x.time === mealNow.time && saidAgain(x, mealNow));
-                const maps = mapsQueryFor(mealNow) ? <a href={mapsLink(mapsQueryFor(mealNow)!)} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a> : null;
+                const maps = mapsQueryFor(mealNow) ? <GetThere href={mapsLink(mapsQueryFor(mealNow)!)} name={mealNow.title} /> : null;
                 return line ? <><LinePhotos tripId={tripId} cityId={bandCity?.id} block={line} ctx={lineCtx} /><LineAbout tripId={tripId} cityId={bandCity?.id} block={line} ctx={lineCtx} beside={maps} /></> : maps;
               })()}
             </div>)}
@@ -2526,7 +2534,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               {(() => {
                 const href = planMapHref(currentBlock, { hotel: tonightHotel, dayWords: itineraryLines.map((l) => l.title).join(" "), bookings: dayItems.filter((m) => m.kind === "meal") });
                 return <LineAbout tripId={tripId} cityId={bandCity?.id} block={currentBlock} ctx={lineCtx}
-                  beside={href ? <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a> : null} />;
+                  beside={href ? <GetThere href={href} name={currentBlock.title} /> : null} />;
               })()}
             </div>)}
             {now && currentUnowned && (
@@ -2626,28 +2634,15 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   })()}
                   {!pick && <p className="text-sm text-white/80 mt-1">{u.kind === "block" ? `From ${v.owners} plan for the day` : friendlySource(u.source, me)}</p>}
                   {u.confirmation && <p className="text-sm text-white/80 mt-1">Confirmation {u.confirmation}</p>}
-                  {/* (About this place beside Find in Maps, after the card's words — under the photos it jammed the
-                      description 6 pt below it; design review, Oct 27) */}
+                  {/* (About this place after the card's words — under the photos it jammed the description 6 pt below it;
+                      design review, Oct 27) */}
+                  {/* What's next, when, and how to get there, from where you're standing (Oct 2: Ken, "what's next, when,
+                      and how do I get there" — nobody types an address into a map app): the same three as every line */}
                   {(() => {
-                    const find = mapHref ? <a href={mapHref} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm underline underline-offset-2">Find in Maps ↗</a> : null;
-                    return u.kind === "block" && !pickOpt ? <LineAbout tripId={tripId} cityId={bandCity?.id} block={u} ctx={lineCtx} dark beside={find} /> : find;
+                    // (a flight's airport: Maps alone — the leave-by card says how to get there)
+                    const go = mapHref ? <GetThere href={mapHref} name={pickOpt?.name || u.title} dark mapOnly={u.kind === "flight"} /> : null;
+                    return u.kind === "block" && !pickOpt ? <LineAbout tripId={tripId} cityId={bandCity?.id} block={u} ctx={lineCtx} dark beside={go} /> : go;
                   })()}
-                  {/* What's next, when, and how to get there — from where you're standing, in Apple Maps (Oct 2: Ken,
-                      "what's next, when, and how do I get there" — nobody types an address into a map app) */}
-                  {u.kind !== "flight" && directionsHref(mapHref) && (
-                    // (the words above, the three sharing the width: on a 320-pt phone "Taxi" wrapped alone beside them)
-                    <div className="mt-2">
-                      <p className="text-sm text-white/80">Get there from where you are</p>
-                      <div className="flex gap-2 mt-1">
-                        {(["walk", "train", "taxi"] as const).map((w) => (
-                          <a key={w} href={directionsHref(mapHref, w)!} target="_blank" rel="noreferrer"
-                            className="flex-1 inline-flex items-center justify-center min-h-[44px] px-2 rounded-lg bg-white/15 text-sm">
-                            {{ walk: "Walk", train: "Train", taxi: "Taxi" }[w]} ↗
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })()}
@@ -2678,8 +2673,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     </p>
                     {/* (the hotel's own checked photo — Ken, Oct 18: "Next page should have pictures") */}
                     {tripId && <ItemPhoto tripId={tripId} cityId={myTonight.stays[0].stay.cityId ?? null} query={stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId))} line={`Tonight's hotel: ${myTonight.stays[0].stay.name}`} title={myTonight.stays[0].stay.name} time={null} />}
-                    <a href={mapsLink(stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)))}
-                      className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Find in Maps ↗</a>
+                    <GetThere href={mapsLink(stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)))} name={myTonight.stays[0].stay.name} />
                   </>
                 ) : myFlight && flightAt !== null && flightNow >= flightAt ? (() => {
                   // The flight has left: say so, and when it lands — and once it should have landed, say that (at
@@ -2757,14 +2751,17 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   return [colOf(x.r.cols, /^train$/), colOf(x.r.cols, /^route$/), dep && arr ? `${twelveHour(dep)} → ${twelveHour(arr)}` : dep ? twelveHour(dep) : "", colOf(x.r.cols, /^car/)].filter(Boolean).join(" · ");
                 })}
                 maps={mapsByDay[date] || []}
+                pastDay={date < today}
                 pictures={pictures}
                 added={timedOwn.map((c) => ({ time: c.time!, node: addedPlan(c, "row") }))}
                 differAbove={(b) => isToday && !now && !!b.time && otherSources.some((s) => s.differs.some((d) => d.date === date && differLive(d)
                   && d.guideSays === (b.endTime ? `${twelveHour(b.time!)}–${twelveHour(b.endTime)}` : twelveHour(b.time!))))}
-                under={(b) => [
+                under={(b, wayShown) => [
                   ...foldedNotes(b),
+                  // (her booking for the same thing at the same time: the line above already has the way there — Ristorante
+                  // Dono showed Walk/Train/Taxi, then its booking's "Map ↗" under them; fresh check, Oct 27)
                   ...(underLine.get(b.id) || []).map((o) => (
-                    <ItemCard key={o.id} nested compact i={o} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === o.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />
+                    <ItemCard key={o.id} nested compact wayAbove={wayShown && !!o.time && o.time === b.time && saidAgain(b, o)} i={o} date={date} today={today} tripZone={tripZone} stays={stays} me={me} highlight={highlight === o.id} day={[...dayItems, ...planBlocks]} all={items} owner={owner} sources={otherSources} tripId={tripId} />
                   )),
                   // the train her line names, from the rail sheet — its booking, seats and steps, under her line
                   ...(trainsUnder.get(b.id) || []).map((x) => (
@@ -3059,9 +3056,15 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                           {/* (…nor when Backroads' own stops that day are the hotel — the Ritz showed twice, one under the
                               other; fresh photo check, Oct 17) */}
                           {tripId && !planBlocks.length && !(docDay?.moments || []).some((m) => !!m.place && sameStay(m.place, s.name)) && <ItemPhoto tripId={tripId} cityId={s.cityId ?? null} query={stayMapsQuery(s, cityOf(s.cityId))} line={`Tonight's hotel: ${s.name}`} title={s.name} time={null} />}
-                          <a href={mapsLink(stayMapsQuery(s, cityOf(s.cityId)))} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
-                            {s.address ? `${s.address} ↗` : "Find in Maps ↗"}
-                          </a>
+                          {date < today
+                            ? <a href={mapsLink(stayMapsQuery(s, cityOf(s.cityId)))} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
+                                {s.address ? `${s.address} ↗` : "Maps ↗"}
+                              </a>
+                            // (the address in words, for a taxi driver; then Walk, Train or Taxi there — Ken, Oct 27)
+                            : <>
+                                {s.address && <p className="text-sm text-[#514636] mt-1 [overflow-wrap:anywhere]">{s.address}</p>}
+                                <GetThere href={mapsLink(stayMapsQuery(s, cityOf(s.cityId)))} name={s.name} />
+                              </>}
                         </li>
                       ))}
                     </ul>
@@ -3155,7 +3158,7 @@ function AskedQuestion({ i, me, owner, sources, className = "" }: { i: GuideItem
   );
 }
 
-function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, quotedAbove, compact = false, autoOpen = false, past = false, doneMark, focus = null, photo = null, cityId = null }: {
+function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, owner, sources, tripId, nested = false, wayAbove = false, quotedAbove, compact = false, autoOpen = false, past = false, doneMark, focus = null, photo = null, cityId = null }: {
   /** what to look up for this line's place photo, as Play does ({ query, line }); its city to find it near */
   photo?: { query: string; line: string } | null; cityId?: string | null;
   /** today, the line that's now or next (NOW_MAROON): "Now" or "Next · in 25 min" */
@@ -3173,6 +3176,8 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   quotedAbove?: string;
   /** drawn under her line for it in her plan: no card of its own, no second time column (the line has the time) */
   nested?: boolean;
+  /** her line just above, for the same thing at the same time, already has the way there: no second map link */
+  wayAbove?: boolean;
   /** The whole Guide: a landing says where its flight stands right now, by the schedule */
   all?: GuideItem[];
   /** Whose Guide it is ("Larisa") — never told to ask herself */
@@ -3193,8 +3198,15 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   // Julie in California read "3:00 PM" for a Narita landing with no zone)
   const zone = i.timeZone && i.timeZone !== tripZone ? ZONE_LABEL[i.timeZone] || i.timeZone : phoneIsElsewhere(tripZone) ? ZONE_LABEL[tripZone] || null : null;
   // Her own links, each on its own; her own map link stands in for Wander's search (round 12: two Maps links, one card)
-  const herLinks = linksIn(i.link);
-  const q = herLinks.some((u) => linkLabel(u) === "Map") ? null : mapsQueryFor(i);
+  const allHerLinks = linksIn(i.link);
+  const herMap = allHerLinks.find((u) => linkLabel(u) === "Map") || null;
+  const q = herMap ? null : mapsQueryFor(i);
+  // The way there: Walk, Train or Taxi to her own map link, else Wander's search — today and days ahead (Ken, Oct 27: "the
+  // variation is just confusing"; "Check in · Four Seasons" had only her "Map ↗"). None when her line above has it.
+  const goHref = wayAbove ? null : herMap || (q ? mapsLink(q) : null);
+  // (a flight's airport: Maps alone — the leave-by card says how to get there)
+  const goTrio = !!goHref && date >= today && i.kind !== "flight" && !!directionsHref(goHref);
+  const herLinks = allHerLinks.filter((u) => !(u === herMap && (goTrio || wayAbove)));
   const time = deadline ? deadlineTimeWords(i, tripZone) : null;
   // The detail already spells out the window; on the day itself, say it's open now
   const windowWords = deadline && i.windowStart && date === today && today < ymd(i.date) ? deadlineWhen(i, today) : null;
@@ -3291,7 +3303,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
     const stillOpen = shown.filter((l) => /^Still open/.test(l));
     const phone = deadline ? shown.find((l) => /^Phone:/.test(l)) : undefined;
     const booked = i.kind === "meal" ? shown.find((l) => /^(No reservation|Booked|Reserved)\b/i.test(l)) : undefined;
-    const mapAt = q ? mapsLink(q) : herLinks.find((u) => linkLabel(u) === "Map");
+    const mapAt = goHref;
     // (a fact from a picture or a tab other than her Itinerary and Dining Resos says where, even short)
     const elsewhereFrom = !/^Itinerary|^Dining Resos/.test(i.source) ? friendlySource(i.source, me) : null;
     const timing = deadline && (over || windowWords || time)
@@ -3348,9 +3360,9 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             )}
             {askedOf(i, me, today, all, tripZone) && <AskedQuestion i={i} me={me} owner={owner} sources={sources} className="mt-1" />}
             {phone && <GuideText text={phone} className="text-sm text-[#6b5d4a] mt-1" />}
-            {mapAt && (
-              <a href={mapAt} target={q ? undefined : "_blank"} rel="noreferrer" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-sm text-[#514636] underline underline-offset-2">Map ↗</a>
-            )}
+            {mapAt && (goTrio
+              ? <GetThere href={mapAt} name={i.title} className="mt-1 mb-1" />
+              : <a href={mapAt} target={q ? undefined : "_blank"} rel="noreferrer" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>)}
           </div>
         ) : null}
       </Box>
@@ -3461,17 +3473,19 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
             {i.confirmation && !split && <span className="text-[#514636] [overflow-wrap:anywhere]">Confirmation {confirmationWords(i.confirmation)}</span>}
           </div>
           {/* Side by side with room between them (delight audit: "Find in Maps ↗Michelin page ↗" ran together, 0 px apart) */}
-          {(q || herLinks.length > 0) && (
+          {/* (the way there, from where you are, for today and days ahead — user-julie2, Oct 16: tonight's dinner, reached
+              from Home, offered only a search; Walk, Train or Taxi as on every line — Ken, Oct 27) */}
+          {goTrio && <>
+            {i.place && <p className="text-sm text-[#514636] mt-1 [overflow-wrap:anywhere]">{i.place}</p>}
+            <GetThere href={goHref} name={i.title} />
+          </>}
+          {/* (Send › for every booking — Café ENSOU, with no link of its own, had none; fresh re-check, Oct 27) */}
+          {(q || allHerLinks.length > 0 || ["meal", "checkin", "tour", "reservation"].includes(i.kind)) && (
             <div className="flex flex-wrap gap-x-5">
-              {q && (
+              {q && !wayAbove && !goTrio && (
                 <a href={mapsLink(q)} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
-                  {i.place ? `${i.place} ↗` : "Find in Maps ↗"}
+                  {i.place ? `${i.place} ↗` : "Maps ↗"}
                 </a>
-              )}
-              {/* (the way there, from where you are, for today and days ahead — user-julie2, Oct 16: tonight's dinner, reached
-                  from Home, offered only a search) */}
-              {q && date >= today && directionsHref(mapsLink(q)) && (
-                <a href={directionsHref(mapsLink(q))!} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Directions ↗</a>
               )}
               {herLinks.map((u) => (
                 <a key={u} href={u} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] min-w-[44px] text-sm text-[#514636] underline underline-offset-2">{linkLabel(u)} ↗</a>
