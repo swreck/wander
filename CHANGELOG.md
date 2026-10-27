@@ -4,6 +4,16 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
 
 ## 2026-10-27 (Tuesday in Japan) — "About this place" on the day's lines and on Next
 
+### Later the same morning
+- Placement (Ken's 8:54 AM screenshot: the button flush against "Maps ↗"; a fresh design review): the button and
+  Maps / Find in Maps share one row after the line's own words; on the day list it follows who it's for, the notes
+  and the warnings. The page keeps the name tapped; sources one per site; times as "6:30 PM".
+- Lines with no Google place (Ken: "Good. Go." to Wednesday's studios): a piece written from the web alone, by Wander's
+  own tool (place-about-line.mts) and read before it shows, kept as "line:<her words>"; the button appears only where
+  one exists (GET /api/place-photos/about-lines, /about-line). The page says "Google has no listing for it". Studio 2
+  (Akira Okuda, TSUBO-BUN) and Studio 3 (Rakusai Takahashi) written; Studio 1 (the Sakos): the web had nothing about that
+  exact studio, so nothing was written. A piece cut off mid-sentence now drops the unfinished paragraph.
+
 Ken: "add another quick-access button that's colored and bold so it's evident but tasteful that provides a summary
 description of the place, either reviews of its a restaurant or background if it's a historical site, the length should
 probably be about 3 to 5 paragraphs. Ask questions if needed".

@@ -57,22 +57,46 @@ export async function aboutPlace(placePhotoId: string): Promise<About | { error:
   return toAbout(written);
 }
 
+/**
+ * A line of her plan with no Google place to anchor it — Wednesday's three Shigaraki studios (Ken, Oct 27: "Good. Go."
+ * to writing them from the web): kept under "line:<her words>", written only by Wander's own tool after a person reads it
+ * (trip-data/session-tools/place-about-line.mts), never on a tap. The web must have pages about this exact place or
+ * person; if not, nothing is written.
+ */
+export const lineKey = (title: string) => `line:${title.split("\n")[0].trim().toLowerCase().replace(/\s+/g, " ")}`;
+export async function aboutLine(title: string): Promise<About | { error: string }> {
+  const kept = await prisma.placeAbout.findUnique({ where: { placeId: lineKey(title) } });
+  return kept ? toAbout(kept) : { error: "Wander doesn't have a piece about this one." };
+}
+/** Every line written so (their keys), for the phone to know which lines get the button */
+export async function aboutLines(): Promise<string[]> {
+  return (await prisma.placeAbout.findMany({ where: { placeId: { startsWith: "line:" } }, select: { placeId: true } })).map((r) => r.placeId);
+}
+/** Write one (Wander's tool only): her line, and where it is ("Shigaraki, Shiga, Japan") */
+export async function writeLineAbout(title: string, where: string) {
+  const key = lineKey(title);
+  const listing = `There is no Google listing for this. Her plan's line names it: "${title}". It is in or near ${where}.
+Search the web for this exact place, studio or person. If you cannot find pages specifically about it (not a namesake, not the town in general), reply with only the words NOT FOUND.`;
+  return writeAbout(key, title.split("\n")[0].replace(/^Studio \d+:\s*/i, "").trim(), where, title, listing);
+}
+
 /** Written once per Google place — two phones asking at once share the one writing */
 const writing = new Map<string, Promise<any>>();
-async function writeAbout(placeId: string, name: string, address: string, line: string) {
+async function writeAbout(placeId: string, name: string, address: string, line: string, given?: string) {
   const busy = writing.get(placeId);
   if (busy) return busy;
   const p = (async () => {
     const key = process.env.GOOGLE_MAPS_API_KEY;
-    if (!key) return { error: "Wander can't look places up just now." };
+    if (!key && !given) return { error: "Wander can't look places up just now." };
     let g: any = {};
-    try {
+    // (a line with no Google place — `given` — is written from the web alone)
+    if (!given) try {
       const d: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,types,rating,user_ratings_total,reviews,editorial_summary,website,price_level&reviews_sort=most_relevant&language=en&key=${key}`)).json();
       g = d?.result || {};
     } catch (e: any) { console.warn("[place-about] google:", e?.message || e); }
     const types: string[] = g.types || [];
     const kind = types.some((t) => EATS.test(t)) ? "reviews" : "background";
-    const listing = [
+    const listing = given ?? [
       `Name: ${g.name || name}`, `Address: ${g.formatted_address || address}`, `Google's kinds: ${types.join(", ") || "unknown"}`,
       g.rating ? `Google rating: ${g.rating} from ${g.user_ratings_total || 0} reviews` : "Google rating: none given",
       g.price_level != null ? `Google price level: ${g.price_level} of 4` : null,
@@ -83,16 +107,16 @@ async function writeAbout(placeId: string, name: string, address: string, line: 
     client ??= new Anthropic();
     let res: any, checked: any;
     const tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 4 } as any];
-    const messages: any[] = [{ role: "user", content: `${kind === "reviews" ? "This is a place to eat or drink: write what reviewers say." : "Write the background."} Her plan's line for it: "${line}".\n\nGoogle's listing:\n${listing}` }];
+    const messages: any[] = [{ role: "user", content: `${kind === "reviews" ? "This is a place to eat or drink: write what reviewers say." : "Write the background."} Her plan's line for it: "${line}".\n\n${given ? "What Wander knows" : "Google's listing"}:\n${listing}` }];
     // (every turn's blocks are kept: the pages read in any of them — the check's own searches too — are the sources;
     // only the first pass's were, and "go by the restaurant's own site" had no such page under it; fact-check #2)
     const turns: any[][] = [];
     const ask = async (msgs: any[]) => {
-      let r: any = await client!.messages.create({ model: "claude-opus-5", max_tokens: 3000, system: SYSTEM, tools, messages: msgs } as any, { timeout: 90_000, maxRetries: 1 });
+      let r: any = await client!.messages.create({ model: "claude-opus-5", max_tokens: 6000, system: SYSTEM, tools, messages: msgs } as any, { timeout: 90_000, maxRetries: 1 });
       turns.push(r.content || []);
       // (a long search can pause the turn: carry on from where it stopped)
       if (r.stop_reason === "pause_turn") {
-        r = await client!.messages.create({ model: "claude-opus-5", max_tokens: 3000, system: SYSTEM, tools, messages: [...msgs, { role: "assistant", content: r.content }] } as any, { timeout: 90_000, maxRetries: 1 });
+        r = await client!.messages.create({ model: "claude-opus-5", max_tokens: 6000, system: SYSTEM, tools, messages: [...msgs, { role: "assistant", content: r.content }] } as any, { timeout: 90_000, maxRetries: 1 });
         turns.push(r.content || []);
       }
       return r;
@@ -114,9 +138,16 @@ async function writeAbout(placeId: string, name: string, address: string, line: 
     const seen = new Set<string>();
     // (the pages its words cite; every page searched only when none is cited — the searched ones included another temple
     // of the same name, in Hyōgo)
-    const sources = [{ title: "Google's listing and reviews", url: `https://www.google.com/maps/place/?q=place_id:${placeId}` }, ...(cited.length ? cited : searched)]
+    const sources = [...(given ? [] : [{ title: "Google's listing and reviews", url: `https://www.google.com/maps/place/?q=place_id:${placeId}` }]), ...(cited.length ? cited : searched)]
       .filter((s) => s.url && !seen.has(s.url) && seen.add(s.url)).slice(0, 12);
-    const parts = text.replace(/\*\*/g, "").split(/\n\s*\n/).map((p: string) => p.trim()).filter(Boolean);
+    // (the web had nothing about this exact place: nothing is written — never a namesake or the town in general)
+    if (/^\s*NOT FOUND\s*$/i.test(text) || (given && /NOT FOUND/.test(text) && text.length < 200)) return { error: "Wander couldn't find enough about this place to write about it honestly." };
+    if (given && !cited.length) return { error: "Wander couldn't find pages about this place to write from." };
+    let parts = text.replace(/\*\*/g, "").split(/\n\s*\n/).map((p: string) => p.trim()).filter(Boolean);
+    // (cut off — out of room, or a sentence left unfinished: "…at 1087 Nagano, Shigara" (TSUBO-BUN, Oct 27): the unfinished
+    // paragraph goes; too little left, nothing is kept)
+    const ends = (s: string) => /[.!?。]["”’)]?$/.test(s);
+    if (checked.stop_reason === "max_tokens" || (parts.length && !ends(parts[parts.length - 1]))) parts = parts.filter((p: string, i: number) => i < parts.length - 1 || ends(p));
     if (parts.length < 3) { console.warn(`[place-about] "${name}": too short (${parts.length} parts)`); return { error: "Wander couldn't write this just now. Try again in a minute." }; }
     const [gist, ...paras] = parts;
     const saved = await prisma.placeAbout.upsert({

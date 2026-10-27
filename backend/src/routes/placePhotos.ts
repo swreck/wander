@@ -48,6 +48,21 @@ router.get("/about/:id", requireAuth, async (req, res) => {
   res.json(r);
 });
 
+// GET /about-lines — the lines of her plan with a piece of their own (no Google place: Wednesday's studios); and
+// GET /about-line?title=… — that piece
+router.get("/about-lines", requireAuth, async (_req, res) => {
+  const { aboutLines } = await import("../services/placeAbout.js");
+  res.set("Cache-Control", "private, max-age=600");
+  res.json({ lines: await aboutLines() });
+});
+router.get("/about-line", requireAuth, async (req, res) => {
+  const { aboutLine } = await import("../services/placeAbout.js");
+  const r = await aboutLine(String(req.query.title || ""));
+  if ("error" in r) { res.status(404).json(r); return; }
+  res.set("Cache-Control", "private, max-age=3600");
+  res.json(r);
+});
+
 router.get("/:id/:n", async (req, res) => {
   const n = Number(req.params.n);
   const p = Number.isInteger(n) && n >= 0 && n < 6 ? await placePicture(String(req.params.id), n, req.query.size === "small").catch(() => null) : null;
