@@ -11,6 +11,7 @@ import { Router } from "express";
 import { createHash } from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
+import { cityTripOver } from "../services/tripOver.js";
 
 const router = Router();
 type Photo = { bytes: Buffer; type: string; place: string | null; credit: string | null; at: number };
@@ -35,10 +36,13 @@ function photoFor(cityId: string): Promise<Photo | null> {
 async function chosen(cityId: string): Promise<Photo | null> {
   const pick = await prisma.cityPhotoPick.findUnique({ where: { cityId } }).catch(() => null);
   const key = process.env.GOOGLE_MAPS_API_KEY;
-  if (pick && Date.now() - pick.checkedAt.getTime() < KEEP_MS) {
+  // (a finished trip's city keeps the photo it had, never picked again by Google and Claude each week — Ken, Nov 15, on
+  // old Japan: "they don't need to update"; it's held here a week at a time)
+  const over = !!pick && await cityTripOver(cityId);
+  if (pick && (over || Date.now() - pick.checkedAt.getTime() < KEEP_MS)) {
     if (!pick.ref) return null;
     const img = key ? await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${pick.ref}&key=${key}`).catch(() => null) : null;
-    if (img?.ok) return { bytes: Buffer.from(await img.arrayBuffer()), type: img.headers.get("content-type") || "image/jpeg", place: pick.place, credit: pick.credit, at: pick.checkedAt.getTime() };
+    if (img?.ok) return { bytes: Buffer.from(await img.arrayBuffer()), type: img.headers.get("content-type") || "image/jpeg", place: pick.place, credit: pick.credit, at: over ? Date.now() : pick.checkedAt.getTime() };
     // (the kept photo can't be fetched: looked at afresh)
   }
   const found = await lookUp(cityId);

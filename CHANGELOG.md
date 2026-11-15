@@ -2,6 +2,28 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-15 (Sunday, at home) — Old Japan opens looking like its last day
+
+- Ken (Nov 15, his screenshot: Home with no map, every calendar square washed out): "I would like the old Japan to open,
+  looking like it looked on the last day… they don't need to update. And missing the map that is a static image that is
+  also navigation to locations just seems wrong."
+- **Home's map is never drawn 0 tall.** The map keeps its settled view on the device (localStorage
+  "wander:map-views"); a view kept at height 0 drew the map 0 tall on every later visit, saying nothing. A kept view
+  under 180 pt is now ignored and the map fitted afresh; one under 180 is never kept; the first guess and each fitted
+  height are at least 180; a map drawn under 180 anyway sends a phone report ("map", result "tiny"). Inside
+  HomeTripMap.tsx only. SPEC §2.3.
+- **A finished trip looks finished.** Once the trip's last day is past on the trip's own clock (lib/tripPhase.ts
+  finishedLastDay): every city on Home's map in its own colour and every leg full strength (it greyed every city and
+  faded every leg); each calendar square takes its city's colour at 60% over the small street map (25% before, which
+  read grey). During the trip, nothing changes. SPEC §2.1, §2.3.
+- **Today after the trip opens the last day** (Oct 29 for Japan); it opened the current date, "This date isn't part of
+  the trip". Before and during the trip, unchanged. SPEC §18.2.
+- **A finished trip isn't looked at again in the background** (backend services/tripOver.ts): GET
+  /api/place-photos/known starts no hours refresh or photo re-check for someone whose trips (not archived) are all over;
+  POST /api/place-photos/lookup for a finished trip returns each stop as kept, no week-old re-check by Google and
+  Claude; a finished trip's city keeps its photo (no weekly re-pick; a re-pick only if the kept photo can't be fetched).
+  A stop never looked at is still looked at once. Test: backend/tests/past-trip-quiet.test.ts. SPEC §18.2.
+
 ## 2026-10-27 (Tuesday in Japan) — "About this place" on the day's lines and on Next
 
 ### Afternoon — Walk · Train · Taxi on every line you'd go to

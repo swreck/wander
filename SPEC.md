@@ -1454,7 +1454,8 @@ Home is the trip at a glance, with today first. From the top:
   Face ID, then the welcome (§17.1).
 - **The calendar**: every day of the trip in its city's colour with a small map (hidden when Google's maps can't be
   reached), a "B" beside the date on a Backroads day ("B · with Backroads" under it), today ringed. Every day is one
-  tap. It stays after the trip.
+  tap. It stays after the trip, and once the trip's last day is past each square takes its city's colour strongly over
+  the small map (Nov 15: at a quarter over Google's grey streets every day read washed out).
 - **The whole trip on one page** and **Your Guide, tab by tab**, with Find a word (§4.6).
 - **Recent activity**: what people did in Wander (maybes, shared notes, picks, plans added). One person's quick changes
   of mind on one line within half an hour merge into the latest. Something added and taken back is left out (History
@@ -1511,12 +1512,17 @@ one arrow each; "start" and "end" on the first and last stops (Oct 1). Google's 
 are Wander's. Tapping a marker opens that city's first day, or today if it's today's city. Two stops close together
 that the trip doubles back through share a split marker ("2 | 3") that opens a chooser. During the trip, today's city
 is dark and what's behind you goes quiet; no city is "today's stop" for someone still at home, or before their plane is
-due to land. Pinching or dragging with two fingers works wherever the fingers land; a "Whole trip" button brings the
+due to land. Once the trip's last day is past (on the trip's own clock), every city is in its own colour and every leg
+at full strength: the route as a finished journey (Nov 15; Ken: "I would like the old Japan to open, looking like it
+looked on the last day"). Pinching or dragging with two fingers works wherever the fingers land; a "Whole trip" button brings the
 view back.
 
 The map is built once per visit and kept with the view it settled on, so coming back to Home draws it at once (Oct 9).
 Its layout is worked out in the background, so opening the app never freezes (Oct 10). It never shrinks under someone
-reading.
+reading. It is never drawn, kept or used again under 180 pt tall: a kept view under that is ignored and the map fitted
+afresh, and a map drawn under it anyway is reported by the phone (Nov 15: a view kept at height 0 hid Ken's map on
+every visit, silently. Ken: "missing the map that is a static image that is also navigation to locations just seems
+wrong").
 
 Ken (Oct 3): "stop the map". No more spending on its polish. A map that is added or changed is reviewed by a fresh
 agent against a rubric, at the review sizes, on production data (rules/engineering.md).
@@ -2959,7 +2965,13 @@ else's to-do is off your day and Home (Ken still sees all). A question in her Gu
 
 ### 18.2 Today, for each person
 
-"Today" for a person is Japan's date from their scheduled landing until their flight home. Before that, on a Japan date
+"Today" for a person is Japan's date from their scheduled landing until their flight home. Once the trip's last day is
+past, the Today tab opens that last day (Nov 15; it opened the current date: "This date isn't part of the trip", a dead
+end).
+
+A finished trip isn't looked at again in the background: no refresh of its places' opening hours on app open (for
+someone whose trips are all over), no week-old re-check of a stop's photos by Google and Claude, and each city keeps
+the photo it had. A stop never looked at is still looked at once (Nov 15; Ken: "they don't need to update"). Before that, on a Japan date
 you're still at home, a day screen says so at the top ("You're still at home", with your take-off time) and "The rest of
 this day is the others' plan." Notes doesn't call a city "where you are", and Maybes doesn't call it "today", before you
 land.

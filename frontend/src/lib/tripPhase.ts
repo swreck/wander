@@ -38,6 +38,20 @@ export function getTripPhase(opts: {
   return "planning";
 }
 
+/**
+ * The trip's last day (YYYY-MM-DD) once it's past on the trip's own clock, else null — before the trip and on every day
+ * of it, null (Nov 15 2026; Ken, on Japan after it ended: "I would like the old Japan to open, looking like it looked on
+ * the last day"). `dates`: the trip's days and its end date, any of them may be missing.
+ */
+export function finishedLastDay(dates: (string | null | undefined)[], zone = "Asia/Tokyo", now = new Date()): string | null {
+  const last = dates.filter((d): d is string => !!d).map((d) => String(d).slice(0, 10)).sort().pop();
+  if (!last) return null;
+  let today: string;
+  try { today = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now); }
+  catch { today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now); }
+  return today > last ? last : null;
+}
+
 /** Human-readable phase label */
 export function phaseLabel(phase: TripPhase): string {
   switch (phase) {

@@ -22,6 +22,7 @@ import type { City, Day } from "../lib/types";
 import { getCityPastel } from "../lib/cityColors";
 import { guideData, savedGuideData } from "../lib/guideData";
 import { tripToday } from "../lib/tripNotes";
+import { finishedLastDay } from "../lib/tripPhase";
 import { homeOnJapanDate, notLandedYet } from "../lib/guideDisplay";
 import { useAuth } from "../contexts/AuthContext";
 import useBackToClose from "../hooks/useBackToClose";
@@ -113,8 +114,13 @@ function shortHash(s: string) {
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36) + s.length.toString(36);
 }
-const settledView = (viewKey: string) => settledViews.get(viewKey) ?? fromPhone<Settled>(VIEWS_ON_PHONE, viewKey);
-const keepSettledView = (viewKey: string, s: Settled) => { settledViews.set(viewKey, s); toPhone(VIEWS_ON_PHONE, viewKey, s, 4); };
+/** The least height the map is ever drawn, kept or used again at (Nov 15: a view kept on Ken's computer at height 0 drew
+ *  the map 0 tall on every later visit, with nothing said — Home had no map at all). A kept view under it is not used:
+ *  the map is fitted afresh; and one under it is never kept. */
+const LEAST = 180;
+const usable = (s: Settled | undefined) => (s && Number.isFinite(s.height) && s.height >= LEAST ? s : undefined);
+const settledView = (viewKey: string) => usable(settledViews.get(viewKey)) ?? usable(fromPhone<Settled>(VIEWS_ON_PHONE, viewKey));
+const keepSettledView = (viewKey: string, s: Settled) => { if (!usable(s)) return; settledViews.set(viewKey, s); toPhone(VIEWS_ON_PHONE, viewKey, s, 4); };
 
 /** Google refused the key (its error box would cover the map) */
 function WatchKey({ onFail }: { onFail: (result: "auth-failure") => void }) {
@@ -132,6 +138,9 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   const [zone, setZone] = useState("Asia/Tokyo");
   useEffect(() => { guideData(tripId).then((g) => g?.trip.timeZone && setZone(g.trip.timeZone)).catch(() => { /* Japan time */ }); }, [tripId]);
   const today = tripToday(zone);
+  // The trip is over (its last day past, on the trip's own clock): every city in its own color and every leg at full
+  // strength, the route as a finished journey — after it, the map greyed every city and faded every leg (Ken, Nov 15)
+  const finished = !!finishedLastDay(days.map((d) => d.date), zone);
   // Still at home on this Japan date (Andy and Julie before their flight): no city is "today's stop" for you — the dark
   // chip on the others' city read as where you are (Sweep A, Oct 10: Nagoya, then Tokyo, while Julie was in California).
   // From this phone's copy of the trip, so it's right in the map's first drawing.
@@ -176,7 +185,7 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
     const dx = Math.max(...pts.map((p) => p.x)) - Math.min(...pts.map((p) => p.x));
     const dy = Math.max(...pts.map((p) => p.y)) - Math.min(...pts.map((p) => p.y));
     const tall = dx > 0 ? dy * ((w - 64) / dx) + 120 : 280;
-    return Math.round(Math.min(h * 0.4, Math.max(220, tall)));
+    return Math.max(LEAST, Math.round(Math.min(h * 0.4, Math.max(220, tall))));
   }, [stops]);
   // …then, once drawn, exactly as tall as the markers and names need (a stop drawn inside a shared marker left its own
   // place as empty sea — map review round 4) — remembered, so coming back to Home it's that height at once, no jump
@@ -196,10 +205,22 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   const fail = useCallback((result: "load-failed" | "auth-failure") => {
     setFailed((was) => { if (!was) phoneReport("map", { result, online: navigator.onLine !== false }); return true; });
   }, []);
+  // The map drawn shorter than its least height anyway (on screen, a few seconds in): the phone says so, once — a map
+  // drawn 0 tall said nothing for weeks (Nov 15)
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const el = box.current;
+      if (!el || document.visibilityState !== "visible" || el.getClientRects().length === 0) return;
+      const h = Math.round(el.getBoundingClientRect().height);
+      if (h < LEAST) phoneReport("map", { result: "tiny", height: h, page: window.innerHeight });
+    }, 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   if (!API_KEY || stops.length === 0 || failed) return null;
   return (
-    <div className="relative bg-[#e8e1d2]" style={{ height }}>
+    <div ref={box} className="relative bg-[#e8e1d2]" style={{ height }}>
       <APIProvider apiKey={API_KEY} onError={() => fail("load-failed")}>
         <WatchKey onFail={fail} />
         {/* (the map built the first time is kept and used again — Ken, Oct 9: "every time I go to home, there is a delay
@@ -218,7 +239,7 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
           style={{ width: "100%", height: "100%" }}
         >
           <Fit stops={stops} again={refit} viewKey={viewKey} />
-          <Markers stops={stops} order={order} allCities={allCities} today={today} noHere={noHere} onOpenDay={onOpenDay} onHeight={setFitted}
+          <Markers stops={stops} order={order} allCities={allCities} today={today} noHere={noHere} finished={finished} onOpenDay={onOpenDay} onHeight={setFitted}
             canResize={(want) => refit > 0 || want > (fitted ?? estimate) || Date.now() - openedAt.current < 300}
             again={refit} onWholeTrip={() => setRefit((n) => n + 1)} viewKey={viewKey} layoutKey={stopsKey} />
         </GoogleMap>
@@ -310,10 +331,12 @@ function measureWidths(stops: Stop[], today: string): NameWidths {
   return { dot: width(" · ", 400), byCity };
 }
 
-function Markers({ stops, order, allCities, today, noHere = false, onOpenDay, onHeight, canResize, again, onWholeTrip, viewKey, layoutKey }: {
+function Markers({ stops, order, allCities, today, noHere = false, finished = false, onOpenDay, onHeight, canResize, again, onWholeTrip, viewKey, layoutKey }: {
   stops: Stop[]; order: string[]; allCities: City[]; today: string; onOpenDay: (date: string) => void; onHeight: (h: number) => void;
   /** no city is "today's stop" for this person (still at home on this Japan date) */
   noHere?: boolean;
+  /** the trip is over: every city in its own color, every leg full strength — a finished route, not a faded one */
+  finished?: boolean;
   /** whether the map may change to this height now — growing (so no name is cut off) or after "Whole trip", but never
    *  shrinking under someone already reading Home */
   canResize: (want: number) => boolean;
@@ -407,7 +430,7 @@ function Markers({ stops, order, allCities, today, noHere = false, onOpenDay, on
       ...drawnRoute.flatMap(({ pts }) => pts.map((p) => ({ x1: p.x - 3, y1: p.y - 3, x2: p.x + 3, y2: p.y + 3 })))];
     const top = Math.min(...boxes.map((b) => b.y1)), bottom = Math.max(...boxes.map((b) => b.y2));
     const left = Math.min(...boxes.map((b) => b.x1)), right = Math.max(...boxes.map((b) => b.x2));
-    const want = Math.round(Math.min(window.innerHeight * 0.4, Math.max(200, bottom - top + 16 + GOOGLE_STRIP)));
+    const want = Math.max(LEAST, Math.round(Math.min(window.innerHeight * 0.4, Math.max(200, bottom - top + 16 + GOOGLE_STRIP))));
     // centered in the part above Google's strip
     // (8 above the content, 8 + the strip below it: the view's middle is half the strip below the content's)
     const cx = (left + right) / 2, cy = (top + bottom) / 2 + GOOGLE_STRIP / 2;
@@ -423,10 +446,12 @@ function Markers({ stops, order, allCities, today, noHere = false, onOpenDay, on
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, view, fresh, onHeight, again, viewKey]);
 
-  // During the trip: today's city dark, the ones already visited quieter; before it, the start ringed
+  // During the trip: today's city dark, the ones already visited quieter; before it, the start ringed; after it, every
+  // city in its own color (Nov 15)
   const tripStarted = stops.some((s) => s.firstDay && s.firstDay <= today);
   const stateOf = (s: Stop) =>
-    !noHere && s.firstDay && s.lastDay && s.firstDay <= today && today <= s.lastDay ? "here" as const
+    finished ? "ahead" as const
+      : !noHere && s.firstDay && s.lastDay && s.firstDay <= today && today <= s.lastDay ? "here" as const
       : tripStarted && s.lastDay && s.lastDay < today ? "past" as const : "ahead" as const;
   // a leg is travelled once its stop has been reached
   const legs = useMemo(() => drawnRoute.map(({ pts, arrive, at }) => ({
@@ -434,11 +459,11 @@ function Markers({ stops, order, allCities, today, noHere = false, onOpenDay, on
     // 4.5 pt, to sit centred where it was judged — on Tokyo → Nikko its base sat against Tokyo's marker; fresh review)
     at: at === null ? null : Math.min(1, at + 4.5 / Math.max(1, pts.slice(1).reduce((t, p, i) => t + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0))),
     path: pts.map((p) => place(p.x, p.y, drawnZoom)),
-    done: !!arrive.firstDay && arrive.firstDay <= today,
+    done: !finished && !!arrive.firstDay && arrive.firstDay <= today,
     // (Google draws at the nearest whole zoom and stretches the picture: measured Oct 1 — iPhone SE 1.41×, iPhone 15
     // 0.73×, iPad 0.86×)
     k: 2 ** (view!.zoom - Math.round(view!.zoom)),
-  })), [drawnRoute, drawnZoom, view, today]);
+  })), [drawnRoute, drawnZoom, view, today, finished]);
 
   return (
     <>
