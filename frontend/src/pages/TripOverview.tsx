@@ -19,7 +19,8 @@ import SheetNotesCard from "../components/SheetNotesCard";
 import SyncAlert from "../components/SyncAlert";
 import ActionsPanel from "../components/ActionsPanel";
 import FaceIdSetup from "../components/FaceIdSetup";
-import { warmGuideData } from "../lib/guideData";
+import { warmGuideData, savedGuideData } from "../lib/guideData";
+import { finishedLastDay } from "../lib/tripPhase";
 import TripGlance from "../components/TripGlance";
 import EveningQuestion from "../components/EveningQuestion";
 import EveningNudgeOffer from "../components/EveningNudgeOffer";
@@ -744,6 +745,7 @@ export default function TripOverview() {
         {(trip.datesKnown !== false ? (
           <HomeViewToggle
             days={days}
+            finished={!!trip && !!finishedLastDay([...days.map((d) => d.date), trip.endDate], savedGuideData(trip.id)?.trip.timeZone || "Asia/Tokyo")}
             cities={trip.cities}
             selectedPerDay={selectedPerDay}
             backroadsDays={backroadsDays}
@@ -981,11 +983,13 @@ function TripSwitcherList({
 // ── Home View Toggle (Calendar ↔ At a Glance) ──────────────────
 
 function HomeViewToggle({
-  days, cities, selectedPerDay, backroadsDays, experiences,
+  days, finished, cities, selectedPerDay, backroadsDays, experiences,
   routeSegments, accommodations, decisions,
   onDayClick, onCityClick,
 }: {
   days: Day[];
+  /** the trip's last day is past: each day's square in its city's color (Nov 15) */
+  finished?: boolean;
   cities: City[];
   selectedPerDay: Record<string, number>;
   backroadsDays: Set<string>;
@@ -1011,6 +1015,7 @@ function HomeViewToggle({
       {/* Calendar grid — transport icons always shown, no toggle needed */}
       <CalendarGrid
         days={days}
+        finished={finished}
         cities={cities}
         selectedPerDay={selectedPerDay}
         backroadsDays={backroadsDays}
@@ -1166,6 +1171,7 @@ function AtAGlanceView({
 
 function CalendarGrid({
   days,
+  finished,
   cities,
   selectedPerDay,
   backroadsDays,
@@ -1177,6 +1183,7 @@ function CalendarGrid({
   decisions,
 }: {
   days: Day[];
+  finished?: boolean;
   cities: City[];
   selectedPerDay: Record<string, number>;
   backroadsDays: Set<string>;
@@ -1215,6 +1222,7 @@ function CalendarGrid({
         <CalendarCluster
           key={ci}
           clusterDays={cluster}
+          finished={finished}
           allSortedDays={sortedDays}
           cities={cities}
           selectedPerDay={selectedPerDay}
@@ -1238,6 +1246,7 @@ const DAY_THEME_EMOJI: Record<string, string> = {
 
 function CalendarCluster({
   clusterDays,
+  finished,
   allSortedDays,
   cities,
   selectedPerDay,
@@ -1249,6 +1258,7 @@ function CalendarCluster({
   accommodations,
 }: {
   clusterDays: Day[];
+  finished?: boolean;
   allSortedDays: Day[];
   cities: City[];
   selectedPerDay: Record<string, number>;
@@ -1357,7 +1367,9 @@ function CalendarCluster({
                     <>
                       {/* (gone when Google won't send it — verify61: a broken-picture mark on every day with Google blocked) */}
                       <img src={mapUrl} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                      <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: 0.25 }} />
+                      {/* (a finished trip: the city's color carries the square — at a quarter, over Google's grey streets,
+                          every day read washed out, as if done with; Ken, Nov 15) */}
+                      <div className="absolute inset-0" style={{ backgroundColor: cityColor, opacity: finished ? FINISHED_TINT : 0.25 }} />
                     </>
                   )}
                   <div className="relative z-10 flex flex-col items-center">
@@ -1385,6 +1397,9 @@ function CalendarCluster({
     </div>
   );
 }
+
+/** How strongly a finished trip's day squares take their city's color over the street map */
+const FINISHED_TINT = 0.6;
 
 // ── Calendar tile names ──────────────────────────────────────────
 

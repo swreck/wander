@@ -59,10 +59,12 @@ type Ref = { ref: string; credit: string | null; ok?: boolean; two?: boolean };
 const asking = new Map<string, Promise<PlaceHit>>();
 let client: Anthropic | null = null;
 
-/** The photos for one stop (her line, and the words its Maps button searches), near its city */
-export function placePhotosFor(query: string, line: string, near: { lat: number; lng: number } | null): Promise<PlaceHit> {
+/** The photos for one stop (her line, and the words its Maps button searches), near its city. `asKept`: a finished
+ *  trip's stop — the answer kept for it as it is, never checked again (Nov 15); one never looked at is looked at once. */
+export function placePhotosFor(query: string, line: string, near: { lat: number; lng: number } | null, opts: { asKept?: boolean } = {}): Promise<PlaceHit> {
   const q = query.trim().slice(0, 300);
   if (!q) return Promise.resolve(null);
+  if (opts.asKept) return prisma.placePhoto.findUnique({ where: { query: q } }).then((row) => (row ? hit(row) : placePhotosFor(query, line, near)));
   if (!asking.has(q)) asking.set(q, resolve(q, line.trim().slice(0, 400), near).finally(() => asking.delete(q)));
   return asking.get(q)!;
 }
