@@ -212,7 +212,13 @@ describe("addresses and limits", () => {
     const again = await request(app).get("/api/place-photos/known").set({ Authorization: `Bearer ${tok}` });
     const ny = (again.body.places as any[]).find((p) => p.query.includes("NotYet"));
     expect(ny.hit.photos).toEqual([{ credit: null }]);
-    expect(notYet).toBeTruthy();
+    // its first photo opened (the place is looked at), then asked for alone: ids and photographers, no reference
+    expect((await photo(notYet, "0")).status).toBe(200);
+    const one = await request(app).get(`/api/place-photos/one/${notYet}`).set({ Authorization: `Bearer ${tok}` });
+    expect(one.body.hit.photos).toEqual([{ id: expect.stringMatching(/^[a-z0-9]{20,40}$/), credit: "N" }]);
+    expect(JSON.stringify(one.body)).not.toMatch(/~\d|photo_reference|"ref"/);
+    expect((await request(app).get(`/api/place-photos/one/${TAG}-nope`).set({ Authorization: `Bearer ${tok}` })).status).toBe(404);
+    expect((await request(app).get(`/api/place-photos/one/${notYet}`)).status).toBe(401);
   });
 
   it("a new line of a trip still to come: looked up, checked, and kept as verdicts — never as references", async () => {

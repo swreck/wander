@@ -31,6 +31,14 @@ router.post("/lookup", requireAuth, async (req: AuthRequest, res) => {
   res.json({ places: out });
 });
 
+// GET /one/:id — one place as phones are told it (its photos' ids and photographers). A phone asks after it has just shown
+// a place's first photo from before the place was looked at (Nov 16 2026), so the photographer is credited at once.
+router.get("/one/:id", requireAuth, async (req, res) => {
+  const row = await prisma.placePhoto.findUnique({ where: { id: String(req.params.id) }, select: { id: true, name: true, verdict: true, checkedAt: true, hours: true } }).catch(() => null);
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ hit: (await knownHits([row])).get(row.id) ?? null });
+});
+
 // GET /known — every stop Wander has looked at (her line, its search, the answer), so a phone opening any day draws
 // its photos in the first frame instead of moving the day as they come (tourist63: the page jumped ~8 s in)
 router.get("/known", requireAuth, async (req: AuthRequest, res) => {
