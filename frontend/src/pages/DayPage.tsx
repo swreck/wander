@@ -216,12 +216,14 @@ function momentNote(lines: string[]): string | null {
 function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onOpen: () => void }) {
   // (no signal for a photo not already on the phone: its space stays, quietly — never a broken-picture mark
   // (tourist63), and never a fold that moves the day (tourist64: 0.127 when the boxes folded away))
-  const [failed, setFailed] = useState(false);
-  if (failed) return <div className="mt-2 rounded-lg bg-[#efe8dc] aspect-[16/9] flex items-center justify-center text-xs text-[#6b5d4a]">Photo needs signal</div>;
+  // (and a photo Wander no longer has says so — "needs signal" was untrue on a good connection; Nov 16 2026)
+  const [failed, setFailed] = useState<null | "gone" | "signal">(null);
+  if (failed) return <div className="mt-2 rounded-lg bg-[#efe8dc] aspect-[16/9] flex items-center justify-center text-xs text-[#6b5d4a]">{failed === "gone" ? "Photo not available" : "Photo needs signal"}</div>;
   const credit = hit.photos[0]?.credit;
+  const src = placePhotoUrl(hit, 0, true);
   return (
     <button type="button" onClick={onOpen} aria-label={`Photos of ${hit.name || title}`} className="relative block w-full mt-2 rounded-lg overflow-hidden bg-[#efe8dc] aspect-[16/9]">
-      <img src={placePhotoUrl(hit, 0, true)} alt="" loading="lazy" onError={() => setFailed(true)} className="absolute inset-0 w-full h-full object-cover" />
+      <img src={src} alt="" loading="lazy" onError={() => { whyNoPhoto(src).then(setFailed); }} className="absolute inset-0 w-full h-full object-cover" />
       <span className="absolute inset-x-0 bottom-0 h-9 bg-gradient-to-t from-black/45 to-transparent" aria-hidden />
       {/* (the photographer, on the photo, as Google asks — tourist63: the list's photos had no credit) */}
       {credit && <span className="absolute left-2 bottom-1.5 max-w-[70%] truncate text-[10px] text-white/85">Photo: {credit} · Google</span>}
@@ -946,7 +948,7 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
 import EveningQuestion from "../components/EveningQuestion";
 import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
 import { CityTitle, warmCityPhoto, photoWanted, useCityBandPhoto } from "../components/CityArrival";
-import { keptPlacePhotos, lookUpPlacePhotos, mapsQueryOf, placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
+import { keptPlacePhotos, lookUpPlacePhotos, mapsQueryOf, placePhotoUrl, whyNoPhoto, type PlaceHit } from "../lib/placePhotos";
 import PlaceGallery from "../components/PlaceGallery";
 import PlayTheDay, { type Moment, type PlayCover } from "../components/PlayTheDay";
 import DayForecast from "../components/DayForecast";

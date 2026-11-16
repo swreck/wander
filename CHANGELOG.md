@@ -22,6 +22,11 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   well since I will regularly move between the instances for ideas and comparison"). The trip on screen is marked
   "Showing" (it said "Now", on Japan after it ended); each trip shows its dates with the year and "past trip", "under
   way" or "starts in N days", counted as Home counts. SPEC §14.3.
+- **A missing place photo says so** (third deploy, same day). A photo that failed always said "Photo needs signal",
+  even online. Japan's place photos saved Oct 17 now fail because Google no longer serves those saved references (it
+  answers 400; those saved Oct 24 on still work). After a failure the phone asks once more: no photo there → "Photo
+  not available" (the gallery: "This photo isn't available."); no connection → "Photo needs signal" as before. Day
+  page photo cards and the full-screen gallery. SPEC §15.1.
 - **A finished trip keeps its plan.** A Guide copy sent to a trip whose last day is past is refused before the file is
   read, and a copy whose dates don't overlap the trip's for at least half the shorter span is refused too ("…belongs to
   another trip. Nothing was changed."). Her copies moving a day or two still go in. SPEC §6.1.

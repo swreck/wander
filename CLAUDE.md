@@ -1,7 +1,6 @@
 # Wander — how we work on it
 
-This file holds Wander's product truths and Wander's engineering. Where it differs from the global file it says so with [Overrides global: …]. Each rule has one home.
-Ken's words are quoted and dated; anything marked (Claude) is my judgement beside them. This repo is PUBLIC: no ids,
+Where it differs from the global file it says so with [Overrides global: …]. Each rule has one home. This repo is PUBLIC: no ids,
 links, keys, booking codes or people's personal details here. Those live in trip-data/ (git-ignored) or private memory. After a compaction or /clear, read trip-data/HANDOFF.md's CURRENT block first.
 
 @rules/engineering.md
@@ -59,7 +58,7 @@ faithfulness at its core.' This optimization would be clear to a human."
   column became a second hotel (Oct 4). Fix the reader with a general rule tested on her real cells; never her sheet.
 - Ken approved (Oct 11): everything she wrote is data Wander holds and Scout can answer from; how much screen work each
   piece gets is proportionate. I work out her meaning from her cells and ask Ken only when two readings would give a
-  different time, place or booking. Conflicts between her tabs are shown, never silently resolved.
+  different time, place or booking. Conflicts between sources go to the organizers first (Ken, Nov 16: "yes"), never silently resolved.
 - Done or out of date isn't shown. Ken (Oct 14, on "Still open in her Guide: ASK KENJI TO INTEGRATE THE 2 TOURS…",
   which her cell ends "— DONE", on the train home from Mashiko): "You don't change her sheet. You add value to it. So
   if it is done or out of date, you don't show it" · "Just don't show it in wander". (Claude) Hiding what's done or
@@ -93,8 +92,8 @@ has seen.
 
 ## 5. Words in the app
 
-The test: could this string appear unchanged in Jira, a banking app, or a form builder? If yes, rewrite it. Ken (Oct 2): "remember to use table for two, and don't use ambiguous nouns." The full tone rule, with its
-three tiers and examples, is in rules/tone.md: read it before writing or auditing words people see.
+The test: could this string appear unchanged in Jira, a banking app, or a form builder? If yes, rewrite it. Ken (Oct 2): "remember to use table for two, and don't use ambiguous nouns." Full tone rule: rules/tone.md;
+read it before writing or auditing words people see.
 
 ## 6. Ken's product decisions (each stands until he changes it)
 
@@ -127,7 +126,9 @@ three tiers and examples, is in rules/tone.md: read it before writing or auditin
   card is default. I don't want Larisa or Julie to accidentally remove for andy!"
 - Place photos. Ken (Oct 17), on Robuchon with none: "I would expect four to six pictures of the restaurant and food."
   Then: "Add to my documentation agreement with your plan that would then apply to the Robichon restaurant as well as
-  the rest of Wander." (Claude) Each photo shown is checked; up to six, best first.
+  the rest of Wander." (Claude) Each photo shown is checked; best first. Ken (Nov 16, Larisa's report): "larisa loved
+  the photos. She loved seeing places we'd go in images first. She liked the thumbnails and how they would blow up. And
+  several pictures is better than one (but not dozens… can add up to two more than you did in the past)." Up to eight.
 - A day can follow another list of hers. Ken (Oct 17), sending her "Tokyo Day 3" map list: "Remove existing wander
   places not on the Google map. (Ie, treat as a replacement set)". (Claude) Her tab's lines hide, never deleted.
 - Scout's mic: tap to start, tap to stop, words wait in the box (Oct 1). No auto-send, no hold-to-talk.
@@ -149,7 +150,7 @@ The charter is in the global file. In Wander, these are also Ken's:
 Ken (Oct 13): "Focus on what matters to users in Japan. Wander must be honest, no bugs, usable with no training and no
 manual. What it says about Japan to andy and Julie while in California is not important." (Claude) Edge cases at home
 don't hold a deploy.
-Ken's actions list: trip-data/KEN-ACTIONS.md. Deploy authorization: rules/engineering.md.
+Ken's actions list: trip-data/KEN-ACTIONS.md.
 Tell Ken (Oct 23, Scout promising Andy "I'll let Ken know and try to fix it"): "make it true by sending me a message of
 the request and your recommended fix. If response is clear to you, do IT during directive and just report the result to
 me." (Claude) Each session starts with session-tools/prod-tellken-new.mts.
@@ -158,9 +159,8 @@ me." (Claude) Each session starts with session-tools/prod-tellken-new.mts.
 
 - SPEC.md is the canonical product spec; where Ken's later decisions differ, his decisions win. Ken (Oct 13): "Product spec should be up to date!" and,
   when I listed it as a choice: "yes. Always! Should not need my approval!" (Claude) Kept current every batch.
-- After any change in behaviour, add an entry at the TOP of CHANGELOG.md under the date: what changed (behaviour), where
-  it lives in the UI, which SPEC sections it touches, and "SPEC UPDATE NEEDED" when behaviour now differs from SPEC.
-  Never rewrite old entries.
+- After any behaviour change, a dated entry at the TOP of CHANGELOG.md: what changed, where in the UI, which SPEC
+  sections, and "SPEC UPDATE NEEDED" if behaviour now differs from SPEC. Never rewrite old entries.
 - Chat parity: "anything that can be done by the visual UI should be able to be done by the agent" (Apr), now only for
   Wander's own additions. When a UI action changes Wander-owned data, Scout gets a matching
   tool (definition, executeTool case, numbered prompt rule), and the reverse. Never for Guide-derived data.
