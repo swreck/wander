@@ -38,12 +38,14 @@ vi.spyOn(globalThis, "fetch").mockImplementation(async (input: any, init?: any) 
 let rowId = "";
 beforeAll(async () => {
   judge?.setJudgeForTests?.(async (_l, _n, images) => images.map((im, i) => (im.bytes.toString().startsWith("good") ? i : -1)).filter((i) => i >= 0));
+  (judge as any)?.setPlaceCheckForTests?.(async () => ({ same: true, why: "the same place (test)" }));
   const row = await prisma.placePhoto.create({ data: { query: `${TAG} Tonkatsu, Aoyama, Japan`, line: `${TAG} Lunch at Tonkatsu`, placeId: `${TAG}-place`, name: "Tonkatsu",
     photos: [{ ref: "month-old-reference", credit: "good-a taker" }], verdict: "yes", why: "[2] same", checkedAt: new Date("2026-10-17T00:00:00Z") } });
   rowId = row.id;
 });
 afterAll(async () => {
   judge?.setJudgeForTests?.(null);
+  (judge as any)?.setPlaceCheckForTests?.(null);
   await (prisma as any).placePhotoCheck?.deleteMany({ where: { placeRowId: rowId } }).catch(() => {});
   await prisma.placePhoto.deleteMany({ where: { query: { startsWith: TAG } } });
   await prisma.$disconnect();

@@ -22,6 +22,10 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   well since I will regularly move between the instances for ideas and comparison"). The trip on screen is marked
   "Showing" (it said "Now", on Japan after it ended); each trip shows its dates with the year and "past trip", "under
   way" or "starts in N days", counted as Home counts. SPEC §14.3.
+- **A place that doesn't fit her words shows no photo** (seventh deploy, same day). Before a place's photos are judged
+  against new words, the check that matched the place asks again whether Google's place fits those words (her line
+  with her list's description); when not, no photo shows for that line, kept so it isn't asked again. The place's match
+  isn't changed (October's data). SPEC §15.1.
 - **A photo shows what her words name, or none shows** (sixth deploy, same day; reviewer: "3D panda billboard" led with
   a plate of udon, "3D Akita billboard" with the Hachiko statue, Takashimaya Times Square with a pastry case). Cause:
   her "Tokyo Day 3" list pins the udon shop's building and Hachiko Square, with her own description of each stop ("3D

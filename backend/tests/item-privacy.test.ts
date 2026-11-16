@@ -146,7 +146,8 @@ describe("the trip's own person can still do each of those things", () => {
   });
   it("creates on their own trip", async () => {
     const r = await m().post("/api/experiences", { tripId: T.trip, cityId: T.city, name: "IP Garden" });
-    expect(r.status).toBe(201);
+    // (the answer's words when it fails — a 404 here was seen once, Nov 16 2026, and never again; its words weren't kept)
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
     expect(await prisma.experience.count({ where: { tripId: T.trip, name: "IP Garden" } })).toBe(1);
   });
   it("an id that doesn't exist still answers not found, as before", async () => {
