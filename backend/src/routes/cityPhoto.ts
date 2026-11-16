@@ -12,6 +12,7 @@ import { createHash } from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 import { cityTripOver } from "../services/tripOver.js";
+import { googleFetch, note } from "../services/usage.js";
 
 const router = Router();
 type Photo = { bytes: Buffer; type: string; place: string | null; credit: string | null; at: number };
@@ -41,7 +42,7 @@ async function chosen(cityId: string): Promise<Photo | null> {
   const over = !!pick && await cityTripOver(cityId);
   if (pick && (over || Date.now() - pick.checkedAt.getTime() < KEEP_MS)) {
     if (!pick.ref) return null;
-    const img = key ? await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${pick.ref}&key=${key}`).catch(() => null) : null;
+    const img = key ? await googleFetch("google.photo", `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${pick.ref}&key=${key}`).catch(() => null) : null;
     if (img?.ok) return { bytes: Buffer.from(await img.arrayBuffer()), type: img.headers.get("content-type") || "image/jpeg", place: pick.place, credit: pick.credit, at: over ? Date.now() : pick.checkedAt.getTime() };
     // (the kept photo can't be fetched: looked at afresh)
   }
@@ -79,6 +80,7 @@ export async function fitsTheSeason(bytes: Buffer, type: string, cityName: strin
         { type: "text", text: `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, Japan, in mid-to-late October. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait or a sign) and nothing in it belongs to another season: no Christmas trees, Santa figures, Christmas or New Year decorations or illuminations; no snow or ice; no bare leafless trees or brown dormant lawns (winter); no cherry blossoms (spring). Green trees or autumn color are fine. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".` },
       ] }],
     });
+    note("ai.city_photo_check", { in: r.usage?.input_tokens, out: r.usage?.output_tokens });
     if (r.stop_reason === "refusal" || r.stop_reason === "max_tokens") return null;
     const text = r.content.filter((c): c is Anthropic.TextBlock => c.type === "text").map((c) => c.text).join("");
     const said = JSON.parse(text) as { seen: string; fits: boolean };
@@ -101,7 +103,7 @@ async function lookUp(cityId: string): Promise<{ photo: Photo; ref: string } | n
   try {
     // The city's best-known sight: the most-reviewed tourist attraction near it (a "<city> landmark" search took
     // Google's first hit — for Nikko, a supermarket called Nikko)
-    const find: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(`${city.name} sights`)}&location=${city.latitude},${city.longitude}&radius=12000&type=tourist_attraction&key=${key}`)).json();
+    const find: any = await (await googleFetch("google.search", `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(`${city.name} sights`)}&location=${city.latitude},${city.longitude}&radius=12000&type=tourist_attraction&key=${key}`)).json();
     const lat = city.latitude, lng = city.longitude;
     const kmFrom = (at: any) => Math.hypot((at.lat - lat) * 111, (at.lng - lng) * 111 * Math.cos((lat * Math.PI) / 180));
     // Not a mall, shop, theme park or hotel (Hakata's most-reviewed "sight" is a mall, Tokyo's is Disneyland), and in
@@ -119,7 +121,7 @@ async function lookUp(cityId: string): Promise<{ photo: Photo; ref: string } | n
     let best: any = null, bytes: Buffer | null = null, type = "image/jpeg", unsure = false;
     for (const s of sights.slice(0, 5)) {
       // (1200 wide: a phone's full screen, at a third less to send than 1600 — it has to be ready before the day draws)
-      const img = await fetch(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${s.photos[0].photo_reference}&key=${key}`);
+      const img = await googleFetch("google.photo", `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${s.photos[0].photo_reference}&key=${key}`);
       if (!img.ok) { unsure = true; continue; }
       const b = Buffer.from(await img.arrayBuffer());
       const t = img.headers.get("content-type") || "image/jpeg";

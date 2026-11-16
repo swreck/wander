@@ -2881,8 +2881,16 @@ setting never replaces the others.
   second at most before saying so.
 - **Scout with no signal** says so in its box, and its question buttons, Send and microphone wait.
 - **A place photo that doesn't show** says why (Nov 16 2026): "Photo needs signal" when the phone can't reach Wander,
-  "Photo not available" when Wander has none for it (Google stops serving a saved photo about a month after it was
-  found). Its space stays, so the day doesn't move.
+  "Photo not available" when Wander has none for it. Its space stays, so the day doesn't move.
+- **Place photos stay current** (Nov 16 2026, every trip). Wander keeps its own verdict on each photo of a place (passed
+  or not, its order, when) against a fingerprint: the photographer and size, and a hash of the image. It never keeps a
+  Google photo reference or the image (Google's terms; references expire after about a month). When a person opens a
+  place, the server asks Google for the place's current photos by its place id and shows the passed ones in order, up to
+  eight. Google's own cache times apply: a place's photo list is held 5 minutes, an image 1 day (also on the phone).
+  A photo matched by nothing passed is new and is checked once; a place with no verdicts is looked at when first opened
+  (the person waits up to 25 seconds). Japan's places checked Oct 24–31 show exactly their October photos; Japan's
+  others were looked at again when first opened after Nov 16. Each day's Google requests and AI checks are counted
+  (service_usage) under a daily ceiling; past it, a photo says "Photo not available".
 - The offline worker tries fresh data first and uses its copy only without signal.
 
 ### 15.2 Staying up to date

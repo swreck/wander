@@ -1,4 +1,5 @@
 import prisma from "./db.js";
+import { googleFetch } from "./usage.js";
 
 const API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -31,7 +32,7 @@ export async function geocodeExperience(experienceId: string): Promise<PlaceResu
     url.searchParams.set("fields", "place_id,name,formatted_address,geometry,rating,user_ratings_total");
     url.searchParams.set("key", API_KEY);
 
-    const res = await fetch(url.toString());
+    const res = await googleFetch("google.search", url.toString());
     const data = await res.json();
 
     if (data.status !== "OK" || !data.candidates?.length) return null;
@@ -156,7 +157,7 @@ export async function searchPlace(query: string, city: string): Promise<PlaceRes
   url.searchParams.set("key", API_KEY);
 
   try {
-    const res = await fetch(url.toString());
+    const res = await googleFetch("google.search", url.toString());
     const data = await res.json();
 
     if (data.status !== "OK" || !data.candidates?.length) return [];
@@ -187,7 +188,7 @@ export async function nearbyPlaces(lat: number, lng: number, radius: number = 10
   url.searchParams.set("key", API_KEY);
 
   try {
-    const res = await fetch(url.toString());
+    const res = await googleFetch("google.search", url.toString());
     const data = await res.json();
 
     if (data.status !== "OK") return [];

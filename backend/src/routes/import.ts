@@ -11,6 +11,7 @@ import { syncTripDates } from "../services/syncTripDates.js";
 import { findDuplicate } from "../services/dedup.js";
 import { findVersionMatches, type VersionMatch } from "../services/versionMatch.js";
 import { createSession, getSession, appendToSession, deleteSession, getSessionCount } from "../services/captureSession.js";
+import { chooseTrip } from "../services/currentTrip.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -171,12 +172,14 @@ router.post("/commit", async (req: AuthRequest, res) => {
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
         status: "active",
+        lastOpenedAt: new Date(),
       },
     });
     // The person who imported it plans it, the same as POST /api/trips: trips are private to their people
     // (Sep 28), so without this the importer got "not found" for the trip they had just made
     if (req.user?.travelerId) {
-      await prisma.tripMember.create({ data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner", openedAt: new Date() } });
+      await prisma.tripMember.create({ data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner" } });
+      await chooseTrip(req.user.travelerId, trip.id);
     }
 
     // Create cities and collect mapping for later use

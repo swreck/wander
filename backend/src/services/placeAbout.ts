@@ -10,6 +10,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "./db.js";
+import { googleFetch } from "./usage.js";
 
 export type About = { name: string; kind: "reviews" | "background"; gist: string; paragraphs: string[]; rating: number | null; ratingCount: number | null; sources: { title: string; url: string }[]; writtenAt: string };
 
@@ -91,7 +92,7 @@ async function writeAbout(placeId: string, name: string, address: string, line: 
     let g: any = {};
     // (a line with no Google place — `given` — is written from the web alone)
     if (!given) try {
-      const d: any = await (await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,types,rating,user_ratings_total,reviews,editorial_summary,website,price_level&reviews_sort=most_relevant&language=en&key=${key}`)).json();
+      const d: any = await (await googleFetch("google.details", `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,types,rating,user_ratings_total,reviews,editorial_summary,website,price_level&reviews_sort=most_relevant&language=en&key=${key}`)).json();
       g = d?.result || {};
     } catch (e: any) { console.warn("[place-about] google:", e?.message || e); }
     const types: string[] = g.types || [];

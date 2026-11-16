@@ -56,9 +56,11 @@ router.get("/active", async (req: AuthRequest, res) => {
     const id = await currentTripIdFor(req.user.travelerId);
     trip = id ? await prisma.trip.findUnique({ where: { id }, include }) : null;
   } else {
-    // (signed in by the old shared access code, with no person: the trip in use most recently, as before)
-    trip = await prisma.trip.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" }, include })
-      || await prisma.trip.findFirst({ orderBy: { updatedAt: "desc" }, include });
+    // (signed in by the old shared access code, with no person: the trip chosen or made most recently — by when that
+    // happened, never by "last changed", which this very read's stamp below can move after a newer trip is made)
+    const order = [{ lastOpenedAt: { sort: "desc" as const, nulls: "last" as const } }, { createdAt: "desc" as const }];
+    trip = await prisma.trip.findFirst({ where: { status: "active" }, orderBy: order, include })
+      || await prisma.trip.findFirst({ orderBy: order, include });
   }
   // Stamp lastOpenedAt
   if (trip) {
@@ -112,6 +114,7 @@ router.post("/", async (req: AuthRequest, res) => {
       endDate: endDate ? new Date(endDate) : null,
       datesKnown,
       status: "active",
+      lastOpenedAt: new Date(),
       inviteToken: crypto.randomBytes(6).toString("hex"),
     },
   });
@@ -119,8 +122,9 @@ router.post("/", async (req: AuthRequest, res) => {
   // Add creator as planner (was "owner", now "planner")
   if (req.user?.travelerId) {
     await prisma.tripMember.create({
-      data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner", openedAt: new Date() },
+      data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner" },
     });
+    await chooseTrip(req.user.travelerId, trip.id);
   }
 
   // Generate personal invite tokens for named members

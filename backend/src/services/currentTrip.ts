@@ -82,6 +82,10 @@ export async function currentTripIdFor(travelerId: string, now = new Date()): Pr
 
 /** This person chooses one of their trips: only their own row changes. False when they aren't on that trip. */
 export async function chooseTrip(travelerId: string, tripId: string): Promise<boolean> {
-  const r = await prisma.tripMember.updateMany({ where: { tripId, travelerId }, data: { openedAt: new Date() } });
+  // (always later than this person's last choice, even within the same millisecond — two trips made back to back tied,
+  // and the older one won; full suite, Nov 16 2026)
+  const last = await prisma.tripMember.aggregate({ where: { travelerId }, _max: { openedAt: true } });
+  const at = new Date(Math.max(Date.now(), (last._max.openedAt?.getTime() ?? 0) + 1));
+  const r = await prisma.tripMember.updateMany({ where: { tripId, travelerId }, data: { openedAt: at } });
   return r.count > 0;
 }

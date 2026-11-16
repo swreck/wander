@@ -4,7 +4,7 @@
  * global trip. Now choosing a trip moves only the person choosing; nothing about the trips themselves changes.
  * Invented people and trips; the other rows in the copy of production are only read.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 
@@ -95,6 +95,19 @@ describe("each person's own current trip", () => {
     expect(await current(ken.tok)).toBe(setAside);
     expect((await statuses())[setAside]).toBe("archived");
     await request(app).post(`/api/trips/${past}/activate`).set(as(ken.tok)).expect(200);
+  });
+
+  it("two choices in the same millisecond: the later one wins", async () => {
+    const { chooseTrip } = await import("../src/services/currentTrip.js");
+    const frozen = Date.now() + 60_000;
+    const spy = vi.spyOn(Date, "now").mockReturnValue(frozen);
+    try {
+      await chooseTrip(ken.id, past);
+      await chooseTrip(ken.id, second);
+    } finally { spy.mockRestore(); }
+    expect(await current(ken.tok)).toBe(second);
+    await request(app).post(`/api/trips/${past}/activate`).set(as(ken.tok)).expect(200);
+    expect(await current(ken.tok)).toBe(past);
   });
 
   it("two switches at once settle on one of them, for Ken only", async () => {

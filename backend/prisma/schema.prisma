@@ -873,6 +873,41 @@ model PlacePhoto {
   @@map("place_photos")
 }
 
+/// Wander's own verdict on one photo of a place (Nov 16 2026). Google's photo references expire after about a month and
+/// may not be stored ("You cannot cache a photo_reference"), so a checked photo is known by a fingerprint: a hash of its
+/// photographer and size, and a hash of the image at 640 wide — never the image, never the reference. The server asks
+/// Google for the place's current photos by its place id when a person looks, and shows only those that match a passed
+/// verdict (services/placePhotoChecks.ts).
+model PlacePhotoCheck {
+  id         String    @id @default(cuid())
+  placeRowId String    @map("place_row_id")     // place_photos.id: the place her line means
+  keyHash    String?   @map("key_hash")         // sha256(photographer | width | height); null when the size is unknown
+  imageHash  String?   @map("image_hash")       // sha256 of the photo's bytes at 640 wide
+  pass       Boolean                            // shows the place the way her line means it
+  rank       Int?                               // order among the passed ones, 0 first
+  credit     String?                            // the photographer, as Google credits them beside the photo
+  source     String                             // "october" (kept from Japan's own checks) | "check"
+  checkedAt  DateTime  @default(now()) @map("checked_at")
+  missingAt  DateTime? @map("missing_at")       // when Google was last seen not to list it
+
+  @@index([placeRowId])
+  @@map("place_photo_checks")
+}
+
+/// What Wander asked of paid services each day (UTC), counted where it's asked, with a daily ceiling for the place
+/// photos' share (services/usage.ts). Nov 16 2026: the cost of a place's photos had never been measured.
+model ServiceUsage {
+  day       String                                // YYYY-MM-DD (UTC)
+  kind      String                                // google.details | google.search | google.photo | ai.photo_check | …
+  count     Int    @default(0)
+  refused   Int    @default(0)                    // asked beyond the day's ceiling (answered "not available")
+  tokensIn  Int    @default(0) @map("tokens_in")
+  tokensOut Int    @default(0) @map("tokens_out")
+
+  @@id([day, kind])
+  @@map("service_usage")
+}
+
 /// Who's in Ideas for Wander for a trip (Ken, Oct 15: "used most by andy and me"), and when each last looked — for the
 /// quiet dot beside "Ideas" on Home
 model WanderIdeaMember {
