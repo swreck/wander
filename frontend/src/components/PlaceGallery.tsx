@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import useBackToClose from "../hooks/useBackToClose";
-import { placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
+import { placePhotoUrl, whyNoPhoto, type PlaceHit } from "../lib/placePhotos";
 import { lockScroll } from "../lib/scrollLock";
 
 export default function PlaceGallery({ hit, title, time, map, start = 0, onClose }: {
@@ -16,7 +16,7 @@ export default function PlaceGallery({ hit, title, time, map, start = 0, onClose
   useBackToClose(true, onClose);
   const strip = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState(start);
-  const [failed, setFailed] = useState<Record<number, boolean>>({});
+  const [failed, setFailed] = useState<Record<number, "gone" | "signal">>({});
   const downY = useRef<number | null>(null);
   useEffect(() => {
     const el = strip.current;
@@ -49,8 +49,8 @@ export default function PlaceGallery({ hit, title, time, map, start = 0, onClose
         {hit.photos.map((_, n) => (
           <div key={n} className="shrink-0 w-full h-full snap-center flex items-center justify-center">
             {failed[n]
-              ? <p className="text-sm text-white/70 px-8 text-center">This photo needs signal to show.</p>
-              : Math.abs(n - at) <= 1 && <img src={placePhotoUrl(hit, n)} alt="" onError={() => setFailed((f) => ({ ...f, [n]: true }))} className="max-w-full max-h-full object-contain" />}
+              ? <p className="text-sm text-white/70 px-8 text-center">{failed[n] === "gone" ? "This photo isn't available." : "This photo needs signal to show."}</p>
+              : Math.abs(n - at) <= 1 && <img src={placePhotoUrl(hit, n)} alt="" onError={() => { whyNoPhoto(placePhotoUrl(hit, n)).then((why) => setFailed((f) => ({ ...f, [n]: why }))); }} className="max-w-full max-h-full object-contain" />}
           </div>
         ))}
       </div>

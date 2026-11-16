@@ -2880,6 +2880,9 @@ setting never replaces the others.
   ("The signal's weak — saved on this phone, and I'll send it as soon as it gets through"). A save kept for later waits a
   second at most before saying so.
 - **Scout with no signal** says so in its box, and its question buttons, Send and microphone wait.
+- **A place photo that doesn't show** says why (Nov 16 2026): "Photo needs signal" when the phone can't reach Wander,
+  "Photo not available" when Wander has none for it (Google stops serving a saved photo about a month after it was
+  found). Its space stays, so the day doesn't move.
 - The offline worker tries fresh data first and uses its copy only without signal.
 
 ### 15.2 Staying up to date

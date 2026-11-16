@@ -25,6 +25,13 @@ const write = (k: Kept) => {
 /** A stop's photo: small for the day's list, large full screen */
 export const placePhotoUrl = (hit: PlaceHit, n: number, small = false) => `/api/place-photos/${hit.id}/${n}?v=${hit.v || 0}${small ? "&size=small" : ""}`;
 
+/** Why a photo didn't show, asked once after it fails: "gone" when Wander answers it has no such photo (Google stops
+ *  serving a saved photo about a month after it was found — Japan's from Oct 17, seen Nov 16 2026), "signal" when the
+ *  phone couldn't reach Wander. Every failure said "needs signal", which was untrue online. */
+export async function whyNoPhoto(src: string): Promise<"gone" | "signal"> {
+  try { return (await fetch(src)).status === 404 ? "gone" : "signal"; } catch { return "signal"; }
+}
+
 // (kept by the search and her words both: her words changing — a new Guide copy — asks again)
 const keyOf = (p: { query: string; line: string }) => `${p.query}\n${p.line}`;
 
