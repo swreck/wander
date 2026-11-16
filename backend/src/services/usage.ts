@@ -6,10 +6,12 @@
  * error. The ceilings, at Google's and Anthropic's list prices:
  *  - google.details 600 a day (~$10): a place's photo list is asked at most every 5 minutes (Google's own cache time for
  *    it) and only when the server has no photo of it kept; Japan's 91 places, each opened twice a day, is ~180.
- *  - google.photo 1,500 a day (~$10.50): each photo is fetched once a day at each size (kept for Google's 24 hours);
- *    a trip's ~150 places × up to 8 photos at two sizes would be 2,400 if every photo of every place were opened.
+ *  - google.photo 2,500 a day (~$17.50): each photo is fetched once a day at each size (kept for Google's 24 hours);
+ *    a trip's ~150 places × up to 8 photos at two sizes would be 2,400 if every photo of every place were opened. Was
+ *    1,500; raised Nov 16 2026 when the whole of Japan (91 places × 10 photos) was judged again under corrected rules.
  *  - google.search 150 a day: a new line of her plan looked up for the first time.
- *  - ai.photo_check 80 a day (~$8 at about $0.10 a check): one check per place whose photos are new, once per photo.
+ *  - ai.photo_check 150 a day (~$5 at the measured $0.034 a check): one check per place whose photos are new or whose
+ *    words changed; a whole trip judged again once fits. Was 80, raised the same day for the same reason.
  *  - ai.place_check 150 a day: "is Google's place the one her line means", once per new line a week.
  * Other callers (Scout, the city photo, geocoding, "About this place") are counted, not limited.
  */
@@ -17,9 +19,9 @@ import prisma from "./db.js";
 
 export const CEILINGS: Record<string, number> = {
   "google.details": 600,
-  "google.photo": 1500,
+  "google.photo": 2500,
   "google.search": 150,
-  "ai.photo_check": 80,
+  "ai.photo_check": 150,
   "ai.place_check": 150,
 };
 

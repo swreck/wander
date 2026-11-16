@@ -22,6 +22,19 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   well since I will regularly move between the instances for ideas and comparison"). The trip on screen is marked
   "Showing" (it said "Now", on Japan after it ended); each trip shows its dates with the year and "past trip", "under
   way" or "starts in N days", counted as Home counts. SPEC §14.3.
+- **A photo shows what her words name, or none shows** (sixth deploy, same day; reviewer: "3D panda billboard" led with
+  a plate of udon, "3D Akita billboard" with the Hachiko statue, Takashimaya Times Square with a pastry case). Cause:
+  her "Tokyo Day 3" list pins the udon shop's building and Hachiko Square, with her own description of each stop ("3D
+  panda billboard", "3D Akita billboard"); the photo check read only the pin's name, so it judged the shop and the
+  square, and its "best first" let a close-up of food or a product lead. Now: a stop from her map list is sent with her
+  description ("… (her list says: 3D panda billboard)"); the check keeps only photos of the very thing her description
+  names (when none shows it: "Photo not available"), and the first photo must show the place as a visitor sees it, or
+  what she names — a close-up of a dish or product never leads unless her words name it. The words each verdict was
+  judged against are kept (place_photo_checks.words, new column); words that change, and verdicts judged before words
+  were kept, are judged again once — the photos' addresses kept. Japan's 91 places were judged again by the corrected
+  check (list: trip-data, private). Also: credits wrap in full instead of being cut off ("· Google" was lost on long
+  names), with a shadow to read on bright photos; full-screen photos asked at 1,600 wide (was 1,200); daily ceilings
+  for Google photos 2,500 (was 1,500) and photo checks 150 (was 80). SPEC §15.1.
 - **A place's photographer is credited on its first open** (fifth deploy, same day). A place looked at only when its
   first photo opened showed that photo with no credit, because the phone's copy predated the check. The day card now
   asks once for the place after the photo shows (GET /api/place-photos/one/:id) and credits the photographer at once.

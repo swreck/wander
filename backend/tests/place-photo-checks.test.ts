@@ -57,8 +57,13 @@ const row = async (name: string, placeId: string, photos: Photo[]) => {
   ids.rows.push(r.id);
   return r.id;
 };
-const verdict = (rowId: string, p: Photo, pass: boolean, rank: number | null, source = "october") =>
-  prisma.placePhotoCheck.create({ data: { placeRowId: rowId, keyHash: keyOf(p.credit, p.w, p.h), imageHash: at640(p.id), pass, rank, credit: p.credit, source } });
+// (words: what the verdict was judged against — a place's line, as row() makes it; null for one judged before words were kept)
+const verdict = (rowId: string, p: Photo, pass: boolean, rank: number | null, source = "october", words: string | null = "same") =>
+  prisma.placePhotoCheck.create({ data: { placeRowId: rowId, keyHash: keyOf(p.credit, p.w, p.h), imageHash: at640(p.id), pass, rank, credit: p.credit, source,
+    words: words === "same" ? null : words } }).then(async (v) => {
+    if (words === "same") { const r = await prisma.placePhoto.findUnique({ where: { id: rowId } }); return prisma.placePhotoCheck.update({ where: { id: v.id }, data: { words: r!.line } }); }
+    return v;
+  });
 const photo = (rowId: string, which: string, size = "small") => request(app).get(`/api/place-photos/${rowId}/${which}?v=1${size === "small" ? "&size=small" : ""}`);
 const text = (r: any) => Buffer.from(r.body).toString();
 
@@ -94,13 +99,26 @@ describe("a place kept from Japan's own October checks", () => {
     expect(await prisma.placePhotoCheck.count({ where: { placeRowId: id } })).toBe(2);
   });
 
+  it("October's verdicts judged before words were kept: judged again once, October's photos only — a new one never added", async () => {
+    const a = { id: "good-oa", credit: "OA", w: 4032, h: 3024 }, b = { id: "bad-ob", credit: "OB", w: 1024, h: 704 }, x = { id: "good-ox", credit: "OX", w: 4800, h: 3600 };
+    const id = await row("OldRules", `${TAG}-oldrules`, [x, b, a]);
+    await verdict(id, a, true, 1, "october", null); await verdict(id, b, true, 0, "october", null);
+    const before = judged;
+    await photo(id, "0");
+    await new Promise((r) => setTimeout(r, 300));
+    expect(judged).toBe(before + 1);
+    expect(text(await photo(id, "0"))).toBe("good-oa@640");
+    expect((await photo(id, "1")).status).toBe(404);
+    expect(await prisma.placePhotoCheck.count({ where: { placeRowId: id } })).toBe(2);
+  });
+
   it("two photos sharing photographer and size, one passed and one failed: only the passed one shows, told apart by the image", async () => {
     const pass = { id: "good-twin", credit: "Ruth", w: 4032, h: 3024 }, fail = { id: "bad-twin", credit: "Ruth", w: 4032, h: 3024 };
     const id = await row("Starbucks", `${TAG}-twins`, [fail, pass]);
     const v = await verdict(id, pass, true, 0);
     await verdict(id, fail, false, null);
     expect(text(await photo(id, "0"))).toBe("good-twin@640");
-    expect(text(await photo(id, v.id, "large"))).toBe("good-twin@1200");
+    expect(text(await photo(id, v.id, "large"))).toBe("good-twin@1600");
     expect((await photo(id, "1")).status).toBe(404);
   });
 
@@ -177,7 +195,7 @@ describe("addresses and limits", () => {
     const first = await photo(id, "0", "large");
     expect(first.headers["cache-control"]).toMatch(/^public, max-age=86\d{3}$/);
     const n = google.photos + google.details;
-    for (let i = 0; i < 5; i++) expect(text(await photo(id, "0", "large"))).toBe("good-r@1200");
+    for (let i = 0; i < 5; i++) expect(text(await photo(id, "0", "large"))).toBe("good-r@1600");
     expect(google.photos + google.details).toBe(n);
   });
 

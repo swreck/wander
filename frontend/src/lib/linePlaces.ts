@@ -105,6 +105,9 @@ const bookingFor = (b: GuideItem, ctx: MapContext): GuideItem | null => (ctx.boo
  * down as another restaurant)
  */
 export function photoLineOf(b: GuideItem, ctx: MapContext = {}): string {
+  // A stop from her own map list carries her description of it — what she goes there for (Nov 16 2026: her pin is an
+  // udon shop's building, her description "3D panda billboard"; checked by the pin's name alone, a plate of udon led)
+  if (b.id?.startsWith("swap-") && b.detail?.trim()) return `${b.title} (her list says: ${b.detail.trim().split("\n")[0].slice(0, 160)})`;
   const where = (b.detail || "").match(/^Where: (.+?) — the stop her tab lists/m)?.[1];
   if (where) return `${b.title} (her tab names the stop: ${where})`;
   const booked = !linksIn(b.link)[0] && !/^Tabs differ: .* puts it in /m.test(b.detail || "") ? bookingFor(b, ctx) : null;

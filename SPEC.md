@@ -2888,7 +2888,10 @@ setting never replaces the others.
   place, the server asks Google for the place's current photos by its place id and shows the passed ones in order, up to
   eight. Google's own cache times apply: a place's photo list is held 5 minutes, an image 1 day (also on the phone).
   A photo matched by nothing passed is new and is checked once; a place with no verdicts is looked at when first opened
-  (the person waits up to 25 seconds). Japan's places checked Oct 24–31 show exactly their October photos; Japan's
+  (the person waits up to 25 seconds). The check reads her words for the stop, with her own description when the stop
+  comes from her map list; it keeps only photos that show what her words name — none shown when none does — and the
+  first photo shows the place as a visitor sees it (a close-up of a dish or product never leads unless she names it).
+  Words that change are judged again once. Credits read in full. Japan's places checked Oct 24–31 show exactly their October photos; Japan's
   others were looked at again when first opened after Nov 16. Each day's Google requests and AI checks are counted
   (service_usage) under a daily ceiling; past it, a photo says "Photo not available".
 - The offline worker tries fresh data first and uses its copy only without signal.

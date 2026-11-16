@@ -30,7 +30,11 @@ const CHECK_WAIT_MS = 25_000;       // a person opening a place not yet re-check
 
 export type Current = { ref: string; width: number; height: number; credit: string | null; keyHash: string; imageHash?: string | null };
 type List = { photos: Current[]; until: number };
-type Check = { id: string; placeRowId: string; keyHash: string | null; imageHash: string | null; pass: boolean; rank: number | null; credit: string | null; source: string; missingAt: Date | null; checkedAt: Date };
+type Check = { id: string; placeRowId: string; keyHash: string | null; imageHash: string | null; pass: boolean; rank: number | null; credit: string | null; source: string; words: string | null; missingAt: Date | null; checkedAt: Date };
+// (full screen: wide enough for an iPhone 17 Pro Max's 440 points at 3 pixels each — 1,320 — and a little more; Google
+// sends a photo's own width when it's smaller. Was 1,200: Nov 16 2026 reviewer, "Yamashita Udon's full-screen photos are
+// small")
+const LARGE = 1600;
 
 const sha = (s: string | Buffer) => crypto.createHash("sha256").update(s).digest("hex");
 export const keyOf = (credit: string | null, width: number, height: number) => sha(`${credit ?? ""}|${width}|${height}`);
@@ -167,10 +171,11 @@ async function fetchFor(row: Row, check: Check, small: boolean) {
   void markMissing(all, byCheck);
   // (a place with fewer than eight to show has its new photos checked — once each, in the background)
   const present = all.filter((v) => v.pass && byCheck.has(v.id)).length;
-  if (present < MOST && unmatched.length && !all.some((v) => v.source === "october")) void ensureChecked(row);
+  // (…and one judged before its words were kept — the rules before Nov 16's second look — is judged again, once)
+  if ((present < MOST && unmatched.length && !all.some((v) => v.source === "october")) || !judgedWords(all)) void ensureChecked(row, judgedWords(all) ?? undefined);
   const c = byCheck.get(check.id);
   if (!c) return null;
-  const p = await fetchPhoto(c.ref, small ? 640 : 1200);
+  const p = await fetchPhoto(c.ref, small ? 640 : LARGE);
   if (p) keep(`${check.id}:${small ? "s" : "l"}`, { bytes: p.bytes, type: p.type, until: Date.now() + p.maxAge * 1000 });
   return p;
 }
@@ -182,58 +187,79 @@ async function markMissing(all: Check[], byCheck: Map<string, Current>) {
   if (back.length) await prisma.placePhotoCheck.updateMany({ where: { id: { in: back } }, data: { missingAt: null } }).catch(() => {});
 }
 
-// ── the check, on demand, once per photo ──
+// ── the check, on demand, once per photo and per words ──
 const checking = new Map<string, Promise<void>>();
 const checkedOn = new Map<string, string>();
-/** The place's photos Wander hasn't judged yet: each looked at by the photo check, once; the verdicts kept. One at a time
- *  per place, at most once a day per place (a failed look is tried again tomorrow). */
-export function ensureChecked(row: Row): Promise<void> {
-  if (checkedOn.get(row.id) === dayNow()) return checking.get(row.id) ?? Promise.resolve();
-  if (!checking.has(row.id)) {
-    checkedOn.set(row.id, dayNow());
-    checking.set(row.id, checkNew(row).catch((e) => console.warn("[place-photos] check:", e?.message || e)).finally(() => checking.delete(row.id)));
+/** The words a place's verdicts were judged against (null: judged before they were kept — Nov 16 2026's first look) */
+export const judgedWords = (all: { words: string | null }[]) => all.find((v) => v.words)?.words ?? null;
+/** The same words, or the same with less said — a phone on an older Wander sends her line without her list's description */
+export const sameWords = (judged: string | null, words: string) => !!judged && (judged === words || judged.startsWith(`${words} (`));
+
+/** The place's photos looked at by the photo check, against `words` (her line, with her list's description when it has
+ *  one; the place's line when not given): each photo not yet judged against these words, once; the verdicts kept. One
+ *  at a time per place, at most once a day per place and words (a failed look is tried again tomorrow). */
+export function ensureChecked(row: Row, words?: string): Promise<void> {
+  const w = words || row.line;
+  const k = `${row.id}\n${w}`;
+  if (checkedOn.get(k) === dayNow()) return checking.get(k) ?? Promise.resolve();
+  if (!checking.has(k)) {
+    checkedOn.set(k, dayNow());
+    checking.set(k, checkNew(row, w, k).catch((e) => console.warn("[place-photos] check:", e?.message || e)).finally(() => checking.delete(k)));
   }
-  return checking.get(row.id)!;
+  return checking.get(k)!;
 }
-async function checkNew(row: Row): Promise<void> {
+async function checkNew(row: Row, words: string, k: string): Promise<void> {
   if (!row.placeId) return;
   const current = await currentPhotos(row.placeId);
   if (!current) return;
   const all = await checksOf(row.id);
-  if (all.some((v) => v.source === "october")) return;   // (Japan's own October photos: exactly those)
+  const october = all.some((v) => v.source === "october");
   const { byCheck, unmatched } = await match(all, current);
+  // Judged again, all together, when the verdicts were judged against other words or before words were kept: the
+  // photos of a place kept from Japan's October checks are those October photos still listed (never others); any other
+  // place's are all its current photos. Otherwise only photos not yet judged, while the place shows fewer than eight.
+  const again = all.length > 0 && !sameWords(judgedWords(all), words);
   const present = all.filter((v) => v.pass && byCheck.has(v.id)).length;
-  if (!unmatched.length || present >= MOST) return;
-  const looked: { c: Current; bytes: Buffer; type: string }[] = [];
-  for (const c of unmatched) {
-    const p = await fetchPhoto(c.ref, 640);
+  const toLook: { c: Current; v?: Check }[] = again
+    ? (october ? all.filter((v) => byCheck.has(v.id)).map((v) => ({ c: byCheck.get(v.id)!, v })) : current.map((c) => ({ c, v: all.find((x) => byCheck.get(x.id) === c) })))
+    : (october || present >= MOST ? [] : unmatched.map((c) => ({ c })));
+  if (!toLook.length) return;
+  const looked: { c: Current; v?: Check; bytes: Buffer; type: string }[] = [];
+  for (const t of toLook) {
+    const p = await fetchPhoto(t.c.ref, 640);
     if (!p) continue;
-    c.imageHash = imageHashOf(p.bytes);
-    smallByHash.set(c.imageHash, { bytes: p.bytes, type: p.type, until: Date.now() + p.maxAge * 1000 });
-    looked.push({ c, bytes: p.bytes, type: p.type });
+    t.c.imageHash = imageHashOf(p.bytes);
+    smallByHash.set(t.c.imageHash, { bytes: p.bytes, type: p.type, until: Date.now() + p.maxAge * 1000 });
+    looked.push({ ...t, bytes: p.bytes, type: p.type });
   }
   if (!looked.length) return;
-  const picks = await judgePhotos(row.line, row.name || row.line, looked.map((l) => ({ bytes: l.bytes, type: l.type })), MOST - present);
-  if (picks === null) { checkedOn.delete(row.id); return; }   // (couldn't be looked at: asked again on the next open)
-  const top = all.reduce((m, v) => Math.max(m, v.rank ?? -1), -1);
-  await prisma.placePhotoCheck.createMany({
-    data: looked.map((l, i) => {
+  const room = again ? MOST : MOST - present;
+  const picks = await judgePhotos(words, row.name || row.line, looked.map((l) => ({ bytes: l.bytes, type: l.type })), room);
+  if (picks === null) { checkedOn.delete(k); return; }   // (couldn't be looked at: asked again on the next open)
+  const top = again ? -1 : all.reduce((m, v) => Math.max(m, v.rank ?? -1), -1);
+  // (a verdict already kept is updated where it stands, so a phone's address for that photo keeps working)
+  await prisma.$transaction([
+    ...(again ? [prisma.placePhotoCheck.updateMany({ where: { placeRowId: row.id }, data: { pass: false, rank: null, words } })] : []),
+    ...looked.map((l, i) => {
       const at = picks.indexOf(i);
-      return { placeRowId: row.id, keyHash: l.c.keyHash, imageHash: l.c.imageHash!, pass: at >= 0, rank: at >= 0 ? top + 1 + at : null, credit: l.c.credit, source: "check" };
+      const verdict = { pass: at >= 0, rank: at >= 0 ? top + 1 + at : null, words, checkedAt: new Date() };
+      return l.v
+        ? prisma.placePhotoCheck.update({ where: { id: l.v.id }, data: verdict })
+        : prisma.placePhotoCheck.create({ data: { placeRowId: row.id, keyHash: l.c.keyHash, imageHash: l.c.imageHash!, credit: l.c.credit, source: "check", ...verdict } });
     }),
-  });
-  console.log(`[place-photos] "${row.line.slice(0, 40)}": ${picks.length} of ${looked.length} new photos pass`);
+  ]);
+  console.log(`[place-photos] "${words.slice(0, 50)}": ${picks.length} of ${looked.length} photos pass${again ? " (judged again)" : ""}`);
 }
 
 /** Verdicts for a place just looked at for the first time (services/placePhotos.ts resolve): its photos as checked
- *  then — the passed ones in order, and the others as not passed — in place of any it had */
-export async function recordVerdicts(rowId: string, looked: { credit: string | null; width: number; height: number; bytes: Buffer; type: string }[], picks: number[]): Promise<void> {
+ *  then against `words` — the passed ones in order, and the others as not passed — in place of any it had */
+export async function recordVerdicts(rowId: string, looked: { credit: string | null; width: number; height: number; bytes: Buffer; type: string }[], picks: number[], words: string): Promise<void> {
   await prisma.$transaction([
     prisma.placePhotoCheck.deleteMany({ where: { placeRowId: rowId } }),
     prisma.placePhotoCheck.createMany({
       data: looked.map((l, i) => {
         const at = picks.indexOf(i);
-        return { placeRowId: rowId, keyHash: keyOf(l.credit, l.width, l.height), imageHash: imageHashOf(l.bytes), pass: at >= 0, rank: at >= 0 ? at : null, credit: l.credit, source: "check" };
+        return { placeRowId: rowId, keyHash: keyOf(l.credit, l.width, l.height), imageHash: imageHashOf(l.bytes), pass: at >= 0, rank: at >= 0 ? at : null, credit: l.credit, source: "check", words };
       }),
     }),
   ]);
