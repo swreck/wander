@@ -18,6 +18,10 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   planner lines change with the trip. SPEC §6.1.
 - **The trip menu lists your trips** except set-aside ones (April's placeholders); it listed only trips read from
   Larisa's Guide. The one you're on first, then the ones you chose most recently. SPEC §14.3.
+- **The trip menu says where each trip is in time** (second deploy, same day; Ken: "ensure the home page popup works
+  well since I will regularly move between the instances for ideas and comparison"). The trip on screen is marked
+  "Showing" (it said "Now", on Japan after it ended); each trip shows its dates with the year and "past trip", "under
+  way" or "starts in N days", counted as Home counts. SPEC §14.3.
 - **A finished trip keeps its plan.** A Guide copy sent to a trip whose last day is past is refused before the file is
   read, and a copy whose dates don't overlap the trip's for at least half the shorter span is refused too ("…belongs to
   another trip. Nothing was changed."). Her copies moving a day or two still go in. SPEC §6.1.

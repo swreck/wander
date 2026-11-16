@@ -851,6 +851,30 @@ function DatelessTripView({
 }
 
 
+/** A trip's dates with its year, and where it is in time on its own clock: "Oct 5 – 29, 2026 · past trip",
+ *  "Dec 15, 2026 – Jan 8, 2027 · under way", "Dec 15 – 21, 2026 · starts in 29 days" (Nov 16 2026: Ken moves between trips
+ *  "for ideas and comparison"; the menu said "Now" on Japan after it ended) */
+function tripWhen(t: Trip): string {
+  const a = String(t.startDate).slice(0, 10), b = String(t.endDate).slice(0, 10);
+  const d = (s: string, o: Intl.DateTimeFormatOptions) => new Date(`${s}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", ...o });
+  const range = a.slice(0, 4) !== b.slice(0, 4)
+    ? `${d(a, { month: "short", day: "numeric", year: "numeric" })} – ${d(b, { month: "short", day: "numeric", year: "numeric" })}`
+    : a.slice(0, 7) === b.slice(0, 7)
+      ? `${d(a, { month: "short", day: "numeric" })} – ${d(b, { day: "numeric" })}, ${b.slice(0, 4)}`
+      : `${d(a, { month: "short", day: "numeric" })} – ${d(b, { month: "short", day: "numeric" })}, ${b.slice(0, 4)}`;
+  let today: string;
+  try { today = new Intl.DateTimeFormat("en-CA", { timeZone: (t as any).timeZone || "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+  catch { today = new Date().toISOString().slice(0, 10); }
+  if (today > b) return `${range} · past trip`;
+  if (today >= a) return `${range} · under way`;
+  // (days to go counted on the phone's own date, as Home's "The trip starts in N days" counts them — before a trip the
+  // person is still at home)
+  const now = new Date();
+  const here = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const n = Math.max(1, Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${here}T00:00:00Z`)) / 86400000));
+  return `${range} · ${n === 1 ? "starts tomorrow" : `starts in ${n} days`}`;
+}
+
 function TripSwitcherList({
   trips, currentTripId, onSwitch, onRename,
 }: {
@@ -916,7 +940,8 @@ function TripSwitcherList({
                       title="Double-click to rename"
                     >
                       {t.name}
-                      {isCurrent && <span className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Now</span>}
+                      {/* (the trip on screen — "Now" read as "happening now" on Japan after it ended; Nov 16 2026) */}
+                      {isCurrent && <span className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Showing</span>}
                     </div>
                   )}
                   {/* Tagline — shows the sync source so planners can tell trips apart */}
@@ -928,9 +953,7 @@ function TripSwitcherList({
                   {/* Metadata line — smaller, muted */}
                   {/* The trip's own dates, and how fresh Wander's copy of the Guide is */}
                   <div className="text-xs text-[#6b5d4a] mt-0.5 flex items-center gap-1 flex-wrap">
-                    {t.startDate && t.endDate && (
-                      <span>{new Date(t.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} – {new Date(t.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
-                    )}
+                    {t.startDate && t.endDate && <span>{tripWhen(t)}</span>}
                     {/* (no "Guide read …" here: it was an old sync setting's time, a different moment from the copy
                         Wander reads — Home says that one; round 12 found three different dates) */}
                   </div>
