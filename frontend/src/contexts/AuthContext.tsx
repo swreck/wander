@@ -61,6 +61,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // A switch of trip: the role is this person's role on their current trip, so it's asked again (Nov 16 2026). A
+  // failed ask keeps the role they had.
+  useEffect(() => {
+    const again = () => {
+      const token = localStorage.getItem("wander_token");
+      if (!token) return;
+      api.get<User>("/auth/me").then((u) => { if (localStorage.getItem("wander_token") === token) setUser(u); }).catch(() => { /* keep */ });
+    };
+    window.addEventListener("wander:trip-switched", again);
+    return () => window.removeEventListener("wander:trip-switched", again);
+  }, []);
+
   // Keep a copy of who's signed in on this device, so a failed check on a weak signal
   // can fall back to it instead of showing the login screen.
   useEffect(() => {

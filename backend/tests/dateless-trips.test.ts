@@ -176,7 +176,7 @@ describe("Trip Switching", () => {
     datedTripId = res.body.id;
   });
 
-  it("activates the dated trip (archives dateless)", async () => {
+  it("activates the dated trip", async () => {
     const res = await request(app)
       .post(`/api/trips/${datedTripId}/activate`)
       .set("Authorization", `Bearer ${token}`);
@@ -190,11 +190,12 @@ describe("Trip Switching", () => {
     expect(activeRes.body.id).toBe(datedTripId);
   });
 
-  it("dateless trip is now archived", async () => {
+  // (Nov 16 2026: switching moves only this person; the other trip is left as it was)
+  it("dateless trip is left as it was", async () => {
     const trip = await prisma.trip.findUnique({
       where: { id: datelessTripId },
     });
-    expect(trip!.status).toBe("archived");
+    expect(trip!.status).toBe("active");
   });
 
   it("switches back to dateless trip", async () => {

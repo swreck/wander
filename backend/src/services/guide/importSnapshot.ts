@@ -27,6 +27,7 @@ import { readDayPlans, looksLikeDayPlan, dayPlanHash, verifyAgainstTab, type Day
 import { pictureGroupFor, pictureStartFor } from "./pictureGroup.js";
 import { withoutFinancialDetails, withoutPersonalContacts } from "../sources/filter.js";
 import { noteFor, type PlaceNote } from "./placeNotes.js";
+import { tripOver } from "../tripOver.js";
 
 export interface ImportOptions {
   buffer: Buffer;
@@ -934,6 +935,28 @@ function validate(read: GuideReadResult, itin: ItineraryResult | null, previous:
   return reasons;
 }
 
+const plainDate = (d: Date | string) => new Date(typeof d === "string" ? `${d.slice(0, 10)}T00:00:00Z` : d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/** Why a copy's dates don't fit the trip it was sent to — or null when they do. They fit when the copy's days and the
+ *  trip's overlap for at least half of the shorter span (her copies move a day or two; another trip's don't overlap). */
+export function datesDontMatch(trip: { startDate: Date | null; endDate: Date | null }, first: string, last: string): string | null {
+  if (!trip.startDate || !trip.endDate) return null;
+  const day = (s: string) => Date.parse(`${s.slice(0, 10)}T00:00:00Z`) / 86400_000;
+  const tA = day(trip.startDate.toISOString()), tB = day(trip.endDate.toISOString()), cA = day(first), cB = day(last);
+  const overlap = Math.min(tB, cB) - Math.max(tA, cA) + 1;
+  const shorter = Math.min(tB - tA, cB - cA) + 1;
+  if (overlap * 2 >= shorter) return null;
+  return `This copy's dates (${plainDate(first)} to ${plainDate(last)}) don't match this trip's (${plainDate(trip.startDate)} to ${plainDate(trip.endDate)}), so it belongs to another trip. Nothing was changed.`;
+}
+
+/** The trip's stored settings after an import: every key kept as it was, except the ones the import itself owns (Nov 16
+ *  2026: it rebuilt them from a list of five, so anything else kept there — a new kind of trip data — vanished on her
+ *  next copy) */
+export function mappingsAfterImport(prior: unknown, sourceName: string): Record<string, unknown> {
+  const kept = prior && typeof prior === "object" && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {};
+  return { ...kept, source: "snapshot", sourceName };
+}
+
 // ── Import ──────────────────────────────────────────────────────
 
 export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportReport> {
@@ -942,8 +965,20 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     changes: { added: [], removed: [] }, pictures: { read: 0, cached: 0, failed: [] },
   };
 
+  // A finished trip keeps its plan (Nov 16 2026: Japan, after the trip — a December Vietnam/Cambodia/Japan Guide sent to
+  // Japan's trip would have replaced its plan). Refused before anything is read or written.
+  const target = opts.tripId ? await prisma.trip.findUnique({ where: { id: opts.tripId }, select: { startDate: true, endDate: true } }) : null;
+  if (opts.tripId && !target) { report.reasons.push("That trip doesn't exist. Nothing was changed."); return report; }
+  if (target && tripOver(target.endDate)) {
+    report.reasons.push(`This trip ended on ${plainDate(target.endDate!)} and keeps its plan as it was. Nothing was changed.`);
+    return report;
+  }
+
   const read = await readGuideXlsx(opts.buffer);
   const itin = interpretItinerary(read.tabs);
+  // A copy for other dates belongs to another trip (refused, nothing written)
+  const mismatch = target && itin?.firstDate && itin.lastDate ? datesDontMatch(target, itin.firstDate, itin.lastDate) : null;
+  if (mismatch) { report.reasons.push(mismatch); return report; }
   const previous = opts.tripId
     ? await prisma.guideSnapshot.findFirst({ where: { tripId: opts.tripId, status: "current" }, orderBy: { importedAt: "desc" } })
     : null;
@@ -975,12 +1010,14 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       },
     });
     tripId = trip.id;
-    await prisma.trip.updateMany({ where: { status: "active", id: { not: tripId } }, data: { status: "archived" } });
+    // (other trips are left as they are — Nov 16 2026: this archived every other trip for everyone; the new trip is the
+    // current trip of the person who brought it in, and of nobody else until they choose it)
     for (const name of ["Ken", "Larisa"]) {
       const t = await prisma.traveler.findFirst({ where: { displayName: name } });
+      const mine = name === opts.importedBy ? { openedAt: new Date() } : {};
       if (t) await prisma.tripMember.upsert({
         where: { tripId_travelerId: { tripId, travelerId: t.id } },
-        create: { tripId, travelerId: t.id, role: "planner" }, update: { role: "planner" },
+        create: { tripId, travelerId: t.id, role: "planner", ...mine }, update: { role: "planner", ...mine },
       });
     }
   }
@@ -1735,17 +1772,11 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
         tagline: `From Larisa's Guide · ${opts.sourceName.replace(/\.xlsx$/i, "").replace(/(?:-\d| \(\d+\)| copy(?: \d+)?)$/i, "")}`,
       },
     });
-    // (her sheet's address and tab ids — sheetLink.ts — and her Apple Maps guides — appleGuides.ts — kept across imports)
-    const priorMappings = (await tx.sheetSyncConfig.findUnique({ where: { tripId }, select: { tabMappings: true } }))?.tabMappings as any;
-    const kept = priorMappings?.sheetLink;
-    const keptMaps = Array.isArray(priorMappings?.appleGuides) ? priorMappings.appleGuides : null;
-    // (the days' summaries too — daySummaries.ts; a day the new copy changes hides its own until it's rewritten)
-    const keptSummaries = priorMappings?.daySummaries && typeof priorMappings.daySummaries === "object" ? priorMappings.daySummaries : null;
-    // (and Wander's own notes on her places — placeNotes.ts)
-    const keptPlaces = Array.isArray(priorMappings?.placeNotes) ? priorMappings.placeNotes : null;
-    // (and documents people gave Wander — Backroads' itinerary; tripDocuments.ts)
-    const keptDocs = Array.isArray(priorMappings?.documents) ? priorMappings.documents : null;
-    const tabMappings = { source: "snapshot", sourceName: opts.sourceName, ...(kept ? { sheetLink: kept } : {}), ...(keptMaps ? { appleGuides: keptMaps } : {}), ...(keptSummaries ? { daySummaries: keptSummaries } : {}), ...(keptPlaces ? { placeNotes: keptPlaces } : {}), ...(keptDocs ? { documents: keptDocs } : {}) };
+    // Everything kept there stays: her sheet's address and tab ids (sheetLink.ts), her Apple Maps guides (appleGuides.ts),
+    // the days' summaries (daySummaries.ts; a day the new copy changes hides its own until it's rewritten), Wander's notes
+    // on her places (placeNotes.ts), documents people gave Wander (tripDocuments.ts) — and any key added later
+    const priorMappings = (await tx.sheetSyncConfig.findUnique({ where: { tripId }, select: { tabMappings: true } }))?.tabMappings;
+    const tabMappings = mappingsAfterImport(priorMappings, opts.sourceName) as any;
     await tx.sheetSyncConfig.upsert({
       where: { tripId },
       create: { tripId, spreadsheetId: "", lastSyncAt: new Date(), lastSyncStatus: "success", tabMappings },

@@ -19,6 +19,7 @@ import { addDayChoice, removeDayChoice, listDayChoices, plainDay } from "../serv
 import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
 import { keepScoutWarm } from "../services/scoutWarm.js";
+import { currentTripIdFor, chooseTrip } from "../services/currentTrip.js";
 
 const SCOUT_MODEL = "claude-opus-5";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
@@ -3316,11 +3317,7 @@ export async function executeTool(
     // ── Create trip ─────────────
     case "create_trip": {
       const cities = input.cities || [];
-      // Archive all other active trips so the new one becomes THE active trip
-      await prisma.trip.updateMany({
-        where: { status: "active" },
-        data: { status: "archived" },
-      });
+      // (withdrawn; other trips are never archived for everyone — each person's current trip is their own, Nov 16 2026)
       const trip = await prisma.trip.create({
         data: {
           name: input.name,
@@ -4913,13 +4910,9 @@ export async function executeTool(
     }
 
     case "activate_trip": {
-      // Deactivate all trips, activate the requested one
-      await prisma.trip.updateMany({ data: { status: "archived" } });
-      const activated = await prisma.trip.update({
-        where: { id: input.tripId },
-        data: { status: "active" },
-        select: { id: true, name: true },
-      });
+      // (withdrawn; when it ran, it archived every trip for everyone — now it would choose the trip for this person only)
+      if (!user.travelerId || !(await chooseTrip(user.travelerId, input.tripId))) return { result: { error: "That trip isn't one of yours." } };
+      const activated = await prisma.trip.findUniqueOrThrow({ where: { id: input.tripId }, select: { id: true, name: true } });
       return {
         result: { tripId: activated.id, name: activated.name, message: `Switched to ${activated.name}` },
         actionDescription: `Switched to trip: ${activated.name}`,
@@ -5230,11 +5223,9 @@ router.post("/", async (req: AuthRequest, res) => {
     // Ensure we have a tripId — fall back to the active trip
     let tripId = context?.tripId;
     if (!tripId) {
-      // Fall back to this person's own most recently updated active trip (trips are private to their people)
-      const mine = req.user?.travelerId
-        ? await prisma.tripMember.findFirst({ where: { travelerId: req.user.travelerId, trip: { status: "active" } }, orderBy: { trip: { updatedAt: "desc" } }, select: { tripId: true } })
-        : null;
-      if (mine) tripId = mine.tripId;
+      // Fall back to this person's own current trip (services/currentTrip.ts — theirs, never someone else's choice)
+      const mine = req.user?.travelerId ? await currentTripIdFor(req.user.travelerId) : null;
+      if (mine) tripId = mine;
       else if (!req.user?.travelerId) {
         const activeTrip = await prisma.trip.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" }, select: { id: true } });
         if (activeTrip) tripId = activeTrip.id;

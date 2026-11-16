@@ -7,6 +7,7 @@
 import prisma from "../db.js";
 import { readGoogleSheet, type SheetRead } from "./googleSheet.js";
 import { quietFor } from "../activity.js";
+import { tripOver } from "../tripOver.js";
 
 const KEEP_COPIES = 20;
 
@@ -49,7 +50,10 @@ let nextDueAt = 0;
 
 /** Every enabled source due for a read ("every 10 minutes" by default) */
 export async function refreshDueSources(read?: SheetReader): Promise<number> {
-  const sources = await prisma.tripSource.findMany({ where: { enabled: true } });
+  // (a finished trip's sources are kept as last read, never read again — Nov 16 2026: Ken's rail sheet edited for
+  // December would otherwise have changed Japan's copy)
+  const sources = (await prisma.tripSource.findMany({ where: { enabled: true }, include: { trip: { select: { endDate: true } } } }))
+    .filter((s) => !tripOver(s.trip.endDate));
   let n = 0;
   let next = Infinity;
   for (const s of sources) {

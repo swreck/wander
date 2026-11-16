@@ -13,6 +13,7 @@
  */
 import prisma from "./db.js";
 import { packingWeather } from "./packingWeather.js";
+import { tripOver } from "./tripOver.js";
 
 export type Hello = { words: string; ask: string; last: boolean };
 // (who: her account — "Julie", as she knows herself (renamed from "Julie D." on Oct 10), or a first name and an initial;
@@ -72,7 +73,9 @@ export function startHelloWarmer() {
     const now = new Date();
     const live = PLANNED.filter((p) => p.wordsNow && now.getTime() < Date.parse(p.until));
     if (!live.length) { clearInterval(timer); return; }
-    const trips = await prisma.trip.findMany({ where: { status: "active" }, select: { id: true, tripMembers: { select: { traveler: { select: { displayName: true } } } } } });
+    // (a finished trip is never warmed — Nov 16 2026)
+    const trips = (await prisma.trip.findMany({ where: { status: "active" }, select: { id: true, endDate: true, tripMembers: { select: { traveler: { select: { displayName: true } } } } } }))
+      .filter((t) => !tripOver(t.endDate, now));
     for (const t of trips) for (const m of t.tripMembers) for (const p of live) {
       if (p.who.test(m.traveler.displayName)) { wordsKept.delete(`${t.id}|${m.traveler.displayName}`); await p.wordsNow!(t.id, m.traveler.displayName, now).catch(() => null); }
     }

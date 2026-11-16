@@ -12,6 +12,7 @@ import { createHash } from "crypto";
 import prisma from "../db.js";
 import { closeness, distanceWords, pinKey, type AppleGuide } from "./appleGuides.js";
 import { quietFor } from "../activity.js";
+import { tripIsOver } from "../tripOver.js";
 
 export interface MyMapPlace { name: string; note: string | null; lat: number; lng: number }
 export interface MyMapLayer { name: string; places: MyMapPlace[] }
@@ -121,6 +122,8 @@ export function startMyMapReader(everyMs = 3 * 3600_000): void {
     const cfgs = await prisma.sheetSyncConfig.findMany({ select: { tripId: true, tabMappings: true } }).catch(() => []);
     for (const c of cfgs) {
       if (!isMid((c.tabMappings as any)?.googleMap?.mid)) continue;
+      // (a finished trip keeps the map it had — Nov 16 2026)
+      if (await tripIsOver(c.tripId)) continue;
       const r = await refreshMyMap(c.tripId).catch(() => "unread" as const);
       console.log(`[google-map] trip ${c.tripId.slice(0, 8)}: ${r}`);
     }

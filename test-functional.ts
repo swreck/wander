@@ -93,6 +93,9 @@ async function main() {
       const trip = active.json;
       check("The open trip comes from Larisa's Guide", active.status === 200 && /^From Larisa's Guide/.test(trip?.tagline || ""), trip?.tagline);
       check("The trip keeps its time zone", !!trip?.timeZone, trip?.timeZone);
+      // Each person's own current trip (Nov 16 2026): the list carries when this person chose each trip
+      const mine = await get("/api/trips", token);
+      check("My trips list says when I chose each one", mine.status === 200 && Array.isArray(mine.json) && mine.json.every((t: any) => "myOpenedAt" in t), `status ${mine.status}`);
 
       if (trip?.id) {
         const status = await get(`/api/guide/status/${trip.id}`, token);

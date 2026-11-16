@@ -10415,41 +10415,40 @@ The Golden Pavilion (Kinkaku-ji) is a must-see temple.`;
 
     // ── Trip activate/deactivate ─────────────────────────────────
 
-    it("S453: Creating a new trip archives the old one", async () => {
+    // (Nov 16 2026: each person's current trip is their own — creating or choosing a trip no longer archives the others
+    // for everyone)
+    it("S453: Creating a new trip makes it the creator's current trip and leaves the old one as it was", async () => {
       const t1 = await createTrip(aliceToken, "S453 Trip A", "2026-06-01", "2026-06-05");
 
-      // Verify trip A is active
       const active1 = await request(app).get("/api/trips/active")
         .set("Authorization", `Bearer ${aliceToken}`);
       expect(active1.body?.id).toBe(t1);
 
-      // Create trip B — trip A should become archived
       const t2 = await createTrip(aliceToken, "S453 Trip B", "2026-07-01", "2026-07-05");
 
       const active2 = await request(app).get("/api/trips/active")
         .set("Authorization", `Bearer ${aliceToken}`);
       expect(active2.body?.id).toBe(t2);
 
-      // Trip A should be archived
       const tripA = await request(app).get(`/api/trips/${t1}`)
         .set("Authorization", `Bearer ${aliceToken}`);
-      expect(tripA.body.status).toBe("archived");
+      expect(tripA.body.status).toBe("active");
     });
 
-    it("S454: Activate archived trip — it becomes current", async () => {
+    it("S454: Choosing the older trip makes it current again — for this person — and changes no trip's status", async () => {
       const t1 = await createTrip(aliceToken, "S454 Old Trip", "2026-06-01", "2026-06-05");
       const t2 = await createTrip(aliceToken, "S454 New Trip", "2026-07-01", "2026-07-05");
 
-      // t1 is now archived. Reactivate it.
       const res = await request(app).post(`/api/trips/${t1}/activate`)
         .set("Authorization", `Bearer ${aliceToken}`);
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("active");
+      const current = await request(app).get("/api/trips/active").set("Authorization", `Bearer ${aliceToken}`);
+      expect(current.body?.id).toBe(t1);
 
-      // t2 should now be archived
       const t2Check = await request(app).get(`/api/trips/${t2}`)
         .set("Authorization", `Bearer ${aliceToken}`);
-      expect(t2Check.body.status).toBe("archived");
+      expect(t2Check.body.status).toBe("active");
     });
 
     // ── Experience state filter validation ────────────────────────

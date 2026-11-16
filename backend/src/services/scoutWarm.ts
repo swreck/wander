@@ -14,6 +14,7 @@
  * right after read it): one miss is carried on through; two in a row stop warming until the next question.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { tripIsOver } from "./tripOver.js";
 
 // (SCOUT_WARM_EVERY_MS: a test server's shorter wait, to see a ping read the cache)
 const EVERY = Number(process.env.SCOUT_WARM_EVERY_MS) || 55 * 60_000;
@@ -36,6 +37,8 @@ export function keepScoutWarm(tripId: string, reading: Reading): void {
   const next = () => {
     entry.timer = setTimeout(async () => {
       if (kept.get(tripId) !== entry || Date.now() - entry.askedAt > FOR || !awakeInJapan()) return;
+      // (a question about a finished trip is answered, and its reading isn't kept warm — Nov 16 2026; it costs money)
+      if (await tripIsOver(tripId)) { console.log(`[scout-warm] not kept for trip ${tripId.slice(0, 8)} (finished)`); return; }
       const stored = await ping(entry.reading);
       entry.missed = stored !== null && stored > 1000 ? entry.missed + 1 : 0;
       // (SCOUT_WARM_PROBE: a test server keeps pinging through misses, to measure how often they happen)

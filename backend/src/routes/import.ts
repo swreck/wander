@@ -163,12 +163,7 @@ router.post("/commit", async (req: AuthRequest, res) => {
       }
     }
 
-    // Archive any existing active trip
-    await prisma.trip.updateMany({
-      where: { status: "active" },
-      data: { status: "archived" },
-    });
-
+    // (other trips are left as they are: the new trip is the importer's current trip only — Nov 16 2026)
     // Create trip
     const trip = await prisma.trip.create({
       data: {
@@ -181,7 +176,7 @@ router.post("/commit", async (req: AuthRequest, res) => {
     // The person who imported it plans it, the same as POST /api/trips: trips are private to their people
     // (Sep 28), so without this the importer got "not found" for the trip they had just made
     if (req.user?.travelerId) {
-      await prisma.tripMember.create({ data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner" } });
+      await prisma.tripMember.create({ data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner", openedAt: new Date() } });
     }
 
     // Create cities and collect mapping for later use
