@@ -2856,8 +2856,10 @@ Ken (Sep 28) on links pasted in chat: "does nothing. it just scrolls away." Invi
 ### 14.3 Accounts and access
 
 Each trip is private to its people: you see, open and switch between only the trips you're on. Switching moves only you
-(§6.1); the trip menu (tap the trip's name on Home) lists your trips except set-aside ones, the one you're on first,
-marked Now. Every route that names a
+(§6.1); the trip menu (tap the trip's name on Home) lists your trips except set-aside ones, the one on screen first,
+marked Showing, each with its dates and year and where it is in time: "past trip", "under way" (both on the trip's
+clock) or "starts in N days" (counted on the phone's date, as Home counts). A tap on another trip opens its Home. Every
+route that names a
 trip, or an item on one, refuses anyone not on that trip; a traveler's profile is visible only to people sharing a trip.
 A person's name comes from their account, so a renamed person is known by the new name at once. Saving one personal
 setting never replaces the others.
