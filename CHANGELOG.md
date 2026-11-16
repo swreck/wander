@@ -22,6 +22,20 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   well since I will regularly move between the instances for ideas and comparison"). The trip on screen is marked
   "Showing" (it said "Now", on Japan after it ended); each trip shows its dates with the year and "past trip", "under
   way" or "starts in N days", counted as Home counts. SPEC §14.3.
+- **Place photos come back and stay current, for every trip** (fourth deploy, same day). Cause: Wander stored Google's
+  photo references, which expire about a month after they're handed out and may not be stored; nothing renewed them,
+  so 75 of Japan's 91 places had lost their photos by Nov 16, and a December place found in November would lose its
+  photos by late December. Now (backend services/placePhotoChecks.ts, photoJudge.ts, usage.ts): Wander keeps its own
+  verdict on each photo against a fingerprint (photographer + size; the image's hash where two share it) in a new
+  table, place_photo_checks; the server asks Google for a place's current photos by its place id when a person opens
+  it, shows only passed photos in order (up to eight), and holds what Google sends only as long as Google's answers say
+  (list 5 minutes, image 1 day — the phone's saved photos now 1 day, were 7). No reference is written to the database
+  or sent to a phone; place_photos.photos is no longer read or written (Japan's rows left as they were). Japan's 16
+  places checked Oct 24–31: their October photos recorded before their references expired (78 of 94 still listed by
+  Google; those show exactly as in October). The other 75: looked at by the same check when a person first opens
+  them, once per photo. Phones' saved addresses ("…/0", "…/1") still open the place's photos in order. Every Google
+  Places request and photo AI check is counted per day in service_usage, with daily ceilings for the photos' share
+  (past one: "Photo not available"); trip-data/session-tools/read-usage.mts prints it. SPEC §15.1.
 - **A missing place photo says so** (third deploy, same day). A photo that failed always said "Photo needs signal",
   even online. Japan's place photos saved Oct 17 now fail because Google no longer serves those saved references (it
   answers 400; those saved Oct 24 on still work). After a failure the phone asks once more: no photo there → "Photo

@@ -7,7 +7,8 @@ import { api } from "./api";
 import type { Hours } from "./placeHours";
 /** (hours: Google's, for the place her line means — lib/placeHours says when her time runs past them) */
 /** `ok` on a photo after the first: checked to show the place too — Play shows it as the moment's second photo */
-export type PlaceHit = { id: string; v?: number; name: string | null; photos: { credit: string | null; ok?: boolean }[]; hours?: Hours | null };
+/** `id` on a photo: Wander's own address for it (Nov 16 2026) — the server finds Google's current copy of it */
+export type PlaceHit = { id: string; v?: number; name: string | null; photos: { id?: string; credit: string | null; ok?: boolean }[]; hours?: Hours | null };
 // (2: answers that carry when each was checked — the test runs' earlier copies are dropped; 3: with Google's hours;
 // 4: only checked photos, up to six — a phone's earlier copies listed six of Google's with two checked, Oct 17)
 const KEY = "wander:place-photos:4";
@@ -23,7 +24,9 @@ const write = (k: Kept) => {
 };
 
 /** A stop's photo: small for the day's list, large full screen */
-export const placePhotoUrl = (hit: PlaceHit, n: number, small = false) => `/api/place-photos/${hit.id}/${n}?v=${hit.v || 0}${small ? "&size=small" : ""}`;
+// (by Wander's own id for the photo when the place has one — Nov 16 2026; a place not yet looked at under those rules, or
+// a copy this phone kept from before, by its place in the order, which the server still answers)
+export const placePhotoUrl = (hit: PlaceHit, n: number, small = false) => `/api/place-photos/${hit.id}/${hit.photos[n]?.id || n}?v=${hit.v || 0}${small ? "&size=small" : ""}`;
 
 /** Why a photo didn't show, asked once after it fails: "gone" when Wander answers it has no such photo (Google stops
  *  serving a saved photo about a month after it was found — Japan's from Oct 17, seen Nov 16 2026), "signal" when the

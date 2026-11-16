@@ -8,6 +8,7 @@
  * Never a walking time: a straight line isn't a route. Where they are is never saved or logged.
  */
 import prisma from "../db.js";
+import { googleFetch } from "../usage.js";
 import { metres, appleGuidesOf, strayKeys, pinKey } from "./appleGuides.js";
 import { myMapOf } from "./googleMyMap.js";
 
@@ -57,7 +58,7 @@ export async function placesNear(here: { lat: number; lng: number }, kind: strin
     const url = urls[attempt];
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 5000);
-    try { data = await (await fetch(url, { signal: ctl.signal })).json(); } catch { data = null; } finally { clearTimeout(t); }
+    try { data = await (await googleFetch("google.search", url, { signal: ctl.signal })).json(); } catch { data = null; } finally { clearTimeout(t); }
   }
   if (data?.status !== "OK" && data?.status !== "ZERO_RESULTS") {
     // (Google's reason only — never where they are)

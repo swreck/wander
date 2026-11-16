@@ -6,6 +6,7 @@
  * Ritz-Carlton Nikko is on Lake Chuzenji, ~4,200 ft, far colder than Nikko town's point), else the town's.
  */
 import prisma from "./db.js";
+import { googleFetch } from "./usage.js";
 import { meteo } from "./meteo.js";
 import { appleGuidesOf } from "./guide/appleGuides.js";
 import { myMapOf } from "./guide/googleMyMap.js";
@@ -23,7 +24,7 @@ export async function hotelPoint(query: string): Promise<{ lat: number; lng: num
   let p: { lat: number; lng: number } | null = null;
   if (key) {
     try {
-      const r = await (await fetch(`https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=geometry&key=${key}`)).json() as any;
+      const r = await (await googleFetch("google.search", `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=geometry&key=${key}`)).json() as any;
       const g = r?.candidates?.[0]?.geometry?.location;
       if (typeof g?.lat === "number" && typeof g?.lng === "number") p = { lat: g.lat, lng: g.lng };
     } catch { /* the town's point instead */ }

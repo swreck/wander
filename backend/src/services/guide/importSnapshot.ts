@@ -28,6 +28,7 @@ import { pictureGroupFor, pictureStartFor } from "./pictureGroup.js";
 import { withoutFinancialDetails, withoutPersonalContacts } from "../sources/filter.js";
 import { noteFor, type PlaceNote } from "./placeNotes.js";
 import { tripOver } from "../tripOver.js";
+import { chooseTrip } from "../currentTrip.js";
 
 export interface ImportOptions {
   buffer: Buffer;
@@ -1014,11 +1015,12 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
     // current trip of the person who brought it in, and of nobody else until they choose it)
     for (const name of ["Ken", "Larisa"]) {
       const t = await prisma.traveler.findFirst({ where: { displayName: name } });
-      const mine = name === opts.importedBy ? { openedAt: new Date() } : {};
-      if (t) await prisma.tripMember.upsert({
+      if (!t) continue;
+      await prisma.tripMember.upsert({
         where: { tripId_travelerId: { tripId, travelerId: t.id } },
-        create: { tripId, travelerId: t.id, role: "planner", ...mine }, update: { role: "planner", ...mine },
+        create: { tripId, travelerId: t.id, role: "planner" }, update: { role: "planner" },
       });
+      if (name === opts.importedBy) await chooseTrip(t.id, tripId);
     }
   }
   report.tripId = tripId;

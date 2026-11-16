@@ -55,13 +55,15 @@ registerRoute(
 // (each address names its photo — ?v= changes when the photo does — and the server marks them unchanging for a week; under
 // the general image rule below, every view asked the server again, and after a deploy the server asks Google again: cost
 // audit, Oct 16. Their own store, so other images don't push them out)
+// (Nov 16 2026: a place's photo by Wander's own id for it, as well as by its place in the order; and kept one day — the
+// time Google's own answer allows for its photos, "max-age=86400" — after which the server finds Google's current copy)
 registerRoute(
-  ({ url }) => url.origin === self.location.origin && /^\/api\/(place-photos\/[^/]+\/\d+|city-photo\/[^/]+\/image)$/.test(url.pathname) && url.searchParams.has('v'),
+  ({ url }) => url.origin === self.location.origin && /^\/api\/(place-photos\/[^/]+\/[a-z0-9]+|city-photo\/[^/]+\/image)$/.test(url.pathname) && url.searchParams.has('v'),
   new CacheFirst({
     cacheName: 'wander-place-photos-v1',
     plugins: [
       new CacheableResponsePlugin({ statuses: [200] }),
-      new ExpirationPlugin({ maxEntries: 400, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+      new ExpirationPlugin({ maxEntries: 400, maxAgeSeconds: 24 * 60 * 60 }),
     ],
   })
 );

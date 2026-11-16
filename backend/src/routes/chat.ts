@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { googleFetch } from "../services/usage.js";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 import { noteMatches, sharedWords } from "../services/tripNotes/view.js";
@@ -3542,7 +3543,7 @@ export async function executeTool(
         findUrl += `&locationbias=circle:20000@${input.location}`;
       }
 
-      const findRes = await fetch(findUrl);
+      const findRes = await googleFetch("google.search", findUrl);
       const findData = await findRes.json() as any;
       const candidate = findData?.candidates?.[0];
       if (!candidate) return { result: { found: false, message: `No place found for "${input.query}"` } };

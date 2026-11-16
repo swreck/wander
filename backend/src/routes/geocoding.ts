@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { googleFetch } from "../services/usage.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { geocodeExperience, confirmLocation, searchPlace, nearbyPlaces } from "../services/geocoding.js";
 import { logChange } from "../services/changeLog.js";
@@ -115,7 +116,7 @@ router.get("/city-photo", async (req: AuthRequest, res) => {
   try {
     // Find place to get photo reference
     const findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=photos,name&key=${apiKey}`;
-    const findRes = await fetch(findUrl);
+    const findRes = await googleFetch("google.search", findUrl);
     const findData = await findRes.json() as any;
     const photos = findData?.candidates?.[0]?.photos;
     if (!photos || photos.length === 0) { res.json({ url: null }); return; }
@@ -144,7 +145,7 @@ router.get("/place-details", async (req: AuthRequest, res) => {
     if (location) {
       findUrl += `&locationbias=circle:20000@${location}`;
     }
-    const findRes = await fetch(findUrl);
+    const findRes = await googleFetch("google.search", findUrl);
     const findData = await findRes.json() as any;
     const candidate = findData?.candidates?.[0];
     if (!candidate) { res.json({ found: false }); return; }

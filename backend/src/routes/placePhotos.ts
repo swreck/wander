@@ -4,7 +4,8 @@
 import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
-import { placePhotosFor, placePicture, knownHit, freshenHours, freshenPlaces, type PlaceHit } from "../services/placePhotos.js";
+import { placePhotosFor, knownHits, freshenHours, freshenPlaces, type PlaceHit } from "../services/placePhotos.js";
+import { picture } from "../services/placePhotoChecks.js";
 import { tripIsOver, travelerTripsAllOver } from "../services/tripOver.js";
 
 const router = Router();
@@ -33,9 +34,10 @@ router.post("/lookup", requireAuth, async (req: AuthRequest, res) => {
 // GET /known — every stop Wander has looked at (her line, its search, the answer), so a phone opening any day draws
 // its photos in the first frame instead of moving the day as they come (tourist63: the page jumped ~8 s in)
 router.get("/known", requireAuth, async (req: AuthRequest, res) => {
-  const rows = await prisma.placePhoto.findMany({ where: { verdict: { in: ["yes", "no", "none"] } }, select: { id: true, query: true, line: true, name: true, photos: true, verdict: true, checkedAt: true, hours: true } });
+  const rows = await prisma.placePhoto.findMany({ where: { verdict: { in: ["yes", "no", "none"] } }, select: { id: true, query: true, line: true, name: true, verdict: true, checkedAt: true, hours: true } });
+  const hits = await knownHits(rows);
   res.set("Cache-Control", "private, max-age=600");
-  res.json({ places: rows.map((r) => ({ query: r.query, line: r.line, hit: knownHit(r) })) });
+  res.json({ places: rows.map((r) => ({ query: r.query, line: r.line, hit: hits.get(r.id) ?? null })) });
   // (their hours, when missing or three days old, are fetched in the background — the next look has them; and each
   // place checked before the current rules — every photo shown checked, up to six — checked once more). Not for someone
   // whose trips are all over: every app open on old Japan refreshed 91 places' hours (Nov 15).
@@ -69,11 +71,14 @@ router.get("/about-line", requireAuth, async (req, res) => {
   res.json(r);
 });
 
-router.get("/:id/:n", async (req, res) => {
-  const n = Number(req.params.n);
-  const p = Number.isInteger(n) && n >= 0 && n < 6 ? await placePicture(String(req.params.id), n, req.query.size === "small").catch(() => null) : null;
-  if (!p) { res.status(404).end(); return; }
-  res.set("Cache-Control", "public, max-age=604800, immutable");
+// (`:which` is the photo's own id, or its place in the order — "0", "1" … — the addresses phones kept before Nov 16, which
+// still open the place's photos in order. Kept by a phone only as long as Google's answer allows: its own max-age, a day)
+router.get("/:id/:which", async (req, res) => {
+  const which = String(req.params.which);
+  const ok = /^\d{1,2}$/.test(which) || /^[a-z0-9]{20,40}$/.test(which);
+  const p = ok ? await picture(String(req.params.id), which, req.query.size === "small").catch((e) => { console.warn("[place-photos] picture:", e?.message || e); return null; }) : null;
+  if (!p) { res.set("Cache-Control", "no-store"); res.status(404).end(); return; }
+  res.set("Cache-Control", `public, max-age=${Math.max(60, p.maxAge)}`);
   res.type(p.type).send(p.bytes);
 });
 
