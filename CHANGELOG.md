@@ -22,6 +22,9 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   well since I will regularly move between the instances for ideas and comparison"). The trip on screen is marked
   "Showing" (it said "Now", on Japan after it ended); each trip shows its dates with the year and "past trip", "under
   way" or "starts in N days", counted as Home counts. SPEC §14.3.
+- **A place's photographer is credited on its first open** (fifth deploy, same day). A place looked at only when its
+  first photo opened showed that photo with no credit, because the phone's copy predated the check. The day card now
+  asks once for the place after the photo shows (GET /api/place-photos/one/:id) and credits the photographer at once.
 - **Place photos come back and stay current, for every trip** (fourth deploy, same day). Cause: Wander stored Google's
   photo references, which expire about a month after they're handed out and may not be stored; nothing renewed them,
   so 75 of Japan's 91 places had lost their photos by Nov 16, and a December place found in November would lose its
