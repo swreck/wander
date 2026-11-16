@@ -28,6 +28,19 @@ const write = (k: Kept) => {
 // a copy this phone kept from before, by its place in the order, which the server still answers)
 export const placePhotoUrl = (hit: PlaceHit, n: number, small = false) => `/api/place-photos/${hit.id}/${hit.photos[n]?.id || n}?v=${hit.v || 0}${small ? "&size=small" : ""}`;
 
+/** A place as Wander has it now — asked after the first photo of a place not yet looked at has shown (Nov 16 2026: the
+ *  place is looked at when that photo is opened, so this phone's copy had no photographer to credit). This phone's kept
+ *  copy of the place is brought up to date too. */
+export async function freshPlaceHit(id: string): Promise<PlaceHit | null> {
+  try {
+    const r = await api.get<{ hit: PlaceHit | null }>(`/place-photos/one/${encodeURIComponent(id)}`);
+    const k = read();
+    for (const key of Object.keys(k)) if (k[key].hit?.id === id) k[key] = { hit: r.hit, at: Date.now() };
+    write(k);
+    return r.hit;
+  } catch { return null; }
+}
+
 /** Why a photo didn't show, asked once after it fails: "gone" when Wander answers it has no such photo (Google stops
  *  serving a saved photo about a month after it was found — Japan's from Oct 17, seen Nov 16 2026), "signal" when the
  *  phone couldn't reach Wander. Every failure said "needs signal", which was untrue online. */

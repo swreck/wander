@@ -218,16 +218,22 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
   // (tourist63), and never a fold that moves the day (tourist64: 0.127 when the boxes folded away))
   // (and a photo Wander no longer has says so — "needs signal" was untrue on a good connection; Nov 16 2026)
   const [failed, setFailed] = useState<null | "gone" | "signal">(null);
+  // (a place looked at only when this photo opened — Nov 16 2026 — is asked for again once it shows, so its photographer is
+  // credited at once and its count is right)
+  const [fresh, setFresh] = useState<PlaceHit | null>(null);
   if (failed) return <div className="mt-2 rounded-lg bg-[#efe8dc] aspect-[16/9] flex items-center justify-center text-xs text-[#6b5d4a]">{failed === "gone" ? "Photo not available" : "Photo needs signal"}</div>;
-  const credit = hit.photos[0]?.credit;
+  const now = fresh ?? hit;
+  const credit = now.photos[0]?.credit;
   const src = placePhotoUrl(hit, 0, true);
   return (
     <button type="button" onClick={onOpen} aria-label={`Photos of ${hit.name || title}`} className="relative block w-full mt-2 rounded-lg overflow-hidden bg-[#efe8dc] aspect-[16/9]">
-      <img src={src} alt="" loading="lazy" onError={() => { whyNoPhoto(src).then(setFailed); }} className="absolute inset-0 w-full h-full object-cover" />
+      <img src={src} alt="" loading="lazy" onError={() => { whyNoPhoto(src).then(setFailed); }}
+        onLoad={() => { if (!hit.photos[0]?.id && !fresh) freshPlaceHit(hit.id).then((h) => { if (h) setFresh(h); }); }}
+        className="absolute inset-0 w-full h-full object-cover" />
       <span className="absolute inset-x-0 bottom-0 h-9 bg-gradient-to-t from-black/45 to-transparent" aria-hidden />
       {/* (the photographer, on the photo, as Google asks — tourist63: the list's photos had no credit) */}
       {credit && <span className="absolute left-2 bottom-1.5 max-w-[70%] truncate text-[10px] text-white/85">Photo: {credit} · Google</span>}
-      {hit.photos.length > 1 && <span className="absolute right-2 bottom-1.5 text-[11px] font-medium text-white bg-black/45 rounded-full px-2 py-0.5">1 / {hit.photos.length}</span>}
+      {now.photos.length > 1 && <span className="absolute right-2 bottom-1.5 text-[11px] font-medium text-white bg-black/45 rounded-full px-2 py-0.5">1 / {now.photos.length}</span>}
     </button>
   );
 }
@@ -948,7 +954,7 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
 import EveningQuestion from "../components/EveningQuestion";
 import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
 import { CityTitle, warmCityPhoto, photoWanted, useCityBandPhoto } from "../components/CityArrival";
-import { keptPlacePhotos, lookUpPlacePhotos, mapsQueryOf, placePhotoUrl, whyNoPhoto, type PlaceHit } from "../lib/placePhotos";
+import { keptPlacePhotos, lookUpPlacePhotos, mapsQueryOf, placePhotoUrl, whyNoPhoto, freshPlaceHit, type PlaceHit } from "../lib/placePhotos";
 import PlaceGallery from "../components/PlaceGallery";
 import PlayTheDay, { type Moment, type PlayCover } from "../components/PlayTheDay";
 import DayForecast from "../components/DayForecast";
