@@ -24,7 +24,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "./db.js";
 import { allow } from "./usage.js";
 import { samePlace, judgePhotos } from "./photoJudge.js";
-import { fetchPhoto, recordVerdicts, MOST } from "./placePhotoChecks.js";
+import { fetchPhoto, recordVerdicts, ensureChecked, judgedWords, sameWords, MOST } from "./placePhotoChecks.js";
 
 const WEEK = 7 * 24 * 3600_000;
 const DAY = 24 * 3600_000;
@@ -70,9 +70,22 @@ const asking = new Map<string, Promise<PlaceHit>>();
 export function placePhotosFor(query: string, line: string, near: { lat: number; lng: number } | null, opts: { asKept?: boolean } = {}): Promise<PlaceHit> {
   const q = query.trim().slice(0, 300);
   if (!q) return Promise.resolve(null);
-  if (opts.asKept) return prisma.placePhoto.findUnique({ where: { query: q } }).then((row) => (row ? hit(row) : placePhotosFor(query, line, near)));
+  if (opts.asKept) return asKept(q, line.trim().slice(0, 400), near);
   if (!asking.has(q)) asking.set(q, resolve(q, line.trim().slice(0, 400), near).finally(() => asking.delete(q)));
   return asking.get(q)!;
+}
+
+/** A finished trip's stop: the place as it was found, never searched again — but its photos judged again when her words
+ *  for it differ from the words they were judged against (Nov 16 2026: her list's "3D panda billboard" under an udon
+ *  shop's pin had never reached the check, which kept a plate of udon) */
+async function asKept(query: string, line: string, near: { lat: number; lng: number } | null): Promise<PlaceHit> {
+  const row = await prisma.placePhoto.findUnique({ where: { query } });
+  if (!row) return placePhotosFor(query, line, near);
+  if (row.verdict === "yes" && row.placeId) {
+    const all = await prisma.placePhotoCheck.findMany({ where: { placeRowId: row.id }, select: { words: true } });
+    if (all.length && !sameWords(judgedWords(all), line)) await ensureChecked(row, line);
+  }
+  return hit(row);
 }
 
 type Row = { id: string; name: string | null; verdict: string; checkedAt: Date; hours?: unknown };
@@ -199,7 +212,7 @@ async function byId(placeId: string, key: string, top: any = {}): Promise<{ foun
  *  "Joël Robuchon" (Ebisu)" → "Gastronomy Joël Robuchon Ebisu" */
 export function lineWords(line: string): string {
   return line
-    .replace(/\s*\((?:her tab names the stop|her booking for it):[^)]*\)\s*$/, "")
+    .replace(/\s*\((?:her tab names the stop|her booking for it|her list says):[^)]*\)\s*$/, "")
     .replace(/^[^\p{L}\p{N}]+/u, "")
     .replace(/^[A-Z][A-Z &-]+\s+[–-]\s+/, "")
     .split(/\s+[—–]\s+/)[0]
@@ -262,7 +275,7 @@ async function resolve(query: string, line: string, near: { lat: number; lng: nu
   const data = { line, placeId: found?.placeId ?? null, name: found?.name ?? null, address: found?.address ?? null, photos: [], verdict, why: `${RULES}${why || ""}`,
     hours: verdict === "yes" ? (got?.hours ?? { weekly: [], dated: [], status: null, at: Date.now() }) as unknown as Prisma.InputJsonValue : Prisma.DbNull, checkedAt: new Date() };
   const row = await prisma.placePhoto.upsert({ where: { query }, create: { query, ...data }, update: data });
-  if (verdict === "yes" && looked && found) await recordVerdicts(row.id, looked.map((l, i) => ({ ...l, credit: found.photos[i].credit, width: found.photos[i].width, height: found.photos[i].height })), shownPicks);
+  if (verdict === "yes" && looked && found) await recordVerdicts(row.id, looked.map((l, i) => ({ ...l, credit: found.photos[i].credit, width: found.photos[i].width, height: found.photos[i].height })), shownPicks, line);
   else await prisma.placePhotoCheck.deleteMany({ where: { placeRowId: row.id } });
   console.log(`[place-photos] "${line.slice(0, 50)}" → ${found?.name || "nothing"}: ${verdict}${verdict === "yes" ? `, ${shownPicks.length} photos` : ""}${why ? ` (${why.slice(0, 80)})` : ""}`);
   return hit(row);

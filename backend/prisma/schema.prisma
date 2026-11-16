@@ -887,6 +887,10 @@ model PlacePhotoCheck {
   rank       Int?                               // order among the passed ones, 0 first
   credit     String?                            // the photographer, as Google credits them beside the photo
   source     String                             // "october" (kept from Japan's own checks) | "check"
+  /// Her words the verdict was judged against: her line, with her own description of the stop when her list gives one
+  /// ("Yamashita Honki Udon - Shibuya Center Street (her list says: 3D panda billboard)"). Words that change are judged
+  /// again. Null: judged against the place's line alone, under the rules before Nov 16 2026's second look.
+  words      String?
   checkedAt  DateTime  @default(now()) @map("checked_at")
   missingAt  DateTime? @map("missing_at")       // when Google was last seen not to list it
 

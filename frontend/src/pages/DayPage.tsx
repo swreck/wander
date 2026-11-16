@@ -230,9 +230,10 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
       <img src={src} alt="" loading="lazy" onError={() => { whyNoPhoto(src).then(setFailed); }}
         onLoad={() => { if (!hit.photos[0]?.id && !fresh) freshPlaceHit(hit.id).then((h) => { if (h) setFresh(h); }); }}
         className="absolute inset-0 w-full h-full object-cover" />
-      <span className="absolute inset-x-0 bottom-0 h-9 bg-gradient-to-t from-black/45 to-transparent" aria-hidden />
-      {/* (the photographer, on the photo, as Google asks — tourist63: the list's photos had no credit) */}
-      {credit && <span className="absolute left-2 bottom-1.5 max-w-[70%] truncate text-[10px] text-white/85">Photo: {credit} · Google</span>}
+      <span className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent" aria-hidden />
+      {/* (the photographer, on the photo, as Google asks — tourist63: the list's photos had no credit; in full, wrapping —
+          a long name cut off "· Google", Nov 16 2026 — and shadowed, to read on a bright photo) */}
+      {credit && <span className="absolute left-2 bottom-1.5 max-w-[72%] break-words leading-tight text-[10px] text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">Photo: {credit} · Google</span>}
       {now.photos.length > 1 && <span className="absolute right-2 bottom-1.5 text-[11px] font-medium text-white bg-black/45 rounded-full px-2 py-0.5">1 / {now.photos.length}</span>}
     </button>
   );
@@ -293,7 +294,7 @@ function NextStops({ tripId, cityId, head, stops }: { tripId: string; cityId: st
               <span className="relative block w-full aspect-[4/3] rounded-lg overflow-hidden bg-[#efe8dc]">
                 {hit && <img src={placePhotoUrl(hit, 0, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
                 {/* (the photographer, on the photo, as Google asks) */}
-                {hit?.photos[0]?.credit && <span className="absolute inset-x-0 bottom-0 px-1.5 pb-0.5 pt-3 bg-gradient-to-t from-black/50 to-transparent truncate text-[9px] text-white/85">Photo: {hit.photos[0].credit} · Google</span>}
+                {hit?.photos[0]?.credit && <span className="absolute inset-x-0 bottom-0 px-1.5 pb-0.5 pt-3 bg-gradient-to-t from-black/55 to-transparent break-words leading-tight text-[9px] text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">Photo: {hit.photos[0].credit} · Google</span>}
               </span>
               <span className="block mt-1 text-[13px] leading-snug text-[#3a3128] line-clamp-2">{s.title}</span>
             </button>
@@ -1015,7 +1016,7 @@ function PlacePhotos({ hit, title, onOpen, dark = false }: { hit: PlaceHit; titl
           </span>
         </>
       )}
-      {credit && <p className={`text-[10px] mt-1 truncate ${dark ? "text-white/60" : "text-[#8a7d68]"}`}>Photo: {credit} · Google</p>}
+      {credit && <p className={`text-[10px] mt-1 break-words leading-tight ${dark ? "text-white/60" : "text-[#8a7d68]"}`}>Photo: {credit} · Google</p>}
     </div>
   );
 }
