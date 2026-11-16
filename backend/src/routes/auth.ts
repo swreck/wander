@@ -10,6 +10,7 @@ import {
 import { parseAccessCodes, signToken, requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { stringSimilarity } from "../services/geocoding.js";
 import { getUserRole } from "../middleware/role.js";
+import { currentTripIdFor, chooseTrip } from "../services/currentTrip.js";
 import {
   RP_ID,
   RP_NAME,
@@ -46,13 +47,15 @@ function isNameLoginAllowed(): boolean {
   return process.env.NODE_ENV !== "production" || process.env.ALLOW_NAME_LOGIN === "true";
 }
 
+/** This person's role on their own current trip (Nov 16 2026: it was read from the one trip active for all of Wander, so
+ *  someone signing in while another group's trip was current got no role on their own) */
+async function roleOnCurrentTrip(travelerId: string): Promise<string | undefined> {
+  const tripId = await currentTripIdFor(travelerId);
+  return (tripId && (await getUserRole(travelerId, tripId))) || undefined;
+}
+
 async function issueLogin(traveler: { id: string; displayName: string }) {
-  const activeTrip = await prisma.trip.findFirst({ where: { status: "active" } });
-  let role: string | undefined;
-  if (activeTrip) {
-    const r = await getUserRole(traveler.id, activeTrip.id);
-    if (r) role = r;
-  }
+  const role = await roleOnCurrentTrip(traveler.id);
   const token = signToken({
     code: traveler.displayName,
     displayName: traveler.displayName,
@@ -267,15 +270,8 @@ router.post("/login", async (req, res) => {
 
 // ── GET /me ────────────────────────────────────────────────────
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
-  // Look up current role on active trip
-  let role: string | undefined;
-  if (req.user!.travelerId) {
-    const activeTrip = await prisma.trip.findFirst({ where: { status: "active" } });
-    if (activeTrip) {
-      const r = await getUserRole(req.user!.travelerId, activeTrip.id);
-      if (r) role = r;
-    }
-  }
+  // Their role on their own current trip
+  const role = req.user!.travelerId ? await roleOnCurrentTrip(req.user!.travelerId) : undefined;
   res.json({
     code: req.user!.code,
     displayName: req.user!.displayName,
@@ -394,6 +390,8 @@ router.post("/join/:token", async (req, res) => {
         where: { id: personalInvite.claimedByTravelerId },
       });
       if (existingTraveler) {
+        // (their link opens the trip it was made for — for them alone)
+        await chooseTrip(existingTraveler.id, personalInvite.tripId);
         const role = await getUserRole(existingTraveler.id, personalInvite.tripId);
         const token = signToken({
           code: existingTraveler.displayName,
@@ -433,15 +431,9 @@ router.post("/join/:token", async (req, res) => {
       data: { claimedByTravelerId: traveler.id, claimedAt: new Date() },
     });
 
-    // Activate trip for this user
-    await prisma.trip.updateMany({
-      where: { status: "active" },
-      data: { status: "archived" },
-    });
-    await prisma.trip.update({
-      where: { id: personalInvite.tripId },
-      data: { status: "active" },
-    });
+    // The trip they were invited to becomes their current trip — theirs only (Nov 16 2026: this archived every other
+    // trip for all of Wander)
+    await chooseTrip(traveler.id, personalInvite.tripId);
 
     const role = await getUserRole(traveler.id, personalInvite.tripId);
     const token = signToken({

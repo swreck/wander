@@ -1146,12 +1146,15 @@ describe("Wander API — Comprehensive Test Suite", () => {
       expect(britishMuseum.state).toBe("possible"); // no dayDate
     });
 
-    it("previous trip is archived after import", async () => {
+    // (Nov 16 2026: an import no longer archives other trips for everyone — the new trip is the importer's own current trip)
+    it("previous trip is left as it was after import; the imported one is the importer's current trip", async () => {
       const res = await request(app)
         .get("/api/trips")
         .set("Authorization", `Bearer ${token}`);
       const testTrip = res.body.find((t: any) => t.name === "Comprehensive Test Trip");
-      expect(testTrip.status).toBe("archived");
+      expect(testTrip.status).toBe("active");
+      const current = await request(app).get("/api/trips/active").set("Authorization", `Bearer ${token}`);
+      expect(current.body.id).toBe(importedTripId);
     });
 
     it("new active trip is the imported one", async () => {

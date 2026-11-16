@@ -2,6 +2,32 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-16 (Monday, at home) — Keeping Japan safe before a second trip exists
+
+- Ken (Nov 2, approving the plan "Yes to all"): "I don't want to lose the data from the trip we just completed in Japan"
+  · "switch instantly back to Japan to Remember how I did a particular thing on that trip… then… switch back to the new
+  instance".
+- **Each person has their own current trip.** Choosing a trip in the trip menu (tap the trip's name on Home) moves only
+  the person choosing; it used to archive every other trip for all of Wander, so Ken opening one trip moved everyone.
+  Opening the app never switches a trip (its first load used to switch everyone to the trip with the newest Guide copy).
+  Creating a trip, importing one, and an invitation make that trip current for that person only. Stored per membership
+  (trip_members.opened_at, a new nullable column); a trip of theirs that has begun since their last choice, on its own
+  clock, comes forward by itself (backend services/currentTrip.ts). No trip's status changes any more. SPEC §6.1, §14.3.
+- **The role follows the trip.** Sign-in, /api/auth/me and the planner-only learnings list use the person's role on
+  their own current trip (it was read from the one global "active" trip); the app asks again after a switch, so Home's
+  planner lines change with the trip. SPEC §6.1.
+- **The trip menu lists your trips** except set-aside ones (April's placeholders); it listed only trips read from
+  Larisa's Guide. The one you're on first, then the ones you chose most recently. SPEC §14.3.
+- **A finished trip keeps its plan.** A Guide copy sent to a trip whose last day is past is refused before the file is
+  read, and a copy whose dates don't overlap the trip's for at least half the shorter span is refused too ("…belongs to
+  another trip. Nothing was changed."). Her copies moving a day or two still go in. SPEC §6.1.
+- **An import keeps every stored trip setting it doesn't own** (it rebuilt them from a list of five, so anything new kept
+  there vanished on her next copy). SPEC §6.1.
+- **Background work leaves a finished trip alone:** its live sources (Ken's rail sheet) aren't read again, her Google
+  map isn't re-read, Scout's keep-warm doesn't run for it, and Scout's opening forecast words skip it. SPEC §6.1, §18.2.
+- Tests: backend/tests/current-trip.test.ts, guide-import-guards.test.ts (20 of their 24 failed on the old code); four
+  older tests that asserted the global archive now assert the new rule (api, chaos S453/S454, dateless-trips).
+
 ## 2026-11-15 (Sunday, at home) — Old Japan opens looking like its last day
 
 - Ken (Nov 15, his screenshot: Home with no map, every calendar square washed out): "I would like the old Japan to open,

@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { getUserRole } from "../middleware/role.js";
+import { currentTripIdFor } from "../services/currentTrip.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -22,11 +23,11 @@ router.param("id", async (req: AuthRequest, res, next, id: string) => {
 router.get("/", async (req: AuthRequest, res) => {
   const { tripId } = req.query;
 
-  // Check planner role on active trip
+  // Check planner role on this person's current trip (their own — Nov 16 2026)
   if (req.user?.travelerId) {
-    const activeTrip = await prisma.trip.findFirst({ where: { status: "active" } });
-    if (activeTrip) {
-      const role = await getUserRole(req.user.travelerId, activeTrip.id);
+    const current = await currentTripIdFor(req.user.travelerId);
+    if (current) {
+      const role = await getUserRole(req.user.travelerId, current);
       if (role !== "planner") {
         res.status(403).json({ error: "Planner access required" });
         return;

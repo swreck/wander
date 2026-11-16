@@ -7,6 +7,7 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { getUserRole } from "../middleware/role.js";
 import { itemMemberParam } from "../middleware/role.js";
 import { tripOf } from "../middleware/tripGuard.js";
+import { currentTripIdFor, chooseTrip } from "../services/currentTrip.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -34,13 +35,15 @@ router.get("/", async (req: AuthRequest, res) => {
       cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       _count: { select: { experiences: true, days: true } },
       sheetSyncConfig: { select: { lastSyncAt: true } },
-      ...(req.user?.travelerId ? { tripMembers: { where: { travelerId: req.user.travelerId }, select: { role: true } } } : {}),
+      ...(req.user?.travelerId ? { tripMembers: { where: { travelerId: req.user.travelerId }, select: { role: true, openedAt: true } } } : {}),
     },
   });
-  res.json(trips.map(({ tripMembers, ...t }: any) => ({ ...t, myRole: tripMembers?.[0]?.role || null })));
+  // (myOpenedAt: when this person last chose the trip — the trip menu lists theirs in that order, Nov 16 2026)
+  res.json(trips.map(({ tripMembers, ...t }: any) => ({ ...t, myRole: tripMembers?.[0]?.role || null, myOpenedAt: tripMembers?.[0]?.openedAt || null })));
 });
 
-// Get active trip (among my trips)
+// This person's current trip (services/currentTrip.ts: each person's own, Nov 16 2026 — it was one switch for all of
+// Wander, so Ken opening one trip moved everyone)
 router.get("/active", async (req: AuthRequest, res) => {
   const include = {
     cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" as const } },
@@ -48,14 +51,14 @@ router.get("/active", async (req: AuthRequest, res) => {
     days: { orderBy: { date: "asc" as const }, include: { city: true } },
     sheetSyncConfig: { select: { lastSyncAt: true } },
   };
-  let trip = await prisma.trip.findFirst({ where: { status: "active", ...myTrips(req) }, orderBy: { updatedAt: "desc" }, include });
-  // "Active" is one switch for all of Wander; when Ken's current trip is another group's, this person
-  // still gets their own most recent trip rather than nothing
-  if (!trip && req.user?.travelerId) {
-    trip = await prisma.trip.findFirst({
-      where: { ...myTrips(req), status: { not: "archived" as any } },
-      orderBy: [{ lastOpenedAt: { sort: "desc", nulls: "last" } }, { updatedAt: "desc" }], include,
-    }) || await prisma.trip.findFirst({ where: myTrips(req), orderBy: { updatedAt: "desc" }, include });
+  let trip;
+  if (req.user?.travelerId) {
+    const id = await currentTripIdFor(req.user.travelerId);
+    trip = id ? await prisma.trip.findUnique({ where: { id }, include }) : null;
+  } else {
+    // (signed in by the old shared access code, with no person: the trip in use most recently, as before)
+    trip = await prisma.trip.findFirst({ where: { status: "active" }, orderBy: { updatedAt: "desc" }, include })
+      || await prisma.trip.findFirst({ orderBy: { updatedAt: "desc" }, include });
   }
   // Stamp lastOpenedAt
   if (trip) {
@@ -100,12 +103,8 @@ router.post("/", async (req: AuthRequest, res) => {
   // Dateless trips: startDate/endDate no longer required
   const datesKnown = dateState !== "not_yet";
 
-  // Deactivate other trips (they remain accessible, just not "current")
-  await prisma.trip.updateMany({
-    where: { status: "active" },
-    data: { status: "archived" },
-  });
-
+  // (other trips are left as they are: a new trip becomes the creator's current trip only — Nov 16 2026; it used to
+  // archive every other trip, for everyone)
   const trip = await prisma.trip.create({
     data: {
       name,
@@ -120,7 +119,7 @@ router.post("/", async (req: AuthRequest, res) => {
   // Add creator as planner (was "owner", now "planner")
   if (req.user?.travelerId) {
     await prisma.tripMember.create({
-      data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner" },
+      data: { tripId: trip.id, travelerId: req.user.travelerId, role: "planner", openedAt: new Date() },
     });
   }
 
@@ -261,9 +260,6 @@ router.post("/", async (req: AuthRequest, res) => {
     // Document carry-over is best-effort — don't fail trip creation
   }
 
-  // Ensure this trip is still active (guards against concurrent trip creation by another user)
-  await prisma.trip.update({ where: { id: trip.id }, data: { status: "active" } });
-
   const full = await prisma.trip.findUnique({
     where: { id: trip.id },
     include: {
@@ -282,20 +278,20 @@ router.post("/", async (req: AuthRequest, res) => {
   res.status(201).json({ ...full, invites });
 });
 
-// Activate a trip (set it as the current active trip)
+// Choose a trip: it becomes THIS person's current trip, and nobody else's moves (Nov 16 2026: it archived every other
+// trip for all of Wander). Its status is left alone — a past trip stays a past trip.
 router.post("/:id/activate", async (req: AuthRequest, res) => {
-  const trip = await prisma.trip.findUnique({ where: { id: req.params.id as string } });
+  const trip = await prisma.trip.findUnique({ where: { id: req.params.id as string }, select: { id: true } });
   if (!trip) { res.status(404).json({ error: "Trip not found" }); return; }
-
-  // Archive all other trips
-  await prisma.trip.updateMany({
-    where: { status: "active" },
-    data: { status: "archived" },
-  });
+  // (tripGuard above already refused a trip this person isn't on; a sign-in with no person chooses nothing)
+  if (req.user?.travelerId && !(await chooseTrip(req.user.travelerId, trip.id))) {
+    res.status(403).json({ error: "Not a member of this trip" });
+    return;
+  }
 
   const updated = await prisma.trip.update({
-    where: { id: req.params.id as string },
-    data: { status: "active", lastOpenedAt: new Date() },
+    where: { id: trip.id },
+    data: { lastOpenedAt: new Date() },
     include: {
       cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
       routeSegments: { orderBy: { sequenceOrder: "asc" } },

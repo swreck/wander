@@ -186,12 +186,17 @@ Fields:
 - created_at
 - updated_at
 
-Rules:
-- Only one trip may have status "active" at a time
-- When a new trip is created and set to active, the previous active trip is automatically archived
-- Archived trips are fully preserved with all experiences, itinerary data, images, and change log entries
-- Archived trips are read-only — no edits permitted
-- Multiple simultaneous active trips is a future enhancement, not built in v1
+Rules (Nov 16 2026 — each person's own current trip; this replaced "only one active trip, the previous archived"):
+- Several trips may be active at once. Each person has their own current trip: the one they chose most recently in the
+  trip menu, unless a trip of theirs has begun since (on its own clock), which then comes forward by itself. With no
+  choice made: one under way, else the next to start, else the one that ended last. Choosing, creating or being invited
+  to a trip moves only that person; no trip's status changes. Stored per membership (trip_members.opened_at).
+- "archived" now means set aside (April's placeholder trips): kept whole, left out of the trip menu.
+- A finished trip (its last day past) keeps its data and looks as it did on its last day (§18.2). A Guide copy sent to
+  it is refused, nothing written; so is a copy whose dates don't overlap the trip's for at least half the shorter span.
+  Its live sources, Scout's keep-warm and the map reader leave it alone.
+- An import keeps every stored trip setting it doesn't own (it replaces only its source name).
+- The sign-in's role is the person's role on their current trip, asked again when they switch.
 
 ### 6.2 Route Segment
 
@@ -1086,7 +1091,7 @@ It shows:
 - History button with unread dot indicator if applicable
 - "Start Planning" button (enters the spatial canvas on the Cities axis)
 - "Now" button if currently within trip dates (enters the Now screen directly)
-- Archived trips listed below the active trip with read-only access
+- Your other trips listed below the one you're on (§6.1: each person's own current trip; set-aside trips aren't listed)
 
 ---
 
@@ -1308,7 +1313,8 @@ These directives summarize the non-negotiable implementation requirements. Each 
 - **Railway single-deployment architecture.** No split deployment. Frontend served as static files by Express.
 - **Cloudinary handles all images.** No images in the database. No images on Railway filesystem.
 - **Access code authentication only.** No OAuth. No passwords. Format: CODE:DisplayName pairs in environment variable.
-- **One active trip at a time.** Full archiving of previous trips with complete data preservation.
+- **Each person on their own current trip** (Nov 16 2026, §6.1). Finished trips keep all their data and their last-day
+  look.
 - **Promotion supports both day assignment and route segment assignment.** Both paths must be built.
 - **The app is smart, never chatty.** No action-encouraging language anywhere in the UI. The only proactive output permitted is time-sensitive factual alerts.
 - **No modal dialogs except deletion confirmation.** Everything else slides, opens inline, or draws from the bottom.
@@ -2849,7 +2855,9 @@ Ken (Sep 28) on links pasted in chat: "does nothing. it just scrolls away." Invi
 
 ### 14.3 Accounts and access
 
-Each trip is private to its people: you see, open and switch between only the trips you're on. Every route that names a
+Each trip is private to its people: you see, open and switch between only the trips you're on. Switching moves only you
+(§6.1); the trip menu (tap the trip's name on Home) lists your trips except set-aside ones, the one you're on first,
+marked Now. Every route that names a
 trip, or an item on one, refuses anyone not on that trip; a traveler's profile is visible only to people sharing a trip.
 A person's name comes from their account, so a renamed person is known by the new name at once. Saving one personal
 setting never replaces the others.

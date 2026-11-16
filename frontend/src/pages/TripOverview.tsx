@@ -111,7 +111,6 @@ export default function TripOverview() {
   const [openDecisions, setOpenDecisions] = useState<Decision[]>([]);
 
   const isPlanner = user?.role === "planner";
-  const initialLoadDone = useRef(false);
 
   useKeyboardShortcuts();
 
@@ -168,51 +167,14 @@ export default function TripOverview() {
     }
     try {
 
-      // On first load, auto-select the best trip for this planner.
-      // Priority: trip with the most recent sync (the one connected to Larisa's Guide).
-      // Fallback: last-viewed trip from localStorage.
-      // Final fallback: server's active trip.
-      let effectiveActive = active;
-      if (!initialLoadDone.current) {
-        initialLoadDone.current = true;
-
-        // For planners: find the trip with the most recent sync
-        const tripsWithSync = all.filter((t: any) => t.sheetSyncConfig?.lastSyncAt);
-        if (tripsWithSync.length > 0) {
-          const mostRecent = tripsWithSync.sort((a: any, b: any) =>
-            new Date(b.sheetSyncConfig.lastSyncAt).getTime() - new Date(a.sheetSyncConfig.lastSyncAt).getTime()
-          )[0];
-          if (mostRecent.id !== active?.id) {
-            try {
-              const switched = await api.post<Trip>(`/trips/${mostRecent.id}/activate`, {});
-              effectiveActive = switched;
-              localStorage.setItem("wander:last-trip-id", mostRecent.id);
-            } catch {
-              // Fall through to localStorage logic
-            }
-          } else {
-            localStorage.setItem("wander:last-trip-id", mostRecent.id);
-          }
-        } else {
-          // No synced trips — use localStorage fallback (original behavior)
-          const storedTripId = localStorage.getItem("wander:last-trip-id");
-          if (storedTripId && active && storedTripId !== active.id) {
-            const storedExists = all.some((t) => t.id === storedTripId);
-            if (storedExists) {
-              try {
-                const switched = await api.post<Trip>(`/trips/${storedTripId}/activate`, {});
-                effectiveActive = switched;
-              } catch {
-                localStorage.setItem("wander:last-trip-id", active.id);
-              }
-            } else {
-              localStorage.removeItem("wander:last-trip-id");
-            }
-          } else if (active) {
-            localStorage.setItem("wander:last-trip-id", active.id);
-          }
-        }
-      }
+      // The trip shown is this person's own current trip, as Wander keeps it for them (Nov 16 2026). Opening the app
+      // never switches a trip: it used to pick the trip with the newest Guide copy and switch all of Wander to it, for
+      // everyone. Every other screen reads this phone's note of the current trip, kept equal to it here.
+      const effectiveActive = active;
+      try {
+        if (active) localStorage.setItem("wander:last-trip-id", active.id);
+        else localStorage.removeItem("wander:last-trip-id");
+      } catch { /* storage unavailable */ }
 
       // A fresh copy the same as the one shown is not swapped in — nothing on Home is redrawn for it (Ken, Oct 9: "there
       // is almost never a change in those items"; Oct 10 audit: each identical copy had the map's layout worked out again)
@@ -412,6 +374,7 @@ export default function TripOverview() {
             setShowCreate(false);
             loadTrips();
             window.dispatchEvent(new CustomEvent("wander:data-changed"));
+            window.dispatchEvent(new CustomEvent("wander:trip-switched"));
           } catch {
             showToast("Couldn't switch — check your connection and try again", "error");
           }
@@ -432,6 +395,7 @@ export default function TripOverview() {
             localStorage.setItem("wander:last-trip-id", tripId);
             loadTrips();
             window.dispatchEvent(new CustomEvent("wander:data-changed"));
+            window.dispatchEvent(new CustomEvent("wander:trip-switched"));
           } catch {
             showToast("Couldn't switch — check your connection and try again", "error");
           }
@@ -450,6 +414,9 @@ export default function TripOverview() {
       loadTrips();
       // Notify ChatOverlay to update its trip context
       window.dispatchEvent(new CustomEvent("wander:data-changed"));
+      // (and the sign-in's role, which is this person's role on their current trip — a planner on one trip may be a
+      // traveler on another)
+      window.dispatchEvent(new CustomEvent("wander:trip-switched"));
     } catch {
       showToast("Couldn't switch — check your connection and try again", "error");
     }
@@ -458,8 +425,9 @@ export default function TripOverview() {
   const archivedTrips = allTrips.filter((t) => t.status === "archived");
   // Always show trip switcher — "Plan a new trip" inside is the planner-gated action
   const showSwitcherArrow = true;
-  // The trip menu lists real trips — ones read from Larisa's Guide — not April's placeholder or test trips
-  const menuTrips = allTrips.filter((t) => t.id === trip?.id || /^From Larisa's Guide/.test(t.tagline || ""));
+  // The trip menu lists the trips this person is on (GET /trips is only theirs), except ones set aside — April's
+  // placeholders (Nov 16 2026: it listed only trips read from Larisa's Guide, so a trip from another source vanished)
+  const menuTrips = allTrips.filter((t) => t.id === trip?.id || t.status !== "archived");
   const selectedPerDay: Record<string, number> = {};
   const possiblePerCity: Record<string, number> = {};
   for (const exp of experiences) {
@@ -909,12 +877,12 @@ function TripSwitcherList({
     savingRef.current = false;
   }
 
-  // Sort by lastOpenedAt descending, nulls last
-  const sorted = [...trips].sort((a, b) => {
-    const aTime = (a as any).lastOpenedAt ? new Date((a as any).lastOpenedAt).getTime() : 0;
-    const bTime = (b as any).lastOpenedAt ? new Date((b as any).lastOpenedAt).getTime() : 0;
-    return bTime - aTime;
-  });
+  // The one this person chose most recently first (their own choices — Nov 16 2026), then by when anyone opened it
+  const opened = (t: Trip) => {
+    const at = (t as any).myOpenedAt || (t as any).lastOpenedAt;
+    return at ? new Date(at).getTime() : 0;
+  };
+  const sorted = [...trips].sort((a, b) => (b.id === currentTripId ? 1 : 0) - (a.id === currentTripId ? 1 : 0) || opened(b) - opened(a));
 
   return (
     <>
