@@ -12,7 +12,7 @@ Ken (Oct 3): "'the goal' hasn't changed. The only change is Wander is in the han
 unstable." Ken (Oct 4): "be double careful, ask yourself what bad thing can happen with each change since someone else
 is in the product."
 - (Claude) Changes are additive; one careful deploy per batch; no deploy while travelers are waking or mid-use;
-  cosmetic fixes ride with a deploy needed for a real reason. Docs-only commits don't deploy (railway.toml).
+  cosmetic fixes ride with a needed deploy. Docs-only commits don't deploy (railway.toml).
 - Deploy path: (1) `npx tsx trip-data/session-tools/backup-prod.ts <label>` (Neon branch + JSON in
   ~/Documents/WanderBackups; keeps the 2 newest; Ken, Oct 10: "even 10 backups is more than I would expect");
   (2) schema change → `prisma db push` to production FIRST (preview: schema-diff-prod.mjs); (3) merge 2.0 → main with
@@ -30,8 +30,7 @@ is in the product."
 ## Tests
 - Type-check: `frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.app.json` has 93 errors; never add one. Backend: `cd backend && npx tsc --noEmit`. (`cd frontend && npx tsc --noEmit` checks nothing.)
 - Backend suite (backend/src or prisma changed): `cd backend && npx vitest run 2>&1 | tail -30`, ~2 min, on this
-  Mac's Postgres 17 (Homebrew service; tests/local-db.ts copies production's data every 12 h, read-only there;
-  WANDER_TEST_DB=neon uses a Neon branch). Never two runs at once, never edit backend src during a run. The `pg`
+  Mac's Postgres 17 (tests/local-db.ts copies production every 12 h; WANDER_TEST_DB=neon for a Neon branch). Never two runs at once, never edit backend src during a run. The `pg`
   SELECT 1 warmup in tests/vitest-setup.ts stays. Vitest binds :3001, so local walks use :3004 / :5182.
 - Browser: Playwright on its own headless shell (trip-data/session-tools/playwright.prod.config.ts). Never
   `npx playwright install`. Every suite reads BASE; stop old preview servers first. Production walks skip Google's map
