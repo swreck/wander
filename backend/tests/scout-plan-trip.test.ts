@@ -389,7 +389,8 @@ describe("F1 two rooms in one hotel are two bookings, not an open question", () 
     try {
       const text = (await buildGuideContextParts(plan.tripId, { phoneZone: PHONE, now: NOW })).stable;
       expect(text).toContain("OPEN QUESTION in the plan: more than one place is listed for these nights");
-      expect(text).toContain("  2027-02-01 (Mon): Stay E Hotel and Stay F Hotel");
+      // (either order: the four are made at once, and the context lists a night's places by id)
+      expect(text).toMatch(/^ {2}2027-02-01 \(Mon\): Stay (E|F) Hotel and Stay (E|F) Hotel$/m);
       expect(text).toMatch(/^ {2}2027-02-05 \(Fri\): Stay (G|H) Hotel and Stay (G|H) Hotel$/m);
       expect(text).not.toMatch(/OPEN QUESTION in the Guide/);
       expect(text).not.toMatch(/Stay D Hotel and/);

@@ -57,6 +57,10 @@ export default function WholeTripPage() {
   // Meals from her Dining Resos tab — her bookings
   const meals = items.filter((i) => i.kind === "meal" && /^Dining Resos/i.test(i.source)).sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)) || (a.time || "99").localeCompare(b.time || "99"));
   const mealsOn = (d: string) => meals.filter((m) => ymd(m.date) === d);
+  // The laptop table on a trip built from a plan leaves out a column no day fills (a heading over nothing); a sheet
+  // trip's table is as it has always been
+  const lineColumn = !v.plan || days.some((d) => herLine(d.date));
+  const mealsColumn = !v.plan || meals.length > 0;
   const flights = items.filter((i) => i.kind === "flight" && !isLanding(i)).sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)));
   const trains = rail.flatMap((s) => s.rail.filter((r) => r.date && isBookedTrain(r)).map((r) => ({ s, r }))).sort((a, b) => a.r.date!.localeCompare(b.r.date!) || colOf(a.r.cols, /^depart/).padStart(5, "0").localeCompare(colOf(b.r.cols, /^depart/).padStart(5, "0")));
   const deadlines = items.filter((i) => i.kind === "deadline").sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)));
@@ -93,17 +97,17 @@ export default function WholeTripPage() {
               {/* a laptop: one table */}
               <table className="hidden md:table w-full text-sm border-separate border-spacing-0 bg-white rounded-xl border border-[#e0d8cc] overflow-hidden">
                 <thead><tr className="text-left text-xs text-[#6b5d4a]">
-                  <th className="px-3 py-2 font-normal">Day</th><th className="px-3 py-2 font-normal">Where</th><th className="px-3 py-2 font-normal">{v.plan ? "The plan's line for the day" : `${v.Owners} line for the day`}</th>
-                  <th className="px-3 py-2 font-normal">Sleeping at</th><th className="px-3 py-2 font-normal">Meals booked</th>
+                  <th className="px-3 py-2 font-normal">Day</th><th className="px-3 py-2 font-normal">Where</th>{lineColumn && <th className="px-3 py-2 font-normal">{v.plan ? "The plan's line for the day" : `${v.Owners} line for the day`}</th>}
+                  <th className="px-3 py-2 font-normal">Sleeping at</th>{mealsColumn && <th className="px-3 py-2 font-normal">Meals booked</th>}
                 </tr></thead>
                 <tbody>
                   {days.map((d) => (
                     <tr key={d.date} onClick={() => navigate(`/day/${d.date}`)} className={`cursor-pointer hover:bg-[#f6f2ec] ${d.date === today ? "bg-[#fff8ec]" : ""}`}>
                       <td className="px-3 py-2 border-t border-[#f0ebe3] whitespace-nowrap text-[#3a3128]"><a href={`/day/${d.date}`} onClick={(e) => e.preventDefault()} className="underline-offset-2 hover:underline">{dayWords(d.date)}</a></td>
                       <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#3a3128]">{d.city}{d.guided ? <span className="ml-1 text-[11px] text-white bg-[#b3322a] rounded px-1">Backroads</span> : null}</td>
-                      <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{herLine(d.date)}</td>
+                      {lineColumn && <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{herLine(d.date)}</td>}
                       <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{[...new Set(sleepOn(d.date).map((s) => `${s.name}${forWords(s.forWhom) ? ` (${s.forWhom})` : ""}`))].join("; ")}</td>
-                      <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{mealsOn(d.date).map((m) => `${m.time ? `${clock(m.time)} ` : ""}${m.title}`).join("; ")}</td>
+                      {mealsColumn && <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{mealsOn(d.date).map((m) => `${m.time ? `${clock(m.time)} ` : ""}${m.title}`).join("; ")}</td>}
                     </tr>
                   ))}
                 </tbody>
