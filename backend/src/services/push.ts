@@ -7,6 +7,7 @@
  */
 import webpush from "web-push";
 import prisma from "./db.js";
+import { pushAllowed } from "./abroad.js";
 
 let ready: boolean | null = null;
 export function pushKey(): string | null {
@@ -47,9 +48,12 @@ export async function sendAnswerReady(travelerId: string, answer: string): Promi
   return sendToPhones(travelerId, { title: "Scout answered", body: answerPreview(answer), tag: "scout-answer", url: "/?scout=open" });
 }
 
-/** Any one notice to a person's phones (Scout's answer; "Julie, about Wander" for Ken). Never throws. */
-export async function sendToPhones(travelerId: string, note: { title: string; body: string; tag: string; url: string }): Promise<number> {
+/** Any one notice to a person's phones (Scout's answer; "Julie, about Wander" for Ken). Never throws. A notice about a
+ *  trip (`opts.tripId`) isn't sent on a day outside that person's days on it (services/abroad.ts); a reply to their own
+ *  question names no trip and is always sent. */
+export async function sendToPhones(travelerId: string, note: { title: string; body: string; tag: string; url: string }, opts: { tripId?: string } = {}): Promise<number> {
   if (!setUp()) return 0;
+  if (opts.tripId && !(await pushAllowed(travelerId, opts.tripId))) return 0;
   const subs = await prisma.pushSubscription.findMany({ where: { travelerId } }).catch(() => []);
   const payload = JSON.stringify(note);
   let sent = 0;

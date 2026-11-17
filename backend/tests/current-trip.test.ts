@@ -174,6 +174,30 @@ describe("pickCurrent", () => {
     expect(new Date(zonedMidnight("2026-12-15", "Asia/Ho_Chi_Minh")).toISOString()).toBe("2026-12-14T17:00:00.000Z");
     expect(new Date(zonedMidnight("2026-12-15", "America/Los_Angeles")).toISOString()).toBe("2026-12-15T08:00:00.000Z");
   });
+  // (December plan, D10: a trip that starts in the future never becomes anyone's current trip by being made — it only
+  // comes forward when it begins, or when they choose it. In production every membership's opened_at is null, so
+  // Japan is stamped as chosen for Ken and Larisa before December's memberships exist.)
+  it("an ended trip chosen and a future trip never chosen: the ended one stays, until the future trip begins", () => {
+    const before = new Date("2026-11-17T08:00:00Z");
+    const japan = m("japan", "2026-11-10T00:00:00Z", "2026-10-05", "2026-10-29");
+    const dec = m("dec", null, "2026-12-14", "2027-01-08");
+    expect(pickCurrent([japan, dec], before)).toBe("japan");
+    expect(pickCurrent([dec, japan], before)).toBe("japan");
+    // (the day before December begins on its own clock, Hanoi's Dec 14 starting at 17:00 UTC on Dec 13)
+    expect(pickCurrent([japan, dec], new Date("2026-12-13T16:59:00Z"))).toBe("japan");
+    expect(pickCurrent([japan, dec], new Date("2026-12-13T17:01:00Z"))).toBe("dec");
+  });
+  it("neither chosen: the future trip is picked, as it is today", () => {
+    const japan = m("japan", null, "2026-10-05", "2026-10-29");
+    const dec = m("dec", null, "2026-12-14", "2027-01-08");
+    expect(pickCurrent([japan, dec], new Date("2026-11-17T08:00:00Z"))).toBe("dec");
+    expect(pickCurrent([dec, japan], new Date("2026-11-17T08:00:00Z"))).toBe("dec");
+  });
+  it("a person on December alone keeps December whether or not it has been chosen", () => {
+    const dec = m("dec", null, "2026-12-14", "2027-01-08");
+    expect(pickCurrent([dec], new Date("2026-11-17T08:00:00Z"))).toBe("dec");
+    expect(pickCurrent([{ ...dec, openedAt: new Date("2026-11-16T00:00:00Z") }], new Date("2026-11-17T08:00:00Z"))).toBe("dec");
+  });
   it("nothing chosen: under way, then next to start, then ended last; set-aside trips last of all", () => {
     expect(pickCurrent([m("a", null, "2026-10-05", "2026-10-29"), m("b", null, "2027-03-01", "2027-03-10")], now)).toBe("b");
     expect(pickCurrent([m("a", null, "2026-10-05", "2026-10-29"), m("old", null, "2026-04-01", "2026-04-10")], now)).toBe("a");

@@ -1621,6 +1621,9 @@ function maskVaultDocument<T extends { type: string; data: unknown }>(doc: T): T
 // Execute a tool call and return the result
 const NOT_YOURS = "That's part of Larisa's Guide, so Wander doesn't change it (the next read of her Guide would undo it anyway). Offer instead: a same-day plan (add_same_day_plan), a note on the idea, or a message to Larisa.";
 
+// A city or stay the plan tool wrote (planKey): the tool would put an edit back on its next run
+const NOT_YOURS_PLAN = "That's part of the plan Larisa and Ken are building, so Wander doesn't change it from here. Offer instead: a same-day plan (add_same_day_plan) or a note on the idea.";
+
 export async function guideItemRefusal(toolName: string, input: any): Promise<string | null> {
   const isGuideIdea = async (id: string) => {
     const e = await prisma.experience.findUnique({ where: { id }, select: { sheetRowRef: true } });
@@ -1638,12 +1641,12 @@ export async function guideItemRefusal(toolName: string, input: any): Promise<st
       return fromGuide ? NOT_YOURS : null;
     }
     case "update_city": {
-      const c = input?.cityId ? await prisma.city.findUnique({ where: { id: String(input.cityId) }, select: { guideKey: true } }) : null;
-      return c?.guideKey ? NOT_YOURS : null;
+      const c = input?.cityId ? await prisma.city.findUnique({ where: { id: String(input.cityId) }, select: { guideKey: true, planKey: true } }) : null;
+      return c?.guideKey ? NOT_YOURS : c?.planKey ? NOT_YOURS_PLAN : null;
     }
     case "update_accommodation": {
-      const a = input?.accommodationId ? await prisma.accommodation.findUnique({ where: { id: String(input.accommodationId) }, select: { guideKey: true } }) : null;
-      return a?.guideKey ? NOT_YOURS : null;
+      const a = input?.accommodationId ? await prisma.accommodation.findUnique({ where: { id: String(input.accommodationId) }, select: { guideKey: true, planKey: true } }) : null;
+      return a?.guideKey ? NOT_YOURS : a?.planKey ? NOT_YOURS_PLAN : null;
     }
     default:
       return null;

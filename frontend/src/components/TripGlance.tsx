@@ -283,7 +283,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     const cityName = (id?: string | null) => (id ? data.trip.cities.find((c) => c.id === id)?.name ?? null : null);
     const hotel = n.stays.length === 1 ? stayMapsQuery(n.stays[0].stay, cityName(n.stays[0].stay.cityId)) : null;
     const dayWords = dayItems.filter((i) => !i.time && /itinerary/i.test(i.source) && (["plan", "tour", "note"].includes(i.kind) || /^(\w+\s)?day\s*\d+\s*-/i.test(i.title)) && !besideHotel(i)).map((o) => o.title).join(" ");
-    return { blocks, cityId, ctx: { hotel, dayWords, bookings: dayItems.filter((m) => m.kind === "meal") } };
+    // (the day's own country, its city's — a Hanoi place is searched in Vietnam, not Japan)
+    const country = data.trip.cities.find((c) => c.id === cityId)?.country ?? null;
+    return { blocks, cityId, ctx: { hotel, dayWords, bookings: dayItems.filter((m) => m.kind === "meal"), country } };
   }, [data, today, me]);
   const linePhoto = useLinePhotos(tripId, linePlaces.cityId, linePlaces.blocks, linePlaces.ctx);
   const photoOf = (i: GuideItem): PlaceHit | null => (i.kind === "block" ? linePhoto(i) : null);

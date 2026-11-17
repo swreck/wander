@@ -66,7 +66,7 @@ export async function scoutNoteShown(alertId: string, travelerId: string) {
   toldShown.add(alertId);
   const who = (await prisma.traveler.findUnique({ where: { id: travelerId }, select: { displayName: true } }))?.displayName || "They";
   const { sendToPhones } = await import("./push.js");
-  await sendToPhones(ken.travelerId, { title: `Scout's note to ${who}`, body: `It's on ${who}'s screen now (${jstTime(new Date())}).`, tag: `scout-note-${alertId}`, url: "/" });
+  await sendToPhones(ken.travelerId, { title: `Scout's note to ${who}`, body: `It's on ${who}'s screen now (${jstTime(new Date())}).`, tag: `scout-note-${alertId}`, url: "/" }, { tripId: a.tripId });
 }
 async function scoutNoteAnswered(a: { id: string; tripId: string; toId: string | null; fromName: string }, travelerId: string, state: string, openSeconds: number | null, button: string | null) {
   if (a.fromName !== "Scout" || a.toId !== travelerId) return;
@@ -77,7 +77,7 @@ async function scoutNoteAnswered(a: { id: string; tripId: string; toId: string |
   const tapped = button === "tell" ? "Tell Scout" : state === "later" ? "Remind me" : "Got it";
   const words = `${who} read Scout's note at ${jstTime(new Date())}.${open} ${who === "They" ? "They" : who} tapped ${tapped}.`;
   const { sendToPhones } = await import("./push.js");
-  await sendToPhones(ken.travelerId, { title: `Scout's note to ${who}`, body: words, tag: `scout-note-${a.id}`, url: "/" });
+  await sendToPhones(ken.travelerId, { title: `Scout's note to ${who}`, body: words, tag: `scout-note-${a.id}`, url: "/" }, { tripId: a.tripId });
   await prisma.tripAlert.create({ data: { tripId: a.tripId, fromId: ken.travelerId, fromName: "Scout", toId: ken.travelerId, text: words } });
 }
 

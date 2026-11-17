@@ -445,8 +445,10 @@ function DayPlay({ tripId, cityId, date, moments: built, places, heading, outlin
   );
 }
 
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, trainWords, playWords, playCover, playTomorrow, playBookings, panelOf, pastDay = false }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, country = null, trainWords, playWords, playCover, playTomorrow, playBookings, panelOf, pastDay = false }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
+  /** the country the day is lived in (its city's), for the countries of its places' searches; none is Japan */
+  country?: string | null;
   /** a day already over: Maps alone, no way there from here */
   pastDay?: boolean;
   /** the day's city, for finding its stops' photos near it */
@@ -497,9 +499,9 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // five amber lines of "Wander matched…" sat above her stops all day, outranking her plan)
   const [whyOpen, setWhyOpen] = useState(false);
   // The day as moments (Oct 15): each stop's own photos, found from the words its Maps button searches
-  const mapOf = useMemo(() => Object.fromEntries(blocks.map((b) => [b.id, choicesOf(b).length ? null : planMapHref(b, { hotel, dayWords, bookings })])) as Record<string, string | null>,
+  const mapOf = useMemo(() => Object.fromEntries(blocks.map((b) => [b.id, choicesOf(b).length ? null : planMapHref(b, { hotel, dayWords, bookings, country })])) as Record<string, string | null>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [blocks, hotel, dayWords, bookings.map((m) => m.id).join()]);
+    [blocks, hotel, dayWords, country, bookings.map((m) => m.id).join()]);
   // (her line, and the stop her tab names for it — "Traditional Kyoto sweet / matcha in Gion" lists Gion Tsujiri; checked
   // on the title alone it was turned down)
   // (no photo on a line about getting somewhere — "Taxi to Raku Museum", "Continue same taxi to TeamLab": the photo is
@@ -507,7 +509,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // (and her booking for it, when the line's place is her booking's — Robuchon: her Dining Resos tab books La Table)
   const queries = useMemo(() => blocks.map((b) => {
     // (the day's city for a place her line names with no Maps link: "Sat, Oct 17 · Tokyo" → Tokyo)
-    return { id: b.id, query: TRAVEL.test(b.title) || choicesOf(b).length ? null : mapsQueryOf(mapOf[b.id]) || photoQueryOf(b, { hotel, dayWords, bookings, city: (playWords || "").split(" · ")[1] || null }), line: photoLineOf(b, { hotel, dayWords, bookings }) };
+    return { id: b.id, query: TRAVEL.test(b.title) || choicesOf(b).length ? null : mapsQueryOf(mapOf[b.id]) || photoQueryOf(b, { hotel, dayWords, bookings, country, city: (playWords || "").split(" · ")[1] || null }), line: photoLineOf(b, { hotel, dayWords, bookings }) };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }).filter((x): x is { id: string; query: string; line: string } => !!x.query), [blocks, mapOf]);
   const [photos, setPhotos] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(queries));
@@ -1825,7 +1827,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const tonightHotel = myTonight.stays.length === 1 ? stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)) : null;
   // (Next's own lines' photos — the same checked ones the day's list finds, each looked up by its own LinePhotos: a hook
   // here would sit below the loading screen's early return — React #310, caught before shipping)
-  const lineCtx = { hotel: tonightHotel, dayWords: itineraryLines.map((l) => l.title).join(" "), bookings: dayItems.filter((m) => m.kind === "meal") };
+  // (country: the day's own, its city's — a Hanoi place is searched in Vietnam, not Japan)
+  const lineCtx = { hotel: tonightHotel, dayWords: itineraryLines.map((l) => l.title).join(" "), bookings: dayItems.filter((m) => m.kind === "meal"), country: bandCity?.country ?? null };
   // The day's weather in the city band: the live forecast for where you are (components/DayForecast — Ken, Oct 10: "It
   // should be your best internet forecast available at run time"); her pre-trip line only when there's none
   const forecastCity = trip?.cities.find((c) => c.name === cityName) || null;
@@ -2565,7 +2568,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               {/* (Maps from Now too — Ken, Oct 16: "Be able to hop to maps at any time based on either of them") — in one
                   row with About this place */}
               {(() => {
-                const href = planMapHref(currentBlock, { hotel: tonightHotel, dayWords: itineraryLines.map((l) => l.title).join(" "), bookings: dayItems.filter((m) => m.kind === "meal") });
+                const href = planMapHref(currentBlock, lineCtx);
                 return <LineAbout tripId={tripId} cityId={bandCity?.id} block={currentBlock} ctx={lineCtx}
                   beside={href ? <GetThere href={href} name={currentBlock.title} /> : null} />;
               })()}
@@ -2617,7 +2620,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               const opts = u.kind === "block" ? choicesOf(u) : [];
               const pick = opts.length ? choices.find((c) => opts.some((o) => c.text === `${u.title}: ${o.name}`)) : undefined;
               const pickOpt = pick ? opts.find((o) => pick.text === `${u.title}: ${o.name}`) : undefined;
-              const mapHref = pickOpt ? choiceMapHref(pickOpt, u) : u.kind === "block" ? planMapHref(u, { hotel: tonightHotel, dayWords: itineraryLines.map((l) => l.title).join(" "), bookings: dayItems.filter((m) => m.kind === "meal") }) : (mapsQueryFor(u) ? mapsLink(mapsQueryFor(u)!) : null);
+              const mapHref = pickOpt ? choiceMapHref(pickOpt, u) : u.kind === "block" ? planMapHref(u, lineCtx) : (mapsQueryFor(u) ? mapsLink(mapsQueryFor(u)!) : null);
               // The same train Ken's rail sheet has at another time: the note up top already gives her time and every
               // source's, and the rail card has the countdown — no second "Next" (round 12: Oct 29 at 12:10 stacked
               // "Next train · in 1 hr 20 min" over "Next · in 20 min" and said the difference five times). Her line
@@ -2802,7 +2805,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   )),
                 ]}
                 differBelow={(b) => (trainsUnder.get(b.id) || []).some((x) => differsFor(x).length > 0)}
-                blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel} bookings={dayItems.filter((m) => m.kind === "meal")}
+                blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel} bookings={dayItems.filter((m) => m.kind === "meal")} country={bandCity?.country ?? null}
                 picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
                 onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}
                 onUndo={removeChoice}

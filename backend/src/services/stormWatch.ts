@@ -15,8 +15,9 @@
  * reaches, so nobody is told a day was checked that wasn't.
  */
 import prisma from "./db.js";
+import { japanOrUnknown, tripIsInJapan } from "./dayCountry.js";
 
-const JMA = "https://www.jma.go.jp/bosai";
+const JMA ="https://www.jma.go.jp/bosai";
 /** English pages people can open (each checked to open, Oct 14) */
 export const LINKS = {
   // (short: the sentence before each already names the agency)
@@ -483,6 +484,8 @@ const making = new Map<string, Promise<Watch>>();
 /** This person's watch, today (Japan's date) through 5 days ahead. Fresh for 5 minutes; `orStale` returns a copy up to
  *  an hour old at once while a new one is made (Scout's opening doesn't wait on JMA — verify45: a first watch took 9 s) */
 export async function stormWatch(tripId: string, person: string, today: string, now = new Date(), orStale = false, remake = false): Promise<Watch> {
+  // (JMA watches Japan only: a trip with no city there has nothing to ask it, and asks nothing)
+  if (!process.env.STORM_WATCH_FAKE && !(await tripIsInJapan(tripId))) return { days: {}, through: { warnings: null, chances: null, typhoons: null }, unknown: [], checked: now.toISOString() };
   const key = `${tripId}|${person}|${today}`;
   const k = kept.get(key);
   if (!remake && k && Date.now() - k.at < 5 * 60_000) return k.w;
@@ -497,6 +500,21 @@ export async function stormWatch(tripId: string, person: string, today: string, 
   return fresh;
 }
 
+/** The trips the warmer makes watches for: active, under way or starting within eight days, and going to Japan (a
+ *  city of it is in Japan, or none of its cities says where it is) */
+export async function tripsToWarm(today: string) {
+  return prisma.trip.findMany({
+    where: {
+      status: "active", endDate: { gte: new Date(`${today}T00:00:00Z`) }, startDate: { lte: new Date(`${addDays(today, 8)}T00:00:00Z`) },
+      OR: [
+        { cities: { some: { hidden: false, country: { equals: "Japan", mode: "insensitive" } } } },
+        { cities: { none: { hidden: false, country: { not: null } } } },
+      ],
+    },
+    select: { id: true, tripMembers: { select: { traveler: { select: { displayName: true } } } } },
+  });
+}
+
 /** Each traveler's watch made ahead — at start, then every 10 minutes — so no first question of the day, and none just
  *  after a deploy, waits 6–9 s on JMA or goes without the storm lines (verify46). Only for active trips. */
 export function startWatchWarmer() {
@@ -509,14 +527,15 @@ export function startWatchWarmer() {
     const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
     // (only a trip under way or starting within the eight days it warms — after the trip, or for a placeholder trip, it
     // woke the database 19 hours a day for nobody; cost audit, Oct 16)
-    const trips = await prisma.trip.findMany({ where: { status: "active", endDate: { gte: new Date(`${today}T00:00:00Z`) }, startDate: { lte: new Date(`${addDays(today, 8)}T00:00:00Z`) } }, select: { id: true, tripMembers: { select: { traveler: { select: { displayName: true } } } } } });
+    const trips = await tripsToWarm(today);
     for (const t of trips) for (const m of t.tripMembers) {
       // (made fresh each round; the last copy keeps serving meanwhile)
       await stormWatch(t.id, m.traveler.displayName, today, new Date(), false, true).catch(() => null);
       // (and their day forecasts for the week ahead — three Open-Meteo calls per place, kept 30 minutes: on a slow
-      // morning a cold week took 9 s, and Scout or the day page shouldn't be the one waiting)
+      // morning a cold week took 9 s, and Scout or the day page shouldn't be the one waiting; only a day in Japan —
+      // a Vietnam day of a trip that reaches Japan later isn't warmed)
       const { dayWeather } = await import("./dayWeather.js");
-      for (let i = 0; i < 8; i++) await dayWeather(t.id, m.traveler.displayName, addDays(today, i), today).catch(() => null);
+      for (let i = 0; i < 8; i++) if (await japanOrUnknown(t.id, addDays(today, i))) await dayWeather(t.id, m.traveler.displayName, addDays(today, i), today).catch(() => null);
     }
   };
   // (every 10 minutes: a watch older than 5 is still served at once while the next is made — orStale)
@@ -531,6 +550,8 @@ async function makeWatch(tripId: string, person: string, today: string, now: Dat
   const places: Record<string, Placed[]> = {};
   const travelDays = new Set<string>();
   for (const date of dates) {
+    // (a day in another country has no Japan weather: Vietnam, then Japan on Jan 2)
+    if (!(await japanOrUnknown(tripId, date))) { places[date] = []; continue; }
     const at = await dayPlaces(tripId, person, date).catch(() => null);
     if (!at) { places[date] = []; continue; }
     const list: DayPlace[] = [{ name: at.night.town, lat: at.night.lat, lng: at.night.lng, role: "night" }];

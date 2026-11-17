@@ -41,7 +41,12 @@ export function placeOf(label: string): string | null {
  * is that night's stay (hotel: its Maps search), and no link when Wander can't tell which (round 11: "Strict
  * Formalwear Prep at the Hotel" searched Maps for any hotel in Tokyo, not the Imperial)
  */
-export interface MapContext { hotel?: string | null; dayWords?: string; bookings?: GuideItem[]; city?: string | null }
+export interface MapContext {
+  hotel?: string | null; dayWords?: string; bookings?: GuideItem[]; city?: string | null;
+  /** The country the day is lived in (its city's country). A search ends in it; none given is Japan, as it always was. */
+  country?: string | null;
+}
+const countryOf = (ctx: MapContext) => ctx.country?.trim() || "Japan";
 export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   const hotel = ctx.hotel ?? null;
   // A line with choices ("Lunch") isn't a place — each choice is (round 6: "Test lunch, Kyoto")
@@ -54,7 +59,7 @@ export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   if (linksIn(b.link)[0]) return linksIn(b.link)[0];
   // The stop her tab names for a line that only says what it's for ("Taxi to e-bike meeting point" → Cycle Kyoto)
   const where = (b.detail || "").match(/^Where: (.+?) — the stop her tab lists/m)?.[1];
-  if (where) return mapsLink(`${where}, ${areaOf(b, ctx.dayWords)}Japan`);
+  if (where) return mapsLink(`${where}, ${areaOf(b, ctx.dayWords)}${countryOf(ctx)}`);
   // The same place as one of her bookings that day: the booking's own address (round 12: her Oct 26 "Hassun" line
   // searched a name; the Hassun booking has her Gion address)
   const booked = bookingFor(b, ctx);
@@ -69,7 +74,7 @@ export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   // Hotel" searched "Imperial Hotel, Ginza" — it isn't in Ginza)
   const bare = (s: string) => s.toLowerCase().replace(/^the\s+/, "").trim();
   if (p && hotel && bare(hotel).includes(bare(p))) return mapsLink(hotel);
-  return p ? mapsLink(`${p}, ${areaOf(b, ctx.dayWords)}Japan`) : null;
+  return p ? mapsLink(`${p}, ${areaOf(b, ctx.dayWords)}${countryOf(ctx)}`) : null;
 }
 /**
  * The words to look a line's PHOTO up by: its Maps search, or — when her line names a place but Wander gives it no Maps
@@ -92,7 +97,7 @@ export function photoQueryOf(b: GuideItem, ctx: MapContext = {}): string | null 
   if (!/[A-Z]/.test(core) || core.split(/\s+/).length > 7) return null;
   // (the day's city when her tab's name gives none — "Inside the Bizen Studio, Japan" found a studio in Okayama Castle)
   const area = areaOf(b, ctx.dayWords) || (ctx.city ? `${ctx.city}, ` : "");
-  return `${core}, ${area}Japan`;
+  return `${core}, ${area}${countryOf(ctx)}`;
 }
 
 /** Her booking that day for the same line (the same time, and her words name it again) */
@@ -142,7 +147,7 @@ export function useLinePhotos(tripId: string | null, cityId: string | null | und
     const query = photoQueryOf(b, ctx);
     return query ? { id: b.id, query, line: photoLineOf(b, ctx) } : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }).filter((x): x is { id: string; query: string; line: string } => !!x), [blocks.map((b) => b.id).join(), ctx.hotel, ctx.dayWords, (ctx.bookings || []).map((m) => m.id).join()]);
+  }).filter((x): x is { id: string; query: string; line: string } => !!x), [blocks.map((b) => b.id).join(), ctx.hotel, ctx.dayWords, ctx.country, (ctx.bookings || []).map((m) => m.id).join()]);
   const [photos, setPhotos] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(queries));
   useEffect(() => {
     if (!tripId || !queries.length) return;

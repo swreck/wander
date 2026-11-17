@@ -42,7 +42,7 @@ export async function tellKen(input: {
   const row = await prisma.tellKen.create({ data: { tripId: input.tripId, travelerId: input.travelerId, authorName: input.authorName, words, screen: input.screen || null, ...image } });
   // (the buzz: who, and their first words — never to the person who sent it, if Ken tells himself)
   if (org !== input.travelerId) {
-    sendToPhones(org, { title: `${input.authorName.split(/\s+/)[0]}, about Wander`, body: answerPreview(words), tag: `tell-ken-${row.id}`, url: "/settings?tellken=1" }).catch(() => {});
+    sendToPhones(org, { title: `${input.authorName.split(/\s+/)[0]}, about Wander`, body: answerPreview(words), tag: `tell-ken-${row.id}`, url: "/settings?tellken=1" }, { tripId: input.tripId }).catch(() => {});
   }
   return { id: row.id };
 }
