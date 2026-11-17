@@ -97,10 +97,15 @@ export async function storedSummaries(tripId: string): Promise<Record<string, Da
   return s && typeof s === "object" ? s : {};
 }
 
+/** The fingerprint of a day with no rows at all (dayHashes leaves such a day out). Wander's own plan has quiet days with a
+ *  summary and no row; its tool stores this hash. A Guide trip's stored hashes come from days that had rows, so none of
+ *  them equals this (a test reads every Guide trip's summaries both ways). */
+export const EMPTY_DAY_HASH = crypto.createHash("sha256").update(JSON.stringify([[], []])).digest("hex").slice(0, 16);
+
 /** The summaries that still match their day (a changed day's summary is left out until rewritten and read) */
 export async function currentSummaries(tripId: string): Promise<Record<string, string>> {
   const [stored, hashes] = await Promise.all([storedSummaries(tripId), dayHashes(tripId)]);
   const out: Record<string, string> = {};
-  for (const [date, s] of Object.entries(stored)) if (hashes[date] && hashes[date].hash === s.hash && s.text?.trim()) out[date] = s.text.trim();
+  for (const [date, s] of Object.entries(stored)) if ((hashes[date]?.hash ?? EMPTY_DAY_HASH) === s.hash && s.text?.trim()) out[date] = s.text.trim();
   return out;
 }

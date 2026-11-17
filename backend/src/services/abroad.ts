@@ -1,6 +1,5 @@
 /**
- * The days a person is on a trip (December 2026: Ken and Larisa are away from Dec 14, two of the others only Dec 25 to
- * Jan 1). TripMember.abroadFrom / abroadTo hold them as calendar days; null on either end is the trip's own end, so a
+ * The days a person is on a trip (some travelers join late or leave early). TripMember.abroadFrom / abroadTo hold them as calendar days; null on either end is the trip's own end, so a
  * trip with neither set (Japan) is theirs the whole way. A push or nudge about the trip is never sent to a person on a
  * day outside theirs: it would reach a phone at home.
  */
