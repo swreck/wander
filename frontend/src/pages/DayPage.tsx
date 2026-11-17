@@ -51,7 +51,7 @@ import PictureViewer from "../components/PictureViewer";
 import AboutPlaceButton, { useLineAbout } from "../components/PlaceAbout";
 import { aboutLines, lineKey } from "../lib/placeAbout";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
-import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf, photoQueryOf } from "../lib/linePlaces";
+import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf, photoQueryOf, placedRoute, choiceMapHref, airportDirectionsHref } from "../lib/linePlaces";
 
 /** How long a first open waits for the rest of the day (rail sheet, summaries…) after her Guide, when the phone has no
  *  copy of them yet — they're asked for together, so on a normal signal they come with the Guide and this is never hit */
@@ -82,30 +82,6 @@ function passedWords(i: GuideItem, time: string | null | undefined): string {
 }
 
 /**
- * Her route for the day with each stop's town added ("Umeno Vase Shop" → "Umeno Vase Shop, Tokyo, Japan"). Her link
- * names stops bare, and the Google Maps app looks a bare name up near the phone: from California three of her Oct 16
- * stops weren't found and one landed in Amsterdam ("Can't seem to find that place" — Ken's iPhone check, Oct 2). Her
- * stops, order and everything else in the link stay as she made it.
- */
-function placedRoute(url: string, area: string): string {
-  try {
-    const u = new URL(url);
-    const [before, path] = u.pathname.split("/maps/dir/");
-    if (path === undefined) return url;
-    const town = area.replace(/,\s*$/, "");
-    const stops = path.split("/").map((s) => {
-      if (!s || s.startsWith("@") || s.startsWith("data=")) return s;
-      const name = decodeURIComponent(s.replace(/\+/g, " "));
-      // (the town as a whole word — "Tokyodo Main Showroom" isn't a stop already in Tokyo)
-      const named = town && new RegExp(`\\b${town.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(name);
-      const placed = /japan|日本/i.test(name) ? name : named ? `${name}, Japan` : `${name}, ${area}Japan`;
-      return encodeURIComponent(placed).replace(/%20/g, "+").replace(/%2C/g, ",");
-    });
-    u.pathname = `${before}/maps/dir/${stops.join("/")}`;
-    return u.toString();
-  } catch { return url; }
-}
-/**
  * A line about dressing for the evening, beside the dress code in that evening's booking ("Strict Formalwear Prep" —
  * "jackets required for men" — from her tab written for the upstairs restaurant; the booking, La Table 1F, says
  * "jackets or collared shirts and ties are not necessary"). Round 15: at 5 PM Andy's Now said only the stricter one.
@@ -120,9 +96,6 @@ function bookingDress(b: GuideItem, bookings: GuideItem[] = []): { words: string
   const stricter = /\b(strict|required|must)\b/i.test(line) && /\bor\b|not necessary|not required/i.test(words);
   return { words, where: booking.title.replace(/\s*\(.*\)\s*$/, ""), stricter };
 }
-/** Maps for one of her choices: its name and the area of her plan ("Omen, Kyoto, Japan"). Her note on it
- *  stays out of the search — "Honke Owariya soba since 1465" isn't what a map knows it as (round 7). */
-const choiceMapHref = (c: { name: string }, line: GuideItem) => mapsLink(`${c.name}, ${areaOf(line)}Japan`);
 
 /**
  * Larisa's detailed plan for a day (from a day tab such as "Kyoto Mon, 1026…"): her order, her times as
@@ -721,7 +694,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
       {(() => {
         const url = blocks.map((b) => (b.detail || "").match(/^Her whole route for the day: (\S+)$/m)?.[1]).find(Boolean);
         return url ? (
-          <a href={placedRoute(url, areaOf(blocks[0], dayWords))} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636]">
+          <a href={placedRoute(url, areaOf(blocks[0], dayWords), country)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 min-h-[44px] mt-1 px-3 rounded-xl bg-white border border-[#e0d8cc] text-sm text-[#514636]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <circle cx="6" cy="19" r="2" /><circle cx="18" cy="5" r="2" /><path d="M6 17V9a4 4 0 0 1 4-4h6M18 7v8a4 4 0 0 1-4 4H8" />
             </svg>
@@ -778,7 +751,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
           // …or, with no map link of hers, the place Wander found and checked for its photos, by the words it was found with
           // (Shigaraki Traditional Industry Hall had photos and About but no way there; fresh re-check, Oct 27)
           const foundBy = hitOf(b) ? queries.find((x) => x.id === b.id)?.query : undefined;
-          const wayHref = pickedName ? choiceMapHref({ name: pickedName }, b) : (mapOf[b.id] ?? (foundBy ? mapsLink(foundBy) : null));
+          const wayHref = pickedName ? choiceMapHref({ name: pickedName }, b, country) : (mapOf[b.id] ?? (foundBy ? mapsLink(foundBy) : null));
           const below = under ? under(b, !!wayHref) : [];
           const saidAbove = !!differAbove && differAbove(b);
           const saidBelow = !saidAbove && !!differBelow && differBelow(b);
@@ -876,7 +849,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                                 className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2 disabled:opacity-50">
                                 {pickedHere.length ? "Switch to this" : "We're going here"}
                               </button>}
-                          <a href={choiceMapHref({ name }, b)} target="_blank" rel="noreferrer" aria-label={`${name} in Maps`}
+                          <a href={choiceMapHref({ name }, b, country)} target="_blank" rel="noreferrer" aria-label={`${name} in Maps`}
                             className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Maps ↗</a>
                         </li>
                       );
@@ -2361,7 +2334,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                               ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${airport.replace(/\s*\([A-Z]{3}\)$/, "")} to ${hotel}?` } }))}
                                   className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Ask Scout the ways to go ›</button>
                               : <span className="inline-flex items-center min-h-[44px] text-sm text-[#6b5d4a]">Scout can answer once you have signal</span>}
-                            <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(airport.replace(/\s*\([A-Z]{3}\)$/, "") + " Airport, Japan")}&destination=${encodeURIComponent(tonightHotel || hotel)}&travelmode=transit`}
+                            <a href={airportDirectionsHref(airport.replace(/\s*\([A-Z]{3}\)$/, ""), tonightHotel || hotel, bandCity?.country)}
                               target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Directions in Maps ↗</a>
                           </span>
                         </span>
@@ -2620,7 +2593,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               const opts = u.kind === "block" ? choicesOf(u) : [];
               const pick = opts.length ? choices.find((c) => opts.some((o) => c.text === `${u.title}: ${o.name}`)) : undefined;
               const pickOpt = pick ? opts.find((o) => pick.text === `${u.title}: ${o.name}`) : undefined;
-              const mapHref = pickOpt ? choiceMapHref(pickOpt, u) : u.kind === "block" ? planMapHref(u, lineCtx) : (mapsQueryFor(u) ? mapsLink(mapsQueryFor(u)!) : null);
+              const mapHref = pickOpt ? choiceMapHref(pickOpt, u, bandCity?.country) : u.kind === "block" ? planMapHref(u, lineCtx) : (mapsQueryFor(u) ? mapsLink(mapsQueryFor(u)!) : null);
               // The same train Ken's rail sheet has at another time: the note up top already gives her time and every
               // source's, and the rail card has the countdown — no second "Next" (round 12: Oct 29 at 12:10 stacked
               // "Next train · in 1 hr 20 min" over "Next · in 20 min" and said the difference five times). Her line

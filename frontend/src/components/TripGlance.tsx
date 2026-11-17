@@ -29,7 +29,7 @@ import TodayWeather from "./TodayWeather";
 import { tripCountryOf } from "../lib/cityColors";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMarks";
-import { useLinePhotos } from "../lib/linePlaces";
+import { useLinePhotos, airportDirectionsHref } from "../lib/linePlaces";
 import { placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
@@ -367,6 +367,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const japanNowWords = new Date().toLocaleString("en-US", { timeZone: tz, weekday: "short", hour: "numeric", minute: "2-digit" });
   const openDay = (date: string, itemId?: string) => navigate(`/day/${date}${itemId ? `#item-${itemId}` : ""}`);
   const cityOn = (date: string) => data.days.find((x) => ymd(x.date) === date)?.city?.name || null;
+  const countryOn = (date: string) => data.days.find((x) => ymd(x.date) === date)?.city?.country || null;
   // Where the others are on a Japan date: on a moving day, the move itself (round 8: at 10 AM on the Nagoya →
   // Tokyo day, Julie's Home said "the others are in Tokyo" while they were still in Nagoya or on the train) —
   // the same "from → to" the day screen's header uses
@@ -864,7 +865,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
                   ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${airport} to ${hotel.name}?` } }))}
                       className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Ask Scout the ways to go ›</button>
                   : <span className="inline-flex items-center min-h-[44px] text-sm text-[#6b5d4a]">Scout can answer once you have signal</span>}
-                <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${airport} Airport, Japan`)}&destination=${encodeURIComponent(stayMapsQuery(hotel, cityOn(today)))}&travelmode=transit`}
+                <a href={airportDirectionsHref(airport, stayMapsQuery(hotel, cityOn(today)), countryOn(today))}
                   target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Directions in Maps ↗</a>
               </div>
             </div>

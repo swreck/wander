@@ -17,7 +17,7 @@
 import prisma from "./db.js";
 import { japanOrUnknown, tripIsInJapan } from "./dayCountry.js";
 
-const JMA ="https://www.jma.go.jp/bosai";
+const JMA = "https://www.jma.go.jp/bosai";
 /** English pages people can open (each checked to open, Oct 14) */
 export const LINKS = {
   // (short: the sentence before each already names the agency)

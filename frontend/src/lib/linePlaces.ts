@@ -160,3 +160,44 @@ export function useLinePhotos(tripId: string | null, cityId: string | null | und
   for (const q of queries) { const h = photos[q.query]; if (h && !firstFor.has(h.id)) firstFor.set(h.id, q.id); }
   return (b: GuideItem) => { const q = queries.find((x) => x.id === b.id)?.query; const h = q ? photos[q] || null : null; return h && firstFor.get(h.id) === b.id ? h : null; };
 }
+
+/** The country a map link ends in: the day's (its city's). A day whose country isn't known names none (never Japan by
+ *  default: a link on a trip that isn't Japan's would go to the wrong place). */
+export const searchCountry = (country?: string | null) => country?.trim() || "";
+
+/**
+ * Her route for the day with each stop's town added ("Umeno Vase Shop" → "Umeno Vase Shop, Tokyo, Japan"). Her link
+ * names stops bare, and the Google Maps app looks a bare name up near the phone: from California three of her Oct 16
+ * stops weren't found and one landed in Amsterdam ("Can't seem to find that place" — Ken's iPhone check, Oct 2). Her
+ * stops, order and everything else in the link stay as she made it. The country is the day's (December plan S1, D9):
+ * a Hanoi stop ends in Vietnam; with none given it is Japan, character for character as before.
+ */
+export function placedRoute(url: string, area: string, country?: string | null): string {
+  try {
+    const u = new URL(url);
+    const [before, path] = u.pathname.split("/maps/dir/");
+    if (path === undefined) return url;
+    const where = searchCountry(country);
+    const town = area.replace(/,\s*$/, "");
+    const stops = path.split("/").map((s) => {
+      if (!s || s.startsWith("@") || s.startsWith("data=")) return s;
+      const name = decodeURIComponent(s.replace(/\+/g, " "));
+      // (the town as a whole word — "Tokyodo Main Showroom" isn't a stop already in Tokyo)
+      const named = town && new RegExp(`\\b${town.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(name);
+      const hasCountry = !where ? false : where === "Japan" ? /japan|日本/i.test(name) : name.toLowerCase().includes(where.toLowerCase());
+      const placed = hasCountry ? name : (named ? `${name}, ${where}` : `${name}, ${area}${where}`).replace(/,\s*$/, "");
+      return encodeURIComponent(placed).replace(/%20/g, "+").replace(/%2C/g, ",");
+    });
+    u.pathname = `${before}/maps/dir/${stops.join("/")}`;
+    return u.toString();
+  } catch { return url; }
+}
+
+/** Maps for one of her choices: its name and the area of her plan ("Omen, Kyoto, Japan"). Her note on it
+ *  stays out of the search — "Honke Owariya soba since 1465" isn't what a map knows it as (round 7). */
+export const choiceMapHref = (c: { name: string }, line: GuideItem, country?: string | null) =>
+  mapsLink(`${c.name}, ${areaOf(line)}${searchCountry(country)}`.replace(/,\s*$/, ""));
+
+/** Transit directions from an airport to where you sleep, the airport searched in the day's country */
+export const airportDirectionsHref = (airport: string, destination: string, country?: string | null) =>
+  `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${airport} Airport${searchCountry(country) ? `, ${searchCountry(country)}` : ""}`)}&destination=${encodeURIComponent(destination)}&travelmode=transit`;
