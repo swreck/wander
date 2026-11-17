@@ -252,8 +252,9 @@ describe("D6 the help page", () => {
     expect(sectionsFor(false, "Andy")).toEqual(FIXTURE.Andy);
     expect(sectionsFor(false, "Ken", false, SOURCES)).toEqual(FIXTURE.Ken);
   });
-  // (three true uses the brief's own words keep: our guide, the Next tab along the bottom, a hotel's welcome sheet)
-  const ALLOWED = [/our guide took us/gi, /The \*\*Next\*\* tab is today/g, /a hotel's welcome sheet/g];
+  // Allowed as whole phrases only (the lead, Nov 17): Wander's own Next and Notes tabs, a paper welcome sheet, a trip guide
+  // in a person's story. A bare "tab" or "sheet" anywhere else still fails.
+  const ALLOWED = [/our guide took us/gi, /the (\*\*)?Next(\*\*)? tab/gi, /the (\*\*)?Notes(\*\*)? tab/gi, /welcome sheet/gi];
   const FORBIDDEN = /\b(guide|guides|sheet|sheets|spreadsheet|spreadsheets|tab|tabs|cell|cells)\b|her itinerary/i;
   for (const [who, mine] of [["Ken", false], ["Larisa", true], ["Andy", false]] as const) {
     it(`a plan trip's help holds none of rule 2's words, to ${who}`, () => {
