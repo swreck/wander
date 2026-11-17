@@ -11,6 +11,9 @@ export async function dayCountry(tripId: string, ymd: string): Promise<string | 
   return day?.city?.country || null;
 }
 
+/** The one rule for a day's clock: its city's zone, else the trip's, else Japan's (the one Wander was built for) */
+export const zoneFor = (cityZone: string | null | undefined, tripZone: string | null | undefined): string => cityZone || tripZone || "Asia/Tokyo";
+
 /** The clock a day is lived on: its city's time zone, else the trip's, else Japan's (the one Wander was built for).
  *  Japan's trip has no zone on its cities, so every day of it falls to the trip's, as before. */
 export async function dayZone(tripId: string, ymd: string): Promise<string> {
@@ -19,7 +22,20 @@ export async function dayZone(tripId: string, ymd: string): Promise<string> {
     : null;
   if (day?.city?.timeZone) return day.city.timeZone;
   const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { timeZone: true } }).catch(() => null);
-  return trip?.timeZone || "Asia/Tokyo";
+  return zoneFor(null, trip?.timeZone);
+}
+
+/** Today for a trip that crosses countries: the date on the clock of the day the people are living, found as the day whose
+ *  own clock reads its own date right now (the trip's clock when none does). A Japan trip keeps asking Japan's clock
+ *  where it always did; this is for a trip built from a plan. */
+export async function tripToday(tripId: string, now: Date = new Date()): Promise<string> {
+  const [trip, days] = await Promise.all([
+    prisma.trip.findUnique({ where: { id: tripId }, select: { timeZone: true } }).catch(() => null),
+    prisma.day.findMany({ where: { tripId }, select: { date: true, city: { select: { timeZone: true } } }, orderBy: { date: "asc" } }).catch(() => []),
+  ]);
+  const own = (zone: string) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const here = days.find((d) => own(zoneFor(d.city?.timeZone, trip?.timeZone)) === d.date.toISOString().slice(0, 10));
+  return here ? here.date.toISOString().slice(0, 10) : own(zoneFor(null, trip?.timeZone));
 }
 
 /** Does the trip go to Japan at all? Yes when a city of it is in Japan, or when no city says where it is (an older trip:
