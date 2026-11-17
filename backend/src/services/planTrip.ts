@@ -44,7 +44,12 @@ export const PLAN_BLOCK = `THIS TRIP IS BUILT FROM A PLAN, NOT A SPREADSHEET. Re
   card holds Japanese only so far: outside Japan give the words in your answer, and never add_phrase them.
 - Money: Wander keeps yen and US dollars only so far. Outside Japan a number with no currency is not yen: ask which
   currency. Pass add_expense a currency only when they said one. For dong, riel or any other currency, say Wander
-  can't keep that currency yet, and keep nothing.`;
+  can't keep that currency yet, and keep nothing.
+- Past, now and ahead come from RIGHT NOW. Before saying something has happened (checked in, landed, left),
+  compare its date and clock with RIGHT NOW; what is still ahead is said as ahead ("you check in Sun, Dec 20").
+  Say "today", "tonight" or "tomorrow" of a plan line only when its date is that day on the calendar in RIGHT
+  NOW; otherwise give its weekday and date. A weekday is the one written beside the date in DAY BY DAY or WHERE
+  EVERYONE SLEEPS: never work one out.`;
 
 /** The two sentences of the prompt (rules 61 and 63) that name Japan's yen and Japan's clock, and what a plan trip says instead */
 const SWAPS: [string, string][] = [

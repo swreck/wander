@@ -12,6 +12,8 @@ import { PrismaClient } from "@prisma/client";
 import { cleanFixtures, makePlan, NAMES_OF } from "./fixtures/scout-fixtures.js";
 
 const sentToModel = vi.hoisted(() => [] as any[]);
+// (steps a test wants the stubbed model to take, in order; when empty the stub answers "(stub)")
+const script = vi.hoisted(() => [] as { stop_reason: string; content: any[] }[]);
 vi.mock("@anthropic-ai/sdk", async (orig) => {
   const real: any = await orig();
   class Fake extends real.default {
@@ -20,6 +22,8 @@ vi.mock("@anthropic-ai/sdk", async (orig) => {
       (this as any).messages = {
         create: async (p: any) => {
           sentToModel.push(p);
+          const next = script.shift();
+          if (next) return { id: "stub", type: "message", role: "assistant", model: "stub", stop_sequence: null, ...next, usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } };
           return { id: "stub", type: "message", role: "assistant", model: "stub", stop_reason: "end_turn", stop_sequence: null,
             content: [{ type: "text", text: "(stub)", citations: null }], usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } };
         },
@@ -194,7 +198,12 @@ describe("S7 the plan trip's prompt", () => {
   card holds Japanese only so far: outside Japan give the words in your answer, and never add_phrase them.
 - Money: Wander keeps yen and US dollars only so far. Outside Japan a number with no currency is not yen: ask which
   currency. Pass add_expense a currency only when they said one. For dong, riel or any other currency, say Wander
-  can't keep that currency yet, and keep nothing.`;
+  can't keep that currency yet, and keep nothing.
+- Past, now and ahead come from RIGHT NOW. Before saying something has happened (checked in, landed, left),
+  compare its date and clock with RIGHT NOW; what is still ahead is said as ahead ("you check in Sun, Dec 20").
+  Say "today", "tonight" or "tomorrow" of a plan line only when its date is that day on the calendar in RIGHT
+  NOW; otherwise give its weekday and date. A weekday is the one written beside the date in DAY BY DAY or WHERE
+  EVERYONE SLEEPS: never work one out.`;
   // (rules 61 and 63 of the prompt: what Japan's says, and what a plan trip's says in its place)
   const SWAPS: [string, string][] = [
     ["the amount as said, yen unless they said dollars, and what it was for", "the amount as said, the currency only if they said one (on a day in Japan, yen unless they said dollars), and what it was for"],
@@ -553,5 +562,139 @@ describe("F11 on a plan trip with no currency said: ask unless the day is known 
     expect(r.kept).toBe(true);
     expect((await prisma.tripExpense.findFirst({ where: { tripId: plan.tripId, what: "Tea in Japan" } }))?.currency).toBe("JPY");
     expect(await rows()).toBe(before + 1);
+  });
+});
+
+// ---- S2b-fix2 (Nov 17 2026) ----
+const say = (t: string) => ({ type: "text", text: t, citations: null });
+const callTool = (name: string, input: any) => ({ stop_reason: "tool_use", content: [{ type: "tool_use", id: `tu-${name}`, name, input }] });
+const endWith = (t: string) => ({ stop_reason: "end_turn", content: [say(t)] });
+const askChat = (message: string, extra: any = {}) => request(app).post("/api/chat").set("Authorization", `Bearer ${tok}`).send({
+  message, context: { page: "Home", tripId: plan.tripId }, history: [], ...extra,
+  clientTime: { iso: "2026-12-20T16:40:00Z", localDate: "2026-12-20", localTime: "8:40 AM", weekday: "Sunday", timeZone: PHONE },
+});
+const JPEG = "/9j/4AAQSkZJRgABAQEASABIAAD/";
+
+describe("G1 get_my_notes says when a note was kept on the day's clock", () => {
+  const ids: string[] = [];
+  afterAll(async () => { await prisma.tripNote.deleteMany({ where: { id: { in: ids } } }); });
+  it("a note made at 11:30 PM Dec 20 in Vietnam: 'Dec 20', '11:30 PM', 'Vietnam time'; never 'Dec 21' or 'Japan time'", async () => {
+    ids.push((await prisma.tripNote.create({ data: { tripId: plan.tripId, travelerId: plan.travelers.pat, authorName: NAMES.a, clientId: "g1-1", original: "Tea for Place C", text: "Tea for Place C", source: "typed", createdAt: new Date("2026-12-20T16:30:00Z") } })).id);
+    clockAt("2026-12-20T16:40:00Z");
+    const r: any = (await executeTool("get_my_notes", { tripId: plan.tripId }, ken)).result;
+    const text = JSON.stringify(r);
+    expect(r.notes[0].kept).toBe("Sun, Dec 20, 11:30 PM Vietnam time");
+    expect(r.order).toBe("newest first — 'kept' says when, with its clock");
+    expect(text).not.toContain("Dec 21");
+    expect(text).not.toContain("Japan time");
+  });
+});
+
+describe("G2 change_my_note's 'add' stamps the time on the day's clock", () => {
+  const ids: string[] = [];
+  afterAll(async () => { await prisma.tripNote.deleteMany({ where: { id: { in: ids } } }); });
+  const mk = async (n: number, at: string) => { const row = await prisma.tripNote.create({ data: { tripId: plan.tripId, travelerId: plan.travelers.pat, authorName: NAMES.a, clientId: `g2-${n}`, original: "First words", text: "First words", source: "typed", createdAt: new Date(at) } }); ids.push(row.id); return row.id; };
+  it("a note made earlier the same day on Vietnam's clock: '11:40 PM — ', no weekday", async () => {
+    const id = await mk(1, "2026-12-20T15:00:00Z");
+    clockAt("2026-12-20T16:40:00Z");
+    expect(((await executeTool("change_my_note", { tripId: plan.tripId, noteId: id, add: "Bought the tea" }, ken)).result as any).changed).toBe(true);
+    expect((await prisma.tripNote.findUnique({ where: { id } }))!.text).toMatch(/\n\n11:40 PM — Bought the tea$/);
+  });
+  it("a note made the day before: 'Sun, Dec 20, 11:40 PM — '", async () => {
+    const id = await mk(2, "2026-12-19T15:00:00Z");
+    clockAt("2026-12-20T16:40:00Z");
+    await executeTool("change_my_note", { tripId: plan.tripId, noteId: id, add: "Bought the tea" }, ken);
+    expect((await prisma.tripNote.findUnique({ where: { id } }))!.text).toMatch(/\n\nSun, Dec 20, 11:40 PM — Bought the tea$/);
+  });
+});
+
+describe("G3 and G4 a paper and a photo kept with no day go under today on the day's clock", () => {
+  afterAll(async () => {
+    await prisma.tripPaper.deleteMany({ where: { tripId: plan.tripId, title: "G3 ticket" } });
+    await prisma.tripPhoto.deleteMany({ where: { tripId: plan.tripId } });
+  });
+  it("keep_paper at 11:40 PM Dec 20 in Vietnam, no date: the row's day is 2026-12-20", async () => {
+    clockAt("2026-12-20T16:40:00Z");
+    script.push(callTool("keep_paper", { title: "G3 ticket", summary: "A ticket" }), endWith("Kept it under Dec 20."));
+    const r = await askChat("Keep this paper", { attachments: [{ mediaType: "image/jpeg", name: "ticket.jpg", data: JPEG }] });
+    expect(r.status).toBe(200);
+    const row = await prisma.tripPaper.findFirst({ where: { tripId: plan.tripId, title: "G3 ticket" } });
+    expect(row?.dayDate).toBe("2026-12-20");
+  });
+  it("keep_photo at 11:40 PM Dec 20 in Vietnam, no date: the row's day is 2026-12-20", async () => {
+    clockAt("2026-12-20T16:40:00Z");
+    script.push(callTool("keep_photo", { caption: "G4 view" }), endWith("Kept it under Dec 20."));
+    const r = await askChat("Keep this photo", { attachments: [{ mediaType: "image/jpeg", name: "view.jpg", data: JPEG }] });
+    expect(r.status).toBe(200);
+    const row = await prisma.tripPhoto.findFirst({ where: { tripId: plan.tripId }, orderBy: { createdAt: "desc" } });   // (a caption is kept only in the person's own words, so none)
+    expect(row?.dayDate).toBe("2026-12-20");
+  });
+});
+
+describe("G5 a step that stops for a tool and calls none never sends an empty message", () => {
+  const emptyUser = () => sentToModel.some((p) => (p.messages || []).some((m: any) => m.role === "user" && Array.isArray(m.content) && m.content.length === 0));
+  afterEach(() => { script.length = 0; });
+  it("(a) a tool_use stop with no content, then a plain answer: that answer, 200, no empty user message", async () => {
+    sentToModel.length = 0;
+    script.push({ stop_reason: "tool_use", content: [] }, endWith("The plan has Stay A for that night."));
+    const r = await askChat("Where do we sleep tonight?");
+    expect(r.status).toBe(200);
+    expect(r.body.reply).toContain("The plan has Stay A for that night.");
+    expect(sentToModel.length).toBe(2);
+    expect(emptyUser()).toBe(false);
+  });
+  it("(b) a tool_use stop with ten characters of words and no tool: those words stand, one model call, 200", async () => {
+    sentToModel.length = 0;
+    script.push({ stop_reason: "tool_use", content: [say("Checking...")] }, endWith("never reached"));
+    const r = await askChat("Where do we sleep tonight?");
+    expect(r.status).toBe(200);
+    expect(r.body.reply).toContain("Checking...");
+    expect(sentToModel.length).toBe(1);
+    expect(emptyUser()).toBe(false);
+  });
+  it("(c) two such steps in a row: 200 and no third model call", async () => {
+    sentToModel.length = 0;
+    script.push({ stop_reason: "tool_use", content: [] }, { stop_reason: "tool_use", content: [] }, endWith("never reached"));
+    const r = await askChat("Where do we sleep tonight?");
+    expect(r.status).toBe(200);
+    expect(sentToModel.length).toBe(2);
+    expect(emptyUser()).toBe(false);
+  });
+});
+
+describe("G6 a weekday Scout says is checked against the calendar", () => {
+  afterEach(() => { script.length = 0; });
+  it("a first answer with 'Monday, Dec 22', a second with 'Tuesday, Dec 22': the second is the reply, two model calls, and the second call was told", async () => {
+    sentToModel.length = 0;
+    script.push(endWith("You sleep at Stay A the night of Monday, Dec 22."), endWith("You sleep at Stay A the night of Tuesday, Dec 22."));
+    const r = await askChat("Where are we sleeping on the 22nd?");
+    expect(r.status).toBe(200);
+    expect(r.body.reply).toContain("Tuesday, Dec 22");
+    expect(r.body.reply).not.toContain("Monday");
+    expect(sentToModel.length).toBe(2);
+    const told = JSON.stringify(sentToModel[1].messages.at(-1));
+    expect(told).toContain(`(Wander) Your answer says \\"Monday, Dec 22\\", but on this trip's calendar that date is a Tuesday. Read the date again in DAY BY DAY or WHERE EVERYONE SLEEPS: the weekday written beside a date there is right. Then write your whole answer again, as your reply to the question — don't mention this check.`);
+  });
+  it("both answers wrong: the reply reads 'Dec 22' with no weekday", async () => {
+    sentToModel.length = 0;
+    script.push(endWith("You sleep at Stay A the night of Monday, Dec 22."), endWith("It is Stay A on Monday, Dec 22."));
+    const r = await askChat("Where are we sleeping on the 22nd?");
+    expect(r.status).toBe(200);
+    expect(r.body.reply).toContain("It is Stay A on Dec 22.");
+    expect(r.body.reply).not.toMatch(/Monday/);
+    expect(sentToModel.length).toBe(2);
+  });
+  it("two wrong in one answer: one note naming both, each with the weekday it is", async () => {
+    sentToModel.length = 0;
+    script.push(endWith("Monday, Dec 22 and then Wed, Dec 24."), endWith("Tuesday, Dec 22 and then Thu, Dec 24."));
+    await askChat("Walk me through it");
+    expect(JSON.stringify(sentToModel[1].messages.at(-1))).toContain(`\\"Monday, Dec 22\\" (that date is a Tuesday) and \\"Wed, Dec 24\\" (that date is a Thursday). Read each date again in DAY BY DAY or WHERE EVERYONE SLEEPS`);
+  });
+  it("a right first answer: one model call, the reply unchanged", async () => {
+    sentToModel.length = 0;
+    script.push(endWith("You sleep at Stay A the night of Tuesday, Dec 22."));
+    const r = await askChat("Where are we sleeping on the 22nd?");
+    expect(r.body.reply).toBe("You sleep at Stay A the night of Tuesday, Dec 22.");
+    expect(sentToModel.length).toBe(1);
   });
 });

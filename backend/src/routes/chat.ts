@@ -23,6 +23,7 @@ import { keepScoutWarm } from "../services/scoutWarm.js";
 import { currentTripIdFor, chooseTrip } from "../services/currentTrip.js";
 import { isPlanTrip, planSystemPrompt, planTools } from "../services/planTrip.js";
 import { zoneWords as zoneWordsOf } from "../services/zoneWords.js";
+import { wrongWeekdays, withoutWrongWeekdays } from "../services/weekdays.js";
 
 const SCOUT_MODEL = "claude-opus-5";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
@@ -1621,7 +1622,14 @@ function maskVaultDocument<T extends { type: string; data: unknown }>(doc: T): T
 }
 
 /** Yen or US dollars, or no currency said: the only ones Wander can keep so far */
-const keepableCurrency = (currency: unknown): boolean => {
+/** A plan trip's clock for the tools: the clock of today's day (Vietnam's at 11 PM in Hanoi, not Tokyo's tomorrow). null for any
+ *  other trip, whose tools keep Japan's expressions as they were. */
+async function planDayClock(tripId: string): Promise<string | null> {
+  if (!tripId || !(await isPlanTrip(tripId))) return null;
+  const { dayZone, tripToday } = await import("../services/dayCountry.js");
+  return dayZone(tripId, await tripToday(tripId));
+}
+const keepableCurrency =(currency: unknown): boolean => {
   const c = String(currency ?? "").trim();
   return !c || /^(jpy|yen|¥|円|usd|\$|dollars?)$/i.test(c);
 };
@@ -3945,9 +3953,14 @@ export async function executeTool(
       const hits = (n: (typeof all)[number]) => (!q ? 1 : noteMatches(n, me, q) ? words.length + 1 : words.filter((w) => noteMatches(n, me, w)).length);
       const notes = all.map((n, i) => ({ n, i, h: hits(n) })).filter((x) => x.h > 0).sort((a, b) => b.h - a.h || a.i - b.i).slice(0, 60).map((x) => x.n);
       // (to the minute: with six notes kept the same day, Scout called the oldest "the most recent one" — user-julie4)
-      const keptOn = (d: Date) => `${plainDay(d.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }))}, ${d.toLocaleTimeString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit" })}`;
+      // (a plan trip: on the clock of the day the people are living, said in its words — a note kept at 11:30 PM Dec 20 in
+      // Vietnam is Dec 20, not Tokyo's Dec 21)
+      const notesClock = await planDayClock(String(input.tripId || ""));
+      const keptOn = notesClock
+        ? (d: Date) => `${plainDay(d.toLocaleDateString("en-CA", { timeZone: notesClock }))}, ${d.toLocaleTimeString("en-US", { timeZone: notesClock, hour: "numeric", minute: "2-digit" })} ${zoneWordsOf(notesClock)}`
+        : (d: Date) => `${plainDay(d.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }))}, ${d.toLocaleTimeString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit" })}`;
       return { result: {
-        order: q ? "the ones matching their words most first; newest first among those — 'kept' says when" : "newest first — 'kept' says when (Japan time)",
+        order: q ? "the ones matching their words most first; newest first among those — 'kept' says when" : notesClock ? "newest first — 'kept' says when, with its clock" : "newest first — 'kept' says when (Japan time)",
         notes: notes.map((n) => n.travelerId === me
           // (an answer of yours they asked you to keep is yours, never quoted as their words — rule 40)
           ? { id: n.id, by: n.source === "scout-answer" ? "Scout (your own answer, kept for them)" : "you", kept: keptOn(n.createdAt), day: n.dayDate, city: n.city, shared: n.visibility === "trip", words: n.tidied || n.text, ...(n.text !== n.original ? { asFirstSaved: n.original } : {}) }
@@ -3976,8 +3989,10 @@ export async function executeTool(
       if (typeof input.add === "string" && input.add.trim() && typeof input.words !== "string") {
         if (note.source === "scout-answer") return { result: { error: "That one is your own answer kept for them — its words stay as you wrote them." } };
         const now = new Date();
-        const japan = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
-        const at = now.toLocaleString("en-US", { timeZone: "Asia/Tokyo", ...(japan(note.createdAt) === japan(now) ? {} : { weekday: "short", month: "short", day: "numeric" }), hour: "numeric", minute: "2-digit" });
+        // (a plan trip: the day's own clock; the stamp is written into their note, so it carries no clock words, as Japan's has none)
+        const stampClock = await planDayClock(note.tripId);
+        const japan = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: stampClock || "Asia/Tokyo" });
+        const at = now.toLocaleString("en-US", { timeZone: stampClock || "Asia/Tokyo", ...(japan(note.createdAt) === japan(now) ? {} : { weekday: "short", month: "short", day: "numeric" }), hour: "numeric", minute: "2-digit" });
         const w = `${(note.tidied || note.text).replace(/\s+$/, "")}\n\n${at} — ${input.add.trim()}`;
         if (w.length > 50_000) return { result: { error: "That's longer than one note can hold — start a new note." } };
         data.text = w; data.editedAt = now; data.tidied = null; data.tidyStatus = null;
@@ -5853,6 +5868,8 @@ RULES:
     let askedAgainForWords = false;
     let askedAgainForLinks = false;
     let askedAgainForButton = false;
+    let askedAgainForWeekday = false;
+    let askedAgainForNoTool = false;
     const startedAt = Date.now();
 
     for (let turn = 0; turn < 8; turn++) {
@@ -5936,12 +5953,44 @@ RULES:
           answerPieces.length = 0;
           continue;
         }
+        // …or unless it writes a weekday beside a date that the calendar doesn't give that weekday (Nov 17 2026: "the night of
+        // Monday, Dec 22" for a Tuesday). Once: read the date again and write the answer again; a wrong weekday that comes
+        // back is taken out, so it never reaches the person. (services/weekdays.ts; the trip's own dates give the year)
+        if (tripId && /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i.test(finalReply)) {
+          const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }).catch(() => null);
+          const range = trip?.startDate && trip?.endDate ? { start: trip.startDate.toISOString().slice(0, 10), end: trip.endDate.toISOString().slice(0, 10) } : null;
+          const wrong = range ? wrongWeekdays(finalReply, range) : [];
+          if (range && wrong.length) {
+            if (!askedAgainForWeekday && turn < 6) {
+              askedAgainForWeekday = true;
+              console.log(`Scout wrote ${wrong.length} weekday(s) the calendar doesn't give — asking it to read the date again`);
+              const said = wrong.map((w) => `"${w.said}" (that date is a ${w.is})`).join(" and ");
+              if ((response.content as any[]).length) messages.push({ role: "assistant", content: response.content });   // (never an empty message)
+              messages.push({ role: "user", content: [{ type: "text", text: wrong.length === 1
+                ? `(Wander) Your answer says "${wrong[0].said}", but on this trip's calendar that date is a ${wrong[0].is}. Read the date again in DAY BY DAY or WHERE EVERYONE SLEEPS: the weekday written beside a date there is right. Then write your whole answer again, as your reply to the question — don't mention this check.`
+                : `(Wander) Your answer says ${said}. Read each date again in DAY BY DAY or WHERE EVERYONE SLEEPS: the weekday written beside a date there is right. Then write your whole answer again, as your reply to the question — don't mention this check.` }] });
+              finalReply = "";
+              answerPieces.length = 0;
+              continue;
+            }
+            finalReply = withoutWrongWeekdays(finalReply, range);
+          }
+        }
         if (unseen.length) finalReply = markUnseen(finalReply, unseen);
         break;
       }
 
       // Process tool calls
       const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
+      // A step that stops "for a tool" and calls none (the server log of Nov 17: 400, "user messages must have non-empty
+      // content", after an empty tool-result message was pushed). Say what the step held, then: words already written
+      // stand; none, ask that step again once, with nothing added to the conversation; a second time, stop.
+      if (!toolUseBlocks.length) {
+        console.log(`Scout stopped for a tool but called none — blocks: ${(response.content as any[]).map((b) => b?.type).join(",")}`);
+        if (finalReply) break;
+        if (!askedAgainForNoTool) { askedAgainForNoTool = true; continue; }
+        break;
+      }
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
       let screenOnlyOk = toolUseBlocks.every((b) => ["show_in_wander", "directions", "offer_location"].includes((b as Anthropic.ToolUseBlock).name));
 
@@ -6017,7 +6066,8 @@ RULES:
             const files = asked.length ? asked.map((n) => all[n - 1]) : all.length === 1 ? all : [];
             const days = await P.tripDays(tripId);
             // (no day on it: the day it's kept, Japan's date, when that's a trip day — the day they were there)
-            const kept = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+            // (a plan trip: today is the date on the day's own clock)
+            const kept = planTripNow ? await (await import("../services/dayCountry.js")).tripToday(tripId) : new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
             const date = typeof input.date === "string" && days.some((d) => d.date === input.date) ? input.date : days.some((d) => d.date === kept) ? kept : null;
             const title = String(input.title || "").trim().slice(0, 120) || "A paper";
             if (!all.length) out = { error: "Nothing they sent with this message can be kept (a photo, a picture or a PDF). Ask them to attach it here and say keep it." };
@@ -6051,7 +6101,7 @@ RULES:
             const pics = [...(photo ? [{ mediaType: photo.mediaType, data: photo.data, thumb: undefined as string | undefined }] : []), ...sent.map((a, i) => ({ ...a, thumb: raw[i]?.thumb as string | undefined }))]
               .filter((f) => /^image\/jpe?g$/.test(f.mediaType));
             const { addPhoto } = await import("../services/tripPhotos.js");
-            const day = typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+            const day = typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : planTripNow ? await (await import("../services/dayCountry.js")).tripToday(tripId) : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
             if (!pics.length) out = { error: "No photo came with this message (a JPEG photo). Ask them to attach it here and say keep it." };
             else {
               let kept = 0;
