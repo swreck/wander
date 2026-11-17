@@ -83,7 +83,7 @@ export function PhotoViewer({ photos: all, start, me, onClose }: { photos: TripP
   );
 }
 
-export default function DayPhotos({ tripId, date, canAdd, trip }: { tripId: string; date: string; canAdd: boolean; trip: { first: string; last: string } }) {
+export default function DayPhotos({ tripId, date, canAdd, trip, showSamples = true }: { tripId: string; date: string; canAdd: boolean; trip: { first: string; last: string }; showSamples?: boolean }) {
   const [listed, setPhotos] = useState<TripPhoto[]>(() => savedPhotos(tripId, date) || []);
   const photos = useShowable(listed);
   const [share, setShare] = useState(false);
@@ -93,7 +93,8 @@ export default function DayPhotos({ tripId, date, canAdd, trip }: { tripId: stri
   const input = useRef<HTMLInputElement>(null);
   // (Ken's sample for this day, if any: held in memory by lib/samples, drawn after the real photos, never opened or sent — S2c)
   const [samples, setSamples] = useState<Sample[]>([]);
-  useEffect(() => { let live = true; loadSamples(tripId).then((s) => { if (live) setSamples(s); }); return () => { live = false; }; }, [tripId]);
+  // (never on Next: Next is what is really happening, so the day screen passes showSamples={!now})
+  useEffect(() => { if (!showSamples) { setSamples([]); return; } let live = true; loadSamples(tripId).then((s) => { if (live) setSamples(s); }); return () => { live = false; }; }, [tripId, showSamples]);
   useEffect(() => {
     let live = true;
     const get = () => photosOf(tripId, date).then((r) => { if (live && r) { setPhotos(r.photos); setShare(r.shareDefault); } });

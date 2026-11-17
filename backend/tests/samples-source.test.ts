@@ -42,6 +42,15 @@ describe("C6 source reads", () => {
     expect(imports).toContain("../lib/samples");   // (the types alone)
     expect(imports).toMatch(/import type \{ SampleItem \} from "..\/lib\/samples"/);
   });
+  it("phone: Next draws no sample (the day screen draws its lines and summary only when it is not Next, and tells the photo strip the same)", () => {
+    const day = read("frontend/src/pages/DayPage.tsx");
+    expect(day).toMatch(/<DayPhotos [^>]*showSamples=\{!now\}/);
+    expect(day.match(/<DayPhotos /g)?.length).toBe(1);
+    expect(read("frontend/src/components/DayPhotos.tsx")).toMatch(/if \(!showSamples\) \{ setSamples\(\[\]\); return; \}/);
+  });
+  it("phone: a city whose only maybes are samples still gets its tab on Maybes", () => {
+    expect(read("frontend/src/pages/IdeasPage.tsx")).toMatch(/\(withIdeas\.has\(c\.id\) \|\| sampled\(c\)\) && ahead\.has\(c\.id\)/);
+  });
   it("phone: the service worker never keeps /api/samples", () => {
     expect(read("frontend/src/sw.ts")).toMatch(/NEVER_CACHED = \[[^\]]*'\/api\/samples'/);
   });

@@ -103,6 +103,16 @@ describe("C8 nothing with a sample's id leaves the phone", () => {
   it("a read of a path with sample: in it is not a save", () => {
     expect(namesASample("/guide/items/sample:x")).toBe(true);   // (the test itself says yes; only saves are refused, a GET never asks it)
   });
+  it("a body already written out as text: an id in it is found; words that only say sample: are not; a long body without the id is not read twice", () => {
+    expect(namesASample("/x", JSON.stringify({ experienceId: "sample:x" }))).toBe(true);
+    expect(namesASample("/x", JSON.stringify({ a: [{ noteIds: ["n1", "sample:x"] }] }))).toBe(true);
+    expect(namesASample("/chat", JSON.stringify({ text: "is this a sample: or real?" }))).toBe(false);
+    expect(namesASample("/chat", JSON.stringify({ text: 'she said "sample: pho"' }))).toBe(false);   // (inside words the quote is written \", and the key rule decides anyway)
+    const parse = vi.spyOn(JSON, "parse");
+    expect(namesASample("/chat", JSON.stringify({ file: "A".repeat(200_000) }))).toBe(false);
+    expect(parse).not.toHaveBeenCalled();
+    parse.mockRestore();
+  });
   it("and with the network down, a real maybe is still kept for later (the queue is not broken)", async () => {
     network = "down";
     await api.post("/maybes", { tripId: T, cityId: "city", words: "the market" });

@@ -36,7 +36,7 @@ export function SamplePicture({ className = "aspect-[16/9] rounded-lg", label = 
 const text = (v: unknown): string => (typeof v === "string" ? v : "");
 
 /** One sample in a list: a time (when it has one), the pill, its words; a tap says what it is */
-export function SampleRow({ sample, timeWords = null }: { sample: SampleItem; timeWords?: string | null }) {
+export function SampleRow({ sample, timeWords = null, zone = null }: { sample: SampleItem; timeWords?: string | null; zone?: string | null }) {
   const [open, setOpen] = useState(false);
   const d = sample.data;
   const unconfirmed = sample.kind === "unconfirmed";
@@ -47,7 +47,14 @@ export function SampleRow({ sample, timeWords = null }: { sample: SampleItem; ti
   return (
     <li data-sample="1" className="rounded-xl border border-dashed border-[#d6ccbc] bg-white/60">
       <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} data-sample="1" className="w-full flex items-start gap-3 px-3 py-2 min-h-[44px] text-left">
-        {timeWords !== null && <span data-sample="1" className={`w-16 shrink-0 text-right text-sm ${SAMPLE_TEXT}`}>{timeWords}</span>}
+        {/* (the clock's words sit under the time in smaller type, as on a real line: "9:30 AM Vietnam time" in one size
+            wrapped to three lines in this column) */}
+        {timeWords !== null && (
+          <span data-sample="1" className={`w-16 shrink-0 text-right text-sm ${SAMPLE_TEXT}`}>
+            {timeWords}
+            {zone && <span data-sample="1" className="block text-xs">{zone}</span>}
+          </span>
+        )}
         <span data-sample="1" className={`flex-1 min-w-0 text-sm leading-snug ${SAMPLE_TEXT}`}>
           <SampleTag label={unconfirmed ? text(d.tag) || "Not confirmed" : "Sample"} />
           {title}
@@ -58,7 +65,7 @@ export function SampleRow({ sample, timeWords = null }: { sample: SampleItem; ti
       {d.picture === true && <div data-sample="1" className="px-3 pb-3"><SamplePicture /></div>}
       {open && (
         <p data-sample="1" className={`px-3 pb-3 text-sm ${SAMPLE_TEXT}`}>
-          {unconfirmed ? NOT_CONFIRMED_SENTENCE : SAMPLE_SENTENCE}{unconfirmed && from ? ` From ${from}` : ""}
+          {unconfirmed ? NOT_CONFIRMED_SENTENCE : SAMPLE_SENTENCE}{unconfirmed && from ? ` From ${from}.` : ""}
         </p>
       )}
     </li>

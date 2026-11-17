@@ -1159,7 +1159,7 @@ function sampleLinesFor(samples: Sample[], date: string, tripZone: string): { at
     const timed = /^\d{1,2}:\d{2}$/.test(time);
     const at = timed ? tripClockMinutes({ time, timeZone: own, date: `${date}T00:00:00.000Z` } as GuideItem, tripZone) : NO_TIME;
     const zone = timed ? (own && own !== tripZone ? zoneWords(own) : phoneIsElsewhere(tripZone) ? zoneWords(tripZone) : null) : null;
-    return { at, node: <SampleRow key={s.id} sample={s} timeWords={timed ? `${clock(time.padStart(5, "0"))}${zone ? ` ${zone}` : ""}` : ""} /> };
+    return { at, node: <SampleRow key={s.id} sample={s} timeWords={timed ? clock(time.padStart(5, "0")) : ""} zone={zone} /> };
   }).sort((a, b) => a.at - b.at);
 }
 
@@ -3131,7 +3131,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             )}
 
             {/* Your photos from the day, and the ones the others shared (Oct 15: "Value, delight. Not gimmicks") */}
-            {tripId && date && tripFirst && last && <DayPhotos tripId={tripId} date={date} canAdd={date <= today} trip={{ first: tripFirst, last }} />}
+            {tripId && date && tripFirst && last && <DayPhotos tripId={tripId} date={date} canAdd={date <= today} trip={{ first: tripFirst, last }} showSamples={!now} />}
 
             {/* Every day of the stay (and Now): Larisa's note for the whole stay, as background — one row, opened in place */}
             {stopNotes.map((s) => (

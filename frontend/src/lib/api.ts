@@ -30,7 +30,8 @@ export function namesASample(path: string, body?: unknown): boolean {
   const segments = path.split("?")[0].split("/").map((s) => { try { return decodeURIComponent(s); } catch { return s; } });
   if (segments.some((s) => /^sample:/.test(s))) return true;
   let parsed: unknown = body;
-  if (typeof body === "string") { try { parsed = JSON.parse(body); } catch { return false; } }
+  // (a sample's id in JSON always reads `"sample:`; a body without it, a photo or a paper for Scout among them, is never parsed twice)
+  if (typeof body === "string") { if (!body.includes('"sample:')) return false; try { parsed = JSON.parse(body); } catch { return false; } }
   return namesSampleIn(parsed, "", 0);
 }
 const A_SAMPLE = "A sample. Nothing is planned here yet.";

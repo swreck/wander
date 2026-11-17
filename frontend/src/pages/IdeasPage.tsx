@@ -165,8 +165,10 @@ export default function IdeasPage() {
     // (and the city you're in today, ideas or not — in Nikko, with none, Maybes opened on Kyoto and a maybe for the
     // onsen went on Kyoto's list; fresh tester, Oct 16)
     const here = guide.days.find((d) => ymd(d.date) === day0)?.cityId;
-    return [...guide.trip.cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder).filter((c) => ((withIdeas.has(c.id) && ahead.has(c.id)) || c.id === here) && !c.hidden);
-  }, [guide, ideas]);
+    // (and, for the one person who sees samples, a city ahead whose only maybes are samples: with no tab they'd never be seen)
+    const sampled = (c: { planKey?: string | null }) => !!c.planKey && mergeSamples<never>("maybe", [], samples, { cityKey: c.planKey }).length > 0;
+    return [...guide.trip.cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder).filter((c) => (((withIdeas.has(c.id) || sampled(c)) && ahead.has(c.id)) || c.id === here) && !c.hidden);
+  }, [guide, ideas, samples]);
 
   // Which city: the one asked for, else where you are today, else the first
   const today = phoneToday();
