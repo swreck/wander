@@ -25,6 +25,7 @@ import prisma from "./db.js";
 import { allow } from "./usage.js";
 import { samePlace, judgePhotos } from "./photoJudge.js";
 import { fetchPhoto, recordVerdicts, ensureChecked, judgedWords, sameWords, MOST } from "./placePhotoChecks.js";
+import { plainCredit } from "./photoCredit.js";
 
 const WEEK = 7 * 24 * 3600_000;
 const DAY = 24 * 3600_000;
@@ -109,7 +110,7 @@ function hitOf(row: Row, shown: Shown[], judged: boolean): PlaceHit {
   if (!judged) return { id: row.id, v: row.checkedAt.getTime(), name: row.name, photos: [{ credit: null }], hours };
   if (!shown.length) return null;
   const v = Math.max(row.checkedAt.getTime(), ...shown.map((s) => s.checkedAt.getTime()));
-  return { id: row.id, v, name: row.name, photos: shown.slice(0, MOST).map((s, i) => ({ id: s.id, credit: s.credit, ...(i > 0 ? { ok: true } : {}) })), hours };
+  return { id: row.id, v, name: row.name, photos: shown.slice(0, MOST).map((s, i) => ({ id: s.id, credit: plainCredit(s.credit), ...(i > 0 ? { ok: true } : {}) })), hours };
 }
 const hit = async (row: Row): Promise<PlaceHit> => (await knownHits([row])).get(row.id) ?? null;
 

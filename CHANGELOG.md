@@ -2,6 +2,28 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-17 (Tuesday, at home) — A photo that fails once is drawn again; a photographer's name reads as a name
+
+- A fresh reviewer walked Oct 17, Oct 27 and Oct 21's Play on production as Ken after the entry below. Two findings
+  were fixed.
+- **A photo whose first try drops.** One full-screen photo of 80 stayed black on a connection that was up; the slide
+  would have ended as "This photo needs signal to show." When a photo fails, Wander already asks its server why. When
+  the server answers with the photo, the photo is now drawn a second time by itself; "needs signal" shows only when the
+  second try fails too. Where: the day's photo of a stop (DayPage MomentPhoto), the Next card's stops (NextStops), the
+  full-screen photos (PlaceGallery); the reason is `whyNoPhoto` in lib/placePhotos.ts, which now answers "again" as
+  well as "gone" and "signal". Checked in a browser with the first try of every photo dropped: before, Oct 27 showed 0
+  of 5 day photos and 0 of 6 full-screen photos, all saying they need signal; after, 5 of 5 and 6 of 6, and 3 of 3 on
+  the Next card. A photo that fails twice says it needs signal and is drawn twice at most. A photo Wander no longer has
+  still leaves no space.
+- **A photographer's name.** A name with an apostrophe read "D&#39;A…" under teamLab's second photo. Google sends names
+  as web text. Wander keeps the name exactly as Google sent it, because a photo is matched to its verdict by
+  that name, and now turns web codes into plain characters where the name leaves the server
+  (backend services/photoCredit.ts, used by placePhotos.ts `hitOf` and the arrival photo's /info in cityPhoto.ts).
+  Nothing stored changed, so no photo is judged again. A phone's own three-day copy is corrected the next time Wander
+  opens, within 2 hours of use.
+- Not changed, known: the small photo strips (a place's other photos on the day, Play the day, the trip at a glance)
+  still drop a photo that fails once. SPEC §15.1 updated.
+
 ## 2026-11-16 (Monday night, at home) — A place with no photo to show has no photo space
 
 - Ken: "Anytime a photo is not available, shouldn't you remove it?" On Oct 17 the 3D panda and 3D Akita billboard lines
