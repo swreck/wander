@@ -87,7 +87,8 @@ async function createTrip(
     .post("/api/trips")
     .set("Authorization", `Bearer ${token}`)
     .send({ name, startDate: start, endDate: end, cities, skipDocumentCarryOver: true });
-  expect(res.status).toBe(201);
+  // (the answer's words when it fails — a 404 here was seen once, Nov 16 2026, and never again; its words weren't kept)
+  expect(res.status, JSON.stringify(res.body)).toBe(201);
   return res.body.id;
 }
 

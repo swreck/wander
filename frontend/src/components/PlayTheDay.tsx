@@ -319,7 +319,7 @@ export default function PlayTheDay({ moments, dayWords, start, onClose, cover, n
           {/* (the place's other checked photos, each fading in over the last — Ken, Oct 16: "Increase to two photos in play
               day only"; Oct 17, on Robuchon: "four to six pictures of the restaurant and food") */}
           {k === at && !small[x.id] && shotsOf(x.hit).slice(1).map((j, n) => (
-            <img key={j} src={placePhotoUrl(x.hit!, j)} alt="" className={`absolute inset-0 w-full h-full object-cover play-drift transition-opacity duration-1000 ${shot >= n + 1 ? "opacity-100" : "opacity-0"}`}
+            <img key={j} src={placePhotoUrl(x.hit!, j)} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} className={`absolute inset-0 w-full h-full object-cover play-drift transition-opacity duration-1000 ${shot >= n + 1 ? "opacity-100" : "opacity-0"}`}
               style={{ transformOrigin: (k + n) % 2 ? "30% 40%" : "70% 60%" }} />
           ))}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 42%, rgba(0,0,0,.85) 100%)" }} />

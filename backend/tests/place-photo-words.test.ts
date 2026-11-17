@@ -91,6 +91,14 @@ describe("her description of a stop reaches the photo check", () => {
     expect(hit.photos[0].id).toBe(ids[1]);
   }, 60_000);
 
+  it("what phones are told at start carries the place's id and the words it was judged against, so a day's copy kept by those words is the same answer", async () => {
+    const r = await request(app).get("/api/place-photos/known").set({ Authorization: `Bearer ${tok}` });
+    const p = (r.body.places as any[]).find((x) => x.query === QUERY);
+    expect(p.id).toBe(rowId);
+    expect(p.words).toBe(HERS);
+    expect(p.hit.photos.map((x: any) => x.credit)).toEqual(["Ana"]);
+  });
+
   it("the same words again, or an older phone sending only the pin's name: not judged again", async () => {
     const n = judged.length;
     await lookup(HERS);

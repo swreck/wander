@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-16 (Monday night, at home) — A place with no photo to show has no photo space
+
+- Ken: "Anytime a photo is not available, shouldn't you remove it?" On Oct 17 the 3D panda and 3D Akita billboard lines
+  drew a grey box saying "Photo not available". Wander's server had already answered "no photo" for both. The box came
+  from the phone's own three-day copy, made before the two places were checked again. That copy is kept under the stop's
+  name with her list's description, and the list of known places Wander gives a phone when it opens only refreshed the
+  copy kept under the name alone.
+- **The source:** the list of known places now carries each place's id and the words its photos were judged against
+  (backend routes/placePhotos.ts /known). The phone corrects every copy of a place by that id, and keeps her list's stops
+  under her words too, so their photos draw in the day's first frame (lib/placePhotos.ts primePlacePhotos). Opening Oct 17
+  from Home measured a layout shift of 0.000 at CPU 2×; production measures 0.623 with the old copy.
+- **Wherever a photo is gone:** the day's photo of the stop draws nothing, after asking Wander for the place as it is now
+  (its new first photo shows in the same space when it has one), and corrects the phone's copy (DayPage MomentPhoto).
+  The Next card shows the stop's name alone (NextStops). Play the day hides a later photo that's gone. The full-screen
+  photos leave gone ones out, "1 of N" counts the rest, and with none left they close (PlaceGallery). "Photo needs
+  signal" stays when the phone can't reach Wander. "Photo not available" no longer appears anywhere. SPEC §15.1 updated.
+
+## 2026-11-16 (Monday evening, at home) — The "doesn't fit her words" rule withdrawn before it deployed
+
+- The rule in the entry below, "A place that doesn't fit her words shows no photo" (2.0 0f3204e), is withdrawn; it
+  never reached production. Her map list's pin IS the place she means (an udon shop's building, Hachiko Square); her
+  description says what she goes there for. Asking whether the place fits her description would hide photos of her
+  own pins. The photo check's own rule stays: it keeps only photos of what her description names. The diagnostics that
+  print a failing test's server answer (chaos createTrip, item-privacy) stay.
+
 ## 2026-11-16 (Monday, at home) — Keeping Japan safe before a second trip exists
 
 - Ken (Nov 2, approving the plan "Yes to all"): "I don't want to lose the data from the trip we just completed in Japan"
@@ -22,6 +47,10 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   well since I will regularly move between the instances for ideas and comparison"). The trip on screen is marked
   "Showing" (it said "Now", on Japan after it ended); each trip shows its dates with the year and "past trip", "under
   way" or "starts in N days", counted as Home counts. SPEC §14.3.
+- **A place that doesn't fit her words shows no photo** (seventh deploy, same day). Before a place's photos are judged
+  against new words, the check that matched the place asks again whether Google's place fits those words (her line
+  with her list's description); when not, no photo shows for that line, kept so it isn't asked again. The place's match
+  isn't changed (October's data). SPEC §15.1.
 - **A photo shows what her words name, or none shows** (sixth deploy, same day; reviewer: "3D panda billboard" led with
   a plate of udon, "3D Akita billboard" with the Hachiko statue, Takashimaya Times Square with a pastry case). Cause:
   her "Tokyo Day 3" list pins the udon shop's building and Hachiko Square, with her own description of each stop ("3D
