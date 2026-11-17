@@ -80,9 +80,16 @@ export function primePlacePhotos(): void {
   if (primed || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
   primed = true;
   try { if (Date.now() - Number(sessionStorage.getItem("wander:place-photos-primed") || 0) < 2 * 3600_000) return; } catch { /* none */ }
-  api.get<{ places: { query: string; line: string; hit: PlaceHit | null }[] }>("/place-photos/known").then((r) => {
+  api.get<{ places: { id?: string; query: string; line: string; words?: string; hit: PlaceHit | null }[] }>("/place-photos/known").then((r) => {
     const k = read(), now = Date.now();
-    for (const p of r.places || []) k[keyOf(p)] = { hit: p.hit, at: now };
+    // (by its line, and by the words its photos were judged against — her map list's stops are asked for by their name
+    // with her description; kept by those words too, the day draws their photos in its first frame)
+    for (const p of r.places || []) { k[keyOf(p)] = { hit: p.hit, at: now }; if (p.words) k[keyOf({ query: p.query, line: p.words })] = { hit: p.hit, at: now }; }
+    // (and every other copy of each place, kept by other words — a day sends her list's description with a stop's
+    // name, so its copy is kept by those words; it's corrected here too, by the place's own id — Nov 16 2026: a copy
+    // from before a place was checked again kept drawing a photo the place no longer has)
+    const byId = new Map((r.places || []).filter((p) => p.id).map((p) => [p.id!, p.hit]));
+    for (const key of Object.keys(k)) { const id = k[key].hit?.id; if (id && byId.has(id)) k[key] = { hit: byId.get(id)!, at: now }; }
     write(k);
     try { sessionStorage.setItem("wander:place-photos-primed", String(now)); } catch { /* none */ }
   }).catch(() => { primed = false; });

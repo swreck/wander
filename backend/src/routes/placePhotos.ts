@@ -44,8 +44,15 @@ router.get("/one/:id", requireAuth, async (req, res) => {
 router.get("/known", requireAuth, async (req: AuthRequest, res) => {
   const rows = await prisma.placePhoto.findMany({ where: { verdict: { in: ["yes", "no", "none"] } }, select: { id: true, query: true, line: true, name: true, verdict: true, checkedAt: true, hours: true } });
   const hits = await knownHits(rows);
+  // (and the words each place's photos were judged against, when they aren't its line — a day asks for a stop of her map
+  // list by its name with her description, so the phone keeps the place by those words too and draws its photo in the
+  // first frame; without them, every such stop's photo arrived after the day was drawn and moved it — Nov 16 2026)
+  const judged = new Map((await prisma.placePhotoCheck.findMany({ where: { placeRowId: { in: rows.map((r) => r.id) }, words: { not: null } }, distinct: ["placeRowId"], select: { placeRowId: true, words: true } })).map((c) => [c.placeRowId, c.words!]));
   res.set("Cache-Control", "private, max-age=600");
-  res.json({ places: rows.map((r) => ({ query: r.query, line: r.line, hit: hits.get(r.id) ?? null })) });
+  // (each place's own id too: a phone corrects every copy it kept of the place by it — copies are kept by the words a day
+  // sent, and words with her list's description weren't the words here, so a copy from before a check kept drawing a
+  // photo the place no longer has; Nov 16 2026)
+  res.json({ places: rows.map((r) => ({ id: r.id, query: r.query, line: r.line, ...(judged.get(r.id) && judged.get(r.id) !== r.line ? { words: judged.get(r.id) } : {}), hit: hits.get(r.id) ?? null })) });
   // (their hours, when missing or three days old, are fetched in the background — the next look has them; and each
   // place checked before the current rules — every photo shown checked, up to six — checked once more). Not for someone
   // whose trips are all over: every app open on old Japan refreshed 91 places' hours (Nov 15).

@@ -33,7 +33,14 @@ export default function PlaceGallery({ hit, title, time, map, start = 0, onClose
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-  const credit = hit.photos[at]?.credit;
+  // (a photo Wander no longer has leaves the strip — the count stays true, and with none left the gallery closes; Ken,
+  // Nov 16 2026: "Anytime a photo is not available, shouldn't you remove it?". One that needs signal stays, saying so)
+  const shown = hit.photos.map((_, n) => n).filter((n) => failed[n] !== "gone");
+  const none = shown.length === 0;
+  useEffect(() => { if (none) onClose(); }, [none, onClose]);
+  const pos = Math.min(at, Math.max(0, shown.length - 1));
+  const credit = hit.photos[shown[pos]]?.credit;
+  if (none) return null;
   return (
     <div role="dialog" aria-modal="true" aria-label={`Photos of ${hit.name || title}`} className="fixed inset-0 z-[310] bg-black flex flex-col"
       // (its own swipe down only: Play the day underneath doesn't hear it)
@@ -41,16 +48,16 @@ export default function PlaceGallery({ hit, title, time, map, start = 0, onClose
       onTouchEnd={(e) => { e.stopPropagation(); if (downY.current !== null && e.changedTouches[0].clientY - downY.current > 110) onClose(); downY.current = null; }}
       onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between px-4 text-white" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 6px)" }}>
-        <span className="text-sm text-white/80">{at + 1} of {hit.photos.length}</span>
+        <span className="text-sm text-white/80">{pos + 1} of {shown.length}</span>
         <button type="button" onClick={onClose} className="min-h-[44px] min-w-[64px] text-[15px] font-medium text-white">Done</button>
       </div>
       <div ref={strip} className="flex-1 flex overflow-x-auto snap-x snap-mandatory [scrollbar-width:none]"
         onScroll={(e) => { const el = e.currentTarget; setAt(Math.round(el.scrollLeft / Math.max(1, el.clientWidth))); }}>
-        {hit.photos.map((_, n) => (
+        {shown.map((n, i) => (
           <div key={n} className="shrink-0 w-full h-full snap-center flex items-center justify-center">
-            {failed[n]
-              ? <p className="text-sm text-white/70 px-8 text-center">{failed[n] === "gone" ? "This photo isn't available." : "This photo needs signal to show."}</p>
-              : Math.abs(n - at) <= 1 && <img src={placePhotoUrl(hit, n)} alt="" onError={() => { whyNoPhoto(placePhotoUrl(hit, n)).then((why) => setFailed((f) => ({ ...f, [n]: why }))); }} className="max-w-full max-h-full object-contain" />}
+            {failed[n] === "signal"
+              ? <p className="text-sm text-white/70 px-8 text-center">This photo needs signal to show.</p>
+              : Math.abs(i - pos) <= 1 && <img src={placePhotoUrl(hit, n)} alt="" onError={() => { whyNoPhoto(placePhotoUrl(hit, n)).then((why) => setFailed((f) => ({ ...f, [n]: why }))); }} className="max-w-full max-h-full object-contain" />}
           </div>
         ))}
       </div>

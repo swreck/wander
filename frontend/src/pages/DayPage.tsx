@@ -216,18 +216,30 @@ function momentNote(lines: string[]): string | null {
 function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onOpen: () => void }) {
   // (no signal for a photo not already on the phone: its space stays, quietly — never a broken-picture mark
   // (tourist63), and never a fold that moves the day (tourist64: 0.127 when the boxes folded away))
-  // (and a photo Wander no longer has says so — "needs signal" was untrue on a good connection; Nov 16 2026)
+  // (a photo Wander no longer has draws nothing — Ken, Nov 16 2026: "Anytime a photo is not available, shouldn't you
+  // remove it?" — and this phone's copy of the place is corrected, so the next open draws no box at all; when the place
+  // still has other photos, the first of them shows. "Photo needs signal" stays: it's temporary and says why)
   const [failed, setFailed] = useState<null | "gone" | "signal">(null);
   // (a place looked at only when this photo opened — Nov 16 2026 — is asked for again once it shows, so its photographer is
   // credited at once and its count is right)
   const [fresh, setFresh] = useState<PlaceHit | null>(null);
-  if (failed) return <div className="mt-2 rounded-lg bg-[#efe8dc] aspect-[16/9] flex items-center justify-center text-xs text-[#6b5d4a]">{failed === "gone" ? "Photo not available" : "Photo needs signal"}</div>;
+  const [instead, setInstead] = useState(false);
+  if (failed === "gone") return null;
+  if (failed) return <div className="mt-2 rounded-lg bg-[#efe8dc] aspect-[16/9] flex items-center justify-center text-xs text-[#6b5d4a]">Photo needs signal</div>;
   const now = fresh ?? hit;
   const credit = now.photos[0]?.credit;
-  const src = placePhotoUrl(hit, 0, true);
+  const src = placePhotoUrl(instead && fresh ? fresh : hit, 0, true);
+  const lost = async () => {
+    const why = await whyNoPhoto(src);
+    if (why !== "gone" || instead) { setFailed(why); return; }
+    // (asked before the box goes: a place whose photos changed shows its new first one in the same box, never a box
+    // that folds and comes back)
+    const h = await freshPlaceHit(hit.id);
+    if (h?.photos.length && h.photos[0]?.id && h.photos[0].id !== hit.photos[0]?.id) { setFresh(h); setInstead(true); } else setFailed("gone");
+  };
   return (
     <button type="button" onClick={onOpen} aria-label={`Photos of ${hit.name || title}`} className="relative block w-full mt-2 rounded-lg overflow-hidden bg-[#efe8dc] aspect-[16/9]">
-      <img src={src} alt="" loading="lazy" onError={() => { whyNoPhoto(src).then(setFailed); }}
+      <img src={src} alt="" loading="lazy" onError={() => { void lost(); }}
         onLoad={() => { if (!hit.photos[0]?.id && !fresh) freshPlaceHit(hit.id).then((h) => { if (h) setFresh(h); }); }}
         className="absolute inset-0 w-full h-full object-cover" />
       <span className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent" aria-hidden />
@@ -275,6 +287,7 @@ function NextStops({ tripId, cityId, head, stops }: { tripId: string; cityId: st
   const ask = useMemo(() => stops.map((s) => ({ query: s.query, line: s.line })), [stops]);
   const [hits, setHits] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(ask));
   const [open, setOpen] = useState<{ hit: PlaceHit; title: string } | null>(null);
+  const [gone, setGone] = useState<Record<string, boolean>>({});
   useEffect(() => {
     let live = true;
     lookUpPlacePhotos(tripId, cityId, ask).then((h) => { if (live) setHits(h); }).catch(() => { /* names alone */ });
@@ -286,16 +299,19 @@ function NextStops({ tripId, cityId, head, stops }: { tripId: string; cityId: st
       <p className="text-[15px] text-[#3a3128]">{head}</p>
       <div className="mt-2 -mx-4 px-4 scroll-px-4 flex items-start gap-2.5 overflow-x-auto snap-x pb-1">
         {stops.map((s) => {
-          const hit = hits[s.query] ?? null;
+          // (a stop Wander knows has no photo — none found, or the one kept is gone — is its name alone, no empty box;
+          // Ken, Nov 16 2026: "Anytime a photo is not available, shouldn't you remove it?")
+          const hit = gone[s.query] ? null : hits[s.query] ?? null;
           return (
             <button key={s.id} type="button" disabled={!hit} onClick={() => hit && setOpen({ hit, title: s.title })}
               aria-label={hit ? `Photos of ${s.title}` : s.title}
               className="snap-start shrink-0 w-[150px] text-left">
-              <span className="relative block w-full aspect-[4/3] rounded-lg overflow-hidden bg-[#efe8dc]">
-                {hit && <img src={placePhotoUrl(hit, 0, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
+              {hit && <span className="relative block w-full aspect-[4/3] rounded-lg overflow-hidden bg-[#efe8dc]">
+                <img src={placePhotoUrl(hit, 0, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover"
+                  onError={() => { const src = placePhotoUrl(hit, 0, true); whyNoPhoto(src).then((why) => { if (why === "gone") { setGone((g) => ({ ...g, [s.query]: true })); void freshPlaceHit(hit.id); } }); }} />
                 {/* (the photographer, on the photo, as Google asks) */}
-                {hit?.photos[0]?.credit && <span className="absolute inset-x-0 bottom-0 px-1.5 pb-0.5 pt-3 bg-gradient-to-t from-black/55 to-transparent break-words leading-tight text-[9px] text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">Photo: {hit.photos[0].credit} · Google</span>}
-              </span>
+                {hit.photos[0]?.credit && <span className="absolute inset-x-0 bottom-0 px-1.5 pb-0.5 pt-3 bg-gradient-to-t from-black/55 to-transparent break-words leading-tight text-[9px] text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">Photo: {hit.photos[0].credit} · Google</span>}
+              </span>}
               <span className="block mt-1 text-[13px] leading-snug text-[#3a3128] line-clamp-2">{s.title}</span>
             </button>
           );
