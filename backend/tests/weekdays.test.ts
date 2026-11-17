@@ -40,6 +40,12 @@ describe("wrongWeekdays", () => {
     expect(wrongWeekdays("Thurs, Dec. 24th", DEC)).toEqual([]);
     expect(wrongWeekdays("Mon, Dec. 24th", DEC)).toEqual([{ said: "Mon, Dec. 24th", date: "2026-12-24", is: "Thursday" }]);
   });
+  it("a word that only looks like a weekday (the sun, they sat, they wed) is not one: a weekday starts with a capital", () => {
+    for (const t of ["the morning sun, Jan 2 is the first", "where you sat Dec 20", "they wed Dec 21", "sun Dec 22"]) {
+      expect(wrongWeekdays(t, DEC), t).toEqual([]);
+      expect(withoutWrongWeekdays(t, DEC), t).toBe(t);
+    }
+  });
   it("a day that is not a date (Feb 30), no trip dates and no text: nothing", () => {
     expect(wrongWeekdays("Monday, Feb 30", { start: "2027-01-20", end: "2027-03-01" })).toEqual([]);
     expect(wrongWeekdays("Monday, Dec 22", { start: "", end: "" })).toEqual([]);

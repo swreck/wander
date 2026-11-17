@@ -3,7 +3,8 @@
  * Scout said "Monday, Dec 22" when its own context said "2026-12-22 (Tue)"). Pure: no database, no clock.
  * The year of a mention is the one that puts the date inside the trip's dates widened by 60 days each side; when no year
  * does, or two do, the mention is skipped. A weekday joined to the one before it ("Wed–Thu, Dec 23–24", "Wed and Thu,
- * Dec 23") is a range or a list and is skipped.
+ * Dec 23") is a range or a list and is skipped. A weekday and a month start with a capital, as Scout writes them: "the
+ * morning sun, Jan 2" and "where you sat Dec 20" are not weekdays.
  */
 export type TripRange = { start: string; end: string };
 export type WrongWeekday = { said: string; date: string; is: string };
@@ -11,8 +12,8 @@ export type WrongWeekday = { said: string; date: string; is: string };
 const FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const WEEKDAY = "Monday|Mon|Tuesday|Tues|Tue|Wednesday|Weds|Wed|Thursday|Thurs|Thur|Thu|Friday|Fri|Saturday|Sat|Sunday|Sun";
 const MONTH = "January|Jan|February|Feb|March|Mar|April|Apr|May|June|Jun|July|Jul|August|Aug|September|Sept|Sep|October|Oct|November|Nov|December|Dec";
-const MENTION = new RegExp(`\\b(${WEEKDAY})(\\.?,\\s*|\\s+)((${MONTH})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b)`, "gi");
-const JOINED = new RegExp(`\\b(?:${WEEKDAY})\\.?\\s*(?:-|–|—|/|to|and|&)\\s*$`, "i");
+const MENTION = new RegExp(`\\b(${WEEKDAY})(\\.?,\\s*|\\s+)((${MONTH})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b)`, "g");
+const JOINED = new RegExp(`\\b(?:${WEEKDAY})\\.?\\s*(?:-|–|—|/|to|and|&)\\s*$`);
 const DAY_MS = 86_400_000;
 
 const dayOf = (ymd: string): number | null => (/^\d{4}-\d{2}-\d{2}$/.test(ymd) && !isNaN(Date.parse(`${ymd}T00:00:00Z`)) ? Date.parse(`${ymd}T00:00:00Z`) : null);

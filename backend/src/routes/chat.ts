@@ -1621,7 +1621,6 @@ function maskVaultDocument<T extends { type: string; data: unknown }>(doc: T): T
   return { ...doc, data: { locked: true, howToSee: "Open your vault in Profile to see these details." } };
 }
 
-/** Yen or US dollars, or no currency said: the only ones Wander can keep so far */
 /** A plan trip's clock for the tools: the clock of today's day (Vietnam's at 11 PM in Hanoi, not Tokyo's tomorrow). null for any
  *  other trip, whose tools keep Japan's expressions as they were. */
 async function planDayClock(tripId: string): Promise<string | null> {
@@ -1629,7 +1628,8 @@ async function planDayClock(tripId: string): Promise<string | null> {
   const { dayZone, tripToday } = await import("../services/dayCountry.js");
   return dayZone(tripId, await tripToday(tripId));
 }
-const keepableCurrency =(currency: unknown): boolean => {
+/** Yen or US dollars, or no currency said: the only ones Wander can keep so far */
+const keepableCurrency = (currency: unknown): boolean => {
   const c = String(currency ?? "").trim();
   return !c || /^(jpy|yen|¥|円|usd|\$|dollars?)$/i.test(c);
 };
@@ -5956,7 +5956,7 @@ RULES:
         // …or unless it writes a weekday beside a date that the calendar doesn't give that weekday (Nov 17 2026: "the night of
         // Monday, Dec 22" for a Tuesday). Once: read the date again and write the answer again; a wrong weekday that comes
         // back is taken out, so it never reaches the person. (services/weekdays.ts; the trip's own dates give the year)
-        if (tripId && /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i.test(finalReply)) {
+        if (tripId && /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/.test(finalReply)) {
           const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }).catch(() => null);
           const range = trip?.startDate && trip?.endDate ? { start: trip.startDate.toISOString().slice(0, 10), end: trip.endDate.toISOString().slice(0, 10) } : null;
           const wrong = range ? wrongWeekdays(finalReply, range) : [];
@@ -5983,13 +5983,19 @@ RULES:
       // Process tool calls
       const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
       // A step that stops "for a tool" and calls none (the server log of Nov 17: 400, "user messages must have non-empty
-      // content", after an empty tool-result message was pushed). Say what the step held, then: words already written
-      // stand; none, ask that step again once, with nothing added to the conversation; a second time, stop.
+      // content", after an empty tool-result message was pushed). Say what the step held, then: an answer already written
+      // stands (words from an earlier step, or 40 characters or more in this one). A few words alone ("Checking...") are
+      // not an answer: that step is asked again once, its words dropped and nothing added to the conversation. A second
+      // time, the phone gets the failure it has words and a Try again for ("I couldn't get an answer just now"), never
+      // an empty answer.
       if (!toolUseBlocks.length) {
         console.log(`Scout stopped for a tool but called none — blocks: ${(response.content as any[]).map((b) => b?.type).join(",")}`);
-        if (finalReply) break;
-        if (!askedAgainForNoTool) { askedAgainForNoTool = true; continue; }
-        break;
+        if (finalReply.length > textParts.length || textParts.length >= 40) break;
+        if (askedAgainForNoTool) throw new Error("Scout stopped for a tool and called none, twice, with no answer written");
+        askedAgainForNoTool = true;
+        finalReply = "";
+        answerPieces.length = 0;
+        continue;
       }
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
       let screenOnlyOk = toolUseBlocks.every((b) => ["show_in_wander", "directions", "offer_location"].includes((b as Anthropic.ToolUseBlock).name));

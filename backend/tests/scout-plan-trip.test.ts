@@ -643,21 +643,31 @@ describe("G5 a step that stops for a tool and calls none never sends an empty me
     expect(sentToModel.length).toBe(2);
     expect(emptyUser()).toBe(false);
   });
-  it("(b) a tool_use stop with ten characters of words and no tool: those words stand, one model call, 200", async () => {
+  it("(b) a tool_use stop with a few words and no tool ('Checking...'): not an answer, so asked again once; the answer is the second step's alone", async () => {
     sentToModel.length = 0;
-    script.push({ stop_reason: "tool_use", content: [say("Checking...")] }, endWith("never reached"));
+    script.push({ stop_reason: "tool_use", content: [say("Checking...")] }, endWith("The plan has Stay A for that night."));
     const r = await askChat("Where do we sleep tonight?");
     expect(r.status).toBe(200);
-    expect(r.body.reply).toContain("Checking...");
-    expect(sentToModel.length).toBe(1);
+    expect(r.body.reply).toBe("The plan has Stay A for that night.");
+    expect(sentToModel.length).toBe(2);
     expect(emptyUser()).toBe(false);
   });
-  it("(c) two such steps in a row: 200 and no third model call", async () => {
+  it("(c) two such steps in a row: no third model call, and the phone gets the failure it has words and a Try again for, never an empty answer", async () => {
     sentToModel.length = 0;
     script.push({ stop_reason: "tool_use", content: [] }, { stop_reason: "tool_use", content: [] }, endWith("never reached"));
     const r = await askChat("Where do we sleep tonight?");
-    expect(r.status).toBe(200);
+    expect(r.status).toBe(500);
+    expect(r.body.error).toBe("Chat failed");
     expect(sentToModel.length).toBe(2);
+    expect(emptyUser()).toBe(false);
+  });
+  it("(d) a tool_use stop with a whole answer written and no tool: the answer stands, one model call", async () => {
+    sentToModel.length = 0;
+    script.push({ stop_reason: "tool_use", content: [say("The plan has Stay A for that night, with check-in from 3:00 PM.")] }, endWith("never reached"));
+    const r = await askChat("Where do we sleep tonight?");
+    expect(r.status).toBe(200);
+    expect(r.body.reply).toBe("The plan has Stay A for that night, with check-in from 3:00 PM.");
+    expect(sentToModel.length).toBe(1);
     expect(emptyUser()).toBe(false);
   });
 });
