@@ -4261,9 +4261,12 @@ export async function executeTool(
         if (hrs) {
           const { dayPoints, townPoint, hoursAt, hourlyWords } = await import("../services/dayWeather.js");
           const pts = town ? [await townPoint(String(input.tripId || ""), town)].filter((x): x is NonNullable<typeof x> => !!x) : await dayPoints(String(input.tripId || ""), user.displayName || "", date);
-          hourly = (await Promise.all(pts.map(async (x) => { const h = await hoursAt(x.pt, date, hrs.from, hrs.to); return h ? hourlyWords(x.place, h) : null; }))).filter(Boolean);
+          const { dayZone } = await import("../services/dayCountry.js");
+          // (the clock the day is lived on: its hours are that zone's; a named town is looked up in Japan only)
+          const dayClock = town ? "Asia/Tokyo" : await dayZone(String(input.tripId || ""), date);
+          hourly = (await Promise.all(pts.map(async (x) => { const h = await hoursAt(x.pt, date, hrs.from, hrs.to, dayClock); return h ? hourlyWords(x.place, h) : null; }))).filter(Boolean);
         }
-        return { date, day: dayName(date), lines: forecastLines(w, date, w.place, now).map((l) => plain(l.text)), read: readAt(w.at),
+        return { date, day: dayName(date), lines: forecastLines(w, date, w.place, now, town ? "Asia/Tokyo" : await (await import("../services/dayCountry.js")).dayZone(String(input.tripId || ""), date)).map((l) => plain(l.text)), read: readAt(w.at),
           ahead: w.outlook === "early outlook" ? "an early outlook: more than a week ahead, likely to change" : "a week or less",
           ...(hourly?.length ? { hourly } : {}),
           ...(airports.length ? { airports, airportsNote: "the airport's own forecast, for their flight that day (not on the day page): use it for landing or leaving" } : {}) };

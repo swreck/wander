@@ -271,6 +271,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   // Your own today: Japan's date once your plane has landed there, whatever the phone's clock (Oct 10 audit: a phone
   // still on California time after Julie landed kept her on the day she flew); worked out on every redraw
   const today = data ? travelerToday(data.items, me, data.trip.timeZone || "Asia/Tokyo", phoneDay) : phoneDay;
+  // (a trip through several zones: "today" is the date where the plan has you — lib/guideDisplay travelerToday)
   // Today's lines of her plan with their places' checked photos — found as the day's screen finds them (its Maps search,
   // tonight's hotel, her Itinerary heading, the day's bookings), so each line shows the same photo on both (Oct 16)
   const linePlaces = useMemo(() => {
@@ -404,8 +405,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
       const depAt = dep ? zonedMoment(ymd(dep.date), toMin(dep.time), dep.timeZone || tz).getTime() : null;
       const when = landsAt.toLocaleString("en-US", { timeZone: tz, weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "");
       return depAt !== null && now < depAt
-        ? `${p} haven't left home yet — they're due to land at ${airport} ${when} Japan time`
-        : `${p} should be in the air — due to land at ${airport} ${when} Japan time, by the schedule`;
+        ? `${p} haven't left home yet — they're due to land at ${airport} ${when} ${zoneWords(tz)}`
+        : `${p} should be in the air — due to land at ${airport} ${when} ${zoneWords(tz)}, by the schedule`;
     }
     return null;
   };
@@ -421,7 +422,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     const lastArrive = rail.flatMap((x) => x.s.rail.filter((r) => r.date === date && isBookedTrain(r)).map((r) => colOf(r.cols, /^arrive/)).filter(Boolean)).sort().pop();
     const arrived = lastArrive ? Date.now() >= zonedMoment(date, toMin(lastArrive.padStart(5, "0")), tz).getTime() : jpHour >= 18;
     if (from && to && from !== to) return arrived ? `the others are in ${to} ${jpHour >= 18 ? "tonight" : "now"}, after the trip from ${from}` : `the others travel from ${from} to ${to} today`;
-    return `the others are in ${to || "Japan"}`;
+    return `the others are in ${to || countryOn(date) || "the city of the day"}`;
   };
   // Whose Guide it is — she is never told to ask herself (round 9: "ask Larisa if you're not sure", to Larisa)
   const owner = guideOwnerOf(data.trip.tagline);
@@ -570,7 +571,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         {groupStarted && japanToday >= first && japanToday <= last && (
           // The others live on Japan's clock: when it's Wednesday evening here, it's already Thursday there
           <button onClick={() => openDay(japanToday)} className="w-full text-left text-sm text-[#514636] min-h-[44px]">
-            Right now in Japan ({japanNowWords}): {othersArriving() || othersWhere(japanToday)} ›
+            Right now {countryOn(japanToday) ? `in ${countryOn(japanToday)} ` : ""}({japanNowWords}): {othersArriving() || othersWhere(japanToday)} ›
           </button>
         )}
         {/* The ticket pickup (Ken's rail sheet): two of its steps are for before you leave home */}
@@ -822,7 +823,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
       <div>
         <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">Today · {dayLabel(today)}</h2>
         {/* The day's weather, small, and the way into the day — on Home just under the trip's dates (Ken, Oct 13) */}
-        {weatherSlot && createPortal(<TodayWeather tripId={tripId} date={today} japanToday={japanToday} onGo={() => openDay(today)} />, weatherSlot)}
+        {weatherSlot && createPortal(<TodayWeather tripId={tripId} date={today} japanToday={japanToday} zone={tz} onGo={() => openDay(today)} />, weatherSlot)}
         {/* A ticket this phone didn't tick at the pickup, on the morning it travels (delight audit) */}
         <TicketWarnings className="mt-2" list={untickedTickets(otherSources, today, me, (s) => railAudience(data.items, s.owner).ownerParty,
           (r, s) => { const a = railAudience(data.items, s.owner); return legIsFor(r, s, me, a.ownerParty, a.groupSize); },
@@ -876,7 +877,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
             <p className="text-base leading-snug">
               {flightNow > leave.minutes ? `Flight ${flightIn(flightAt - flightNow)} — ${lateLeaveWords(leave, flight!, flightNow).replace(/^Past the time to leave for [^—]+— /, "").replace(/^./, (c) => c.toLowerCase())}` : leave.text}
             </p>
-            <p className="text-xs text-white/85 mt-0.5">{clock(flight!.time)} Japan time · {flight!.title}</p>
+            <p className="text-xs text-white/85 mt-0.5">{clock(flight!.time)} {zoneWords(flight!.timeZone || tz)} · {flight!.title}</p>
             {flightNow > leave.minutes && flight!.confirmation && <p className="text-xs text-white/85">Confirmation {flight!.confirmation}</p>}
             <p className="text-xs text-white/75 mt-1">{leave.why}</p>
           </div>

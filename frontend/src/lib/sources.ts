@@ -5,6 +5,7 @@
  */
 import { api } from "./api";
 import { partiesOf, partyOf, samePerson } from "./guideDisplay";
+import { zoneWords } from "./dayZone";
 import type { GuideItem } from "./guideData";
 
 /** The sheet owner's couple and the group's size, from her Guide's pairs ("Ken & Larisa", "Julie & Andy") */
@@ -127,7 +128,7 @@ export function withTwelveHour(s: string): string {
 export function readWords(iso: string | null, zone = "Asia/Tokyo"): string | null {
   if (!iso) return null;
   const when = new Date(iso).toLocaleString("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  return `${when} ${zone === "Asia/Tokyo" ? "Japan time" : zone}`;
+  return `${when} ${zoneWords(zone)}`;
 }
 
 /** "Oct 6" in a status line, as YYYY-MM-DD in the given year */

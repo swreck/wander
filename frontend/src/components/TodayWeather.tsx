@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import { dayForecastFor, savedDayForecast, rainDisputed, rainInches, FORECAST_KEPT, askAgainWhenSeen, type DayForecast } from "../lib/forecast";
 import { theHotel } from "./DayForecast";
 
-export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripId: string; date: string; japanToday: string; onGo: () => void }) {
+export default function TodayWeather({ tripId, date, japanToday, onGo, zone = "Asia/Tokyo" }: { tripId: string; date: string; japanToday: string; onGo: () => void; zone?: string }) {
   // (a day already over where the trip is has no weather — the day page's own rule. Julie and Andy, flying on Oct 13 by
   // their own clock while Tokyo was on Oct 14, would have read Tokyo's finished Oct 13; verify28)
   const over = date < japanToday;
@@ -48,7 +48,7 @@ export default function TodayWeather({ tripId, date, japanToday, onGo }: { tripI
   // (each line is that town's whole day, so just the town's name — "Tokyo this morning: 58‑74°F" read as the morning's;
   // and on a travel day, from noon on, tonight's town first: at 3:47 PM in Tokyo, Home still led with "Nagoya this
   // morning" — verify31)
-  const noonPassed = Number(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", hourCycle: "h23" })) >= 12 && date === japanToday;
+  const noonPassed = Number(new Date().toLocaleString("en-US", { timeZone: zone, hour: "numeric", hourCycle: "h23" })) >= 12 && date === japanToday;
   const night = f ? { label: f.town || f.place || "", x: f } : null;
   const other = also ? { label: also.place, x: also } : null;
   const lines = !f ? [] : !other ? [{ label: "", x: f }] : also!.when === "morning" && noonPassed ? [night!, other] : [other, night!];

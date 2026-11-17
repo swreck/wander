@@ -3,6 +3,8 @@ export interface City {
   name: string;
   tagline: string | null;
   country: string | null;
+  /** the clock the city is lived on ("Asia/Ho_Chi_Minh"); null on Japan's cities: the trip's zone then */
+  timeZone?: string | null;
   latitude: number | null;
   longitude: number | null;
   sequenceOrder: number;

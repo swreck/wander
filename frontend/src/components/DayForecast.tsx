@@ -81,7 +81,7 @@ export default function DayForecast({ tripId, lat, lon, date, zone, place, herLi
 
   if (f) {
     // (where her plan takes them that day first, when it's somewhere else, then where they sleep — lib/forecastWords)
-    const lines = forecastLines(f, date, place);
+    const lines = forecastLines(f, date, place, new Date(), zone);
     return (
       <>
         {lines.map((l, i) => (

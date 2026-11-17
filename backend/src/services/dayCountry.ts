@@ -11,6 +11,17 @@ export async function dayCountry(tripId: string, ymd: string): Promise<string | 
   return day?.city?.country || null;
 }
 
+/** The clock a day is lived on: its city's time zone, else the trip's, else Japan's (the one Wander was built for).
+ *  Japan's trip has no zone on its cities, so every day of it falls to the trip's, as before. */
+export async function dayZone(tripId: string, ymd: string): Promise<string> {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(ymd)
+    ? await prisma.day.findFirst({ where: { tripId, date: new Date(`${ymd}T00:00:00Z`) }, select: { city: { select: { timeZone: true } } } }).catch(() => null)
+    : null;
+  if (day?.city?.timeZone) return day.city.timeZone;
+  const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { timeZone: true } }).catch(() => null);
+  return trip?.timeZone || "Asia/Tokyo";
+}
+
 /** Does the trip go to Japan at all? Yes when a city of it is in Japan, or when no city says where it is (an older trip:
  *  nothing to rule it out). A trip whose cities all say another country has no Japan weather to watch. */
 export async function tripIsInJapan(tripId: string): Promise<boolean> {

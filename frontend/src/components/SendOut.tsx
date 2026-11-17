@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { sendCopy } from "../lib/tripNotes";
-import { clock, tabsDiffer, ZONE_WORDS, type voiceFor } from "../lib/guideDisplay";
+import { clock, tabsDiffer, zoneWords, type voiceFor } from "../lib/guideDisplay";
 import type { GuideItem } from "../lib/guideData";
 
 const longDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
@@ -24,7 +24,7 @@ export function dayText({ date, city, overview, plan, others, sleep, owner, trai
   // between the 10:36 AM NOZOMI and the 2:00 PM check-in, read as noon in Japan)
   const elsewhere = (i: GuideItem) => !!i.time && !!i.timeZone && i.timeZone !== tripZone;
   const line = (i: GuideItem) => {
-    const t = elsewhere(i) ? `${clock(i.time!)} ${ZONE_WORDS[i.timeZone!] || i.timeZone}` : i.timeText || (i.time ? clock(i.time) : "");
+    const t = elsewhere(i) ? `${clock(i.time!)} ${zoneWords(i.timeZone!)}` : i.timeText || (i.time ? clock(i.time) : "");
     const who = i.forWhom && !/^everyone$/i.test(i.forWhom) ? ` (${i.forWhom})` : "";
     // (a time her own tabs dispute never goes out as fact — round 16: "8:00 PM Cafe Ensou" vs her 1:00 lunch)
     const doubt = tabsDiffer(i).length ? " — her tabs differ on this; check before relying on it" : "";

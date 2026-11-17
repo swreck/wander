@@ -48,11 +48,11 @@ export function ownerlessInSplit<T extends { id: string; kind: string; time: str
   return out;
 }
 
-const ZONE_WORDS: Record<string, string> = { "Asia/Tokyo": "Japan time", "America/Los_Angeles": "California time" };
+import { zoneWords } from "../zoneWords.js";
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 /** "Tue, Oct 13, 12:00 PM California time" */
 function momentWords(at: Date, zone: string) {
-  return `${at.toLocaleString("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${ZONE_WORDS[zone] || zone}`;
+  return `${at.toLocaleString("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${zoneWords(zone)}`;
 }
 
 /** The moment a local date and time happens in a time zone ("2026-10-09", 23:59, Tokyo → a Date) */
@@ -361,7 +361,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
         : start && opts.now < start
         ? `NOT OPEN YET — it can be done from ${i.windowStart} through ${last}`
         : timeMin !== null
-        ? `OPEN NOW — last chance ${last} at ${clockOf(timeMin)} ${zone === "Asia/Tokyo" ? "Japan time" : zone}${phoneWords(end)}`
+        ? `OPEN NOW — last chance ${last} at ${clockOf(timeMin)} ${zoneWords(zone)}${phoneWords(end)}`
         : `OPEN NOW — last chance ${last}, by the end of that day ${zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`} — NO TIME IS GIVEN, so never state one${phoneWords(end)}`;
       const mark = marks.get(deadlineKey(i));
       const done = mark ? ` — MARKED DONE in Wander by ${mark.byName} on ${mark.at.slice(0, 10)} (Wander's record, not her sheet): it's done; never remind anyone to do it` : "";

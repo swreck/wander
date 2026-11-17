@@ -51,6 +51,7 @@ import PictureViewer from "../components/PictureViewer";
 import AboutPlaceButton, { useLineAbout } from "../components/PlaceAbout";
 import { aboutLines, lineKey } from "../lib/placeAbout";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
+import { zoneWords, stillHomeOn, firstDayIn, dateIn } from "../lib/dayZone";
 import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf, photoQueryOf, placedRoute, choiceMapHref, airportDirectionsHref } from "../lib/linePlaces";
 
 /** How long a first open waits for the rest of the day (rail sheet, summaries…) after her Guide, when the phone has no
@@ -418,10 +419,12 @@ function DayPlay({ tripId, cityId, date, moments: built, places, heading, outlin
   );
 }
 
-function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, country = null, trainWords, playWords, playCover, playTomorrow, playBookings, panelOf, pastDay = false }: {
+function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, tellName, onTell, nowAt, riding, railArrivals, hotel, bookings, tripId, maps = [], pictures = [], under, differAbove, differBelow, added = [], cityId, country = null, zone = "Asia/Tokyo", trainWords, playWords, playCover, playTomorrow, playBookings, panelOf, pastDay = false }: {
   blocks: GuideItem[]; overview: GuideItem[]; me: string | null; highlight: string | null;
   /** the country the day is lived in (its city's), for the countries of its places' searches; none is Japan */
   country?: string | null;
+  /** the clock the day is lived on (its city's zone, else the trip's); Japan's when none is given */
+  zone?: string;
   /** a day already over: Maps alone, no way there from here */
   pastDay?: boolean;
   /** the day's city, for finding its stops' photos near it */
@@ -505,7 +508,8 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     if (!h?.hours || !b.time) return null;
     // (not on a day already lived — "Google lists KIBIDO as closed on Wednesdays" sat under the visit they'd made;
     // fresh photo check, Oct 17)
-    if (String(b.date).slice(0, 10) < new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" })) return null;
+    // (the day's own clock: Hanoi's today, not Tokyo's, which is already the next day there from 5 PM)
+    if (String(b.date).slice(0, 10) < dateIn(zone)) return null;
     const start = Number(b.time.slice(0, 2)) * 60 + Number(b.time.slice(3, 5));
     return hoursWords(h.hours, h.name || b.title, String(b.date).slice(0, 10), start, planLineEndSaid(b, blocks));
   };
@@ -1132,7 +1136,6 @@ function shortDate(date: string) {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-const ZONE_LABEL: Record<string, string> = { "America/Los_Angeles": "California time", "Asia/Tokyo": "Japan time" };
 
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
@@ -1806,7 +1809,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // should be your best internet forecast available at run time"); her pre-trip line only when there's none
   const forecastCity = trip?.cities.find((c) => c.name === cityName) || null;
   const weather = (forecastCity?.latitude != null || forecast) ? (
-    <DayForecast tripId={tripId} lat={forecastCity?.latitude} lon={forecastCity?.longitude} date={date} zone={tripZone} place={cityName}
+    <DayForecast tripId={tripId} lat={forecastCity?.latitude} lon={forecastCity?.longitude} date={date} zone={bandCity?.timeZone || tripZone} place={cityName}
       herLine={forecast?.title || null} her={v.Her} />
   ) : null;
   // Each booking said once, under her line for it (day review, Oct 4: Oct 29's flight three times, Oct 15's Yazawa and
@@ -2236,7 +2239,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               return (
                 <div className="mb-3 rounded-xl bg-[#514636] text-white p-4">
                   <p className="text-xs uppercase tracking-wide text-white/70">{gone ? "Today · your flight should be in the air" : "Today · your flight"}</p>
-                  <p className="text-lg leading-snug mt-1">{gone ? "Take-off was due at " : ""}{clock(out.time)} {out.timeZone ? ZONE_LABEL[out.timeZone] || "" : ""} · {out.title}</p>
+                  <p className="text-lg leading-snug mt-1">{gone ? "Take-off was due at " : ""}{clock(out.time)} {out.timeZone ? zoneWords(out.timeZone) : ""} · {out.title}</p>
                   {lands && <p className="text-sm text-white/85 mt-1">{lands}</p>}
                   {out.confirmation && <p className="text-sm text-white/80">Confirmation {out.confirmation}</p>}
                   <p className="text-sm text-white/80 mt-1">{friendlySource(out.source, me)}</p>
@@ -2252,7 +2255,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 })() ? "You should be on your way" : <>{first === tripFirst ? "The trip starts" : "You leave"} {(() => {
                   const n = Math.round((new Date(`${leaveDay}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86400000);
                   return n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`;
-                })()}</>}. Here's {first === tripFirst ? "the first day" : leaveDay !== first ? "your first day in Japan" : "your first day"}.
+                })()}</>}. Here's {first === tripFirst ? "the first day" : leaveDay !== first ? firstDayIn(bandCity?.country) : "your first day"}.
               </p>
             )}
             {afterTrip && (
@@ -2272,8 +2275,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               return (
                 <p className="text-sm text-[#3a3128] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2 mb-3">
                   {gone
-                    ? <>On this Japan date you were still at home — your flight was due to take off {shortDate(ymd(out.date))}, {clock(out.time)} {ZONE_LABEL[out.timeZone!] || ""}.{othersTail}</>
-                    : <>On this Japan date you're still at home — your flight takes off {shortDate(ymd(out.date))}, {clock(out.time)} {ZONE_LABEL[out.timeZone!] || ""}.{othersTail}</>}
+                    ? <>{stillHomeOn(bandCity?.country)} you were still at home — your flight was due to take off {shortDate(ymd(out.date))}, {clock(out.time)} {zoneWords(out.timeZone!)}.{othersTail}</>
+                    : <>{stillHomeOn(bandCity?.country)} you're still at home — your flight takes off {shortDate(ymd(out.date))}, {clock(out.time)} {zoneWords(out.timeZone!)}.{othersTail}</>}
                 </p>
               );
             })()}
@@ -2310,13 +2313,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               // Oct 6, with no one else in Japan, it repeated the summary and the 2:50 PM line). Now keeps it as what's next.
               if (!now && !others && !helpHome) return null;
               const yours = phoneIsElsewhere(tripZone)
-                ? ` (${zonedMoment(date, toMin(land.time!), tripZone).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "")} your time)`
+                ? ` (${zonedMoment(date, toMin(land.time!), land.timeZone || tripZone).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "")} your time)`
                 : "";
               return (
                 <p className="text-sm text-[#3a3128] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2 mb-3">
                   {due
-                    ? <>Your flight was due to land at {airport} at {clock(land.time)} {ZONE_LABEL[tripZone] || ""}{yours} — that's the schedule.{others ? " Anything earlier on this day is the others' plan." : ""}</>
-                    : <>You land at {airport} at {clock(land.time)} {ZONE_LABEL[tripZone] || ""}{yours}{isToday ? " today" : ""}.{others ? " Anything earlier on this day is the others' plan." : ""}</>}
+                    ? <>Your flight was due to land at {airport} at {clock(land.time)} {zoneWords(land.timeZone || tripZone)}{yours} — that's the schedule.{others ? " Anything earlier on this day is the others' plan." : ""}</>
+                    : <>You land at {airport} at {clock(land.time)} {zoneWords(land.timeZone || tripZone)}{yours}{isToday ? " today" : ""}.{others ? " Anything earlier on this day is the others' plan." : ""}</>}
                   {(() => {
                     // Her own words about it from her other tabs, when she wrote any — quoted, with the tab; never "doesn't say"
                     // when a tab does (delight audit: her Hotel Options tab names the Limousine Bus and the Narita Express)
@@ -2500,7 +2503,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 <p className="text-lg leading-snug mt-1">
                   {flightNow > leave.minutes ? lateLeaveWords(leave, myFlight!, flightNow) : leave.text}
                 </p>
-                <p className="text-sm text-white/85 mt-1">{clock(myFlight!.time)} Japan time · {myFlight!.title}</p>
+                <p className="text-sm text-white/85 mt-1">{clock(myFlight!.time)} {zoneWords(myFlight!.timeZone || tripZone)} · {myFlight!.title}</p>
                 {myFlight!.confirmation && <p className="text-sm text-white/80">Confirmation {myFlight!.confirmation}</p>}
                 <p className="text-xs text-white/70 mt-2">{leave.why}</p>
               </div>
@@ -2704,14 +2707,14 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 {tomorrowTrain && (
                   <button onClick={() => navigate(`/day/${tomorrowDate}#trains`)} className="w-full text-left min-h-[44px] text-sm text-[#3a3128]">
                     <span className="text-[#6b5d4a]">Tomorrow · </span>
-                    {twelveHour(colOf(tomorrowTrain.cols, /^depart/))}{phoneIsElsewhere(tripZone) ? ` ${ZONE_LABEL[tripZone] || ""}` : ""} · {colOf(tomorrowTrain.cols, /^train$/)} · {colOf(tomorrowTrain.cols, /^route$/)} ›
+                    {twelveHour(colOf(tomorrowTrain.cols, /^depart/))}{phoneIsElsewhere(tripZone) ? ` ${zoneWords(tripZone)}` : ""} · {colOf(tomorrowTrain.cols, /^train$/)} · {colOf(tomorrowTrain.cols, /^route$/)} ›
                   </button>
                 )}
                 {tomorrowFirst && (
                   <button onClick={() => navigate(`/day/${addDays(date, 1)}`)} className="w-full text-left min-h-[44px] text-sm text-[#3a3128]">
                     <span className="text-[#6b5d4a]">Tomorrow · </span>
                     {/* its clock named when the phone isn't on it (round 11: "6:30 PM · Yakiniku" on a California phone) */}
-                    {tomorrowFirst.time ? `${timeLabel(tomorrowFirst)}${tomorrowFirst.timeZone && tomorrowFirst.timeZone !== tripZone ? ` ${ZONE_LABEL[tomorrowFirst.timeZone] || ""}` : phoneIsElsewhere(tripZone) ? ` ${ZONE_LABEL[tripZone] || ""}` : ""} · ` : ""}{itemTitle(tomorrowFirst, stays, addDays(date, 1))}
+                    {tomorrowFirst.time ? `${timeLabel(tomorrowFirst)}${tomorrowFirst.timeZone && tomorrowFirst.timeZone !== tripZone ? ` ${zoneWords(tomorrowFirst.timeZone)}` : phoneIsElsewhere(tripZone) ? ` ${zoneWords(tripZone)}` : ""} · ` : ""}{itemTitle(tomorrowFirst, stays, addDays(date, 1))}
                     {(() => {
                       // The night before flying: when to leave (Wander's estimate), same as Home says
                       if (tomorrowFirst.kind !== "flight" || isLanding(tomorrowFirst)) return null;
@@ -2778,7 +2781,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   )),
                 ]}
                 differBelow={(b) => (trainsUnder.get(b.id) || []).some((x) => differsFor(x).length > 0)}
-                blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel} bookings={dayItems.filter((m) => m.kind === "meal")} country={bandCity?.country ?? null}
+                blocks={planBlocks} overview={itineraryLines} me={me} highlight={highlight} hotel={tonightHotel} bookings={dayItems.filter((m) => m.kind === "meal")} country={bandCity?.country ?? null} zone={bandCity?.timeZone || tripZone}
                 picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
                 onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}
                 onUndo={removeChoice}
@@ -3205,7 +3208,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
   const over = deadline && deadlineOver(i, tripZone);
   // Whose clock a time is on: another zone's always; the trip's own when this phone is somewhere else (round 8:
   // Julie in California read "3:00 PM" for a Narita landing with no zone)
-  const zone = i.timeZone && i.timeZone !== tripZone ? ZONE_LABEL[i.timeZone] || i.timeZone : phoneIsElsewhere(tripZone) ? ZONE_LABEL[tripZone] || null : null;
+  const zone = i.timeZone && i.timeZone !== tripZone ? zoneWords(i.timeZone) : phoneIsElsewhere(tripZone) ? zoneWords(tripZone) : null;
   // Her own links, each on its own; her own map link stands in for Wander's search (round 12: two Maps links, one card)
   const allHerLinks = linksIn(i.link);
   const herMap = allHerLinks.find((u) => linkLabel(u) === "Map") || null;
