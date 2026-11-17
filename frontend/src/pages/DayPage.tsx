@@ -51,7 +51,7 @@ import PictureViewer from "../components/PictureViewer";
 import AboutPlaceButton, { useLineAbout } from "../components/PlaceAbout";
 import { aboutLines, lineKey } from "../lib/placeAbout";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
-import { zoneWords, stillHomeOn, firstDayIn, dateIn } from "../lib/dayZone";
+import { zoneWords, stillHomeOn, firstDayIn, dateIn, zoneOfDay } from "../lib/dayZone";
 import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf, photoQueryOf, placedRoute, choiceMapHref, airportDirectionsHref } from "../lib/linePlaces";
 
 /** How long a first open waits for the rest of the day (rail sheet, summaries…) after her Guide, when the phone has no
@@ -1269,11 +1269,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const items = data?.items || [];
   const stays = data?.stays || [];
   const status = data?.status || null;
-  const tripZone = trip?.timeZone || "Asia/Tokyo";
+  const tripWideZone = trip?.timeZone || "Asia/Tokyo";
   const tripFirst = ymd(trip?.startDate);
   const last = ymd(trip?.endDate);
   // (your own today: Japan's date once your plane has landed there, whatever the phone's clock — Oct 10 audit)
-  const today = travelerToday(items, me, tripZone, phoneToday());
+  const today = travelerToday(items, me, tripWideZone, phoneToday());
   // The Now tab starts from YOUR first day: Julie, at home until Oct 13, isn't shown Ken & Larisa's Okayama
   const myParty = partyOf(items, me);
   const myStart = myParty
@@ -1282,7 +1282,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // …and from your first JAPAN date on the way: your flight's own date can be one you're still at home on in
   // Japan's calendar (round 8: Now told Julie "Here's your first day" on Japan's Oct 13, the others' day)
   let myJapanStart = myStart;
-  for (let k = 0; myJapanStart && k < 3 && homeOnJapanDate(items, me, myJapanStart, tripZone); k++) myJapanStart = addDays(myJapanStart, 1);
+  for (let k = 0; myJapanStart && k < 3 && homeOnJapanDate(items, me, myJapanStart, tripWideZone); k++) myJapanStart = addDays(myJapanStart, 1);
   const first = now && myJapanStart && myJapanStart > tripFirst ? myJapanStart : tripFirst;
   // The day you leave home, for "You leave tomorrow" (a home date, not the Japan date you arrive on)
   // (always your own flight's day when her Guide has one — round 12: Ken & Larisa fly on the trip's first day, which
@@ -1293,6 +1293,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // A mangled day link (/day/now, a truncated paste) opens today rather than breaking the screen
   const validParam = /^\d{4}-\d{2}-\d{2}$/.test(dateParam || "") && !isNaN(Date.parse(`${dateParam}T00:00:00Z`)) ? dateParam : null;
   const date = !now ? (validParam || today) : !first || !last ? today : today < first ? first : today > last ? last : today;
+  // The page's clock is the DAY's (its city's zone, else the trip's): one decision, every use below takes it. Only
+  // travelerToday and the first-day loop above keep the trip-wide zone. Japan's cities carry no zone: same as before.
+  const tripZone = zoneOfDay(days, date, tripWideZone);
   const beforeTrip = now && !!first && today < first;
   const afterTrip = now && !!last && today > last;
   const day = days.find((d) => ymd(d.date) === date);
@@ -1468,7 +1471,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // in "Added in Wander" too (round 7: lunch showed two or three times)
   const pickTexts = useMemo(() => new Set(planBlocks.flatMap((b) => choicesOf(b).map((o) => `${b.title}: ${o.name}`))), [planBlocks]);
 
-  const night = useMemo(() => nightOf(date, stays, items), [date, stays, items]);
+  const night = useMemo(() => nightOf(date, stays, items, tripWideZone), [date, stays, items]);
   const cityOf = (id?: string | null) => (id ? trip?.cities.find((c) => c.id === id)?.name ?? null : null);
   // The stay a stop note belongs to is named by the city of its first day
   const stopCity = (s: GuideItem) => days.find((d) => ymd(d.date) === (s.windowStart || ymd(s.date)))?.city?.name ?? null;

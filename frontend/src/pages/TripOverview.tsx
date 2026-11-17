@@ -21,6 +21,7 @@ import ActionsPanel from "../components/ActionsPanel";
 import FaceIdSetup from "../components/FaceIdSetup";
 import { warmGuideData, savedGuideData } from "../lib/guideData";
 import { finishedLastDay } from "../lib/tripPhase";
+import { zoneOfLastDay } from "../lib/dayZone";
 import TripGlance from "../components/TripGlance";
 import EveningQuestion from "../components/EveningQuestion";
 import EveningNudgeOffer from "../components/EveningNudgeOffer";
@@ -713,7 +714,7 @@ export default function TripOverview() {
         {(trip.datesKnown !== false ? (
           <HomeViewToggle
             days={days}
-            finished={!!trip && !!finishedLastDay([...days.map((d) => d.date), trip.endDate], savedGuideData(trip.id)?.trip.timeZone || "Asia/Tokyo")}
+            finished={!!trip && !!finishedLastDay([...days.map((d) => d.date), trip.endDate], zoneOfLastDay(days, trip.endDate, savedGuideData(trip.id)?.trip.timeZone || "Asia/Tokyo"))}
             cities={trip.cities}
             selectedPerDay={selectedPerDay}
             backroadsDays={backroadsDays}

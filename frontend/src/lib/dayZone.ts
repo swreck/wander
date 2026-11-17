@@ -44,6 +44,12 @@ export function zoneOfDay(days: DayLike[] | undefined | null, date: string, trip
   return d?.city?.timeZone || tripZone;
 }
 
+/** The clock the trip's LAST day is lived on (the day that decides when the trip is over), as the server's tripOver does. */
+export function zoneOfLastDay(days: DayLike[] | undefined | null, endDate: string | null | undefined, tripZone: string): string {
+  const last = [...(days || []).map((d) => d.date), endDate].filter((d): d is string => !!d).map((d) => String(d).slice(0, 10)).sort().pop();
+  return last ? zoneOfDay(days, last, tripZone) : tripZone;
+}
+
 /** The country a date is lived in: its city's. Null when the day or its city doesn't say. */
 export function countryOfDay(days: DayLike[] | undefined | null, date: string): string | null {
   const d = (days || []).find((x) => same(x.date, date));

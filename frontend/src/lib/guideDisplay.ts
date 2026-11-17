@@ -206,7 +206,8 @@ export interface NightStay { stay: Stay; who: string | null }
 export interface NightAway { who: string; text: string }
 export interface Night { stays: NightStay[]; away: NightAway[] }
 
-const AIRPORTS: Record<string, string> = { NRT: "Narita", KIX: "Kansai", HND: "Haneda", SFO: "San Francisco", ITM: "Itami", LAX: "Los Angeles" };
+const AIRPORTS: Record<string, string> = { NRT: "Narita", KIX: "Kansai", HND: "Haneda", SFO: "San Francisco", ITM: "Itami", LAX: "Los Angeles",
+  ICN: "Seoul Incheon", HAN: "Hanoi", BKK: "Bangkok", SAI: "Siem Reap", HUI: "Hué", DAD: "Da Nang" };
 function landingWords(l: GuideItem, tripZone: string): string {
   const code = (l.title.match(/\b([A-Z]{3})\b/) || [])[1];
   const where = code ? AIRPORTS[code] || code : "the airport";
@@ -252,20 +253,27 @@ export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZon
     if (atOrigin && land.time) {
       const lands = zonedMoment(ymd(land.date), mins(land.time) ?? 0, land.timeZone || tripZone);
       const yours = lands.toLocaleString("en-US", { timeZone: f.timeZone!, weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "");
-      away.push({ who, text: `On the plane — ${landingWords(land, tripZone)} ${zoneWords(tripZone)} (${yours} your time)` });
+      away.push({ who, text: `On the plane — ${landingWords(land, tripZone)} ${zoneWords(land.timeZone || tripZone)} (${yours} your time)` });
       continue;
     }
     // On a day screen, a phone on the flight's own clock already has the take-off on the flight's line: tonight is the
     // plane and the landing (re-audit 2: Julie's Oct 13 said "12:00 PM California time" and "Take off Wed 4:00 AM Japan time")
     if (!phoneClock && !!f.timeZone && f.timeZone !== tripZone && phoneZone() === f.timeZone) {
-      away.push({ who, text: `On the plane overnight — ${landingWords(land, tripZone)}${land.time ? ` ${zoneWords(tripZone)}` : ""}` });
+      away.push({ who, text: `On the plane overnight — ${landingWords(land, tripZone)}${land.time ? ` ${zoneWords(land.timeZone || tripZone)}` : ""}` });
       continue;
     }
     // (after that time, by the schedule — round 11: still "Take off …" below a card saying "Take-off was due …")
-    const takeOff = f.time && f.timeZone && f.timeZone !== tripZone
-      ? `${Date.now() >= zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).getTime() ? "Take-off was due" : "Take off"} ${zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" })} ${zoneWords(tripZone)}`
-      : "Flying overnight";
-    away.push({ who, text: `${takeOff} — ${landingWords(land, tripZone)}` });
+    // The landing's time is on the LANDING's clock: its zone words follow it when that isn't the trip's. When neither the
+    // take-off's clock nor the landing's is the trip's, the take-off is said on its own clock, not converted.
+    const landZone = land.timeZone || tripZone;
+    const neither = !!f.time && !!f.timeZone && f.timeZone !== tripZone && landZone !== tripZone;
+    const dueWord = f.time && f.timeZone && Date.now() >= zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).getTime() ? "Take-off was due" : "Take off";
+    const takeOff = neither
+      ? `${dueWord} ${new Date(`${ymd(f.date)}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${clock(f.time!)} ${zoneWords(f.timeZone!)}`
+      : f.time && f.timeZone && f.timeZone !== tripZone
+        ? `${dueWord} ${zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" })} ${zoneWords(tripZone)}`
+        : "Flying overnight";
+    away.push({ who, text: `${takeOff} — ${landingWords(land, tripZone)}${land.time && landZone !== tripZone ? ` ${zoneWords(landZone)}` : ""}` });
   }
 
   const base = stays.filter((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= date && date < ymd(s.checkOutDate));

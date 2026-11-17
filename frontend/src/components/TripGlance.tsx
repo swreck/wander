@@ -31,6 +31,7 @@ import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../
 import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMarks";
 import { useLinePhotos, airportDirectionsHref } from "../lib/linePlaces";
 import { placePhotoUrl, type PlaceHit } from "../lib/placePhotos";
+import { zoneOfDay } from "../lib/dayZone";
 import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
@@ -304,7 +305,9 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     if (!data) return null;
     const first = ymd(data.trip.startDate);
     const last = ymd(data.trip.endDate);
-    const tz = data.trip.timeZone || "Asia/Tokyo";
+    // The clock of TODAY's day (its city's zone, else the trip's); `tripWide` is the trip's own, for the night
+    const tripWide = data.trip.timeZone || "Asia/Tokyo";
+    const tz = zoneOfDay(data.days, today, tripWide);
     const party = partyOf(data.items, me);
     // Your own first day: your first flight or check-in, when the Guide says whose they are (one rule with the
     // leaving-soon card's countdown — lib/leavingSoon.ts)
@@ -339,8 +342,8 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         // free: Maruni Toryo and the potter; round 15)
         unowned: blocks.filter((b) => b.time && !said(b) && noOwner.has(b.id)) };
     };
-    return { first, last, tz, myFirst, on, planOn, deadlinesAhead };
-  }, [data, me, doneMarks]);
+    return { first, last, tz, tripWide, myFirst, on, planOn, deadlinesAhead };
+  }, [data, me, doneMarks, today]);
   // Where Home keeps the day's weather line, just under the trip's dates (Ken, Oct 13: "63‑74°F, rain 6%      Go to
   // today ›" there, one line) — drawn from here, so it shows exactly when the Today card does
   const [weatherSlot, setWeatherSlot] = useState<Element | null>(null);
@@ -360,7 +363,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
       </section>
     );
   }
-  const { first, last, tz, myFirst, on, planOn, deadlinesAhead } = view;
+  const { first, last, tz, tripWide, myFirst, on, planOn, deadlinesAhead } = view;
 
   const card = "mb-4 rounded-xl bg-white border border-[#e0d8cc] p-4";
   // Japan's own date and time (for the others, when you're not there yet)
@@ -792,7 +795,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
   const gapBefore = firstHidden ? shownRows.find((r) => rows.indexOf(r) > rows.indexOf(firstHidden)) : undefined;
   const moreWords = `and ${rows.length - shownRows.length} more${gapBefore && firstHidden?.time ? ` from ${clock(firstHidden.time)}` : ""} ›`;
   const openHidden = () => navigate(`/day/${today}${firstHidden?.guide ? `#item-${firstHidden.guide.id}` : "#plan"}`);
-  const night = today < last ? myNight(nightOf(today, data.stays, data.items, tz, true), me) : null;
+  const night = today < last ? myNight(nightOf(today, data.stays, data.items, tripWide, true), me) : null;
   const tomorrow = addDays(today, 1);
   // Whose clock a time is on, when it isn't the phone's (a take-off from home; Japan's, on a phone still at home)
   const zoneTag = (i: GuideItem) => (!i.time ? "" : i.timeZone && i.timeZone !== tz ? ` ${zoneWords(i.timeZone)}` : phoneIsElsewhere(tz) ? ` ${zoneWords(tz)}` : "");
