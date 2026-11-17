@@ -33,7 +33,7 @@ process.env.JWT_SECRET = "test-secret-scout-plan";
 const { app } = await import("../src/index.js");
 const { signToken } = await import("../src/middleware/auth.js");
 const { buildGuideContextParts } = await import("../src/services/guide/scoutContext.js");
-const { executeTool } = await import("../src/routes/chat.js");
+const { executeTool, scoutTools } = await import("../src/routes/chat.js");
 const prisma = new PrismaClient();
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -190,9 +190,16 @@ describe("S7 the plan trip's prompt", () => {
 - What is Japan's only: the storm watch, Tabelog, search_train_schedules and the JR pages. Use them for the days in
   Japan. On a day outside Japan, storms, typhoons and warnings: say Wander's storm watch covers Japan only and has
   not checked that country; if they want, web_search, said as found online.
-- Languages: "INTO JAPANESE" is for Japan. In Vietnam the same rule gives Vietnamese, in Cambodia Khmer.
+- Languages: "INTO JAPANESE" is for Japan. In Vietnam the same rule gives Vietnamese, in Cambodia Khmer. The phrase
+  card holds Japanese only so far: outside Japan give the words in your answer, and never add_phrase them.
 - Money: Wander keeps yen and US dollars only so far. Outside Japan a number with no currency is not yen: ask which
-  currency. For dong, riel or any other currency, say Wander can't keep that currency yet, and keep nothing.`;
+  currency. Pass add_expense a currency only when they said one. For dong, riel or any other currency, say Wander
+  can't keep that currency yet, and keep nothing.`;
+  // (rules 61 and 63 of the prompt: what Japan's says, and what a plan trip's says in its place)
+  const SWAPS: [string, string][] = [
+    ["the amount as said, yen unless they said dollars, and what it was for", "the amount as said, the currency only if they said one (on a day in Japan, yen unless they said dollars), and what it was for"],
+    ["gets until: that moment, Japan time; it's gone", "gets until: that moment on that day's own clock; it's gone"],
+  ];
   const OLD_RULE = `- Every date in the Guide is a Japan date. A person still at home lives on another calendar: Julie's "Oct 13" in California (the day she flies) is not the Guide's Oct 13 (when she is still at home). Before saying where someone is on a Guide date, read that date's WHERE line in DAY BY DAY; never map a Japan date onto their own calendar day.`;
   const NEW_RULE = `- Every date is the date in that day's country, as DAY BY DAY names it. Before saying where someone is on a date, read that date's lines; never map a date onto another country's calendar.`;
   let system = "";
@@ -216,9 +223,16 @@ describe("S7 the plan trip's prompt", () => {
     expect(system).not.toContain("Every date in the Guide is a Japan date");
     expect(system).not.toContain(OLD_RULE);
   });
-  it("and nothing else differs from Japan's prompt: undo the two changes and it is Japan's, by its hash", () => {
+  it("F5 rules 61 and 63 say the currency only if said, and the day's own clock", () => {
+    for (const [was, now] of SWAPS) {
+      expect(system).toContain(now);
+      expect(system).not.toContain(was);
+    }
+  });
+  it("and nothing else differs from Japan's prompt: undo the four changes and it is Japan's, by its hash", () => {
     const firstEnd = system.indexOf("\n\n");
-    const undone = (system.slice(0, firstEnd + 2) + system.slice(firstEnd + 2 + BLOCK.length + 2)).replace(NEW_RULE, OLD_RULE);
+    let undone = (system.slice(0, firstEnd + 2) + system.slice(firstEnd + 2 + BLOCK.length + 2)).replace(NEW_RULE, OLD_RULE);
+    for (const [was, now] of SWAPS) undone = undone.replace(now, was);
     expect(sha(undone)).toBe(JAPAN_SYSTEM_HASH);
   });
 });
@@ -335,5 +349,209 @@ describe("S11 a notice's 'until' is that moment on the day's own clock", () => {
     clockAt("2026-12-20T16:00:00Z");
     const r: any = (await executeTool("tell_everyone", { tripId: plan.tripId, words: "x", until: "2026-13-45T09:00" }, ken)).result;
     expect(r.error).toMatch(/until must be/);
+  });
+});
+
+// ── The fix round (Nov 17 2026) ──────────────────────────────────────────────────────────────────
+
+describe("F1 two rooms in one hotel are two bookings, not an open question", () => {
+  it("Stay D Hotel twice on one night, one row for Pat and one for Sam: no OPEN QUESTION, no SEPARATE BOOKINGS", () => {
+    expect(stable.split("\n").filter((l) => l.startsWith("- Stay D Hotel")).length).toBe(2);
+    expect(stable).toMatch(/^- Stay D Hotel \(City A\); sleeping there the nights of 2026-12-27 \(Sun\); check out the morning of 2026-12-28 \(Mon\);.*; for Pat$/m);
+    expect(stable).toMatch(/^- Stay D Hotel \(City A\); sleeping there the nights of 2026-12-27 \(Sun\); check out the morning of 2026-12-28 \(Mon\);.*; for Sam$/m);
+    expect(stable).not.toMatch(/OPEN QUESTION/);
+    expect(stable).not.toMatch(/SEPARATE BOOKINGS/);
+    expect(stable).not.toMatch(/Each couple's first night/);
+  });
+  it("and on the morning they check out, the check-out line carries no open question either", () => {
+    const co = dayBlock("2026-12-28");
+    expect(co).toContain("Check out · Stay D Hotel");
+    expect(co).not.toMatch(/OPEN QUESTION|lists two places/);
+  });
+  it("two different stays, both for Everyone (or one with no 'for'), on one night: the open question still prints, in plan words", async () => {
+    const cityA = plan.cities.get("city-a")!;
+    const day = (s: string) => new Date(`${s}T00:00:00Z`);
+    const made = await Promise.all([
+      prisma.accommodation.create({ data: { tripId: plan.tripId, cityId: cityA, name: "Stay E Hotel", checkInDate: day("2027-02-01"), checkOutDate: day("2027-02-02"), forWhom: "Everyone" } }),
+      prisma.accommodation.create({ data: { tripId: plan.tripId, cityId: cityA, name: "Stay F Hotel", checkInDate: day("2027-02-01"), checkOutDate: day("2027-02-02"), forWhom: "Everyone" } }),
+      prisma.accommodation.create({ data: { tripId: plan.tripId, cityId: cityA, name: "Stay G Hotel", checkInDate: day("2027-02-05"), checkOutDate: day("2027-02-06"), forWhom: "" } }),
+      prisma.accommodation.create({ data: { tripId: plan.tripId, cityId: cityA, name: "Stay H Hotel", checkInDate: day("2027-02-05"), checkOutDate: day("2027-02-06"), forWhom: "Sam" } }),
+    ]);
+    try {
+      const text = (await buildGuideContextParts(plan.tripId, { phoneZone: PHONE, now: NOW })).stable;
+      expect(text).toContain("OPEN QUESTION in the plan: more than one place is listed for these nights");
+      expect(text).toContain("  2027-02-01 (Mon): Stay E Hotel and Stay F Hotel");
+      expect(text).toMatch(/^ {2}2027-02-05 \(Fri\): Stay (G|H) Hotel and Stay (G|H) Hotel$/m);
+      expect(text).not.toMatch(/OPEN QUESTION in the Guide/);
+      expect(text).not.toMatch(/Stay D Hotel and/);
+    } finally {
+      await prisma.accommodation.deleteMany({ where: { id: { in: made.map((m) => m.id) } } });
+    }
+  });
+});
+
+describe("F2 the people line says the plan has more people than Wander", () => {
+  it("word for word, and not the old sentence", () => {
+    expect(stable).toContain(`${NAMES.a}, ${NAMES.b}. The plan is for more people than have joined Wander, and Wander does not hold the full list yet. A line's "For" says who it applies to; "For Everyone" means everyone traveling that day. Asked who is on the trip, name who has joined Wander and say the plan's full list is not in Wander yet.`);
+    expect(stable).not.toContain("may be smaller");
+  });
+});
+
+describe("F3 a day spent getting there is headed 'on the way to'", () => {
+  it("Dec 14 (a take-off on California's clock, no stay the night before) and Dec 15 (a take-off on Korea's, no stay the night before)", () => {
+    expect(stable).toMatch(/^Monday, December 14 \(2026-12-14\) — on the way to City A, Vietnam \(Vietnam time\)$/m);
+    expect(stable).toMatch(/^Tuesday, December 15 \(2026-12-15\) — on the way to City A, Vietnam \(Vietnam time\)$/m);
+  });
+  it("Jan 1 (a stay the night before) and Jan 2 (only a landing) are headed as before", () => {
+    expect(stable).toMatch(/^Friday, January 1 \(2027-01-01\) — City B, Cambodia \(Cambodia time\), with Backroads$/m);
+    expect(stable).toMatch(/^Saturday, January 2 \(2027-01-02\) — City C, Japan \(Japan time\)$/m);
+    expect(stable).not.toMatch(/on the way to City (B|C)/);
+  });
+  it("no other day of the trip says it", () => {
+    expect(stable.match(/on the way to/g)?.length).toBe(2);
+  });
+});
+
+describe("F6 a plan trip is sent three tool descriptions that no longer say Japan", () => {
+  const OLD = [
+    "Japan time, YYYY-MM-DDTHH:MM, when its moment has passed (a bus leaving at 8:15 tomorrow → that time). Only for a message about a moment; otherwise leave out (it shows for 3 days).",
+    "JPY (yen) unless they said dollars",
+    "Japan dates, YYYY-MM-DD (today if none). Up to 16.",
+  ];
+  const NEW = [
+    "That day's own clock, YYYY-MM-DDTHH:MM, when its moment has passed (a bus leaving at 8:15 tomorrow → that time). Only for a message about a moment; otherwise leave out (it shows for 3 days).",
+    "Only the currency they said: JPY (yen) or USD (dollars). Leave out when they said none.",
+    "The trip's dates, YYYY-MM-DD (today if none). Up to 16.",
+  ];
+  it("the request's tools hold the three new descriptions and none of the three old", async () => {
+    sentToModel.length = 0;
+    const r = await request(app).post("/api/chat").set("Authorization", `Bearer ${tok}`).send({
+      message: "Hello", context: { page: "Home", tripId: plan.tripId }, history: [],
+      clientTime: { iso: NOW.toISOString(), localDate: "2026-12-20", localTime: "9:00 AM", weekday: "Sunday", timeZone: PHONE },
+    });
+    expect(r.status).toBe(200);
+    const sentTools = JSON.stringify(sentToModel[0].tools);
+    for (const w of NEW) expect(sentTools).toContain(JSON.stringify(w).slice(1, -1));
+    for (const w of OLD) expect(sentTools).not.toContain(JSON.stringify(w).slice(1, -1));
+  });
+  it("the shared list is never changed by it", () => {
+    const shared = JSON.stringify(scoutTools);
+    for (const w of OLD) expect(shared).toContain(JSON.stringify(w).slice(1, -1));
+    for (const w of NEW) expect(shared).not.toContain(JSON.stringify(w).slice(1, -1));
+  });
+});
+
+describe("F7 a currency Wander can't keep is never kept as yen", () => {
+  const rows = () => prisma.tripExpense.count({ where: { tripId: plan.tripId } });
+  const NO_KEEP = "Wander keeps yen and US dollars only so far, so nothing was kept.";
+  it("plan trip, Vietnam day, VND: nothing is written", async () => {
+    const before = await rows();
+    const r: any = (await executeTool("add_expense", { tripId: plan.tripId, paidBy: "Pat", amount: 600000, currency: "VND", what: "Dinner", date: "2026-12-20" }, ken)).result;
+    expect(r).toEqual({ kept: false, question: NO_KEEP });
+    expect(await rows()).toBe(before);
+  });
+  it("plan trip, Vietnam day, JPY said: kept as yen", async () => {
+    const before = await rows();
+    const r: any = (await executeTool("add_expense", { tripId: plan.tripId, paidBy: "Pat", amount: 1500, currency: "JPY", what: "Yen on a Vietnam day", date: "2026-12-20" }, ken)).result;
+    expect(r.kept).toBe(true);
+    expect((await prisma.tripExpense.findFirst({ where: { tripId: plan.tripId, what: "Yen on a Vietnam day" } }))?.currency).toBe("JPY");
+    expect(await rows()).toBe(before + 1);
+  });
+  it("every spelling of yen and dollars is still kept; every other currency is refused (EUR, dong, riel, an empty word is 'none said')", async () => {
+    const before = await rows();
+    for (const c of ["yen", "¥", "円", "usd", "$", "dollar", "Dollars"]) {
+      expect(((await executeTool("add_expense", { tripId: plan.tripId, paidBy: "Pat", amount: 5, currency: c, what: `spelled ${c}`, date: "2027-01-02" }, ken)).result as any).kept, c).toBe(true);
+    }
+    expect(await rows()).toBe(before + 7);
+    for (const c of ["EUR", "dong", "riel", "THB", "VND "]) {
+      expect(((await executeTool("add_expense", { tripId: plan.tripId, paidBy: "Pat", amount: 5, currency: c, what: "nope", date: "2027-01-02" }, ken)).result as any).kept, c).toBe(false);
+    }
+    expect(await rows()).toBe(before + 7);
+  });
+  it("change_expense with VND: the row is as it was", async () => {
+    const kept: any = (await executeTool("add_expense", { tripId: plan.tripId, paidBy: "Pat", amount: 40, currency: "USD", what: "Change me", date: "2027-01-02" }, ken)).result;
+    expect(kept.kept).toBe(true);
+    const was = await prisma.tripExpense.findUnique({ where: { id: kept.id } });
+    const r: any = (await executeTool("change_expense", { tripId: plan.tripId, id: kept.id, amount: 600000, currency: "VND" }, ken)).result;
+    expect(r).toEqual({ changed: false, question: "Wander keeps yen and US dollars only so far, so nothing was changed." });
+    expect(await prisma.tripExpense.findUnique({ where: { id: kept.id } })).toEqual(was);
+  });
+});
+
+describe("F8 Scout's notes and notices are on the day's clock on a plan trip", () => {
+  const made: { notes: string[]; alerts: string[] } = { notes: [], alerts: [] };
+  afterAll(async () => {
+    await prisma.tripNote.deleteMany({ where: { id: { in: made.notes } } });
+    await prisma.tripAlert.deleteMany({ where: { id: { in: made.alerts } } });
+  });
+  it("a note and a notice made at 11:30 PM Dec 20 in Vietnam, asked ten minutes later: still Dec 20", async () => {
+    const created = new Date("2026-12-20T16:30:00Z");
+    const mk = (source: string, text: string, n: number) => prisma.tripNote.create({ data: { tripId: plan.tripId, travelerId: plan.travelers.pat, authorName: NAMES.a, clientId: `f8-${n}`, original: text, text, source, createdAt: created } });
+    made.notes.push((await mk("typed", "Bring the tea to Place C", 1)).id, (await mk("scout-answer", "The list Scout made", 2)).id);
+    made.alerts.push((await prisma.tripAlert.create({ data: { tripId: plan.tripId, fromId: plan.travelers.sam, fromName: NAMES.b, text: "The bus leaves at nine", createdAt: created } })).id);
+    clockAt("2026-12-20T16:40:00Z");
+    sentToModel.length = 0;
+    const r = await request(app).post("/api/chat").set("Authorization", `Bearer ${tok}`).send({
+      message: "What did I keep?", context: { page: "Home", tripId: plan.tripId }, history: [],
+      clientTime: { iso: "2026-12-20T16:40:00Z", localDate: "2026-12-20", localTime: "8:40 AM", weekday: "Sunday", timeZone: PHONE },
+    });
+    expect(r.status).toBe(200);
+    const sent = JSON.stringify(sentToModel[0].messages);
+    expect(sent).toContain("kept today");
+    expect(sent).toContain("kept Dec 20, 11:30 PM Vietnam time");
+    expect(sent).toContain("From Sam Hashplan, Sun, Dec 20: ");        // (a notice's day, in the form Scout is always given one)
+    expect(sent).toContain("The bus leaves at nine");
+    // (the phone's own calendar line says "tomorrow is Monday, Dec 21", which is true; nothing KEPT or TOLD says it)
+    expect(sent).not.toContain("December 21");
+    expect(sent).not.toMatch(/kept [^"]*Dec 21|kept Monday|Mon, Dec 21: /);
+  });
+});
+
+describe("F9 a plan trip's tool results never say the Guide, a sheet, a tab or a cell", () => {
+  const WORDS = [/\bGuide\b/i, /\bsheet\b/i, /spreadsheet/i, /her tab/i, /\btabs?\b/i, /\bcell\b/i, /rail sheet/i, /\bxlsx\b/i];
+  it("every read tool", async () => {
+    clockAt("2026-12-20T16:00:00Z");
+    const t = plan.tripId;
+    const dayId = (await prisma.day.findFirst({ where: { tripId: t, date: new Date("2026-12-20T00:00:00Z") } }))!.id;
+    const calls: [string, any][] = [
+      ["get_trip_summary", { tripId: t }], ["get_all_days", { tripId: t }], ["get_day_details", { dayId }], ["get_city_experiences", { tripId: t, cityId: plan.cities.get("city-a")! }],
+      ["get_weather", { tripId: t, dates: ["2026-12-20"] }], ["packing_tips", { tripId: t }], ["money_so_far", { tripId: t }],
+      ["my_alerts", { tripId: t }], ["get_my_notes", { tripId: t }], ["get_todos", { tripId: t }], ["get_same_day_plans", { tripId: t, date: "2026-12-20" }],
+      ["check_travel_readiness", { tripId: t }], ["get_open_decisions", { tripId: t }], ["get_group_interests", { tripId: t }], ["list_hidden_cities", { tripId: t }],
+    ];
+    const hits: string[] = [];
+    for (const [tool, input] of calls) {
+      // (a web address is a link's own text, not a sentence of Wander's: packing_tips' source link has "guide" in its path)
+      const text = JSON.stringify((await executeTool(tool, input, ken)).result).replace(/https?:\/\/[^"\s\\]+/g, "(link)");
+      for (const w of WORDS) { const m = text.match(new RegExp(`.{0,60}${w.source}.{0,40}`, "i")); if (w.test(text)) hits.push(`${tool} ${w}: …${m?.[0]}…`); }
+    }
+    expect(hits).toEqual([]);
+  });
+});
+
+describe("F11 on a plan trip with no currency said: ask unless the day is known to be in Japan", () => {
+  const ASK = "Which currency? Wander keeps yen and US dollars only so far.";
+  const rows = () => prisma.tripExpense.count({ where: { tripId: plan.tripId } });
+  it("a date outside the trip's days (2026-11-17): kept false, nothing written", async () => {
+    const before = await rows();
+    const r: any = (await executeTool("add_expense", { tripId: plan.tripId, paidBy: "Pat", amount: 20000, what: "A deposit", date: "2026-11-17" }, ken)).result;
+    expect(r.kept).toBe(false);
+    expect(JSON.stringify(r)).toContain(ASK);
+    expect(await rows()).toBe(before);
+  });
+  it("no date, at a clock before the trip starts: the same", async () => {
+    clockAt("2026-11-17T18:00:00Z");
+    const before = await rows();
+    const r: any = (await executeTool("add_expense", { tripId: plan.tripId, paidBy: "Pat", amount: 20000, what: "Before we leave" }, ken)).result;
+    expect(r.kept).toBe(false);
+    expect(JSON.stringify(r)).toContain(ASK);
+    expect(await rows()).toBe(before);
+  });
+  it("a Japan day: kept as yen, as before", async () => {
+    const before = await rows();
+    const r: any = (await executeTool("add_expense", { tripId: plan.tripId, paidBy: "Pat", amount: 900, what: "Tea in Japan", date: "2027-01-02" }, ken)).result;
+    expect(r.kept).toBe(true);
+    expect((await prisma.tripExpense.findFirst({ where: { tripId: plan.tripId, what: "Tea in Japan" } }))?.currency).toBe("JPY");
+    expect(await rows()).toBe(before + 1);
   });
 });

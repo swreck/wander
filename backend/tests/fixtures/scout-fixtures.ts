@@ -100,10 +100,13 @@ export function makePlan(prisma: PrismaClient) {
     ],
     days: [
       { date: "2026-12-14", city: "city-a" }, { date: "2026-12-15", city: "city-a" }, { date: "2026-12-17", city: "city-a" }, { date: "2026-12-20", city: "city-a" },
-      { date: "2026-12-25", city: "city-a", guided: true }, { date: "2027-01-01", city: "city-b", guided: true }, { date: "2027-01-02", city: "city-c" },
+      { date: "2026-12-25", city: "city-a", guided: true }, { date: "2026-12-28", city: "city-a" }, { date: "2027-01-01", city: "city-b", guided: true }, { date: "2027-01-02", city: "city-c" },
     ],
     stays: [
-      { city: "city-a", name: "Stay A Hotel", from: "2026-12-14", to: "2026-12-26", address: "1 Made Up Street, City A" },
+      { city: "city-a", name: "Stay A Hotel", from: "2026-12-15", to: "2026-12-26", address: "1 Made Up Street, City A" },
+      // (two rooms in one hotel, one for each of two people: two bookings, not an open question)
+      { city: "city-a", name: "Stay D Hotel", from: "2026-12-27", to: "2026-12-28", forWhom: "Pat" },
+      { city: "city-a", name: "Stay D Hotel", from: "2026-12-27", to: "2026-12-28", forWhom: "Sam" },
       { city: "city-b", name: "Stay B Resort", from: "2026-12-30", to: "2027-01-01" },
     ],
     choices: [{ date: "2026-12-20", text: "Tea at Place C", time: "16:00" }],
@@ -118,7 +121,8 @@ export function makePlan(prisma: PrismaClient) {
       { date: "2027-01-01", kind: "flight", title: "Flight 3 · City B (SAI) → Bangkok (BKK)", time: "19:25", timeZone: KH, forWhom: "Everyone", detail: "Lands at Bangkok (BKK) Fri, Jan 1, 9:00 PM Thailand time" },
       { date: "2027-01-01", kind: "flight", title: "Flight 4 · Bangkok (BKK) → Tokyo (HND)", time: "22:05", timeZone: TH, forWhom: "Everyone", detail: "Lands at Tokyo Haneda (HND) Sat, Jan 2, 5:40 AM Japan time" },
       { date: "2027-01-02", kind: "flight", title: "Land at HND · Y Air", time: "05:40", timeZone: JP, forWhom: "Everyone", detail: "Takes off from Bangkok Fri, 10:05 PM Thailand time" },
-      { date: "2026-12-14", kind: "checkin", title: "Check in · Stay A Hotel", time: "15:00", timeZone: VN, forWhom: "Everyone" },
+      { date: "2026-12-15", kind: "checkin", title: "Check in · Stay A Hotel", time: "15:00", timeZone: VN, forWhom: "Everyone" },
+      { date: "2026-12-28", kind: "checkout", title: "Check out · Stay D Hotel", time: "12:00", timeZone: VN, forWhom: "Everyone" },
     ],
   });
 }

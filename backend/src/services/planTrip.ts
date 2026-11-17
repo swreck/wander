@@ -40,9 +40,17 @@ export const PLAN_BLOCK = `THIS TRIP IS BUILT FROM A PLAN, NOT A SPREADSHEET. Re
 - What is Japan's only: the storm watch, Tabelog, search_train_schedules and the JR pages. Use them for the days in
   Japan. On a day outside Japan, storms, typhoons and warnings: say Wander's storm watch covers Japan only and has
   not checked that country; if they want, web_search, said as found online.
-- Languages: "INTO JAPANESE" is for Japan. In Vietnam the same rule gives Vietnamese, in Cambodia Khmer.
+- Languages: "INTO JAPANESE" is for Japan. In Vietnam the same rule gives Vietnamese, in Cambodia Khmer. The phrase
+  card holds Japanese only so far: outside Japan give the words in your answer, and never add_phrase them.
 - Money: Wander keeps yen and US dollars only so far. Outside Japan a number with no currency is not yen: ask which
-  currency. For dong, riel or any other currency, say Wander can't keep that currency yet, and keep nothing.`;
+  currency. Pass add_expense a currency only when they said one. For dong, riel or any other currency, say Wander
+  can't keep that currency yet, and keep nothing.`;
+
+/** The two sentences of the prompt (rules 61 and 63) that name Japan's yen and Japan's clock, and what a plan trip says instead */
+const SWAPS: [string, string][] = [
+  ["the amount as said, yen unless they said dollars, and what it was for", "the amount as said, the currency only if they said one (on a day in Japan, yen unless they said dollars), and what it was for"],
+  ["gets until: that moment, Japan time; it's gone", "gets until: that moment on that day's own clock; it's gone"],
+];
 
 /**
  * Scout's prompt for a plan trip: today's prompt with the block right after its first paragraph and the one date rule
@@ -54,6 +62,31 @@ export function planSystemPrompt(base: string): string {
   const start = base.indexOf(GUIDE_DATE_RULE_START);
   if (firstEnd < 0 || start < 0) throw new Error("Scout's prompt no longer has the spots the plan trip's prompt is made from");
   const end = base.indexOf("\n", start);
-  const withRule = `${base.slice(0, start)}${PLAN_DATE_RULE}${base.slice(end < 0 ? base.length : end)}`;
+  let withRule = `${base.slice(0, start)}${PLAN_DATE_RULE}${base.slice(end < 0 ? base.length : end)}`;
+  for (const [was, now] of SWAPS) {
+    if (!withRule.includes(was)) throw new Error("Scout's prompt no longer has the spots the plan trip's prompt is made from");
+    withRule = withRule.replace(was, () => now);
+  }
   return `${withRule.slice(0, firstEnd)}\n\n${PLAN_BLOCK}${withRule.slice(firstEnd)}`;
+}
+
+/** The three tool descriptions that name Japan's clock, yen or Japan's dates, and what a plan trip is told instead (Nov 17 2026) */
+const TOOL_WORDS: { tool: string; field: string; now: string }[] = [
+  { tool: "tell_everyone", field: "until", now: "That day's own clock, YYYY-MM-DDTHH:MM, when its moment has passed (a bus leaving at 8:15 tomorrow → that time). Only for a message about a moment; otherwise leave out (it shows for 3 days)." },
+  { tool: "add_expense", field: "currency", now: "Only the currency they said: JPY (yen) or USD (dollars). Leave out when they said none." },
+  { tool: "get_weather", field: "dates", now: "The trip's dates, YYYY-MM-DD (today if none). Up to 16." },
+];
+
+/** The tools Scout is sent on a plan trip: a copy with those three descriptions changed. The shared array is never touched. */
+export function planTools<T extends { name: string }>(offered: T[]): T[] {
+  return offered.map((t) => {
+    const mine = TOOL_WORDS.filter((x) => x.tool === t.name);
+    if (!mine.length) return t;
+    const copy: any = JSON.parse(JSON.stringify(t));
+    for (const { field, now } of mine) {
+      if (!copy.input_schema?.properties?.[field]) throw new Error(`Scout's tool ${t.name} no longer has "${field}"`);
+      copy.input_schema.properties[field].description = now;
+    }
+    return copy as T;
+  });
 }

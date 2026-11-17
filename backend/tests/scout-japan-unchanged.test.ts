@@ -47,6 +47,7 @@ const HELD = {
   system: "e5dd26ef13ca3ace29a7ede276935086ea1936a09df321420b194f50583f64e1",
   stable: "d4786b2ada57a7fea3c037a5d996472fd757039698d59f02fda84ec3163fff0a",
   live: "76e27f761492eada7879d507ff2f987e2c727c26cfcade7c9d708752c2c4210f",
+  tools: "25f2e5001b326f2e1e1267fddaf54fa1bc0ff9de7640d31b75b293029ff4cd64",
 };
 
 let japan: Awaited<ReturnType<typeof makeJapan>>;
@@ -73,7 +74,7 @@ describe("S1 Japan's trip: what Scout is sent is unchanged", () => {
     expect(r.status).toBe(200);
     expect(sentToModel.length).toBeGreaterThan(0);
     const system = sentToModel[0].system[0].text as string;
-    const got = { system: sha(system), stable: sha(parts.stable), live: sha(parts.live) };
+    const got = { system: sha(system), stable: sha(parts.stable), live: sha(parts.live), tools: sha(JSON.stringify(sentToModel[0].tools)) };
     if (process.env.HASH_LOG) console.log("JAPAN HASHES", JSON.stringify(got));
     if (process.env.DUMP_DIR) (await import("fs")).writeFileSync(`${process.env.DUMP_DIR}/japan.txt`, `${parts.stable}\n\n=====LIVE=====\n${parts.live}\n`);
     // (the context is real: the fixture's flight, its "still at home" line, a deadline's status and the prompt's first words)
@@ -81,6 +82,16 @@ describe("S1 Japan's trip: what Scout is sent is unchanged", () => {
     expect(parts.live).toContain("DEADLINES — STATUS RIGHT NOW");
     expect(system.startsWith("You are Scout")).toBe(true);
     expect(got).toEqual(HELD);
+  });
+
+  it("F7 a Japan-sheet trip: a currency Wander can't keep (EUR) writes nothing", async () => {
+    const { executeTool } = await import("../src/routes/chat.js");
+    const who = { code: "Pat Hashjp", displayName: "Pat Hashjp", travelerId: japan.travelers.pat };
+    const rows = () => prisma.tripExpense.count({ where: { tripId: japan.tripId } });
+    const before = await rows();
+    const r: any = (await executeTool("add_expense", { tripId: japan.tripId, paidBy: "Pat", amount: 40, currency: "EUR", what: "Euros", date: "2026-10-14" }, who)).result;
+    expect(r).toEqual({ kept: false, question: "Wander keeps yen and US dollars only so far, so nothing was kept." });
+    expect(await rows()).toBe(before);
   });
 
   it("S5 Japan's trip still has its 'still at home' line for a party that hasn't flown yet", async () => {
