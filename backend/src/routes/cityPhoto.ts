@@ -13,6 +13,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../services/db.js";
 import { cityTripOver } from "../services/tripOver.js";
 import { googleFetch, note } from "../services/usage.js";
+import { plainCredit } from "../services/photoCredit.js";
 
 const router = Router();
 type Photo = { bytes: Buffer; type: string; place: string | null; credit: string | null; at: number };
@@ -146,7 +147,7 @@ router.get("/:cityId/info", async (req, res) => {
   const photo = await photoFor(req.params.cityId);
   res.set("Cache-Control", photo ? "private, max-age=86400" : "no-store");
   // (the picture's address names this photo — a phone keeps an image a week, and kept showing one Wander had replaced)
-  res.json(photo ? { image: `/api/city-photo/${req.params.cityId}/image?v=${createHash("sha1").update(photo.bytes).digest("hex").slice(0, 10)}`, place: photo.place, credit: photo.credit } : { image: null });
+  res.json(photo ? { image: `/api/city-photo/${req.params.cityId}/image?v=${createHash("sha1").update(photo.bytes).digest("hex").slice(0, 10)}`, place: photo.place, credit: plainCredit(photo.credit) } : { image: null });
 });
 
 router.get("/:cityId/image", async (req, res) => {

@@ -224,6 +224,8 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
   // credited at once and its count is right)
   const [fresh, setFresh] = useState<PlaceHit | null>(null);
   const [instead, setInstead] = useState(false);
+  // (a photo whose first try dropped on the way is drawn once more — only "needs signal" when that fails too)
+  const [again, setAgain] = useState(0);
   if (failed === "gone") return null;
   if (failed) return <div className="mt-2 rounded-lg bg-[#efe8dc] aspect-[16/9] flex items-center justify-center text-xs text-[#6b5d4a]">Photo needs signal</div>;
   const now = fresh ?? hit;
@@ -231,6 +233,7 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
   const src = placePhotoUrl(instead && fresh ? fresh : hit, 0, true);
   const lost = async () => {
     const why = await whyNoPhoto(src);
+    if (why === "again") { if (again) setFailed("signal"); else setAgain(1); return; }
     if (why !== "gone" || instead) { setFailed(why); return; }
     // (asked before the box goes: a place whose photos changed shows its new first one in the same box, never a box
     // that folds and comes back)
@@ -239,7 +242,7 @@ function MomentPhoto({ hit, title, onOpen }: { hit: PlaceHit; title: string; onO
   };
   return (
     <button type="button" onClick={onOpen} aria-label={`Photos of ${hit.name || title}`} className="relative block w-full mt-2 rounded-lg overflow-hidden bg-[#efe8dc] aspect-[16/9]">
-      <img src={src} alt="" loading="lazy" onError={() => { void lost(); }}
+      <img key={again} src={src} alt="" loading="lazy" onError={() => { void lost(); }}
         onLoad={() => { if (!hit.photos[0]?.id && !fresh) freshPlaceHit(hit.id).then((h) => { if (h) setFresh(h); }); }}
         className="absolute inset-0 w-full h-full object-cover" />
       <span className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent" aria-hidden />
@@ -288,6 +291,8 @@ function NextStops({ tripId, cityId, head, stops }: { tripId: string; cityId: st
   const [hits, setHits] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(ask));
   const [open, setOpen] = useState<{ hit: PlaceHit; title: string } | null>(null);
   const [gone, setGone] = useState<Record<string, boolean>>({});
+  // (a photo whose first try dropped on the way is drawn once more)
+  const [again, setAgain] = useState<Record<string, boolean>>({});
   useEffect(() => {
     let live = true;
     lookUpPlacePhotos(tripId, cityId, ask).then((h) => { if (live) setHits(h); }).catch(() => { /* names alone */ });
@@ -307,8 +312,11 @@ function NextStops({ tripId, cityId, head, stops }: { tripId: string; cityId: st
               aria-label={hit ? `Photos of ${s.title}` : s.title}
               className="snap-start shrink-0 w-[150px] text-left">
               {hit && <span className="relative block w-full aspect-[4/3] rounded-lg overflow-hidden bg-[#efe8dc]">
-                <img src={placePhotoUrl(hit, 0, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover"
-                  onError={() => { const src = placePhotoUrl(hit, 0, true); whyNoPhoto(src).then((why) => { if (why === "gone") { setGone((g) => ({ ...g, [s.query]: true })); void freshPlaceHit(hit.id); } }); }} />
+                <img key={again[s.query] ? 1 : 0} src={placePhotoUrl(hit, 0, true)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover"
+                  onError={() => { const src = placePhotoUrl(hit, 0, true); whyNoPhoto(src).then((why) => {
+                    if (why === "gone") { setGone((g) => ({ ...g, [s.query]: true })); void freshPlaceHit(hit.id); }
+                    else if (why === "again") setAgain((a) => (a[s.query] ? a : { ...a, [s.query]: true }));
+                  }); }} />
                 {/* (the photographer, on the photo, as Google asks) */}
                 {hit.photos[0]?.credit && <span className="absolute inset-x-0 bottom-0 px-1.5 pb-0.5 pt-3 bg-gradient-to-t from-black/55 to-transparent break-words leading-tight text-[9px] text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">Photo: {hit.photos[0].credit} · Google</span>}
               </span>}

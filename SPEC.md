@@ -2881,7 +2881,9 @@ setting never replaces the others.
   second at most before saying so.
 - **Scout with no signal** says so in its box, and its question buttons, Send and microphone wait.
 - **A place photo that doesn't show** (Nov 16 2026): "Photo needs signal" when the phone can't reach Wander; its space
-  stays, so the day doesn't move. A place Wander knows has no photo to show has no photo space at all: its line is her
+  stays, so the day doesn't move. A photo that fails once while Wander can be reached is drawn a second time by itself
+  (the day's photo of a stop, the Next card, the full-screen photos; Nov 17 2026), and says it needs signal only when
+  the second try fails too. A place Wander knows has no photo to show has no photo space at all: its line is her
   words alone (Ken: "Anytime a photo is not available, shouldn't you remove it?"). The phone keeps each place's photos
   three days, and when Wander opens it corrects every copy it kept of a place, by the place's own id, so a place checked
   again since is drawn as it is now. A photo the server no longer has is never drawn: the day's photo of the stop goes
@@ -2896,7 +2898,8 @@ setting never replaces the others.
   (the person waits up to 25 seconds). The check reads her words for the stop, with her own description when the stop
   comes from her map list; it keeps only photos that show what her words name — none shown when none does — and the
   first photo shows the place as a visitor sees it (a close-up of a dish or product never leads unless she names it).
-  Words that change are judged again once. Credits read in full. Japan's places checked Oct 24–31 show exactly their October photos; Japan's
+  Words that change are judged again once. Credits read in full, in plain characters (an apostrophe in a
+  photographer's name reads as an apostrophe; Nov 17 2026). Japan's places checked Oct 24–31 show exactly their October photos; Japan's
   others were looked at again when first opened after Nov 16. Each day's Google requests and AI checks are counted
   (service_usage) under a daily ceiling; past it, a place's photos don't show.
 - The offline worker tries fresh data first and uses its copy only without signal.

@@ -17,6 +17,16 @@ export default function PlaceGallery({ hit, title, time, map, start = 0, onClose
   const strip = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState(start);
   const [failed, setFailed] = useState<Record<number, "gone" | "signal">>({});
+  // (a photo whose first try dropped on the way is drawn once more — a fresh reviewer, Nov 16 2026: one photo of 80
+  // stayed black on a connection that was up; only "needs signal" when that fails too)
+  const [again, setAgain] = useState<Record<number, boolean>>({});
+  const lost = (n: number) => {
+    whyNoPhoto(placePhotoUrl(hit, n)).then((why) => {
+      if (why !== "again") setFailed((f) => ({ ...f, [n]: why }));
+      else if (again[n]) setFailed((f) => ({ ...f, [n]: "signal" }));
+      else setAgain((a) => ({ ...a, [n]: true }));
+    });
+  };
   const downY = useRef<number | null>(null);
   useEffect(() => {
     const el = strip.current;
@@ -57,7 +67,7 @@ export default function PlaceGallery({ hit, title, time, map, start = 0, onClose
           <div key={n} className="shrink-0 w-full h-full snap-center flex items-center justify-center">
             {failed[n] === "signal"
               ? <p className="text-sm text-white/70 px-8 text-center">This photo needs signal to show.</p>
-              : Math.abs(i - pos) <= 1 && <img src={placePhotoUrl(hit, n)} alt="" onError={() => { whyNoPhoto(placePhotoUrl(hit, n)).then((why) => setFailed((f) => ({ ...f, [n]: why }))); }} className="max-w-full max-h-full object-contain" />}
+              : Math.abs(i - pos) <= 1 && <img key={again[n] ? 1 : 0} src={placePhotoUrl(hit, n)} alt="" onError={() => lost(n)} className="max-w-full max-h-full object-contain" />}
           </div>
         ))}
       </div>

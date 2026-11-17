@@ -43,9 +43,11 @@ export async function freshPlaceHit(id: string): Promise<PlaceHit | null> {
 
 /** Why a photo didn't show, asked once after it fails: "gone" when Wander answers it has no such photo (Google stops
  *  serving a saved photo about a month after it was found — Japan's from Oct 17, seen Nov 16 2026), "signal" when the
- *  phone couldn't reach Wander. Every failure said "needs signal", which was untrue online. */
-export async function whyNoPhoto(src: string): Promise<"gone" | "signal"> {
-  try { return (await fetch(src)).status === 404 ? "gone" : "signal"; } catch { return "signal"; }
+ *  phone couldn't reach Wander, "again" when Wander answers with the photo — the first try dropped on the way (a fresh
+ *  reviewer, Nov 16 2026: one photo of 80 stayed black on a connection that was up). Every failure said "needs signal",
+ *  which was untrue online. */
+export async function whyNoPhoto(src: string): Promise<"gone" | "signal" | "again"> {
+  try { const r = await fetch(src); return r.status === 404 ? "gone" : r.ok ? "again" : "signal"; } catch { return "signal"; }
 }
 
 // (kept by the search and her words both: her words changing — a new Guide copy — asks again)
