@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from "react";
 import useBackToClose from "../hooks/useBackToClose";
 import { lockScroll } from "../lib/scrollLock";
 import { photosOf, savedPhotos, keepPhotos, sharePhoto, captionPhoto, deletePhoto, useShowable, PHOTOS_CHANGED, type TripPhoto } from "../lib/tripPhotos";
+import { loadSamples, sampleFor, type Sample } from "../lib/samples";
+import { SamplePicture, SampleTag, SAMPLE_TEXT } from "./SampleTag";
 
 const timeOf = (p: TripPhoto) => {
   const t = p.takenAt?.slice(11, 16);
@@ -89,6 +91,9 @@ export default function DayPhotos({ tripId, date, canAdd, trip }: { tripId: stri
   const [note, setNote] = useState<string | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  // (Ken's sample for this day, if any: held in memory by lib/samples, drawn after the real photos, never opened or sent — S2c)
+  const [samples, setSamples] = useState<Sample[]>([]);
+  useEffect(() => { let live = true; loadSamples(tripId).then((s) => { if (live) setSamples(s); }); return () => { live = false; }; }, [tripId]);
   useEffect(() => {
     let live = true;
     const get = () => photosOf(tripId, date).then((r) => { if (live && r) { setPhotos(r.photos); setShare(r.shareDefault); } });
@@ -98,7 +103,9 @@ export default function DayPhotos({ tripId, date, canAdd, trip }: { tripId: stri
   }, [tripId, date]);
   useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 6000); return () => clearTimeout(t); }, [note]);
 
-  if (!photos.length && !canAdd) return null;
+  // (called only here, where the strip is DRAWN, after the real photos' own copy was kept)
+  const sampleTile = sampleFor("trip_photo", date, samples);
+  if (!photos.length && !canAdd && !sampleTile) return null;
   const pick = async (files: FileList | null) => {
     const list = Array.from(files || []).filter((f) => f.type.startsWith("image/") || !f.type).slice(0, 30);
     if (!list.length) return;
@@ -146,6 +153,14 @@ export default function DayPhotos({ tripId, date, canAdd, trip }: { tripId: stri
             {p.mine && !p.shared && <span className="absolute left-1 bottom-1 text-[10px] text-white bg-black/45 rounded px-1">just you</span>}
           </button>
         ))}
+        {sampleTile && (
+          <div data-sample="1" className="relative shrink-0 w-[104px] h-[104px]">
+            <SamplePicture className="w-full h-full rounded-xl" label="A sample photo" />
+            <span data-sample="1" className={`absolute left-1 right-1 bottom-1 text-[10px] leading-tight rounded px-1 bg-white/80 ${SAMPLE_TEXT}`}>
+              <SampleTag />{typeof sampleTile.data.caption === "string" ? sampleTile.data.caption : ""}
+            </span>
+          </div>
+        )}
       </div>
       {/* (says what the box above says — with it ticked, "Just yours unless you share them" left Andy unsure which wins;
           user-andy3) */}

@@ -53,6 +53,8 @@ import { aboutLines, lineKey } from "../lib/placeAbout";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { zoneWords, stillHomeOn, firstDayIn, dateIn, zoneOfDay } from "../lib/dayZone";
 import { choicesOf, planMapHref, areaOf, TRAVEL, useLinePhotos, photoLineOf, photoQueryOf, placedRoute, choiceMapHref, airportDirectionsHref } from "../lib/linePlaces";
+import { loadSamples, mergeSamples, sampleFor, withoutMarker, type Sample, type SampleItem } from "../lib/samples";
+import { SampleRow } from "../components/SampleTag";
 
 /** How long a first open waits for the rest of the day (rail sheet, summaries…) after her Guide, when the phone has no
  *  copy of them yet — they're asked for together, so on a normal signal they come with the Guide and this is never hit */
@@ -1139,6 +1141,28 @@ function shortDate(date: string) {
 
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
+/** A sample with no time goes last: a minute past any real one (flushSamples(Infinity) is the last call; one before an
+ *  untimed evening line asks for NO_TIME, so only the timed samples come first) */
+const NO_TIME = 1_000_000;
+/**
+ * Ken's sample lines for a day (S2c), each with the minute it sits at on the day's clock. A sample is placed and worded as
+ * a real line with its own zone is, by the functions ItemCard uses: tripClockMinutes puts it on the day's clock, and its
+ * time is followed by that clock's words (zoneWords) when the zone isn't the day's, or the phone is elsewhere. Called only
+ * where the day's list is DRAWN: the result never enters items, dayItems, listItems, the timeline, planBlocks, Play the day,
+ * the tonight's-place work or the text a day is sent as.
+ */
+function sampleLinesFor(samples: Sample[], date: string, tripZone: string): { at: number; node: ReactNode }[] {
+  const rows = [...mergeSamples<never>("line", [], samples, { date }), ...mergeSamples<never>("unconfirmed", [], samples, { date })] as SampleItem[];
+  return rows.map((s) => {
+    const time = withoutMarker(s.data.time);
+    const own = typeof s.data.timeZone === "string" && s.data.timeZone ? s.data.timeZone : null;
+    const timed = /^\d{1,2}:\d{2}$/.test(time);
+    const at = timed ? tripClockMinutes({ time, timeZone: own, date: `${date}T00:00:00.000Z` } as GuideItem, tripZone) : NO_TIME;
+    const zone = timed ? (own && own !== tripZone ? zoneWords(own) : phoneIsElsewhere(tripZone) ? zoneWords(tripZone) : null) : null;
+    return { at, node: <SampleRow key={s.id} sample={s} timeWords={timed ? `${clock(time.padStart(5, "0"))}${zone ? ` ${zone}` : ""}` : ""} /> };
+  }).sort((a, b) => a.at - b.at);
+}
+
 function inWords(mins: number) {
   if (mins <= 0) return "now";
   if (mins < 60) return `in ${mins} min`;
@@ -1182,6 +1206,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // her illustrated map's panel for each day it covers (Kyoto, Oct 25–29) — lib/dayPanels
   const [panels, setPanels] = useState<PanelsByDay>({});
   const [summariesByDay, setDaySummaries] = useState<Record<string, string>>({});
+  // Ken's samples (S2c): held in memory by lib/samples, never kept; empty for anyone else
+  const [samples, setSamples] = useState<Sample[]>([]);
+  useEffect(() => { if (!tripId) return; let live = true; loadSamples(tripId).then((s) => { if (live) setSamples(s); }); return () => { live = false; }; }, [tripId]);
   const scrolledFor = useRef<string | null>(null);
 
   // The rail sheet wasn't known when the day had to be drawn (a first open on a very slow signal): said, not silently missing
@@ -2104,6 +2131,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   })();
   const tomorrowFirst = tomorrowLead?.item || null;
   const tomorrowTrain = tomorrowLead?.train || null;
+  // Ken's samples for this day (S2c) — made here, where the page is DRAWN, after everything above and feeding nothing: not on Next
+  // (it is the now-line's page), the summary only when the day has none of its own
+  const sampleLines = !now && samples.length ? sampleLinesFor(samples, date, tripZone) : [];
+  const sampleSummary = !now && samples.length && !summariesByDay[date] ? sampleFor("summary", date, samples) : null;
 
   return (
     <div className="min-h-[100dvh] bg-[#faf8f5] pb-32">
@@ -2377,6 +2408,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 <p className="text-xs text-[#6b5d4a] mt-1">Wander's summary of {v.owners} plan</p>
               </section>
             )}
+            {sampleSummary && <ul className="mb-4"><SampleRow sample={sampleSummary} /></ul>}
             {!now && isToday && <NowJump />}
             {/* A note about today, from the top of the day (fresh notes audit, Oct 17: "+ Add a note for this day" sat four
                 screens down; it stays there too — Ken, Oct 13) */}
@@ -2822,7 +2854,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 playTomorrow={hasNext ? { date: tomorrowDate, words: `${shortDate(tomorrowDate)}${(() => { const c = trip?.cities.find((x) => x.id === days.find((d) => ymd(d.date) === tomorrowDate)?.cityId)?.name; return c ? ` · ${c}` : ""; })()}`, play: items.some((i) => ymd(i.date) === tomorrowDate) } : null} />
             )}
             {dayItems.length === 0 && choices.length === 0 && planBlocks.length === 0 ? (
-              day?.dayType === "guided" ? (
+              <>
+              {day?.dayType === "guided" ? (
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4">
                   Backroads' guides lead the day, and {v.guide} has nothing else for it.
                 </p>
@@ -2830,7 +2863,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4">
                   {cap(v.guide)} has nothing set for this day.
                 </p>
-              )
+              )}
+              {/* (an empty day keeps its sentence; Ken's samples for it go under, in their own list, in time order) */}
+              {sampleLines.length > 0 && <ol className="space-y-2 mt-2">{sampleLines.map((x) => x.node)}</ol>}
+              </>
             ) : (
               <ol className="space-y-2">
                 {headline && (
@@ -2894,6 +2930,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   const own = planBlocks.length ? [] : timedOwn;
                   let o = 0;
                   const flushOwn = (beforeMin: number) => { while (o < own.length && toMin(own[o].time!) < beforeMin) out.push(addedPlan(own[o++], "card")); };
+                  // Ken's samples join the same way, by their minute on the day's clock; one with no time goes last (S2c).
+                  // They are only pushed into the drawn list: nothing below reads them back.
+                  let sIdx = 0;
+                  const flushSamples = (beforeMin: number) => { while (sIdx < sampleLines.length && sampleLines[sIdx].at < beforeMin) out.push(sampleLines[sIdx++].node); };
+                  const flushBoth = (beforeMin: number) => { flushOwn(beforeMin); flushSamples(beforeMin); };
                   // Her line, with the leg that takes you there before it and the one that takes you away after it
                   const pushCard = (i: GuideItem) => {
                     (legsBeforeLine.get(i.id) || []).forEach((l) => out.push(legLine(l)));
@@ -2904,7 +2945,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   const pushLeg = (l: { s: OtherSource; r: RailRow }) => { out.push(legLine(l)); (after.get(railKey(l)) || []).forEach((i) => pushCard(i)); };
                   const pushTrain = () => {
                     const x = sorted[t++];
-                    flushOwn(dep(x.r));
+                    flushBoth(dep(x.r));
                     (legsAhead.get(railKey(x)) || []).forEach(pushLeg);
                     out.push(trainLine(x));
                     (after.get(railKey(x)) || []).forEach((i) => pushCard(i));
@@ -2919,13 +2960,14 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     // timed, read check-out, the 11:59 PM free-cancellation, a to-do, then the 10:36 AM NOZOMI)
                     const eveningUntimed = !i.time && !afterLanding.includes(i) && (i.kind === "deadline" || (timedAt >= 0 && n > timedAt));
                     while (t < sorted.length && i.kind !== "checkout" && (eveningUntimed || (i.time && dep(sorted[t].r) < tripClockMinutes(i, tripZone)))) pushTrain();
-                    if (i.time) flushOwn(tripClockMinutes(i, tripZone));
-                    else if (eveningUntimed) flushOwn(Infinity);
+                    if (i.time) flushBoth(tripClockMinutes(i, tripZone));
+                    else if (eveningUntimed) { flushOwn(Infinity); flushSamples(NO_TIME); }
                     pushCard(i);
                     if (i === landing) legs.forEach((l) => out.push(legLine(l)));
                   });
                   while (t < sorted.length) pushTrain();
                   flushOwn(Infinity);
+                  flushSamples(Infinity);
                   // Behind you once you've reached tonight's place (Ken, Oct 10: "when I tapped on next, you would know that I
                   // was already in Hakata at the hotel, and so … it would not tell me we were taking a local train to Hakata"):
                   // the check-out and the lines with no time that only got you here fold into one quiet "Earlier today" row

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { api } from "../lib/api";
 import { signInWithPasskey, markSignedInWith } from "../lib/passkeys";
 import { whoIs } from "../lib/offlineStore";
+import { forgetSamples } from "../lib/samples";
 
 interface User {
   code: string;
@@ -92,6 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // copy: anything named with their id. user-ken1, Oct 16: after Ken signed out, his whole Scout chat and an unsent
     // draft were still on the phone Andy then used — not shown to Andy, but not his to keep there)
     const theirs = ids.filter((x): x is string => !!x && x.length > 3);
+    // (samples are held in memory only, per person; they go with the person who leaves — S2c)
+    forgetSamples();
     try {
       Object.keys(localStorage)
         // (and the phone's note of whether they're the trip's organizer — kept, Ken signing in after Andy was told to "Tell

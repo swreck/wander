@@ -23,6 +23,8 @@ import {
 import { isLanding, isFor, notLandedYet } from "../lib/guideDisplay";
 import { PapersKeep, PapersList } from "../components/Papers";
 import { phoneReport } from "../lib/phoneReport";
+import { loadSamples, mergeSamples, type Sample, type SampleItem } from "../lib/samples";
+import { SampleRow } from "../components/SampleTag";
 
 type DayOption = { date: string; city: string | null; guided: boolean };
 /** A place a note can be about, with the trip days it covers (for its order and its heading) */
@@ -104,6 +106,9 @@ export default function NotesPage() {
   // whose notes, and in what order — Ken, Oct 2: "only me, all, only others; by entry date, by trip date"
   const [view, setView] = useState<NotesView>(() => readView());
   const changeView = (v: Partial<NotesView>) => setView((old) => { const next = { ...old, ...v }; keepView(next); return next; });
+  // Ken's samples (S2c): held in memory by lib/samples, drawn after the real notes
+  const [samples, setSamples] = useState<Sample[]>([]);
+  useEffect(() => { if (!tripId) return; let live = true; loadSamples(tripId).then((s) => { if (live) setSamples(s); }); return () => { live = false; }; }, [tripId]);
 
   const load = useCallback(async (id: string) => {
     const list = await api.get<TripNote[]>(`/trip-notes/trip/${id}`);
@@ -991,6 +996,12 @@ export default function NotesPage() {
                   </ul>
                 </div>
               ))}
+              {/* Ken's sample notes, after the real ones in either order (S2c): drawn here and only here; never in `notes`, the kept
+                  copy, a count, a search (a search hides them), a copy or the export */}
+              {(() => {
+                const sampleNotes = query.trim() ? [] : mergeSamples<never>("note", [], samples) as SampleItem[];
+                return sampleNotes.length ? <ul className="space-y-2 mt-3">{sampleNotes.map((s) => <SampleRow key={s.id} sample={s} />)}</ul> : null;
+              })()}
               <p className="text-xs text-[#6b5d4a] mt-6">
                 Settings has two choices for notes: tidying your dictation, and whether others' trip stories may use what you say about places.{" "}
                 <button onClick={() => navigate("/settings#notes")} className="underline underline-offset-2 min-h-[44px]">Open Settings</button>

@@ -5,6 +5,7 @@
  */
 import { api } from "./api";
 import { queuedBodies, whoIs, updateQueued } from "./offlineStore";
+import { noSampleText } from "./samples";
 
 export interface TripNote {
   id: string;
@@ -143,6 +144,8 @@ export const dayWords = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateSt
 
 /** Hand a note's words to the phone's share sheet (Messages, Mail…); with no share sheet, copy them */
 export async function sendCopy(words: string, title: string): Promise<"shared" | "copied" | "cancelled" | "failed"> {
+  // (words that carry a sample's marker are never handed off the phone — S2c)
+  if (noSampleText(words) === null) return "cancelled";
   try {
     if (navigator.share) { await navigator.share({ title, text: words }); return "shared"; }
   } catch (e) {

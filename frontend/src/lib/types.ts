@@ -5,6 +5,8 @@ export interface City {
   country: string | null;
   /** the clock the city is lived on ("Asia/Ho_Chi_Minh"); null on Japan's cities: the trip's zone then */
   timeZone?: string | null;
+  /** the key the plan tool gave this city (a trip built from a plan); null on a Guide's cities. A sample's slot names it */
+  planKey?: string | null;
   latitude: number | null;
   longitude: number | null;
   sequenceOrder: number;

@@ -18,6 +18,9 @@ import type { Experience, Trip } from "../lib/types";
 import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
 import { mapsLink, voiceFor, linkLabel, partyOf, homeOnJapanDate, notLandedYet } from "../lib/guideDisplay";
 import { maybesChanged, type SeenRow } from "../lib/maybesNews";
+import { tellGroup, personOf } from "../lib/tellGroup";
+import { loadSamples, mergeSamples, type Sample, type SampleItem } from "../lib/samples";
+import { SampleRow } from "../components/SampleTag";
 
 interface Note { id: string; experienceId: string; content: string; visibility?: string; traveler: { displayName: string }; createdAt: string; _pending?: boolean }
 interface DayChoice { id: string; date: string; text: string; experienceId: string | null; addedBy: string }
@@ -50,32 +53,12 @@ function hasWord(text: string, w: string): boolean {
 }
 const sheetRow = (e: Experience) => (e.sheetRowRef ? Number((e as { priorityOrder?: number }).priorityOrder ?? 5000) : 10000);
 
-/** One person, however they're named: "Larisa (maybe)", "Julie (via Andy)", "Andy B" → "Larisa", "Julie", "Andy" */
-const personOf = (n: string) => n.replace(/\s*\((maybe|via [^)]*)\)\s*$/i, "").trim().split(/\s+/)[0] || n;
 /** The filter's themes (Ken, Oct 3) — "architecture" counts with temples and history, "ceramics" is art and craft */
 const THEME_ORDER = ["food", "temples", "ceramics", "shopping", "nature", "other"] as const;
 const THEME_OF: Record<string, (typeof THEME_ORDER)[number]> = { food: "food", temples: "temples", architecture: "temples", ceramics: "ceramics", shopping: "shopping", nature: "nature", other: "other" };
 const THEME_LABEL: Record<string, string> = { food: "Food & drink", temples: "Temples & history", ceramics: "Art & craft", shopping: "Shopping", nature: "Nature", other: "Other" };
 /** The phone's own date of a moment */
 const localDay = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-/**
- * "Tell the group": the iPhone's share sheet with a maybe's words, link and city, for the group text (and Julie, who
- * isn't on Wander); with no share sheet, copied. Returns a line to show, or null. On every maybe, not only just after
- * Send — Ken, Oct 3: the button was gone by the time he looked for it, and someone else's maybe couldn't be passed on.
- */
-async function tellGroup(by: string, words: string, link: string | null, cityName: string, fromGuide?: string): Promise<string | null> {
-  // (one of her ideas carries its source: "From Larisa's Guide: …" — Ken, Oct 3: "any item, with the original source")
-  const body = `${fromGuide ? `From ${fromGuide}: ` : `${personOf(by)}: `}${words}${link ? `\n${link}` : ""}\n(on Wander's maybes for ${cityName})`;
-  try {
-    if (typeof navigator.share === "function") { await navigator.share({ text: body }); return null; }
-    await navigator.clipboard.writeText(body);
-    return "Copied — paste it into your group text.";
-  } catch (e) {
-    // (closing the share sheet isn't a failure)
-    return (e as { name?: string })?.name === "AbortError" ? null : "Couldn't open sharing here — copy the words from the list instead.";
-  }
-}
-
 /** Remove and Put it back go out in the order they were tapped (a quick Put it back → Remove sent both at once, and the
  *  put-back could land last and undo the removal) */
 let offQueue: Promise<unknown> = Promise.resolve();
@@ -120,6 +103,9 @@ export default function IdeasPage() {
   // Remove: the one you just took off stays in its place as a slim "Put it back" line; the rest fold at the bottom
   const [justOff, setJustOff] = useState<string | null>(null);
   const [showOff, setShowOff] = useState(false);
+  // Ken's samples (S2c): held in memory by lib/samples; drawn after the real maybes, never in `ideas`, the kept copy, a count or a send
+  const [samples, setSamples] = useState<Sample[]>([]);
+  useEffect(() => { if (!tripId) return; let live = true; loadSamples(tripId).then((s) => { if (live) setSamples(s); }); return () => { live = false; }; }, [tripId]);
 
   // The trip, its days and cities (shared with Home and the day screens; saved on the phone)
   useEffect(() => {
@@ -490,12 +476,14 @@ export default function IdeasPage() {
               onChoice={(c) => setChoices((prev) => [...prev, c])}
               onOpenDay={(d) => navigate(`/day/${d}`)} />
           );
+          // (drawn here and only here: the city's sample maybes, after the real cards)
+          const sampleMaybes = city?.planKey ? mergeSamples<never>("maybe", [], samples, { cityKey: city.planKey }) as SampleItem[] : [];
           return (
             <>
-              {(maybesNow.length > 0 || maybesEarlier.length > 0) && (
+              {(maybesNow.length > 0 || maybesEarlier.length > 0 || sampleMaybes.length > 0) && (
                 <section className="mb-5">
                   <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">The group's maybes</h2>
-                  <ul className="space-y-2">{maybesNow.map(card)}</ul>
+                  <ul className="space-y-2">{maybesNow.map(card)}{sampleMaybes.map((s) => <SampleRow key={s.id} sample={s} />)}</ul>
                   {maybesEarlier.length > 0 && (
                     <>
                       <button onClick={() => setShowEarlier((v) => !v)} aria-expanded={showEarlier}

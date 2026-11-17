@@ -14,6 +14,27 @@ const QUEUEABLE_PATHS = [
   "/maybes",
 ];
 
+/** The sign-in this phone holds now (a key for what is kept only in memory per person; lib/samples) */
+export const signedInToken = (): string | null => { try { return localStorage.getItem("wander_token"); } catch { return null; } };
+
+// A sample is never acted on (S2c, Nov 17 2026; the server refuses the same, index.ts). A save naming one by its id — a path
+// segment, or a string under `id` or a key ending Id / Ids in the body, to depth 4 — never leaves the phone and is never
+// queued. A note whose TEXT begins "sample: " is not an id: only those keys are read.
+const namesSampleIn = (v: unknown, key: string, depth: number): boolean => {
+  if (typeof v === "string") return (key === "id" || /Ids?$/.test(key)) && /^sample:/.test(v);
+  if (!v || typeof v !== "object") return false;
+  if (Array.isArray(v)) return v.some((x) => namesSampleIn(x, key, depth));
+  return depth < 4 && Object.entries(v).some(([k, x]) => namesSampleIn(x, k, depth + 1));
+};
+export function namesASample(path: string, body?: unknown): boolean {
+  const segments = path.split("?")[0].split("/").map((s) => { try { return decodeURIComponent(s); } catch { return s; } });
+  if (segments.some((s) => /^sample:/.test(s))) return true;
+  let parsed: unknown = body;
+  if (typeof body === "string") { try { parsed = JSON.parse(body); } catch { return false; } }
+  return namesSampleIn(parsed, "", 0);
+}
+const A_SAMPLE = "A sample. Nothing is planned here yet.";
+
 function isQueueable(path: string, method: string): boolean {
   if (method === "GET") return false;
   return QUEUEABLE_PATHS.some((p) => path.startsWith(p));
@@ -37,6 +58,7 @@ function isNetworkError(err: unknown): boolean {
 async function request<T>(path: string, options: RequestInit = {}, keepAfterMs?: number): Promise<T> {
   const token = localStorage.getItem("wander_token");
   const method = options.method || "GET";
+  if (method !== "GET" && namesASample(path, options.body)) throw Object.assign(new Error(A_SAMPLE), { status: 404, body: { error: A_SAMPLE } });
   // (a save forgets the reads shared a moment ago — before it goes and again once it's answered, so a read that crossed
   // it isn't kept either; sharedGet below)
   if (method !== "GET") forgetShared();
@@ -108,6 +130,7 @@ async function requestOnce<T>(path: string, options: RequestInit, method: string
 }
 
 async function uploadRequest<T>(path: string, formData: FormData): Promise<T> {
+  if (namesASample(path)) throw Object.assign(new Error(A_SAMPLE), { status: 404, body: { error: A_SAMPLE } });
   const token = localStorage.getItem("wander_token");
   const headers: Record<string, string> = {};
   if (token) {

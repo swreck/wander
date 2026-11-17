@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import useBackToClose from "../hooks/useBackToClose";
 import { lockScroll } from "../lib/scrollLock";
+import { noSampleText } from "../lib/samples";
 
 export default function SelectText({ text, onClose }: { text: string; onClose: () => void }) {
   useBackToClose(true, onClose);
@@ -30,7 +31,7 @@ export default function SelectText({ text, onClose }: { text: string; onClose: (
         className="flex-1 w-full resize-none bg-transparent px-4 py-3 text-[17px] leading-relaxed text-[#3a3128] outline-none" />
       <div className="px-4 py-2 border-t border-[#e5ddd0] flex items-center justify-between">
         <p className="text-[13px] text-[#6b5d4a]">Drag the handles, then tap Copy.</p>
-        <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { /* the words can still be chosen */ } }}
+        <button type="button" onClick={async () => { try { const safe = noSampleText(text); if (safe === null) return; await navigator.clipboard.writeText(safe); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { /* the words can still be chosen */ } }}
           className="min-h-[44px] px-3 text-[15px] text-[#514636] underline underline-offset-2">{copied ? "✓ Copied all" : "Copy all"}</button>
       </div>
     </div>

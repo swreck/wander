@@ -165,12 +165,12 @@ describe("S6 Scout never sees a sample or an unconfirmed entry", () => {
     }
     for (const s of seen) expect(s).not.toContain(SAMPLE_WORDS);
   });
-  it("and nothing in the server's source reads sample_entries but the plan tool (a source check)", async () => {
+  it("and nothing in the server's source reads sample_entries but the samples route and its service (a source check; S2c rule 3)", async () => {
     const { execFileSync } = await import("child_process");
     // (grep exits 1 when nothing matches: that is the pass)
     let hits: string[] = [];
     try { hits = execFileSync("grep", ["-rlE", "sampleEntry|sample_entries", "src"], { cwd: new URL("..", import.meta.url).pathname }).toString().trim().split("\n").filter(Boolean); } catch { /* no match */ }
-    expect(hits).toEqual([]);
+    expect(hits.filter((f) => !["src/routes/samples.ts", "src/services/samples.ts"].includes(f))).toEqual([]);
   }, 30_000);
 });
 

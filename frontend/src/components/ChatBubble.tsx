@@ -15,6 +15,7 @@ import { screenShift } from "../lib/screenShift";
 import { whereAmI, hereNow, type Here } from "../lib/whereAmI";
 import { canOfferBuzz, declineBuzz, turnOnBuzz, keepBuzzCurrent } from "../lib/buzz";
 import SelectText from "./SelectText";
+import { noSampleText } from "../lib/samples";
 import { keepDayForecast } from "../lib/forecast";
 
 /** Phone numbers in an answer can be tapped to call */
@@ -2056,7 +2057,10 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                     <button
                       onClick={async () => {
                         try {
-                          await navigator.clipboard.writeText(msg.text.replace(/\*\*/g, "").replace(/(^|\s)\*(\S[^*\n]*\S)\*(?=\s|$)/g, "$1$2").trim());
+                          // (words that carry a sample's marker are never copied — S2c)
+                          const safe = noSampleText(msg.text.replace(/\*\*/g, "").replace(/(^|\s)\*(\S[^*\n]*\S)\*(?=\s|$)/g, "$1$2").trim());
+                          if (safe === null) return;
+                          await navigator.clipboard.writeText(safe);
                           setCopied(i);
                           setTimeout(() => setCopied((c) => (c === i ? null : c)), 2500);
                         } catch { /* no clipboard here: the words can still be selected */ }
