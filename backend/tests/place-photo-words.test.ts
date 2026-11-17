@@ -14,7 +14,7 @@ process.env.JWT_SECRET = "test-secret-photo-words";
 process.env.GOOGLE_MAPS_API_KEY = "test-key";
 const { app } = await import("../src/index.js");
 const { signToken } = await import("../src/middleware/auth.js");
-const { setJudgeForTests, setPlaceCheckForTests } = await import("../src/services/photoJudge.js") as any;
+const { setJudgeForTests } = await import("../src/services/photoJudge.js");
 const checks = await import("../src/services/placePhotoChecks.js");
 const prisma = new PrismaClient();
 
@@ -38,8 +38,6 @@ vi.spyOn(globalThis, "fetch").mockImplementation(async (input: any, init?: any) 
 });
 
 const judged: string[] = [];
-// (the place check: Google's place fits her words unless they name a "screen" — the rule-(b) case below)
-const placeAsked: string[] = [];
 let tok = "", tripId = "", rowId = "", travelerId = "";
 const PIN = `${TAG} Yamashita Honki Udon - Shibuya Center Street`;
 const HERS = `${PIN} (her list says: 3D panda billboard)`;
@@ -53,7 +51,6 @@ beforeAll(async () => {
     const wants = /billboard/i.test(words) ? /^billboard/ : /^(good|billboard)/;
     return images.map((im, i) => (wants.test(im.bytes.toString()) ? i : -1)).filter((i) => i >= 0).slice(0, most);
   });
-  setPlaceCheckForTests?.(async (words: string) => { placeAsked.push(words); return { same: !/screen/i.test(words), why: "test" }; });
   const t = await prisma.traveler.create({ data: { displayName: `${TAG}-ken` } });
   travelerId = t.id;
   tok = signToken({ code: t.displayName, displayName: t.displayName, travelerId: t.id });
@@ -73,7 +70,6 @@ beforeAll(async () => {
 beforeEach(() => { (checks as any).forgetForTests?.(); });
 afterAll(async () => {
   setJudgeForTests(null);
-  setPlaceCheckForTests?.(null);
   await prisma.placePhotoCheck.deleteMany({ where: { placeRowId: rowId } });
   await prisma.placePhoto.deleteMany({ where: { query: { startsWith: TAG } } });
   await prisma.tripMember.deleteMany({ where: { tripId } });
@@ -113,21 +109,5 @@ describe("her description of a stop reaches the photo check", () => {
     await new Promise((r) => setTimeout(r, 300));
     expect(judged.length).toBe(n + 1);
     expect((await prisma.placePhotoCheck.findFirst({ where: { placeRowId: rowId } }))!.words).toBe(PIN);
-  });
-
-  it("when Google's place doesn't fit her words, no photo shows for them — asked once, the place not searched again", async () => {
-    const words = `${PIN} (her list says: the big screen across the street)`;
-    const asked = placeAsked.length, j = judged.length;
-    const r = await lookup(words);
-    expect(r.status).toBe(200);
-    expect(r.body.places[QUERY]).toBeNull();
-    expect(placeAsked.length).toBe(asked + 1);
-    expect(judged.length).toBe(j);   // (no photo judged for a place that doesn't fit)
-    expect((await request(app).get(`/api/place-photos/${rowId}/0?v=1&size=small`)).status).toBe(404);
-    const all = await prisma.placePhotoCheck.findMany({ where: { placeRowId: rowId } });
-    expect(all.every((v) => !v.pass && v.words === words)).toBe(true);
-    expect((await prisma.placePhoto.findUnique({ where: { id: rowId } }))!.placeId).toBe(`${TAG}-place`);
-    await lookup(words);
-    expect(placeAsked.length).toBe(asked + 1);
   });
 });

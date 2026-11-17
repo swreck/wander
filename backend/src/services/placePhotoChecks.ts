@@ -20,7 +20,7 @@
 import crypto from "crypto";
 import prisma from "./db.js";
 import { allow } from "./usage.js";
-import { judgePhotos, samePlace } from "./photoJudge.js";
+import { judgePhotos } from "./photoJudge.js";
 
 export const MOST = 8;
 const DAY = 24 * 3600_000;
@@ -132,8 +132,8 @@ function keep(k: string, p: Kept) {
 }
 const fetching = new Map<string, Promise<{ bytes: Buffer; type: string; maxAge: number } | null>>();
 
-type Row = { id: string; line: string; query: string; name: string | null; address: string | null; placeId: string | null; verdict: string };
-const rowOf = (id: string) => prisma.placePhoto.findUnique({ where: { id }, select: { id: true, line: true, query: true, name: true, address: true, placeId: true, verdict: true } }).catch(() => null);
+type Row = { id: string; line: string; name: string | null; placeId: string | null; verdict: string };
+const rowOf = (id: string) => prisma.placePhoto.findUnique({ where: { id }, select: { id: true, line: true, name: true, placeId: true, verdict: true } }).catch(() => null);
 const checksOf = (rowId: string) => prisma.placePhotoCheck.findMany({ where: { placeRowId: rowId }, orderBy: [{ rank: "asc" }, { checkedAt: "asc" }] }) as Promise<Check[]>;
 /** The photos a place shows, in order: passed, not seen missing from Google */
 export const shownChecks = (rowId: string) => prisma.placePhotoCheck.findMany({ where: { placeRowId: rowId, pass: true, missingAt: null }, orderBy: [{ rank: "asc" }, { checkedAt: "asc" }] }) as Promise<Check[]>;
@@ -219,15 +219,6 @@ async function checkNew(row: Row, words: string, k: string): Promise<void> {
   // photos of a place kept from Japan's October checks are those October photos still listed (never others); any other
   // place's are all its current photos. Otherwise only photos not yet judged, while the place shows fewer than eight.
   const again = all.length > 0 && !sameWords(judgedWords(all), words);
-  // Words a place is judged against for the first time — new words, or none kept yet — are first checked against the
-  // place itself, by the same check that matched it: when Google's place doesn't fit her words (a billboard she names,
-  // matched to a restaurant), no photo of it is shown for them, and that's kept so it isn't asked again (Nov 16 2026;
-  // the place itself isn't searched again here)
-  if (again || all.length === 0) {
-    const fit = await refuseIfNotFit(row, words, current, all, byCheck);
-    if (fit === null) { checkedOn.delete(k); return; }   // (couldn't be asked: asked again on the next open)
-    if (!fit.same) return;
-  }
   const present = all.filter((v) => v.pass && byCheck.has(v.id)).length;
   const toLook: { c: Current; v?: Check }[] = again
     ? (october ? all.filter((v) => byCheck.has(v.id)).map((v) => ({ c: byCheck.get(v.id)!, v })) : current.map((c) => ({ c, v: all.find((x) => byCheck.get(x.id) === c) })))
@@ -258,22 +249,6 @@ async function checkNew(row: Row, words: string, k: string): Promise<void> {
     }),
   ]);
   console.log(`[place-photos] "${words.slice(0, 50)}": ${picks.length} of ${looked.length} photos pass${again ? " (judged again)" : ""}`);
-}
-
-/** Does Google's place fit her words? Asked by the check that matched it; when not, every verdict of the place becomes
- *  "not shown" for these words (kept, so it isn't asked again). null: couldn't be asked. */
-export async function refuseIfNotFit(row: Row, words: string, current?: Current[] | null, all?: Check[], byCheck?: Map<string, Current>): Promise<{ same: boolean; why: string } | null> {
-  const fit = await samePlace(words, row.query, { name: row.name || "", address: row.address || "", types: [] }).catch(() => null);
-  if (!fit || fit.same) return fit;
-  const have = all ?? await checksOf(row.id);
-  const listed = current ?? (row.placeId ? await currentPhotos(row.placeId) : null) ?? [];
-  const known = byCheck ?? (await match(have, listed)).byCheck;
-  await prisma.$transaction([
-    prisma.placePhotoCheck.updateMany({ where: { placeRowId: row.id }, data: { pass: false, rank: null, words } }),
-    ...listed.filter((c) => !have.some((v) => known.get(v.id) === c)).map((c) => prisma.placePhotoCheck.create({ data: { placeRowId: row.id, keyHash: c.keyHash, imageHash: null, credit: c.credit, source: "check", pass: false, rank: null, words } })),
-  ]);
-  console.log(`[place-photos] "${words.slice(0, 60)}": the place found for it doesn't fit — no photo (${fit.why.slice(0, 80)})`);
-  return fit;
 }
 
 /** Verdicts for a place just looked at for the first time (services/placePhotos.ts resolve): its photos as checked

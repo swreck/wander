@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-16 (Monday evening, at home) — The "doesn't fit her words" rule withdrawn before it deployed
+
+- The rule in the entry below, "A place that doesn't fit her words shows no photo" (2.0 0f3204e), is withdrawn; it
+  never reached production. Her map list's pin IS the place she means (an udon shop's building, Hachiko Square); her
+  description says what she goes there for. Asking whether the place fits her description would hide photos of her
+  own pins. The photo check's own rule stays: it keeps only photos of what her description names. The diagnostics that
+  print a failing test's server answer (chaos createTrip, item-privacy) stay.
+
 ## 2026-11-16 (Monday, at home) — Keeping Japan safe before a second trip exists
 
 - Ken (Nov 2, approving the plan "Yes to all"): "I don't want to lose the data from the trip we just completed in Japan"
