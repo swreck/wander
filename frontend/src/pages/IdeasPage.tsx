@@ -383,7 +383,7 @@ export default function IdeasPage() {
   }
 
   if (!ideas || !guide) {
-    return <div className="min-h-[100dvh] bg-[#faf8f5] flex items-center justify-center text-sm text-[#6b5d4a]">Finding Larisa's ideas…</div>;
+    return <div className="min-h-[100dvh] bg-[#faf8f5] flex items-center justify-center text-sm text-[#6b5d4a]">{voiceFor(user?.displayName).plan ? "Finding the maybes…" : "Finding Larisa's ideas…"}</div>;
   }
 
   return (
@@ -391,7 +391,7 @@ export default function IdeasPage() {
       <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] top-bar">
         <div className="px-4 pb-1">
           <h1 className="text-lg font-medium text-[#3a3128]">Maybes{city ? ` · ${city.name}` : ""}</h1>
-          <p className="text-xs text-[#6b5d4a]">The group's maybes and {voiceFor(user?.displayName).mine ? "your" : "Larisa's"} ideas</p>
+          <p className="text-xs text-[#6b5d4a]">{voiceFor(user?.displayName).plan ? "The group's maybes" : <>The group's maybes and {voiceFor(user?.displayName).mine ? "your" : "Larisa's"} ideas</>}</p>
         </div>
         {/* Cities */}
         <div className="flex gap-2 overflow-x-auto px-4 pb-2 pt-1" role="tablist" aria-label="City">
@@ -462,7 +462,7 @@ export default function IdeasPage() {
               <span className="flex-1 min-w-0 text-sm text-[#6b5d4a]">“{exp.name}” is off {city?.name}'s list{(() => {
                 const days = choices.filter((c) => c.experienceId === exp.id && c.date >= today).map((c) => shortDay(c.date));
                 return days.length ? ` and off ${days.join(" and ")}` : "";
-              })()} for everyone.{exp.sheetRowRef ? ` ${voiceFor(me).mine ? "Your" : "Larisa's"} Guide keeps it.` : ""}</span>
+              })()} for everyone.{exp.sheetRowRef ? ` ${voiceFor(me).Guide} keeps it.` : ""}</span>
               <button onClick={() => putBack(exp)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Put it back</button>
             </li>
           ) : (
@@ -504,7 +504,8 @@ export default function IdeasPage() {
                   {person !== "everyone" ? `${person} hasn't said they're in on anything in ${city?.name} yet.`
                     // (all of hers taken off the list — "has no ideas" would be untrue)
                     : offList.some((e) => !!e.sheetRowRef) ? `Everything from ${voiceFor(user?.displayName).guide} for ${city?.name} has been taken off the list.`
-                    : `${voiceFor(user?.displayName).mine ? "Your" : "Larisa's"} Guide has no ideas listed for ${city?.name || "this city"}.`}
+                    : voiceFor(user?.displayName).plan ? `No maybes for ${city?.name || "this city"} yet.`
+                    : `${voiceFor(user?.displayName).Guide} has no ideas listed for ${city?.name || "this city"}.`}
                 </p>
               )}
 
@@ -711,8 +712,8 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
         </p>
         {/* (a 44 pt tap area around a smaller chip) */}
         {planned.map((d) => (
-          <button key={d} onClick={() => onOpenDay(d)} className="min-h-[44px] -my-2 flex items-center" aria-label={`In ${voiceFor(me).mine ? "your" : "Larisa's"} plan for ${shortDay(d)}`}>
-            <span className="px-2.5 py-1 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs whitespace-nowrap">{voiceFor(me).mine ? "Your" : "Her"} plan · {shortDay(d)} ›</span>
+          <button key={d} onClick={() => onOpenDay(d)} className="min-h-[44px] -my-2 flex items-center" aria-label={`In ${voiceFor(me).ownersPlan} for ${shortDay(d)}`}>
+            <span className="px-2.5 py-1 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs whitespace-nowrap">{voiceFor(me).HerPlan} · {shortDay(d)} ›</span>
           </button>
         ))}
         {choices.map((c) => (
@@ -762,7 +763,7 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
             <input type="checkbox" checked={justMe} onChange={(e) => setJustMe(e.target.checked)} className="w-5 h-5" />
             Just for me
           </label>
-          <p className="text-xs text-[#6b5d4a]">{justMe ? "Only you will see this note." : "Everyone on the trip sees this."} {voiceFor(me).mine ? "Your Guide" : "Larisa's Guide"} stays as it is.</p>
+          <p className="text-xs text-[#6b5d4a]">{justMe ? "Only you will see this note." : "Everyone on the trip sees this."} {voiceFor(me).Guide} stays as it is.</p>
           <div className="flex gap-2 mt-1">
             <button onClick={saveNote} disabled={!text.trim() || saving} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm disabled:opacity-40">{saving ? "Saving…" : "Save note"}</button>
             <button onClick={() => { setWriting(false); setText(""); }} className="min-h-[44px] px-4 text-sm text-[#514636]">Cancel</button>
@@ -814,7 +815,7 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
           <button onClick={() => window.dispatchEvent(new CustomEvent("wander-open-chat", { detail: { prefill: isMaybe ? `About this maybe in ${cityName} — "${exp.name}": ` : `Tell me about ${exp.name} in ${cityName}` } }))}
             className="min-h-[44px] text-sm text-[#514636]">Ask Scout</button>
           {/* Anything on the list to the group text — a maybe with its writer's name, one of hers as from her Guide */}
-          <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName, isMaybe ? undefined : "Larisa's Guide"))}
+          <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName, isMaybe ? undefined : voiceFor(me).plan ? "the plan" : "Larisa's Guide"))}
             className="min-h-[44px] text-sm text-[#514636]">Tell the group</button>
         </div>
       )}

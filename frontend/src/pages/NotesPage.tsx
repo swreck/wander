@@ -18,7 +18,7 @@ import { startVoice, stopVoice, voiceInto, voiceSupported, type VoiceHandlers } 
 import { useAuth } from "../contexts/AuthContext";
 import {
   saveNote, waitingNotes, changeWaitingNote, savedCopy, keepCopy, readDraft, keepDraft, exportText, tripToday, dayWords, sendCopy,
-  newClientId, wordCount, JAPAN_OVERALL, BACKROADS, placeOf, readView, keepView, type TripNote, type NoteSettings, type SaveBody, type NotesView,
+  newClientId, wordCount, overallWords, BACKROADS, placeOf, readView, keepView, type TripNote, type NoteSettings, type SaveBody, type NotesView,
 } from "../lib/tripNotes";
 import { isLanding, isFor, notLandedYet } from "../lib/guideDisplay";
 import { PapersKeep, PapersList } from "../components/Papers";
@@ -415,13 +415,13 @@ export default function NotesPage() {
     const note = (name: string, date: string) => { const s = spans.get(name); spans.set(name, s ? { first: s.first, last: date } : { first: date, last: date }); };
     for (const d of days) { if (d.city) note(d.city, d.date); if (d.guided) note(BACKROADS, d.date); }
     const list = Array.from(spans.entries()).map(([name, s]) => ({ name, ...s })).sort((a, b) => a.first.localeCompare(b.first) || (a.name === BACKROADS ? -1 : 1));
-    return [{ name: JAPAN_OVERALL, first: null, last: null }, ...list];
+    return [{ name: overallWords(), first: null, last: null }, ...list];
   }, [days]);
   // Where you are: once you've landed and it's a trip day, today's town; before that, after it, or at home, Japan overall
   // (not before your plane lands — verify 6: "Tokyo — where you are" at 8 AM in California, the morning Julie flies)
   // (on the note day too: at 1 AM on Oct 14 Julie, landing that afternoon, counted as landed and read "Tokyo" — verify39)
   const inJapan = !!landsOn && noteDay >= landsOn && !stillAway && days.some((d) => d.date === noteDay);
-  const herePlace = (inJapan && cityOf(noteDay)) || JAPAN_OVERALL;
+  const herePlace = (inJapan && cityOf(noteDay)) || overallWords();
   // (a note started from a day — Scout's evening question — is about that day's town)
   // (…and a day chosen in the box, other than today, likewise — the place follows the day unless one's chosen)
   // (the link's day only while it's still the chosen one: after a day page's note was saved, the next note — back on

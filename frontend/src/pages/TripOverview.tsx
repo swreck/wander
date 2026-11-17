@@ -31,6 +31,7 @@ import SafetyTipsNote from "../components/SafetyTipsNote";
 import MaybesLine from "../components/MaybesLine";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
 import { voiceFor } from "../lib/guideDisplay";
+import { notePlanTrip } from "../lib/planTrip";
 import { changeRest } from "../lib/changeWords";
 import AddToHomeScreen, { isIPhoneSafari, isHomeScreenApp } from "../components/AddToHomeScreen";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
@@ -151,6 +152,8 @@ export default function TripOverview() {
         api.get<Trip[]>("/trips"),
       ]);
       setUnreachableSince(null);
+      // (which trips are built from a plan: remembered before anything is drawn from them — S2d)
+      for (const t of [active, ...all]) if (t) notePlanTrip(t.id, t.plan);
     } catch {
       // No signal (or the server didn't answer). Never conclude "no trip" from a failed request:
       // show the copy this phone kept from its last good load, and say so.
@@ -370,7 +373,7 @@ export default function TripOverview() {
         existingTrips={allTrips}
         onSwitchTrip={async (tripId) => {
           try {
-            await api.post(`/trips/${tripId}/activate`, {});
+            notePlanTrip(tripId, (await api.post<Trip>(`/trips/${tripId}/activate`, {}))?.plan);
             localStorage.setItem("wander:last-trip-id", tripId);
             setShowCreate(false);
             loadTrips();
@@ -392,7 +395,7 @@ export default function TripOverview() {
         existingTrips={allTrips}
         onSwitchTrip={async (tripId) => {
           try {
-            await api.post(`/trips/${tripId}/activate`, {});
+            notePlanTrip(tripId, (await api.post<Trip>(`/trips/${tripId}/activate`, {}))?.plan);
             localStorage.setItem("wander:last-trip-id", tripId);
             loadTrips();
             window.dispatchEvent(new CustomEvent("wander:data-changed"));
@@ -407,7 +410,7 @@ export default function TripOverview() {
 
   async function handleSwitchTrip(tripId: string) {
     try {
-      await api.post(`/trips/${tripId}/activate`, {});
+      notePlanTrip(tripId, (await api.post<Trip>(`/trips/${tripId}/activate`, {}))?.plan);
       localStorage.setItem("wander:last-trip-id", tripId);
       setShowTripSwitcher(false);
       const switched = allTrips.find(t => t.id === tripId);

@@ -5,6 +5,7 @@
 
 import type { GuideItem, Stay } from "./guideData";
 import { ZONE_WORDS, zoneWords, ZONE_NAMES_PATTERN, zoneFromWords, dateIn } from "./dayZone";
+import { isPlanTrip, planSourcesOf } from "./planTrip";
 // (the table of clocks' words lives in dayZone.ts: one table, the same on the server)
 export { ZONE_WORDS, zoneWords };
 
@@ -595,7 +596,7 @@ export function leaveForAirport(flight: GuideItem, fromCity: string | null | und
     travel,
     airport,
     text: `Leave for ${airport} airport by about ${minutesToClock(leave)}`,
-    why: `Wander's estimate: about ${hrs(travel)} from ${fromCity} to ${airport}, and ${hrs(AT_AIRPORT_INTERNATIONAL)} at the airport before an international flight. The Guide doesn't say how you're getting there.`,
+    why: `Wander's estimate: about ${hrs(travel)} from ${fromCity} to ${airport}, and ${hrs(AT_AIRPORT_INTERNATIONAL)} at the airport before an international flight. ${isPlanTrip() ? "The plan" : "The Guide"} doesn't say how you're getting there.`,
   };
 }
 
@@ -854,11 +855,11 @@ export function itemTitle(i: GuideItem, stays: Stay[], date: string) {
   if (i.kind === "checkin") {
     const tonight = stays.filter((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= date && date < ymd(s.checkOutDate));
     const others = tonight.filter((s) => !i.title.toLowerCase().includes(s.name.toLowerCase().split(" ")[0]));
-    if (tonight.length > 1 && others.length) return `${i.title} (the Guide also lists ${others.map((s) => s.name).join(" and ")} for tonight)`;
+    if (tonight.length > 1 && others.length) return `${i.title} (the ${isPlanTrip() ? "plan" : "Guide"} also lists ${others.map((s) => s.name).join(" and ")} for tonight)`;
   }
   if (i.kind !== "checkout") return tidyTitle(i);
   const leaving = leavingOn(stays, date);
-  if (leaving.length > 1) return `Check out · ${leaving.map((s) => s.name).join(" or ")} (the Guide lists both)`;
+  if (leaving.length > 1) return `Check out · ${leaving.map((s) => s.name).join(" or ")} (the ${isPlanTrip() ? "plan" : "Guide"} lists both)`;
   return i.title;
 }
 
@@ -878,7 +879,20 @@ export function tabLabel(name: string): string {
   return whole.length >= 10 ? `${whole}…` : n;
 }
 
-export function friendlySource(source: string, me?: string | null) {
+/** A plan trip's source names as they are said to this person: as stored ("Larisa's notes", "Backroads' itinerary"), and
+ *  "your notes" to the person whose name starts one (S2d). A " + " joined source counts as its parts. */
+export function planSourceNames(sources: string[], me?: string | null, capital = false): string[] {
+  const own = me && me.trim() ? new RegExp(`^${me.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'s `, "i") : null;
+  const parts = sources.flatMap((s) => s.split(" + ")).map((p) => p.trim()).filter(Boolean);
+  return Array.from(new Set(parts)).map((p, k) => (own && own.test(p) ? p.replace(own, capital && k === 0 ? "Your " : "your ") : p));
+}
+
+export function friendlySource(source: string, me?: string | null, plan: boolean = isPlanTrip()) {
+  // A plan trip names the source as stored; no tab, no Guide (S2d)
+  if (plan) {
+    const names = planSourceNames([source], me);
+    return names.length ? `From ${names.join(" and ")}` : "From the plan";
+  }
   const parts = source.split(" + ").map((p) => {
     const shot = p.match(/^Screenshot in (.+)$/i);
     if (shot) return `a screenshot in the ${tabLabel(shot[1])} tab`;
@@ -1077,13 +1091,32 @@ const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch 
  * differ"; to everyone else "Larisa's Guide", "Her tabs differ" (delight audit: on Larisa's own phone Wander said
  * "Larisa's notes ›", "worth checking with Larisa" — "Wander doesn't know who I am").
  */
-export function voiceFor(me: string | null | undefined, owner: string | null | undefined = "Larisa") {
+export function voiceFor(me: string | null | undefined, owner: string | null | undefined = "Larisa", plan: boolean = isPlanTrip()) {
   const name = owner || "Larisa";
   const mine = !!me && me.trim().toLowerCase() === name.toLowerCase();
+  // (S2d: whole phrases, so no site glues "Guide" or "plan" onto a token. A sheet trip's values are exactly what
+  // the glued words made; a plan trip says "the plan" for all of them.)
+  const whose = mine ? "your" : `${name}'s`;
+  const Whose = mine ? "Your" : `${name}'s`;
+  const herW = mine ? "your" : "her";
+  const HerW = mine ? "Your" : "Her";
   return {
     mine,
-    /** "Larisa's Guide" / "your Guide" */
-    guide: mine ? "your Guide" : `${name}'s Guide`,
+    /** True on a trip built from a plan: its words never say Guide, sheet or tab */
+    plan,
+    /** "Larisa's Guide" / "your Guide" (a plan trip: "the plan") */
+    guide: plan ? "the plan" : mine ? "your Guide" : `${name}'s Guide`,
+    /** The same at the start of a sentence: "Larisa's Guide" / "Your Guide" / "The plan" */
+    Guide: plan ? "The plan" : mine ? "Your Guide" : `${name}'s Guide`,
+    /** "her Guide" / "your Guide" / "the plan", and capitalised */
+    herGuide: plan ? "the plan" : `${herW} Guide`,
+    HerGuide: plan ? "The plan" : `${HerW} Guide`,
+    /** "Larisa's plan" / "your plan" / "the plan", and capitalised */
+    ownersPlan: plan ? "the plan" : `${whose} plan`,
+    OwnersPlan: plan ? "The plan" : `${Whose} plan`,
+    /** "her plan" / "your plan" / "the plan", and capitalised */
+    herPlan: plan ? "the plan" : `${herW} plan`,
+    HerPlan: plan ? "The plan" : `${HerW} plan`,
     /** "her" / "your" (her plan, her tabs) */
     her: mine ? "your" : "her",
     Her: mine ? "Your" : "Her",
@@ -1153,8 +1186,8 @@ export const pictureYou = (g: string, v: ReturnType<typeof voiceFor>, me?: strin
  *  (round 13: Wander said her Guide didn't name it; her Kyoto map lists "You & Julie") */
 export function noGroupWords(i: { detail?: string | null }, v: ReturnType<typeof voiceFor>, me?: string | null): string {
   const g = pictureGroupOf(i);
-  return g ? `${v.Her} plan names no group here; a picture in ${v.her} tab puts it under “${g}”${pictureYou(g, v, me)}`
-    : `${v.Her} Guide doesn't name the group for this line`;
+  return g ? `${v.HerPlan} names no group here; a picture in ${v.her} tab puts it under “${g}”${pictureYou(g, v, me)}`
+    : `${v.HerGuide} doesn't name the group for this line`;
 }
 
 /** Her Itinerary note on a hotel's row — about that stay, not the day's line (round 12: Oct 27 was quoted as the Four
@@ -1247,14 +1280,23 @@ export function minutesToClock(mins: number) {
 /** "Larisa's Guide, as Wander read it Sep 29" — flagged when it's more than a week old. */
 /** The same words on every phone: the date in the trip's zone, said as Japan's when the phone is elsewhere
  *  (Julie's phone in California said "Sep 29" while Ken's in Tokyo said "Sep 30" — one read, two dates) */
-export function freshness(importedAt: string | undefined | null, now = new Date(), tripZone = "Asia/Tokyo") {
+export function freshness(importedAt: string | undefined | null, now = new Date(), tripZone = "Asia/Tokyo", opts: { me?: string | null; plan?: boolean; sources?: string[] } = {}) {
   if (!importedAt) return null;
   const read = new Date(importedAt);
   const days = Math.floor((now.getTime() - read.getTime()) / 86400000);
+  // A trip built from a plan (S2d): the date in the phone's own zone with no zone words, and — once it is more than a
+  // week old, and only when Larisa's notes are among its sources — that her notes may have changed since (said to
+  // everyone but Larisa). `line` is the whole line for a plan trip; a sheet trip's callers build theirs from `text`.
+  if (opts.plan ?? isPlanTrip()) {
+    const sources = opts.sources ?? planSourcesOf();
+    const when = read.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const more = days > 7 && !voiceFor(opts.me, "Larisa", true).mine && sources.some((s) => s.toLowerCase() === "larisa's notes") ? " Larisa's notes may have changed since." : "";
+    return { text: `The plan was last updated ${when}`, old: days > 7, days, line: `The plan was last updated ${when}.${more}` };
+  }
   const when = read.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tripZone });
   // (", Japan time" — Sweep A: "(Japan's date)" read as a puzzle)
   const zone = phoneIsElsewhere(tripZone) ? `, ${zoneWords(tripZone)}` : "";
-  return { text: `Larisa's Guide, as Wander last read it on ${when}${zone}`, old: days > 7, days };
+  return { text: `Larisa's Guide, as Wander last read it on ${when}${zone}`, old: days > 7, days, line: "" };
 }
 
 /** Her open questions in a note: a phrase she wrote in capitals ("WHERE IS BIZEN TOUR STARTING", "ASK KENJI TO …") or a

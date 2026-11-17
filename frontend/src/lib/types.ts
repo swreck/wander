@@ -224,6 +224,8 @@ export interface Trip {
   experiences?: Experience[];
   accommodations?: Accommodation[];
   sheetSyncConfig?: { lastSyncAt: string | null };
+  /** Built from a plan, not a sheet (S2d) */
+  plan?: boolean;
 }
 
 export interface TravelerProfile {

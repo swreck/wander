@@ -16,6 +16,7 @@ import { whereAmI, hereNow, type Here } from "../lib/whereAmI";
 import { canOfferBuzz, declineBuzz, turnOnBuzz, keepBuzzCurrent } from "../lib/buzz";
 import SelectText from "./SelectText";
 import { noSampleText } from "../lib/samples";
+import { isPlanTrip } from "../lib/planTrip";
 import { keepDayForecast } from "../lib/forecast";
 
 /** Phone numbers in an answer can be tapped to call */
@@ -738,7 +739,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
     const canRetry = () => !files || (!!askId && retryAskRef.current === askId && retryFilesRef.current.length > 0);
     const couldnt = () => (canRetry() ? "I couldn't get an answer just now. Want me to try again?" : "I couldn't get an answer just now — send the photo again and I'll read it.");
     const tell = (result: string) => phoneReport("scout-drop", { result, secs: Math.round((Date.now() - sentAt) / 1000), noSignal, status: status ?? 0 });
-    const noSignalNow = () => `No signal right now, so I can't answer. Today's plan from ${herGuideRef.current} is still under Next.`;
+    const noSignalNow = () => (isPlanTrip() ? "No signal right now, so I can't answer. Today's plan is still under Next." : `No signal right now, so I can't answer. Today's plan from ${herGuideRef.current} is still under Next.`);
     // (the conversation read back from Wander — the app coming to the front — may have brought the answer already:
     // then the waiting line just goes, never the answer twice)
     const settle = (found: ChatMessage | null, instead: string) => setMessages((prev) => {
@@ -1323,7 +1324,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
         return;
       }
       if (offlineAtSend) {
-        setMessages((prev) => [...prev, { role: "assistant", text: `No signal right now, so I can't answer. Today's plan from ${herGuideRef.current} is still under Next.`, error: true }]);
+        setMessages((prev) => [...prev, { role: "assistant", text: isPlanTrip() ? "No signal right now, so I can't answer. Today's plan is still under Next." : `No signal right now, so I can't answer. Today's plan from ${herGuideRef.current} is still under Next.`, error: true }]);
         setFailed(true);
         setLastFailedText(text);
         return;
@@ -1894,9 +1895,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
               {helloBlock && <div className="mt-3">{helloBlock}</div>}
               {/* What it actually knows (round 12 delight audit: "I know your whole trip" overclaimed) */}
               {/* Said to whoever holds the phone (round 13: Ken read "Ken's rail sheet", Larisa "Larisa's Guide") */}
-              <p className={helloBlock ? "mt-4" : "mt-1"}>I've read {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}, and I can look things up online. Ask me anything about the trip. I can read a photo or a file too, like a menu, a ticket or a PDF. Paste it in{onComputer ? ", tap the paperclip, or drag it here" : " or tap the paperclip"}.</p>
+              <p className={helloBlock ? "mt-4" : "mt-1"}>I've read {isPlanTrip() ? "the plan" : <>{/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} and {/^ken$/i.test(user?.displayName || "") ? "your rail sheet" : "Ken's rail sheet"}</>}, and I can look things up online. Ask me anything about the trip. I can read a photo or a file too, like a menu, a ticket or a PDF. Paste it in{onComputer ? ", tap the paperclip, or drag it here" : " or tap the paperclip"}.</p>
               {/* Why the questions below are greyed (round 12: offline, only a small "no signal" in the header said so) */}
-              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} is still under Next.</p>}
+              {!online && <p className="mt-3 text-[#8a5a1a]">No signal right now, so I can't answer yet. Today's plan {isPlanTrip() ? "" : <>from {/^larisa$/i.test(user?.displayName || "") ? "your Guide" : "Larisa's Guide"} </>}is still under Next.</p>}
               {/* Tap one to ask it */}
               <div className="mt-4 flex flex-col items-start gap-1.5">
                 {["What's the plan today?", "Where are we sleeping tonight?", "Is there anything I need to do soon?", "What time do we need to leave?"].map((q) => (
@@ -1961,12 +1962,13 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                         <div className="mt-2 rounded-xl bg-white border border-[#e0d8cc] p-3">
                           <p className="text-xs text-[#6b5d4a]">Message for {draft[1]}</p>
                           <p className="text-[15px] text-[#3a3128] mt-1 whitespace-pre-wrap">{draft[2]}</p>
-                          <button
+                          {/* (no "Send to {owner}" on a trip built from a plan — S2d) */}
+                          {!isPlanTrip() && <button
                             onClick={async () => { const s = await sendToGuideOwner(draft[1], draft[2]); if (s) setMessages((prev) => [...prev, { role: "assistant", text: s }]); }}
                             className="mt-2 min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm"
                           >
                             Send to {draft[1]}
-                          </button>
+                          </button>}
                         </div>
                       )}
                     </>
@@ -2099,7 +2101,9 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
                     from" under a note kept and the packing list, which aren't from it; Oct 10 audit) */}
                 {sourcesTip && msg.role === "assistant" && citesGuide(msg.sources) && i === messages.map((m) => m.role === "assistant" && citesGuide(m.sources)).lastIndexOf(true) && (
                   <OnceTip onClose={sourcesTipDone} className="mt-2">
-                    {/^larisa$/i.test(user?.displayName || "")
+                    {isPlanTrip()
+                      ? "Tap Sources to see where in the plan this answer came from."
+                      : /^larisa$/i.test(user?.displayName || "")
                       ? "Tap Sources to see which tab and cells of your Guide this answer came from, and to open those cells in your spreadsheet."
                       : "Tap Sources to see where in Larisa's Guide this answer came from: which tab, and her exact words."}
                   </OnceTip>
@@ -2227,7 +2231,7 @@ export default function ChatBubble({ context, onDataChanged, hideBubble }: ChatB
           {tellKenVisible && online && !files.length && (
             <OnceTip onClose={() => { tipClosed(); setTellKenTip(false); }} className="mb-2 touch-none">
               {/^larisa$/i.test(user?.displayName || "")
-                ? <>Something in Wander that doesn't match your Guide, or confusing, or a wish for it? Say it here, starting with "Tell Ken". He gets your words exactly as you send them.</>
+                ? <>Something in Wander that doesn't match your {isPlanTrip() ? "notes" : "Guide"}, or confusing, or a wish for it? Say it here, starting with "Tell Ken". He gets your words exactly as you send them.</>
                 : <>Something in Wander confusing, or a wish for it? Say it here, starting with "Tell Ken". He gets your words exactly as you send them.</>}
               {/* (type="button": inside the box's form, it sent "Tell Ken" to Scout with no words at all) */}
               {" "}<button type="button" onClick={() => { setInput("Tell Ken "); inputRef.current?.focus(); }}

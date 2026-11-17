@@ -85,7 +85,7 @@ export default function WholeTripPage() {
         {state === "unreachable" && <p className="text-sm text-[#6b5d4a] text-center mt-10">Wander can't reach the trip right now, and this phone hasn't saved it yet.</p>}
         {state === "ready" && data && (
           <>
-            <p className="text-[13px] text-[#6b5d4a]">Everything from {v.guide}{rail.length ? " and Ken's rail sheet" : ""}, on one page. Tap a row for its day.</p>
+            <p className="text-[13px] text-[#6b5d4a]">{v.plan ? "The whole plan, on one page. Tap a row for its day." : <>Everything from {v.guide}{rail.length ? " and Ken's rail sheet" : ""}, on one page. Tap a row for its day.</>}</p>
 
             {/* ── Day by day ── */}
             <section className={section} aria-labelledby="wt-days">
@@ -93,7 +93,7 @@ export default function WholeTripPage() {
               {/* a laptop: one table */}
               <table className="hidden md:table w-full text-sm border-separate border-spacing-0 bg-white rounded-xl border border-[#e0d8cc] overflow-hidden">
                 <thead><tr className="text-left text-xs text-[#6b5d4a]">
-                  <th className="px-3 py-2 font-normal">Day</th><th className="px-3 py-2 font-normal">Where</th><th className="px-3 py-2 font-normal">{v.Owners} line for the day</th>
+                  <th className="px-3 py-2 font-normal">Day</th><th className="px-3 py-2 font-normal">Where</th><th className="px-3 py-2 font-normal">{v.plan ? "The plan's line for the day" : `${v.Owners} line for the day`}</th>
                   <th className="px-3 py-2 font-normal">Sleeping at</th><th className="px-3 py-2 font-normal">Meals booked</th>
                 </tr></thead>
                 <tbody>
@@ -102,7 +102,7 @@ export default function WholeTripPage() {
                       <td className="px-3 py-2 border-t border-[#f0ebe3] whitespace-nowrap text-[#3a3128]"><a href={`/day/${d.date}`} onClick={(e) => e.preventDefault()} className="underline-offset-2 hover:underline">{dayWords(d.date)}</a></td>
                       <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#3a3128]">{d.city}{d.guided ? <span className="ml-1 text-[11px] text-white bg-[#b3322a] rounded px-1">Backroads</span> : null}</td>
                       <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{herLine(d.date)}</td>
-                      <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{sleepOn(d.date).map((s) => `${s.name}${forWords(s.forWhom) ? ` (${s.forWhom})` : ""}`).join("; ")}</td>
+                      <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{[...new Set(sleepOn(d.date).map((s) => `${s.name}${forWords(s.forWhom) ? ` (${s.forWhom})` : ""}`))].join("; ")}</td>
                       <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{mealsOn(d.date).map((m) => `${m.time ? `${clock(m.time)} ` : ""}${m.title}`).join("; ")}</td>
                     </tr>
                   ))}
@@ -119,7 +119,7 @@ export default function WholeTripPage() {
                       {herLine(d.date) && <span className="block text-[13px] text-[#514636] mt-0.5">“{herLine(d.date)}”</span>}
                       {(sleepOn(d.date).length > 0 || mealsOn(d.date).length > 0) && (
                         <span className="block text-xs text-[#6b5d4a] mt-0.5">
-                          {sleepOn(d.date).length > 0 && `Sleep: ${sleepOn(d.date).map((s) => s.name).join(" / ")}`}
+                          {sleepOn(d.date).length > 0 && `Sleep: ${[...new Set(sleepOn(d.date).map((s) => s.name))].join(" / ")}`}
                           {sleepOn(d.date).length > 0 && mealsOn(d.date).length > 0 && " · "}
                           {mealsOn(d.date).length > 0 && `Booked: ${mealsOn(d.date).map((m) => `${m.time ? `${clock(m.time)} ` : ""}${m.title}`).join(", ")}`}
                         </span>
@@ -157,9 +157,9 @@ export default function WholeTripPage() {
               </ul>
             </section>
 
-            {/* ── Meals booked ── */}
-            <section className={section} aria-labelledby="wt-meals">
-              <h2 id="wt-meals" className={h2}>Meals in {v.her} Dining Resos tab</h2>
+            {/* ── Meals booked (a plan trip with no meals draws no section) ── */}
+            {(!v.plan || meals.length > 0) && <section className={section} aria-labelledby="wt-meals">
+              <h2 id="wt-meals" className={h2}>{v.plan ? "Meals booked" : `Meals in ${v.her} Dining Resos tab`}</h2>
               <ul className="grid md:grid-cols-2 gap-2">
                 {meals.map((m) => (
                   <li key={m.id}>
@@ -173,7 +173,7 @@ export default function WholeTripPage() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </section>}
 
             {/* ── Flights and trains ── */}
             <section className={section} aria-labelledby="wt-travel">
@@ -195,8 +195,8 @@ export default function WholeTripPage() {
               </ul>
             </section>
 
-            {/* ── Dates to keep in mind ── */}
-            <section className={section} aria-labelledby="wt-dates">
+            {/* ── Dates to keep in mind (a plan trip with none draws no section) ── */}
+            {(!v.plan || deadlines.length > 0) && <section className={section} aria-labelledby="wt-dates">
               <h2 id="wt-dates" className={h2}>Dates to keep in mind</h2>
               <ul className="space-y-1.5">
                 {deadlines.map((d) => {
@@ -212,7 +212,7 @@ export default function WholeTripPage() {
                   );
                 })}
               </ul>
-            </section>
+            </section>}
           </>
         )}
       </main>

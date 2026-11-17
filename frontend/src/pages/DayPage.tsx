@@ -604,7 +604,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     // "Maruni Toryo · in 5 min" with no group)
     const picGroup = pictureGroupOf(b);
     const info = [
-      ...(picGroup ? [`${noOwner.has(b.id) ? `${v.Her} plan names no group here; a` : "A"} picture in ${v.her} tab puts it under “${picGroup}”${pictureYou(picGroup, v, me)}`]
+      ...(picGroup ? [`${noOwner.has(b.id) ? `${v.HerPlan} names no group here; a` : "A"} picture in ${v.her} tab puts it under “${picGroup}”${pictureYou(picGroup, v, me)}`]
         : noOwner.has(b.id) ? ["No group named here — the group is split"] : []),
       ...(b.detail || "").split("\n").filter((l) => /^Where: .+ — the stop her tab lists/.test(l)).map((l) => v.say(l)),
       ...(playBookings ? playBookings(b) : []),
@@ -629,7 +629,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
     const hers = planTime(b) || null;
     return { id: b.id, time: onBoard ? ride![0].replace(/\s*→\s*/, " → ") : hers, title: b.title.replace(/^./, (c) => c.toUpperCase()), note, map: mapOf[b.id] ?? null,
       hit: hitOf(b), trains, forWhom: b.forWhom ? (isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`) : null, isNow: current?.id === b.id || onBoard,
-      full: words && flat(words) !== flat(note || "") ? words : null, cautions, info: onBoard && hers ? [`${v.Owners} plan: ${hers}`, ...info] : info,
+      full: words && flat(words) !== flat(note || "") ? words : null, cautions, info: onBoard && hers ? [`${v.OwnersPlan}: ${hers}`, ...info] : info,
       // (what the Next button says for it: the booked time when hers is for another train — "2:50 PM", not "~2:00")
       at: rideStart !== null ? ride![0].split("→")[0].trim() : railArrivals?.[b.id] || null,
       onBoard,
@@ -664,7 +664,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   // before the city's (tourist65: Fushimi Inari on a Kiyomizu day implied a stop the day doesn't have); her two versions
   const firstHit = moments.find((m) => m.hit)?.hit || null;
   const cover: PlayCover = {
-    summary: playCover?.summary || (overview.length ? `In ${v.her} Itinerary: “${overview.map((o) => o.title).join(" · ")}”` : null),
+    summary: playCover?.summary || (overview.length ? `${v.plan ? "In the plan for this day" : `In ${v.her} Itinerary`}: “${overview.map((o) => o.title).join(" · ")}”` : null),
     photo: firstHit ? { src: placePhotoUrl(firstHit, 0), place: firstHit.name || moments.find((m) => m.hit === firstHit)!.title, credit: firstHit.photos[0]?.credit ? `Photo: ${firstHit.photos[0].credit} · Google` : null }
       : playCover?.photo || null,
     notes: twoVersionsWords ? [twoVersionsWords] : [],
@@ -676,7 +676,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
   return (
     <section id="plan" className="mb-5 scroll-mt-24">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{v.Owners} plan for the day</h2>
+        <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a]">{v.OwnersPlan} for the day</h2>
         {/* (the day as moments, full screen — Ken, Oct 15: "'Play the day' feels right") */}
         {moments.length >= 2 && (
           <button type="button" onClick={() => setPlaying(true)}
@@ -726,7 +726,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
         </a>
       ))}
       {overview.map((o) => (
-        <p key={o.id} className="text-[13px] text-[#514636] mt-1">In {v.her} Itinerary for this day: “{o.title}”</p>
+        <p key={o.id} className="text-[13px] text-[#514636] mt-1">{v.plan ? "In the plan for this day" : `In ${v.her} Itinerary for this day`}: “{o.title}”</p>
       ))}
       {/* (in words, without her cell names — "Wander follows A46 (the one she added most recently); A44 has other times"
           read as a spreadsheet to Larisa, Sweep B) */}
@@ -798,7 +798,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
                 {b.forWhom && <p className="text-sm text-[#514636] mt-0.5">{isFor(b, me) ? `Yours · ${b.forWhom}` : `For ${b.forWhom}`}</p>}
                 {/* (round 13: a picture in her tab can name the group her table leaves out — quoted, never assigned) */}
                 {noOwner.has(b.id) && !picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">No group named here — the group is split</p>}
-                {picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">{noOwner.has(b.id) ? `${v.Her} plan names no group here; a` : "A"} picture in {v.her} tab puts it under “{picGroup}”{pictureYou(picGroup, v, me)}</p>}
+                {picGroup && <p className="text-xs text-[#6b5d4a] mt-0.5">{noOwner.has(b.id) ? `${v.HerPlan} names no group here; a` : "A"} picture in {v.her} tab puts it under “{picGroup}”{pictureYou(picGroup, v, me)}</p>}
                 {differ.map((d) => <p key={d} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{differWordsFor(d, v)}</p>)}
                 {(() => { const h = hoursNote(b); return h ? <p className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1">{h}</p> : null; })()}
                 {/* (day review, Oct 4: Oct 29's HARUKA disagreement was said four times — at the top, here, in Trains, in
@@ -941,7 +941,7 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
   // Folded to one row: it's about the whole stay, not this day (day review, Oct 4 — Ken on Oct 6: "not sure why it is
   // there"; it led the landing day with tomorrow's Bizen). Its open question rises to the top on the day that names it.
   const [open, setOpen] = useState(false);
-  const label = `${v.Owners} note for ${city ? `the ${city} stay` : "this stay"}${from && to ? `, ${dateSpan(from, to)}` : ""}`;
+  const label = `${v.plan ? "A" : `${v.Owners}`} note for ${city ? `the ${city} stay` : "this stay"}${from && to ? `, ${dateSpan(from, to)}` : ""}`;
   return (
     <div className="text-sm text-[#514636] mb-3">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="w-full text-left min-h-[44px] text-[#514636]">
@@ -951,7 +951,7 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
         <div className="pb-1">
           {/* (what she marked done isn't shown — Ken, Oct 14: "if it is done or out of date, you don't show it") */}
           <p>{withoutDone(note.title)}</p>
-          {travel.map((t) => <p key={t} className="mt-0.5"><span className="text-[#6b5d4a]">{v.Owners} travel note: </span>{t}</p>)}
+          {travel.map((t) => <p key={t} className="mt-0.5"><span className="text-[#6b5d4a]">{v.plan ? "Travel note: " : `${v.Owners} travel note: `}</span>{t}</p>)}
         </div>
       )}
     </div>
@@ -967,12 +967,12 @@ import DayForecast from "../components/DayForecast";
 import { backWord } from "../lib/cameFrom";
 import GuideText from "../components/GuideText";
 import { guideOwnerOf, sendToGuideOwner, planMessage } from "../lib/tellGuideOwner";
+import { isPlanTrip } from "../lib/planTrip";
 import { loadMarks, savedMarks, deadlineKey, markDay, type Mark } from "../lib/actionMarks";
 import { DayPapers } from "../components/Papers";
 import { holdKeyboard } from "../lib/keyboardHold";
 import GetThere from "../components/GetThere";
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * Today, the line that's now — or, until it starts, next — stands out where the whole day is in view (Ken, Oct 16: "imagine
@@ -1803,7 +1803,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
           </div>
         ) : (
           <div className="flex flex-wrap gap-x-4">
-            {owner && me !== owner && !c._pending && (
+            {owner && !v.plan && me !== owner && !c._pending && (
               <button onClick={async () => setNotice(await sendToGuideOwner(owner, planMessage(owner, c, me)))} className="min-h-[44px] text-sm text-[#514636]">
                 Tell {owner}
               </button>
@@ -1949,10 +1949,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
           info: [
             ...(d.length ? [d.length] : []),
             // ("Her Guide" didn't say whose to Andy — "Larisa's Guide", and "Your Guide" to her; user-ken2)
-            ...(her && !named ? [`${v.Owners} Guide: “${her.title}”`] : []),
+            ...(her && !named ? [`${v.Guide}: “${her.title}”`] : []),
             // (her dinner line says it's hers, as the meeting's does — its title was her words with nothing to say so, under
             // Backroads' quote; user-larisa4)
-            ...(named && d.her === "dinner" ? [`${v.Owners} Guide: “${her!.title}”`, ...herDetail(her!).slice(0, 1)] : []),
+            ...(named && d.her === "dinner" ? [`${v.Guide}: “${her!.title}”`, ...herDetail(her!).slice(0, 1)] : []),
             // (the hotel's own time, as the day's screen says it — Play's "Morning · Check out" said nothing of the noon in
             // her screenshot; user-larisa2)
             // (and when to be out by, first, as the day's card says it — "The hotel's own check-out time is 12:00 PM" alone
@@ -1969,7 +1969,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       const stops = docDay.moments.map((d, k) => (d.place && !d.her ? `doc-${date}-${k}` : null)).filter((x): x is string => !!x);
       // (said of the moments, not the summary above it — under Wander's summary of her plan, "From Backroads' general
       // itinerary" read as if the summary were Backroads'; user-larisa1)
-      return { moments, places, stops, notes: [`The moments that follow are ${docDay.from}' general itinerary for their Day ${docDay.day}, with ${v.owners} Guide's own lines where they're the same moment. Details can differ for your departure.`] };
+      return { moments, places, stops, notes: [`The moments that follow are ${docDay.from}' general itinerary for their Day ${docDay.day}, with ${v.guide}'s own lines where they're the same moment. Details can differ for your departure.`] };
     }
     const shown = listItems.filter((i) => !["deadline", "weather"].includes(i.kind));
     // (the day you land, as the list has it: her lines with no time follow your landing — Oct 6 played "Osaka → Okayama"
@@ -2082,7 +2082,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
       // only on a day whose own lines mention what it's about ("Bizen" on Oct 7; "Kenji" on Oct 14, not all of Tokyo) — and
       // only lines that are yours (Ken & Larisa's Kenji question led Julie's landing day; round 12)
       .filter((q) => distinctWords(q).some((w) => myDayWords.includes(w)))
-      .map((q) => ({ key: `q-${s.id}-${q}`, body: <>Still open in {v.her} Guide: “{q}”</> }))),
+      .map((q) => ({ key: `q-${s.id}-${q}`, body: <>Still open in {v.herGuide}: “{q}”</> }))),
     ...bookedMine.flatMap((x) => {
       const ready = colOf(x.r.cols, /^boarding readiness/, /readiness/);
       const day = ready ? dateInText(ready, Number(date.slice(0, 4))) : null;
@@ -2365,7 +2365,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                           {ways.length
                             ? <>Getting from {airport.replace(/\s*\([A-Z]{3}\)$/, "")} to {hotel} — {v.her} hotel notes say:
                                 {ways.map((w) => <span key={w.text} className="block mt-0.5 text-[#514636]">“{w.text}” <span className="text-[#6b5d4a]">({v.her} “{w.tab}” tab)</span></span>)}</>
-                            : <>{v.Her} Guide doesn't say how to get from {airport.replace(/\s*\([A-Z]{3}\)$/, "")} to {hotel}.</>}
+                            : <>{v.HerGuide} doesn't say how to get from {airport.replace(/\s*\([A-Z]{3}\)$/, "")} to {hotel}.</>}
                           <span className="flex flex-wrap gap-x-4 mt-1">
                             {navigator.onLine !== false
                               ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${airport.replace(/\s*\([A-Z]{3}\)$/, "")} to ${hotel}?` } }))}
@@ -2387,7 +2387,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 by the clock"). Not on the Next tab: there the next stop leads. */}
             {/* The rail sheet wasn't on this phone when the day was drawn (a first open on a very slow signal) — said, so
                 nobody reads the day as having no train (Oct 10 re-audit) */}
-            {sourcesPending !== "no" && (
+            {sourcesPending !== "no" && !v.plan && (
               <p role="status" className="text-sm text-[#514636] bg-white/70 border border-[#e0d8cc] rounded-lg px-3 py-2 mb-3">
                 {sourcesPending === "coming"
                   ? "Still getting the train times from the rail sheet — they'll show in this day in a moment."
@@ -2405,7 +2405,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     likely kaiseki". The travellers' names stay as written — turning "Ken and Larisa" into "you and Larisa"
                     left the next sentence's "They check out…" pointing at Julie and Andy; verify 4, Oct 10) */}
                 <p className="text-[15px] leading-relaxed text-[#3a3128]">{v.say(summariesByDay[date])}</p>
-                <p className="text-xs text-[#6b5d4a] mt-1">Wander's summary of {v.owners} plan</p>
+                <p className="text-xs text-[#6b5d4a] mt-1">Wander's summary of {v.ownersPlan}</p>
               </section>
             )}
             {sampleSummary && <ul className="mb-4"><SampleRow sample={sampleSummary} /></ul>}
@@ -2460,7 +2460,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   .map((t) => ({ key: `${s.id}-${t}`, t }));
               });
               return notes.map(({ key, t }) => (
-                <p key={key} className="text-sm text-[#514636] mb-3"><span className="text-[#6b5d4a]">{v.Owners} travel note: </span>{t}</p>
+                <p key={key} className="text-sm text-[#514636] mb-3"><span className="text-[#6b5d4a]">{v.plan ? "Travel note: " : `${v.Owners} travel note: `}</span>{t}</p>
               ));
             })()}
             {/* Her open question in a stay's note, up top on a day whose own lines name what it's about — only the
@@ -2472,7 +2472,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               // (and only lines that are yours — Ken & Larisa's Kenji question led Julie's landing day; round 12)
               .filter((q) => { const day = distinctWords(dayItems.filter((x) => isFor(x, me)).map((x) => `${x.title} ${x.detail || ""}`).join(" ")); return distinctWords(q).some((w) => day.includes(w)); })
               .map((q) => (
-              <p key={`${s.id}-${q}`} className="text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mb-3">Still open in {v.her} Guide: “{q}”</p>
+              <p key={`${s.id}-${q}`} className="text-sm text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mb-3">Still open in {v.herGuide}: “{q}”</p>
             )))}
             {/* (her forecast for the stay is one quiet line in the city band above) */}
 
@@ -2565,7 +2565,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
               {/* (to that line on Today — the day's list is Today's now, not under Next) */}
               <button onClick={() => navigate(`/day/${date}#item-${currentBlock.id}`)}
                 className="block w-full text-left min-h-[44px] text-[15px] text-[#3a3128]">
-                <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{currentBlock.title.replace(/^./, (c) => c.toUpperCase())}
+                <span className="text-[#6b5d4a]">Now, in {v.ownersPlan} · </span>{currentBlock.title.replace(/^./, (c) => c.toUpperCase())}
                 <span className="text-[#6b5d4a]">{currentBlock.endTime ? `, until ${/^~/.test(currentBlock.timeText || "") || (currentBlock.detail || "").includes("Times are Larisa's estimate.") ? "about " : ""}${clock(currentBlock.endTime)}` : planLineEndSaid(currentBlock, planBlocks) !== null ? `, until about ${minutesToClock(planLineEndSaid(currentBlock, planBlocks)!)}` : ""}</span>
                 {tabsDiffer(currentBlock).map((d) => <span key={d} className="block text-sm text-[#8a5a1a] mt-0.5">{differWordsFor(d, v, "below")}</span>)}
                 {(() => {
@@ -2586,9 +2586,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             </div>)}
             {now && currentUnowned && (
               <p className="mb-2 text-[15px] text-[#3a3128]">
-                <span className="text-[#6b5d4a]">Now, in {v.owners} plan · </span>{currentUnowned.title.replace(/^./, (c) => c.toUpperCase())}
+                <span className="text-[#6b5d4a]">Now, in {v.ownersPlan} · </span>{currentUnowned.title.replace(/^./, (c) => c.toUpperCase())}
                 <span className="text-[#6b5d4a]">{currentUnowned.endTime ? `, until ${clock(currentUnowned.endTime)}` : planLineEndSaid(currentUnowned, planBlocks) !== null ? `, until about ${minutesToClock(planLineEndSaid(currentUnowned, planBlocks)!)}` : ""}</span>
-                <span className="block text-sm text-[#8a5a1a]">{v.Her} Guide doesn't say which group this is for.</span>
+                <span className="block text-sm text-[#8a5a1a]">{v.HerGuide} doesn't say which group this is for.</span>
               </p>
             )}
             {/* Her "Morning" line, this morning, before the next clock time (round 15: at 8:30 AM on Oct 25 Now's Next was
@@ -2596,7 +2596,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {now && morningNow && (
               <button onClick={() => document.getElementById(`item-${morningNow.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
                 className="block w-full text-left mb-2 min-h-[44px] text-[15px] text-[#3a3128]">
-                <span className="text-[#6b5d4a]">This morning, in {v.owners} plan · </span>{morningNow.title.replace(/^./, (c) => c.toUpperCase())}
+                <span className="text-[#6b5d4a]">This morning, in {v.ownersPlan} · </span>{morningNow.title.replace(/^./, (c) => c.toUpperCase())}
               </button>
             )}
             {/* During a split, a line nobody's name is on is never "yours" — but it isn't hidden either */}
@@ -2607,7 +2607,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 && toMin(b.endTime || b.time) > toMin(unownedSoon.time!));
               return (
                 <div className="mb-3 rounded-xl bg-[#514636] text-white p-4">
-                  <p className="text-xs uppercase tracking-wide text-white/70">Next in {v.her} plan · {inWords(toMin(unownedSoon.time!) - tripNow)}</p>
+                  <p className="text-xs uppercase tracking-wide text-white/70">Next in {v.herPlan} · {inWords(toMin(unownedSoon.time!) - tripNow)}</p>
                   <p className="text-lg leading-snug mt-1">{timeLabel(unownedSoon)} · {unownedSoon.title}</p>
                   <p className="text-sm text-white/85 mt-1">
                     {noGroupWords(unownedSoon, v, me)}{elsewhere ? `; ${elsewhere.forWhom} ${/&|and/.test(elsewhere.forWhom!) ? "are" : "is"} at ${elsewhere.title} then` : ""}.
@@ -2652,10 +2652,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                       Wander by Ken" then "From Larisa's plan" read as if the pick were hers) */}
                   {pick && pickOpt && (
                     <p className="text-sm text-white/85 mt-1">
-                      {v.Her} plan lists {opts.length} places · {pick._pending ? `you picked ${pickOpt.name} (on this phone until there's signal)` : `${pick.addedBy} picked ${pickOpt.name} for the group, in Wander`}
+                      {v.HerPlan} lists {opts.length} places · {pick._pending ? `you picked ${pickOpt.name} (on this phone until there's signal)` : `${pick.addedBy} picked ${pickOpt.name} for the group, in Wander`}
                     </p>
                   )}
-                  {opts.length > 0 && !pick && <p className="text-sm text-white/85 mt-1">{opts.length} places to choose from — see {v.her} plan below</p>}
+                  {opts.length > 0 && !pick && <p className="text-sm text-white/85 mt-1">{opts.length} places to choose from — see {v.herPlan} below</p>}
                   {u.kind !== "flight" && tabsDiffer(u).map((d) => <p key={d} className="text-sm text-[#f3d9a8] mt-1">{differWordsFor(d, v, "below")}</p>)}
                   {/* Google's hours for the place, when her time runs past them — on the card he acts from, as on the line
                       and in Play (user-andy1, Oct 16: Next said leave for 9:00 Kappabashi, which opens at 10) */}
@@ -2679,7 +2679,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     const short = cut.length < own.length ? (end > 200 ? `${cut.slice(0, end + 1)} …` : `${cut.replace(/\s+\S*$/, "")}…`) : own;
                     return <p className="text-sm text-white/90 mt-1.5 whitespace-pre-line [overflow-wrap:anywhere]">{short}</p>;
                   })()}
-                  {!pick && <p className="text-sm text-white/80 mt-1">{u.kind === "block" ? `From ${v.owners} plan for the day` : friendlySource(u.source, me)}</p>}
+                  {!pick && <p className="text-sm text-white/80 mt-1">{u.kind === "block" ? `From ${v.ownersPlan} for the day` : friendlySource(u.source, me)}</p>}
                   {u.confirmation && <p className="text-sm text-white/80 mt-1">Confirmation {u.confirmation}</p>}
                   {/* (About this place after the card's words — under the photos it jammed the description 6 pt below it;
                       design review, Oct 27) */}
@@ -2820,7 +2820,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 picked={new Map(choices.filter((c) => pickTexts.has(c.text)).map((c) => [c.text, c]))}
                 onPick={(text, time, pickFor) => pickChoice(text, time, pickFor)}
                 onUndo={removeChoice}
-                tellName={owner && me !== owner ? owner : null}
+                tellName={owner && !v.plan && me !== owner ? owner : null}
                 onTell={async (c) => {
                   // "we picked Omen for your "Lunch" line", not "Lunch: Omen"
                   const [line, ...rest] = c.text.split(": ");
@@ -2833,13 +2833,13 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             )}
             {/* (a rail-sheet train her plan doesn't name joins this list too — then it isn't all "in her Guide") */}
             {planBlocks.length > 0 && (alsoItems.length > 0 || timelineTrains.length > 0) && (
-              <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">{timelineTrains.length ? "Also today" : `Also in ${v.her} Guide for today`}</h2>
+              <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">{timelineTrains.length ? "Also today" : `Also in ${v.herGuide} for today`}</h2>
             )}
             {/* (every day plays — a Backroads day from their itinerary, any other from her lines; Ken, Oct 15) */}
             {!planBlocks.length && docAsked && dayPlay.moments.length > 0 && (
               <DayPlay tripId={tripId} cityId={bandCity?.id} date={date} moments={dayPlay.moments} places={dayPlay.places}
                 stops={docDay && dayPlay.stops.length ? { ids: dayPlay.stops, head: `${docDay.from}' general itinerary for their Day ${docDay.day} — Play the day shows each, in their words.` } : null}
-                heading={docDay ? "The day with Backroads" : `The day in ${v.her} Guide`}
+                heading={docDay ? "The day with Backroads" : v.plan ? "The day's plan" : `The day in ${v.herGuide}`}
                 outline={docDay ? (() => {
                   // (their own moments, by their titles and lengths; her check-out, meeting and dinner are in the list below)
                   const theirs = docDay.moments.filter((d) => !d.her).map((d) => `${d.title}${d.length ? ` (${d.length})` : ""}`);
@@ -2861,7 +2861,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 </p>
               ) : (
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4">
-                  {cap(v.guide)} has nothing set for this day.
+                  {v.Guide} has nothing set for this day.
                 </p>
               )}
               {/* (an empty day keeps its sentence; Ken's samples for it go under, in their own list, in time order) */}
@@ -2873,7 +2873,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   <li id={`item-${headline.id}`} className="text-[13px] text-[#514636] scroll-mt-24">
                     {/* (the day shown, not always today — journeys check: "for today" on Julie's Oct 14 seen on Oct 10) */}
                     {/* (her own voice — "our arrival … your arrival" — names her: read bare, "our" was Andy's; journeys check) */}
-                    {speaksAsHer(headline.title, me, owner) ? `${owner || "Larisa"}'s words in her Itinerary for` : `In ${v.her} Itinerary for`} {isToday ? "today" : "this day"}: “{headline.title}”
+                    {v.plan ? "In the plan for" : speaksAsHer(headline.title, me, owner) ? `${owner || "Larisa"}'s words in her Itinerary for` : `In ${v.her} Itinerary for`} {isToday ? "today" : "this day"}: “{headline.title}”
                     {headlineMore.map((l) => <span key={l} className="block text-[#6b5d4a] mt-0.5">{inHerVoice(v.say(l), me, owner)}</span>)}
                   </li>
                 )}
@@ -3052,7 +3052,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                       className="min-h-[44px] px-2 rounded-lg border border-[#e0d8cc] text-[16px] text-[#3a3128]" />
                     <span className="text-xs text-[#6b5d4a]">optional</span>
                   </div>
-                  <p className="text-xs text-[#6b5d4a] mt-2">Everyone on the trip sees it on this day. {cap(v.guide)} stays as it is.</p>
+                  <p className="text-xs text-[#6b5d4a] mt-2">Everyone on the trip sees it on this day.{v.plan ? "" : ` ${v.Guide} stays as it is.`}</p>
                   <div className="flex gap-2 mt-2">
                     <button onClick={addChoice} disabled={!draft.trim() || saving} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm disabled:opacity-40">
                       {saving ? "Adding…" : "Add to this day"}
@@ -3086,11 +3086,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 {/* "Tonight" only on today's screen (round 11: Julie's Now showed Wednesday's hotel as "Tonight" on Tuesday) */}
                 <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">{isToday ? "Tonight" : `The night of ${shortDate(date)}`}</h2>
                 {night.stays.length === 0 && night.away.length === 0 ? (
-                  <p className="text-sm text-[#6b5d4a]">{cap(v.guide)} doesn't list a place to sleep {isToday ? "tonight" : "that night"}.</p>
+                  <p className="text-sm text-[#6b5d4a]">{v.Guide} doesn't list a place to sleep {isToday ? "tonight" : "that night"}.</p>
                 ) : (
                   <>
                     {night.stays.length > 1 && new Set(night.stays.map((s) => s.who || "all")).size < night.stays.length && (
-                      <p className="text-sm text-[#8a5a1a] mb-2">The Guide lists more than one place for tonight — still being worked out.</p>
+                      <p className="text-sm text-[#8a5a1a] mb-2">The {v.plan ? "plan" : "Guide"} lists more than one place for tonight — still being worked out.</p>
                     )}
                     <ul className="space-y-2">
                       {night.away.map((a) => (
@@ -3142,7 +3142,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {planningNotes.length > 0 && (
               <section className="mt-6">
                 <button onClick={() => setShowNotes((v) => !v)} aria-expanded={showNotes} className="min-h-[44px] text-sm text-[#514636]">
-                  {showNotes ? "Hide" : "Show"} {v.owners} planning notes ({planningNotes.length})
+                  {showNotes ? "Hide" : "Show"} {v.plan ? "" : `${v.owners} `}planning notes ({planningNotes.length})
                 </button>
                 {showNotes && (
                   <ul className="space-y-1 mt-1">
@@ -3162,11 +3162,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             </>)}
             {/* How current this is */}
             {status?.current && (() => {
-              const f = freshness(status.current.importedAt, new Date(), tripZone);
+              const f = freshness(status.current.importedAt, new Date(), tripZone, { me, plan: v.plan, sources: status.current.planSources });
               return f && (
                 // (gray even when her copy is old: amber is kept for what to check or decide today — day review, Oct 4)
                 <p className="text-xs mt-8 text-center text-[#6b5d4a]">
-                  {v.mine ? f.text.replace(/^Larisa's Guide/, "Your Guide") : f.text}.{f.old && !v.mine && " Larisa may have changed things since."}
+                  {v.plan ? f.line : <>{v.mine ? f.text.replace(/^Larisa's Guide/, "Your Guide") : f.text}.{f.old && !v.mine && " Larisa may have changed things since."}</>}
                 </p>
               );
             })()}
@@ -3195,7 +3195,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 function AskedQuestion({ i, me, owner, sources, className = "" }: { i: GuideItem; me: string | null; owner?: string | null; sources?: OtherSource[]; className?: string }) {
   const [told, setTold] = useState<string | null>(null);
   const p = askedParts(i, me);
-  if (!p) return null;
+  // (a plan trip has no sheet row for her to ask from, and no "Tell Larisa" button — S2d)
+  if (!p || isPlanTrip()) return null;
   const who = owner || "Larisa";
   const her = voiceFor(me, owner).her;
   const when = i.date ? new Date(`${ymd(i.date)}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : null;
@@ -3411,7 +3412,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
               <ul className="text-sm text-[#3a3128] mt-1 space-y-0.5">
                 {bothLeaving.map((s) => {
                   const mine = ownHotel.toLowerCase().includes(s.name.toLowerCase().split(" ")[0]);
-                  return <li key={s.id}>{s.name}: {mine && i.time ? `by ${clock(i.time)}` : "no check-out time in the Guide"}</li>;
+                  return <li key={s.id}>{s.name}: {mine && i.time ? `by ${clock(i.time)}` : `no check-out time in the ${v.plan ? "plan" : "Guide"}`}</li>;
                 })}
               </ul>
             )}
@@ -3476,7 +3477,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
                 const mine = ownHotel.toLowerCase().includes(s.name.toLowerCase().split(" ")[0]);
                 return (
                   <li key={s.id}>
-                    {s.name}: {mine && i.time ? `by ${clock(i.time)}` : "no check-out time in the Guide"}
+                    {s.name}: {mine && i.time ? `by ${clock(i.time)}` : `no check-out time in the ${v.plan ? "plan" : "Guide"}`}
                     {mine && i.confirmation ? ` · confirmation ${i.confirmation}` : ""}
                   </li>
                 );
@@ -3498,7 +3499,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           })()}
           {checkinAfterLanding(i, day) && <p className="text-sm text-[#6b5d4a] mt-1">Rooms are ready from {clock(i.time)}.</p>}
           {/* Only a booked meal (a place or a confirmation) is missing a time; "Dinner on our own" isn't */}
-          {i.kind === "meal" && !i.time && (i.confirmation || i.place) && <p className="text-sm text-[#6b5d4a] mt-1">No time in the Guide.</p>}
+          {i.kind === "meal" && !i.time && (i.confirmation || i.place) && <p className="text-sm text-[#6b5d4a] mt-1">No time in the {v.plan ? "plan" : "Guide"}.</p>}
           {/* The window was just said above ("Any day through Wed, Oct 14") — not twice */}
           {shown.length > 0 && (theirs && shown.length > 2 && !showTheirs
             ? <button onClick={() => setShowTheirs(true)} className="min-h-[44px] text-sm text-[#514636]">Their notes ({shown.length} lines) ›</button>

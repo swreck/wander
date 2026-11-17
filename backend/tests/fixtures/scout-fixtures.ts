@@ -7,10 +7,16 @@ import type { PrismaClient } from "@prisma/client";
 
 const at0 = (s: string) => new Date(`${s}T00:00:00Z`);
 // (each trip has its own two people: test files run side by side against one database)
-export const NAMES_OF = { japan: { a: "Pat Hashjp", b: "Sam Hashjp" }, plan: { a: "Pat Hashplan", b: "Sam Hashplan" } };
-export const TRIP_NAMES = { japan: "Hashtest Japan Trip", plan: "Hashtest Plan Trip" };
+// ("sample-japan" and "sample-plan": the same two trips for the samples route's tests, with names of their own, so that
+// file's setup and clean-up never delete the ones Scout's tests are using at that moment — S2d)
+export const NAMES_OF = {
+  japan: { a: "Pat Hashjp", b: "Sam Hashjp" }, plan: { a: "Pat Hashplan", b: "Sam Hashplan" },
+  "sample-japan": { a: "Pat Hashsjp", b: "Sam Hashsjp" }, "sample-plan": { a: "Pat Hashsplan", b: "Sam Hashsplan" },
+};
+export const TRIP_NAMES = { japan: "Hashtest Japan Trip", plan: "Hashtest Plan Trip", "sample-japan": "Hashtest Sample Japan Trip", "sample-plan": "Hashtest Sample Plan Trip" };
+type Which = keyof typeof NAMES_OF;
 
-export async function cleanFixtures(prisma: PrismaClient, which: "japan" | "plan") {
+export async function cleanFixtures(prisma: PrismaClient, which: Which) {
   const NAMES = NAMES_OF[which];
   const trips = await prisma.trip.findMany({ where: { name: TRIP_NAMES[which] }, select: { id: true } });
   const ids = trips.map((t) => t.id);
@@ -30,7 +36,7 @@ export async function cleanFixtures(prisma: PrismaClient, which: "japan" | "plan
 type Line = Record<string, unknown> & { date: string; title: string; kind: string };
 
 async function build(prisma: PrismaClient, o: {
-  which: "japan" | "plan"; name: string; start: string; end: string; zone: string; kind: string; sourceName: string;
+  which: Which; name: string; start: string; end: string; zone: string; kind: string; sourceName: string;
   cities: { key: string; name: string; country: string; zone: string | null; lat?: number; lng?: number }[];
   days: { date: string; city: string; guided?: boolean }[];
   stays: { city: string; name: string; from: string; to: string; address?: string; forWhom?: string }[];
@@ -65,9 +71,9 @@ async function build(prisma: PrismaClient, o: {
 const CA = "America/Los_Angeles", JP = "Asia/Tokyo", VN = "Asia/Ho_Chi_Minh", KH = "Asia/Phnom_Penh", KR = "Asia/Seoul", TH = "Asia/Bangkok";
 
 /** A trip read from a spreadsheet, in Japan: Julie-and-Andy-style travelers flying from California on a day before they land */
-export function makeJapan(prisma: PrismaClient) {
+export function makeJapan(prisma: PrismaClient, which: "japan" | "sample-japan" = "japan") {
   return build(prisma, {
-    which: "japan", name: TRIP_NAMES.japan, start: "2026-10-13", end: "2026-10-15", zone: JP, kind: "xlsx", sourceName: "A Guide Copy.xlsx",
+    which, name: TRIP_NAMES[which], start: "2026-10-13", end: "2026-10-15", zone: JP, kind: "xlsx", sourceName: "A Guide Copy.xlsx",
     cities: [{ key: "tokyo", name: "Tokyo", country: "Japan", zone: null }, { key: "kyoto", name: "Kyoto", country: "Japan", zone: null }],
     days: [{ date: "2026-10-13", city: "tokyo", guided: true }, { date: "2026-10-14", city: "tokyo" }, { date: "2026-10-15", city: "kyoto" }],
     stays: [{ city: "tokyo", name: "Stay J Hotel", from: "2026-10-13", to: "2026-10-15", address: "1 Made Up Street" }, { city: "kyoto", name: "Stay K Inn", from: "2026-10-15", to: "2026-10-16" },
@@ -90,9 +96,9 @@ export function makeJapan(prisma: PrismaClient) {
 }
 
 /** A trip built from a plan: Vietnam, Cambodia, then Japan, flown from California through Seoul and Bangkok */
-export function makePlan(prisma: PrismaClient) {
+export function makePlan(prisma: PrismaClient, which: "plan" | "sample-plan" = "plan") {
   return build(prisma, {
-    which: "plan", name: TRIP_NAMES.plan, start: "2026-12-14", end: "2027-01-02", zone: VN, kind: "wander_plan", sourceName: "The plan",
+    which, name: TRIP_NAMES[which], start: "2026-12-14", end: "2027-01-02", zone: VN, kind: "wander_plan", sourceName: "The plan",
     cities: [
       { key: "city-a", name: "City A", country: "Vietnam", zone: VN, lat: 21.0245, lng: 105.84117 },
       { key: "city-b", name: "City B", country: "Cambodia", zone: KH, lat: 13.3671, lng: 103.8448 },

@@ -143,11 +143,13 @@ export default function WelcomeOnce({ owner }: { owner: string | null }) {
         <>
           <p className="text-base text-[#3a3128]">Hi {me}.</p>
           <p className="text-sm text-[#514636] mt-1">
-            {v.mine
+            {v.mine && v.plan
+              ? "This is the plan, day by day, on everyone's phone."
+              : v.mine
               ? "This is your Guide, day by day, on everyone's phone. Wander reads it and never changes it."
               // (nothing to set up — not "nothing to do": Ken has six tickets to collect; delight audit). The Face ID card
               // has its own visit now (Oct 10 re-audit), so "Face ID, just below" is never said beside it.
-              : `This is ${owner || "Larisa"}'s plan for the trip, day by day, on your phone. There's nothing to set up — it's here when you want it.`}
+              : `This is ${v.plan ? "the" : `${owner || "Larisa"}'s`} plan for the trip, day by day, on your phone. There's nothing to set up — it's here when you want it.`}
           </p>
           <p className="text-sm text-[#514636] mt-1">Want a quick look at the buttons along the bottom? Six short steps.</p>
         </>

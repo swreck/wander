@@ -13,6 +13,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import prisma from "../src/services/db.js";
 import { dayInputs, summaryPrompt, storedSummaries, type DaySummary } from "../src/services/guide/daySummaries.js";
+import { isPlanTrip } from "../src/services/planTrip.js";
 
 const arg = (k: string) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
 const tripId = arg("--trip");
@@ -26,13 +27,15 @@ if (writeTo) {
   const stored = process.argv.includes("--changed") ? await storedSummaries(tripId) : {};
   const out: Record<string, DaySummary> = fs.existsSync(writeTo) ? JSON.parse(fs.readFileSync(writeTo, "utf-8")) : {};
   // (the trip's own days — a cancel-by date weeks before isn't a day of the trip)
-  const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } });
+  const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true, name: true } });
+  // (a trip built from a plan is summed up under its own name — S2d)
+  const planTrip = (await isPlanTrip(tripId)) ? trip?.name || "this trip" : null;
   const from = trip?.startDate?.toISOString().slice(0, 10) || "0000", to = trip?.endDate?.toISOString().slice(0, 10) || "9999";
   for (const [date, input] of Object.entries(inputs).sort(([a], [b]) => a.localeCompare(b))) {
     if (only && !only.includes(date)) continue;
     if (date < from || date > to) continue;
     if (stored[date]?.hash === input.hash) continue;
-    const r = await client.messages.create({ model: "claude-opus-5", max_tokens: 2000, messages: [{ role: "user", content: summaryPrompt(input) }] });
+    const r = await client.messages.create({ model: "claude-opus-5", max_tokens: 2000, messages: [{ role: "user", content: summaryPrompt(input, planTrip ? { tripName: planTrip } : undefined) }] });
     if (r.stop_reason === "max_tokens") { console.log(`${date}: CUT OFF — not written`); continue; }
     const text = r.content.map((c) => (c.type === "text" ? c.text : "")).join("").trim();
     out[date] = { text, hash: input.hash, writtenAt: new Date().toISOString() };

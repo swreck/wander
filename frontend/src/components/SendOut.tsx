@@ -8,14 +8,17 @@ import { useState } from "react";
 import { sendCopy } from "../lib/tripNotes";
 import { clock, tabsDiffer, zoneWords, type voiceFor } from "../lib/guideDisplay";
 import type { GuideItem } from "../lib/guideData";
+import { isPlanTrip } from "../lib/planTrip";
 
 const longDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 
 /** A day as text: her plan in her order, with its times as she wrote them and whose each line is; the bookings that
  *  day; where they sleep. No confirmation numbers — a day goes to friends, not front desks. */
-export function dayText({ date, city, overview, plan, others, sleep, owner, trains = [], tripZone = "Asia/Tokyo" }: {
+export function dayText({ date, city, overview, plan, others, sleep, owner, trains = [], tripZone = "Asia/Tokyo", fromPlan = isPlanTrip() }: {
   date: string; city: string; overview: GuideItem[]; plan: GuideItem[]; others: GuideItem[]; sleep: string[]; owner: string;
   tripZone?: string;
+  /** a trip built from a plan: its words say "the plan", never a tab or a sheet (S2d) */
+  fromPlan?: boolean;
   /** the day's booked trains from the rail sheet ("HH:MM" and its words) — in time order with the rest (Sweep C: Oct 11's
    *  message was only "Sleeping at: Nagoya Marriott"; the 10:36 NOZOMI 22 was left out) */
   trains?: { time: string; text: string }[];
@@ -27,7 +30,7 @@ export function dayText({ date, city, overview, plan, others, sleep, owner, trai
     const t = elsewhere(i) ? `${clock(i.time!)} ${zoneWords(i.timeZone!)}` : i.timeText || (i.time ? clock(i.time) : "");
     const who = i.forWhom && !/^everyone$/i.test(i.forWhom) ? ` (${i.forWhom})` : "";
     // (a time her own tabs dispute never goes out as fact — round 16: "8:00 PM Cafe Ensou" vs her 1:00 lunch)
-    const doubt = tabsDiffer(i).length ? " — her tabs differ on this; check before relying on it" : "";
+    const doubt = !fromPlan && tabsDiffer(i).length ? " — her tabs differ on this; check before relying on it" : "";
     return `${t ? `${t}  ` : ""}${i.title}${who}${doubt}`;
   };
   const out = [`${longDay(date)} — ${city}`];
@@ -42,7 +45,7 @@ export function dayText({ date, city, overview, plan, others, sleep, owner, trai
   const ordered = !trains.length && !timed.some(elsewhere) ? keyed : keyed.map((k, n) => ({ ...k, n })).sort((a, b) => a.key.localeCompare(b.key) || a.n - b.n);
   if (ordered.length) out.push("", ...ordered.map((k) => k.text));
   if (sleep.length) out.push("", `Sleeping at: ${sleep.join(" / ")}`);
-  out.push("", `— from ${owner}'s plan for the trip`);
+  out.push("", fromPlan ? "— from the plan for the trip" : `— from ${owner}'s plan for the trip`);
   return out.join("\n");
 }
 

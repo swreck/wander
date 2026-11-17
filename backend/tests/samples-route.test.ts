@@ -29,13 +29,13 @@ const get = (token: string, tripId = plan.tripId) => request(app).get(`/api/samp
 const slots = async (token: string) => ((await get(token)).body as any[]).map((r) => r.slot).sort();
 
 beforeAll(async () => {
-  await cleanFixtures(prisma, "plan");
-  await cleanFixtures(prisma, "japan");
-  plan = await makePlan(prisma);
-  japan = await makeJapan(prisma);
-  ken = tokenOf(NAMES_OF.plan.a, plan.travelers.pat);
-  larisa = tokenOf(NAMES_OF.plan.b, plan.travelers.sam);
-  stranger = tokenOf(NAMES_OF.japan.a, japan.travelers.pat);
+  await cleanFixtures(prisma, "sample-plan");
+  await cleanFixtures(prisma, "sample-japan");
+  plan = await makePlan(prisma, "sample-plan");
+  japan = await makeJapan(prisma, "sample-japan");
+  ken = tokenOf(NAMES_OF["sample-plan"].a, plan.travelers.pat);
+  larisa = tokenOf(NAMES_OF["sample-plan"].b, plan.travelers.sam);
+  stranger = tokenOf(NAMES_OF["sample-japan"].a, japan.travelers.pat);
   await prisma.tripMember.update({ where: { tripId_travelerId: { tripId: plan.tripId, travelerId: plan.travelers.pat } }, data: { showSamples: true } });
 });
 afterAll(async () => {
@@ -44,8 +44,8 @@ afterAll(async () => {
   await prisma.tripPhoto.deleteMany({ where: { tripId: plan.tripId } });
   await prisma.experience.deleteMany({ where: { tripId: plan.tripId } });
   await prisma.sheetSyncConfig.deleteMany({ where: { tripId: plan.tripId } });
-  await cleanFixtures(prisma, "plan");
-  await cleanFixtures(prisma, "japan");
+  await cleanFixtures(prisma, "sample-plan");
+  await cleanFixtures(prisma, "sample-japan");
   await prisma.$disconnect();
 });
 afterEach(async () => { vi.useRealTimers(); await clearSamples(); });
@@ -141,9 +141,9 @@ describe("C3 a filled slot hides its sample", () => {
     clockAt("2026-11-17T18:00:00Z");
     await mk("note", `${D}|note`, D, { text: `A thought${M}` });
     const note = (travelerId: string, who: string) => prisma.tripNote.create({ data: { tripId: plan.tripId, travelerId, authorName: who, clientId: `c3-${Math.random()}`, original: "x", text: "x", dayDate: D, visibility: "trip" } });
-    await note(plan.travelers.sam, NAMES_OF.plan.b);
+    await note(plan.travelers.sam, NAMES_OF["sample-plan"].b);
     expect(await slots(ken)).toEqual([`${D}|note`]);
-    await note(plan.travelers.pat, NAMES_OF.plan.a);
+    await note(plan.travelers.pat, NAMES_OF["sample-plan"].a);
     expect(await slots(ken)).toEqual([]);
     await prisma.tripNote.deleteMany({ where: { tripId: plan.tripId } });
   });
@@ -151,9 +151,9 @@ describe("C3 a filled slot hides its sample", () => {
     clockAt("2026-11-17T18:00:00Z");
     await mk("trip_photo", `${D}|photo`, D, { caption: `A view${M}` });
     const photo = (travelerId: string, who: string) => prisma.tripPhoto.create({ data: { tripId: plan.tripId, travelerId, authorName: who, dayDate: D, shared: true, image: Buffer.from([0xff, 0xd8, 0xff]), thumb: Buffer.from([0xff, 0xd8, 0xff]) } });
-    await photo(plan.travelers.sam, NAMES_OF.plan.b);
+    await photo(plan.travelers.sam, NAMES_OF["sample-plan"].b);
     expect(await slots(ken)).toEqual([`${D}|photo`]);
-    await photo(plan.travelers.pat, NAMES_OF.plan.a);
+    await photo(plan.travelers.pat, NAMES_OF["sample-plan"].a);
     expect(await slots(ken)).toEqual([]);
     await prisma.tripPhoto.deleteMany({ where: { tripId: plan.tripId } });
   });

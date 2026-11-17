@@ -13,6 +13,7 @@ import prisma from "../services/db.js";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { tripMemberParam } from "../middleware/role.js";
 import { tidyDictation } from "../services/tripNotes/tidy.js";
+import { isPlanTrip } from "../services/planTrip.js";
 import { noteFor, noteMatches, wordCount } from "../services/tripNotes/view.js";
 
 const router = Router();
@@ -152,10 +153,12 @@ router.get("/trip/:tripId/export", async (req: AuthRequest, res) => {
   const dayWords = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
   const lines: string[] = [`Trip notes — ${req.user!.displayName} — ${trip?.name || "the trip"}`, `${notes.length} note${notes.length === 1 ? "" : "s"}, every word as saved`, ""];
   let lastDay = "";
+  // (a trip built from a plan calls the trip as a whole "The whole trip", S2d; a note stored with a place keeps its words)
+  const plan = await isPlanTrip(tripId);
   for (const n of notes) {
     const day = n.dayDate || "";
     // (the place first, as Notes shows it: "Kyoto · Wed, Oct 28", "Japan overall")
-    const head = `${n.city || "Japan overall"}${day ? ` · ${dayWords(day)}` : ""}`;
+    const head = `${n.city || (plan ? "The whole trip" : "Japan overall")}${day ? ` · ${dayWords(day)}` : ""}`;
     if (head !== lastDay) { lines.push(`## ${head}`, ""); lastDay = head; }
     const when = n.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: zone });
     lines.push(`${when}${n.visibility === "trip" ? " · shared with the trip" : ""}${n.source === "voice" ? " · spoken" : n.source === "evening" ? " · Scout's evening question" : n.source === "scout" ? " · told to Scout" : n.source === "scout-answer" ? " · kept from Scout" : ""}`);

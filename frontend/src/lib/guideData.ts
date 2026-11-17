@@ -6,6 +6,7 @@
  */
 
 import { api } from "./api";
+import { notePlanTrip } from "./planTrip";
 import type { Trip, Day, Accommodation } from "./types";
 
 export interface GuideItem {
@@ -33,7 +34,8 @@ export interface GuideItem {
 }
 
 export interface GuideStatus {
-  current: { sourceName: string; importedAt: string } | null;
+  /** (plan: built from a plan, not a sheet; planSources: a plan trip's source names; S2d) */
+  current: { sourceName: string; importedAt: string; plan?: boolean; planSources?: string[] } | null;
 }
 
 export type Stay = Accommodation & { checkInDate?: string | null; checkOutDate?: string | null; forWhom?: string | null };
@@ -49,6 +51,12 @@ export interface TripGuideData {
   savedAt?: string;
 }
 
+/** A trip built from a plan is remembered the moment its status arrives, before any screen is handed the data (S2d) */
+function noteStatus(tripId: string, status: GuideStatus | null) {
+  // (a saved copy from before this build has no answer: it says nothing either way)
+  if (status?.current && typeof status.current.plan === "boolean") notePlanTrip(tripId, status.current.plan, status.current.planSources);
+}
+
 const cache = new Map<string, Promise<TripGuideData>>();
 const savedKey = (tripId: string) => `wander:guide-copy:${tripId}`;
 
@@ -62,13 +70,14 @@ async function load(tripId: string): Promise<TripGuideData> {
       api.get<GuideStatus>(`/guide/status/${tripId}`).catch(() => null),
     ]);
     const data = { trip, days, items, stays, status };
+    noteStatus(tripId, status);
     // Keep a copy on the phone: the plan must open with no signal
     try { localStorage.setItem(savedKey(tripId), JSON.stringify({ ...data, savedAt: new Date().toISOString() })); } catch { /* storage full */ }
     return data;
   } catch (err) {
     try {
       const raw = localStorage.getItem(savedKey(tripId));
-      if (raw) return { ...(JSON.parse(raw) as TripGuideData), fromSavedCopy: true };
+      if (raw) { const copy = JSON.parse(raw) as TripGuideData; noteStatus(tripId, copy.status); return { ...copy, fromSavedCopy: true }; }
     } catch { /* unreadable copy */ }
     throw err;
   }
@@ -77,7 +86,7 @@ async function load(tripId: string): Promise<TripGuideData> {
 /** This phone's last copy, at once (null if none) — for what rarely changes and must come without waiting (the
  *  "You leave in N days" card: on a slow signal it came seconds late, over whatever she'd started; Oct 10) */
 export function savedGuideData(tripId: string): TripGuideData | null {
-  try { const raw = localStorage.getItem(savedKey(tripId)); return raw ? { ...(JSON.parse(raw) as TripGuideData), fromSavedCopy: true } : null; } catch { return null; }
+  try { const raw = localStorage.getItem(savedKey(tripId)); if (!raw) return null; const copy = JSON.parse(raw) as TripGuideData; noteStatus(tripId, copy.status); return { ...copy, fromSavedCopy: true }; } catch { return null; }
 }
 
 /** Start (or reuse) loading a trip's Guide data. A failed load is forgotten so the next call retries. */

@@ -6,6 +6,7 @@
 import { api } from "./api";
 import { queuedBodies, whoIs, updateQueued } from "./offlineStore";
 import { noSampleText } from "./samples";
+import { isPlanTrip } from "./planTrip";
 
 export interface TripNote {
   id: string;
@@ -111,7 +112,10 @@ export function keepDraft(tripId: string, text: string, day: string | null = nul
  *  saved before places existed, with no day, is about Japan overall. */
 export const JAPAN_OVERALL = "Japan overall";
 export const BACKROADS = "Backroads";
-export const placeOf = (n: { city: string | null }) => n.city || JAPAN_OVERALL;
+/** On a trip built from a plan the trip as a whole is "The whole trip" (S2d); a note stored with a place keeps its words */
+export const WHOLE_TRIP = "The whole trip";
+export const overallWords = (plan: boolean = isPlanTrip()) => (plan ? WHOLE_TRIP : JAPAN_OVERALL);
+export const placeOf = (n: { city: string | null }) => n.city || overallWords();
 
 /** How this phone shows the notes: whose, and in what order (kept on the phone) */
 // ("scout": what Scout kept at their asking — Ken, Oct 13: "Memory notes works. Add scout to this view")

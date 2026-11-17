@@ -20,6 +20,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { getContributorColor, getContributorInitial } from "../lib/travelerProfiles";
 import useScoutSuggestions from "../hooks/useScoutSuggestions";
 import ScoutNudge from "../components/ScoutNudge";
+import { isPlanTrip } from "../lib/planTrip";
 
 // ─── Theme display ───────────────────────────────────────────────
 
@@ -243,7 +244,7 @@ function IdeaCard({
                   &times;
                 </button>
               </div>
-              <p className="text-[11px] text-[#6b5d4a] mt-1">Everyone on the trip sees this. Larisa's Guide stays as it is.</p>
+              <p className="text-[11px] text-[#6b5d4a] mt-1">Everyone on the trip sees this.{isPlanTrip() ? "" : " Larisa's Guide stays as it is."}</p>
             </div>
           ) : (
             <div className="flex items-center gap-3">

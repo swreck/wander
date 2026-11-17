@@ -6,22 +6,23 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { isPlanTrip } from "../lib/planTrip";
 
 export const SHOW_AROUND = "wander:show-around";
 export const showMeAround = () => window.dispatchEvent(new Event(SHOW_AROUND));
 
-const stepsFor = (mine: boolean) => {
+const stepsFor = (mine: boolean, plan = false) => {
   const her = mine ? "your" : "Larisa's";
   return [
     // (plain words, no word that could mean two things — "a place for notes" in a travel app reads as a location; Ken)
     { tab: "Home", text: "Today at a glance: what's coming up, where you sleep tonight, and any deadlines. Below that is a calendar of the whole trip. Tap any day to see its plan." },
     // (Today, Oct 16 2026, where Maybes was — Ken: "Replace 'maybes' with 'full itinerary for today'"; Maybes is on Home)
-    { tab: "Today", text: `All of today in one tap: ${mine ? "your" : "Larisa's"} plan by the clock, with each place's photo, its map, and Play the day. Maybes, the group's "maybe we should…" list, is on Home.` },
+    { tab: "Today", text: `All of today in one tap: ${plan ? "the" : mine ? "your" : "Larisa's"} plan by the clock, with each place's photo, its map, and Play the day. Maybes, the group's "maybe we should…" list, is on Home.` },
     { tab: "Next", text: "Your next stop today, and how long until it. The Walk, Train and Taxi buttons open Google Maps with directions from wherever you're standing." },
     { tab: "Notes", text: "Write down anything you want to remember from the trip. Type or speak, and every word is kept." },
     // (Budget took Actions' place in the bar, Oct 15 — the tour still pointed at Actions; user-ken2, Oct 16)
     { tab: "Budget", text: "What each couple has paid for the group, and who pays next: KL in purple when it's Ken & Larisa, AJ in orange when it's Andy & Julie. Tap it to see every payment or add one. To-dos and deadlines are on Home." },
-    { tab: "Scout", text: `Ask Scout anything about the trip, typed or spoken. Scout answers from ${her} Guide and shows which tab the answer came from. Scout reads photos and files too, like a menu, a sign or a PDF. Paste one in, or tap the paperclip.` },
+    { tab: "Scout", text: plan ? "Ask Scout anything about the trip, typed or spoken. Scout answers from the plan and says where each answer came from. Scout reads photos and files too, like a menu, a sign or a PDF. Paste one in, or tap the paperclip." : `Ask Scout anything about the trip, typed or spoken. Scout answers from ${her} Guide and shows which tab the answer came from. Scout reads photos and files too, like a menu, a sign or a PDF. Paste one in, or tap the paperclip.` },
     // (the small 日 at the bar's end, Oct 13 — only on a trip that has phrases: shown only when it's on the screen)
     { tab: "Phrases", optional: true, text: "Japanese phrases for the shop counter, the restaurant and the taxi, with how to say each one. Scout adds any you ask it for." },
   ];
@@ -33,7 +34,8 @@ const same = (a: Box | null, b: Box | null) => !!a && !!b && a.left === b.left &
 export default function ShowMeAround() {
   const me = useAuth().user?.displayName ?? "";
   const mine = /^larisa$/i.test(me);
-  const all = useMemo(() => stepsFor(mine), [mine]);
+  const planNow = isPlanTrip();
+  const all = useMemo(() => stepsFor(mine, planNow), [mine, planNow]);
   // (the steps whose button is on the screen when the tour starts)
   const [steps, setSteps] = useState(all);
   const [step, setStep] = useState<number | null>(null);
@@ -46,12 +48,13 @@ export default function ShowMeAround() {
   useEffect(() => {
     const start = () => {
       window.dispatchEvent(new Event("wander-close-chat"));
-      setSteps(all.filter((s) => !("optional" in s && s.optional) || document.querySelector(`nav [data-tour="${s.tab}"]`)));
+      // (asked now, not when this mounted: the trip's kind may only have arrived since)
+      setSteps(stepsFor(mine, isPlanTrip()).filter((s) => !("optional" in s && s.optional) || document.querySelector(`nav [data-tour="${s.tab}"]`)));
       setStep(0);
     };
     window.addEventListener(SHOW_AROUND, start);
     return () => window.removeEventListener(SHOW_AROUND, start);
-  }, [all]);
+  }, [mine]);
 
   // Where the lit button and the card are (kept only when they moved, so measuring never redraws in a loop)
   useLayoutEffect(() => {

@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import { deviceSupportsPasskeys, isUserCancel, reportPasskeyProblem } from "../lib/passkeys";
 import { isHomeScreenApp } from "../components/AddToHomeScreen";
+import { isPlanTrip } from "../lib/planTrip";
 
 interface TravelerOption {
   id: string;
@@ -104,7 +105,7 @@ export default function LoginPage() {
           Wander
         </h1>
         <p className="text-sm text-white/80 mb-8" role={signedOut ? "status" : undefined}>
-          {signedOut ? "You're signed out. Face ID brings you back." : "Larisa's Japan Guide, on your phone"}
+          {signedOut ? "You're signed out. Face ID brings you back." : isPlanTrip() ? "The plan, on your phone" : "Larisa's Japan Guide, on your phone"}
         </p>
 
         {canUseFaceId ? (

@@ -68,7 +68,32 @@ export async function dayInputs(tripId: string): Promise<Record<string, { block:
 }
 
 /** The instruction for one day (Ken's voice: plain, warm, one thought per sentence; never a fact the lines don't hold) */
-export function summaryPrompt(input: { block: string; pictures: string; doc?: string }): string {
+export function summaryPrompt(input: { block: string; pictures: string; doc?: string }, plan?: { tripName: string }): string {
+  const base = summaryPromptFor(input);
+  return plan ? planSummaryPrompt(base, plan.tripName) : base;
+}
+
+/** A trip built from a plan (S2d): today's instruction with the spots that name Japan, a family, a spreadsheet and her
+ *  tabs changed, so a day is summed up under the trip's own name and its own country. If a spot can't be found the
+ *  instruction has changed under this function, and it says so rather than sending the writer a false one. */
+function planSummaryPrompt(base: string, tripName: string): string {
+  const swaps: [string, string][] = [
+    [`- Say "her Guide" or "her plan" for where it comes from — never "her lines", "the lines" or "the spreadsheet's rows".`, `- Say "the plan" for where it comes from — never "the lines" or "the spreadsheet's rows".`],
+    ["nothing from your own knowledge of Japan", "nothing from your own knowledge of the places"],
+    [`("her tabs name two places for dinner")`, `("the plan names two places for dinner")`],
+  ];
+  const firstEnd = base.indexOf("\n\n");
+  if (firstEnd < 0) throw new Error("The day summary instruction no longer has the spots the plan trip's is made from");
+  const intro = `This is one day of the trip "${tripName}", as Wander holds it in its plan. The first line names the day, its city and country, where everyone sleeps, and "with Backroads" on days Backroads (a guided tour company) runs. Lines in square brackets are Wander's notes on the lines.`;
+  let out = `${intro}${base.slice(firstEnd)}`;
+  for (const [was, now] of swaps) {
+    if (!out.includes(was)) throw new Error("The day summary instruction no longer has the spots the plan trip's is made from");
+    out = out.replace(was, () => now);
+  }
+  return out.split("her lines").join("the lines");
+}
+
+function summaryPromptFor(input: { block: string; pictures: string; doc?: string }): string {
   return `This is one day of a family trip to Japan (Ken, Larisa, Andy, Julie), as Wander reads it from Larisa's trip spreadsheet. The first line names the day, where everyone sleeps, and "with Backroads" on days Backroads (a guided tour company) runs. Lines in [WHERE: …] say who is not in Japan yet. Lines in square brackets are Wander's notes on her lines; "(source: …)" names her tab.
 
 ${input.block}

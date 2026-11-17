@@ -11,6 +11,7 @@ import { parseAccessCodes, signToken, requireAuth, type AuthRequest } from "../m
 import { stringSimilarity } from "../services/geocoding.js";
 import { getUserRole } from "../middleware/role.js";
 import { currentTripIdFor, chooseTrip } from "../services/currentTrip.js";
+import { isPlanTrip } from "../services/planTrip.js";
 import {
   RP_ID,
   RP_NAME,
@@ -352,6 +353,8 @@ router.get("/join/:token", async (req, res) => {
       experienceCount,
       dateRange,
       firstCityName: firstCity?.name || null,
+      // (a trip built from a plan: the join screen says "the plan", never "Larisa's Guide" — S2d)
+      plan: await isPlanTrip(trip.id),
     });
     return;
   }

@@ -17,6 +17,22 @@ export async function isPlanTrip(tripId: string | null | undefined): Promise<boo
   return isPlanKind(s?.sourceKind);
 }
 
+/** Which of these trips are plan trips: one query for the whole list (S2d) */
+export async function planTripIds(tripIds: string[]): Promise<Set<string>> {
+  if (!tripIds.length) return new Set();
+  const rows = await prisma.guideSnapshot.findMany({ where: { tripId: { in: tripIds }, status: "current" }, select: { tripId: true, sourceKind: true } });
+  return new Set(rows.filter((r) => isPlanKind(r.sourceKind)).map((r) => r.tripId));
+}
+
+/** The plan's own source names ("Larisa's notes", "Backroads' itinerary"), in order of first use by date then time.
+ *  A " + " joined source counts as its parts. */
+export async function planSourcesOf(tripId: string): Promise<string[]> {
+  const items = await prisma.guideItem.findMany({ where: { tripId }, select: { source: true, date: true, time: true, sortOrder: true }, orderBy: [{ date: "asc" }, { time: "asc" }, { sortOrder: "asc" }] });
+  const seen = new Set<string>();
+  for (const i of items) for (const part of (i.source || "").split(" + ")) { const p = part.trim(); if (p) seen.add(p); }
+  return [...seen];
+}
+
 /** Scout's rule for dates in the Guide (the whole bullet) and the one that replaces it on a plan trip */
 export const GUIDE_DATE_RULE_START = "- Every date in the Guide is a Japan date.";
 export const PLAN_DATE_RULE = "- Every date is the date in that day's country, as DAY BY DAY names it. Before saying where someone is on a date, read that date's lines; never map a date onto another country's calendar.";

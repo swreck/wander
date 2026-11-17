@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import useBackToClose from "../hooks/useBackToClose";
 import { aboutOf, aboutLines, keptAbout, lineKey, type About } from "../lib/placeAbout";
+import { isPlanTrip } from "../lib/planTrip";
 
 /** The line's own piece, when Wander wrote one for a line with no Google place (Wednesday's studios): its key, or null */
 export function useLineAbout(title: string | null | undefined): string | null {
@@ -64,8 +65,8 @@ function AboutSheet({ id, title, onClose }: { id: string; title: string; onClose
             <p className="mt-3 text-[17px] leading-snug font-semibold text-[#3a3128]">{about.gist}</p>
             {about.paragraphs.map((p, i) => <p key={i} className="mt-3 text-[16px] leading-relaxed text-[#3a3128]">{p}</p>)}
             <p className="mt-6 text-[13px] text-[#6b5d4a]">{id.startsWith("line:")
-              ? "Written by Wander from pages on the web; Google has no listing for it. It isn't from Larisa's Guide."
-              : "Written by Wander from Google's listing and reviews and pages on the web. It isn't from Larisa's Guide."}</p>
+              ? `Written by Wander from pages on the web; Google has no listing for it. It isn't from ${isPlanTrip() ? "the plan" : "Larisa's Guide"}.`
+              : `Written by Wander from Google's listing and reviews and pages on the web. It isn't from ${isPlanTrip() ? "the plan" : "Larisa's Guide"}.`}</p>
             {about.sources.length > 0 && (
               <>
                 <button onClick={() => setSources((s) => !s)} className="min-h-[44px] text-[13px] text-[#514636] underline underline-offset-2">{sources ? "Hide where this comes from" : "Where this comes from ›"}</button>

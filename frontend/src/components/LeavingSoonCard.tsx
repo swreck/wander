@@ -12,6 +12,7 @@ import { takeVisitAsk, leavingCardSettled } from "../lib/visitAsks";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { guideData, savedGuideData, type GuideItem } from "../lib/guideData";
+import { isPlanTrip } from "../lib/planTrip";
 import { ymd, clock, partyOf, zonedMoment, zoneWords } from "../lib/guideDisplay";
 import { ownFirstDay, firstLeg, laterParties, dateIn, phoneToday, daysBetween, namesOf, factFor, type LeavingFact } from "../lib/leavingSoon";
 
@@ -40,7 +41,8 @@ export default function LeavingSoonCard({ tripId, hold = false }: { tripId: stri
 
   useEffect(() => {
     // (one ask per visit — lib/visitAsks: the tour offer waits for this card's decision)
-    if (!me || hold) { leavingCardSettled(); return; }
+    // (not on a trip built from a plan, S2d: its day count reads one party's first line, which is wrong for that plan)
+    if (!me || hold || isPlanTrip(tripId)) { leavingCardSettled(); return; }
     let alive = true;
     // Never over something she's already doing (Ken, Oct 10: "conflict in the UI since both are early and unexpected
     // info… Overlap, race condition"): on a slow signal the card came seconds late — over Scout's packing offer if she'd
@@ -56,7 +58,7 @@ export default function LeavingSoonCard({ tripId, hold = false }: { tripId: stri
       // (the phone's saved copy at once when there is one — flights and dates rarely change; else Wander's)
       let data: Awaited<ReturnType<typeof guideData>> | null = savedGuideData(tripId);
       if (!data) { try { data = await guideData(tripId); } catch { return; } }
-      if (!alive || !data?.trip?.startDate) return;
+      if (!alive || !data?.trip?.startDate || isPlanTrip(tripId)) return;
       const now = new Date();
       const first = ymd(data.trip.startDate);
       const make = (today: string, day: string, leg: GuideItem | null, preview: string | null): Shown | null => {

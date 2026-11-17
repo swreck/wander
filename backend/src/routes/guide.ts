@@ -24,6 +24,7 @@ import { tripDocumentsOf, dayMomentsOf } from "../services/guide/tripDocuments.j
 import { tabsOfCopy, cellsOfItem, completeCells, spotsOf } from "../services/guide/sources.js";
 import { withDaySwaps } from "../services/guide/daySwaps.js";
 import { withoutFinancialDetails, holdsPersonalNumbers } from "../services/sources/filter.js";
+import { isPlanKind, planSourcesOf } from "../services/planTrip.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -90,13 +91,18 @@ router.get("/status/:tripId", async (req: AuthRequest, res) => {
   if (!(await isMember(req, tripId))) { res.status(403).json({ error: "Not a member of this trip" }); return; }
   const current = await prisma.guideSnapshot.findFirst({
     where: { tripId, status: "current" }, orderBy: { importedAt: "desc" },
-    select: { id: true, sourceName: true, importedAt: true, importedBy: true, report: true },
+    select: { id: true, sourceName: true, importedAt: true, importedBy: true, report: true, sourceKind: true },
   });
   const lastRejected = await prisma.guideSnapshot.findFirst({
     where: { tripId, status: "rejected" }, orderBy: { importedAt: "desc" },
     select: { sourceName: true, importedAt: true, report: true },
   });
-  res.json({ current, lastRejected: lastRejected && current && lastRejected.importedAt > current.importedAt ? lastRejected : null });
+  // (S2d: a trip built from a plan says so, and names its sources, so the screens use the plan's words. A sheet trip:
+  // plan false and no planSources — and nothing else in `current` changes.)
+  const { sourceKind, ...rest } = current || ({} as any);
+  const plan = !!current && isPlanKind(sourceKind);
+  const shown = current ? { ...rest, plan, ...(plan ? { planSources: await planSourcesOf(tripId) } : {}) } : current;
+  res.json({ current: shown, lastRejected: lastRejected && current && lastRejected.importedAt > current.importedAt ? lastRejected : null });
 });
 
 // ── Dated facts ──
