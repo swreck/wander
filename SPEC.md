@@ -2933,7 +2933,8 @@ setting never replaces the others.
   city's own, on the days the trip is there: §22.2.) Tapping the city's name on any of its days brings it
   back. The photo comes through Wander's server, so no Google key reaches the phone.
 - **The city band** on every day carries the same photo, already chosen for the season, with the photographer credited
-  (§3.1). "Wander in pictures", idea 1.
+  (§3.1). The caption is one line in the band's lower right, the sight's name then the photographer. The photographer
+  is always shown whole; a sight's name too long for the line ends in "…". "Wander in pictures", idea 1.
 - **Her Kyoto map, by day**: her illustrated Kyoto map's panel for each Kyoto day, under the band; a tap opens the whole
   map (§3.1). Cut once from her picture, which is never changed; a new map in a new copy of her Guide retires the old
   panels.
