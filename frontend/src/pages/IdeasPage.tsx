@@ -508,7 +508,8 @@ export default function IdeasPage() {
               )}
 
               {/* (with a day or theme filter on, the line above already says what's missing) */}
-              {shown.length === 0 && !soon && !activeTheme && (
+              {/* (nor "No maybes for Hanoi yet." under two sample maybes: the samples say the list is empty of real ones) */}
+              {shown.length === 0 && !soon && !activeTheme && !(person === "everyone" && sampleMaybes.length > 0) && (
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4 mb-5">
                   {person !== "everyone" ? `${person} hasn't said they're in on anything in ${city?.name} yet.`
                     // (all of hers taken off the list — "has no ideas" would be untrue)
