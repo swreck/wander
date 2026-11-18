@@ -3208,6 +3208,8 @@ Ken (Nov 16): "larisa sees what is real only and I see what is real plus clearly
 - Samples reach nothing else: not Scout, a summary, a total, History, a notice, a sent day, an export, or the phone's
   saved copies. There are no sample expenses, so Budget is always real.
 - Home and Next show no sample.
+- A screen's empty line ("No maybes for Hanoi yet.", Notes' "Nothing here yet.") doesn't show beside samples.
+- A "Not confirmed" leg never takes a sample's slot, and sorts by its own moment.
 
 ### 22.5 More than one trip
 

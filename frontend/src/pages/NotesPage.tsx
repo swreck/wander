@@ -829,7 +829,8 @@ export default function NotesPage() {
                 </div>
               )}
 
-              {notes.length === 0 && waiting.length === 0 && (
+              {/* (not above Ken's sample notes: "Nothing here yet." over four notes read as a contradiction; fresh judge, Nov 17) */}
+              {notes.length === 0 && waiting.length === 0 && !samples.some((s) => s.kind === "note") && (
                 <p className="text-sm text-[#6b5d4a] mt-4">Nothing here yet. A note can be a line or a page — the potter's hands, a smell at the market, what someone said at dinner.</p>
               )}
               {notes.length > 0 && shown.length === 0 && (

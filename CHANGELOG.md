@@ -29,7 +29,8 @@ SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flag
   outline; a sample picture carries a SAMPLE band; tapping one says what it is; none has an action. One route hands
   them to the one person whose row asks; a real entry in the slot removes the sample; none reach Scout, a summary, a
   total, History, a notice, a sent day, an export or the phone's saved copies. No sample expenses. Maybes doesn't say
-  "No maybes for Hanoi yet." under a city's samples. Where: backend services/samples.ts and routes/samples.ts; phone
+  "No maybes for Hanoi yet." under a city's samples, and Notes doesn't say "Nothing here yet." above sample notes
+  (pages/NotesPage.tsx; a fresh judge read it as a contradiction). Where: backend services/samples.ts and routes/samples.ts; phone
   lib/samples.ts, components/SampleTag.tsx. SPEC §22.4.
 - **December's screens say only what is true** (a walk of every December day found twelve things; plan trips only).
   A change of planes: the landing card names the next flight from that airport, and the way to the hotel starts at the
