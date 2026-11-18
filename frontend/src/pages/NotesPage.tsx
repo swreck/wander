@@ -1000,7 +1000,7 @@ export default function NotesPage() {
                   copy, a count, a search (a search hides them), a copy or the export */}
               {(() => {
                 const sampleNotes = query.trim() ? [] : mergeSamples<never>("note", [], samples) as SampleItem[];
-                return sampleNotes.length ? <ul className="space-y-2 mt-3">{sampleNotes.map((s) => <SampleRow key={s.id} sample={s} />)}</ul> : null;
+                return sampleNotes.length ? <ul className="space-y-2 mt-3">{sampleNotes.map((s) => <SampleRow key={s.id} sample={s} under={s.date ? dayWords(s.date) : null} />)}</ul> : null;
               })()}
               <p className="text-xs text-[#6b5d4a] mt-6">
                 Settings has two choices for notes: tidying your dictation, and whether others' trip stories may use what you say about places.{" "}

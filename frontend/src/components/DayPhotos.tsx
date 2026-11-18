@@ -155,9 +155,10 @@ export default function DayPhotos({ tripId, date, canAdd, trip, showSamples = tr
           </button>
         ))}
         {sampleTile && (
-          <div data-sample="1" className="relative shrink-0 w-[104px] h-[104px]">
-            <SamplePicture className="w-full h-full rounded-xl" label="A sample photo" />
-            <span data-sample="1" className={`absolute left-1 right-1 bottom-1 text-[10px] leading-tight rounded px-1 bg-white/80 ${SAMPLE_TEXT}`}>
+          // (the caption sits under the picture: laid over it, it covered half of the SAMPLE band on a tile this small)
+          <div data-sample="1" className="shrink-0 w-[104px]">
+            <SamplePicture className="w-full h-[104px] rounded-xl" label="A sample photo" />
+            <span data-sample="1" className={`block mt-1 text-[11px] leading-tight ${SAMPLE_TEXT}`}>
               <SampleTag />{typeof sampleTile.data.caption === "string" ? sampleTile.data.caption : ""}
             </span>
           </div>

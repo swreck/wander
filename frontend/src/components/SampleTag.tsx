@@ -36,7 +36,7 @@ export function SamplePicture({ className = "aspect-[16/9] rounded-lg", label = 
 const text = (v: unknown): string => (typeof v === "string" ? v : "");
 
 /** One sample in a list: a time (when it has one), the pill, its words; a tap says what it is */
-export function SampleRow({ sample, timeWords = null, zone = null }: { sample: SampleItem; timeWords?: string | null; zone?: string | null }) {
+export function SampleRow({ sample, timeWords = null, zone = null, under = null }: { sample: SampleItem; timeWords?: string | null; zone?: string | null; under?: string | null }) {
   const [open, setOpen] = useState(false);
   const d = sample.data;
   const unconfirmed = sample.kind === "unconfirmed";
@@ -60,6 +60,8 @@ export function SampleRow({ sample, timeWords = null, zone = null }: { sample: S
           {title}
           {detail && <span data-sample="1" className="block mt-0.5 whitespace-pre-line">{detail}</span>}
           {forWhom && <span data-sample="1" className="block mt-0.5">For {forWhom}</span>}
+          {/* (a sample note says which day it would sit under, as a real note does) */}
+          {under && <span data-sample="1" className="block mt-0.5 text-xs">{under}</span>}
         </span>
       </button>
       {d.picture === true && <div data-sample="1" className="px-3 pb-3"><SamplePicture /></div>}
