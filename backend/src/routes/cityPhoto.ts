@@ -72,6 +72,9 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 /** What Claude is asked about a photo. Japan's October trip keeps its own words, exactly. Any other city is judged by
  *  its own country and the days the trip is there (Nov 17: Hanoi in December was being judged as "Hanoi, Japan, in
  *  mid-to-late October", and a ski town in January would have had every snowy photo turned away). */
+/** (Nov 17, Hanoi: the first pick was a puppet show on its stage, the second a prison museum's cell of chained figures.
+ *  What greets a traveler is the place seen from outside.) */
+const OUTDOOR_VIEW = "It fits only if it is a view of the place taken outdoors (a landmark, street, garden or landscape — not a close-up of food, a portrait, a sign, or anything indoors: a show on a stage, a museum exhibit, a room)";
 export function seasonQuestion(cityName: string, country: string | null = null, dates: Date[] = []): string {
   const days = dates.map((d) => d.toISOString().slice(0, 10)).sort();
   const japan = !country || /^japan$/i.test(country.trim());
@@ -79,11 +82,11 @@ export function seasonQuestion(cityName: string, country: string | null = null, 
     return `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, Japan, in mid-to-late October. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait or a sign) and nothing in it belongs to another season: no Christmas trees, Santa figures, Christmas or New Year decorations or illuminations; no snow or ice; no bare leafless trees or brown dormant lawns (winter); no cherry blossoms (spring). Green trees or autumn color are fine. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".`;
   }
   // (no dates at all, outside Japan: nothing to judge a season by, so only "is it a view of the place")
-  if (!days.length) return `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, ${country!.trim()}. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait, a sign, or a show on a stage inside a hall). In "seen", say briefly what the photo shows; then set "fits".`;
+  if (!days.length) return `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, ${country!.trim()}. Look at the whole picture, including small things at its edges and along the bottom. ${OUTDOOR_VIEW}. In "seen", say briefly what the photo shows; then set "fits".`;
   const say = (d: string) => `${MONTHS[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8, 10))}`;
   const first = days[0], last = days[days.length - 1];
   const when = first === last ? `on ${say(first)}` : `from ${say(first)} to ${say(last)}`;
-  return `This photo will fill a phone's screen to greet travelers arriving in ${cityName}${country ? `, ${country.trim()}` : ""}, who are there ${when}. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait, a sign, or a show on a stage inside a hall) and nothing in it belongs to another time of year there. What ${cityName} really looks like on those dates is fine: snow at a mountain resort in winter, bare trees in a city with cold winters, green in the tropics, lights or decorations for a holiday within a few weeks of those dates. It doesn't fit if it shows a season those dates can't have there (cherry blossoms or autumn color in midwinter, snow where it doesn't snow then, summer green on a ski mountain in January) or a holiday months away. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".`;
+  return `This photo will fill a phone's screen to greet travelers arriving in ${cityName}${country ? `, ${country.trim()}` : ""}, who are there ${when}. Look at the whole picture, including small things at its edges and along the bottom. ${OUTDOOR_VIEW} and nothing in it belongs to another time of year there. What ${cityName} really looks like on those dates is fine: snow at a mountain resort in winter, bare trees in a city with cold winters, green in the tropics, lights or decorations for a holiday within a few weeks of those dates. It doesn't fit if it shows a season those dates can't have there (cherry blossoms or autumn color in midwinter, snow where it doesn't snow then, summer green on a ski mountain in January) or a holiday months away. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".`;
 }
 
 export async function fitsTheSeason(bytes: Buffer, type: string, cityName: string, country: string | null = null, dates: Date[] = []): Promise<boolean | null> {
@@ -144,8 +147,10 @@ async function lookUp(cityId: string): Promise<{ photo: Photo; ref: string } | n
     // was Fukuoka Tower with Santas and a Christmas tree, in October); then the next sight's. A careful look by Claude,
     // once per city while it's kept. None that fits: no photo (Oct 10 re-audit: the first one used to stand anyway).
     if (find?.status && !["OK", "ZERO_RESULTS"].includes(find.status)) return "failed";
+    // (eight sights, not five: Tokyo in January had its five best-known sights all shown in leaf or blossom — Nov 17)
+    const SIGHTS_TRIED = 8;
     let best: any = null, bytes: Buffer | null = null, type = "image/jpeg", unsure = false;
-    for (const s of sights.slice(0, 5)) {
+    for (const s of sights.slice(0, SIGHTS_TRIED)) {
       // (1200 wide: a phone's full screen, at a third less to send than 1600 — it has to be ready before the day draws)
       const img = await googleFetch("google.photo", `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${s.photos[0].photo_reference}&key=${key}`);
       if (!img.ok) { unsure = true; continue; }

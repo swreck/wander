@@ -3189,7 +3189,9 @@ The trip crosses Vietnam, Cambodia and Japan and is flown through Seoul and Bang
   (§16), its place on the Home map and its count in the story, which names no single country. (A sheet trip still leaves
   out the city it flies from.)
 - A city's photo is checked against the days the trip is there, in that city's country (§16): snow suits Shiga Kogen in
-  January and never Hanoi in December. Japan's October trip keeps its own check, word for word.
+  January and never Hanoi in December. It is a view taken outdoors, never a show on a stage or a museum's exhibit. Up
+  to eight of the city's best-known sights are tried (§16 names the order); when none fits there is no photo. Japan's
+  October trip keeps its own check, word for word.
 
 ### 22.3 Each person's days
 
