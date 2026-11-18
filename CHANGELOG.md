@@ -2,6 +2,62 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-17 (Tuesday, at home) — December's trip: a trip built from a plan, with samples only Ken sees
+
+- Ken (Nov 16), on December's Vietnam, Cambodia and Japan trip: "larisa sees what is real only and I see what is real
+  plus clearly designated placeholder text or images". Japan's trip is unchanged: its screens' words, its Scout prompt
+  and context (held by hash), its import and its last-day look were compared before and after.
+- **A trip built from a plan.** A trip can now come from a plan Wander keeps itself, written from the organizers'
+  sources by a private tool (checked whole, refused in plain words, the same plan twice changes nothing). A Guide copy
+  never removes a plan's lines. Each fact names its source ("From Backroads' itinerary", "From Larisa's notes"). Every
+  screen says "the plan" where a sheet trip says her Guide: Day, Next, Home, Maybes, Notes, Budget, History, Settings,
+  the whole-trip page, Scout's panel and Sources, Help (a plan version), welcome, join and sign-in. No "Tell Larisa"
+  button and no leaving card on a plan trip. Where: backend services/planTrip.ts; phone lib/planTrip.ts,
+  lib/guideDisplay.ts (`voiceFor`), lib/helpSections.ts. SPEC §22.1.
+- **A day's own country and clock.** A day's clock is its city's, else the trip's; its country is its city's. Landing
+  times, "today", the evening question, opening hours, rain hours, map links and place searches follow the day. Six
+  more airports are known. Japan's storm watch runs only on days in Japan. Where: phone lib/dayZone.ts, server
+  services/zoneWords.ts (one table, a test fails if they differ), lib/linePlaces.ts. SPEC §22.2.
+- **Each person's days.** A person's row on a trip can hold their days abroad; trip notices skip a person outside
+  them. A message to Ken is not a trip notice. SPEC §22.3.
+- **Scout on a plan trip.** Its context says "the plan", heads each day with its city, country and clock, and says a
+  line's clock in words when it differs. A currency Wander can't keep is never kept as yen (every trip). On every trip:
+  a weekday Scout writes beside a date is checked against the calendar; a tool step that ends with no answer is asked
+  again, then says "I couldn't get an answer just now. Want me to try again?" instead of sending an empty answer.
+- **Samples.** Ken sees marked placeholders in December's open slots: lines in a day, a day's summary, two maybes per
+  city, notes, a photo of the day, and two "Not confirmed" legs. Each starts with a pill and is grey italic in a dashed
+  outline; a sample picture carries a SAMPLE band; tapping one says what it is; none has an action. One route hands
+  them to the one person whose row asks; a real entry in the slot removes the sample; none reach Scout, a summary, a
+  total, History, a notice, a sent day, an export or the phone's saved copies. No sample expenses. Maybes doesn't say
+  "No maybes for Hanoi yet." under a city's samples. Where: backend services/samples.ts and routes/samples.ts; phone
+  lib/samples.ts, components/SampleTag.tsx. SPEC §22.4.
+- **December's screens say only what is true** (a walk of every December day found twelve things; plan trips only).
+  A change of planes: the landing card names the next flight from that airport, and the way to the hotel starts at the
+  day's last airport. A night in the air shows the one flight that lands tomorrow, under "On the way to Hanoi". No
+  "Takes off" line when the flight's clock and the day's agree. The first day is the day you leave; "still at home"
+  only before the flight's date. A hotel's map search ends with its own city's country. Train is offered in Japan
+  only; elsewhere Walk and Taxi. A day with a summary and no lines says "no times set". The phrase card opens on
+  today's country, countries in visit order, and its button reads "Phrases". Maybes has a tab for every city ahead and
+  no "Next 2 days" before the trip. Help's sentences match those screens. A check-in with no time sits where the day
+  reaches the hotel. Where: phone lib/guideDisplay.ts, lib/planScreens.ts, lib/phraseCountries.ts, pages/DayPage.tsx,
+  pages/IdeasPage.tsx, components/GetThere.tsx, PhraseCard.tsx, CityArrival.tsx, TripGlance.tsx. SPEC §22.1, §22.2.
+- **Seven more, from reading every December screen after that walk** (plan trips only). Before the trip, Next shows the
+  flight you leave on with "See the day ›" (it read "Here's the first day." over an empty screen). Jan 1 is headed
+  "Siem Reap": "On the way to" is only for a night in the air before your first bed. A flight line wears the plane, not
+  the van. On Jan 2 the ride from Haneda follows "You land at Tokyo Haneda" (the landing is yours whichever of the
+  plan's groups names you). Dec 26 and Dec 30 list the Backroads flight once, in its place in the day, with the airline
+  and note under it. Dec 25 reads check out, "10:30 AM Meet the Backroads leaders", the day's walks, the check-in,
+  dinner: a guided day's lines follow the meeting that opens it. Where: pages/DayPage.tsx (`markOf`, `myLanding`,
+  `onTheWay`, `planOpener`), the plan tool. SPEC §22.1, §22.2.
+- **Whole trip on a plan trip**: the laptop table leaves out a column no day fills. A night's hotel is named once when
+  two stays that night share a name (every trip). On a plan trip each hotel is named once a night; the phone says whose
+  it is when it isn't yours that night (the last day's hotel is someone else's room: Ken and Larisa fly home), the
+  laptop always. Where: pages/WholeTripPage.tsx (`planSleep`).
+- **Schema (additive)**: City.planKey and timeZone, Accommodation.planKey, Experience.planKey,
+  TripMember.abroadFrom/abroadTo/showSamples, the sample_entries table. Null or empty on every Japan row.
+- Not yet on a plan trip, due before Dec 14: money in dong and riel, Scout's weather and packing tips outside Japan.
+  SPEC §22.6.
+
 ## 2026-11-17 (Tuesday, at home) — A photo that fails once is drawn again; a photographer's name reads as a name
 
 - A fresh reviewer walked Oct 17, Oct 27 and Oct 21's Play on production as Ken after the entry below. Two findings
