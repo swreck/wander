@@ -2,6 +2,22 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-17 (Tuesday night, at home) — December on production: every city has its photo, judged by its own season
+
+Found on production right after December's trip went live (the local test server has no paid keys, so it never looks
+up a city photo or draws Google's map).
+- **A city's photo is judged by its own country and dates.** The check asked about every city as "<city>, Japan, in
+  mid-to-late October" and turned away snow, holiday lights and bare trees. On a plan trip it now names the city's
+  country and the days the trip is there, and says what suits them (snow at a mountain resort in winter, green in the
+  tropics). A show on a stage inside a hall is not a view of the place (Hanoi's first pick was the inside of its water
+  puppet theatre), so the next sight is tried. Japan's October trip keeps its question word for word (a test holds it). Where: backend
+  routes/cityPhoto.ts (`seasonQuestion`). SPEC §16, §22.2.
+- **Every city of a plan trip is part of the trip.** Siem Reap, Shiga Kogen and Tokyo had no arrival photo, no band
+  photo, no place on the Home map and no count in the story: the phone took "the trip's country" to be the one most of
+  its cities are in, a rule made to leave out the city a sheet trip flies from. Where: phone lib/cityColors.ts
+  (`cityInTrip`), used by the Day screen's band and arrival photo, Home's map and photo warm-up, and the story's count
+  (which no longer names one country on a plan trip). A sheet trip is unchanged. SPEC §22.2.
+
 ## 2026-11-17 (Tuesday, at home) — December's trip: a trip built from a plan, with samples only Ken sees
 
 - Ken (Nov 16), on December's Vietnam, Cambodia and Japan trip: "larisa sees what is real only and I see what is real

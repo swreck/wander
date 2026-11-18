@@ -21,7 +21,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { voiceFor, clock as clock12 } from "../lib/guideDisplay";
 import { photosOf, PHOTOS_CHANGED, useShowable, type TripPhoto } from "../lib/tripPhotos";
 import { PhotoViewer } from "../components/DayPhotos";
-import { tripCountryOf } from "../lib/cityColors";
+import { tripCountryOf, cityInTrip } from "../lib/cityColors";
+import { isPlanTrip } from "../lib/planTrip";
 
 const japanToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
 const ymd = (d: string | null | undefined) => String(d || "").slice(0, 10);
@@ -136,8 +137,10 @@ export default function TripStoryPage() {
       else sections.push({ cityId: day.cityId, name: data.trip.cities?.find((c) => c.id === day.cityId)?.name || "On the way", days: [day] });
     }
     // (the trip's country's cities — "6 cities" counted San Francisco; and no count of photos as "stops": tourist72)
-    const country = tripCountryOf(data.trip.cities || []);
-    const cities = new Set(days.map((d) => d.cityId).filter((id) => { const c = data.trip.cities?.find((x) => x.id === id); return !!c && (!country || !c.country || c.country === country); })).size;
+    // (a trip built from a plan goes to several countries: every city counts, and no one country is named)
+    const plan = isPlanTrip(data.trip.id);
+    const country = plan ? null : tripCountryOf(data.trip.cities || []);
+    const cities = new Set(days.map((d) => d.cityId).filter((id) => { const c = data.trip.cities?.find((x) => x.id === id); return !!c && cityInTrip(c, data.trip.cities || [], plan); })).size;
     return { sections, days, first, last, over: !!last && today > last, cities, country, notes: days.reduce((n, d) => n + d.notes.length, 0) };
   }, [data, summaries, places, notes, me, today]);
 

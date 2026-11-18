@@ -34,3 +34,13 @@ export function tripCountryOf(cities: { country?: string | null }[]): string | n
   for (const c of cities) if (c.country) n.set(c.country, (n.get(c.country) || 0) + 1);
   return Array.from(n.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 }
+
+/** Is this city somewhere the trip goes? In a one-country trip the city you fly from is outside it. A trip built from a
+ *  plan lists only where it goes, in as many countries as it has (Vietnam, Cambodia and Japan in December 2026), so
+ *  every one of its cities is in: each has its photo, its place on the Home map and its count. (Nov 17 2026: Siem Reap,
+ *  Shiga Kogen and Tokyo had none of the three, since most of that trip's cities are in Vietnam.) */
+export function cityInTrip(city: { country?: string | null }, cities: { country?: string | null }[], plan: boolean): boolean {
+  if (plan || !city.country) return true;
+  const main = tripCountryOf(cities);
+  return !main || city.country === main;
+}

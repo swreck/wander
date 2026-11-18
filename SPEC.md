@@ -2929,7 +2929,8 @@ setting never replaces the others.
   booked train in has arrived on a travel day, never while a day is being read (it shows only in the day's first
   drawing). The sight is the most-reviewed attraction within 12 km, never a mall, shop, theme park or hotel. The photo
   check looks at the whole picture and passes over any that shows another season (holiday decorations, snow, bare trees,
-  cherry blossoms); with nothing fitting October, there's no photo. Tapping the city's name on any of its days brings it
+  cherry blossoms); with nothing fitting October, there's no photo. (On a trip built from a plan the season is the
+  city's own, on the days the trip is there: §22.2.) Tapping the city's name on any of its days brings it
   back. The photo comes through Wander's server, so no Google key reaches the phone.
 - **The city band** on every day carries the same photo, already chosen for the season, with the photographer credited
   (§3.1). "Wander in pictures", idea 1.
@@ -3184,6 +3185,11 @@ The trip crosses Vietnam, Cambodia and Japan and is flown through Seoul and Bang
   button reads "Phrases".
 - Maybes has a tab for every city still ahead; "Next 2 days" shows once the trip has begun.
 - Japan's storm watch (§6.6) runs only on a plan trip's days in Japan.
+- Every city of a plan trip is part of the trip, whatever its country: each has its arrival photo and its band photo
+  (§16), its place on the Home map and its count in the story, which names no single country. (A sheet trip still leaves
+  out the city it flies from.)
+- A city's photo is checked against the days the trip is there, in that city's country (§16): snow suits Shiga Kogen in
+  January and never Hanoi in December. Japan's October trip keeps its own check, word for word.
 
 ### 22.3 Each person's days
 
