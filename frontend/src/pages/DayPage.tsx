@@ -30,7 +30,7 @@ import {
   nowMinutesOn, zonedMoment, scheduledLanding, bookedByName, bookedWords, askedOf, distinctWords, openQuestionsIn,
   noGroupWords, pictureGroupOf, pictureYou, PICTURE_GROUP, tripClockMinutes, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, differWordsFor,
   samePerson, travelerToday, askedParts, othersPartysJob, startsSomething, inHerVoice, speaksAsHer, arrivedForTonight, getsYouTo,
-  withoutDone,
+  withoutDone, countryOfCity, myFirstDay, connectionsAfter, flightRoute, flightService, landsSameDay,
 } from "../lib/guideDisplay";
 import { sourcesData, savedSources, railAudience, legIsFor, twelveHour, isBookedTrain, colOf, withTwelveHour, sourceWordsFor, pickupProgress, untickedTickets, railNoteFor, dateInText, readWords, isSettledStatus, type OtherSource, type RailDiffer, type RailRow } from "../lib/sources";
 import { TrainsForDay, ChecklistCard, NextTrain, DifferNote, checklistTitle, TicketWarnings, RailLeg } from "../components/RailSheet";
@@ -971,7 +971,8 @@ import { isPlanTrip } from "../lib/planTrip";
 import { loadMarks, savedMarks, deadlineKey, markDay, type Mark } from "../lib/actionMarks";
 import { DayPapers } from "../components/Papers";
 import { holdKeyboard } from "../lib/keyboardHold";
-import GetThere from "../components/GetThere";
+import GetThere, { GetThereCountry } from "../components/GetThere";
+import { emptyDayLine, startWords } from "../lib/planScreens";
 
 
 /**
@@ -1302,15 +1303,12 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // (your own today: Japan's date once your plane has landed there, whatever the phone's clock — Oct 10 audit)
   const today = travelerToday(items, me, tripWideZone, phoneToday());
   // The Now tab starts from YOUR first day: Julie, at home until Oct 13, isn't shown Ken & Larisa's Okayama
-  const myParty = partyOf(items, me);
-  const myStart = myParty
-    ? items.filter((i) => i.date && i.forWhom === myParty && ["flight", "checkin"].includes(i.kind) && !isLanding(i)).map((i) => ymd(i.date)).sort()[0]
-    : undefined;
   // …and from your first JAPAN date on the way: your flight's own date can be one you're still at home on in
-  // Japan's calendar (round 8: Now told Julie "Here's your first day" on Japan's Oct 13, the others' day)
-  let myJapanStart = myStart;
-  for (let k = 0; myJapanStart && k < 3 && homeOnJapanDate(items, me, myJapanStart, tripWideZone); k++) myJapanStart = addDays(myJapanStart, 1);
-  const first = now && myJapanStart && myJapanStart > tripFirst ? myJapanStart : tripFirst;
+  // Japan's calendar (round 8: Now told Julie "Here's your first day" on Japan's Oct 13, the others' day). A plan trip's
+  // first day is the date on your first flight (S3 fix 4). One function, tested (lib/guideDisplay myFirstDay).
+  const mine1st = myFirstDay(items, me, tripFirst, tripWideZone);
+  const myStart = mine1st.myStart;
+  const first = now ? mine1st.first : tripFirst;
   // The day you leave home, for "You leave tomorrow" (a home date, not the Japan date you arrive on)
   // (always your own flight's day when her Guide has one — round 12: Ken & Larisa fly on the trip's first day, which
   // fell back to their first Japan day, so Now said "You leave tomorrow" on the morning they flew)
@@ -1500,6 +1498,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
 
   const night = useMemo(() => nightOf(date, stays, items, tripWideZone), [date, stays, items]);
   const cityOf = (id?: string | null) => (id ? trip?.cities.find((c) => c.id === id)?.name ?? null : null);
+  const countryOf = (id?: string | null) => countryOfCity(trip?.cities, id);
   // The stay a stop note belongs to is named by the city of its first day
   const stopCity = (s: GuideItem) => days.find((d) => ymd(d.date) === (s.windowStart || ymd(s.date)))?.city?.name ?? null;
   const owner = guideOwnerOf(trip?.tagline);
@@ -1830,7 +1829,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const trainFirst = !!riding || !!trainImminent || !!legBeforeTrain || herNextMin === null || (nextBookedDep !== null && nextBookedDep <= herNextMin);
   const myTonight = myNight(night, me);
   // "The hotel" in her plan: tonight's one stay for you, or unknown
-  const tonightHotel = myTonight.stays.length === 1 ? stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)) : null;
+  const tonightHotel = myTonight.stays.length === 1 ? stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId), countryOf(myTonight.stays[0].stay.cityId)) : null;
   // (Next's own lines' photos — the same checked ones the day's list finds, each looked up by its own LinePhotos: a hook
   // here would sit below the loading screen's early return — React #310, caught before shipping)
   // (country: the day's own, its city's — a Hanoi place is searched in Vietnam, not Japan)
@@ -2137,6 +2136,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const sampleSummary = !now && samples.length && !summariesByDay[date] ? sampleFor("summary", date, samples) : null;
 
   return (
+    <GetThereCountry.Provider value={bandCity?.country ?? null}>
     <div className="min-h-[100dvh] bg-[#faf8f5] pb-32">
       {/* Header: where you are, how to get back, and the neighbouring days */}
       <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] px-2 top-bar pb-2">
@@ -2230,7 +2230,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // phone on Japan time, tapping Tokyo on the map opened Oct 13 and used up the photo before landing)
                   const notThereYet = isToday && cityDates[0] <= today && ((landsAt !== null && tripNow < landsAt)
                     || (cityDates[0] === today && (arriveBy !== null ? tripNow < arriveBy : leaving.length > 0 && !arrivedForTonight(dayItems, me, tripNow, null))));
-                  return <CityTitle cityId={cityId} cityName={cityName} dateWords={longDate(date)} photo={away && !!cityId} onPhoto={!!bandPhoto} auto={away && date <= today && inCityNow && !notThereYet && !beforeMyLanding(items, me, tripZone) && !location.hash.startsWith("#item-")} />;
+                  // (a plan trip, the night in the air with no stay: "On the way to Hanoi", S3 fix 4)
+                  const onTheWay = v.plan && myTonight.stays.length === 0 && myTonight.away.length > 0;
+                  return <CityTitle cityId={cityId} cityName={cityName} title={onTheWay ? `On the way to ${cityName}` : undefined} dateWords={longDate(date)} photo={away && !!cityId} onPhoto={!!bandPhoto} auto={away && date <= today && inCityNow && !notThereYet && !beforeMyLanding(items, me, tripZone) && !location.hash.startsWith("#item-")} />;
                 })()}
                 {(planBlocks.length > 0 || dayItems.length > 0) && (
                   <div className="shrink-0 -mb-2">
@@ -2286,10 +2288,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 {first !== tripFirst && leaveDay === today && (() => {
                   const out = items.find((i) => i.kind === "flight" && !isLanding(i) && i.time && ymd(i.date) === today && isFor(i, me));
                   return !!out && nowMinutesOn(today, out.timeZone || tripZone) >= toMin(out.time!);
-                })() ? "You should be on your way" : <>{first === tripFirst ? "The trip starts" : "You leave"} {(() => {
-                  const n = Math.round((new Date(`${leaveDay}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86400000);
-                  return n === 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`;
-                })()}</>}. Here's {first === tripFirst ? "the first day" : leaveDay !== first ? firstDayIn(bandCity?.country) : "your first day"}.
+                })() ? "You should be on your way" : <>{startWords(first, tripFirst, leaveDay, today)}</>}. Here's {first === tripFirst ? "the first day" : leaveDay !== first ? firstDayIn(bandCity?.country) : "your first day"}.
               </p>
             )}
             {afterTrip && (
@@ -2341,11 +2340,17 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 && /\b(bus|limousine|narita express|n'?ex|haruka|skyliner|train|taxi|transfer|shuttle|car)\b/i.test(`${x.title} ${x.detail || ""}`))
                 // (only your own legs — Ken & Larisa's Mashiko trains hid Julie's line; round 12)
                 || otherSources.some((s) => { const a = railAudience(items, s.owner); return s.rail.some((r) => r.date === date && legIsFor(r, s, me, a.ownerParty, a.groupSize)); });
-              const helpHome = !!hotel && !saysHow;
+              // A change of planes (plan trips): the way to the hotel is from the last airport, and only when the last
+              // flight lands today (S3 fix 1: Seoul on the way to Hanoi is not "the plan doesn't say how to get to the hotel")
+              const chain = v.plan ? connectionsAfter(land, items, me, tripZone) : [];
+              const lastFlight = chain[chain.length - 1];
+              const helpAirport = lastFlight ? flightRoute(lastFlight)!.to.replace(/,\s*Terminal\s*\w+\s*$/i, "") : airport;
+              const helpShort = helpAirport.replace(/\s*\([A-Z]{3}\)$/, "");
+              const helpHome = !!hotel && !saysHow && (!lastFlight || landsSameDay(lastFlight, items));
               // On the day's screen, only when it tells you something the landing line in the day doesn't: that the earlier
               // lines are the others', or how to get to the hotel (day review, Oct 4 — Ken: "not sure why it is there"; on
               // Oct 6, with no one else in Japan, it repeated the summary and the 2:50 PM line). Now keeps it as what's next.
-              if (!now && !others && !helpHome) return null;
+              if (!now && !others && !helpHome && !chain.length) return null;
               const yours = phoneIsElsewhere(tripZone)
                 ? ` (${zonedMoment(date, toMin(land.time!), land.timeZone || tripZone).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "")} your time)`
                 : "";
@@ -2354,6 +2359,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   {due
                     ? <>Your flight was due to land at {airport} at {clock(land.time)} {zoneWords(land.timeZone || tripZone)}{yours} — that's the schedule.{others ? " Anything earlier on this day is the others' plan." : ""}</>
                     : <>You land at {airport} at {clock(land.time)} {zoneWords(land.timeZone || tripZone)}{yours}{isToday ? " today" : ""}.{others ? " Anything earlier on this day is the others' plan." : ""}</>}
+                  {chain.length > 0 && <> Your next flight, {flightService(chain[0].title)} to {flightRoute(chain[0])!.to.replace(/,\s*Terminal\s*\w+\s*$/i, "")}, leaves here at {clock(chain[0].time)} {zoneWords(chain[0].timeZone || tripZone)}.</>}
                   {(() => {
                     // Her own words about it from her other tabs, when she wrote any — quoted, with the tab; never "doesn't say"
                     // when a tab does (delight audit: her Hotel Options tab names the Limousine Bus and the Narita Express)
@@ -2363,15 +2369,15 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                       // jet-lagged, "Scout can look up the ways to go" wasn't a button and Maps only searched the hotel)
                       ? <span className="block mt-1">
                           {ways.length
-                            ? <>Getting from {airport.replace(/\s*\([A-Z]{3}\)$/, "")} to {hotel} — {v.her} hotel notes say:
+                            ? <>Getting from {helpShort} to {hotel} — {v.her} hotel notes say:
                                 {ways.map((w) => <span key={w.text} className="block mt-0.5 text-[#514636]">“{w.text}” <span className="text-[#6b5d4a]">({v.her} “{w.tab}” tab)</span></span>)}</>
-                            : <>{v.HerGuide} doesn't say how to get from {airport.replace(/\s*\([A-Z]{3}\)$/, "")} to {hotel}.</>}
+                            : <>{v.HerGuide} doesn't say how to get from {helpShort} to {hotel}.</>}
                           <span className="flex flex-wrap gap-x-4 mt-1">
                             {navigator.onLine !== false
-                              ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${airport.replace(/\s*\([A-Z]{3}\)$/, "")} to ${hotel}?` } }))}
+                              ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${helpShort} to ${hotel}?` } }))}
                                   className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Ask Scout the ways to go ›</button>
                               : <span className="inline-flex items-center min-h-[44px] text-sm text-[#6b5d4a]">Scout can answer once you have signal</span>}
-                            <a href={airportDirectionsHref(airport.replace(/\s*\([A-Z]{3}\)$/, ""), tonightHotel || hotel, bandCity?.country)}
+                            <a href={airportDirectionsHref(helpShort, tonightHotel || hotel, bandCity?.country)}
                               target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Directions in Maps ↗</a>
                           </span>
                         </span>
@@ -2719,8 +2725,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                       {ymd(myTonight.stays[0].stay.checkInDate) === date && myTonight.stays[0].stay.checkInTime && !(isToday && tripNow >= 18 * 60) ? ` — check in any time from ${/^\d{1,2}:\d{2}$/.test(myTonight.stays[0].stay.checkInTime) ? clock(myTonight.stays[0].stay.checkInTime) : myTonight.stays[0].stay.checkInTime}` : ""}
                     </p>
                     {/* (the hotel's own checked photo — Ken, Oct 18: "Next page should have pictures") */}
-                    {tripId && <ItemPhoto tripId={tripId} cityId={myTonight.stays[0].stay.cityId ?? null} query={stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId))} line={`Tonight's hotel: ${myTonight.stays[0].stay.name}`} title={myTonight.stays[0].stay.name} time={null} />}
-                    <GetThere href={mapsLink(stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId)))} name={myTonight.stays[0].stay.name} />
+                    {tripId && <ItemPhoto tripId={tripId} cityId={myTonight.stays[0].stay.cityId ?? null} query={stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId), countryOf(myTonight.stays[0].stay.cityId))} line={`Tonight's hotel: ${myTonight.stays[0].stay.name}`} title={myTonight.stays[0].stay.name} time={null} />}
+                    <GetThere href={mapsLink(stayMapsQuery(myTonight.stays[0].stay, cityOf(myTonight.stays[0].stay.cityId), countryOf(myTonight.stays[0].stay.cityId)))} name={myTonight.stays[0].stay.name} />
                   </>
                 ) : myFlight && flightAt !== null && flightNow >= flightAt ? (() => {
                   // The flight has left: say so, and when it lands — and once it should have landed, say that (at
@@ -2861,7 +2867,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 </p>
               ) : (
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4">
-                  {v.Guide} has nothing set for this day.
+                  {emptyDayLine(v.Guide, { plan: v.plan, hasRealSummary: !!summariesByDay[date] })}
                 </p>
               )}
               {/* (an empty day keeps its sentence; Ken's samples for it go under, in their own list, in time order) */}
@@ -3112,15 +3118,15 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                           {/* (only on a day without her detailed plan — on one with it, the hotel's own line may show it already) */}
                           {/* (…nor when Backroads' own stops that day are the hotel — the Ritz showed twice, one under the
                               other; fresh photo check, Oct 17) */}
-                          {tripId && !planBlocks.length && !(docDay?.moments || []).some((m) => !!m.place && sameStay(m.place, s.name)) && <ItemPhoto tripId={tripId} cityId={s.cityId ?? null} query={stayMapsQuery(s, cityOf(s.cityId))} line={`Tonight's hotel: ${s.name}`} title={s.name} time={null} />}
+                          {tripId && !planBlocks.length && !(docDay?.moments || []).some((m) => !!m.place && sameStay(m.place, s.name)) && <ItemPhoto tripId={tripId} cityId={s.cityId ?? null} query={stayMapsQuery(s, cityOf(s.cityId), countryOf(s.cityId))} line={`Tonight's hotel: ${s.name}`} title={s.name} time={null} />}
                           {date < today
-                            ? <a href={mapsLink(stayMapsQuery(s, cityOf(s.cityId)))} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
+                            ? <a href={mapsLink(stayMapsQuery(s, cityOf(s.cityId), countryOf(s.cityId)))} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
                                 {s.address ? `${s.address} ↗` : "Maps ↗"}
                               </a>
                             // (the address in words, for a taxi driver; then Walk, Train or Taxi there — Ken, Oct 27)
                             : <>
                                 {s.address && <p className="text-sm text-[#514636] mt-1 [overflow-wrap:anywhere]">{s.address}</p>}
-                                <GetThere href={mapsLink(stayMapsQuery(s, cityOf(s.cityId)))} name={s.name} />
+                                <GetThere href={mapsLink(stayMapsQuery(s, cityOf(s.cityId), countryOf(s.cityId)))} name={s.name} />
                               </>}
                         </li>
                       ))}
@@ -3181,6 +3187,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         )}
       </main>
     </div>
+    </GetThereCountry.Provider>
   );
 }
 

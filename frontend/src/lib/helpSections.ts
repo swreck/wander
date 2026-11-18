@@ -137,20 +137,20 @@ const planSections = (mine: boolean, meName: string, sources: string[]) => {
   const named = planSourceNames(sources, meName);
   const paragraphs = (id: string) => sheet.find((s) => s.id === id)!.body.split("\n\n");
   const lives = named.length
-    ? `The plan is built from ${joined(named)}. Wander never changes ${named.length === 1 ? "it" : named.length === 2 ? "either" : "any of them"}. Where something is still open, like a train that isn't booked yet, Wander shows it as open.`
-    : "Wander holds the trip's plan. Where something is still open, like a train that isn't booked yet, Wander shows it as open.";
+    ? `The plan is built from ${joined(named)}. Wander never changes ${named.length === 1 ? "it" : named.length === 2 ? "either" : "any of them"}. Where something is still open, Wander shows it as open.`
+    : "Wander holds the trip's plan. Where something is still open, Wander shows it as open.";
   const bodies: Record<string, string> = {
     "quick-start": `Wander shows the trip's plan on your phone, arranged by day.
 
 **Home** opens on what matters now. **Go to today ›** opens today's full page. Below that: today, where you sleep tonight, and tomorrow. Tap any day on the calendar to see that day.
 
-Along the bottom: **Today** (all of today, by the clock), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what's been paid for the group, and who pays next), and **Scout**, which you can ask anything about the trip. **日 Phrases** at the right end opens Japanese phrases. To-dos and **Maybes** open from Home.`,
+Along the bottom: **Today** (all of today, by the clock), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what's been paid for the group, and who pays next), and **Scout**, which you can ask anything about the trip. **Phrases** at the right end opens a card of phrases for the country you're in. To-dos and **Maybes** open from Home.`,
     "getting-around": `A day shows everything the plan has for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, and where you sleep that night. Each line says where it came from, and the bottom says when the plan was last updated.
 
-The arrows at the top move a day at a time. **‹ Back** goes back where you came from.
+The arrows at the top move a day at a time. The word at the top left, like **‹ Home**, goes back where you came from.
 
 **+ Add a plan for this day** puts your own plan on it, like "Ken and Larisa: the night market at 7." Everyone sees it, marked as added in Wander.`,
-    "travel-days": `The **Next** tab is today: where the plan has you right now, what's next, and how long until it. Under it, **Get there** opens Google Maps from where you're standing: walking, by train, or a route to show a taxi driver.
+    "travel-days": `The **Next** tab is today: where the plan has you right now, what's next, and how long until it. Under it, **Walk** and **Taxi** open Google Maps from where you're standing. In Japan there is **Train** as well.
 
 Before the trip, Next shows the first day. After it, the last.`,
     chat: [
@@ -170,7 +170,9 @@ ${mine ? "If something in Wander looks different from your notes, your notes are
       ...paragraphs("notes").slice(2),
     ].join("\n\n"),
   };
-  return sheet.map((s) => (bodies[s.id] ? { ...s, body: bodies[s.id] } : s));
+  // (the phrase card is for the country you're in: its section is "Phrases", and the button has no 日)
+  const phrases = sheet.find((s) => s.id === "phrases")!.body.replace("Tap **日 Phrases** at the right end", "Tap **Phrases** at the right end");
+  return sheet.map((s) => (s.id === "phrases" ? { ...s, title: "Phrases", body: phrases } : bodies[s.id] ? { ...s, body: bodies[s.id] } : s));
 };
 
 /** The help page's sections: a sheet trip's as they have always been, a trip built from a plan with the plan's words */

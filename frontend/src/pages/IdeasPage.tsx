@@ -20,6 +20,8 @@ import { mapsLink, voiceFor, linkLabel, partyOf, homeOnJapanDate, notLandedYet }
 import { maybesChanged, type SeenRow } from "../lib/maybesNews";
 import { tellGroup, personOf } from "../lib/tellGroup";
 import { loadSamples, mergeSamples, type Sample, type SampleItem } from "../lib/samples";
+import { isPlanTrip } from "../lib/planTrip";
+import { planMaybeCities } from "../lib/planScreens";
 import { SampleRow } from "../components/SampleTag";
 
 interface Note { id: string; experienceId: string; content: string; visibility?: string; traveler: { displayName: string }; createdAt: string; _pending?: boolean }
@@ -167,11 +169,15 @@ export default function IdeasPage() {
     const here = guide.days.find((d) => ymd(d.date) === day0)?.cityId;
     // (and, for the one person who sees samples, a city ahead whose only maybes are samples: with no tab they'd never be seen)
     const sampled = (c: { planKey?: string | null }) => !!c.planKey && mergeSamples<never>("maybe", [], samples, { cityKey: c.planKey }).length > 0;
-    return [...guide.trip.cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder).filter((c) => (((withIdeas.has(c.id) || sampled(c)) && ahead.has(c.id)) || c.id === here) && !c.hidden);
+    const inOrder = [...guide.trip.cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+    // (a plan trip: every city ahead has its tab, maybes or not — Larisa had no way to add the first one; S3 fix 12)
+    if (isPlanTrip()) return planMaybeCities(inOrder, guide.days.map((d) => ({ date: ymd(d.date), cityId: d.cityId })), day0);
+    return inOrder.filter((c) => (((withIdeas.has(c.id) || sampled(c)) && ahead.has(c.id)) || c.id === here) && !c.hidden);
   }, [guide, ideas, samples]);
 
   // Which city: the one asked for, else where you are today, else the first
   const today = phoneToday();
+  const beforeTheTrip = isPlanTrip() && !!guide && !!ymd(guide.trip.startDate) && today < ymd(guide.trip.startDate);
   // (not "today" for you before your plane lands — verify 6: "Tokyo · today" all of Oct 13 while Julie was at home)
   const away = !!guide && notLandedYet(guide.items || [], user?.displayName, guide.trip.timeZone || "Asia/Tokyo");
   const todayCityId = away ? null : guide?.days.find((d) => ymd(d.date) === today)?.cityId || null;
@@ -434,10 +440,13 @@ export default function IdeasPage() {
             </SideRow>
           )}
           <SideRow className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 mt-1.5" label="Show by day or kind">
-            <button onClick={() => setSoon((v) => !v)} aria-pressed={soon}
-              className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${soon ? "bg-[#514636] text-white border-[#514636]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
-              Next 2 days
-            </button>
+            {/* (a plan trip, before its first day: "Next 2 days" could only answer "nothing"; S3 fix 9) */}
+            {!beforeTheTrip && (
+              <button onClick={() => setSoon((v) => !v)} aria-pressed={soon}
+                className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${soon ? "bg-[#514636] text-white border-[#514636]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
+                Next 2 days
+              </button>
+            )}
             {themesHere.map((t) => (
               <button key={t} onClick={() => setTheme(activeTheme === t ? null : t)} aria-pressed={activeTheme === t}
                 className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${activeTheme === t ? "bg-[#efe6d6] border-[#c8b89c] text-[#3a3128]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>

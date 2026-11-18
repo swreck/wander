@@ -266,7 +266,8 @@ describe("D6 the help page", () => {
   }
   it("a plan trip's help has the same sections in the same order", () => {
     const ids = (s: { id: string; title: string }[]) => s.map((x) => `${x.id}|${x.title}`);
-    expect(ids(sectionsFor(false, "Ken", true, SOURCES))).toEqual(ids(FIXTURE.Ken));
+    // (the phrases section is retitled "Phrases" on a plan trip, S3 fix 11; every other id and title is a sheet trip's)
+    expect(ids(sectionsFor(false, "Ken", true, SOURCES))).toEqual(ids(FIXTURE.Ken).map((x: string) => (x === "phrases|Japanese Phrases" ? "phrases|Phrases" : x)));
   });
   it("a plan trip's help says what the brief says", () => {
     const by = (who: string, mine: boolean, sources = SOURCES) => Object.fromEntries(sectionsFor(mine, who, true, sources).map((s) => [s.id, s.body]));
@@ -281,8 +282,8 @@ describe("D6 the help page", () => {
     expect(ken["chat"]).toContain("Scout has read the whole plan and knows what day and time it is where you are.");
     for (const q of ['"Where are we sleeping tonight?"', '"What time do we meet Backroads?"', '"When do we land in Tokyo?"', '"Anywhere for coffee near here?"']) expect(ken["chat"]).toContain(q);
     expect(ken["chat"]).toContain("Send Scout a photo or a file");
-    expect(ken["the-guide"]).toBe("The plan is built from Larisa's notes and Backroads' itinerary. Wander never changes either. Where something is still open, like a train that isn't booked yet, Wander shows it as open.\n\nIf something in Wander looks different from what Larisa told you, trust Larisa. Wander may not have her latest yet.");
-    expect(larisa["the-guide"]).toBe("The plan is built from your notes and Backroads' itinerary. Wander never changes either. Where something is still open, like a train that isn't booked yet, Wander shows it as open.\n\nIf something in Wander looks different from your notes, your notes are right. Wander may not have your latest yet.");
+    expect(ken["the-guide"]).toBe("The plan is built from Larisa's notes and Backroads' itinerary. Wander never changes either. Where something is still open, Wander shows it as open.\n\nIf something in Wander looks different from what Larisa told you, trust Larisa. Wander may not have her latest yet.");
+    expect(larisa["the-guide"]).toBe("The plan is built from your notes and Backroads' itinerary. Wander never changes either. Where something is still open, Wander shows it as open.\n\nIf something in Wander looks different from your notes, your notes are right. Wander may not have your latest yet.");
     expect(by("Ken", false, ["Backroads' itinerary"])["the-guide"]).toMatch(/^The plan is built from Backroads' itinerary\. Wander never changes it\. /);
     expect(by("Ken", false, [])["the-guide"]).toMatch(/^Wander holds the trip's plan\. Where something is still open/);
     expect(ken["notes"]).toContain('("our guide took us to her family\'s noodle shop")');
@@ -294,9 +295,44 @@ describe("D6 the help page", () => {
   it("the paragraphs the brief leaves as today are today's, word for word", () => {
     const sheet = Object.fromEntries(FIXTURE.Ken.map((s: any) => [s.id, s.body]));
     const plan = Object.fromEntries(sectionsFor(false, "Ken", true, SOURCES).map((s) => [s.id, s.body]));
-    for (const id of ["phrases", "no-signal", "travel-info", "feedback", "getting-in"]) expect(plan[id]).toBe(sheet[id]);
+    for (const id of ["no-signal", "travel-info", "feedback", "getting-in"]) expect(plan[id]).toBe(sheet[id]);
     expect(plan["chat"].split("\n\n").slice(2)).toEqual(sheet["chat"].split("\n\n").slice(2));
     expect(plan["notes"].split("\n\n").slice(2)).toEqual(sheet["notes"].split("\n\n").slice(2));
+  });
+});
+
+describe("S3 fix 11: help sentences that match December's screens", () => {
+  const SOURCES = ["Larisa's notes", "Backroads' itinerary"];
+  const plan = () => Object.fromEntries(sectionsFor(false, "Ken", true, SOURCES).map((s) => [s.id, s]));
+  const sheet = () => Object.fromEntries(sectionsFor(false, "Ken").map((s) => [s.id, s]));
+  it("quick-start: Phrases opens a card for the country you're in", () => {
+    expect(plan()["quick-start"].body).toContain("**Phrases** at the right end opens a card of phrases for the country you're in.");
+    expect(plan()["quick-start"].body).not.toMatch(/日|Japanese phrases/);
+  });
+  it("getting-around: the word at the top left goes back", () => {
+    expect(plan()["getting-around"].body).toContain("The word at the top left, like **‹ Home**, goes back where you came from.");
+    expect(plan()["getting-around"].body).not.toContain("**‹ Back**");
+  });
+  it("travel-days: Walk and Taxi, and Train in Japan", () => {
+    expect(plan()["travel-days"].body).toContain("Under it, **Walk** and **Taxi** open Google Maps from where you're standing. In Japan there is **Train** as well.");
+    expect(plan()["travel-days"].body).not.toContain("Get there");
+  });
+  it("the phrases section is titled Phrases and its button has no 日; the rest of it is today's", () => {
+    expect(plan()["phrases"].title).toBe("Phrases");
+    expect(plan()["phrases"].body).toBe(sheet()["phrases"].body.replace("Tap **日 Phrases** at the right end", "Tap **Phrases** at the right end"));
+    expect(plan()["phrases"].body).toMatch(/^Tap \*\*Phrases\*\* at the right end of the bar along the bottom/);
+  });
+  it("no train that isn't booked yet in the sentence about what is open", () => {
+    for (const s of Object.values(plan())) expect(s.body).not.toMatch(/isn't booked yet/);
+    expect(plan()["the-guide"].body).toContain("Where something is still open, Wander shows it as open.");
+  });
+  it("a sheet trip's help is unchanged: 日 Phrases, ‹ Back, Get there, Japanese Phrases", () => {
+    const s = sheet();
+    expect(s["quick-start"].body).toContain("**日 Phrases** at the right end opens Japanese phrases.");
+    expect(s["getting-around"].body).toContain("**‹ Back** goes back where you came from.");
+    expect(s["travel-days"].body).toContain("**Get there** opens Google Maps");
+    expect(s["phrases"].title).toBe("Japanese Phrases");
+    expect(s["phrases"].body).toContain("Tap **日 Phrases** at the right end");
   });
 });
 

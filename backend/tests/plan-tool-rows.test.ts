@@ -16,7 +16,10 @@ const lib: any = have ? await import(path.join(DIR, "plan-lib.mts")) : null;
 const TAG = `PLANT${Date.now()}`;
 const names = { a: `${TAG}-Ken`, b: `${TAG}-Larisa` };
 const planners = [{ name: names.a, showSamples: true }, { name: names.b, showSamples: false }];
-const run = (plan: any, extra: any = {}) => lib.runPlan(prisma, plan, { mode: "test", planners, ...extra });
+// (the plan's trip exists before the first run and every run names it: other files build plan trips in this database at the
+// same time, and a run that must find "the" plan trip would refuse, or adopt theirs; S3 fix, Nov 17 2026)
+let ownTripId = "";
+const run = (plan: any, extra: any = {}) => lib.runPlan(prisma, plan, { mode: "test", planners, ...(ownTripId ? { tripId: ownTripId } : {}), ...extra });
 const tripOf = async () => (await prisma.guideSnapshot.findFirst({ where: { sourceKind: "wander_plan", trip: { name: { startsWith: "A Trip" } } }, select: { tripId: true } }))!.tripId;
 const items = async (tripId: string) => prisma.guideItem.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { sortOrder: "asc" }] });
 let created: string[] = [];
@@ -27,6 +30,9 @@ const tid = async () => (await prisma.trip.findFirst({ where: { name: `A Trip ${
 beforeAll(async () => {
   if (!have) return;
   for (const n of Object.values(names)) await prisma.traveler.create({ data: { displayName: n } });
+  const own = await prisma.trip.create({ data: { name: `A Trip ${TAG}`, status: "archived" } });
+  ownTripId = own.id;
+  await prisma.guideSnapshot.create({ data: { tripId: own.id, sourceName: "December plan", sourceKind: "wander_plan", contentHash: "x", status: "current", tabs: [], importedBy: "plan-tool" } });
 });
 afterAll(async () => {
   if (!have) return;
@@ -345,5 +351,53 @@ describe("a Guide trip's summaries read the same with or without the empty-day r
       checked++;
     }
     expect(checked).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe.skipIf(!have)("a check-in with no time sits where the day reaches the hotel (S3 fix 10)", () => {
+  // The fake plan's Wed Mar 3: lines "Welcome walk, 1 hour" and "Dinner together"; Stay B Inn (no check-in time) checks in.
+  const dayTitles = async (date: string, untimedOnly = true) =>
+    (await items(await tid())).filter((i) => i.date!.toISOString().slice(0, 10) === date && (!untimedOnly || i.time === null)).map((i) => i.title);
+  const withLines = (lines: string[], extra: (p: any) => void = () => {}) => planFor((p) => { p.days[2].lines = lines; extra(p); });
+  // (named by its trip: other files build plan trips in this database at the same time, and a run that must find "the" plan trip refuses)
+  const go = async (p: any) => run(p, { tripId: await tid() });
+
+  it("with no line naming the stay: directly before the day's first dinner line", async () => {
+    await go(withLines(["Welcome walk, 1 hour", "Dinner together"]));
+    const t = await dayTitles("2027-03-03");
+    expect(t.indexOf("Check in · Stay B Inn")).toBe(t.indexOf("Dinner together") - 1);
+    expect(t.indexOf("Welcome walk, 1 hour")).toBe(t.indexOf("Check in · Stay B Inn") - 1);
+  });
+
+  it("with a line naming the stay (its first two words): directly after the last such line, even after dinner", async () => {
+    await go(withLines(["Welcome walk, 1 hour", "Dinner together", "Shuttle to Stay B Inn, 20 minutes", "Free time"]));
+    const t = await dayTitles("2027-03-03");
+    expect(t.indexOf("Check in · Stay B Inn")).toBe(t.indexOf("Shuttle to Stay B Inn, 20 minutes") + 1);
+    expect(t.indexOf("Free time")).toBe(t.indexOf("Check in · Stay B Inn") + 1);
+  });
+
+  it("with no stay-naming line and no dinner: last", async () => {
+    await go(withLines(["Welcome walk, 1 hour", "Morning stroll"]));
+    const t = await dayTitles("2027-03-03");
+    expect(t[t.length - 1]).toBe("Check in · Stay B Inn");
+  });
+
+  it("a check-in with a time keeps its place by the clock; a day with no lines keeps the old order; check-outs do not move", async () => {
+    await go(withLines(["Welcome walk, 1 hour", "Dinner together"], (p) => { p.stays[1].checkInTime = "5:00 pm"; }));
+    const all = await dayTitles("2027-03-03", false);
+    // (by the clock: after the 9:00 meeting and the 12:00 check-out, before every line with no time)
+    expect(all.slice(0, 3)).toEqual(["Meet the Backroads leaders · The Lobby, Stay A Hotel", "Check out · Stay A Hotel", "Check in · Stay B Inn"]);
+    await go(withLines([]));
+    const none = await dayTitles("2027-03-03");
+    // (no lines: where the tool has always put it, after the day's other untimed rows made earlier)
+    expect(none.indexOf("Check in · Stay B Inn")).toBe(none.indexOf("City A → City B") + 1);
+    await go(planFor());
+  });
+
+  it("a second run reports 0 changes", async () => {
+    const p = () => withLines(["Welcome walk, 1 hour", "Dinner together", "Shuttle to Stay B Inn, 20 minutes"]);
+    await go(p());
+    expect((await go(p())).text).toMatch(/\b0 changes\b/);
+    await go(planFor());
   });
 });

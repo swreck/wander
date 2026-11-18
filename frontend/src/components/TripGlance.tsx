@@ -36,7 +36,7 @@ import {
   ymd, clock, sortDay, timeLabel, itemTitle, isFor, partyOf, isLanding, nightOf, myNight,
   deadlineOver, deadlineOnDate, deadlineWhen, deadlineTimeWords, leaveForAirport, minutesToClock,
   freshness, isPlanningNote, isFragmentTitle, deadlineJustPassed, leavingOn, checkoutBeforeFirst, leaveBeforeCheckout, leadItem, ownerlessInSplit, tabsDiffer, saidAgain, currentPlanLine, planLineEndSaid, currentUnownedLine,
-  withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords, landingStatus, checkinAfterLanding, zoneWords, landingTitle, bookedByName, bookedWords, askedOf, nowMinutesOn, phoneIsElsewhere, tripClockMinutes, homeOnJapanDate, partiesOf, zonedMoment, scheduledLanding, openQuestionsOn, besideHotel, voiceFor, noGroupWords, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, sameThing, differWordsFor,
+  withCheckoutWho, mapsLink, stayMapsQuery, lateLeaveWords, landingStatus, checkinAfterLanding, zoneWords, landingTitle, bookedByName, bookedWords, askedOf, nowMinutesOn, phoneIsElsewhere, tripClockMinutes, homeOnJapanDate, countryOfCity, partiesOf, zonedMoment, scheduledLanding, openQuestionsOn, besideHotel, voiceFor, noGroupWords, confirmationWords, isFreeCancel, FREE_CANCEL_WORDS, sameThing, differWordsFor,
   samePerson, travelerToday, deadlineIsMine, startsSomething, speaksAsHer, arrivedForTonight, getsYouTo, mealUnderWay, namesMe, outvoted,
 } from "../lib/guideDisplay";
 
@@ -283,7 +283,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     const cityId = data.days.find((d) => ymd(d.date) === today)?.cityId ?? null;
     const n = myNight(nightOf(today, data.stays, data.items, tz, true), me);
     const cityName = (id?: string | null) => (id ? data.trip.cities.find((c) => c.id === id)?.name ?? null : null);
-    const hotel = n.stays.length === 1 ? stayMapsQuery(n.stays[0].stay, cityName(n.stays[0].stay.cityId)) : null;
+    const hotel = n.stays.length === 1 ? stayMapsQuery(n.stays[0].stay, cityName(n.stays[0].stay.cityId), countryOfCity(data.trip.cities, n.stays[0].stay.cityId)) : null;
     const dayWords = dayItems.filter((i) => !i.time && /itinerary/i.test(i.source) && (["plan", "tour", "note"].includes(i.kind) || /^(\w+\s)?day\s*\d+\s*-/i.test(i.title)) && !besideHotel(i)).map((o) => o.title).join(" ");
     // (the day's own country, its city's — a Hanoi place is searched in Vietnam, not Japan)
     const country = data.trip.cities.find((c) => c.id === cityId)?.country ?? null;
@@ -869,7 +869,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
                   ? <button onClick={() => window.dispatchEvent(new CustomEvent("wander:ask-scout", { detail: { question: `How do I get from ${airport} to ${hotel.name}?` } }))}
                       className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Ask Scout the ways to go ›</button>
                   : <span className="inline-flex items-center min-h-[44px] text-sm text-[#6b5d4a]">Scout can answer once you have signal</span>}
-                <a href={airportDirectionsHref(airport, stayMapsQuery(hotel, cityOn(today)), countryOn(today))}
+                <a href={airportDirectionsHref(airport, stayMapsQuery(hotel, cityOn(today), countryOfCity(data.trip.cities, hotel.cityId)), countryOn(today))}
                   target="_blank" rel="noreferrer" className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Directions in Maps ↗</a>
               </div>
             </div>
@@ -1102,7 +1102,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
         {night && (night.stays.length > 0 || night.away.length > 0) && (
           night.away.length === 0 && night.stays.length === 1 ? (
             // One place tonight: tap it for Maps (found by name — a district address pinned the wrong spot)
-            <a href={mapsLink(stayMapsQuery(night.stays[0].stay, cityOn(today)))} className="flex items-center min-h-[44px] text-sm text-[#3a3128] mt-1">
+            <a href={mapsLink(stayMapsQuery(night.stays[0].stay, cityOn(today), countryOfCity(data.trip.cities, night.stays[0].stay.cityId)))} className="flex items-center min-h-[44px] text-sm text-[#3a3128] mt-1">
               <span><span className="text-[#6b5d4a]">Tonight · </span>{night.stays[0].stay.name} <span className="text-[#514636] underline underline-offset-2 whitespace-nowrap">Maps ↗</span></span>
             </a>
           ) : (

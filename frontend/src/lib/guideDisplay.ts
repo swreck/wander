@@ -224,7 +224,26 @@ function landingWords(l: GuideItem, tripZone: string): string {
  * anyone on an overnight flight ("Julie & Andy: on the flight — lands at Narita 3:00 PM Wed").
  */
 /** phoneClock: the date is the phone's own (Home's "Tonight"), not a Japan date (a day screen). */
-export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZone: string = "Asia/Tokyo", phoneClock = false): Night {
+/** The service a flight's title names ("JL034 · Bangkok (BKK) → Tokyo (HND)" → "JL034"), or "" */
+export const flightService = (title: string) => (title.includes(" · ") ? title.split(" · ")[0].trim() : "");
+/** The service a landing's title ends with ("Land at Tokyo Haneda (HND), Terminal 3 · JL034" → "JL034"), or "" */
+export const landingService = (title: string) => (title.includes(" · ") ? title.split(" · ").pop()!.trim() : "");
+
+/**
+ * The landing that belongs to a flight leaving on `date`, for a plan trip (S3 fix 2): a flight is in the air overnight only
+ * when its OWN landing line is dated tomorrow, paired by service. A landing title with no service is paired only when
+ * exactly one flight for that party leaves that date (never a guess). Null when the flight has no landing of its own.
+ */
+export function overnightLanding(f: GuideItem, items: GuideItem[], date: string, tomorrow: string): GuideItem | null {
+  const lands = items.filter((l) => isLanding(l) && ymd(l.date) === tomorrow && (l.forWhom || "") === (f.forWhom || ""));
+  const svc = flightService(f.title);
+  if (svc) { const own = lands.find((l) => landingService(l.title) === svc); if (own) return own; }
+  const bare = lands.filter((l) => !landingService(l.title));
+  const leaving = items.filter((x) => x.kind === "flight" && !isLanding(x) && ymd(x.date) === date && (x.forWhom || "") === (f.forWhom || ""));
+  return bare.length && leaving.length === 1 ? bare[0] : null;
+}
+
+export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZone: string = "Asia/Tokyo", phoneClock = false, plan: boolean = isPlanTrip()): Night {
   const parties = partiesOf(items);
   const spans = new Map(parties.map((p) => [p, partySpan(items, p)]));
   const onTrip = (p: string) => {
@@ -240,7 +259,7 @@ export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZon
   const flying = new Set<string>();
   for (const f of items) {
     if (f.kind !== "flight" || isLanding(f) || ymd(f.date) !== date) continue;
-    const land = items.find((l) => isLanding(l) && ymd(l.date) === tomorrow && (l.forWhom || "") === (f.forWhom || ""));
+    const land = plan ? overnightLanding(f, items, date, tomorrow) : items.find((l) => isLanding(l) && ymd(l.date) === tomorrow && (l.forWhom || "") === (f.forWhom || ""));
     if (!land) continue;
     const who = f.forWhom && !/^everyone$/i.test(f.forWhom) ? f.forWhom : "Everyone";
     flying.add(who);
@@ -440,14 +459,53 @@ export function landingTitle(i: GuideItem, me: string | null | undefined, title:
   return `${me && hasName(i.forWhom, me) ? "You" : i.forWhom} ${past ? "were due to land" : "land"} at ${rest}`;
 }
 
+const withoutTerminal = (a: string) => a.replace(/,\s*Terminal\s*\w+\s*$/i, "").trim().toLowerCase();
+/** Where a landing line lands ("Land at Seoul Incheon (ICN) · DL 7861" → "Seoul Incheon (ICN)") */
+export const landedAt = (land: GuideItem): string => land.title.replace(/^Land at /i, "").split(" · ")[0];
+/** A flight line's from and to ("DL 7807 · Seoul Incheon (ICN) → Hanoi Noi Bai (HAN)"); null when it doesn't name both */
+export function flightRoute(f: GuideItem): { from: string; to: string } | null {
+  const [from, to] = f.title.split(" · ").slice(1).join(" · ").split(" → ").map((s) => s.trim());
+  return from && to ? { from, to } : null;
+}
+/**
+ * A change of planes (S3 fix 1): the flights for this person that leave the airport they just landed at, later the same
+ * date by the clock (each line carries its own zone). The first, then the next from where it goes, and so on. Empty when
+ * there is none. Terminal tails ("Tokyo Haneda (HND), Terminal 3") and case are ignored.
+ */
+export function connectionsAfter(land: GuideItem, items: GuideItem[], me: string | null | undefined, tripZone: string): GuideItem[] {
+  const out: GuideItem[] = [];
+  const date = ymd(land.date);
+  const moment = (i: GuideItem) => zonedMoment(date, mins(i.time) ?? 0, i.timeZone || tripZone).getTime();
+  let at = land.time ? moment(land) : NaN;
+  let here = withoutTerminal(landedAt(land));
+  for (let k = 0; k < 5; k++) {
+    const next = items
+      .filter((f) => f.kind === "flight" && !isLanding(f) && ymd(f.date) === date && !!f.time && isFor(f, me) && !out.includes(f) && flightRoute(f) && withoutTerminal(flightRoute(f)!.from) === here && moment(f) > at)
+      .sort((a, b) => moment(a) - moment(b))[0];
+    if (!next) break;
+    out.push(next);
+    at = moment(next);
+    here = withoutTerminal(flightRoute(next)!.to);
+  }
+  return out;
+}
+/** Does this flight land the day it leaves? False when a landing line for its service sits on a later date */
+export const landsSameDay = (f: GuideItem, items: GuideItem[]): boolean => {
+  const svc = flightService(f.title);
+  return !svc || !items.some((l) => isLanding(l) && landingService(l.title) === svc && ymd(l.date) > ymd(f.date));
+};
+
 /** A take-off on another clock, said in the trip's: "That's Wed 4:00 AM Japan time" (round 8: on Japan's Oct 13
  * page, "12:00 PM California time" sat among the day's Japan times as if it were noon there). */
-export function departureInTripZone(i: GuideItem, tripZone: string): string | null {
+export function departureInTripZone(i: GuideItem, tripZone: string, plan: boolean = isPlanTrip()): string | null {
   if (i.kind !== "flight" || isLanding(i) || !i.date || !i.time || !i.timeZone || i.timeZone === tripZone) return null;
   // (not on a phone already on the flight's own clock — there it's the same take-off said twice; re-audit 2: Julie's
   // Oct 13 read "12:00 PM California time" and "Take-off was due Wed, Oct 14, 4:00 AM Japan time")
   try { if (Intl.DateTimeFormat().resolvedOptions().timeZone === i.timeZone) return null; } catch { /* say it */ }
   const departs = zonedMoment(ymd(i.date), mins(i.time) ?? 0, i.timeZone);
+  // The same number of hours from UTC at take-off: the day's clock already says it (S3 fix 3: Bangkok on a Cambodia day)
+  // (a plan trip only: a sheet trip's words stay as they were, a Korea-clock flight on Japan's trip included)
+  if (plan && zoneOffsetMinutes(i.timeZone, departs) === zoneOffsetMinutes(tripZone, departs)) return null;
   // Its own words, with the date (round 9: "That's Wed 4:00 AM" under "Lands at … 3:00 PM" read as the landing);
   // after that time, by the schedule (round 11: still "Takes off" hours after)
   return `${Date.now() >= departs.getTime() ? "Take-off was due" : "Takes off"} ${departs.toLocaleString("en-US", { timeZone: tripZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${zoneWords(tripZone)}`;
@@ -458,7 +516,7 @@ export function departureInTripZone(i: GuideItem, tripZone: string): string | nu
  * Japan date, and before their flight takes off (in Japan's time) nothing on it is theirs but that flight
  * (round 8: Julie's "first day", Japan's Oct 13, showed an 8 PM Tokyo dinner as if it might be hers).
  */
-export function homeOnJapanDate(items: GuideItem[], me: string | null | undefined, date: string, tripZone: string): GuideItem | null {
+export function homeOnJapanDate(items: GuideItem[], me: string | null | undefined, date: string, tripZone: string, plan: boolean = isPlanTrip()): GuideItem | null {
   const party = partyOf(items, me);
   if (!party) return null;
   const flight = items
@@ -466,8 +524,25 @@ export function homeOnJapanDate(items: GuideItem[], me: string | null | undefine
     .sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)))[0];
   if (!flight) return null;
   const departs = zonedMoment(ymd(flight.date), mins(flight.time) ?? 0, flight.timeZone!);
-  const departJapanDay = new Intl.DateTimeFormat("en-CA", { timeZone: tripZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(departs);
+  // (a plan trip: still at home only on a date BEFORE the flight's own date, the date the flight line carries; S3 fix 4)
+  const departJapanDay = plan ? ymd(flight.date) : new Intl.DateTimeFormat("en-CA", { timeZone: tripZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(departs);
   return date < departJapanDay ? flight : null;
+}
+
+const plusDay = (date: string, n: number) => { const d = new Date(`${date}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+/**
+ * Where Next starts for this person: their own first date (their party's first flight or check-in), and from it their first
+ * date ON THE TRIP — a sheet trip skips the dates they are still at home on in Japan's calendar; a plan trip's first day is
+ * the date on the first flight (S3 fix 4: Dec 14 for Ken, not Dec 15). `first` is the trip's own first day unless theirs is later.
+ */
+export function myFirstDay(items: GuideItem[], me: string | null | undefined, tripFirst: string, tripZone: string, plan: boolean = isPlanTrip()): { myStart: string | undefined; myTripStart: string | undefined; first: string } {
+  const party = partyOf(items, me);
+  const myStart = party
+    ? items.filter((i) => i.date && i.forWhom === party && ["flight", "checkin"].includes(i.kind) && !isLanding(i)).map((i) => ymd(i.date)).sort()[0]
+    : undefined;
+  let myTripStart = myStart;
+  for (let k = 0; myTripStart && k < 3 && homeOnJapanDate(items, me, myTripStart, tripZone, plan); k++) myTripStart = plusDay(myTripStart, 1);
+  return { myStart, myTripStart, first: myTripStart && myTripStart > tripFirst ? myTripStart : tripFirst };
 }
 
 /** You haven't landed in Japan yet, by the schedule — at home or in the air (verify 5: from 8 AM California time the
@@ -1241,11 +1316,19 @@ export const tabsDiffer = (i: GuideItem) => (i.detail || "").split("\n").filter(
 
 /** A hotel is found by its name and city ("Imperial Hotel, Tokyo, Japan"). A bare district address
  *  ("Chiyoda City") put the pin on the Imperial Palace grounds, over a kilometre away. */
-export function stayMapsQuery(stay: { name: string; address?: string | null }, city?: string | null): string {
+export function stayMapsQuery(stay: { name: string; address?: string | null }, city?: string | null, country?: string | null, plan: boolean = isPlanTrip()): string {
   const name = stay.name.trim();
   const hasCity = city && name.toLowerCase().includes(city.toLowerCase());
-  return [name, hasCity ? null : city, "Japan"].filter(Boolean).join(", ");
+  // (S3 fix 5: the stay's city's own country; none stated is Japan on a sheet trip and nothing on a plan trip)
+  return [name, hasCity ? null : city, country || (plan ? null : "Japan")].filter(Boolean).join(", ");
 }
+
+/** The country of a city by id, for a hotel's search ("Hanoi" → "Vietnam"); null when the city has none */
+export const countryOfCity = (cities: { id: string; country?: string | null }[] | undefined, id?: string | null): string | null =>
+  (id ? cities?.find((c) => c.id === id)?.country : null) || null;
+
+/** Does this country get a Train button beside Walk and Taxi? Japan does; no country (a sheet trip) does (S3 fix 6) */
+export const countryHasTrain = (country?: string | null): boolean => !country || /^japan$/i.test(country.trim());
 
 /**
  * The time of day a deadline falls, when its words say ("by 15:00", "11:59 PM", "3pm"), in minutes
