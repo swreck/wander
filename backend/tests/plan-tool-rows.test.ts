@@ -394,6 +394,20 @@ describe.skipIf(!have)("a check-in with no time sits where the day reaches the h
     await go(planFor());
   });
 
+  it("a flight with no time that the day's own lines name is that line, once: its words go under it (S3d)", async () => {
+    await go(withLines(["Welcome walk, 1 hour", "Shuttle to the airport, 45 minutes", "Flight to City B, 2 hours (the time can change)", "Dinner together"]));
+    const all = (await items(await tid())).filter((i) => i.date!.toISOString().slice(0, 10) === "2027-03-03");
+    expect(all.some((i) => i.sourceRef === "plan:leg:leg-2")).toBe(false);
+    expect(all.some((i) => i.title === "City A → City B")).toBe(false);
+    const line = all.find((i) => i.title === "Flight to City B, 2 hours (the time can change)")!;
+    expect([line.kind, line.time, line.sourceRef]).toEqual(["travel", null, "plan:day:2027-03-03:line:3"]);
+    expect(line.detail).toBe("The tour company books it\nA morning flight, about 2 hours.");
+    // (the shuttle keeps no words of the flight's; with no such line the leg is its own row again)
+    expect(all.find((i) => i.title === "Shuttle to the airport, 45 minutes")!.detail).toBeNull();
+    await go(planFor());
+    expect((await items(await tid())).some((i) => i.sourceRef === "plan:leg:leg-2")).toBe(true);
+  });
+
   it("a second run reports 0 changes", async () => {
     const p = () => withLines(["Welcome walk, 1 hour", "Dinner together", "Shuttle to Stay B Inn, 20 minutes"]);
     await go(p());

@@ -1099,6 +1099,11 @@ const KIND_MARK: Record<string, string> = {
   // Her notes get a plain mark — a pencil read as "tap to edit" and did nothing (round 6)
   deadline: "⏰", plan: "•", note: "•",
 };
+/** A travel line that is a flight wears the plane, not the van (S3d: Backroads' "Flight to Hué" and its "Hanoi → Hué"
+ *  leg, "A morning flight, about 1 hour") */
+const markOf = (i: { kind: string; title: string; detail?: string | null }) =>
+  i.kind === "travel" && (/^flight\b/i.test(i.title) || (/ → /.test(i.title) && /\bflight\b/i.test(i.detail || "")))
+    ? KIND_MARK.flight : KIND_MARK[i.kind] || "•";
 
 interface DayChoice { id: string; date: string; time: string | null; text: string; addedBy: string; fromGuideIdea?: boolean; _pending?: boolean; _pickFor?: string }
 
@@ -1714,7 +1719,9 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const firstBookedDep = bookedDeps[0] ?? null;
   const nextBookedDep = bookedDeps.find((m) => m >= tripNow) ?? null;
   const firstBookedRow = myLegs.find(({ r }) => isBookedTrain(r) && railMin(colOf(r.cols, /^depart/)) === firstBookedDep)?.r.row ?? null;
-  const myLanding = (() => { const party = partyOf(items, me); return party ? dayItems.find((l) => isLanding(l) && l.forWhom === party && l.time) : undefined; })();
+  // (a plan trip names you in more than one group, the two of you out and three of you into Tokyo: any landing
+  // that names you is yours — S3d: Jan 2 listed "Haneda → Tokyo Station" above the landing)
+  const myLanding = (() => { const party = partyOf(items, me); return party ? dayItems.find((l) => isLanding(l) && l.time && (l.forWhom === party || (v.plan && !!l.forWhom && !/^everyone$/i.test(l.forWhom) && isFor(l, me)))) : undefined; })();
   const landedAt = myLanding?.time ? toMin(myLanding.time) : null;
   // The leg with no booking between landing and the first booked train (KIX → Shin-Osaka), shown as what's next then
   // …only until you're on your way: once a pickup step is ticked, or 90 minutes after landing (delight audit: "Next ·
@@ -1866,6 +1873,16 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   // (a to-do marked done isn't shown — Ken, Oct 14: "if it is done or out of date, you don't show it"; the fresh photo
   // check, Oct 17: "Passed · Reconfirm the La Table… Done — you, Oct 14" sat on Oct 10 through 14)
   const listItems = (headline ? alsoItems.filter((o) => o !== headline) : alsoItems).filter((o) => !(o.kind === "deadline" && doneMarks.has(deadlineKey(o))));
+  // A plan trip's guided day starts where its people meet: that itinerary's lines with no time follow the meeting, as a
+  // landing day's follow the landing (S3d: Dec 25 listed the day's walks and its hotel check-in above "10:30 AM Meet the
+  // Backroads leaders"). Only when the meeting is the day's first line with a time, and never on your landing day.
+  const planOpener = (() => {
+    if (!v.plan || (myLanding && alsoItems.includes(myLanding))) return null;
+    const first = listItems.find((i) => !!i.time && !["checkin", "checkout"].includes(i.kind));
+    return first && first.kind === "meeting" ? first : null;
+  })();
+  const openerLines = planOpener
+    ? listItems.slice(0, listItems.indexOf(planOpener)).filter((i) => !i.time && !["checkout", "deadline"].includes(i.kind) && i.source === planOpener.source) : [];
   // Your trains, each said once in the day itself (day review, Oct 4: every booked train was said twice — in the day and in
   // full under "Trains"): under her line when it names the train ("Board reserved HARUKA" ↔ HARUKA 31), else at its time;
   // on your landing day the airport leg with no booking follows the landing. Only what's drawn here leaves "Trains".
@@ -1973,9 +1990,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
     const shown = listItems.filter((i) => !["deadline", "weather"].includes(i.kind));
     // (the day you land, as the list has it: her lines with no time follow your landing — Oct 6 played "Osaka → Okayama"
     // before the 2:50 PM landing)
-    const landing = myLanding && alsoItems.includes(myLanding) ? myLanding : null;
+    const landing = myLanding && alsoItems.includes(myLanding) ? myLanding : planOpener;
     const firstTimed = shown.findIndex((i) => !!i.time);
-    const lead = landing && firstTimed > 0 ? shown.slice(0, firstTimed).filter((i) => i.kind !== "checkout") : [];
+    const lead = landing === planOpener ? openerLines.filter((i) => shown.includes(i))
+      : landing && firstTimed > 0 ? shown.slice(0, firstTimed).filter((i) => i.kind !== "checkout") : [];
     const lines = lead.length ? shown.filter((i) => !lead.includes(i)).flatMap((i) => (i === landing ? [i, ...lead] : [i])) : shown;
     const moments = lines.map((i): Moment => {
       const id = `line-${i.id}`;
@@ -2231,7 +2249,10 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   const notThereYet = isToday && cityDates[0] <= today && ((landsAt !== null && tripNow < landsAt)
                     || (cityDates[0] === today && (arriveBy !== null ? tripNow < arriveBy : leaving.length > 0 && !arrivedForTonight(dayItems, me, tripNow, null))));
                   // (a plan trip, the night in the air with no stay: "On the way to Hanoi", S3 fix 4)
-                  const onTheWay = v.plan && myTonight.stays.length === 0 && myTonight.away.length > 0;
+                  // (only before your first bed of the trip: Jan 1, waking in Siem Reap and flying to Tokyo that night, read
+                  // "On the way to Siem Reap", S3d)
+                  const onTheWay = v.plan && myTonight.stays.length === 0 && myTonight.away.length > 0
+                    && myNight(nightOf(addDays(date, -1), stays, items, tripWideZone), me).stays.length === 0;
                   return <CityTitle cityId={cityId} cityName={cityName} title={onTheWay ? `On the way to ${cityName}` : undefined} dateWords={longDate(date)} photo={away && !!cityId} onPhoto={!!bandPhoto} auto={away && date <= today && inCityNow && !notThereYet && !beforeMyLanding(items, me, tripZone) && !location.hash.startsWith("#item-")} />;
                 })()}
                 {(planBlocks.length > 0 || dayItems.length > 0) && (
@@ -2291,6 +2312,21 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 })() ? "You should be on your way" : <>{startWords(first, tripFirst, leaveDay, today)}</>}. Here's {first === tripFirst ? "the first day" : leaveDay !== first ? firstDayIn(bandCity?.country) : "your first day"}.
               </p>
             )}
+            {/* A plan trip's first day is the day you fly: before the trip, Next shows that flight (S3d: it read "Here's
+                the first day." over an empty screen) */}
+            {beforeTrip && v.plan && leaveDay !== today && (() => {
+              const out = dayItems.find((i) => i.kind === "flight" && !isLanding(i) && i.time && isFor(i, me));
+              if (!out) return null;
+              const lands = (out.detail || "").match(/Lands at [^\n|]+/)?.[0]?.trim();
+              return (
+                <button type="button" onClick={() => navigate(`/day/${date}`)} className="block w-full text-left mb-3 rounded-xl bg-white border border-[#e0d8cc] p-4">
+                  <p className="text-[15px] text-[#3a3128]">{clock(out.time)} {zoneWords(out.timeZone || tripZone)} · {out.title}</p>
+                  {lands && <p className="text-sm text-[#514636] mt-0.5">{lands}</p>}
+                  <p className="text-sm text-[#6b5d4a] mt-1">{friendlySource(out.source, me)}</p>
+                  <p className="text-sm text-[#514636] underline underline-offset-2 mt-1">See the day ›</p>
+                </button>
+              );
+            })()}
             {afterTrip && (
               <p className="text-sm text-[#6b5d4a] mb-3">Welcome home. Here's the last day of the trip.{" "}
                 <button type="button" onClick={() => navigate("/story")} className="min-h-[44px] text-[#514636] underline underline-offset-2">The story of the trip ›</button>
@@ -2316,8 +2352,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
             {/* The day your flight lands: say when, first (round 9: Julie's landing day opened on Ken & Larisa's
                 8:07 AM Mashiko train, and three testers asked "am I supposed to catch that?") */}
             {(() => {
-              const party = partyOf(items, me);
-              const land = party ? dayItems.find((l) => isLanding(l) && l.forWhom === party && l.time) : undefined;
+              const land = myLanding;
               if (!land) return null;
               const airport = land.title.replace(/^Land at /i, "").split(" · ")[0];
               // Past its time, by the schedule only; and on a phone still on home time, that time on its clock too
@@ -2901,8 +2936,8 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // landing, in her sheet's order, and so does the airport leg with no booking (KIX → Shin-Osaka). Day
                   // review, Oct 4 (Ken: "itinerary in order"): Oct 6 read "Osaka → Okayama, Rikuro, Shinkansen" above the
                   // 2:50 PM landing, and the airport train only under Trains, two screens down.
-                  const landing = landingInList ? myLanding! : null;
-                  const afterLanding = landing ? lead : [];
+                  const landing = landingInList ? myLanding! : planOpener;
+                  const afterLanding = !landing ? [] : landing === planOpener ? openerLines : lead;
                   const inOrder = afterLanding.length
                     ? listItems.filter((i) => !afterLanding.includes(i)).flatMap((i) => (i === landing ? [i, ...afterLanding] : [i]))
                     : listItems;
@@ -3389,7 +3424,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
                 {i.endTime && i.kind !== "flight" && <span className="block text-xs text-[#6b5d4a] whitespace-nowrap">{["travel", "train"].includes(i.kind) ? "→ " : "to "}{clock(i.endTime)}</span>}
                 {zone && <span className="block text-xs text-[#6b5d4a]">{zone}</span>}
               </>
-            ) : <span className="block text-base text-[#6b5d4a]" aria-hidden>{KIND_MARK[i.kind] || "•"}</span>}
+            ) : <span className="block text-base text-[#6b5d4a]" aria-hidden>{markOf(i)}</span>}
           </span>
           <span className="flex-1 min-w-0">
             <span className={`block ${nested ? "text-sm" : "text-[15px]"} leading-snug ${over || past ? "text-[#6b5d4a]" : maybe ? "text-[#6b5d4a] italic" : "text-[#3a3128]"}`}>
@@ -3449,7 +3484,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
               {zone && <div className="text-xs text-[#6b5d4a]">{zone}</div>}
             </>
           ) : (
-            <div className="text-base text-[#6b5d4a]" aria-hidden>{KIND_MARK[i.kind] || "•"}</div>
+            <div className="text-base text-[#6b5d4a]" aria-hidden>{markOf(i)}</div>
           )}
         </div>
         <div className="flex-1 min-w-0">
