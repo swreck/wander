@@ -2,6 +2,14 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-17 (Tuesday night, at home) — The day band's caption always shows the photographer
+
+Found by a fresh judge on production: on a phone, Tokyo's band read "North Observation DeEck, Tokyo Metropolitan G…"
+and the photographer was cut off entirely.
+- **The photographer is always shown whole.** The caption is still one line in the band's lower right. A sight's name
+  too long for the line now ends in "…" and the photographer follows it. A short caption ("Angkor Wat · Photo: Aaron")
+  looks as it did. Where: the Day screen's city band (phone pages/DayPage.tsx). SPEC §16 (the city band).
+
 ## 2026-11-17 (Tuesday night, at home) — A plan trip's city photo is taken outdoors; eight sights are tried
 
 Seen on production in the photos the new check chose for December's six cities.

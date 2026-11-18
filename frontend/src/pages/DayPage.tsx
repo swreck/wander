@@ -2214,7 +2214,14 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 <img src={bandPhoto.src} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover motion-safe:animate-[fadeIn_.6s_ease-out]" />
                 <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(24,16,8,.30) 0%, rgba(24,16,8,.48) 55%, rgba(24,16,8,.66) 100%)" }} aria-hidden />
                 {(bandPhoto.place || bandPhoto.credit) && (
-                  <p className="absolute right-3 bottom-0.5 text-[10px] text-white/75 max-w-[60%] truncate">{[bandPhoto.place, bandPhoto.credit].filter(Boolean).join(" · ")}</p>
+                  // (one line; a long sight's name gives way, never the photographer's: on a phone Tokyo's read
+                  // "North Observation Deck, Tokyo Metropolitan G…" with no credit at all — fresh judge, Nov 17)
+                  // The photographer's span never shrinks (a shrink of a tenth of a pixel is enough to cost it its last
+                  // letters); a credit longer than the caption's 60% runs on to the left, up to the band's width.
+                  <p className="absolute right-3 bottom-0.5 text-[10px] text-white/75 max-w-[60%] flex justify-end whitespace-nowrap" data-band-caption>
+                    {bandPhoto.place && <span className="min-w-0 truncate">{bandPhoto.place}</span>}
+                    {bandPhoto.credit && <span className="shrink-0 max-w-[160%] truncate">{bandPhoto.place ? " · " : ""}{bandPhoto.credit}</span>}
+                  </p>
                 )}
               </>
             )}
