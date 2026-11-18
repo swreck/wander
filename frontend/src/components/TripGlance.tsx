@@ -26,7 +26,8 @@ import { sourcesData, savedSources, railAudience, legIsFor, isBookedTrain, colOf
 import { checklistTitle, DifferLine, TicketWarnings } from "./RailSheet";
 import { warmCityPhoto } from "./CityArrival";
 import TodayWeather from "./TodayWeather";
-import { tripCountryOf } from "../lib/cityColors";
+import { cityInTrip } from "../lib/cityColors";
+import { isPlanTrip } from "../lib/planTrip";
 import { sheetNotes, savedSheetNotes, airportWaysTo, type NotesByTab } from "../lib/sheetNotes";
 import { loadMarks, savedMarks, deadlineKey, type Mark } from "../lib/actionMarks";
 import { useLinePhotos, airportDirectionsHref } from "../lib/linePlaces";
@@ -212,7 +213,7 @@ export default function TripGlance({ tripId }: { tripId: string }) {
     if (!data) return;
     const day = data.days.find((d) => ymd(d.date) === phoneDay);
     const city = data.trip.cities.find((c) => c.id === day?.cityId);
-    if (!city || (city.country && city.country !== tripCountryOf(data.trip.cities))) return;
+    if (!city || !cityInTrip(city, data.trip.cities, isPlanTrip(tripId))) return;
     const t = setTimeout(() => warmCityPhoto(city.id), 1500);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps

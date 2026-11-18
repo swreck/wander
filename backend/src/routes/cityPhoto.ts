@@ -54,7 +54,7 @@ async function chosen(cityId: string): Promise<Photo | null> {
   return found ? found.photo : null;
 }
 
-/** A photo that can stand for the city this trip (autumn): a view of the place, nothing in it saying another season.
+/** A photo that can stand for the city this trip: a view of the place, nothing in it saying another season.
  *  Claude looks at the whole picture and names what it sees before judging (Oct 10 re-audit: a one-word glance by a
  *  small model passed Fukuoka Tower with Christmas trees and Santa figures along its foot, and Okayama's winter garden).
  *  True: fits. False: doesn't. Null: couldn't be judged (an error, a decline) — never shown on a guess, and never kept
@@ -68,7 +68,25 @@ const SEASON_SCHEMA = {
   required: ["seen", "fits"],
   additionalProperties: false,
 };
-export async function fitsTheSeason(bytes: Buffer, type: string, cityName: string): Promise<boolean | null> {
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** What Claude is asked about a photo. Japan's October trip keeps its own words, exactly. Any other city is judged by
+ *  its own country and the days the trip is there (Nov 17: Hanoi in December was being judged as "Hanoi, Japan, in
+ *  mid-to-late October", and a ski town in January would have had every snowy photo turned away). */
+export function seasonQuestion(cityName: string, country: string | null = null, dates: Date[] = []): string {
+  const days = dates.map((d) => d.toISOString().slice(0, 10)).sort();
+  const japan = !country || /^japan$/i.test(country.trim());
+  if (japan && days.every((d) => d.slice(5, 7) === "10")) {
+    return `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, Japan, in mid-to-late October. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait or a sign) and nothing in it belongs to another season: no Christmas trees, Santa figures, Christmas or New Year decorations or illuminations; no snow or ice; no bare leafless trees or brown dormant lawns (winter); no cherry blossoms (spring). Green trees or autumn color are fine. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".`;
+  }
+  // (no dates at all, outside Japan: nothing to judge a season by, so only "is it a view of the place")
+  if (!days.length) return `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, ${country!.trim()}. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait, a sign, or a show on a stage inside a hall). In "seen", say briefly what the photo shows; then set "fits".`;
+  const say = (d: string) => `${MONTHS[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8, 10))}`;
+  const first = days[0], last = days[days.length - 1];
+  const when = first === last ? `on ${say(first)}` : `from ${say(first)} to ${say(last)}`;
+  return `This photo will fill a phone's screen to greet travelers arriving in ${cityName}${country ? `, ${country.trim()}` : ""}, who are there ${when}. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait, a sign, or a show on a stage inside a hall) and nothing in it belongs to another time of year there. What ${cityName} really looks like on those dates is fine: snow at a mountain resort in winter, bare trees in a city with cold winters, green in the tropics, lights or decorations for a holiday within a few weeks of those dates. It doesn't fit if it shows a season those dates can't have there (cherry blossoms or autumn color in midwinter, snow where it doesn't snow then, summer green on a ski mountain in January) or a holiday months away. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".`;
+}
+
+export async function fitsTheSeason(bytes: Buffer, type: string, cityName: string, country: string | null = null, dates: Date[] = []): Promise<boolean | null> {
   if (!process.env.ANTHROPIC_API_KEY) return true;
   if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) return false;
   try {
@@ -78,7 +96,7 @@ export async function fitsTheSeason(bytes: Buffer, type: string, cityName: strin
       output_config: { effort: "medium", format: { type: "json_schema", schema: SEASON_SCHEMA } },
       messages: [{ role: "user", content: [
         { type: "image", source: { type: "base64", media_type: type as "image/jpeg", data: bytes.toString("base64") } },
-        { type: "text", text: `This photo will fill a phone's screen to greet travelers arriving in ${cityName}, Japan, in mid-to-late October. Look at the whole picture, including small things at its edges and along the bottom. It fits only if it is a view of the place (a landmark, street, garden or landscape — not a close-up of food, a portrait or a sign) and nothing in it belongs to another season: no Christmas trees, Santa figures, Christmas or New Year decorations or illuminations; no snow or ice; no bare leafless trees or brown dormant lawns (winter); no cherry blossoms (spring). Green trees or autumn color are fine. In "seen", say briefly what in the photo tells the season or occasion; then set "fits".` },
+        { type: "text", text: seasonQuestion(cityName, country, dates) },
       ] }],
     });
     note("ai.city_photo_check", { in: r.usage?.input_tokens, out: r.usage?.output_tokens });
@@ -101,6 +119,13 @@ async function lookUp(cityId: string): Promise<{ photo: Photo; ref: string } | n
   // (Oct 1: Shirakabeso) shows no photo rather than somewhere else's
   if (!key) return "failed";
   if (!city || city.latitude == null || city.longitude == null) return null;
+  // (the days the trip is in this city: the season a photo is judged by)
+  let dates = (await prisma.day.findMany({ where: { cityId }, select: { date: true } }).catch(() => [])).map((d) => d.date);
+  // (a city with no day of its own, such as one that only holds maybes: the trip's own dates)
+  if (!dates.length) {
+    const trip = await prisma.trip.findFirst({ where: { cities: { some: { id: cityId } } }, select: { startDate: true, endDate: true } }).catch(() => null);
+    dates = [trip?.startDate, trip?.endDate].filter((d): d is Date => d instanceof Date);
+  }
   try {
     // The city's best-known sight: the most-reviewed tourist attraction near it (a "<city> landmark" search took
     // Google's first hit — for Nikko, a supermarket called Nikko)
@@ -126,7 +151,7 @@ async function lookUp(cityId: string): Promise<{ photo: Photo; ref: string } | n
       if (!img.ok) { unsure = true; continue; }
       const b = Buffer.from(await img.arrayBuffer());
       const t = img.headers.get("content-type") || "image/jpeg";
-      const fits = await fitsTheSeason(b, t, city.name);
+      const fits = await fitsTheSeason(b, t, city.name, city.country, dates);
       if (fits === null) unsure = true;
       if (fits) { best = s; bytes = b; type = t; break; }
     }

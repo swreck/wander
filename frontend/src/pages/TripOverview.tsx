@@ -6,7 +6,7 @@ import CreateTrip from "../components/CreateTrip";
 import { useToast } from "../contexts/ToastContext";
 import { getCityPastel } from "../components/MapCanvas";
 import HomeTripMap from "../components/HomeTripMap";
-import { tripCountryOf, cityAccent } from "../lib/cityColors";
+import { cityInTrip, cityAccent } from "../lib/cityColors";
 import type { Trip, City, Day, Experience, ChangeLogEntry, Decision } from "../lib/types";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import useBackToClose from "../hooks/useBackToClose";
@@ -31,7 +31,7 @@ import SafetyTipsNote from "../components/SafetyTipsNote";
 import MaybesLine from "../components/MaybesLine";
 import { guideOwnerOf } from "../lib/tellGuideOwner";
 import { voiceFor } from "../lib/guideDisplay";
-import { notePlanTrip } from "../lib/planTrip";
+import { notePlanTrip, isPlanTrip } from "../lib/planTrip";
 import { changeRest } from "../lib/changeWords";
 import AddToHomeScreen, { isIPhoneSafari, isHomeScreenApp } from "../components/AddToHomeScreen";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
@@ -287,8 +287,9 @@ export default function TripOverview() {
   // NOTE: useMemo must be called before any early returns to maintain hook order
   const cities = trip?.cities || [];
   // The map is the trip's country — the city you fly from (San Francisco) would shrink Japan to a speck (Oct 1 2026)
-  const tripCountry = tripCountryOf(cities);
-  const inTripCountry = (c: City) => !tripCountry || !c.country || c.country === tripCountry;
+  // (a trip built from a plan goes to several countries, and every one of its cities is on the map: Nov 17 2026)
+  const planTrip = !!trip && isPlanTrip(trip.id);
+  const inTripCountry = (c: City) => cityInTrip(c, cities, planTrip);
   const cityMarkers = useMemo(() => {
     if (!cities.length || !days.length) return [];
     const sortedDays = [...days].sort((a, b) =>

@@ -958,7 +958,7 @@ function StopNote({ note, city, v }: { note: GuideItem; city: string | null; v: 
   );
 }
 import EveningQuestion from "../components/EveningQuestion";
-import { getCityPastel, cityAccent, tripCountryOf } from "../lib/cityColors";
+import { getCityPastel, cityAccent, cityInTrip } from "../lib/cityColors";
 import { CityTitle, warmCityPhoto, photoWanted, useCityBandPhoto } from "../components/CityArrival";
 import { keptPlacePhotos, lookUpPlacePhotos, mapsQueryOf, placePhotoUrl, whyNoPhoto, freshPlaceHit, type PlaceHit } from "../lib/placePhotos";
 import PlaceGallery from "../components/PlaceGallery";
@@ -1260,7 +1260,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         const dayDate = firstDate || phoneToday();
         const dayCity = d.trip.cities.find((c) => c.id === d.days.find((x) => ymd(x.date) === dayDate)?.cityId);
         // (only a city of the trip's country has one — Julie's San Francisco days don't)
-        const photoCity = dayCity && (!dayCity.country || dayCity.country === tripCountryOf(d.trip.cities)) ? dayCity.id : undefined;
+        const photoCity = dayCity && cityInTrip(dayCity, d.trip.cities, isPlanTrip(tid)) ? dayCity.id : undefined;
         const photo = warmCityPhoto(photoCity);
         const cityDates = d.days.filter((x) => x.cityId === photoCity).map((x) => ymd(x.date)).sort();
         const photoDue = photoWanted(photoCity) && dayDate <= phoneToday() && cityDates[0] <= phoneToday() && phoneToday() <= cityDates[cityDates.length - 1];
@@ -1514,7 +1514,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
   const cityName = day?.city?.name || trip?.cities.find((c) => c.id === night.stays[0]?.stay.cityId)?.name || "";
   // The city's photo behind the city band, a city in the trip's country only ("Wander in pictures", idea 1; Oct 15)
   const bandCity = trip?.cities.find((c) => c.id === (day?.cityId || night.stays[0]?.stay.cityId));
-  const bandPhoto = useCityBandPhoto(bandCity?.id, !!bandCity && !!trip && (!bandCity.country || bandCity.country === tripCountryOf(trip.cities)));
+  const bandPhoto = useCityBandPhoto(bandCity?.id, !!bandCity && !!trip && cityInTrip(bandCity, trip.cities, isPlanTrip(trip.id)));
   const route = fromCity && cityName && fromCity !== cityName ? `${fromCity} → ${cityName}` : cityName;
   const isToday = date === today;
   const hasPrev = !!first && date > first;
@@ -2230,7 +2230,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                     name brings it back (Ken, Oct 8) */}
                 {(() => {
                   const c = trip?.cities.find((x) => x.id === cityId);
-                  const away = !!c && (!c.country || c.country === tripCountryOf(trip!.cities));
+                  const away = !!c && cityInTrip(c, trip!.cities, isPlanTrip(trip!.id));
                   // By itself only when you've arrived — the day opened is today or past. Looking ahead from home used up
                   // the photo (Julie, tester t1: Kyoto's photo on Oct 10 in California, then none on Oct 23 in Kyoto)
                   // …and while you're in that city — not a week later looking back (tester t4: a photo missed with no
