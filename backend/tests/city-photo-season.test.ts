@@ -45,10 +45,17 @@ describe("the question asked about a city's photo", () => {
     expect(q).toContain("arriving in Hanoi, Vietnam, who are there on October 10.");
     expect(q).not.toContain("Japan");
   });
-  it("a show on a stage is not a view of the place (Hanoi's first pick was the inside of a theatre); Japan's October words don't change", () => {
-    expect(seasonQuestion("Hanoi", "Vietnam", [day("2026-12-15")])).toContain("or a show on a stage inside a hall)");
-    expect(seasonQuestion("Hanoi", "Vietnam", [])).toContain("or a show on a stage inside a hall)");
-    expect(seasonQuestion("Kyoto", "Japan", [day("2026-10-27")])).not.toContain("stage");
+  it("a plan trip's photo is taken outdoors (Hanoi's first picks were a show on its stage and a museum's prison cell); Japan's October words don't change", () => {
+    const outdoors = "a view of the place taken outdoors (a landmark, street, garden or landscape — not a close-up of food, a portrait, a sign, or anything indoors: a show on a stage, a museum exhibit, a room)";
+    expect(seasonQuestion("Hanoi", "Vietnam", [day("2026-12-15")])).toContain(outdoors + " and nothing in it belongs to another time of year there.");
+    expect(seasonQuestion("Hanoi", "Vietnam", [])).toContain(outdoors + ". In \"seen\"");
+    expect(seasonQuestion("Kyoto", "Japan", [day("2026-10-27")])).not.toMatch(/stage|outdoors|indoors/);
+  });
+  it("eight sights are tried before a city goes without a photo (Tokyo in January: the five best-known were all in leaf or blossom)", async () => {
+    const src = (await import("fs")).readFileSync(new URL("../src/routes/cityPhoto.ts", import.meta.url), "utf8");
+    expect(src).toContain("const SIGHTS_TRIED = 8;");
+    expect(src).toContain("for (const s of sights.slice(0, SIGHTS_TRIED)) {");
+    expect(src).not.toContain("sights.slice(0, 5)");
   });
   it("the same question is the one sent to the judge and the days come from the city's own rows", async () => {
     const src = (await import("fs")).readFileSync(new URL("../src/routes/cityPhoto.ts", import.meta.url), "utf8");

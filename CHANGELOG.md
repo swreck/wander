@@ -2,6 +2,16 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-17 (Tuesday night, at home) — A plan trip's city photo is taken outdoors; eight sights are tried
+
+Seen on production in the photos the new check chose for December's six cities.
+- **Outdoors only, on a plan trip.** Hanoi's second pick was a prison museum's cell of chained figures: nothing in it
+  told a season, so it passed. The question now asks for a view of the place taken outdoors, and names a show on a
+  stage, a museum exhibit and a room as not fitting. Japan's October trip keeps its question word for word.
+- **Eight sights before a city goes without a photo** (it was five). Tokyo on January 7 and 8 had none: its five
+  best-known sights were all shown in leaf or blossom. With none of the eight fitting, there is still no photo.
+  Where: backend routes/cityPhoto.ts (`OUTDOOR_VIEW`, `SIGHTS_TRIED`). SPEC §22.2.
+
 ## 2026-11-17 (Tuesday night, at home) — December on production: every city has its photo, judged by its own season
 
 Found on production right after December's trip went live (the local test server has no paid keys, so it never looks
