@@ -7,7 +7,8 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import { voiceFor } from "../lib/guideDisplay";
+import { voiceFor, planSourceNames } from "../lib/guideDisplay";
+import { planSourcesOf } from "../lib/planTrip";
 import PictureViewer from "./PictureViewer";
 import { sheetLinks, rangeOf, type SheetLink, type SheetLinks } from "../lib/sheetLinks";
 
@@ -72,7 +73,8 @@ function OpenSpot({ tab, a1s }: { tab: string; a1s: string[] }) {
 function Cells({ cells, tripId }: { cells: CellWords[]; tripId?: string }) {
   // (her own words to Larisa: "your … tab")
   const v = voiceFor(useAuth().user?.displayName);
-  if (!cells.length) return <p className="text-sm text-[#6b5d4a]">Wander couldn't point to the one cell for this.</p>;
+  // (a plan's lines were never in a sheet: no cell to point at, and nothing to say about one — S2d)
+  if (!cells.length) return v.plan ? null : <p className="text-sm text-[#6b5d4a]">Wander couldn't point to the one cell for this.</p>;
   // (after the last of a tab's cells: one way in for all of them)
   const lastOfTab = (i: number) => !cells.slice(i + 1).some((c) => c.tab === cells[i].tab);
   const spotsIn = (tab: string) => cells.flatMap((c) => (c.tab !== tab ? [] : c.kind === "cell" ? [c.a1] : c.kind === "picture" && c.anchor ? [c.anchor] : []));
@@ -152,15 +154,19 @@ function OtherSheet({ name, owner, children }: { name: string; owner: string; ch
 }
 
 function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
-  const v = voiceFor(useAuth().user?.displayName);
-  const guide = v.mine ? "your Guide" : "Larisa's Guide";
+  const me = useAuth().user?.displayName;
+  const v = voiceFor(me);
+  const guide = v.guide;
   if (s.type === "guide") {
+    // A plan trip names the source as stored ("Larisa's notes", "Backroads' itinerary"); a line that isn't one of the
+    // plan's sources (a stay) is just "The plan" (S2d)
+    const named = v.plan && planSourcesOf().some((n) => s.label.split(" + ").some((p) => p.trim() === n)) ? planSourceNames([s.label], me, true).join(" and ") : null;
     return (
       <div>
-        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{v.mine ? "Your Guide" : "Larisa's Guide"}</p>
+        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{v.plan ? named || v.Guide : v.Guide}</p>
         <HerSheet><Cells cells={s.cells} tripId={tripId} /></HerSheet>
         {s.wanderNotes?.map((n) => (
-          <p key={n} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1.5">Wander's note, not her words: {n}</p>
+          <p key={n} className="text-[13px] text-[#8a5a1a] bg-[#fff8ec] rounded-md px-2 py-1 mt-1.5">{v.plan ? "Wander's note, not the plan's words: " : "Wander's note, not her words: "}{n}</p>
         ))}
       </div>
     );
@@ -172,7 +178,7 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
         <p className="text-sm text-[#3a3128]">{s.what}.</p>
         {s.from.length > 0 && (
           <div className="mt-1.5 pl-2 border-l-2 border-[#e0d8cc] space-y-2">
-            <p className="text-[13px] text-[#6b5d4a]">From {v.her} Guide:</p>
+            <p className="text-[13px] text-[#6b5d4a]">From {v.herGuide}:</p>
             <HerSheet>{s.from.map((f, i) => <Cells key={i} cells={f.cells} tripId={tripId} />)}</HerSheet>
           </div>
         )}
@@ -192,7 +198,7 @@ function Source({ s, tripId }: { s: SourceView; tripId?: string }) {
     // Backroads' itinerary (Oct 4): their words, the day and page — never passed off as her Guide
     return (
       <div>
-        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.document} — not {guide}</p>
+        <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{s.document}{v.plan ? "" : ` — not ${guide}`}</p>
         {s.place && <p className="text-[13px] text-[#6b5d4a]">{s.place}</p>}
         <p className="text-sm text-[#3a3128] whitespace-pre-line">“{s.quote}”</p>
         {/* ("their general itinerary, dated May 7, 2026" → "Backroads' general itinerary, dated May 7, 2026"; a file sent
@@ -309,7 +315,8 @@ export default function ScoutSources({ sources, tripId, onClose }: { sources: An
         </div>
         <div className="overflow-y-auto overscroll-contain px-4 py-3 space-y-4">
           {sources.copy && (
-            <p className="text-[13px] text-[#6b5d4a]">{v.Her} Guide as Wander last read it — the copy called “{sources.copy}”. {v.mine ? "You" : "She"} may have changed it since.</p>
+            // (a plan has no file copy to name: the footer of each day says when the plan was last updated)
+            !v.plan && <p className="text-[13px] text-[#6b5d4a]">{v.HerGuide} as Wander last read it — the copy called “{sources.copy}”. {v.mine ? "You" : "She"} may have changed it since.</p>
           )}
           {sources.claims.map((c, i) => (
             <section key={i} className="space-y-2">
@@ -336,7 +343,7 @@ export default function ScoutSources({ sources, tripId, onClose }: { sources: An
           )}
           {sources.ownWords.length > 0 && (
             <section>
-              <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{sources.photo ? "Read from your photo, or Scout's own words — not from the Guide" : "Scout's own words — no source"}</p>
+              <p className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-1">{sources.photo ? `Read from your photo, or Scout's own words — not from the ${v.plan ? "plan" : "Guide"}` : "Scout's own words — no source"}</p>
               <ul className="space-y-1.5">
                 {sources.ownWords.map((w, i) => <li key={i} className="text-sm text-[#3a3128]">“{w}”</li>)}
               </ul>

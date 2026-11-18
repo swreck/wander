@@ -12,6 +12,7 @@ import { savedCopy, keepCopy, tripToday, type TripNote } from "../lib/tripNotes"
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { holdKeyboard } from "../lib/keyboardHold";
+import { momentOn } from "../lib/dayZone";
 
 /** Whether to ask tonight, from the trip's lines (the day it's for, or null) */
 function askFor(g: TripGuideData, tripId: string, me: string | null): string | null {
@@ -23,7 +24,8 @@ function askFor(g: TripGuideData, tripId: string, me: string | null): string | n
   try { dismissed = localStorage.getItem(`wander:evening-question:${today}`) === "done"; } catch { /* storage off */ }
   // (written about the evening: a note from this question, or one about today kept after 6 PM — a note from the morning
   // put it away all day: Ken, Oct 17, "It's not even reaching me!", who writes notes most days)
-  const sixPm = new Date(`${today}T18:00:00${tz === "Asia/Tokyo" ? "+09:00" : "Z"}`).getTime();
+  // (6 PM on the trip's own clock, whichever zone that is: Vietnam's is 7 hours behind Japan's)
+  const sixPm = momentOn(today, "18:00", tz).getTime();
   const wroteToday = (savedCopy(tripId)?.notes || []).some((n) => n.mine && n.dayDate === today && (n.source === "evening" || new Date(n.createdAt).getTime() >= sixPm));
   // (not on the last day — that evening is the flight home; it asked above "Should be in the air"; tester k1)
   const lastDay = [...tripDays].sort().pop();

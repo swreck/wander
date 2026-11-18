@@ -27,11 +27,12 @@ export const rainInches = (x: number | null | undefined, chance?: number | null)
  *  worked out here on the phone so a copy kept from this morning never offers rain that's already been; "" when none
  *  is left. `now` is for tests. `part`: on a travel day, the hours they're in that place — the morning where the day
  *  starts (to 1 PM), the afternoon where they sleep (from noon); its hours ran to 10 PM, after they'd left (verify35). */
-export function rainWhen(x: { wet?: [number, number][]; showers?: [number, number][] } | undefined, date: string, now = new Date(), part?: "morning" | "afternoon"): string {
+export function rainWhen(x: { wet?: [number, number][]; showers?: [number, number][] } | undefined, date: string, now = new Date(), part?: "morning" | "afternoon", zone = "Asia/Tokyo"): string {
   if (!x?.wet?.length && !x?.showers?.length) return "";
-  const today = now.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+  // (the clock the day is lived on — Japan's when none is given: at 11 PM in Hanoi Tokyo's date is already tomorrow's)
+  const today = now.toLocaleDateString("en-CA", { timeZone: zone });
   if (date < today) return "";
-  const hour = date === today ? Number(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", hourCycle: "h23" })) : 0;
+  const hour = date === today ? Number(now.toLocaleString("en-US", { timeZone: zone, hour: "numeric", hourCycle: "h23" })) : 0;
   const [from, to] = part === "morning" ? [7, 13] : part === "afternoon" ? [12, 22] : [7, 22];
   const start = Math.max(from, hour);
   const ahead = (xs: [number, number][] | undefined) => (xs || []).map(([s, e]) => [Math.max(s, start), Math.min(e, to)] as [number, number]).filter(([s, e]) => s < e);
@@ -83,17 +84,17 @@ export const theHotel = (s: string) => (/^the /i.test(s) || !/hotel|ritz|four se
 /** The day page's forecast lines, in its order: where her plan takes them that day first, when that's somewhere else (a
  *  day trip, or where a travel day starts — Ken, Oct 13: "both weathers should be there"), then where they sleep. Each
  *  with the picture beside it. `place`: the town to name when the forecast doesn't say where it's measured. */
-export function forecastLines(f: ForecastWords, date: string, place: string, now = new Date()): { text: string; icon: "rain" | "sun" | "part" }[] {
+export function forecastLines(f: ForecastWords, date: string, place: string, now = new Date(), zone = "Asia/Tokyo"): { text: string; icon: "rain" | "sun" | "part" }[] {
   const icon = (x: { rain: number | null; code: number | null; models?: ModelRain }) => (rainDisputed(x) ? "part" : rainLikely(x) ? "rain" : clearSky(x) ? "sun" : "part");
   const how = (x: { rain: number | null; models?: ModelRain }) => (rainDisputed(x) === "drier" ? ", though other forecasts show little rain" : rainDisputed(x) === "split" ? ", but the forecasts disagree" : "");
   const lines: { text: string; icon: "rain" | "sun" | "part" }[] = [];
   const a = f.also;
   if (a) {
-    lines.push({ icon: icon(a), text: `${a.outlook === "early outlook" ? "Early outlook" : "Forecast"} for ${a.place}${a.when === "day" ? ", the day trip" : ", where the day starts"}: ${a.lo}‑${a.hi}°F${a.rain !== null ? `, ${a.rain}% chance of rain${rainInches(a.inches, a.rain)}${rainWhen(a, date, now, a.when === "morning" ? "morning" : undefined)}` : ""}${how(a)}` });
+    lines.push({ icon: icon(a), text: `${a.outlook === "early outlook" ? "Early outlook" : "Forecast"} for ${a.place}${a.when === "day" ? ", the day trip" : ", where the day starts"}: ${a.lo}‑${a.hi}°F${a.rain !== null ? `, ${a.rain}% chance of rain${rainInches(a.inches, a.rain)}${rainWhen(a, date, now, a.when === "morning" ? "morning" : undefined, zone)}` : ""}${how(a)}` });
   }
   // (where: that night's hotel when Wander knows it, else the town; how sure: past a week it's an early outlook, and a
   // rain chance the other forecasts don't share is said so — Ken's weather plan, Oct 13)
   const where = f.place ? (f.atHotel ? `at ${theHotel(f.place)}` : `for ${f.place}`) : `for ${place}`;
-  lines.push({ icon: icon(f), text: `${f.outlook === "early outlook" ? "Early outlook" : "Forecast"} ${where}${a?.when === "morning" ? ", where you sleep" : ""}: ${f.lo}‑${f.hi}°F${f.rain !== null ? `, ${f.rain}% chance of rain${rainInches(f.inches, f.rain)}${rainWhen(f, date, now, a?.when === "morning" ? "afternoon" : undefined)}` : ""}${how(f)}` });
+  lines.push({ icon: icon(f), text: `${f.outlook === "early outlook" ? "Early outlook" : "Forecast"} ${where}${a?.when === "morning" ? ", where you sleep" : ""}: ${f.lo}‑${f.hi}°F${f.rain !== null ? `, ${f.rain}% chance of rain${rainInches(f.inches, f.rain)}${rainWhen(f, date, now, a?.when === "morning" ? "afternoon" : undefined, zone)}` : ""}${how(f)}` });
   return lines;
 }

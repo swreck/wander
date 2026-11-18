@@ -11,6 +11,7 @@
  */
 import prisma from "./db.js";
 import { sendToPhones } from "./push.js";
+import { onTheirDays } from "./abroad.js";
 
 const sent = new Map<string, number>();   // `${travelerId}:${date}` → when (a restart in the window may send once more; the
                                           // notice's tag shows it once on the phone)
@@ -43,6 +44,8 @@ export async function nudgeNow(at = new Date()): Promise<{ to: string; date: str
       const who = m.traveler;
       const key = `${who.id}:${date}`;
       if (!who.pushSubscriptions.length || sent.has(key)) continue;
+      // (not a day outside their days on the trip: it would reach a phone at home — TripMember.abroadFrom/abroadTo)
+      if (!onTheirDays(m, date)) continue;
       const first = who.displayName.split(/\s+/)[0];
       const mine = lines.filter((l) => named(l.forWhom, first));
       // (not a day they fly — a take-off or a landing that's theirs)
@@ -54,7 +57,7 @@ export async function nudgeNow(at = new Date()): Promise<{ to: string; date: str
       const evening = await prisma.tripNote.findFirst({ where: { tripId: t.id, travelerId: who.id, dayDate: date, OR: [{ source: "evening" }, { createdAt: { gte: new Date(`${date}T18:00:00${offsetOf(t.zone, at)}`) } }] }, select: { id: true } });
       sent.set(key, Date.now());
       if (evening) continue;
-      const n = await sendToPhones(who.id, { title: "Scout asks", body: "Anything worth remembering from today? A line or a page, kept word for word.", tag: `evening-${date}`, url: `/notes?from=evening&day=${date}` });
+      const n = await sendToPhones(who.id, { title: "Scout asks", body: "Anything worth remembering from today? A line or a page, kept word for word.", tag: `evening-${date}`, url: `/notes?from=evening&day=${date}` }, { tripId: t.id });
       if (n) out.push({ to: who.displayName, date });
       console.log(`[evening-nudge] ${who.displayName} ${date}: ${n ? `sent to ${n} phone(s)` : "no phone took it"}`);
     }

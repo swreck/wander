@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
+import { isPlanTrip } from "../lib/planTrip";
 import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, readReceiptPhoto, attachReceiptPhoto, receiptImage, sharedOf, yen, sayItsRight, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine, type ReceiptPhoto } from "../lib/expenses";
 import PayNextBadge, { partyColor, SHARED_BLUE, CHECK_RED } from "../components/PayNextBadge";
 import useBackToClose from "../hooks/useBackToClose";
@@ -130,7 +131,7 @@ export default function MoneyPage() {
           {kept?.putBack && <button type="button" onClick={() => putBack(kept.putBack!, kept.said.replace(/^Removed/, "Put back"))} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Put it back</button>}
         </div>
         {backErr && <p className="text-sm text-[#8a3a1a] -mt-3" role="alert">{backErr}</p>}
-        {!l?.items.length && <p className="text-[12px] text-[#8a7d68] -mt-2">Or tell Scout: “We paid ¥8,000 for lunch.” Dollars are kept with that day's yen.</p>}
+        {!l?.items.length && <p className="text-[12px] text-[#8a7d68] -mt-2">{isPlanTrip(tripId) ? "Or tell Scout: “We paid $40 for lunch.”" : "Or tell Scout: “We paid ¥8,000 for lunch.” Dollars are kept with that day's yen."}</p>}
 
         {l && l.items.length > 0 && (
           <section aria-label="Payments kept">
@@ -469,7 +470,7 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
         </div>
       ) : <button type="button" onClick={() => setRemoving(true)} className="self-start min-h-[44px] text-sm text-[#8a3a1a] underline underline-offset-2 border-t border-[#ece5da] pt-2">Remove this entry</button>)}
       {/* (not with a receipt in: the pop-up is taller then, and Keep stays higher) */}
-      {!item && !receipt && <p className="text-[12px] text-[#8a7d68]">Or tell Scout: “We paid ¥8,000 for lunch.”</p>}
+      {!item && !receipt && <p className="text-[12px] text-[#8a7d68]">{isPlanTrip(tripId) ? "Or tell Scout: “We paid $40 for lunch.”" : "Or tell Scout: “We paid ¥8,000 for lunch.”"}</p>}
     </Card>
   );
 }

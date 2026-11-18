@@ -62,6 +62,7 @@ import cityPhotoRoutes from "./routes/cityPhoto.js";
 import phoneReportRoutes from "./routes/phoneReports.js";
 import pushRoutes from "./routes/push.js";
 import paperRoutes from "./routes/papers.js";
+import sampleRoutes from "./routes/samples.js";
 import weatherRoutes from "./routes/weather.js";
 import { startMyMapReader } from "./services/guide/googleMyMap.js";
 import { startHelloWarmer } from "./services/scoutHello.js";
@@ -152,6 +153,22 @@ app.get("/api/manifest.json", (req, res) => {
     ],
   });
 });
+// A sample is never acted on (S2c, Nov 17 2026): a write that names one by its id (a path segment, or a string under `id` or a
+// key ending in Id / Ids, in the body to depth 4) is refused before any route sees it. A note whose TEXT begins "sample: " is
+// not an id: only those keys are read, and an id is "sample:" followed by the row's own id.
+const SAMPLE_ID = /^sample:/;
+const namesSample = (v: unknown, key: string, depth: number): boolean => {
+  if (typeof v === "string") return (key === "id" || /Ids?$/.test(key)) && SAMPLE_ID.test(v);
+  if (!v || typeof v !== "object") return false;
+  if (Array.isArray(v)) return v.some((x) => namesSample(x, key, depth));          // (a list is the same level as the key that holds it)
+  return depth < 4 && Object.entries(v).some(([k, x]) => namesSample(x, k, depth + 1));
+};
+app.use("/api", (req, res, next) => {
+  if (req.method === "GET") { next(); return; }
+  const segments = req.originalUrl.split("?")[0].split("/").map((s) => { try { return decodeURIComponent(s); } catch { return s; } });
+  if (segments.some((s) => SAMPLE_ID.test(s)) || namesSample(req.body, "", 0)) { res.status(404).json({ error: "A sample. Nothing is planned here yet." }); return; }
+  next();
+});
 // Everything below: a trip, city, day, experience or decision named in a request is the caller's own (Oct 1 2026)
 app.use("/api", bodyTripGuard);
 app.use("/api/trips", tripRoutes);
@@ -206,6 +223,7 @@ app.use("/api/city-photo", cityPhotoRoutes);
 app.use("/api/phone-reports", phoneReportRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/papers", paperRoutes);
+app.use("/api/samples", sampleRoutes);
 app.use("/api/weather", weatherRoutes);
 app.use("/api/sources", sourceRoutes);
 

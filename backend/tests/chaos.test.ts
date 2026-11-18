@@ -4687,11 +4687,12 @@ describe("Chaos Simulations", () => {
 
     it("S159: Frequent flyer text should NOT match recommendation fast-path patterns", () => {
       // This tests the heuristic logic from chat.ts fast-path
-      const ffText = `American Airlines: AT78408, (x5) (was 4838); Larisa CPC8056; Kyler W7143H8
-United GWB06275 kkrosen;x*6 (Mileage Plus Pin: 4) (was 00032 435 963); x5 91970679823
-LF: DFK46245 (was 00200274520) x5 Kyler WSU73186 (was 03210845533) x5
-Singapore KrisFlyer 874 436 7939 (kr@gm;zZ11**6)
-Delta: swreck; x5 SkyMiles #9170129465 (L 9119875384, Ky 9020272069)`;
+      // (made-up numbers and names, Nov 17 2026: the shape of a pasted frequent flyer note, nobody's real one)
+      const ffText = `American Airlines: AB00001, (x5) (was 0002); Sam CD00003; Pat EF00004
+United GH000005 samtraveler;x5 (Mileage Plus member) (was 00000 000 006); x5 00000000007
+LF: JK000008 (was 00000000009) x5 Pat LM000010 (was 00000000011) x5
+Singapore KrisFlyer 000 000 0012
+Delta: samtraveler; x5 SkyMiles #0000000013 (S 0000000014, P 0000000015)`;
 
       const travelDocPatterns = [
         /frequent\s*flyer/i, /passport/i, /\bvisa\b/i, /insurance/i,

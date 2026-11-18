@@ -164,7 +164,8 @@ registerRoute(
 // person's notes showed to the next with no signal. The Notes screen keeps its own copy, per person. Oct 1 2026)
 // (and the photo lists, for the same reason: the Day screen keeps its own copy, per person — Oct 15 2026)
 // (/api/alerts: a kept copy would show a message already marked Got it again, offline)
-const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat', '/api/trip-notes', '/api/trip-photos', '/api/alerts'];
+// (/api/samples: what only Ken sees is held in memory on the phone, never kept — S2c, Nov 17 2026)
+const NEVER_CACHED = ['/api/sse', '/api/auth/', '/api/chat', '/api/trip-notes', '/api/trip-photos', '/api/alerts', '/api/samples'];
 registerRoute(
   ({ url, request }) =>
     url.pathname.startsWith('/api/') && request.method === 'GET' &&

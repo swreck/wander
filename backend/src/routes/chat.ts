@@ -21,6 +21,9 @@ import { setDecisionVotes } from "../services/decisionVotes.js";
 import type { ContextLine } from "../services/guide/sources.js";
 import { keepScoutWarm } from "../services/scoutWarm.js";
 import { currentTripIdFor, chooseTrip } from "../services/currentTrip.js";
+import { isPlanTrip, planSystemPrompt, planTools } from "../services/planTrip.js";
+import { zoneWords as zoneWordsOf } from "../services/zoneWords.js";
+import { wrongWeekdays, withoutWrongWeekdays } from "../services/weekdays.js";
 
 const SCOUT_MODEL = "claude-opus-5";
 import { appleGuidesOf } from "../services/guide/appleGuides.js";
@@ -1618,8 +1621,24 @@ function maskVaultDocument<T extends { type: string; data: unknown }>(doc: T): T
   return { ...doc, data: { locked: true, howToSee: "Open your vault in Profile to see these details." } };
 }
 
+/** A plan trip's clock for the tools: the clock of today's day (Vietnam's at 11 PM in Hanoi, not Tokyo's tomorrow). null for any
+ *  other trip, whose tools keep Japan's expressions as they were. */
+async function planDayClock(tripId: string): Promise<string | null> {
+  if (!tripId || !(await isPlanTrip(tripId))) return null;
+  const { dayZone, tripToday } = await import("../services/dayCountry.js");
+  return dayZone(tripId, await tripToday(tripId));
+}
+/** Yen or US dollars, or no currency said: the only ones Wander can keep so far */
+const keepableCurrency = (currency: unknown): boolean => {
+  const c = String(currency ?? "").trim();
+  return !c || /^(jpy|yen|¥|円|usd|\$|dollars?)$/i.test(c);
+};
+
 // Execute a tool call and return the result
 const NOT_YOURS = "That's part of Larisa's Guide, so Wander doesn't change it (the next read of her Guide would undo it anyway). Offer instead: a same-day plan (add_same_day_plan), a note on the idea, or a message to Larisa.";
+
+// A city or stay the plan tool wrote (planKey): the tool would put an edit back on its next run
+const NOT_YOURS_PLAN = "That's part of the plan Larisa and Ken are building, so Wander doesn't change it from here. Offer instead: a same-day plan (add_same_day_plan) or a note on the idea.";
 
 export async function guideItemRefusal(toolName: string, input: any): Promise<string | null> {
   const isGuideIdea = async (id: string) => {
@@ -1638,12 +1657,12 @@ export async function guideItemRefusal(toolName: string, input: any): Promise<st
       return fromGuide ? NOT_YOURS : null;
     }
     case "update_city": {
-      const c = input?.cityId ? await prisma.city.findUnique({ where: { id: String(input.cityId) }, select: { guideKey: true } }) : null;
-      return c?.guideKey ? NOT_YOURS : null;
+      const c = input?.cityId ? await prisma.city.findUnique({ where: { id: String(input.cityId) }, select: { guideKey: true, planKey: true } }) : null;
+      return c?.guideKey ? NOT_YOURS : c?.planKey ? NOT_YOURS_PLAN : null;
     }
     case "update_accommodation": {
-      const a = input?.accommodationId ? await prisma.accommodation.findUnique({ where: { id: String(input.accommodationId) }, select: { guideKey: true } }) : null;
-      return a?.guideKey ? NOT_YOURS : null;
+      const a = input?.accommodationId ? await prisma.accommodation.findUnique({ where: { id: String(input.accommodationId) }, select: { guideKey: true, planKey: true } }) : null;
+      return a?.guideKey ? NOT_YOURS : a?.planKey ? NOT_YOURS_PLAN : null;
     }
     default:
       return null;
@@ -3934,9 +3953,14 @@ export async function executeTool(
       const hits = (n: (typeof all)[number]) => (!q ? 1 : noteMatches(n, me, q) ? words.length + 1 : words.filter((w) => noteMatches(n, me, w)).length);
       const notes = all.map((n, i) => ({ n, i, h: hits(n) })).filter((x) => x.h > 0).sort((a, b) => b.h - a.h || a.i - b.i).slice(0, 60).map((x) => x.n);
       // (to the minute: with six notes kept the same day, Scout called the oldest "the most recent one" — user-julie4)
-      const keptOn = (d: Date) => `${plainDay(d.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }))}, ${d.toLocaleTimeString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit" })}`;
+      // (a plan trip: on the clock of the day the people are living, said in its words — a note kept at 11:30 PM Dec 20 in
+      // Vietnam is Dec 20, not Tokyo's Dec 21)
+      const notesClock = await planDayClock(String(input.tripId || ""));
+      const keptOn = notesClock
+        ? (d: Date) => `${plainDay(d.toLocaleDateString("en-CA", { timeZone: notesClock }))}, ${d.toLocaleTimeString("en-US", { timeZone: notesClock, hour: "numeric", minute: "2-digit" })} ${zoneWordsOf(notesClock)}`
+        : (d: Date) => `${plainDay(d.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }))}, ${d.toLocaleTimeString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit" })}`;
       return { result: {
-        order: q ? "the ones matching their words most first; newest first among those — 'kept' says when" : "newest first — 'kept' says when (Japan time)",
+        order: q ? "the ones matching their words most first; newest first among those — 'kept' says when" : notesClock ? "newest first — 'kept' says when, with its clock" : "newest first — 'kept' says when (Japan time)",
         notes: notes.map((n) => n.travelerId === me
           // (an answer of yours they asked you to keep is yours, never quoted as their words — rule 40)
           ? { id: n.id, by: n.source === "scout-answer" ? "Scout (your own answer, kept for them)" : "you", kept: keptOn(n.createdAt), day: n.dayDate, city: n.city, shared: n.visibility === "trip", words: n.tidied || n.text, ...(n.text !== n.original ? { asFirstSaved: n.original } : {}) }
@@ -3965,8 +3989,10 @@ export async function executeTool(
       if (typeof input.add === "string" && input.add.trim() && typeof input.words !== "string") {
         if (note.source === "scout-answer") return { result: { error: "That one is your own answer kept for them — its words stay as you wrote them." } };
         const now = new Date();
-        const japan = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
-        const at = now.toLocaleString("en-US", { timeZone: "Asia/Tokyo", ...(japan(note.createdAt) === japan(now) ? {} : { weekday: "short", month: "short", day: "numeric" }), hour: "numeric", minute: "2-digit" });
+        // (a plan trip: the day's own clock; the stamp is written into their note, so it carries no clock words, as Japan's has none)
+        const stampClock = await planDayClock(note.tripId);
+        const japan = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: stampClock || "Asia/Tokyo" });
+        const at = now.toLocaleString("en-US", { timeZone: stampClock || "Asia/Tokyo", ...(japan(note.createdAt) === japan(now) ? {} : { weekday: "short", month: "short", day: "numeric" }), hour: "numeric", minute: "2-digit" });
         const w = `${(note.tidied || note.text).replace(/\s+$/, "")}\n\n${at} — ${input.add.trim()}`;
         if (w.length > 50_000) return { result: { error: "That's longer than one note can hold — start a new note." } };
         data.text = w; data.editedAt = now; data.tidied = null; data.tidyStatus = null;
@@ -4001,10 +4027,15 @@ export async function executeTool(
       const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
       // (when its moment passes — Japan time; Ken: "Expires in 3 days or the moment that the moment has passed")
       const untilRaw = typeof input.until === "string" ? input.until.trim() : "";
-      const until = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(untilRaw) ? new Date(`${untilRaw}:00+09:00`) : null;
-      if (untilRaw && (!until || isNaN(until.getTime()))) return { result: { error: "until must be Japan time as YYYY-MM-DDTHH:MM, or left out." } };
+      // (on the clock of the day it falls on: Japan's for every day of a Japan trip, Vietnam's for a Vietnam day of a plan trip)
+      const { dayZone: dayZoneOfUntil } = await import("../services/dayCountry.js");
+      const { zonedMoment: momentOnClock, zoneWords: wordsOfClock } = await import("../services/zoneWords.js");
+      const untilWell = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(untilRaw) && !isNaN(Date.parse(`${untilRaw}:00Z`)) && new Date(`${untilRaw}:00Z`).toISOString().slice(0, 16) === untilRaw;
+      const untilClock = untilWell ? await dayZoneOfUntil(String(input.tripId || ""), untilRaw.slice(0, 10)) : "Asia/Tokyo";
+      const until = untilWell ? momentOnClock(untilRaw.slice(0, 10), Number(untilRaw.slice(11, 13)) * 60 + Number(untilRaw.slice(14, 16)), untilClock) : null;
+      if (untilRaw && (!until || isNaN(until.getTime()))) return { result: { error: "until must be the time on that day's own clock as YYYY-MM-DDTHH:MM, or left out." } };
       if (until && until.getTime() <= Date.now()) return { result: { error: "That moment has already passed — say so to them; nothing was sent." } };
-      const whenGone = until ? `, until ${until.toLocaleString("en-US", { timeZone: "Asia/Tokyo", weekday: "short", hour: "numeric", minute: "2-digit" })}` : "";
+      const whenGone = until ? `, until ${until.toLocaleString("en-US", { timeZone: untilClock, weekday: "short", hour: "numeric", minute: "2-digit" })}${untilClock === "Asia/Tokyo" ? "" : ` ${wordsOfClock(untilClock)}`}` : "";
       // (Ken, Oct 18: "Confirm: 'got it. Here's what I'll send: ….'" — never sent before their yes to these exact words)
       if (input.confirmed !== true) {
         return { result: { notSentYet: true, words, to: names,
@@ -4100,6 +4131,13 @@ export async function executeTool(
           // (Scout offered Larisa "tell me which and I'll take them off" for Andy's entries, then couldn't; user-larisa3)
           say: "Say who pays next and what they'd pay the other couple to be even, in a line. Totals and payments only if asked (Ken: people don't want to be reminded how much they've paid). Offer to change or take a payment away only when it's youMayRemove: true; for others, say who kept it and that they (or Ken) can." } };
       }
+      // A currency Wander can't keep is never kept as yen (services/expenses.ts turns every currency that isn't dollars into
+      // yen, so "VND" would have been kept as ¥). Nothing is written or changed. Any trip.
+      if ((toolName === "add_expense" || toolName === "change_expense") && !keepableCurrency(input.currency)) {
+        return { result: toolName === "add_expense"
+          ? { kept: false, question: "Wander keeps yen and US dollars only so far, so nothing was kept." }
+          : { changed: false, question: "Wander keeps yen and US dollars only so far, so nothing was changed." } };
+      }
       if (toolName === "change_expense" && input.thatsRight === true && input.amount === undefined && input.paidBy === undefined && input.forCouple === undefined) {
         const { checkNotShared } = await import("../services/expenses.js");
         const r = await checkNotShared(input.tripId, String(input.id || ""), { travelerId: me, displayName: user.displayName });
@@ -4131,6 +4169,15 @@ export async function executeTool(
         const l = await ledger(input.tripId);
         if (r === "already") return { result: { already: "It already counts — it was never taken away, or someone put it back.", ...said(l) } };
         return { result: { putBack: `${r.party}, ${r.currency === "USD" ? `$${r.amount}` : yenWords(r.amount)}`, ...said(l), say: "One line: it's back and counts again, and who pays next now." }, actionDescription: "Payment put back" };
+      }
+      // A trip built from a plan, with no currency said, on a day outside Japan or a date that is no day of the trip: a number
+      // there is not known to be yen. Nothing is kept;
+      // Scout asks. (Wander keeps yen and US dollars only so far — the money screen is a later slice.)
+      if (!input.currency && (await isPlanTrip(input.tripId))) {
+        const { dayCountry, tripToday } = await import("../services/dayCountry.js");
+        const onDay = /^\d{4}-\d{2}-\d{2}$/.test(String(input.date || "")) ? String(input.date) : await tripToday(input.tripId);
+        const where = await dayCountry(input.tripId, onDay);
+        if (!where || !/^japan$/i.test(where)) return { result: { kept: false, question: "Which currency? Wander keeps yen and US dollars only so far." } };
       }
       const paidBy = String(input.paidBy || "");
       const r = await addExpense({ tripId: input.tripId, paidBy: /^(we|us|i|me|our)$/i.test(paidBy.trim()) ? user.displayName : paidBy, amount: Number(input.amount), currency: input.currency, what: input.what ?? null, dayDate: input.date ?? null, forParty: input.forCouple ?? null, addedById: me, addedByName: user.displayName });
@@ -4221,7 +4268,12 @@ export async function executeTool(
       const { dayWeather, townWeather } = await import("../services/dayWeather.js");
       const { forecastLines } = await import("../services/forecastWords.js");
       const now = new Date();
-      const today = new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);   // (Japan's date)
+      const tripIdForWeather = String(input.tripId || "");
+      // (Japan's date for a trip read from a Guide; a trip built from a plan crosses countries, so its today is the date on
+      // the clock of the day the people are living — dayCountry.tripToday)
+      const onPlan = await isPlanTrip(tripIdForWeather);
+      const { dayCountry, tripToday, dayZone: dayZoneOf } = await import("../services/dayCountry.js");
+      const today = onPlan ? await tripToday(tripIdForWeather, now) : new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);   // (Japan's date)
       // (real calendar days only: "2026-13-45" looks like one and broke the lookup — chaos check, Oct 14)
       const asked: string[] = (Array.isArray(input.dates) ? input.dates : []).map(String)
         .filter((d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d);
@@ -4232,7 +4284,10 @@ export async function executeTool(
       // (plain characters for an answer: the day page's no-break spaces and hyphens keep its lines from wrapping badly)
       const plain = (t: string) => t.replace(/\u00a0/g, " ").replace(/\u2060/g, "").replace(/\u2011/g, "-");
       const dayName = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
-      const readAt = (iso: string) => `${new Date(iso).toLocaleString("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit", ...(iso.slice(0, 10) !== now.toISOString().slice(0, 10) ? { weekday: "short" } : {}) })} Japan time`;
+      // (read at, on the clock of today's day: Japan's for a Guide trip, the day's own words on a plan trip)
+      const readZone = onPlan ? await dayZoneOf(tripIdForWeather, today) : "Asia/Tokyo";
+      const { zoneWords } = await import("../services/zoneWords.js");
+      const readAt = (iso: string) => `${new Date(iso).toLocaleString("en-US", { timeZone: readZone, hour: "numeric", minute: "2-digit", ...(iso.slice(0, 10) !== now.toISOString().slice(0, 10) ? { weekday: "short" } : {}) })} ${zoneWords(readZone)}`;
       const kept: { date: string; weather: unknown }[] = [];
       const days = await Promise.all(dates.map(async (date) => {
         const w = town ? await townWeather(String(input.tripId || ""), town, date, today) : await dayWeather(String(input.tripId || ""), user.displayName || "", date, today);
@@ -4258,9 +4313,12 @@ export async function executeTool(
         if (hrs) {
           const { dayPoints, townPoint, hoursAt, hourlyWords } = await import("../services/dayWeather.js");
           const pts = town ? [await townPoint(String(input.tripId || ""), town)].filter((x): x is NonNullable<typeof x> => !!x) : await dayPoints(String(input.tripId || ""), user.displayName || "", date);
-          hourly = (await Promise.all(pts.map(async (x) => { const h = await hoursAt(x.pt, date, hrs.from, hrs.to); return h ? hourlyWords(x.place, h) : null; }))).filter(Boolean);
+          const { dayZone } = await import("../services/dayCountry.js");
+          // (the clock the day is lived on: its hours are that zone's; a named town is looked up in Japan only)
+          const dayClock = town ? "Asia/Tokyo" : await dayZone(String(input.tripId || ""), date);
+          hourly = (await Promise.all(pts.map(async (x) => { const h = await hoursAt(x.pt, date, hrs.from, hrs.to, dayClock); return h ? hourlyWords(x.place, h) : null; }))).filter(Boolean);
         }
-        return { date, day: dayName(date), lines: forecastLines(w, date, w.place, now).map((l) => plain(l.text)), read: readAt(w.at),
+        return { date, day: dayName(date), lines: forecastLines(w, date, w.place, now, town ? "Asia/Tokyo" : await (await import("../services/dayCountry.js")).dayZone(String(input.tripId || ""), date)).map((l) => plain(l.text)), read: readAt(w.at),
           ahead: w.outlook === "early outlook" ? "an early outlook: more than a week ahead, likely to change" : "a week or less",
           ...(hourly?.length ? { hourly } : {}),
           ...(airports.length ? { airports, airportsNote: "the airport's own forecast, for their flight that day (not on the day page): use it for landing or leaving" } : {}) };
@@ -4268,14 +4326,27 @@ export async function executeTool(
       // The storm, warning and train watch for their places (services/stormWatch — Ken's decision 2): the same lines the
       // day page shows, for the days asked about; and whether it found anything at all through 5 days ahead
       let watch: Record<string, unknown> | null = null;
+      // (only Japan's weather agency is read: a day outside Japan says so and nothing else — no "checked", no "nothing
+      // found" — and a question about only such days doesn't reach the watch at all. A day whose country isn't known is
+      // taken as Japan's, as before.)
+      const outsideJapan = new Map<string, string>();
       if (!town) {
+        for (const d of days as any[]) {
+          const c = await dayCountry(tripIdForWeather, d.date);
+          if (c && !/^japan$/i.test(c)) {
+            outsideJapan.set(d.date, c);
+            d.stormCheck = `Wander's storm watch covers Japan only. ${c} has not been checked.`;
+          }
+        }
+      }
+      if (!town && outsideJapan.size < days.length) {
         try {
           const { stormWatch } = await import("../services/stormWatch.js");
           const sw = await stormWatch(String(input.tripId || ""), user.displayName || "", today, now);
           // (each day says for itself what was checked — "Nothing is up for either day" covered a Monday the chance check
           // never reached; verify46)
           const tw = sw.through || { warnings: null, chances: null, typhoons: null };
-          for (const d of days as any[]) {
+          for (const d of (days as any[]).filter((x) => !outsideJapan.has(x.date))) {
             if (sw.days[d.date]) d.watch = sw.days[d.date].map((l) => l.text);
             d.stormCheck = [
               d.date === today ? (tw.warnings ? "warnings in force now: checked" : "warnings in force now: NOT checked (couldn't read them)") : "warnings: only ever known on the day",
@@ -4300,15 +4371,17 @@ export async function executeTool(
           };
         } catch (e: any) { watch = { couldNotCheck: ["the storm watch"] }; console.warn("[get_weather] watch:", e?.message); }
       }
+      // (the hours are on the clock of each day: Japan's words only when every day asked about is lived on Japan's clock)
+      const clockWords = town || (await Promise.all(dates.map((d) => dayZoneOf(tripIdForWeather, d)))).every((z) => z === "Asia/Tokyo") ? "Japan time" : "each day's own clock, named in its lines";
       return {
         result: {
           days,
           ...(watch ? { stormWatch: watch } : {}),
           source: town ? `Wander's forecast for ${town} (Open-Meteo), the same source as the day pages` : "Wander's forecast (Open-Meteo): exactly what the day page and Home show for them",
-          ...(hrs ? { hourlyHow: "hourly: each place's own hours (Japan time), from the same forecast as the lines. Give the hours they asked about as they are (a few may be said as a short run, \"61°F at 1 PM, 55°F by 6 PM\"), the place's height when it tells them which spot it is, and otherForecasts in a few words. Never move one place's hours to another. A height is that place's own, above sea level: never a difference between places (comparing two, give each one's height)." } : {}),
+          ...(hrs ? { hourlyHow: `hourly: each place's own hours (${clockWords}), from the same forecast as the lines. Give the hours they asked about as they are (a few may be said as a short run, \"61°F at 1 PM, 55°F by 6 PM\"), the place's height when it tells them which spot it is, and otherForecasts in a few words. Never move one place's hours to another. A height is that place's own, above sea level: never a difference between places (comparing two, give each one's height).` } : {}),
           say: town
             ? "Give the numbers exactly as the lines have them, and say in a short clause that it's not where their plan has them that day, unless their day passes through it (say where it does, from DAY BY DAY)."
-            : "Give the numbers, hours and places exactly as these lines have them: you may say them more naturally, but never change, round, average or merge a number, an hour or a place. Two lines for a day: say both, the first one first (where the day takes them, then where they sleep). An early outlook is said as one. Rain hours are Japan time and already leave out hours that have passed. Each line's hours and temperatures are for that line's place, all day: never tie them to being somewhere else (\"that rain window overlaps your landing at Narita\" is wrong: the hotel is 60 km from the airport), and never call the day's range tonight's. No ranges of your own (\"high 40s\"). Don't add the reading time unless they ask how current it is.",
+            : `Give the numbers, hours and places exactly as these lines have them: you may say them more naturally, but never change, round, average or merge a number, an hour or a place. Two lines for a day: say both, the first one first (where the day takes them, then where they sleep). An early outlook is said as one. Rain hours are ${clockWords === "Japan time" ? "Japan time" : "on each day's own clock"} and already leave out hours that have passed. Each line's hours and temperatures are for that line's place, all day: never tie them to being somewhere else (\"that rain window overlaps your landing at Narita\" is wrong: the hotel is 60 km from the airport), and never call the day's range tonight's. No ranges of your own (\"high 40s\"). Don't add the reading time unless they ask how current it is.`,
         },
         ...(kept.length ? { forecasts: kept } : {}),
       };
@@ -4320,7 +4393,10 @@ export async function executeTool(
       let weather: unknown = null;
       try {
         const { packingWeather } = await import("../services/packingWeather.js");
-        const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);   // (Japan's date)
+        // (Japan's date for a Guide trip; a plan trip's is the date on the clock of the day the people are living)
+        const today = (await isPlanTrip(String(input.tripId || "")))
+          ? await (await import("../services/dayCountry.js")).tripToday(String(input.tripId || ""))
+          : new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);   // (Japan's date)
         const stays = await packingWeather(String(input.tripId || ""), user.displayName || "", today);
         if (stays.length) weather = {
           asOf: `the live forecast (Open-Meteo), read ${today}`,
@@ -4329,6 +4405,8 @@ export async function executeTool(
           how: "From this, at most three items, each ONE sentence: what the forecast shows for their own nights or days (with the dates as given here, weekday and all), tied to what Backroads' itinerary or her Guide has them doing that day, and what to pack for it. Worth an item, and only these: the coldest stop against where they start, in ONE item (give both ranges, never a difference you work out); the days rain shows when they'll be outside (biking, a hike); one very wet stretch. Never an item that only says a stop is mild or warm, or tells them to bring ordinary clothes for it ('light clothes', 'a short-sleeve layer'): that's obvious, and Ken (Oct 12): \"Don't just do the obvious. That's worse than nothing.\" Fewer weather items is better than an obvious one. Certainty goes day by day: a rain day may be called likely, with its chance, only when it's marked 'forecast' AND its models 'agree'; when its models 'disagree' (Europe's, Japan's and the US forecasts don't all show rain), it only 'may' rain, and say the forecasts disagree, with no chance given as if settled; one marked 'early outlook' is more than a week away and only 'may' rain. Say once that the numbers are for the hotel itself when 'at' says so. Backroads' own notes already tell them to bring rain gear, warm layers and gloves: never mention any of those, even in passing, and nothing as obvious as 'check the forecast'. One item may be, on its own and about nothing else: no need to pack an umbrella, since convenience stores sell them for under ¥1,000. Temperatures in °F as given. Backroads' days by their date (\"Mon, Oct 19\"), never its numbers (\"Day 2\"). Nothing of your own about the hotels (what they have or lend) or about what dries overnight.",
         };
       } catch (e: any) { console.warn("[packing] weather unavailable:", e?.message); }
+      // (a plan trip: the tool's own sentence says "the plan", never "her Guide")
+      if (weather && typeof (weather as any).how === "string" && (await isPlanTrip(String(input.tripId || "")))) (weather as any).how = (weather as any).how.replace("her Guide", "the plan");
       return { result: weather ? { ...PACKING, weather } : PACKING };
     }
 
@@ -5368,6 +5446,16 @@ router.post("/", async (req: AuthRequest, res) => {
         guideCopy = parts.copy;
       } catch (e: any) { console.warn("[scout] guide context unavailable:", e.message); }
     }
+    // A trip built from a plan: "kept today", when a note was kept and a notice's day are on the clock of today's day (a note
+    // kept at 11:30 PM Dec 20 in Hanoi is still Dec 20), said with that clock's words. Null on every other trip, whose
+    // expressions below are Japan's, as they were.
+    let planClock: string | null = null;
+    if (tripId && (await isPlanTrip(tripId))) {
+      try {
+        const { dayZone: zoneOfDay, tripToday: todayOfTrip } = await import("../services/dayCountry.js");
+        planClock = await zoneOfDay(tripId, await todayOfTrip(tripId));
+      } catch { /* Japan's clock, as before */ }
+    }
     // Other sources (Ken's rail sheet): each its own cited document, never merged into her Guide
     let otherDocs: { title: string; lines: ContextLine[] }[] = [];
     const otherFreshness: string[] = [];
@@ -5376,7 +5464,7 @@ router.post("/", async (req: AuthRequest, res) => {
         const { sourceViews, sourceDocuments } = await import("../services/sources/context.js");
         const views = await sourceViews(tripId);
         otherDocs = sourceDocuments(views).filter((d) => d.lines.length > 1);
-        const zone = typeof clientTime?.timeZone === "string" ? clientTime.timeZone : "Asia/Tokyo";
+        const zone = planClock && typeof clientTime?.timeZone !== "string" ? planClock : typeof clientTime?.timeZone === "string" ? clientTime.timeZone : "Asia/Tokyo";
         const when = (iso: string) => { try { return new Date(iso).toLocaleString("en-US", { timeZone: zone, weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return iso.slice(0, 16); } };
         for (const v of views) {
           if (!v.meta.readAt) { otherFreshness.push(`Wander hasn't been able to read ${v.meta.owner}'s ${v.meta.name} yet.`); continue; }
@@ -5409,9 +5497,9 @@ router.post("/", async (req: AuthRequest, res) => {
         const kept = await prisma.tripNote.findMany({ where: { tripId, source: "scout-answer", OR: [{ travelerId: me }, { visibility: "trip" }] }, orderBy: { createdAt: "desc" }, take: 12 });
         if (kept.length) {
           // (when, said as a person would: "kept today" — given "2026-10-13" on Oct 13, Scout said "kept for you yesterday")
-          const tripToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+          const tripToday = planClock ? new Date().toLocaleDateString("en-CA", { timeZone: planClock }) : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
           const keptWhen = (n: { createdAt: Date }) => {
-            const d = n.createdAt.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+            const d = planClock ? n.createdAt.toLocaleDateString("en-CA", { timeZone: planClock }) : n.createdAt.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
             return d === tripToday ? "kept today" : `kept ${plainDay(d)}`;
           };
           keptLine = `KEPT FROM SCOUT (your own answers they asked you to keep, in their Notes — get_my_notes has every word): ` +
@@ -5419,7 +5507,9 @@ router.post("/", async (req: AuthRequest, res) => {
         }
         if (ns.length) {
           // (newest first, with when each was kept: "the note I just dictated" is the newest of theirs — user-julie4)
-          const keptAt = (d: Date) => d.toLocaleString("en-US", { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+          const keptAt = (d: Date) => planClock
+            ? `${d.toLocaleString("en-US", { timeZone: planClock, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${zoneWordsOf(planClock)}`
+            : d.toLocaleString("en-US", { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
           notesLine = `TRIP NOTES this person can see, NEWEST FIRST (the Notes tab: their own, and others' shared with the trip — quote exactly and say whose; get_my_notes has every word; "the note I just wrote/dictated" is the first of theirs here): ` +
             ns.map((n) => {
               const words = n.travelerId === me ? n.tidied || n.text : sharedWords(n);
@@ -5492,12 +5582,15 @@ router.post("/", async (req: AuthRequest, res) => {
         const { liveOn } = await import("../services/tripAlerts.js");
         const told = await liveOn(tripId);
         if (told.length) toldLines = ["TOLD TO EVERYONE (through you, still showing on their screens — keep your answers in line with these; a caveat one carries goes with what it's about, e.g. the names it says may be misspelled):",
-          ...told.map((a) => `- From ${a.fromName}, ${plainDay(new Date(a.createdAt.getTime() + 9 * 3600_000).toISOString().slice(0, 10))}: “${a.text}”`)];
+          ...told.map((a) => `- From ${a.fromName}, ${plainDay(planClock ? a.createdAt.toLocaleDateString("en-CA", { timeZone: planClock }) : new Date(a.createdAt.getTime() + 9 * 3600_000).toISOString().slice(0, 10))}: “${a.text}”`)];
       } catch (e: any) { console.warn("[scout] told-to-everyone unavailable:", e.message); }
     }
 
     // Build system prompt with page context
-    const systemPrompt = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
+    // (a trip built from a plan gets this prompt with one block and one rule changed — services/planTrip.ts; every other trip
+    // gets it untouched, and scout-japan-unchanged.test.ts holds a hash of it)
+    const planTripNow = tripId ? await isPlanTrip(tripId) : false;
+    const scoutPromptBase = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
 
 Wander is the family's window into Larisa's Guide — her trip spreadsheet, which is the plan. You know the Guide (the document at the start of the conversation), you know how Wander works (below), and you can look things up on the internet. You never change the plan. What time it is for the person asking, and what the Guide's deadlines and flights stand at right now, are in RIGHT NOW with their latest message.
 
@@ -5645,6 +5738,7 @@ RULES:
 63. Letting everyone know (Ken, Oct 18: "Alert on next login function from anyone using anything to scout like 'let everyone know' with 'got it' and 'remind me' as options. This is for logistics not general messaging."): "let everyone know…", "tell everyone…", "can you alert everyone when they log in…" → tell_everyone, and never say Wander can't reach them. Only the trip's logistics: a time, a place, a meeting point, a change, a booking, a correction everyone should see (that the guides' names may be misspelled is one). Chat, jokes, greetings or feelings: say in a line that it's for the trip's logistics, and that a shared note or a text reaches them. The words: theirs when they gave them, in their voice ("I" is the sender), short, with only what they asked you to add; never news of your own, and never a list of names or a wall of text — say what's there to ask you about (Ken, Oct 18: "I do not expect to send out a message with all the names, which seems annoying and a wall of text"). Always confirm first (Ken, Oct 18: "Confirm: 'got it. Here's what I'll send: ….'"): call tell_everyone without confirmed and reply as it says; send (confirmed: true, the same words) only after their yes. A message about a moment (a bus leaving, a meeting time) gets until: that moment, Japan time; it's gone from everyone's screen then, and after 3 days in any case. "Has everyone seen it?", "did Julie get it?", "take it back" → my_alerts.
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
+    const systemPrompt = planTripNow ? planSystemPrompt(scoutPromptBase) : scoutPromptBase;
 
     // The conversation is what THIS phone shows. A chat from another phone, or from last night,
     // must never steer an answer here (it once made Scout say "no check-out today" on a moving day).
@@ -5714,8 +5808,8 @@ RULES:
     // instructions); this question's details and the right-now statuses (a small second document) go with
     // the latest message, after everything cached.
     const HOUR = { type: "ephemeral" as const, ttl: "1h" as const };
-    const GUIDE_TITLE = "Larisa's Guide (the plan, as Wander last read it)";
-    const LIVE_TITLE = "Right now: her Guide's deadlines and flights";
+    const GUIDE_TITLE = planTripNow ? "The plan, as Wander holds it" : "Larisa's Guide (the plan, as Wander last read it)";
+    const LIVE_TITLE = planTripNow ? "Right now: the plan's deadlines and flights" : "Right now: her Guide's deadlines and flights";
     const citedDocs: CitedDocument[] = [{ title: GUIDE_TITLE, lines: guideLines }, { title: LIVE_TITLE, lines: liveLines }, ...otherDocs];
     const asDocument = (title: string, lines: ContextLine[], cache: boolean): any => ({
       type: "document", title, citations: { enabled: true },
@@ -5725,7 +5819,7 @@ RULES:
     const liveTail = [
       "RIGHT NOW (this question):",
       nowLine,
-      liveLines.length ? `(What her Guide's deadlines and flights stand at right now is in the document "${LIVE_TITLE}".)` : "",
+      liveLines.length ? `(What ${planTripNow ? "the plan's" : "her Guide's"} deadlines and flights stand at right now is in the document "${LIVE_TITLE}".)` : "",
       ...otherFreshness,
       ...nearLines,
       ...paperLinesNow,
@@ -5747,6 +5841,8 @@ RULES:
       learningsContext,
     ].filter(Boolean).join("\n");
     const system: Anthropic.TextBlockParam[] = [{ type: "text", text: systemPrompt, cache_control: HOUR }];
+    // (a plan trip is sent a copy of the tools with three descriptions that no longer say Japan's clock, yen or Japan's dates)
+    const toolsNow: Anthropic.ToolUnion[] = planTripNow ? planTools(offeredTools) : offeredTools;
     // The latest message: the right-now statuses, this question's details, then the question itself
     const latest: any[] = [
       ...(liveLines.length ? [asDocument(LIVE_TITLE, liveLines, false)] : []),
@@ -5772,6 +5868,8 @@ RULES:
     let askedAgainForWords = false;
     let askedAgainForLinks = false;
     let askedAgainForButton = false;
+    let askedAgainForWeekday = false;
+    let askedAgainForNoTool = false;
     const startedAt = Date.now();
 
     for (let turn = 0; turn < 8; turn++) {
@@ -5787,7 +5885,7 @@ RULES:
         ...(process.env.SCOUT_THINKING ? { thinking: { type: "adaptive" } as any } : {}),
         max_tokens: 16000,
         system,
-        tools: offeredTools,
+        tools: toolsNow,
         messages,
       });
       const u: any = response.usage || {};
@@ -5855,12 +5953,50 @@ RULES:
           answerPieces.length = 0;
           continue;
         }
+        // …or unless it writes a weekday beside a date that the calendar doesn't give that weekday (Nov 17 2026: "the night of
+        // Monday, Dec 22" for a Tuesday). Once: read the date again and write the answer again; a wrong weekday that comes
+        // back is taken out, so it never reaches the person. (services/weekdays.ts; the trip's own dates give the year)
+        if (tripId && /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/.test(finalReply)) {
+          const trip = await prisma.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }).catch(() => null);
+          const range = trip?.startDate && trip?.endDate ? { start: trip.startDate.toISOString().slice(0, 10), end: trip.endDate.toISOString().slice(0, 10) } : null;
+          const wrong = range ? wrongWeekdays(finalReply, range) : [];
+          if (range && wrong.length) {
+            if (!askedAgainForWeekday && turn < 6) {
+              askedAgainForWeekday = true;
+              console.log(`Scout wrote ${wrong.length} weekday(s) the calendar doesn't give — asking it to read the date again`);
+              const said = wrong.map((w) => `"${w.said}" (that date is a ${w.is})`).join(" and ");
+              if ((response.content as any[]).length) messages.push({ role: "assistant", content: response.content });   // (never an empty message)
+              messages.push({ role: "user", content: [{ type: "text", text: wrong.length === 1
+                ? `(Wander) Your answer says "${wrong[0].said}", but on this trip's calendar that date is a ${wrong[0].is}. Read the date again in DAY BY DAY or WHERE EVERYONE SLEEPS: the weekday written beside a date there is right. Then write your whole answer again, as your reply to the question — don't mention this check.`
+                : `(Wander) Your answer says ${said}. Read each date again in DAY BY DAY or WHERE EVERYONE SLEEPS: the weekday written beside a date there is right. Then write your whole answer again, as your reply to the question — don't mention this check.` }] });
+              finalReply = "";
+              answerPieces.length = 0;
+              continue;
+            }
+            finalReply = withoutWrongWeekdays(finalReply, range);
+          }
+        }
         if (unseen.length) finalReply = markUnseen(finalReply, unseen);
         break;
       }
 
       // Process tool calls
       const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
+      // A step that stops "for a tool" and calls none (the server log of Nov 17: 400, "user messages must have non-empty
+      // content", after an empty tool-result message was pushed). Say what the step held, then: an answer already written
+      // stands (words from an earlier step, or 40 characters or more in this one). A few words alone ("Checking...") are
+      // not an answer: that step is asked again once, its words dropped and nothing added to the conversation. A second
+      // time, the phone gets the failure it has words and a Try again for ("I couldn't get an answer just now"), never
+      // an empty answer.
+      if (!toolUseBlocks.length) {
+        console.log(`Scout stopped for a tool but called none — blocks: ${(response.content as any[]).map((b) => b?.type).join(",")}`);
+        if (finalReply.length > textParts.length || textParts.length >= 40) break;
+        if (askedAgainForNoTool) throw new Error("Scout stopped for a tool and called none, twice, with no answer written");
+        askedAgainForNoTool = true;
+        finalReply = "";
+        answerPieces.length = 0;
+        continue;
+      }
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
       let screenOnlyOk = toolUseBlocks.every((b) => ["show_in_wander", "directions", "offer_location"].includes((b as Anthropic.ToolUseBlock).name));
 
@@ -5936,7 +6072,8 @@ RULES:
             const files = asked.length ? asked.map((n) => all[n - 1]) : all.length === 1 ? all : [];
             const days = await P.tripDays(tripId);
             // (no day on it: the day it's kept, Japan's date, when that's a trip day — the day they were there)
-            const kept = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+            // (a plan trip: today is the date on the day's own clock)
+            const kept = planTripNow ? await (await import("../services/dayCountry.js")).tripToday(tripId) : new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
             const date = typeof input.date === "string" && days.some((d) => d.date === input.date) ? input.date : days.some((d) => d.date === kept) ? kept : null;
             const title = String(input.title || "").trim().slice(0, 120) || "A paper";
             if (!all.length) out = { error: "Nothing they sent with this message can be kept (a photo, a picture or a PDF). Ask them to attach it here and say keep it." };
@@ -5970,7 +6107,7 @@ RULES:
             const pics = [...(photo ? [{ mediaType: photo.mediaType, data: photo.data, thumb: undefined as string | undefined }] : []), ...sent.map((a, i) => ({ ...a, thumb: raw[i]?.thumb as string | undefined }))]
               .filter((f) => /^image\/jpe?g$/.test(f.mediaType));
             const { addPhoto } = await import("../services/tripPhotos.js");
-            const day = typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+            const day = typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : planTripNow ? await (await import("../services/dayCountry.js")).tripToday(tripId) : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
             if (!pics.length) out = { error: "No photo came with this message (a JPEG photo). Ask them to attach it here and say keep it." };
             else {
               let kept = 0;
@@ -6074,7 +6211,7 @@ RULES:
     console.log(`Scout usage: steps=${used.steps} input=${used.input} cacheWrite=${used.cacheWrite} cacheRead=${used.cacheRead} output=${used.output} searches=${used.searches} seconds=${((Date.now() - startedAt) / 1000).toFixed(1)} ≈ $${dollars.toFixed(3)}`);
     // (the cached part of this question — instructions, tools, her Guide, the rail sheet — kept warm for the next one;
     // services/scoutWarm.ts)
-    if (tripId && cachedDocs.length && used.steps > 0) keepScoutWarm(tripId, { model: SCOUT_MODEL, system, tools: offeredTools, docs: cachedDocs });
+    if (tripId && cachedDocs.length && used.steps > 0) keepScoutWarm(tripId, { model: SCOUT_MODEL, system, tools: toolsNow, docs: cachedDocs });
 
     // Persist conversation to DB
     if (tripId && req.user?.travelerId && finalReply) {

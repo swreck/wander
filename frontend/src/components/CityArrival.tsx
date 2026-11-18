@@ -180,8 +180,10 @@ export default function CityArrival({ cityId, cityName, dateWords, auto = true, 
  * The city's name atop its day. Where the city has a photo, a tap on the name brings it back — quietly offered: a faint
  * picture mark beside the name, nothing more (Ken, Oct 8: "a subtle hidden button").
  */
-export function CityTitle({ cityId, cityName, dateWords, auto, photo, onPhoto = false }: {
+export function CityTitle({ cityId, cityName, title, dateWords, auto, photo, onPhoto = false }: {
   cityId: string; cityName: string; dateWords: string;
+  /** what the band says instead of the city's name ("On the way to Hanoi"); the photo and arrival keep the city */
+  title?: string;
   /** the first-time photo may show by itself (you're there) */
   auto: boolean;
   /** this city has a photo to show (a city of the trip's country) */
@@ -191,12 +193,13 @@ export function CityTitle({ cityId, cityName, dateWords, auto, photo, onPhoto = 
 }) {
   const [replay, setReplay] = useState(0);
   const name = `text-[32px] leading-tight font-light tracking-wide ${onPhoto ? "text-white" : "text-[#3a3128]"}`;
-  if (!photo) return <p className={`${name} min-w-0`}>{cityName}</p>;
+  const shown = title || cityName;
+  if (!photo) return <p className={`${name} min-w-0`}>{shown}</p>;
   return (
     <>
       <button onClick={() => setReplay((n) => n + 1)} aria-label={`${cityName} — see its photo again`}
         className="min-w-0 min-h-[44px] inline-flex items-center gap-2 text-left">
-        <span className={name}>{cityName}</span>
+        <span className={name}>{shown}</span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={onPhoto ? "#ffffff" : "#6b5d4a"} strokeOpacity={onPhoto ? 0.8 : 0.45} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0 mt-1.5">
           <rect x="3" y="5" width="18" height="14" rx="2.5" /><circle cx="9" cy="10" r="1.6" /><path d="M21 16l-5-5-8 8" />
         </svg>

@@ -1,0 +1,173 @@
+{
+ "Ken": [
+  {
+   "id": "quick-start",
+   "title": "Quick Start",
+   "body": "Wander shows Larisa's Guide, her trip spreadsheet, on your phone, arranged by day.\n\n**Home** opens on what matters now. Under the trip's dates is today's weather, and **Go to today ›** opens today's full page. Below that: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.\n\nAlong the bottom: **Today** (all of today: Larisa's plan by the clock, its places, Play the day), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what each couple has paid for the group, and who pays next: KL for Ken & Larisa, AJ for Julie & Andy, as Budget names them), and **Scout**, which you can ask anything about the trip. **日 Phrases** at the right end opens Japanese phrases. To-dos and deadlines, and **Maybes**, open from Home."
+  },
+  {
+   "id": "getting-around",
+   "title": "A Day",
+   "body": "A day shows everything Larisa's Guide says for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, deadlines, and where everyone sleeps that night. Each line says where in the Guide it came from, and the bottom says when Wander last read the Guide.\n\nNear the top is the weather where you sleep that night. More than a week away, it's an early outlook.\n\nWhen Larisa wrote a detailed plan for the day, **Larisa's plan for the day** comes next, in her order and with her times. When the group splits up, each line says who it's for. Where she lists a few places for one time, tap **We're going here** on the one you choose. Everyone sees it as the group's pick, and her Guide stays as she wrote it.\n\nThe arrows at the top move a day at a time. **‹ Back** goes back where you came from.\n\n**+ Add a plan for this day** puts your own plan on it, like \"Ken and Andy: Musée Tomo at 3.\" Everyone sees it, marked as added in Wander. **Tell Larisa** sends it to her as a message, already written."
+  },
+  {
+   "id": "travel-days",
+   "title": "Next",
+   "body": "The **Next** tab is today: where Larisa's plan has you right now, what's next, and how long until it. Under it, **Get there** opens Google Maps from where you're standing: walking, by train, or a route to show a taxi driver.\n\nBefore the trip, Next shows the first day. After it, the last."
+  },
+  {
+   "id": "phrases",
+   "title": "Japanese Phrases",
+   "body": "Tap **日 Phrases** at the right end of the bar along the bottom, on any screen. The card has the phrases you'll use most, like \"Excuse me\" and \"Check, please\", with how to say each one. Ask Scout how to say something and it's added to the card for everyone, first on yours.\n\n**Edit** on the card puts the phrases in your order (↑ and ↓) and takes off the ones you don't need. Your order is yours alone. **Put back** brings back anything you removed."
+  },
+  {
+   "id": "chat",
+   "title": "Scout, Your Travel Companion",
+   "body": "Scout has read the whole Guide, including the pasted emails and booking screenshots, and knows what day and time it is where you are. It answers from the Guide first and tells you so. If the Guide doesn't have something, Scout says that. It can also look things up online. It never changes the plan.\n\n_\"Where are we sleeping tonight?\"_\n_\"What time is dinner, and what should I wear?\"_\n_\"Any deadlines this week?\"_\n_\"Anywhere for coffee near here?\"_\n\nYou can type, tap a question, or tap the microphone and talk. Tap it again when you're done, and your words wait in the box until you send them.\n\nSend Scout a photo or a file, like a menu, a sign, a ticket or a PDF: tap the paperclip, or paste it into the box. Ask it to keep a receipt or a ticket, and it goes in your Notes under the day it belongs to.\n\nWhen Scout needs to know where you are, tap **Use my location** under its answer. Under every answer are **Copy** and **Read aloud**.\n\nScout sees only the last few messages of today's conversation. To keep an answer, like a list of breakfast places, say \"remember that\": it goes in your Notes, marked \"kept from Scout\". Later, any day, ask \"What was that list?\" or \"Bring back what we talked about\" and Scout finds it in your Notes. Telling Scout something works the same way: \"Remember that the food hall closes at 8.\""
+  },
+  {
+   "id": "the-guide",
+   "title": "Where the Plan Lives",
+   "body": "Larisa's Guide is the plan. Wander reads a copy of it and never changes it. Where the Guide still has an open question, like two hotels for one night or a \"maybe\" day trip, Wander shows it as open.\n\nIf something in Wander looks different from what Larisa told you, trust Larisa. Wander may not have read her latest version yet.\n\nTrains come from a second place: your rail sheet, which you keep with AI help. A day's \"Trains\" part shows its bookings, with seats, reservation numbers and its own notes, and the ticket pickup at Shin-Osaka has its own step-by-step page. Wander reads that sheet every few minutes and never changes it. Where it and Larisa's Guide disagree, Wander shows both."
+  },
+  {
+   "id": "notes",
+   "title": "Maybes and Your Own Notes",
+   "body": "**Maybes** (on Home) is the group's shared list of \"maybe we should…\", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. Larisa's ideas from her Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. \"Interested\" shows everyone who's in, from her X marks and from Wander together. A line on Home says when there's something new. Larisa's Guide stays as it is.\n\n**Notes** keeps what you want to remember of the trip, every word as you type or say it, on the day it's about. Only you see a note unless you share it with the trip. You can also tell Scout what happened (\"we came here because our guide drove us, so we saw Arita too\"), and it keeps your words in your Notes for that day.\n\nTo write about another day, choose it under **Day**, or tap **+ Add a note for this day** on that day's page, or tell Scout which day it's about.\n\nChoose **Everyone's**, **Mine**, **Others'** or **Scout** to see whose notes. **Export mine** saves your notes as a text file, with or without what Scout kept for you.\n\n**Keep a paper**, under the writing box in Notes, keeps a photo of a receipt, a ticket or a booking on the day it belongs to, so you needn't carry the paper. Larisa sees yours, and you see hers. Tap one to see it full screen, pinch to zoom in, and choose who sees it. Share one with everyone, a hotel's welcome sheet say, and the others see a card about it the next time they open Wander."
+  },
+  {
+   "id": "no-signal",
+   "title": "No Signal",
+   "body": "Wander keeps a copy of the trip on your phone. With no signal, it shows that copy and says when it was saved. Scout needs a signal to answer."
+  },
+  {
+   "id": "travel-info",
+   "title": "Your Travel Info",
+   "body": "Tap your name at the top of Home for your Profile. Passport, visa and insurance details go in your vault, which opens with a PIN you choose (or Face ID). No one else sees those details, and Scout never reads them out."
+  },
+  {
+   "id": "feedback",
+   "title": "Making Wander Work Better for You",
+   "body": "Wander was just born. And Claude seems to make most additions and changes possible. So if you want anything new or different, tell Ken. And he will try. And he will pray."
+  },
+  {
+   "id": "getting-in",
+   "title": "A New Phone, or Someone New",
+   "body": "A new phone? Ask Ken or Larisa for a new invite; they make it from **Settings → People on this trip**. Once Face ID is set up on the new phone, your old link stops working, so an old message can't be used by anyone else.\n\nLetting someone in: **Settings → People on this trip → + Add someone**. Type their name, pick the trip, and show them the code. Their iPhone's camera opens it in Safari, where they tap **Let's go** and set up Face ID, and Wander shows them how to put it on their Home Screen."
+  }
+ ],
+ "Larisa": [
+  {
+   "id": "quick-start",
+   "title": "Quick Start",
+   "body": "Wander shows your Guide, your trip spreadsheet, on your phone, arranged by day.\n\n**Home** opens on what matters now. Under the trip's dates is today's weather, and **Go to today ›** opens today's full page. Below that: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.\n\nAlong the bottom: **Today** (all of today: your plan by the clock, its places, Play the day), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what each couple has paid for the group, and who pays next: KL for Ken & Larisa, AJ for Julie & Andy, as Budget names them), and **Scout**, which you can ask anything about the trip. **日 Phrases** at the right end opens Japanese phrases. To-dos and deadlines, and **Maybes**, open from Home."
+  },
+  {
+   "id": "getting-around",
+   "title": "A Day",
+   "body": "A day shows everything your Guide says for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, deadlines, and where everyone sleeps that night. Each line says where in your Guide it came from, and the bottom says when Wander last read it.\n\nNear the top is the weather where you sleep that night. More than a week away, it's an early outlook.\n\nWhen you wrote a detailed plan for the day, **Your plan for the day** comes next, in your order and with your times. When the group splits up, each line says who it's for. Where you list a few places for one time, anyone can tap **We're going here** on the one they choose. Everyone sees it as the group's pick, and your Guide stays as you wrote it.\n\nThe arrows at the top move a day at a time. **‹ Back** goes back where you came from.\n\n**+ Add a plan for this day** puts a plan of your own on it, like \"Ken and Andy: Musée Tomo at 3.\" Everyone sees it, marked as added in Wander, and your Guide doesn't change."
+  },
+  {
+   "id": "travel-days",
+   "title": "Next",
+   "body": "The **Next** tab is today: where your plan has you right now, what's next, and how long until it. Under it, **Get there** opens Google Maps from where you're standing: walking, by train, or a route to show a taxi driver.\n\nBefore the trip, Next shows the first day. After it, the last."
+  },
+  {
+   "id": "phrases",
+   "title": "Japanese Phrases",
+   "body": "Tap **日 Phrases** at the right end of the bar along the bottom, on any screen. The card has the phrases you'll use most, like \"Excuse me\" and \"Check, please\", with how to say each one. Ask Scout how to say something and it's added to the card for everyone, first on yours.\n\n**Edit** on the card puts the phrases in your order (↑ and ↓) and takes off the ones you don't need. Your order is yours alone. **Put back** brings back anything you removed."
+  },
+  {
+   "id": "chat",
+   "title": "Scout, Your Travel Companion",
+   "body": "Scout has read the whole Guide, including the pasted emails and booking screenshots, and knows what day and time it is where you are. It answers from the Guide first and tells you so. If the Guide doesn't have something, Scout says that. It can also look things up online. It never changes the plan.\n\n_\"Where are we sleeping tonight?\"_\n_\"What time is dinner, and what should I wear?\"_\n_\"Any deadlines this week?\"_\n_\"Anywhere for coffee near here?\"_\n\nYou can type, tap a question, or tap the microphone and talk. Tap it again when you're done, and your words wait in the box until you send them.\n\nSend Scout a photo or a file, like a menu, a sign, a ticket or a PDF: tap the paperclip, or paste it into the box. Ask it to keep a receipt or a ticket, and it goes in your Notes under the day it belongs to.\n\nWhen Scout needs to know where you are, tap **Use my location** under its answer. Under every answer are **Copy** and **Read aloud**.\n\nScout sees only the last few messages of today's conversation. To keep an answer, like a list of breakfast places, say \"remember that\": it goes in your Notes, marked \"kept from Scout\". Later, any day, ask \"What was that list?\" or \"Bring back what we talked about\" and Scout finds it in your Notes. Telling Scout something works the same way: \"Remember that the food hall closes at 8.\""
+  },
+  {
+   "id": "the-guide",
+   "title": "Where the Plan Lives",
+   "body": "Your Guide is the plan. Wander reads a copy of it and never changes it. Where your Guide still has an open question, like two hotels for one night or a \"maybe\" day trip, Wander shows it as open.\n\nIf you've changed something lately, Wander may not have read your latest version yet. The bottom of each day says when it last did.\n\nTrains come from a second place: Ken's rail sheet, which he keeps with AI help. A day's \"Trains\" part shows its bookings, with seats, reservation numbers and its own notes, and the ticket pickup at Shin-Osaka has its own step-by-step page. Wander reads that sheet every few minutes and never changes it. Where it and your Guide disagree, Wander shows both."
+  },
+  {
+   "id": "notes",
+   "title": "Maybes and Your Own Notes",
+   "body": "**Maybes** (on Home) is the group's shared list of \"maybe we should…\", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. Your ideas from your Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. \"Interested\" shows everyone who's in, from your X marks and from Wander together. A line on Home says when there's something new. Your Guide stays as it is.\n\n**Notes** keeps what you want to remember of the trip, every word as you type or say it, on the day it's about. Only you see a note unless you share it with the trip. You can also tell Scout what happened (\"we came here because our guide drove us, so we saw Arita too\"), and it keeps your words in your Notes for that day.\n\nTo write about another day, choose it under **Day**, or tap **+ Add a note for this day** on that day's page, or tell Scout which day it's about.\n\nChoose **Everyone's**, **Mine**, **Others'** or **Scout** to see whose notes. **Export mine** saves your notes as a text file, with or without what Scout kept for you.\n\n**Keep a paper**, under the writing box in Notes, keeps a photo of a receipt, a ticket or a booking on the day it belongs to, so you needn't carry the paper. Ken sees yours, and you see his. Tap one to see it full screen, pinch to zoom in, and choose who sees it. Share one with everyone, a hotel's welcome sheet say, and the others see a card about it the next time they open Wander."
+  },
+  {
+   "id": "no-signal",
+   "title": "No Signal",
+   "body": "Wander keeps a copy of the trip on your phone. With no signal, it shows that copy and says when it was saved. Scout needs a signal to answer."
+  },
+  {
+   "id": "travel-info",
+   "title": "Your Travel Info",
+   "body": "Tap your name at the top of Home for your Profile. Passport, visa and insurance details go in your vault, which opens with a PIN you choose (or Face ID). No one else sees those details, and Scout never reads them out."
+  },
+  {
+   "id": "feedback",
+   "title": "Making Wander Work Better for You",
+   "body": "Wander was just born. And Claude seems to make most additions and changes possible. So if you want anything new or different, tell Ken. And he will try. And he will pray."
+  },
+  {
+   "id": "getting-in",
+   "title": "A New Phone, or Someone New",
+   "body": "A new phone of your own? Make a new invite from **Settings → People on this trip**, or ask Ken to. Once Face ID is set up on the new phone, the old link stops working, so an old message can't be used by anyone else.\n\nLetting someone in: **Settings → People on this trip → + Add someone**. Type their name, pick the trip, and show them the code. Their iPhone's camera opens it in Safari, where they tap **Let's go** and set up Face ID, and Wander shows them how to put it on their Home Screen."
+  }
+ ],
+ "Andy": [
+  {
+   "id": "quick-start",
+   "title": "Quick Start",
+   "body": "Wander shows Larisa's Guide, her trip spreadsheet, on your phone, arranged by day.\n\n**Home** opens on what matters now. Under the trip's dates is today's weather, and **Go to today ›** opens today's full page. Below that: today, where you sleep tonight, tomorrow, and any deadlines coming up. Tap any day on the calendar to see that day.\n\nAlong the bottom: **Today** (all of today: Larisa's plan by the clock, its places, Play the day), **Next** (what's next today, when, and how to get there), **Notes** (what you want to remember, every word kept), **Budget** (what each couple has paid for the group, and who pays next: KL for Ken & Larisa, AJ for Julie & Andy, as Budget names them), and **Scout**, which you can ask anything about the trip. **日 Phrases** at the right end opens Japanese phrases. To-dos and deadlines, and **Maybes**, open from Home."
+  },
+  {
+   "id": "getting-around",
+   "title": "A Day",
+   "body": "A day shows everything Larisa's Guide says for that date, in time order: flights, meetings, tours, meals, check-ins and check-outs, deadlines, and where everyone sleeps that night. Each line says where in the Guide it came from, and the bottom says when Wander last read the Guide.\n\nNear the top is the weather where you sleep that night. More than a week away, it's an early outlook.\n\nWhen Larisa wrote a detailed plan for the day, **Larisa's plan for the day** comes next, in her order and with her times. When the group splits up, each line says who it's for. Where she lists a few places for one time, tap **We're going here** on the one you choose. Everyone sees it as the group's pick, and her Guide stays as she wrote it.\n\nThe arrows at the top move a day at a time. **‹ Back** goes back where you came from.\n\n**+ Add a plan for this day** puts your own plan on it, like \"Ken and Andy: Musée Tomo at 3.\" Everyone sees it, marked as added in Wander. **Tell Larisa** sends it to her as a message, already written."
+  },
+  {
+   "id": "travel-days",
+   "title": "Next",
+   "body": "The **Next** tab is today: where Larisa's plan has you right now, what's next, and how long until it. Under it, **Get there** opens Google Maps from where you're standing: walking, by train, or a route to show a taxi driver.\n\nBefore the trip, Next shows the first day. After it, the last."
+  },
+  {
+   "id": "phrases",
+   "title": "Japanese Phrases",
+   "body": "Tap **日 Phrases** at the right end of the bar along the bottom, on any screen. The card has the phrases you'll use most, like \"Excuse me\" and \"Check, please\", with how to say each one. Ask Scout how to say something and it's added to the card for everyone, first on yours.\n\n**Edit** on the card puts the phrases in your order (↑ and ↓) and takes off the ones you don't need. Your order is yours alone. **Put back** brings back anything you removed."
+  },
+  {
+   "id": "chat",
+   "title": "Scout, Your Travel Companion",
+   "body": "Scout has read the whole Guide, including the pasted emails and booking screenshots, and knows what day and time it is where you are. It answers from the Guide first and tells you so. If the Guide doesn't have something, Scout says that. It can also look things up online. It never changes the plan.\n\n_\"Where are we sleeping tonight?\"_\n_\"What time is dinner, and what should I wear?\"_\n_\"Any deadlines this week?\"_\n_\"Anywhere for coffee near here?\"_\n\nYou can type, tap a question, or tap the microphone and talk. Tap it again when you're done, and your words wait in the box until you send them.\n\nSend Scout a photo or a file, like a menu, a sign, a ticket or a PDF: tap the paperclip, or paste it into the box. Ask it to keep a receipt or a ticket, and it goes in your Notes under the day it belongs to.\n\nWhen Scout needs to know where you are, tap **Use my location** under its answer. Under every answer are **Copy** and **Read aloud**.\n\nScout sees only the last few messages of today's conversation. To keep an answer, like a list of breakfast places, say \"remember that\": it goes in your Notes, marked \"kept from Scout\". Later, any day, ask \"What was that list?\" or \"Bring back what we talked about\" and Scout finds it in your Notes. Telling Scout something works the same way: \"Remember that the food hall closes at 8.\""
+  },
+  {
+   "id": "the-guide",
+   "title": "Where the Plan Lives",
+   "body": "Larisa's Guide is the plan. Wander reads a copy of it and never changes it. Where the Guide still has an open question, like two hotels for one night or a \"maybe\" day trip, Wander shows it as open.\n\nIf something in Wander looks different from what Larisa told you, trust Larisa. Wander may not have read her latest version yet.\n\nTrains come from a second place: Ken's rail sheet, which he keeps with AI help. A day's \"Trains\" part shows its bookings, with seats, reservation numbers and its own notes, and the ticket pickup at Shin-Osaka has its own step-by-step page. Wander reads that sheet every few minutes and never changes it. Where it and Larisa's Guide disagree, Wander shows both."
+  },
+  {
+   "id": "notes",
+   "title": "Maybes and Your Own Notes",
+   "body": "**Maybes** (on Home) is the group's shared list of \"maybe we should…\", city by city, starting with the city you're in. Write a few words in the box at the top (paste a link if there is one) and tap **Send**: everyone on the trip sees it, and **Tell the group** sends it to your group text too. Larisa's ideas from her Activities tab are below the group's. On anything: **I'm in**, **Say something** (for everyone, or just for you), **Add to a day**, and Ask Scout. \"Interested\" shows everyone who's in, from her X marks and from Wander together. A line on Home says when there's something new. Larisa's Guide stays as it is.\n\n**Notes** keeps what you want to remember of the trip, every word as you type or say it, on the day it's about. Only you see a note unless you share it with the trip. You can also tell Scout what happened (\"we came here because our guide drove us, so we saw Arita too\"), and it keeps your words in your Notes for that day.\n\nTo write about another day, choose it under **Day**, or tap **+ Add a note for this day** on that day's page, or tell Scout which day it's about.\n\nChoose **Everyone's**, **Mine**, **Others'** or **Scout** to see whose notes. **Export mine** saves your notes as a text file, with or without what Scout kept for you.\n\n**Keep a paper**, under the writing box in Notes, keeps a photo of a receipt, a ticket or a booking on the day it belongs to, so you needn't carry the paper. Only you see yours. Tap one to see it full screen, pinch to zoom in, and choose who sees it. Share one with everyone, a hotel's welcome sheet say, and the others see a card about it the next time they open Wander."
+  },
+  {
+   "id": "no-signal",
+   "title": "No Signal",
+   "body": "Wander keeps a copy of the trip on your phone. With no signal, it shows that copy and says when it was saved. Scout needs a signal to answer."
+  },
+  {
+   "id": "travel-info",
+   "title": "Your Travel Info",
+   "body": "Tap your name at the top of Home for your Profile. Passport, visa and insurance details go in your vault, which opens with a PIN you choose (or Face ID). No one else sees those details, and Scout never reads them out."
+  },
+  {
+   "id": "feedback",
+   "title": "Making Wander Work Better for You",
+   "body": "Wander was just born. And Claude seems to make most additions and changes possible. So if you want anything new or different, tell Ken. And he will try. And he will pray."
+  },
+  {
+   "id": "getting-in",
+   "title": "A New Phone, or Someone New",
+   "body": "A new phone? Ask Ken or Larisa for a new invite; they make it from **Settings → People on this trip**. Once Face ID is set up on the new phone, your old link stops working, so an old message can't be used by anyone else.\n\nLetting someone in (Ken and Larisa): **Settings → People on this trip → + Add someone**. Type their name, pick the trip, and show them the code. Their iPhone's camera opens it in Safari, where they tap **Let's go** and set up Face ID, and Wander shows them how to put it on their Home Screen."
+  }
+ ]
+}

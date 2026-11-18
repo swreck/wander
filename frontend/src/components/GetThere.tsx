@@ -1,4 +1,11 @@
+import { createContext, useContext } from "react";
 import { directionsHref } from "../lib/directions";
+import { countryHasTrain } from "../lib/guideDisplay";
+import { isPlanTrip } from "../lib/planTrip";
+
+/** The country the screen is about (the day's city's). Japan, and no country at all, get a Train button; elsewhere there is
+ *  Walk and Taxi (S3 fix 6). A screen that knows its country wraps its lines in this. */
+export const GetThereCountry = createContext<string | null>(null);
 
 /**
  * Walk, Train or Taxi to a place, from where the phone is, in Google Maps: the same three buttons wherever a line names
@@ -10,6 +17,7 @@ import { directionsHref } from "../lib/directions";
 export default function GetThere({ href, name, dark = false, mapOnly = false, className = "mt-2" }: {
   href: string | null | undefined; name: string; dark?: boolean; mapOnly?: boolean; className?: string;
 }) {
+  const country = useContext(GetThereCountry);
   if (!href) return null;
   const to = directionsHref(href);
   if (!to || mapOnly) {
@@ -18,10 +26,11 @@ export default function GetThere({ href, name, dark = false, mapOnly = false, cl
         className={`inline-flex items-center min-h-[44px] text-sm underline underline-offset-2 ${dark ? "text-white" : "text-[#514636]"}`}>Maps ↗</a>
     );
   }
-  // (the three share the width: on a 320-pt phone "Taxi" wrapped alone beside a label)
+  const ways = !isPlanTrip() || countryHasTrain(country) ? (["walk", "train", "taxi"] as const) : (["walk", "taxi"] as const);
+  // (the buttons share the width: on a 320-pt phone "Taxi" wrapped alone beside a label)
   return (
     <div className={`flex gap-2 ${className}`} data-get-there>
-      {(["walk", "train", "taxi"] as const).map((w) => (
+      {ways.map((w) => (
         <a key={w} href={directionsHref(href, w)!} target="_blank" rel="noreferrer"
           aria-label={`${{ walk: "Walk", train: "Train", taxi: "Taxi" }[w]} to ${name}, from where you are`}
           className={`flex-1 inline-flex items-center justify-center min-h-[44px] px-2 rounded-lg text-sm ${dark ? "bg-white/15 text-white" : "bg-[#efe8dc] text-[#3a3128]"}`}>

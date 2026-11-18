@@ -156,7 +156,7 @@ export default function TripStoryPage() {
         {story.first && story.last && <p className="text-sm text-white/65 mt-1">{shortDay(story.first)} – {shortDay(story.last)}</p>}
         {/* (tourist73: "with yours" was wrong once others' shared notes show, and read "your plan, with yours" to Larisa) */}
         {story.days.length > 0 && (
-          <p className="text-[12px] text-white/55 mt-3">Each day as Wander sums up {v.owners} plan, and notes as their writers wrote them</p>
+          <p className="text-[12px] text-white/55 mt-3">Each day as Wander sums up {v.ownersPlan}, and notes as their writers wrote them</p>
         )}
         {story.days.length > 0 && (
           <p className="text-sm text-white/85 mt-2">
@@ -214,11 +214,11 @@ export default function TripStoryPage() {
                   </div>
                 )}
                 {!d.stops.length && d.planTitles.length > 0 && (
-                  <p className="text-[14px] text-[#514636] mt-1.5">{v.Owners} plan: {d.planTitles.slice(0, 5).join(" · ")}{d.planTitles.length > 5 ? ` · and ${d.planTitles.length - 5} more` : ""}</p>
+                  <p className="text-[14px] text-[#514636] mt-1.5">{v.OwnersPlan}: {d.planTitles.slice(0, 5).join(" · ")}{d.planTitles.length > 5 ? ` · and ${d.planTitles.length - 5} more` : ""}</p>
                 )}
                 {!d.summary && !d.planTitles.length && (d.itinerary.length
-                  ? <div className="mt-1"><p className="text-[12px] text-[#6b5d4a]">In {v.her} Itinerary</p>{d.itinerary.map((t) => <p key={t} className="text-[14px] text-[#514636]">{t}</p>)}</div>
-                  : <p className="text-[14px] text-[#6b5d4a] mt-1">A day without a detailed plan in {v.her} Guide.</p>)}
+                  ? <div className="mt-1"><p className="text-[12px] text-[#6b5d4a]">{v.plan ? "In the plan" : `In ${v.her} Itinerary`}</p>{d.itinerary.map((t) => <p key={t} className="text-[14px] text-[#514636]">{t}</p>)}</div>
+                  : <p className="text-[14px] text-[#6b5d4a] mt-1">{v.plan ? "Nothing detailed in the plan for this day yet." : `A day without a detailed plan in ${v.herGuide}.`}</p>)}
                 {d.notes.map((n) => (
                   <blockquote key={n.id} className="mt-3 rounded-xl bg-white border border-[#e0d8cc] px-3.5 py-2.5">
                     <p className="text-[15px] text-[#3a3128] whitespace-pre-line">{n.text}</p>

@@ -18,6 +18,11 @@ import type { Experience, Trip } from "../lib/types";
 import { guideData, type TripGuideData, type GuideItem } from "../lib/guideData";
 import { mapsLink, voiceFor, linkLabel, partyOf, homeOnJapanDate, notLandedYet } from "../lib/guideDisplay";
 import { maybesChanged, type SeenRow } from "../lib/maybesNews";
+import { tellGroup, personOf } from "../lib/tellGroup";
+import { loadSamples, mergeSamples, type Sample, type SampleItem } from "../lib/samples";
+import { isPlanTrip } from "../lib/planTrip";
+import { planMaybeCities } from "../lib/planScreens";
+import { SampleRow } from "../components/SampleTag";
 
 interface Note { id: string; experienceId: string; content: string; visibility?: string; traveler: { displayName: string }; createdAt: string; _pending?: boolean }
 interface DayChoice { id: string; date: string; text: string; experienceId: string | null; addedBy: string }
@@ -50,32 +55,12 @@ function hasWord(text: string, w: string): boolean {
 }
 const sheetRow = (e: Experience) => (e.sheetRowRef ? Number((e as { priorityOrder?: number }).priorityOrder ?? 5000) : 10000);
 
-/** One person, however they're named: "Larisa (maybe)", "Julie (via Andy)", "Andy B" → "Larisa", "Julie", "Andy" */
-const personOf = (n: string) => n.replace(/\s*\((maybe|via [^)]*)\)\s*$/i, "").trim().split(/\s+/)[0] || n;
 /** The filter's themes (Ken, Oct 3) — "architecture" counts with temples and history, "ceramics" is art and craft */
 const THEME_ORDER = ["food", "temples", "ceramics", "shopping", "nature", "other"] as const;
 const THEME_OF: Record<string, (typeof THEME_ORDER)[number]> = { food: "food", temples: "temples", architecture: "temples", ceramics: "ceramics", shopping: "shopping", nature: "nature", other: "other" };
 const THEME_LABEL: Record<string, string> = { food: "Food & drink", temples: "Temples & history", ceramics: "Art & craft", shopping: "Shopping", nature: "Nature", other: "Other" };
 /** The phone's own date of a moment */
 const localDay = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-/**
- * "Tell the group": the iPhone's share sheet with a maybe's words, link and city, for the group text (and Julie, who
- * isn't on Wander); with no share sheet, copied. Returns a line to show, or null. On every maybe, not only just after
- * Send — Ken, Oct 3: the button was gone by the time he looked for it, and someone else's maybe couldn't be passed on.
- */
-async function tellGroup(by: string, words: string, link: string | null, cityName: string, fromGuide?: string): Promise<string | null> {
-  // (one of her ideas carries its source: "From Larisa's Guide: …" — Ken, Oct 3: "any item, with the original source")
-  const body = `${fromGuide ? `From ${fromGuide}: ` : `${personOf(by)}: `}${words}${link ? `\n${link}` : ""}\n(on Wander's maybes for ${cityName})`;
-  try {
-    if (typeof navigator.share === "function") { await navigator.share({ text: body }); return null; }
-    await navigator.clipboard.writeText(body);
-    return "Copied — paste it into your group text.";
-  } catch (e) {
-    // (closing the share sheet isn't a failure)
-    return (e as { name?: string })?.name === "AbortError" ? null : "Couldn't open sharing here — copy the words from the list instead.";
-  }
-}
-
 /** Remove and Put it back go out in the order they were tapped (a quick Put it back → Remove sent both at once, and the
  *  put-back could land last and undo the removal) */
 let offQueue: Promise<unknown> = Promise.resolve();
@@ -120,6 +105,9 @@ export default function IdeasPage() {
   // Remove: the one you just took off stays in its place as a slim "Put it back" line; the rest fold at the bottom
   const [justOff, setJustOff] = useState<string | null>(null);
   const [showOff, setShowOff] = useState(false);
+  // Ken's samples (S2c): held in memory by lib/samples; drawn after the real maybes, never in `ideas`, the kept copy, a count or a send
+  const [samples, setSamples] = useState<Sample[]>([]);
+  useEffect(() => { if (!tripId) return; let live = true; loadSamples(tripId).then((s) => { if (live) setSamples(s); }); return () => { live = false; }; }, [tripId]);
 
   // The trip, its days and cities (shared with Home and the day screens; saved on the phone)
   useEffect(() => {
@@ -179,11 +167,17 @@ export default function IdeasPage() {
     // (and the city you're in today, ideas or not — in Nikko, with none, Maybes opened on Kyoto and a maybe for the
     // onsen went on Kyoto's list; fresh tester, Oct 16)
     const here = guide.days.find((d) => ymd(d.date) === day0)?.cityId;
-    return [...guide.trip.cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder).filter((c) => ((withIdeas.has(c.id) && ahead.has(c.id)) || c.id === here) && !c.hidden);
-  }, [guide, ideas]);
+    // (and, for the one person who sees samples, a city ahead whose only maybes are samples: with no tab they'd never be seen)
+    const sampled = (c: { planKey?: string | null }) => !!c.planKey && mergeSamples<never>("maybe", [], samples, { cityKey: c.planKey }).length > 0;
+    const inOrder = [...guide.trip.cities].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+    // (a plan trip: every city ahead has its tab, maybes or not — Larisa had no way to add the first one; S3 fix 12)
+    if (isPlanTrip()) return planMaybeCities(inOrder, guide.days.map((d) => ({ date: ymd(d.date), cityId: d.cityId })), day0);
+    return inOrder.filter((c) => (((withIdeas.has(c.id) || sampled(c)) && ahead.has(c.id)) || c.id === here) && !c.hidden);
+  }, [guide, ideas, samples]);
 
   // Which city: the one asked for, else where you are today, else the first
   const today = phoneToday();
+  const beforeTheTrip = isPlanTrip() && !!guide && !!ymd(guide.trip.startDate) && today < ymd(guide.trip.startDate);
   // (not "today" for you before your plane lands — verify 6: "Tokyo · today" all of Oct 13 while Julie was at home)
   const away = !!guide && notLandedYet(guide.items || [], user?.displayName, guide.trip.timeZone || "Asia/Tokyo");
   const todayCityId = away ? null : guide?.days.find((d) => ymd(d.date) === today)?.cityId || null;
@@ -395,7 +389,7 @@ export default function IdeasPage() {
   }
 
   if (!ideas || !guide) {
-    return <div className="min-h-[100dvh] bg-[#faf8f5] flex items-center justify-center text-sm text-[#6b5d4a]">Finding Larisa's ideas…</div>;
+    return <div className="min-h-[100dvh] bg-[#faf8f5] flex items-center justify-center text-sm text-[#6b5d4a]">{voiceFor(user?.displayName).plan ? "Finding the maybes…" : "Finding Larisa's ideas…"}</div>;
   }
 
   return (
@@ -403,7 +397,7 @@ export default function IdeasPage() {
       <header className="sticky top-0 z-10 bg-[#faf8f5]/95 backdrop-blur border-b border-[#e0d8cc] top-bar">
         <div className="px-4 pb-1">
           <h1 className="text-lg font-medium text-[#3a3128]">Maybes{city ? ` · ${city.name}` : ""}</h1>
-          <p className="text-xs text-[#6b5d4a]">The group's maybes and {voiceFor(user?.displayName).mine ? "your" : "Larisa's"} ideas</p>
+          <p className="text-xs text-[#6b5d4a]">{voiceFor(user?.displayName).plan ? "The group's maybes" : <>The group's maybes and {voiceFor(user?.displayName).mine ? "your" : "Larisa's"} ideas</>}</p>
         </div>
         {/* Cities */}
         <div className="flex gap-2 overflow-x-auto px-4 pb-2 pt-1" role="tablist" aria-label="City">
@@ -446,10 +440,13 @@ export default function IdeasPage() {
             </SideRow>
           )}
           <SideRow className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 mt-1.5" label="Show by day or kind">
-            <button onClick={() => setSoon((v) => !v)} aria-pressed={soon}
-              className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${soon ? "bg-[#514636] text-white border-[#514636]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
-              Next 2 days
-            </button>
+            {/* (a plan trip, before its first day: "Next 2 days" could only answer "nothing"; S3 fix 9) */}
+            {!beforeTheTrip && (
+              <button onClick={() => setSoon((v) => !v)} aria-pressed={soon}
+                className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${soon ? "bg-[#514636] text-white border-[#514636]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
+                Next 2 days
+              </button>
+            )}
             {themesHere.map((t) => (
               <button key={t} onClick={() => setTheme(activeTheme === t ? null : t)} aria-pressed={activeTheme === t}
                 className={`shrink-0 min-h-[44px] px-3 rounded-full text-sm border whitespace-nowrap ${activeTheme === t ? "bg-[#efe6d6] border-[#c8b89c] text-[#3a3128]" : "bg-white border-[#e0d8cc] text-[#514636]"}`}>
@@ -474,7 +471,7 @@ export default function IdeasPage() {
               <span className="flex-1 min-w-0 text-sm text-[#6b5d4a]">“{exp.name}” is off {city?.name}'s list{(() => {
                 const days = choices.filter((c) => c.experienceId === exp.id && c.date >= today).map((c) => shortDay(c.date));
                 return days.length ? ` and off ${days.join(" and ")}` : "";
-              })()} for everyone.{exp.sheetRowRef ? ` ${voiceFor(me).mine ? "Your" : "Larisa's"} Guide keeps it.` : ""}</span>
+              })()} for everyone.{exp.sheetRowRef ? ` ${voiceFor(me).Guide} keeps it.` : ""}</span>
               <button onClick={() => putBack(exp)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">Put it back</button>
             </li>
           ) : (
@@ -490,12 +487,14 @@ export default function IdeasPage() {
               onChoice={(c) => setChoices((prev) => [...prev, c])}
               onOpenDay={(d) => navigate(`/day/${d}`)} />
           );
+          // (drawn here and only here: the city's sample maybes, after the real cards)
+          const sampleMaybes = city?.planKey ? mergeSamples<never>("maybe", [], samples, { cityKey: city.planKey }) as SampleItem[] : [];
           return (
             <>
-              {(maybesNow.length > 0 || maybesEarlier.length > 0) && (
+              {(maybesNow.length > 0 || maybesEarlier.length > 0 || sampleMaybes.length > 0) && (
                 <section className="mb-5">
                   <h2 className="text-xs uppercase tracking-wide text-[#6b5d4a] mb-2">The group's maybes</h2>
-                  <ul className="space-y-2">{maybesNow.map(card)}</ul>
+                  <ul className="space-y-2">{maybesNow.map(card)}{sampleMaybes.map((s) => <SampleRow key={s.id} sample={s} />)}</ul>
                   {maybesEarlier.length > 0 && (
                     <>
                       <button onClick={() => setShowEarlier((v) => !v)} aria-expanded={showEarlier}
@@ -509,12 +508,14 @@ export default function IdeasPage() {
               )}
 
               {/* (with a day or theme filter on, the line above already says what's missing) */}
-              {shown.length === 0 && !soon && !activeTheme && (
+              {/* (nor "No maybes for Hanoi yet." under two sample maybes: the samples say the list is empty of real ones) */}
+              {shown.length === 0 && !soon && !activeTheme && !(person === "everyone" && sampleMaybes.length > 0) && (
                 <p className="text-sm text-[#6b5d4a] bg-white rounded-xl border border-[#e0d8cc] p-4 mb-5">
                   {person !== "everyone" ? `${person} hasn't said they're in on anything in ${city?.name} yet.`
                     // (all of hers taken off the list — "has no ideas" would be untrue)
                     : offList.some((e) => !!e.sheetRowRef) ? `Everything from ${voiceFor(user?.displayName).guide} for ${city?.name} has been taken off the list.`
-                    : `${voiceFor(user?.displayName).mine ? "Your" : "Larisa's"} Guide has no ideas listed for ${city?.name || "this city"}.`}
+                    : voiceFor(user?.displayName).plan ? `No maybes for ${city?.name || "this city"} yet.`
+                    : `${voiceFor(user?.displayName).Guide} has no ideas listed for ${city?.name || "this city"}.`}
                 </p>
               )}
 
@@ -721,8 +722,8 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
         </p>
         {/* (a 44 pt tap area around a smaller chip) */}
         {planned.map((d) => (
-          <button key={d} onClick={() => onOpenDay(d)} className="min-h-[44px] -my-2 flex items-center" aria-label={`In ${voiceFor(me).mine ? "your" : "Larisa's"} plan for ${shortDay(d)}`}>
-            <span className="px-2.5 py-1 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs whitespace-nowrap">{voiceFor(me).mine ? "Your" : "Her"} plan · {shortDay(d)} ›</span>
+          <button key={d} onClick={() => onOpenDay(d)} className="min-h-[44px] -my-2 flex items-center" aria-label={`In ${voiceFor(me).ownersPlan} for ${shortDay(d)}`}>
+            <span className="px-2.5 py-1 rounded-full bg-[#eef3e8] text-[#3f5a2a] text-xs whitespace-nowrap">{voiceFor(me).HerPlan} · {shortDay(d)} ›</span>
           </button>
         ))}
         {choices.map((c) => (
@@ -772,7 +773,7 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
             <input type="checkbox" checked={justMe} onChange={(e) => setJustMe(e.target.checked)} className="w-5 h-5" />
             Just for me
           </label>
-          <p className="text-xs text-[#6b5d4a]">{justMe ? "Only you will see this note." : "Everyone on the trip sees this."} {voiceFor(me).mine ? "Your Guide" : "Larisa's Guide"} stays as it is.</p>
+          <p className="text-xs text-[#6b5d4a]">{justMe ? "Only you will see this note." : "Everyone on the trip sees this."} {voiceFor(me).Guide} stays as it is.</p>
           <div className="flex gap-2 mt-1">
             <button onClick={saveNote} disabled={!text.trim() || saving} className="min-h-[44px] px-4 rounded-lg bg-[#514636] text-white text-sm disabled:opacity-40">{saving ? "Saving…" : "Save note"}</button>
             <button onClick={() => { setWriting(false); setText(""); }} className="min-h-[44px] px-4 text-sm text-[#514636]">Cancel</button>
@@ -824,7 +825,7 @@ function IdeaCard({ exp, cityName, notes, me, mayRemove, onRemoved, travelerId, 
           <button onClick={() => window.dispatchEvent(new CustomEvent("wander-open-chat", { detail: { prefill: isMaybe ? `About this maybe in ${cityName} — "${exp.name}": ` : `Tell me about ${exp.name} in ${cityName}` } }))}
             className="min-h-[44px] text-sm text-[#514636]">Ask Scout</button>
           {/* Anything on the list to the group text — a maybe with its writer's name, one of hers as from her Guide */}
-          <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName, isMaybe ? undefined : "Larisa's Guide"))}
+          <button onClick={async () => setMessage(await tellGroup(exp.createdBy, exp.name, exp.sourceUrl, cityName, isMaybe ? undefined : voiceFor(me).plan ? "the plan" : "Larisa's Guide"))}
             className="min-h-[44px] text-sm text-[#514636]">Tell the group</button>
         </div>
       )}

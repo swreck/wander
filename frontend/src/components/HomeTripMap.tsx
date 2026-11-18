@@ -23,6 +23,7 @@ import { getCityPastel } from "../lib/cityColors";
 import { guideData, savedGuideData } from "../lib/guideData";
 import { tripToday } from "../lib/tripNotes";
 import { finishedLastDay } from "../lib/tripPhase";
+import { zoneOfLastDay } from "../lib/dayZone";
 import { homeOnJapanDate, notLandedYet } from "../lib/guideDisplay";
 import { useAuth } from "../contexts/AuthContext";
 import useBackToClose from "../hooks/useBackToClose";
@@ -140,7 +141,7 @@ export default function HomeTripMap({ tripId, cities, allCities, days, onOpenDay
   const today = tripToday(zone);
   // The trip is over (its last day past, on the trip's own clock): every city in its own color and every leg at full
   // strength, the route as a finished journey — after it, the map greyed every city and faded every leg (Ken, Nov 15)
-  const finished = !!finishedLastDay(days.map((d) => d.date), zone);
+  const finished = !!finishedLastDay(days.map((d) => d.date), zoneOfLastDay(days, null, zone));
   // Still at home on this Japan date (Andy and Julie before their flight): no city is "today's stop" for you — the dark
   // chip on the others' city read as where you are (Sweep A, Oct 10: Nagoya, then Tokyo, while Julie was in California).
   // From this phone's copy of the trip, so it's right in the map's first drawing.

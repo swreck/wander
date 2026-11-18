@@ -15,6 +15,8 @@ interface TripInfo {
   experienceCount?: number;
   dateRange?: string;
   firstCityName?: string;
+  /** Built from a plan, not a sheet (S2d) */
+  plan?: boolean;
 }
 
 export default function JoinPage() {
@@ -272,7 +274,7 @@ export default function JoinPage() {
           {whatsNext}
 
           <p className="text-xs text-[#6b5d4a] mt-4">
-            Larisa's Guide on your phone: every day of the trip, where you sleep, and Scout for questions
+            {tripInfo.plan ? "The plan" : "Larisa's Guide"} on your phone: every day of the trip, where you sleep, and Scout for questions
           </p>
 
           {error && <p className="text-sm text-red-500 mt-4">{error}</p>}

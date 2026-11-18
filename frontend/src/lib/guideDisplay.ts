@@ -4,6 +4,10 @@
  */
 
 import type { GuideItem, Stay } from "./guideData";
+import { ZONE_WORDS, zoneWords, ZONE_NAMES_PATTERN, zoneFromWords, dateIn } from "./dayZone";
+import { isPlanTrip, planSourcesOf } from "./planTrip";
+// (the table of clocks' words lives in dayZone.ts: one table, the same on the server)
+export { ZONE_WORDS, zoneWords };
 
 export const ymd = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
 
@@ -203,13 +207,14 @@ export interface NightStay { stay: Stay; who: string | null }
 export interface NightAway { who: string; text: string }
 export interface Night { stays: NightStay[]; away: NightAway[] }
 
-const AIRPORTS: Record<string, string> = { NRT: "Narita", KIX: "Kansai", HND: "Haneda", SFO: "San Francisco", ITM: "Itami", LAX: "Los Angeles" };
-function landingWords(l: GuideItem): string {
+const AIRPORTS: Record<string, string> = { NRT: "Narita", KIX: "Kansai", HND: "Haneda", SFO: "San Francisco", ITM: "Itami", LAX: "Los Angeles",
+  ICN: "Seoul Incheon", HAN: "Hanoi", BKK: "Bangkok", SAI: "Siem Reap", HUI: "Hué", DAD: "Da Nang" };
+function landingWords(l: GuideItem, tripZone: string): string {
   const code = (l.title.match(/\b([A-Z]{3})\b/) || [])[1];
   const where = code ? AIRPORTS[code] || code : "the airport";
   const day = new Date(`${ymd(l.date)}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
   // After its time, by the schedule (round 11)
-  const past = !!l.date && !!l.time && Date.now() >= zonedMoment(ymd(l.date), mins(l.time) ?? 0, l.timeZone || "Asia/Tokyo").getTime();
+  const past = !!l.date && !!l.time && Date.now() >= zonedMoment(ymd(l.date), mins(l.time) ?? 0, l.timeZone || tripZone).getTime();
   return `${past ? "was due at" : "lands at"} ${where}${l.time ? ` ${clock(l.time)}` : ""} ${day}`;
 }
 
@@ -219,7 +224,26 @@ function landingWords(l: GuideItem): string {
  * anyone on an overnight flight ("Julie & Andy: on the flight — lands at Narita 3:00 PM Wed").
  */
 /** phoneClock: the date is the phone's own (Home's "Tonight"), not a Japan date (a day screen). */
-export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZone: string = "Asia/Tokyo", phoneClock = false): Night {
+/** The service a flight's title names ("JL034 · Bangkok (BKK) → Tokyo (HND)" → "JL034"), or "" */
+export const flightService = (title: string) => (title.includes(" · ") ? title.split(" · ")[0].trim() : "");
+/** The service a landing's title ends with ("Land at Tokyo Haneda (HND), Terminal 3 · JL034" → "JL034"), or "" */
+export const landingService = (title: string) => (title.includes(" · ") ? title.split(" · ").pop()!.trim() : "");
+
+/**
+ * The landing that belongs to a flight leaving on `date`, for a plan trip (S3 fix 2): a flight is in the air overnight only
+ * when its OWN landing line is dated tomorrow, paired by service. A landing title with no service is paired only when
+ * exactly one flight for that party leaves that date (never a guess). Null when the flight has no landing of its own.
+ */
+export function overnightLanding(f: GuideItem, items: GuideItem[], date: string, tomorrow: string): GuideItem | null {
+  const lands = items.filter((l) => isLanding(l) && ymd(l.date) === tomorrow && (l.forWhom || "") === (f.forWhom || ""));
+  const svc = flightService(f.title);
+  if (svc) { const own = lands.find((l) => landingService(l.title) === svc); if (own) return own; }
+  const bare = lands.filter((l) => !landingService(l.title));
+  const leaving = items.filter((x) => x.kind === "flight" && !isLanding(x) && ymd(x.date) === date && (x.forWhom || "") === (f.forWhom || ""));
+  return bare.length && leaving.length === 1 ? bare[0] : null;
+}
+
+export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZone: string = "Asia/Tokyo", phoneClock = false, plan: boolean = isPlanTrip()): Night {
   const parties = partiesOf(items);
   const spans = new Map(parties.map((p) => [p, partySpan(items, p)]));
   const onTrip = (p: string) => {
@@ -235,7 +259,7 @@ export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZon
   const flying = new Set<string>();
   for (const f of items) {
     if (f.kind !== "flight" || isLanding(f) || ymd(f.date) !== date) continue;
-    const land = items.find((l) => isLanding(l) && ymd(l.date) === tomorrow && (l.forWhom || "") === (f.forWhom || ""));
+    const land = plan ? overnightLanding(f, items, date, tomorrow) : items.find((l) => isLanding(l) && ymd(l.date) === tomorrow && (l.forWhom || "") === (f.forWhom || ""));
     if (!land) continue;
     const who = f.forWhom && !/^everyone$/i.test(f.forWhom) ? f.forWhom : "Everyone";
     flying.add(who);
@@ -249,20 +273,27 @@ export function nightOf(date: string, stays: Stay[], items: GuideItem[], tripZon
     if (atOrigin && land.time) {
       const lands = zonedMoment(ymd(land.date), mins(land.time) ?? 0, land.timeZone || tripZone);
       const yours = lands.toLocaleString("en-US", { timeZone: f.timeZone!, weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "");
-      away.push({ who, text: `On the plane — ${landingWords(land)} ${ZONE_WORDS[tripZone] || "local time"} (${yours} your time)` });
+      away.push({ who, text: `On the plane — ${landingWords(land, tripZone)} ${zoneWords(land.timeZone || tripZone)} (${yours} your time)` });
       continue;
     }
     // On a day screen, a phone on the flight's own clock already has the take-off on the flight's line: tonight is the
     // plane and the landing (re-audit 2: Julie's Oct 13 said "12:00 PM California time" and "Take off Wed 4:00 AM Japan time")
     if (!phoneClock && !!f.timeZone && f.timeZone !== tripZone && phoneZone() === f.timeZone) {
-      away.push({ who, text: `On the plane overnight — ${landingWords(land)}${land.time ? ` ${ZONE_WORDS[tripZone] || "local time"}` : ""}` });
+      away.push({ who, text: `On the plane overnight — ${landingWords(land, tripZone)}${land.time ? ` ${zoneWords(land.timeZone || tripZone)}` : ""}` });
       continue;
     }
     // (after that time, by the schedule — round 11: still "Take off …" below a card saying "Take-off was due …")
-    const takeOff = f.time && f.timeZone && f.timeZone !== tripZone
-      ? `${Date.now() >= zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).getTime() ? "Take-off was due" : "Take off"} ${zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" })} ${ZONE_WORDS[tripZone] || "local time"}`
-      : "Flying overnight";
-    away.push({ who, text: `${takeOff} — ${landingWords(land)}` });
+    // The landing's time is on the LANDING's clock: its zone words follow it when that isn't the trip's. When neither the
+    // take-off's clock nor the landing's is the trip's, the take-off is said on its own clock, not converted.
+    const landZone = land.timeZone || tripZone;
+    const neither = !!f.time && !!f.timeZone && f.timeZone !== tripZone && landZone !== tripZone;
+    const dueWord = f.time && f.timeZone && Date.now() >= zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).getTime() ? "Take-off was due" : "Take off";
+    const takeOff = neither
+      ? `${dueWord} ${new Date(`${ymd(f.date)}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${clock(f.time!)} ${zoneWords(f.timeZone!)}`
+      : f.time && f.timeZone && f.timeZone !== tripZone
+        ? `${dueWord} ${zonedMoment(ymd(f.date), mins(f.time) ?? 0, f.timeZone).toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" })} ${zoneWords(tripZone)}`
+        : "Flying overnight";
+    away.push({ who, text: `${takeOff} — ${landingWords(land, tripZone)}${land.time && landZone !== tripZone ? ` ${zoneWords(landZone)}` : ""}` });
   }
 
   const base = stays.filter((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= date && date < ymd(s.checkOutDate));
@@ -314,37 +345,55 @@ export function zonedMoment(date: string, minutes: number, zone: string): Date {
 }
 
 /**
- * "Today" for this person: the phone's own date at home, but Japan's date from their scheduled landing in Japan until
- * their flight home takes off — they're in Japan whatever the phone's clock says (Oct 10 audit: at 3:30 PM in Japan on
- * Oct 14, half an hour after Julie's landing, a phone still on California time said "Your flight should be in the air …
- * You should be on your way" — its date was still Oct 13). By the schedule only; unknown landing → the phone's date.
+ * "Today" for this person: the phone's own date at home, and from their scheduled landing abroad until their flight
+ * home takes off, the date on the clock of where the plan has them: the zone of their latest landing (Oct 10 audit: at
+ * 3:30 PM in Japan on Oct 14, half an hour after Julie's landing, a phone still on California time said "Your flight
+ * should be in the air … You should be on your way" — its date was still Oct 13). On a trip through several zones each
+ * landing moves them (Seoul, then Hanoi): at 6 PM Korea time on Dec 15, after the Seoul landing, it is Dec 15; at 12:30 AM
+ * Jan 3 Japan time, after the Tokyo landing, it is Jan 3, though Vietnam's date is still Jan 2. By the schedule only;
+ * unknown landing → the phone's date. A landing with no zone of its own is on the trip's zone, as before.
  */
 export function travelerToday(items: GuideItem[], me: string | null | undefined, tripZone: string, phoneDay: string, now = new Date()): string {
   const party = partyOf(items, me);
   if (!party) return phoneDay;
   const mine = items.filter((i) => i.kind === "flight" && i.date && i.time && (i.forWhom === party || isFor(i, me)));
-  const arrivals = [
-    ...mine.filter((i) => isLanding(i)).map((i) => zonedMoment(ymd(i.date), hm(i.time!), i.timeZone || tripZone)),
-    // (a flight's own "Lands at Narita (NRT) Wed, Oct 14, 3:00 PM Japan time" — landings in Japan only, not the one home)
-    ...mine.filter((i) => !isLanding(i) && /Lands at [^\n|]*Japan time/i.test(i.detail || ""))
-      .map((i) => scheduledLanding(i.detail, ymd(i.date).slice(0, 4))).filter((d): d is Date => !!d),
-  ].filter((d) => !isNaN(d.getTime())).sort((a, b) => a.getTime() - b.getTime());
+  type Arrival = { at: Date; zone: string };
+  const arrivals: Arrival[] = [
+    ...mine.filter((i) => isLanding(i)).map((i) => { const zone = i.timeZone || tripZone; return { at: zonedMoment(ymd(i.date), hm(i.time!), zone), zone }; }),
+    // (a flight's own "Lands at Narita (NRT) Wed, Oct 14, 3:00 PM Japan time" — landings away from home only, not the one home)
+    ...mine.filter((i) => !isLanding(i)).map((i): Arrival | null => {
+      const l = scheduledLandingAt(i.detail, ymd(i.date).slice(0, 4), ymd(i.date));
+      return l && l.zone !== "America/Los_Angeles" ? l : null;
+    }).filter((a): a is Arrival => !!a),
+  ].filter((a) => !isNaN(a.at.getTime())).sort((a, b) => a.at.getTime() - b.at.getTime());
   const departures = mine.filter((i) => !isLanding(i)).map((i) => zonedMoment(ymd(i.date), hm(i.time!), i.timeZone || tripZone)).sort((a, b) => a.getTime() - b.getTime());
   const landed = arrivals[0];
   // (the flight home: their last departure, after landing)
-  const home = departures.filter((d) => !landed || d.getTime() > landed.getTime()).pop();
-  if (!landed || now.getTime() < landed.getTime() || (home && now.getTime() >= home.getTime())) return phoneDay;
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tripZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const home = departures.filter((d) => !landed || d.getTime() > landed.at.getTime()).pop();
+  if (!landed || now.getTime() < landed.at.getTime() || (home && now.getTime() >= home.getTime())) return phoneDay;
+  // (where the plan has them now: the zone of their latest landing)
+  const here = arrivals.filter((a) => a.at.getTime() <= now.getTime()).pop()!;
+  return dateIn(here.zone, now);
 }
 
-/** When a flight lands by its schedule, from its "Lands at San Francisco (SFO) Thu, Oct 29, 12:30 PM California time"
- *  line; null when it doesn't say. One rule for Home and Now — they disagreed after landing (testers t4, k1) */
-export function scheduledLanding(detail: string | null | undefined, year: string): Date | null {
-  const m = (detail || "").match(/Lands at [^\n|]*?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w* (\d{1,2}), (\d{1,2}):(\d{2}) ?([AP]M) (California|Japan) time/i);
+/** When a flight lands by its schedule, and on whose clock, from its "Lands at San Francisco (SFO) Thu, Oct 29, 12:30 PM
+ *  California time" line (or Korea, Vietnam, Cambodia, Thailand, Japan time); null when it doesn't say. `leftOn` is the
+ *  date it took off: a landing in an earlier month than that is next year's. */
+export function scheduledLandingAt(detail: string | null | undefined, year: string, leftOn?: string): { at: Date; zone: string } | null {
+  const m = (detail || "").match(new RegExp(`Lands at [^\\n|]*?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\w* (\\d{1,2}), (\\d{1,2}):(\\d{2}) ?([AP]M) (${ZONE_NAMES_PATTERN}) time`, "i"));
   if (!m) return null;
+  const zone = zoneFromWords(m[6]);
+  if (!zone) return null;
   const month = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[1].slice(0, 3)) / 3 + 1;
   const h = (Number(m[3]) % 12) + (/p/i.test(m[5]) ? 12 : 0);
-  return zonedMoment(`${year}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`, h * 60 + Number(m[4]), /california/i.test(m[6]) ? "America/Los_Angeles" : "Asia/Tokyo");
+  const y = leftOn && month < Number(leftOn.slice(5, 7)) ? String(Number(year) + 1) : year;
+  return { at: zonedMoment(`${y}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}`, h * 60 + Number(m[4]), zone), zone };
+}
+
+/** When a flight lands by its schedule (see scheduledLandingAt); one rule for Home and Now — they disagreed after landing
+ *  (testers t4, k1) */
+export function scheduledLanding(detail: string | null | undefined, year: string): Date | null {
+  return scheduledLandingAt(detail, year)?.at ?? null;
 }
 
 /**
@@ -369,7 +418,9 @@ export function landingStatus(landing: GuideItem, items: GuideItem[], tripZone: 
     && (f.detail || "").includes(`Lands at ${airport}`));
   const lands = zonedMoment(ymd(landing.date), mins(landing.time) ?? 0, landing.timeZone || tripZone);
   const departs = flight ? zonedMoment(ymd(flight.date), mins(flight.time) ?? 0, flight.timeZone || tripZone) : null;
-  const zoneWord = ZONE_WORDS[tripZone] || "local time";
+  const zoneWord = zoneWords(tripZone);
+  // (the landing's own time is on the landing's own clock: a Seoul landing on a Vietnam trip reads "Korea time")
+  const landsZoneWord = zoneWords(landing.timeZone || tripZone);
   const here = (d: Date) => d.toLocaleString("en-US", { timeZone: tripZone, weekday: "short", hour: "numeric", minute: "2-digit" });
   // One line says the take-off (round 8: the card said "Takes off …" twice, in two zones, and read as two flights)
   const origin = flight ? (flight.title.split(" · ").slice(1).join(" · ").split(" → ")[0] || "").trim() : "";
@@ -377,13 +428,13 @@ export function landingStatus(landing: GuideItem, items: GuideItem[], tripZone: 
   // The landing time on a phone still on home time names its clock, and adds the phone's (round 11: at 1:00 AM in
   // California, "Was due to land at 3:00 PM" could be read as 3:00 PM California time, still ahead)
   const landsAt = phoneIsElsewhere(tripZone)
-    ? `${clock(landing.time)} ${zoneWord} (${lands.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "")} your time)`
+    ? `${clock(landing.time)} ${landsZoneWord} (${lands.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "")} your time)`
     : clock(landing.time);
   if (departs && at < departs) {
     // Taking off in another zone: its own time, and the trip's ("Tue, Oct 13" reads as yesterday on a Wednesday phone)
     if (!flight!.timeZone || flight!.timeZone === tripZone) return null;
     const theirs = departs.toLocaleString("en-US", { timeZone: flight!.timeZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-    return `Takes off${from} ${theirs} ${ZONE_WORDS[flight!.timeZone] || ""} — that's ${here(departs)} ${zoneWord}`.replace(/\s+—/, " —");
+    return `Takes off${from} ${theirs} ${zoneWords(flight!.timeZone)} — that's ${here(departs)} ${zoneWord}`.replace(/\s+—/, " —");
   }
   if (at < lands) {
     // In the air, what matters is the landing — the take-off is on its flight's own line (Oct 10 re-audit: Julie's Next
@@ -408,17 +459,56 @@ export function landingTitle(i: GuideItem, me: string | null | undefined, title:
   return `${me && hasName(i.forWhom, me) ? "You" : i.forWhom} ${past ? "were due to land" : "land"} at ${rest}`;
 }
 
+const withoutTerminal = (a: string) => a.replace(/,\s*Terminal\s*\w+\s*$/i, "").trim().toLowerCase();
+/** Where a landing line lands ("Land at Seoul Incheon (ICN) · DL 7861" → "Seoul Incheon (ICN)") */
+export const landedAt = (land: GuideItem): string => land.title.replace(/^Land at /i, "").split(" · ")[0];
+/** A flight line's from and to ("DL 7807 · Seoul Incheon (ICN) → Hanoi Noi Bai (HAN)"); null when it doesn't name both */
+export function flightRoute(f: GuideItem): { from: string; to: string } | null {
+  const [from, to] = f.title.split(" · ").slice(1).join(" · ").split(" → ").map((s) => s.trim());
+  return from && to ? { from, to } : null;
+}
+/**
+ * A change of planes (S3 fix 1): the flights for this person that leave the airport they just landed at, later the same
+ * date by the clock (each line carries its own zone). The first, then the next from where it goes, and so on. Empty when
+ * there is none. Terminal tails ("Tokyo Haneda (HND), Terminal 3") and case are ignored.
+ */
+export function connectionsAfter(land: GuideItem, items: GuideItem[], me: string | null | undefined, tripZone: string): GuideItem[] {
+  const out: GuideItem[] = [];
+  const date = ymd(land.date);
+  const moment = (i: GuideItem) => zonedMoment(date, mins(i.time) ?? 0, i.timeZone || tripZone).getTime();
+  let at = land.time ? moment(land) : NaN;
+  let here = withoutTerminal(landedAt(land));
+  for (let k = 0; k < 5; k++) {
+    const next = items
+      .filter((f) => f.kind === "flight" && !isLanding(f) && ymd(f.date) === date && !!f.time && isFor(f, me) && !out.includes(f) && flightRoute(f) && withoutTerminal(flightRoute(f)!.from) === here && moment(f) > at)
+      .sort((a, b) => moment(a) - moment(b))[0];
+    if (!next) break;
+    out.push(next);
+    at = moment(next);
+    here = withoutTerminal(flightRoute(next)!.to);
+  }
+  return out;
+}
+/** Does this flight land the day it leaves? False when a landing line for its service sits on a later date */
+export const landsSameDay = (f: GuideItem, items: GuideItem[]): boolean => {
+  const svc = flightService(f.title);
+  return !svc || !items.some((l) => isLanding(l) && landingService(l.title) === svc && ymd(l.date) > ymd(f.date));
+};
+
 /** A take-off on another clock, said in the trip's: "That's Wed 4:00 AM Japan time" (round 8: on Japan's Oct 13
  * page, "12:00 PM California time" sat among the day's Japan times as if it were noon there). */
-export function departureInTripZone(i: GuideItem, tripZone: string): string | null {
+export function departureInTripZone(i: GuideItem, tripZone: string, plan: boolean = isPlanTrip()): string | null {
   if (i.kind !== "flight" || isLanding(i) || !i.date || !i.time || !i.timeZone || i.timeZone === tripZone) return null;
   // (not on a phone already on the flight's own clock — there it's the same take-off said twice; re-audit 2: Julie's
   // Oct 13 read "12:00 PM California time" and "Take-off was due Wed, Oct 14, 4:00 AM Japan time")
   try { if (Intl.DateTimeFormat().resolvedOptions().timeZone === i.timeZone) return null; } catch { /* say it */ }
   const departs = zonedMoment(ymd(i.date), mins(i.time) ?? 0, i.timeZone);
+  // The same number of hours from UTC at take-off: the day's clock already says it (S3 fix 3: Bangkok on a Cambodia day)
+  // (a plan trip only: a sheet trip's words stay as they were, a Korea-clock flight on Japan's trip included)
+  if (plan && zoneOffsetMinutes(i.timeZone, departs) === zoneOffsetMinutes(tripZone, departs)) return null;
   // Its own words, with the date (round 9: "That's Wed 4:00 AM" under "Lands at … 3:00 PM" read as the landing);
   // after that time, by the schedule (round 11: still "Takes off" hours after)
-  return `${Date.now() >= departs.getTime() ? "Take-off was due" : "Takes off"} ${departs.toLocaleString("en-US", { timeZone: tripZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${ZONE_WORDS[tripZone] || "local time"}`;
+  return `${Date.now() >= departs.getTime() ? "Take-off was due" : "Takes off"} ${departs.toLocaleString("en-US", { timeZone: tripZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${zoneWords(tripZone)}`;
 }
 
 /**
@@ -426,7 +516,7 @@ export function departureInTripZone(i: GuideItem, tripZone: string): string | nu
  * Japan date, and before their flight takes off (in Japan's time) nothing on it is theirs but that flight
  * (round 8: Julie's "first day", Japan's Oct 13, showed an 8 PM Tokyo dinner as if it might be hers).
  */
-export function homeOnJapanDate(items: GuideItem[], me: string | null | undefined, date: string, tripZone: string): GuideItem | null {
+export function homeOnJapanDate(items: GuideItem[], me: string | null | undefined, date: string, tripZone: string, plan: boolean = isPlanTrip()): GuideItem | null {
   const party = partyOf(items, me);
   if (!party) return null;
   const flight = items
@@ -434,8 +524,25 @@ export function homeOnJapanDate(items: GuideItem[], me: string | null | undefine
     .sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)))[0];
   if (!flight) return null;
   const departs = zonedMoment(ymd(flight.date), mins(flight.time) ?? 0, flight.timeZone!);
-  const departJapanDay = new Intl.DateTimeFormat("en-CA", { timeZone: tripZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(departs);
+  // (a plan trip: still at home only on a date BEFORE the flight's own date, the date the flight line carries; S3 fix 4)
+  const departJapanDay = plan ? ymd(flight.date) : new Intl.DateTimeFormat("en-CA", { timeZone: tripZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(departs);
   return date < departJapanDay ? flight : null;
+}
+
+const plusDay = (date: string, n: number) => { const d = new Date(`${date}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+/**
+ * Where Next starts for this person: their own first date (their party's first flight or check-in), and from it their first
+ * date ON THE TRIP — a sheet trip skips the dates they are still at home on in Japan's calendar; a plan trip's first day is
+ * the date on the first flight (S3 fix 4: Dec 14 for Ken, not Dec 15). `first` is the trip's own first day unless theirs is later.
+ */
+export function myFirstDay(items: GuideItem[], me: string | null | undefined, tripFirst: string, tripZone: string, plan: boolean = isPlanTrip()): { myStart: string | undefined; myTripStart: string | undefined; first: string } {
+  const party = partyOf(items, me);
+  const myStart = party
+    ? items.filter((i) => i.date && i.forWhom === party && ["flight", "checkin"].includes(i.kind) && !isLanding(i)).map((i) => ymd(i.date)).sort()[0]
+    : undefined;
+  let myTripStart = myStart;
+  for (let k = 0; myTripStart && k < 3 && homeOnJapanDate(items, me, myTripStart, tripZone, plan); k++) myTripStart = plusDay(myTripStart, 1);
+  return { myStart, myTripStart, first: myTripStart && myTripStart > tripFirst ? myTripStart : tripFirst };
 }
 
 /** You haven't landed in Japan yet, by the schedule — at home or in the air (verify 5: from 8 AM California time the
@@ -471,12 +578,12 @@ export function phoneIsElsewhere(tripZone: string) {
 export function deadlineTimeWords(i: GuideItem, tripZone: string): string | null {
   const at = deadlineMinutes(i);
   if (!i.date) return null;
-  const zoneWord = ZONE_WORDS[tripZone] || "local time";
+  const zoneWord = zoneWords(tripZone);
   if (at === null) {
     // No time in the Guide: the day ends in Japan hours before it ends at home — say when, in your time
     if (!phoneIsElsewhere(tripZone)) return null;
     const end = zonedMoment(ymd(i.date), 23 * 60 + 59, tripZone);
-    return `by the end of the day ${zoneWord === "local time" ? "there" : `in ${zoneWord.replace(/ time$/, "")}`} (${end.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })} your time)`;
+    return `by the end of the day in ${zoneWord.replace(/ time$/, "")} (${end.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })} your time)`;
   }
   // Already said in the title or the Guide's words ("…ends 3:00 PM Kyoto time", "Until 11:59 PM Japan time")
   const said = `${i.title} ${i.detail || ""}`.includes(minutesToClock(at));
@@ -494,9 +601,6 @@ export function deadlineJustPassed(i: GuideItem, tripZone: string, now = new Dat
   return now.getTime() - zonedMoment(ymd(i.date), at, tripZone).getTime() < 24 * 3600 * 1000;
 }
 
-export const ZONE_WORDS: Record<string, string> = { "America/Los_Angeles": "California time", "Asia/Tokyo": "Japan time" };
-/** "California time", "Japan time" — whose clock a time is on */
-export const zoneWords = (zone: string) => ZONE_WORDS[zone] || zone;
 
 /** A deadline whose own words say charges START that day ("cancellation charges start", "60% charge from this date") */
 export const CHARGES_FROM = /\bcharges? (?:start|begin)s?\b|\bcharges? from this date\b|% (?:charge )?from this date\b/i;
@@ -567,7 +671,7 @@ export function leaveForAirport(flight: GuideItem, fromCity: string | null | und
     travel,
     airport,
     text: `Leave for ${airport} airport by about ${minutesToClock(leave)}`,
-    why: `Wander's estimate: about ${hrs(travel)} from ${fromCity} to ${airport}, and ${hrs(AT_AIRPORT_INTERNATIONAL)} at the airport before an international flight. The Guide doesn't say how you're getting there.`,
+    why: `Wander's estimate: about ${hrs(travel)} from ${fromCity} to ${airport}, and ${hrs(AT_AIRPORT_INTERNATIONAL)} at the airport before an international flight. ${isPlanTrip() ? "The plan" : "The Guide"} doesn't say how you're getting there.`,
   };
 }
 
@@ -826,11 +930,11 @@ export function itemTitle(i: GuideItem, stays: Stay[], date: string) {
   if (i.kind === "checkin") {
     const tonight = stays.filter((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= date && date < ymd(s.checkOutDate));
     const others = tonight.filter((s) => !i.title.toLowerCase().includes(s.name.toLowerCase().split(" ")[0]));
-    if (tonight.length > 1 && others.length) return `${i.title} (the Guide also lists ${others.map((s) => s.name).join(" and ")} for tonight)`;
+    if (tonight.length > 1 && others.length) return `${i.title} (the ${isPlanTrip() ? "plan" : "Guide"} also lists ${others.map((s) => s.name).join(" and ")} for tonight)`;
   }
   if (i.kind !== "checkout") return tidyTitle(i);
   const leaving = leavingOn(stays, date);
-  if (leaving.length > 1) return `Check out · ${leaving.map((s) => s.name).join(" or ")} (the Guide lists both)`;
+  if (leaving.length > 1) return `Check out · ${leaving.map((s) => s.name).join(" or ")} (the ${isPlanTrip() ? "plan" : "Guide"} lists both)`;
   return i.title;
 }
 
@@ -850,7 +954,20 @@ export function tabLabel(name: string): string {
   return whole.length >= 10 ? `${whole}…` : n;
 }
 
-export function friendlySource(source: string, me?: string | null) {
+/** A plan trip's source names as they are said to this person: as stored ("Larisa's notes", "Backroads' itinerary"), and
+ *  "your notes" to the person whose name starts one (S2d). A " + " joined source counts as its parts. */
+export function planSourceNames(sources: string[], me?: string | null, capital = false): string[] {
+  const own = me && me.trim() ? new RegExp(`^${me.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'s `, "i") : null;
+  const parts = sources.flatMap((s) => s.split(" + ")).map((p) => p.trim()).filter(Boolean);
+  return Array.from(new Set(parts)).map((p, k) => (own && own.test(p) ? p.replace(own, capital && k === 0 ? "Your " : "your ") : p));
+}
+
+export function friendlySource(source: string, me?: string | null, plan: boolean = isPlanTrip()) {
+  // A plan trip names the source as stored; no tab, no Guide (S2d)
+  if (plan) {
+    const names = planSourceNames([source], me);
+    return names.length ? `From ${names.join(" and ")}` : "From the plan";
+  }
   const parts = source.split(" + ").map((p) => {
     const shot = p.match(/^Screenshot in (.+)$/i);
     if (shot) return `a screenshot in the ${tabLabel(shot[1])} tab`;
@@ -1049,13 +1166,32 @@ const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch 
  * differ"; to everyone else "Larisa's Guide", "Her tabs differ" (delight audit: on Larisa's own phone Wander said
  * "Larisa's notes ›", "worth checking with Larisa" — "Wander doesn't know who I am").
  */
-export function voiceFor(me: string | null | undefined, owner: string | null | undefined = "Larisa") {
+export function voiceFor(me: string | null | undefined, owner: string | null | undefined = "Larisa", plan: boolean = isPlanTrip()) {
   const name = owner || "Larisa";
   const mine = !!me && me.trim().toLowerCase() === name.toLowerCase();
+  // (S2d: whole phrases, so no site glues "Guide" or "plan" onto a token. A sheet trip's values are exactly what
+  // the glued words made; a plan trip says "the plan" for all of them.)
+  const whose = mine ? "your" : `${name}'s`;
+  const Whose = mine ? "Your" : `${name}'s`;
+  const herW = mine ? "your" : "her";
+  const HerW = mine ? "Your" : "Her";
   return {
     mine,
-    /** "Larisa's Guide" / "your Guide" */
-    guide: mine ? "your Guide" : `${name}'s Guide`,
+    /** True on a trip built from a plan: its words never say Guide, sheet or tab */
+    plan,
+    /** "Larisa's Guide" / "your Guide" (a plan trip: "the plan") */
+    guide: plan ? "the plan" : mine ? "your Guide" : `${name}'s Guide`,
+    /** The same at the start of a sentence: "Larisa's Guide" / "Your Guide" / "The plan" */
+    Guide: plan ? "The plan" : mine ? "Your Guide" : `${name}'s Guide`,
+    /** "her Guide" / "your Guide" / "the plan", and capitalised */
+    herGuide: plan ? "the plan" : `${herW} Guide`,
+    HerGuide: plan ? "The plan" : `${HerW} Guide`,
+    /** "Larisa's plan" / "your plan" / "the plan", and capitalised */
+    ownersPlan: plan ? "the plan" : `${whose} plan`,
+    OwnersPlan: plan ? "The plan" : `${Whose} plan`,
+    /** "her plan" / "your plan" / "the plan", and capitalised */
+    herPlan: plan ? "the plan" : `${herW} plan`,
+    HerPlan: plan ? "The plan" : `${HerW} plan`,
     /** "her" / "your" (her plan, her tabs) */
     her: mine ? "your" : "her",
     Her: mine ? "Your" : "Her",
@@ -1125,8 +1261,8 @@ export const pictureYou = (g: string, v: ReturnType<typeof voiceFor>, me?: strin
  *  (round 13: Wander said her Guide didn't name it; her Kyoto map lists "You & Julie") */
 export function noGroupWords(i: { detail?: string | null }, v: ReturnType<typeof voiceFor>, me?: string | null): string {
   const g = pictureGroupOf(i);
-  return g ? `${v.Her} plan names no group here; a picture in ${v.her} tab puts it under “${g}”${pictureYou(g, v, me)}`
-    : `${v.Her} Guide doesn't name the group for this line`;
+  return g ? `${v.HerPlan} names no group here; a picture in ${v.her} tab puts it under “${g}”${pictureYou(g, v, me)}`
+    : `${v.HerGuide} doesn't name the group for this line`;
 }
 
 /** Her Itinerary note on a hotel's row — about that stay, not the day's line (round 12: Oct 27 was quoted as the Four
@@ -1180,11 +1316,19 @@ export const tabsDiffer = (i: GuideItem) => (i.detail || "").split("\n").filter(
 
 /** A hotel is found by its name and city ("Imperial Hotel, Tokyo, Japan"). A bare district address
  *  ("Chiyoda City") put the pin on the Imperial Palace grounds, over a kilometre away. */
-export function stayMapsQuery(stay: { name: string; address?: string | null }, city?: string | null): string {
+export function stayMapsQuery(stay: { name: string; address?: string | null }, city?: string | null, country?: string | null, plan: boolean = isPlanTrip()): string {
   const name = stay.name.trim();
   const hasCity = city && name.toLowerCase().includes(city.toLowerCase());
-  return [name, hasCity ? null : city, "Japan"].filter(Boolean).join(", ");
+  // (S3 fix 5: the stay's city's own country; none stated is Japan on a sheet trip and nothing on a plan trip)
+  return [name, hasCity ? null : city, country || (plan ? null : "Japan")].filter(Boolean).join(", ");
 }
+
+/** The country of a city by id, for a hotel's search ("Hanoi" → "Vietnam"); null when the city has none */
+export const countryOfCity = (cities: { id: string; country?: string | null }[] | undefined, id?: string | null): string | null =>
+  (id ? cities?.find((c) => c.id === id)?.country : null) || null;
+
+/** Does this country get a Train button beside Walk and Taxi? Japan does; no country (a sheet trip) does (S3 fix 6) */
+export const countryHasTrain = (country?: string | null): boolean => !country || /^japan$/i.test(country.trim());
 
 /**
  * The time of day a deadline falls, when its words say ("by 15:00", "11:59 PM", "3pm"), in minutes
@@ -1219,14 +1363,23 @@ export function minutesToClock(mins: number) {
 /** "Larisa's Guide, as Wander read it Sep 29" — flagged when it's more than a week old. */
 /** The same words on every phone: the date in the trip's zone, said as Japan's when the phone is elsewhere
  *  (Julie's phone in California said "Sep 29" while Ken's in Tokyo said "Sep 30" — one read, two dates) */
-export function freshness(importedAt: string | undefined | null, now = new Date(), tripZone = "Asia/Tokyo") {
+export function freshness(importedAt: string | undefined | null, now = new Date(), tripZone = "Asia/Tokyo", opts: { me?: string | null; plan?: boolean; sources?: string[] } = {}) {
   if (!importedAt) return null;
   const read = new Date(importedAt);
   const days = Math.floor((now.getTime() - read.getTime()) / 86400000);
+  // A trip built from a plan (S2d): the date in the phone's own zone with no zone words, and — once it is more than a
+  // week old, and only when Larisa's notes are among its sources — that her notes may have changed since (said to
+  // everyone but Larisa). `line` is the whole line for a plan trip; a sheet trip's callers build theirs from `text`.
+  if (opts.plan ?? isPlanTrip()) {
+    const sources = opts.sources ?? planSourcesOf();
+    const when = read.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const more = days > 7 && !voiceFor(opts.me, "Larisa", true).mine && sources.some((s) => s.toLowerCase() === "larisa's notes") ? " Larisa's notes may have changed since." : "";
+    return { text: `The plan was last updated ${when}`, old: days > 7, days, line: `The plan was last updated ${when}.${more}` };
+  }
   const when = read.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tripZone });
   // (", Japan time" — Sweep A: "(Japan's date)" read as a puzzle)
-  const zone = phoneIsElsewhere(tripZone) ? `, ${ZONE_WORDS[tripZone] || "the trip's time"}` : "";
-  return { text: `Larisa's Guide, as Wander last read it on ${when}${zone}`, old: days > 7, days };
+  const zone = phoneIsElsewhere(tripZone) ? `, ${zoneWords(tripZone)}` : "";
+  return { text: `Larisa's Guide, as Wander last read it on ${when}${zone}`, old: days > 7, days, line: "" };
 }
 
 /** Her open questions in a note: a phrase she wrote in capitals ("WHERE IS BIZEN TOUR STARTING", "ASK KENJI TO …") or a

@@ -958,6 +958,13 @@ export function mappingsAfterImport(prior: unknown, sourceName: string): Record<
   return { ...kept, source: "snapshot", sourceName };
 }
 
+/** The lines a Guide copy replaces: the trip's lines that belong to a Guide. A line of Wander's own plan (its snapshot's
+ *  kind is "wander_plan") is never replaced. This is the only place a GuideItem is deleted; on a trip with no plan it
+ *  matches every line, as before. */
+export function itemsReplacedByImport(tripId: string) {
+  return { tripId, snapshot: { sourceKind: { not: "wander_plan" } } };
+}
+
 // ── Import ──────────────────────────────────────────────────────
 
 export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportReport> {
@@ -972,6 +979,13 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
   if (opts.tripId && !target) { report.reasons.push("That trip doesn't exist. Nothing was changed."); return report; }
   if (target && tripOver(target.endDate)) {
     report.reasons.push(`This trip ended on ${plainDate(target.endDate!)} and keeps its plan as it was. Nothing was changed.`);
+    return report;
+  }
+  // A trip built from Wander's own plan (December 2026) isn't a Guide's trip: a copy of a Guide would add a second
+  // "Hanoi", set the plan aside as "previous" and list every plan line as removed. Refused, for now, before anything is
+  // read or written; the Guide-reader step of the December work lifts this.
+  if (opts.tripId && await prisma.guideSnapshot.count({ where: { tripId: opts.tripId, status: "current", sourceKind: "wander_plan" } })) {
+    report.reasons.push("This trip is built from Wander's own plan, which a copy of a Guide can't replace. Nothing was changed.");
     return report;
   }
 
@@ -1672,8 +1686,8 @@ export async function importGuideSnapshot(opts: ImportOptions): Promise<ImportRe
       }
     }
 
-    // Guide items (rebuilt)
-    await tx.guideItem.deleteMany({ where: { tripId } });
+    // Guide items (rebuilt) — a Guide's own lines; a plan's lines on the same trip are never in reach
+    await tx.guideItem.deleteMany({ where: itemsReplacedByImport(tripId) });
     await tx.guideItem.createMany({
       data: items.map((i, idx) => ({
         tripId, snapshotId: snap.id, date: i.date ? asDate(i.date) : null, time: i.time, endTime: i.endTime,

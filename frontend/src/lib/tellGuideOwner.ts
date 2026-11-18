@@ -3,6 +3,7 @@
  * about goes to her the way people already talk — a message from this phone, already written.
  * Works for any trip's Guide ("From Larisa's Guide · …" names whose it is).
  */
+import { noSampleText } from "./samples";
 
 /** Whose Guide this trip is read from, from its tagline ("From Larisa's Guide · Japan Oct 2026"). */
 export function guideOwnerOf(tagline: string | null | undefined): string | null {
@@ -12,6 +13,8 @@ export function guideOwnerOf(tagline: string | null | undefined): string | null 
 
 /** Opens the phone's share sheet (Messages) with the text; copies it if sharing isn't possible. */
 export async function sendToGuideOwner(owner: string, text: string): Promise<string | null> {
+  // (a message holding a sample's marker is never sent or copied — S2c)
+  if (noSampleText(text) === null) return null;
   if (navigator.share) {
     try {
       await navigator.share({ text });

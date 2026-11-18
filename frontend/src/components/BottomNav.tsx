@@ -13,6 +13,7 @@ import { api } from "../lib/api";
 import { savedGuideData } from "../lib/guideData";
 import { travelerToday } from "../lib/guideDisplay";
 import { finishedLastDay } from "../lib/tripPhase";
+import { zoneOfLastDay } from "../lib/dayZone";
 
 /** The traveler's own today: Japan's date once they've landed, from the Guide this phone keeps (else Japan's date) */
 function todayPath(): string {
@@ -22,7 +23,7 @@ function todayPath(): string {
     const g = tripId ? savedGuideData(tripId) : null;
     // After the trip's last day, Today opens that last day — it opened today's date, "This date isn't part of the
     // trip", a dead end (Ken, Nov 15: "I would like the old Japan to open, looking like it looked on the last day")
-    const last = g ? finishedLastDay([...(g.days || []).map((x) => x.date), g.trip.endDate], g.trip.timeZone || "Asia/Tokyo") : null;
+    const last = g ? finishedLastDay([...(g.days || []).map((x) => x.date), g.trip.endDate], zoneOfLastDay(g.days, g.trip.endDate, g.trip.timeZone || "Asia/Tokyo")) : null;
     if (last) return `/day/${last}`;
     const me = (JSON.parse(localStorage.getItem("wander_user") || "null") as { displayName?: string } | null)?.displayName || null;
     if (g) {

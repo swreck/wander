@@ -7,7 +7,8 @@ import { api } from "../lib/api";
 import FaceIdSetup from "../components/FaceIdSetup";
 import { signedInWithPasskeyHere } from "../lib/passkeys";
 import { sourcesData, type OtherSource } from "../lib/sources";
-import { voiceFor, samePerson } from "../lib/guideDisplay";
+import { voiceFor, samePerson, planSourceNames } from "../lib/guideDisplay";
+import { planSourcesOf } from "../lib/planTrip";
 import { showMeAround } from "../components/ShowMeAround";
 import TellKenSettings from "../components/TellKenSettings";
 import { IdeasSettingsRow } from "../components/IdeasLink";
@@ -177,7 +178,10 @@ function NotesSettingsSection() {
 // Wander is downstream of Larisa's sheet: it reads the Guide and never changes it.
 // There are deliberately no sync, push, or interval controls here.
 
-interface GuideStatus { current: { sourceName: string; importedAt: string } | null }
+interface GuideStatus { current: { sourceName: string; importedAt: string; plan?: boolean; planSources?: string[] } | null }
+
+/** "Nov 17, 8:22 AM" in the phone's own zone, no zone words (a plan trip's words, S2d) */
+const phoneWhen = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 /** "Oct 1, 2:48 AM Japan time" — the same words on every phone (round 12: three screens gave three different dates) */
 const japanWhen = (iso: string) => `${new Date(iso).toLocaleString("en-US", { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} Japan time`;
@@ -210,6 +214,11 @@ function SheetSyncSection() {
 
   if (!guide && !others.length) return null;
 
+  // A trip built from a plan names its sources as stored, and says when Wander's plan was last updated (S2d)
+  const plan = guide?.plan ?? v.plan;
+  const planNames = planSourceNames(guide?.planSources || planSourcesOf(), me, true);
+  const hasLarisaNotes = (guide?.planSources || planSourcesOf()).some((s) => s.split(" + ").some((p) => p.trim().toLowerCase() === "larisa's notes"));
+
   return (
     <section className="border-t border-[#e0d8cc] pt-6">
       <h2 className="text-sm font-medium text-[#3a3128] mb-1">Where Wander's plan comes from</h2>
@@ -219,9 +228,11 @@ function SheetSyncSection() {
       <div className="bg-white rounded-lg border border-[#e0d8cc] divide-y divide-[#f0ebe3]">
         {guide && (
           <div className="p-3 text-[13px]">
-            <p className="text-[#3a3128] font-medium">{v.mine ? "Your Guide" : "Larisa's Guide"}</p>
+            <p className="text-[#3a3128] font-medium">{plan ? (planNames.length ? planNames.join(" and ") : "The plan") : v.Guide}</p>
             {/* When it was read, not its file name (delight audit: "Japan Oct 2026-2" meant nothing to anyone) */}
-            <p className="text-[#6b5d4a] mt-0.5">Wander's copy, read {japanWhen(guide.importedAt)}.{v.mine ? " Changes you've made since then aren't in it yet." : " Larisa may have changed things since."}</p>
+            {plan
+              ? <p className="text-[#6b5d4a] mt-0.5">Wander's plan was last updated {phoneWhen(guide.importedAt)}.{hasLarisaNotes ? (v.mine ? " Changes to your notes since then aren't in it yet." : " Larisa's notes may have changed since.") : ""}</p>
+              : <p className="text-[#6b5d4a] mt-0.5">Wander's copy, read {japanWhen(guide.importedAt)}.{v.mine ? " Changes you've made since then aren't in it yet." : " Larisa may have changed things since."}</p>}
           </div>
         )}
         {others.map((s) => (

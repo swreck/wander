@@ -68,7 +68,32 @@ export async function dayInputs(tripId: string): Promise<Record<string, { block:
 }
 
 /** The instruction for one day (Ken's voice: plain, warm, one thought per sentence; never a fact the lines don't hold) */
-export function summaryPrompt(input: { block: string; pictures: string; doc?: string }): string {
+export function summaryPrompt(input: { block: string; pictures: string; doc?: string }, plan?: { tripName: string }): string {
+  const base = summaryPromptFor(input);
+  return plan ? planSummaryPrompt(base, plan.tripName) : base;
+}
+
+/** A trip built from a plan (S2d): today's instruction with the spots that name Japan, a family, a spreadsheet and her
+ *  tabs changed, so a day is summed up under the trip's own name and its own country. If a spot can't be found the
+ *  instruction has changed under this function, and it says so rather than sending the writer a false one. */
+function planSummaryPrompt(base: string, tripName: string): string {
+  const swaps: [string, string][] = [
+    [`- Say "her Guide" or "her plan" for where it comes from — never "her lines", "the lines" or "the spreadsheet's rows".`, `- Say "the plan" for where it comes from — never "the lines" or "the spreadsheet's rows".`],
+    ["nothing from your own knowledge of Japan", "nothing from your own knowledge of the places"],
+    [`("her tabs name two places for dinner")`, `("the plan names two places for dinner")`],
+  ];
+  const firstEnd = base.indexOf("\n\n");
+  if (firstEnd < 0) throw new Error("The day summary instruction no longer has the spots the plan trip's is made from");
+  const intro = `This is one day of the trip "${tripName}", as Wander holds it in its plan. The first line names the day, its city and country, where everyone sleeps, and "with Backroads" on days Backroads (a guided tour company) runs. Lines in square brackets are Wander's notes on the lines.`;
+  let out = `${intro}${base.slice(firstEnd)}`;
+  for (const [was, now] of swaps) {
+    if (!out.includes(was)) throw new Error("The day summary instruction no longer has the spots the plan trip's is made from");
+    out = out.replace(was, () => now);
+  }
+  return out.split("her lines").join("the lines");
+}
+
+function summaryPromptFor(input: { block: string; pictures: string; doc?: string }): string {
   return `This is one day of a family trip to Japan (Ken, Larisa, Andy, Julie), as Wander reads it from Larisa's trip spreadsheet. The first line names the day, where everyone sleeps, and "with Backroads" on days Backroads (a guided tour company) runs. Lines in [WHERE: …] say who is not in Japan yet. Lines in square brackets are Wander's notes on her lines; "(source: …)" names her tab.
 
 ${input.block}
@@ -97,10 +122,15 @@ export async function storedSummaries(tripId: string): Promise<Record<string, Da
   return s && typeof s === "object" ? s : {};
 }
 
+/** The fingerprint of a day with no rows at all (dayHashes leaves such a day out). Wander's own plan has quiet days with a
+ *  summary and no row; its tool stores this hash. A Guide trip's stored hashes come from days that had rows, so none of
+ *  them equals this (a test reads every Guide trip's summaries both ways). */
+export const EMPTY_DAY_HASH = crypto.createHash("sha256").update(JSON.stringify([[], []])).digest("hex").slice(0, 16);
+
 /** The summaries that still match their day (a changed day's summary is left out until rewritten and read) */
 export async function currentSummaries(tripId: string): Promise<Record<string, string>> {
   const [stored, hashes] = await Promise.all([storedSummaries(tripId), dayHashes(tripId)]);
   const out: Record<string, string> = {};
-  for (const [date, s] of Object.entries(stored)) if (hashes[date] && hashes[date].hash === s.hash && s.text?.trim()) out[date] = s.text.trim();
+  for (const [date, s] of Object.entries(stored)) if ((hashes[date]?.hash ?? EMPTY_DAY_HASH) === s.hash && s.text?.trim()) out[date] = s.text.trim();
   return out;
 }

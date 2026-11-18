@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import type { ChangeLogEntry, Trip } from "../lib/types";
 import { changeRest } from "../lib/changeWords";
+import { isPlanTrip } from "../lib/planTrip";
 
 const RESTORABLE_ACTIONS = ["delete", "remove", "deleted", "removed"];
 const RESTORABLE_ENTITIES = ["experience", "reservation", "accommodation", "route_segment", "day"];
@@ -131,7 +132,7 @@ export default function HistoryPage() {
 
         <h1 className="text-2xl font-light text-[#3a3128]">What's changed in Wander</h1>
         <p className="text-sm text-[#6b5d4a] mb-4">
-          Notes, plans and additions people made here{total > 0 ? ` (${total})` : ""}. {/^larisa$/i.test(user?.displayName || "") ? "Changes to your Guide happen in your sheet." : "Changes to Larisa's Guide happen in her sheet."}
+          Notes, plans and additions people made here{total > 0 ? ` (${total})` : ""}.{isPlanTrip() ? "" : <> {/^larisa$/i.test(user?.displayName || "") ? "Changes to your Guide happen in your sheet." : "Changes to Larisa's Guide happen in her sheet."}</>}
         </p>
 
         {/* Search */}

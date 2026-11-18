@@ -62,6 +62,8 @@ export function ideaRef(sheetRowRef: string, tabs: GuideTab[]): string | null {
 
 /** A Guide line's own recorded cells; an older copy without them is read from its reference */
 export function cellsOfItem(i: { cells: unknown; sourceRef: string }, tabs: GuideTab[]): GuideCellWords[] {
+  // A line of Wander's own plan ("plan:leg:…") was never in a sheet: no cell, no tab, so no screen or source names one
+  if (i.sourceRef.startsWith("plan:")) return [];
   const kept = Array.isArray(i.cells) ? (i.cells as GuideCellWords[]) : null;
   return kept && kept.length ? kept : wordsAt([i.sourceRef], tabs);
 }

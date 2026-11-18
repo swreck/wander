@@ -3125,7 +3125,100 @@ describe those. On Sep 27 Wander became a front end to her Guide. What happened 
 - **Kept, in a new form**: the phrase card (§10); the change log, as History (§17.3); travel documents and the vault
   (§17.4); invite links and trip members (§14); offline caching (§15); city photos (§16); the Now screen, as Next (§2.4);
   Scout, with the rules in §7; the trip story, as the days lived (§9.8).
-- **Waiting on Ken**: split days as a designed feature, multiple trips, a native app, trip summaries from notes, Scout
-  streaming, "Team Fun" (CLAUDE.md §6 and memory). Never bring back the travelerProfiles nudges: they invent facts.
+- **Waiting on Ken**: split days as a designed feature, a native app, trip summaries from notes, Scout streaming,
+  "Team Fun" (CLAUDE.md §6 and memory). Never bring back the travelerProfiles nudges: they invent facts. More than one
+  trip is built (§14.3, §22).
+
+---
+
+## 22. A Trip Built from a Plan
+
+Japan's trip comes from Larisa's Guide, a sheet. A trip can also come from a plan Wander keeps itself, written from
+what the organizers hand over (a tour company's itinerary, Larisa's notes). December 2026's trip, Vietnam, Cambodia
+and Japan, is the first. Ken (Nov 16): Larisa must not change her process. Every rule of §1.3 holds; this section says
+what differs. Japan's trip reads exactly as it did.
+
+### 22.1 Where the plan comes from
+
+- Ken writes the plan with Claude from the sources and it is put into Wander by a private tool, never by a screen. A
+  written plan is checked whole first; a problem is refused in plain words and nothing is written. Writing the same
+  plan twice changes nothing.
+- A plan's lines are kept apart from a Guide's: a new Guide copy never removes them, and a Guide copy is refused for a
+  trip whose plan is Wander's own.
+- Each fact names its source by the source's own name ("From Backroads' itinerary", "From Larisa's notes"; to Larisa,
+  "From your notes"). Ken (Nov 16): a fact read from Larisa's notes or sheet shows as from Larisa. There is no "open in
+  her Guide", tab or cell on a plan trip; the freshness line reads "The plan was last updated <date>."
+- What a source marks as not booked or not confirmed is never a plan line (§22.4).
+- The words on every screen say "the plan" where a sheet trip says her Guide. Help has a plan version. A plan trip has
+  no "Tell Larisa" button and no leaving card.
+- A day with a summary and no lines says the plan "has no times set for this day"; with neither, "has nothing set for
+  this day".
+- A hotel check-in with no time sits in the day where the day reaches the hotel: after the last line that names the
+  hotel, else before the day's first dinner, else last.
+- A flight with no time that the day's own lines already name ("Flight to Hué, 1 hour") is that line, listed once; the
+  airline and the plan's note open under it. A flight line wears the plane, a shuttle the van.
+- A guided day starts where its people meet: when a meeting is the day's first line with a time, that itinerary's lines
+  with no time follow it (Dec 25: check out, "10:30 AM Meet the Backroads leaders", the day's walks, the check-in,
+  dinner). On the day you land, lines with no time follow your landing, whichever of the plan's groups names you.
+
+### 22.2 A day's own country and clock
+
+The trip crosses Vietnam, Cambodia and Japan and is flown through Seoul and Bangkok.
+
+- A day's clock is its city's, else the trip's; its country is its city's. Times say their clock in words when it isn't
+  the phone's ("10:30 AM Vietnam time"). A landing is said on the landing's clock; "today" is the date on the clock of
+  where the plan has the person.
+- Map links and place searches end in the day's country; a hotel's end in its own city's country.
+- The first day is the day you leave home. Before your first bed of the trip a night in the air is headed "On the way
+  to <city>"; a later night in the air keeps the city you woke in (Jan 1 reads "Siem Reap"). The night shows the one
+  flight that lands tomorrow.
+- Before the trip, Next shows the first day with the flight you leave on: its time on its own clock, where and when it
+  lands, its source, and "See the day ›".
+- The whole trip names each hotel once a night. On the phone a hotel that isn't yours that night says whose it is
+  ("Sleep: <hotel> (<their name>)"); the laptop table always says whose.
+- A change of planes: the landing card names the next flight from that airport and when it leaves. The way to the hotel
+  is asked from the last airport of the day, and only on the day that flight lands.
+- A flight's "Takes off" time on a second clock shows only when the flight's clock and the day's clock differ.
+- Under a place, Walk and Taxi open Google Maps. Train is offered in Japan only.
+- The phrase card opens on the country you're in today, its countries in the order the trip visits them. The bar's
+  button reads "Phrases".
+- Maybes has a tab for every city still ahead; "Next 2 days" shows once the trip has begun.
+- Japan's storm watch (§6.6) runs only on a plan trip's days in Japan.
+
+### 22.3 Each person's days
+
+A person's row on the trip can hold the days they are abroad. Trip notices skip a person outside their days. A message
+to Ken (§13) is not a trip notice and reaches him at home.
+
+### 22.4 Samples: what only Ken sees
+
+Ken (Nov 16): "larisa sees what is real only and I see what is real plus clearly designated placeholder text or images
+(e.g., grey/italic text; watermarked placeholders for "personal photos" ... or something like that)".
+
+- A sample stands in an open slot so Ken can see how a full trip will look: a line in a part of a day, a day's summary,
+  two maybes for a city, a note, a photo of the day. Every sample starts with a "Sample" pill and is grey italic inside
+  a dashed outline; a sample picture is a grey panel with a SAMPLE band across it. A sample has no actions and no "Ask
+  Scout". Tapping it says "A sample. Nothing is planned here yet."
+- A leg a source has but hasn't confirmed shows to Ken the same way with a "Not confirmed" pill. Tapping it says "Not
+  confirmed yet, so it isn't in the plan. From <source>."
+- Only the person whose row on the trip asks for samples is handed any (Ken, on December). Nobody else's phone
+  receives one.
+- A real entry in a sample's slot removes the sample: a real timed line in that part of the day, a real summary, two
+  real maybes in the city, the viewer's own note or photo that day. No sample shows once the viewer is abroad.
+- Samples reach nothing else: not Scout, a summary, a total, History, a notice, a sent day, an export, or the phone's
+  saved copies. There are no sample expenses, so Budget is always real.
+- Home and Next show no sample.
+- A screen's empty line ("No maybes for Hanoi yet.", Notes' "Nothing here yet.") doesn't show beside samples.
+- A "Not confirmed" leg never takes a sample's slot, and sorts by its own moment.
+
+### 22.5 More than one trip
+
+§14.3 holds. A person on Japan and December switches from the trip menu (tap the trip's name on Home); switching moves
+only that person. Japan's screens are unchanged by December's being there.
+
+### 22.6 Not yet on a plan trip
+
+Money still speaks yen and dollars only: Scout keeps no amount said in another currency and asks instead; Budget's
+own words still say yen. Scout's weather and packing tips cover Japan only. Both are due before Dec 14.
 
 *End of Part II, written Oct 15, 2026. Keep it current.*

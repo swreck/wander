@@ -374,7 +374,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
                 return (
                   <Fragment key={a.id}>
                   {firstEarlier && (
-                    <div className="text-xs text-[#6b5d4a] uppercase tracking-wider font-medium pt-4 pb-1">Earlier to-dos in the Guide</div>
+                    <div className="text-xs text-[#6b5d4a] uppercase tracking-wider font-medium pt-4 pb-1">{voiceFor(me).plan ? "Still to do" : "Earlier to-dos in the Guide"}</div>
                   )}
                   <div className="bg-white rounded-xl border border-[#e8e0d4] p-3.5">
                     <div className="flex items-start gap-3">
@@ -523,7 +523,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           </button>
           <div>
             <h1 className="text-lg font-medium text-[#3a3128]">To-dos and deadlines</h1>
-            <span className="text-xs text-[#6b5d4a]">Deadlines and to-dos from {voiceFor(me).guide}</span>
+            <span className="text-xs text-[#6b5d4a]">{voiceFor(me).plan ? "Deadlines and to-dos" : `Deadlines and to-dos from ${voiceFor(me).guide}`}</span>
           </div>
         </div>
         <button
@@ -647,7 +647,7 @@ export default function ActionsPanel({ tripId, onClose, decisions, userCode, onN
           <div className="mb-6">
             <div className="text-xs text-[#6b5d4a] uppercase tracking-wider font-medium mb-2">
               {/* (not "Coming up": a to-do with no date — her April "Activities", TBD — isn't coming up; round 12) */}
-              {upcoming.length > 0 ? "Still to do" : open.length > 0 ? "Earlier to-dos in the Guide" : "Still to do"}
+              {upcoming.length > 0 ? "Still to do" : open.length > 0 && !voiceFor(me).plan ? "Earlier to-dos in the Guide" : "Still to do"}
             </div>
             {/* ("named for you": a list under a heading below can still hold something — user-larisa1, Oct 16: "Nothing for
                 you right now" sat over "Your 'LT actions' list · 1" and she couldn't tell whether it was hers) */}

@@ -226,7 +226,7 @@ export default function SheetNotesCard({ tripId }: { tripId: string }) {
         className="w-full text-left flex items-center justify-between min-h-[44px] py-2 mb-1"
       >
         <h2 className="text-sm font-medium text-[#514636]">
-          {v.mine ? "Your Guide" : "Larisa's Guide"}, tab by tab
+          {v.Guide}, tab by tab
           <span className="block text-[#6b5d4a] font-normal text-xs mt-0.5">
             {v.mine
               ? "Your other tabs, as you wrote them, in your order. Where you pasted a picture, Wander describes it and shows it when tapped. The Itinerary is the days above; Activities are in Maybes; Actions are in Actions."

@@ -135,8 +135,26 @@ model Trip {
   expenseLog        TripExpenseLog[]
   photos            TripPhoto[]
   alerts            TripAlert[]
+  sampleEntries     SampleEntry[]
 
   @@map("trips")
+}
+
+// Marked samples that fill open slots on a trip for the viewer who has TripMember.showSamples (December 2026). Apart
+// from every real table: nothing reads this but the samples route and the plan tools.
+model SampleEntry {
+  id        String   @id @default(cuid())
+  tripId    String   @map("trip_id")
+  kind      String                       // line | summary | maybe | note | expense | trip_photo | unconfirmed
+  date      String?                      // YYYY-MM-DD, when the slot is a day's
+  slot      String                       // the slot key: "<date>|morning", "leg:<key>", ...
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, date])
+  @@map("sample_entries")
 }
 
 // ── "Let everyone know" (Oct 18 2026) ─────────────────────────
@@ -404,6 +422,10 @@ model City {
   hidden        Boolean  @default(false)
   costEstimate  Json?    @map("cost_estimate") // { hotelDailyRate, hotelTotal, mealsDaily, budgetJA, budgetKL }
   guideKey      String?  @map("guide_key")     // stable key when this city comes from Larisa's Guide
+  /// Wander's own plan wrote this city (December 2026 plan tool); null on every Guide row. The plan tool replaces only rows with its own key.
+  planKey       String?  @map("plan_key")
+  /// IANA zone this city's days are lived in ("Asia/Ho_Chi_Minh"); null = the trip's zone
+  timeZone      String?  @map("time_zone")
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   days           Day[]
@@ -468,6 +490,8 @@ model Experience {
   popularTimes  Json?    @map("popular_times")
   conditionalAssignment Json? @map("conditional_assignment") // { fallbackDate, waitFor, ifInterested, ifNot }
   sheetRowRef           String? @map("sheet_row_ref") // e.g. "Activities Template:14" — null = Wander-only
+  /// Wander's own plan wrote this idea (December 2026 plan tool); null on every Guide row. Nothing writes it yet (S2c).
+  planKey               String? @map("plan_key")
   // Removed from the Maybes list by someone on the trip (Ken, Oct 3 2026: "remove it as a maybe for Tokyo") — hidden for
   // everyone, put back with one tap; her Guide is never changed, and a new copy of it keeps this
   removedBy             String? @map("removed_by")
@@ -523,6 +547,8 @@ model Accommodation {
   checkOutDate       DateTime? @map("check_out_date")  // morning you leave (local date)
   forWhom            String?   @map("for_whom")        // "Ken & Larisa" | "Julie & Andy" | "Everyone"
   guideKey           String?   @map("guide_key")       // stable key when this stay comes from Larisa's Guide
+  /// Wander's own plan wrote this stay (December 2026 plan tool); null on every Guide row
+  planKey            String?   @map("plan_key")
 
   trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city City  @relation(fields: [cityId], references: [id], onDelete: Cascade)
@@ -947,6 +973,12 @@ model TripMember {
   /// When this person last chose this trip in Wander (Nov 16 2026). Each person's current trip is their own: switching
   /// stamps only their row, never anyone else's (services/currentTrip.ts). Null: never chosen.
   openedAt   DateTime? @map("opened_at")
+  /// The days this person is on the trip (December 2026). Null = the whole trip, so Japan is unchanged. A push or
+  /// nudge skips a person outside them.
+  abroadFrom DateTime? @map("abroad_from")
+  abroadTo   DateTime? @map("abroad_to")
+  /// This person sees marked sample entries in open slots (Ken only, December 2026). Never true by default.
+  showSamples Boolean  @default(false) @map("show_samples")
 
   trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
   traveler Traveler @relation(fields: [travelerId], references: [id], onDelete: Cascade)

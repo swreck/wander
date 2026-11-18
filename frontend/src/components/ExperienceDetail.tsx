@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import type { Experience, Trip, Day, ExperienceInterest } from "../lib/types";
 import RatingsBadge from "./RatingsBadge";
 import { useToast } from "../contexts/ToastContext";
+import { noSampleText } from "../lib/samples";
 import { useAuth } from "../contexts/AuthContext";
 import { getNudgeForExperience } from "../lib/travelerProfiles";
 import CulturalNotes from "./CulturalNotes";
@@ -201,6 +202,8 @@ export default function ExperienceDetail({
                     exp.city?.name,
                     exp.latitude != null && exp.longitude != null ? `https://maps.apple.com/?ll=${exp.latitude},${exp.longitude}` : null,
                   ].filter(Boolean).join("\n");
+                  // (words that carry a sample's marker are never shared — S2c)
+                  if (noSampleText(text) === null) return;
                   navigator.share({ text }).catch(() => {});
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f0ece5] text-sm text-[#514636] hover:bg-[#e0d8cc] transition-colors"

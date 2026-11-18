@@ -41,7 +41,12 @@ export function placeOf(label: string): string | null {
  * is that night's stay (hotel: its Maps search), and no link when Wander can't tell which (round 11: "Strict
  * Formalwear Prep at the Hotel" searched Maps for any hotel in Tokyo, not the Imperial)
  */
-export interface MapContext { hotel?: string | null; dayWords?: string; bookings?: GuideItem[]; city?: string | null }
+export interface MapContext {
+  hotel?: string | null; dayWords?: string; bookings?: GuideItem[]; city?: string | null;
+  /** The country the day is lived in (its city's country). A search ends in it; none given is Japan, as it always was. */
+  country?: string | null;
+}
+const countryOf = (ctx: MapContext) => ctx.country?.trim() || "Japan";
 export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   const hotel = ctx.hotel ?? null;
   // A line with choices ("Lunch") isn't a place — each choice is (round 6: "Test lunch, Kyoto")
@@ -54,7 +59,7 @@ export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   if (linksIn(b.link)[0]) return linksIn(b.link)[0];
   // The stop her tab names for a line that only says what it's for ("Taxi to e-bike meeting point" → Cycle Kyoto)
   const where = (b.detail || "").match(/^Where: (.+?) — the stop her tab lists/m)?.[1];
-  if (where) return mapsLink(`${where}, ${areaOf(b, ctx.dayWords)}Japan`);
+  if (where) return mapsLink(`${where}, ${areaOf(b, ctx.dayWords)}${countryOf(ctx)}`);
   // The same place as one of her bookings that day: the booking's own address (round 12: her Oct 26 "Hassun" line
   // searched a name; the Hassun booking has her Gion address)
   const booked = bookingFor(b, ctx);
@@ -69,7 +74,7 @@ export function planMapHref(b: GuideItem, ctx: MapContext = {}): string | null {
   // Hotel" searched "Imperial Hotel, Ginza" — it isn't in Ginza)
   const bare = (s: string) => s.toLowerCase().replace(/^the\s+/, "").trim();
   if (p && hotel && bare(hotel).includes(bare(p))) return mapsLink(hotel);
-  return p ? mapsLink(`${p}, ${areaOf(b, ctx.dayWords)}Japan`) : null;
+  return p ? mapsLink(`${p}, ${areaOf(b, ctx.dayWords)}${countryOf(ctx)}`) : null;
 }
 /**
  * The words to look a line's PHOTO up by: its Maps search, or — when her line names a place but Wander gives it no Maps
@@ -92,7 +97,7 @@ export function photoQueryOf(b: GuideItem, ctx: MapContext = {}): string | null 
   if (!/[A-Z]/.test(core) || core.split(/\s+/).length > 7) return null;
   // (the day's city when her tab's name gives none — "Inside the Bizen Studio, Japan" found a studio in Okayama Castle)
   const area = areaOf(b, ctx.dayWords) || (ctx.city ? `${ctx.city}, ` : "");
-  return `${core}, ${area}Japan`;
+  return `${core}, ${area}${countryOf(ctx)}`;
 }
 
 /** Her booking that day for the same line (the same time, and her words name it again) */
@@ -142,7 +147,7 @@ export function useLinePhotos(tripId: string | null, cityId: string | null | und
     const query = photoQueryOf(b, ctx);
     return query ? { id: b.id, query, line: photoLineOf(b, ctx) } : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }).filter((x): x is { id: string; query: string; line: string } => !!x), [blocks.map((b) => b.id).join(), ctx.hotel, ctx.dayWords, (ctx.bookings || []).map((m) => m.id).join()]);
+  }).filter((x): x is { id: string; query: string; line: string } => !!x), [blocks.map((b) => b.id).join(), ctx.hotel, ctx.dayWords, ctx.country, (ctx.bookings || []).map((m) => m.id).join()]);
   const [photos, setPhotos] = useState<Record<string, PlaceHit | null>>(() => keptPlacePhotos(queries));
   useEffect(() => {
     if (!tripId || !queries.length) return;
@@ -155,3 +160,44 @@ export function useLinePhotos(tripId: string | null, cityId: string | null | und
   for (const q of queries) { const h = photos[q.query]; if (h && !firstFor.has(h.id)) firstFor.set(h.id, q.id); }
   return (b: GuideItem) => { const q = queries.find((x) => x.id === b.id)?.query; const h = q ? photos[q] || null : null; return h && firstFor.get(h.id) === b.id ? h : null; };
 }
+
+/** The country a map link ends in: the day's (its city's). A day whose country isn't known names none (never Japan by
+ *  default: a link on a trip that isn't Japan's would go to the wrong place). */
+export const searchCountry = (country?: string | null) => country?.trim() || "";
+
+/**
+ * Her route for the day with each stop's town added ("Umeno Vase Shop" → "Umeno Vase Shop, Tokyo, Japan"). Her link
+ * names stops bare, and the Google Maps app looks a bare name up near the phone: from California three of her Oct 16
+ * stops weren't found and one landed in Amsterdam ("Can't seem to find that place" — Ken's iPhone check, Oct 2). Her
+ * stops, order and everything else in the link stay as she made it. The country is the day's (December plan S1, D9):
+ * a Hanoi stop ends in Vietnam; with none given it is Japan, character for character as before.
+ */
+export function placedRoute(url: string, area: string, country?: string | null): string {
+  try {
+    const u = new URL(url);
+    const [before, path] = u.pathname.split("/maps/dir/");
+    if (path === undefined) return url;
+    const where = searchCountry(country);
+    const town = area.replace(/,\s*$/, "");
+    const stops = path.split("/").map((s) => {
+      if (!s || s.startsWith("@") || s.startsWith("data=")) return s;
+      const name = decodeURIComponent(s.replace(/\+/g, " "));
+      // (the town as a whole word — "Tokyodo Main Showroom" isn't a stop already in Tokyo)
+      const named = town && new RegExp(`\\b${town.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(name);
+      const hasCountry = !where ? false : where === "Japan" ? /japan|日本/i.test(name) : name.toLowerCase().includes(where.toLowerCase());
+      const placed = hasCountry ? name : (named ? `${name}, ${where}` : `${name}, ${area}${where}`).replace(/,\s*$/, "");
+      return encodeURIComponent(placed).replace(/%20/g, "+").replace(/%2C/g, ",");
+    });
+    u.pathname = `${before}/maps/dir/${stops.join("/")}`;
+    return u.toString();
+  } catch { return url; }
+}
+
+/** Maps for one of her choices: its name and the area of her plan ("Omen, Kyoto, Japan"). Her note on it
+ *  stays out of the search — "Honke Owariya soba since 1465" isn't what a map knows it as (round 7). */
+export const choiceMapHref = (c: { name: string }, line: GuideItem, country?: string | null) =>
+  mapsLink(`${c.name}, ${areaOf(line)}${searchCountry(country)}`.replace(/,\s*$/, ""));
+
+/** Transit directions from an airport to where you sleep, the airport searched in the day's country */
+export const airportDirectionsHref = (airport: string, destination: string, country?: string | null) =>
+  `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${airport} Airport${searchCountry(country) ? `, ${searchCountry(country)}` : ""}`)}&destination=${encodeURIComponent(destination)}&travelmode=transit`;

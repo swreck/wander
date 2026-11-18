@@ -12,7 +12,7 @@ import type { Trip } from "../lib/types";
 import { guideData, type TripGuideData } from "../lib/guideData";
 import { sourcesData, isBookedTrain, colOf, twelveHour, type OtherSource } from "../lib/sources";
 import { useAuth } from "../contexts/AuthContext";
-import { ymd, clock, isLanding, isFor, startsSomething, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor, distinctWords, ZONE_WORDS } from "../lib/guideDisplay";
+import { ymd, clock, isLanding, isFor, startsSomething, voiceFor, besideHotel, tabsDiffer, isFreeCancel, FREE_CANCEL_WORDS, confirmationWords, differWordsFor, distinctWords, zoneWords } from "../lib/guideDisplay";
 
 const dayWords = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 const shortDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -51,12 +51,28 @@ export default function WholeTripPage() {
   const items = data?.items || [];
   const stays = useMemo(() => (data?.stays || []).filter((s) => s.checkInDate && s.checkOutDate).sort((a, b) => ymd(a.checkInDate).localeCompare(ymd(b.checkInDate))), [data]);
   const sleepOn = (d: string) => stays.filter((s) => ymd(s.checkInDate) <= d && d < ymd(s.checkOutDate));
+  // A plan trip: each hotel once a night; whose it is on the laptop table, and on the phone only when it isn't yours
+  // (S3d: the last day read "Sleep: <hotel>" to Ken & Larisa, who fly home that night; the room is someone else's.
+  // And the night before, the table named the one hotel twice, once for each booking)
+  const planSleep = (d: string, wide: boolean) => {
+    const byName = new Map<string, string[]>();
+    for (const s of sleepOn(d)) byName.set(s.name, [...(byName.get(s.name) || []), s.forWhom && !/^everyone$/i.test(s.forWhom) ? s.forWhom : ""]);
+    return [...byName].map(([name, who]) => {
+      const named = [...new Set(who.filter(Boolean))];
+      const mine = who.some((w) => !w || isFor({ forWhom: w }, me));
+      return `${name}${named.length && (wide || !mine) ? ` (${named.join("; ")})` : ""}`;
+    });
+  };
   // Her Itinerary's own line for the day, in her words (as Home quotes it)
   const herLine = (d: string) => items.find((i) => ymd(i.date) === d && !i.time && /^itinerary/i.test(i.source) && ["plan", "tour", "note", "stop", "meal"].includes(i.kind)
     && !besideHotel(i) && !/\binterested\?/i.test(i.title) && !/^see above\b/i.test(i.title))?.title || "";
   // Meals from her Dining Resos tab — her bookings
   const meals = items.filter((i) => i.kind === "meal" && /^Dining Resos/i.test(i.source)).sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)) || (a.time || "99").localeCompare(b.time || "99"));
   const mealsOn = (d: string) => meals.filter((m) => ymd(m.date) === d);
+  // The laptop table on a trip built from a plan leaves out a column no day fills (a heading over nothing); a sheet
+  // trip's table is as it has always been
+  const lineColumn = !v.plan || days.some((d) => herLine(d.date));
+  const mealsColumn = !v.plan || meals.length > 0;
   const flights = items.filter((i) => i.kind === "flight" && !isLanding(i)).sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)));
   const trains = rail.flatMap((s) => s.rail.filter((r) => r.date && isBookedTrain(r)).map((r) => ({ s, r }))).sort((a, b) => a.r.date!.localeCompare(b.r.date!) || colOf(a.r.cols, /^depart/).padStart(5, "0").localeCompare(colOf(b.r.cols, /^depart/).padStart(5, "0")));
   const deadlines = items.filter((i) => i.kind === "deadline").sort((a, b) => ymd(a.date).localeCompare(ymd(b.date)));
@@ -85,7 +101,7 @@ export default function WholeTripPage() {
         {state === "unreachable" && <p className="text-sm text-[#6b5d4a] text-center mt-10">Wander can't reach the trip right now, and this phone hasn't saved it yet.</p>}
         {state === "ready" && data && (
           <>
-            <p className="text-[13px] text-[#6b5d4a]">Everything from {v.guide}{rail.length ? " and Ken's rail sheet" : ""}, on one page. Tap a row for its day.</p>
+            <p className="text-[13px] text-[#6b5d4a]">{v.plan ? "The whole plan, on one page. Tap a row for its day." : <>Everything from {v.guide}{rail.length ? " and Ken's rail sheet" : ""}, on one page. Tap a row for its day.</>}</p>
 
             {/* ── Day by day ── */}
             <section className={section} aria-labelledby="wt-days">
@@ -93,17 +109,17 @@ export default function WholeTripPage() {
               {/* a laptop: one table */}
               <table className="hidden md:table w-full text-sm border-separate border-spacing-0 bg-white rounded-xl border border-[#e0d8cc] overflow-hidden">
                 <thead><tr className="text-left text-xs text-[#6b5d4a]">
-                  <th className="px-3 py-2 font-normal">Day</th><th className="px-3 py-2 font-normal">Where</th><th className="px-3 py-2 font-normal">{v.Owners} line for the day</th>
-                  <th className="px-3 py-2 font-normal">Sleeping at</th><th className="px-3 py-2 font-normal">Meals booked</th>
+                  <th className="px-3 py-2 font-normal">Day</th><th className="px-3 py-2 font-normal">Where</th>{lineColumn && <th className="px-3 py-2 font-normal">{v.plan ? "The plan's line for the day" : `${v.Owners} line for the day`}</th>}
+                  <th className="px-3 py-2 font-normal">Sleeping at</th>{mealsColumn && <th className="px-3 py-2 font-normal">Meals booked</th>}
                 </tr></thead>
                 <tbody>
                   {days.map((d) => (
                     <tr key={d.date} onClick={() => navigate(`/day/${d.date}`)} className={`cursor-pointer hover:bg-[#f6f2ec] ${d.date === today ? "bg-[#fff8ec]" : ""}`}>
                       <td className="px-3 py-2 border-t border-[#f0ebe3] whitespace-nowrap text-[#3a3128]"><a href={`/day/${d.date}`} onClick={(e) => e.preventDefault()} className="underline-offset-2 hover:underline">{dayWords(d.date)}</a></td>
                       <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#3a3128]">{d.city}{d.guided ? <span className="ml-1 text-[11px] text-white bg-[#b3322a] rounded px-1">Backroads</span> : null}</td>
-                      <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{herLine(d.date)}</td>
-                      <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{sleepOn(d.date).map((s) => `${s.name}${forWords(s.forWhom) ? ` (${s.forWhom})` : ""}`).join("; ")}</td>
-                      <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{mealsOn(d.date).map((m) => `${m.time ? `${clock(m.time)} ` : ""}${m.title}`).join("; ")}</td>
+                      {lineColumn && <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{herLine(d.date)}</td>}
+                      <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{v.plan ? planSleep(d.date, true).join("; ") : [...new Set(sleepOn(d.date).map((s) => `${s.name}${forWords(s.forWhom) ? ` (${s.forWhom})` : ""}`))].join("; ")}</td>
+                      {mealsColumn && <td className="px-3 py-2 border-t border-[#f0ebe3] text-[#514636]">{mealsOn(d.date).map((m) => `${m.time ? `${clock(m.time)} ` : ""}${m.title}`).join("; ")}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -119,7 +135,7 @@ export default function WholeTripPage() {
                       {herLine(d.date) && <span className="block text-[13px] text-[#514636] mt-0.5">“{herLine(d.date)}”</span>}
                       {(sleepOn(d.date).length > 0 || mealsOn(d.date).length > 0) && (
                         <span className="block text-xs text-[#6b5d4a] mt-0.5">
-                          {sleepOn(d.date).length > 0 && `Sleep: ${sleepOn(d.date).map((s) => s.name).join(" / ")}`}
+                          {sleepOn(d.date).length > 0 && `Sleep: ${v.plan ? planSleep(d.date, false).join(" / ") : [...new Set(sleepOn(d.date).map((s) => s.name))].join(" / ")}`}
                           {sleepOn(d.date).length > 0 && mealsOn(d.date).length > 0 && " · "}
                           {mealsOn(d.date).length > 0 && `Booked: ${mealsOn(d.date).map((m) => `${m.time ? `${clock(m.time)} ` : ""}${m.title}`).join(", ")}`}
                         </span>
@@ -157,9 +173,9 @@ export default function WholeTripPage() {
               </ul>
             </section>
 
-            {/* ── Meals booked ── */}
-            <section className={section} aria-labelledby="wt-meals">
-              <h2 id="wt-meals" className={h2}>Meals in {v.her} Dining Resos tab</h2>
+            {/* ── Meals booked (a plan trip with no meals draws no section) ── */}
+            {(!v.plan || meals.length > 0) && <section className={section} aria-labelledby="wt-meals">
+              <h2 id="wt-meals" className={h2}>{v.plan ? "Meals booked" : `Meals in ${v.her} Dining Resos tab`}</h2>
               <ul className="grid md:grid-cols-2 gap-2">
                 {meals.map((m) => (
                   <li key={m.id}>
@@ -173,7 +189,7 @@ export default function WholeTripPage() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </section>}
 
             {/* ── Flights and trains ── */}
             <section className={section} aria-labelledby="wt-travel">
@@ -181,7 +197,7 @@ export default function WholeTripPage() {
               <ul className="grid md:grid-cols-2 gap-2">
                 {[...flights.map((f) => ({ key: f.id, date: ymd(f.date), time: f.time || "", el: (
                     <>
-                      <span className="block text-sm text-[#3a3128]"><span className="font-medium">{dayWords(ymd(f.date))}{f.time ? ` · ${clock(f.time)}` : ""}{f.time && f.timeZone && f.timeZone !== (data.trip.timeZone || "Asia/Tokyo") ? ` ${ZONE_WORDS[f.timeZone] || f.timeZone}` : ""}</span> · {f.title}</span>
+                      <span className="block text-sm text-[#3a3128]"><span className="font-medium">{dayWords(ymd(f.date))}{f.time ? ` · ${clock(f.time)}` : ""}{f.time && f.timeZone && f.timeZone !== (data.trip.timeZone || "Asia/Tokyo") ? ` ${zoneWords(f.timeZone)}` : ""}</span> · {f.title}</span>
                       {forWords(f.forWhom) && <span className="block text-xs text-[#514636]">{forWords(f.forWhom, me)}</span>}
                       {(f.detail || "").match(/^Lands at [^\n]+/m)?.[0] && <span className="block text-xs text-[#6b5d4a]">{(f.detail || "").match(/^Lands at [^\n]+/m)![0]}</span>}
                     </>) })),
@@ -195,8 +211,8 @@ export default function WholeTripPage() {
               </ul>
             </section>
 
-            {/* ── Dates to keep in mind ── */}
-            <section className={section} aria-labelledby="wt-dates">
+            {/* ── Dates to keep in mind (a plan trip with none draws no section) ── */}
+            {(!v.plan || deadlines.length > 0) && <section className={section} aria-labelledby="wt-dates">
               <h2 id="wt-dates" className={h2}>Dates to keep in mind</h2>
               <ul className="space-y-1.5">
                 {deadlines.map((d) => {
@@ -212,7 +228,7 @@ export default function WholeTripPage() {
                   );
                 })}
               </ul>
-            </section>
+            </section>}
           </>
         )}
       </main>

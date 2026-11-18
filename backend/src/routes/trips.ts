@@ -8,6 +8,7 @@ import { getUserRole } from "../middleware/role.js";
 import { itemMemberParam } from "../middleware/role.js";
 import { tripOf } from "../middleware/tripGuard.js";
 import { currentTripIdFor, chooseTrip } from "../services/currentTrip.js";
+import { isPlanTrip, planTripIds } from "../services/planTrip.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -39,7 +40,9 @@ router.get("/", async (req: AuthRequest, res) => {
     },
   });
   // (myOpenedAt: when this person last chose the trip — the trip menu lists theirs in that order, Nov 16 2026)
-  res.json(trips.map(({ tripMembers, ...t }: any) => ({ ...t, myRole: tripMembers?.[0]?.role || null, myOpenedAt: tripMembers?.[0]?.openedAt || null })));
+  // (plan: built from a plan, not a sheet — S2d; one query for the whole list)
+  const plans = await planTripIds(trips.map((t) => t.id));
+  res.json(trips.map(({ tripMembers, ...t }: any) => ({ ...t, plan: plans.has(t.id), myRole: tripMembers?.[0]?.role || null, myOpenedAt: tripMembers?.[0]?.openedAt || null })));
 });
 
 // This person's current trip (services/currentTrip.ts: each person's own, Nov 16 2026 — it was one switch for all of
@@ -66,7 +69,7 @@ router.get("/active", async (req: AuthRequest, res) => {
   if (trip) {
     prisma.trip.update({ where: { id: trip.id }, data: { lastOpenedAt: new Date() } }).catch(() => {});
   }
-  res.json(trip);
+  res.json(trip && { ...trip, plan: await isPlanTrip(trip.id) });
 });
 
 // Get trip by ID (only a trip I'm on)
@@ -84,7 +87,7 @@ router.get("/:id", async (req: AuthRequest, res) => {
     },
   });
   if (!trip) { res.status(404).json({ error: "Trip not found" }); return; }
-  res.json(trip);
+  res.json({ ...trip, plan: await isPlanTrip(trip.id) });
 });
 
 // Create trip
@@ -303,7 +306,7 @@ router.post("/:id/activate", async (req: AuthRequest, res) => {
     },
   });
 
-  res.json(updated);
+  res.json({ ...updated, plan: await isPlanTrip(updated.id) });
 });
 
 // Update trip (dates, name)

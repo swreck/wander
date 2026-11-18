@@ -48,24 +48,13 @@ export function ownerlessInSplit<T extends { id: string; kind: string; time: str
   return out;
 }
 
-const ZONE_WORDS: Record<string, string> = { "Asia/Tokyo": "Japan time", "America/Los_Angeles": "California time" };
+import { zoneWords, zonedMoment, ZONE_NAMES_PATTERN, zoneFromWords } from "../zoneWords.js";
+import { isPlanKind } from "../planTrip.js";
+import { zoneFor } from "../dayCountry.js";
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 /** "Tue, Oct 13, 12:00 PM California time" */
 function momentWords(at: Date, zone: string) {
-  return `${at.toLocaleString("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${ZONE_WORDS[zone] || zone}`;
-}
-
-/** The moment a local date and time happens in a time zone ("2026-10-09", 23:59, Tokyo → a Date) */
-function zonedMoment(date: string, minutes: number, zone: string): Date {
-  const guess = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), 0, minutes));
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(guess);
-    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-    const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"));
-    return new Date(guess.getTime() - (asUtc - guess.getTime()));
-  } catch {
-    return guess;
-  }
+  return `${at.toLocaleString("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ${zoneWords(zone)}`;
 }
 
 /** The Guide for Scout as one text (both parts) — for scripts and checks. */
@@ -95,9 +84,9 @@ const OLD_PICTURE = / A picture in her .*? labels Day \d+ .*? — a different da
 
 export async function buildGuideContextParts(tripId: string, opts: { phoneZone?: string; now?: Date } = {}): Promise<GuideContextParts> {
   let swapWords: string[] = [];
-  const [trip, snapshot, items, stays, days, ideas, notes] = await Promise.all([
+  const [trip, snapshot, items, stays, days, ideas, allNotes] = await Promise.all([
     prisma.trip.findUnique({ where: { id: tripId }, select: { name: true, startDate: true, endDate: true, timeZone: true } }),
-    prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true, sourceName: true, importedAt: true, report: true } }),
+    prisma.guideSnapshot.findFirst({ where: { tripId, status: "current" }, orderBy: { importedAt: "desc" }, select: { id: true, sourceName: true, sourceKind: true, importedAt: true, report: true } }),
     // (a picture that dates a plan's day differently is her earlier plan, so Scout isn't handed it as something to raise —
     // Ken, Oct 15, on her Tokyo tabs' map: "The map is old and should not be the target. Text under is correct"; with the
     // sentence in its context Scout ended "What's the plan today?" on "worth checking with Larisa". Her pictures' own
@@ -107,7 +96,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       .then(async (all) => { swapWords = await daySwapWords(tripId, all); return withDaySwaps(tripId, all); })
       .then((all) => all.map((i) => (i.detail && OLD_PICTURE.test(i.detail) ? { ...i, detail: i.detail.replace(OLD_PICTURE, "") } : i))),
     prisma.accommodation.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: [{ checkInDate: "asc" }, { id: "asc" }] }),
-    prisma.day.findMany({ where: { tripId }, include: { city: { select: { name: true } } }, orderBy: [{ date: "asc" }, { id: "asc" }] }),
+    prisma.day.findMany({ where: { tripId }, include: { city: { select: { name: true, country: true, timeZone: true } } }, orderBy: [{ date: "asc" }, { id: "asc" }] }),
     // (in a fixed order — with none, Postgres can hand rows back reordered after any update, and a new order rewrote the
     // whole cached Guide for Scout, ~$1.45, with nothing changed; cost audit, Oct 16)
     prisma.experience.findMany({
@@ -118,6 +107,13 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     prisma.sheetNote.findMany({ where: { tripId }, orderBy: [{ tabName: "asc" }, { rowIndex: "asc" }], select: { tabName: true, text: true, rowIndex: true } }),
   ]);
   if (!trip || !snapshot) return { stable: "", live: "", stableLines: [], liveLines: [], copy: null };
+  // A trip built from a plan (its snapshot is Wander's own plan): the words are "the plan", never the Guide, a sheet or a
+  // tab; each day names its own country and clock. `W(guideWords, planWords)` picks the words for this trip. A Guide trip
+  // reads character for character as before (scout-japan-unchanged.test.ts holds a hash of it).
+  const plan = isPlanKind(snapshot.sourceKind);
+  const W = (guide: string, planWords: string) => (plan ? planWords : guide);
+  // (a plan has no tabs of Larisa's text, pictures or maps: nothing from them reaches Scout on a plan trip)
+  const notes = plan ? [] : allNotes;
 
   // Every line carries its source (sources.ts). A heading or an instruction to Scout has none.
   const out: ContextLine[] = [];
@@ -133,18 +129,24 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   const worked = (what: string, from: SourcePart[]): SourceView => ({ type: "wander", what, from });
   // Wander's own notes in a line's detail — listed apart from her words
   const WANDER_DETAIL = /^(Tabs differ:|Time from the |The .+ tab lists |Wander matched |Still open in the Guide|Worked out from:|Her tab has \d+ versions of this day's plan)/;
-  say(out, `TRIP: ${trip.name}, ${ymd(trip.startDate)} to ${ymd(trip.endDate)}. Local time zone in Japan: ${trip.timeZone || "Asia/Tokyo"}.`,
-    worked("The trip's dates, from the first and last days in her Guide", []));
+  say(out, plan
+    ? `TRIP: ${trip.name}, ${ymd(trip.startDate)} to ${ymd(trip.endDate)}. The trip crosses countries: each day under DAY BY DAY names its own country and clock.`
+    : `TRIP: ${trip.name}, ${ymd(trip.startDate)} to ${ymd(trip.endDate)}. Local time zone in Japan: ${trip.timeZone || "Asia/Tokyo"}.`,
+    worked(W("The trip's dates, from the first and last days in her Guide", "The trip's dates, from the first and last days in the plan"), []));
   // Written out already in the phone's own time zone, as every Wander screen shows it
   let readWords = snapshot.importedAt.toISOString().slice(0, 10);
   try {
     readWords = snapshot.importedAt.toLocaleString("en-US", { timeZone: opts.phoneZone || trip.timeZone || "Asia/Tokyo", weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
   } catch { /* unknown zone: keep the plain date */ }
-  const copyNote = worked(`Which copy of her Guide Wander read ("${snapshot.sourceName.replace(/\.xlsx$/i, "")}") and when`, []);
-  say(out, `Wander's copy of Larisa's Guide: "${snapshot.sourceName.replace(/\.xlsx$/i, "")}" (when Wander last read it is under RIGHT NOW, with their latest message). Larisa keeps the Guide; it may have changed since.`, copyNote);
+  const copyNote = worked(W(`Which copy of her Guide Wander read ("${snapshot.sourceName.replace(/\.xlsx$/i, "")}") and when`, "The plan as Wander holds it, and when it last changed"), []);
+  say(out, plan
+    ? `The plan: the one Larisa and Ken are building for this trip, as Wander holds it (when it last changed is under RIGHT NOW, with their latest message). It is unfinished and may change.`
+    : `Wander's copy of Larisa's Guide: "${snapshot.sourceName.replace(/\.xlsx$/i, "")}" (when Wander last read it is under RIGHT NOW, with their latest message). Larisa keeps the Guide; it may have changed since.`, copyNote);
   // What depends on the moment or the asker's phone goes in "live", after the cached part — so the Guide
   // itself stays byte-for-byte the same across people and hours, and is read from cache (a tenth of the price)
-  say(live, `Wander last read Larisa's Guide ${readWords} (the phone's own time; say it exactly like that).`, copyNote);
+  say(live, plan
+    ? `The plan last changed ${readWords} (the phone's own time; say it exactly like that).`
+    : `Wander last read Larisa's Guide ${readWords} (the phone's own time; say it exactly like that).`, copyNote);
 
   // Who is on this trip in Wander (People shows the same list) — the Guide's travelers, plus anyone let in
   const [members, pending] = await Promise.all([
@@ -153,7 +155,9 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   ]);
   const memberNames = members.map((m) => m.traveler.displayName);
   const waiting = Array.from(new Set(pending.map((p) => p.expectedName).filter((n): n is string => !!n && !memberNames.includes(n))));
-  say(out, `PEOPLE ON THIS TRIP IN WANDER (the People screen shows the same): ${memberNames.join(", ")}${waiting.length ? `; invited, hasn't opened their link yet: ${waiting.join(", ")}` : ""}. The Guide's traveling group may be smaller — say so when it matters.`,
+  say(out, `PEOPLE ON THIS TRIP IN WANDER (the People screen shows the same): ${memberNames.join(", ")}${waiting.length ? `; invited, hasn't opened their link yet: ${waiting.join(", ")}` : ""}. ${plan
+      ? `The plan is for more people than have joined Wander, and Wander does not hold the full list yet. A line's "For" says who it applies to; "For Everyone" means everyone traveling that day. Asked who is on the trip, name who has joined Wander and say the plan's full list is not in Wander yet.`
+      : "The Guide's traveling group may be smaller — say so when it matters."}`,
     worked("Who is on this trip in Wander (the People screen)", []));
 
   // A hotel's line: her hotel cell, and the check-in and check-out lines for that hotel (her rows, her
@@ -171,7 +175,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
 
   const places = await placeNotesOf(tripId);
   const placeNote = (name: string) => noteFor(places, name);
-  say(out, "\nWHERE EVERYONE SLEEPS (from the Guide):");
+  say(out, `\nWHERE EVERYONE SLEEPS (from ${W("the Guide", "the plan")}):`);
   for (const s of stays) {
     // Spell out the nights: "Oct 18–21" is easy to misread as including the 21st
     const nightList: string[] = [];
@@ -184,7 +188,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     const parts = [
       `${s.name} (${s.city.name})`,
       nightList.length ? `sleeping there the nights of ${nightList.join(", ")}; check out the morning of ${ymd(s.checkOutDate)}` : `dates not given`,
-      own.length > 1 ? `SEPARATE BOOKINGS — ${own.map((i) => `${i.forWhom}: first night ${ymd(i.date)}${i.confirmation ? ` (confirmation ${i.confirmation})` : ""}`).join("; ")}. Never give one couple the other's dates` : null,
+      !plan && own.length > 1 ? `SEPARATE BOOKINGS — ${own.map((i) => `${i.forWhom}: first night ${ymd(i.date)}${i.confirmation ? ` (confirmation ${i.confirmation})` : ""}`).join("; ")}. Never give one couple the other's dates` : null,
       s.checkInTime ? `check-in ${s.checkInTime}` : null,
       s.checkOutTime ? `check-out ${s.checkOutTime}` : null,
       s.forWhom ? `for ${s.forWhom}` : null,
@@ -195,7 +199,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       !s.address && placeNote(s.name) ? placeNoteWords(placeNote(s.name)!) : null,
     ].filter(Boolean);
     const sepNote = [
-      ...(own.length > 1 ? ["Each couple's first night comes from their own booking"] : []),
+      ...(!plan && own.length > 1 ? ["Each couple's first night comes from their own booking"] : []),
       ...(!s.address && placeNote(s.name) ? [`Where it is comes from ${placeNote(s.name)!.from}: ${placeNote(s.name)!.what}${placeNote(s.name)!.address ? `, ${placeNote(s.name)!.address}` : ""}`] : []),
     ];
     say(out, `- ${parts.join("; ")}`, { type: "guide", label: s.name, cells: dedupeCells(stayCells(s)), ...(sepNote.length ? { wanderNotes: sepNote } : {}) });
@@ -209,11 +213,21 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       byNight.set(k, [...(byNight.get(k) || []), s.name]);
     }
   }
-  const doubled = Array.from(byNight.entries()).filter(([, v]) => v.length > 1);
+  const doubledAll = Array.from(byNight.entries()).filter(([, v]) => v.length > 1);
+  // (a plan trip: two stays on one night are an open question only when they are for the same people; two rooms, one for
+  // each family, are two bookings. A stay with no "for", or "Everyone", is for the same people as any other.)
+  const sameFolks = (a: string | null | undefined, b: string | null | undefined) => {
+    const x = (a || "").trim().toLowerCase(), y = (b || "").trim().toLowerCase();
+    return !x || !y || x === "everyone" || y === "everyone" || x === y;
+  };
+  const clashing = (group: typeof stays) => group.filter((s, n) => group.some((o, m) => m !== n && sameFolks(s.forWhom, o.forWhom)));
+  const doubled = plan
+    ? doubledAll.map(([night]): [string, string[]] => [night, clashing(stays.filter((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= night && night < ymd(s.checkOutDate))).map((s) => s.name)]).filter(([, v]) => v.length > 1)
+    : doubledAll;
   if (doubled.length) {
-    say(out, "OPEN QUESTION in the Guide: more than one place is listed for these nights — say both, and that it's still being worked out. This holds for EVERYTHING that depends on it: where they sleep, check-in, the next morning's check-out time, bags, where to leave from. Never quietly assume one (say 'whichever of the two you're in'; a check-out time or code belongs only to its own hotel):");
+    say(out, `OPEN QUESTION in ${W("the Guide", "the plan")}: more than one place is listed for these nights — say both, and that it's still being worked out. This holds for EVERYTHING that depends on it: where they sleep, check-in, the next morning's check-out time, bags, where to leave from. Never quietly assume one (say 'whichever of the two you're in'; a check-out time or code belongs only to its own hotel):`);
     for (const [night, names] of doubled) {
-      say(out, `  ${night}: ${names.join(" and ")}`, worked(`Her Guide lists more than one place for the night of ${night}`,
+      say(out, `  ${night}: ${names.join(" and ")}`, worked(W(`Her Guide lists more than one place for the night of ${night}`, `The plan lists more than one place for the night of ${night}`),
         stays.filter((s) => names.includes(s.name)).map((s) => ({ label: s.name, cells: dedupeCells(stayCells(s)) }))));
     }
   }
@@ -225,7 +239,9 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   const choicesByDate = new Map<string, typeof choices>();
   for (const c of choices) choicesByDate.set(c.date, [...(choicesByDate.get(c.date) || []), c]);
 
-  say(out, "\nDAY BY DAY (from the Guide; times are local; 'For' says who it applies to; lines marked ADDED IN WANDER are the group's own same-day plans, not Larisa's):");
+  say(out, plan
+    ? "\nDAY BY DAY (from the plan; each day names its own country and clock, and a time is on that clock unless its line says another in brackets; 'For' says who it applies to; lines marked ADDED IN WANDER are the group's own same-day additions, not part of the plan):"
+    : "\nDAY BY DAY (from the Guide; times are local; 'For' says who it applies to; lines marked ADDED IN WANDER are the group's own same-day plans, not Larisa's):");
   const itemsByDate = new Map<string, typeof items>();
   for (const i of items) {
     const k = ymd(i.date) || "undated";
@@ -245,10 +261,20 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     const k = ymd(d.date);
     // The day's heading: the city is where her Itinerary puts that night
     const nightHere = stays.find((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= k && k < ymd(s.checkOutDate));
-    say(out, `${weekday(k)} (${k}) — ${d.city.name}${d.dayType === "guided" ? ", with Backroads" : ""}`,
-      worked("Which city Wander files this day under, from her Itinerary", nightHere ? [{ label: nightHere.name, cells: dedupeCells(stayCells(nightHere)) }] : []));
+    // (a plan trip's day names its country and clock: "Hanoi, Vietnam (Vietnam time)"; the clock is the day's one rule, dayCountry.zoneFor)
+    const dayClock = zoneFor(d.city.timeZone, trip.timeZone);
+    // (a day spent getting there: no stay covers the night before it for anyone, and it holds a take-off on another clock than
+    // its own: "on the way to Hanoi, Vietnam". Nobody is in the city yet.)
+    const nightBefore = ymd(new Date(d.date.getTime() - 86400_000));
+    const onTheWay = plan
+      && !stays.some((s) => s.checkInDate && s.checkOutDate && ymd(s.checkInDate) <= nightBefore && nightBefore < ymd(s.checkOutDate))
+      && (itemsByDate.get(k) || []).some((x) => x.kind === "flight" && !/^Land at/i.test(x.title) && x.timeZone && x.timeZone !== dayClock);
+    const where = plan ? `${onTheWay ? "on the way to " : ""}${d.city.name}${d.city.country ? `, ${d.city.country}` : ""} (${zoneWords(dayClock)})` : d.city.name;
+    say(out, `${weekday(k)} (${k}) — ${where}${d.dayType === "guided" ? ", with Backroads" : ""}`,
+      worked(W("Which city Wander files this day under, from her Itinerary", "Which city Wander files this day under, from the plan"), nightHere ? [{ label: nightHere.name, cells: dedupeCells(stayCells(nightHere)) }] : []));
     for (const w of swapWords.filter((x) => x.startsWith(`${k}: `))) say(out, `  - [THIS DAY'S PLAN — ${w.slice(k.length + 2)}]`, worked("Whose list this day's plan follows, and what it set aside", []));
-    for (const a of arrivals) {
+    // (never on a plan trip: its dates are the dates where the people are, and the prompt says so)
+    for (const a of plan ? [] : arrivals) {
       if (k < a.departJapanDay) {
         // This Japan date on their own clock, spelled out: with only "still at home" Scout still told Julie
         // "Oct 13 is the day you're still flying" (Japan's Oct 13 ends at 8 AM on California's Oct 13, before she leaves)
@@ -261,6 +287,8 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     }
     // Mornings when two places from an open night both "check out": the time and code belong to one of them only
     const leavingHere = stays.filter((s) => ymd(s.checkOutDate) === k);
+    // (a plan trip: only stays for the same people leaving that morning are an open question)
+    const leavingOpen = plan ? clashing(leavingHere) : leavingHere;
     const noOwner = ownerlessInSplit(itemsByDate.get(k) || []);
     // A check-out time is the latest they can leave, not when they will: "8:30 AM meet Backroads,
     // noon check out" once read as a timeline. Say so where anything the same day comes before it
@@ -269,14 +297,16 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       .filter((x) => x.time && !["checkout", "checkin", "deadline", "weather", "stop"].includes(x.kind) && !(x.kind === "flight" && /^Land at/i.test(x.title)))
       .map((x) => x.time!).sort()[0];
     for (const i of itemsByDate.get(k) || []) {
-      const openCheckout = i.kind === "checkout" && leavingHere.length > 1
-        ? `[OPEN QUESTION: the night before, the Guide lists ${leavingHere.map((s) => s.name).join(" and ")}. This time/code is ${i.title.replace(/^Check out · /, "")}'s only; say "check out of whichever you're in" and give each hotel's own details]`
+      const openCheckout = i.kind === "checkout" && leavingOpen.length > 1
+        ? `[OPEN QUESTION: the night before, ${W("the Guide", "the plan")} lists ${leavingOpen.map((s) => s.name).join(" and ")}. This time/code is ${i.title.replace(/^Check out · /, "")}'s only; say "check out of whichever you're in" and give each hotel's own details]`
         : null;
       const parts = [
         i.time ? `${i.time}${i.endTime ? `–${i.endTime}` : ""}` : "(no time given)",
         i.timeText ? `[as she wrote the time: "${i.timeText}"]` : null,
         i.kind === "block" ? "[a block of Larisa's DETAILED PLAN for this day — from the tab named in its source]" : null,
-        i.timeZone && i.timeZone !== (trip.timeZone || "Asia/Tokyo") ? `[${i.timeZone} time]` : null,
+        // (a plan trip: a line on another clock than its DAY's says so in words, "[California time]"; one on the day's own says nothing)
+        plan ? (i.timeZone && i.timeZone !== dayClock ? `[${zoneWords(i.timeZone)}]` : null)
+          : i.timeZone && i.timeZone !== (trip.timeZone || "Asia/Tokyo") ? `[${i.timeZone} time]` : null,
         `${i.kind}: ${i.title}`,
         i.detail ? `— ${i.detail}` : null,
         i.place ? `at ${i.place}` : null,
@@ -301,38 +331,40 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
         i.kind === "checkout" && i.time && earliestOther && earliestOther < i.time
           ? `${clockOf(toMin(i.time))} is the hotel's latest check-out; her plan for the day already has something at ${clockOf(toMin(earliestOther))}` : null,
         noOwner.has(i.id) ? "The group is split at this time, and her line names no one" : null,
-        openCheckout ? `The night before, her Guide lists two places (${leavingHere.map((s) => s.name).join(" and ")}); this is ${i.title.replace(/^Check out · /, "")}'s own` : null,
+        openCheckout ? `The night before, ${W("her Guide", "the plan")} lists two places (${leavingOpen.map((s) => s.name).join(" and ")}); this is ${i.title.replace(/^Check out · /, "")}'s own` : null,
         i.kind === "weather" ? `Her forecast is for every day ${i.windowStart || k} through ${k}` : null,
         i.kind !== "weather" && i.kind !== "stop" && i.windowStart ? `Can be done any day from ${i.windowStart} through ${k}` : null,
       ].filter((n): n is string => !!n);
       say(out, `  - ${parts.join(" ")}`, { type: "guide", label: i.source, cells: cellsOfItem(i, tabs), ...(notesOnLine.length ? { wanderNotes: notesOnLine } : {}) });
     }
     for (const c of choicesByDate.get(k) || []) {
-      say(out, `  - ${c.time || "(no time given)"} ADDED IN WANDER by ${c.traveler.displayName} (not in the Guide): ${c.text}`,
+      say(out, `  - ${c.time || "(no time given)"} ADDED IN WANDER by ${c.traveler.displayName} (not in ${W("the Guide", "the plan")}): ${c.text}`,
         { type: "added", by: c.traveler.displayName, text: c.text });
     }
   }
   // Every deadline's status at this moment, worked out here — Scout once read a cancellation policy
   // itself and told Larisa free cancellation ended "tonight" when the 60% charge had already begun
   if (opts.now) {
-    const zone = trip.timeZone || "Asia/Tokyo";
+    const tripClock = trip.timeZone || "Asia/Tokyo";
     const lines: ContextLine[] = [];
     // Marked done in Wander by the person it's for (Oct 9) — said with its status, so Scout never reminds anyone of it
     // (never at Scout's expense: unreadable, Scout goes on without them)
     const marks = new Map((await listMarks(tripId).catch(() => [])).map((m) => [m.key, m]));
     // The same moment on the asker's own clock, when their phone isn't on Japan's (say both)
-    const phoneWords = (at: Date) => {
+    const phoneWords = (at: Date, zone: string) => {
       const pz = opts.phoneZone;
       if (!pz || pz === zone) return "";
       try {
         const mine = at.toLocaleString("en-US", { timeZone: pz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
         const theirs = at.toLocaleString("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" });
         if (mine.endsWith(theirs)) return "";
-        return ` = ${mine} on the asker's own clock (${pz}) — say both`;
+        return ` = ${mine} on the asker's own clock (${plan ? zoneWords(pz) : pz}) — say both`;
       } catch { return ""; }
     };
     for (const i of items.filter((x) => x.kind === "deadline" && x.date)) {
       const last = ymd(i.date);
+      // (a plan trip: a deadline is on the clock of the day it falls on; a Guide trip's are all the trip's)
+      const zone = plan ? zoneFor(days.find((d) => ymd(d.date) === last)?.city.timeZone, trip.timeZone) : tripClock;
       // Its own time: the time field, else a time in its words ("…free cancellation ends 3:00 PM Kyoto
       // time"), as the screens read it — else the end of the day. (A bare end-of-day once told Scout
       // the Four Seasons cutoff was 11:59 PM when her booking says 3:00 PM.)
@@ -355,16 +387,16 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
       const status = chargesFrom
         ? opts.now >= chargesStart
           ? `PASSED — charges apply from ${last} (that's ${fromWords}${daysAgo === 0 ? " — say they start today, never \"yesterday\"" : ""}); the free window ended with ${dayBefore.toISOString().slice(0, 10)}; say so gently`
-          : `OPEN NOW — free through the end of ${dayBefore.toISOString().slice(0, 10)} ${zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`}; charges start ${last}${phoneWords(chargesStart)}`
+          : `OPEN NOW — free through the end of ${dayBefore.toISOString().slice(0, 10)} ${plan ? `(${zoneWords(zone)})` : zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`}; charges start ${last}${phoneWords(chargesStart, zone)}`
         : opts.now > end
         ? "PASSED — it's over; say so gently"
         : start && opts.now < start
         ? `NOT OPEN YET — it can be done from ${i.windowStart} through ${last}`
         : timeMin !== null
-        ? `OPEN NOW — last chance ${last} at ${clockOf(timeMin)} ${zone === "Asia/Tokyo" ? "Japan time" : zone}${phoneWords(end)}`
-        : `OPEN NOW — last chance ${last}, by the end of that day ${zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`} — NO TIME IS GIVEN, so never state one${phoneWords(end)}`;
+        ? `OPEN NOW — last chance ${last} at ${clockOf(timeMin)} ${zoneWords(zone)}${phoneWords(end, zone)}`
+        : `OPEN NOW — last chance ${last}, by the end of that day ${plan ? `(${zoneWords(zone)})` : zone === "Asia/Tokyo" ? "in Japan" : `(${zone})`} — NO TIME IS GIVEN, so never state one${phoneWords(end, zone)}`;
       const mark = marks.get(deadlineKey(i));
-      const done = mark ? ` — MARKED DONE in Wander by ${mark.byName} on ${mark.at.slice(0, 10)} (Wander's record, not her sheet): it's done; never remind anyone to do it` : "";
+      const done = mark ? ` — MARKED DONE in Wander by ${mark.byName} on ${mark.at.slice(0, 10)} (Wander's record, not ${W("her sheet", "the plan")}): it's done; never remind anyone to do it` : "";
       say(lines, `  - ${i.title}${i.forWhom ? ` (For ${i.forWhom})` : ""}: ${status}${done}`,
         worked(`Whether "${i.title}" is still open, worked out from its date${timeMin !== null ? " and time" : ""} and the time on the phone`, [partOf(i)]));
     }
@@ -384,23 +416,29 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     if (f.kind !== "flight" || /^Land at/i.test(f.title) || !f.time || !f.date) continue;
     const departZone = f.timeZone || tripZone;
     const departs = zonedMoment(ymd(f.date), toMin(f.time), departZone);
-    const land = (f.detail || "").match(/Lands at ([^\n]+?) \w{3}, (\w{3}) (\d{1,2}), (\d{1,2}):(\d{2}) (AM|PM) (California|Japan) time/i);
+    // (a Guide trip's flights land on California's or Japan's clock; a plan trip's on any clock in the zone table, by its
+    // words — "5:40 PM Korea time" — and a landing in an earlier month than the take-off's is the next year's)
+    const land = (f.detail || "").match(plan
+      ? new RegExp(`Lands at ([^\\n]+?) \\w{3}, (\\w{3}) (\\d{1,2}), (\\d{1,2}):(\\d{2}) (AM|PM) (${ZONE_NAMES_PATTERN}) time`, "i")
+      : /Lands at ([^\n]+?) \w{3}, (\w{3}) (\d{1,2}), (\d{1,2}):(\d{2}) (AM|PM) (California|Japan) time/i);
     let lands: Date | null = null, landZone = tripZone, landPlace = "";
     if (land) {
-      landZone = /california/i.test(land[7]) ? "America/Los_Angeles" : "Asia/Tokyo";
+      landZone = plan ? zoneFromWords(land[7]) || tripZone : /california/i.test(land[7]) ? "America/Los_Angeles" : "Asia/Tokyo";
       const mins = ((Number(land[4]) % 12) + (/pm/i.test(land[6]) ? 12 : 0)) * 60 + Number(land[5]);
       const month = MONTHS[land[2].toLowerCase().slice(0, 3)];
-      lands = month ? zonedMoment(`${ymd(f.date).slice(0, 4)}-${String(month).padStart(2, "0")}-${land[3].padStart(2, "0")}`, mins, landZone) : null;
+      const year = plan && month && month < Number(ymd(f.date).slice(5, 7)) ? String(Number(ymd(f.date).slice(0, 4)) + 1) : ymd(f.date).slice(0, 4);
+      lands = month && (!plan || zoneFromWords(land[7])) ? zonedMoment(`${year}-${String(month).padStart(2, "0")}-${land[3].padStart(2, "0")}`, mins, landZone) : null;
       landPlace = land[1];
     }
     const other = departZone === "Asia/Tokyo" ? "America/Los_Angeles" : "Asia/Tokyo";
-    const who = f.forWhom || "(the Guide doesn't say who)";
-    const parts = [`- ${who} — ${f.title}: departs ${momentWords(departs, departZone)} (= ${momentWords(departs, other)})`];
-    if (lands) parts.push(`lands at ${landPlace} ${momentWords(lands, landZone)} (= ${momentWords(lands, landZone === "Asia/Tokyo" ? "America/Los_Angeles" : "Asia/Tokyo")})`);
+    const who = f.forWhom || W("(the Guide doesn't say who)", "(the plan doesn't say who)");
+    // (a plan trip names each moment on its own clock and converts none: California and Japan are not its only two)
+    const parts = [plan ? `- ${who} — ${f.title}: departs ${momentWords(departs, departZone)}` : `- ${who} — ${f.title}: departs ${momentWords(departs, departZone)} (= ${momentWords(departs, other)})`];
+    if (lands) parts.push(plan ? `lands at ${landPlace} ${momentWords(lands, landZone)}` : `lands at ${landPlace} ${momentWords(lands, landZone)} (= ${momentWords(lands, landZone === "Asia/Tokyo" ? "America/Los_Angeles" : "Asia/Tokyo")})`);
     parts.push(`IN THE AIR only between those two moments; before departure they are NOT traveling yet${lands ? "; after landing they are at the destination" : ""}`);
     // The whole Japan calendar day before a Japan-bound departure, said outright: Scout once told Julie
     // "on the 13th you and Andy are still flying" — on Japan's Oct 13 they hadn't left home
-    if (lands && landZone === tripZone && departZone !== tripZone) {
+    if (!plan && lands && landZone === tripZone && departZone !== tripZone) {
       const departJapanDay = departs.toLocaleDateString("en-CA", { timeZone: tripZone });
       const dayBefore = new Date(`${departJapanDay}T00:00:00Z`);
       dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
@@ -423,10 +461,12 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
         : `was due to take off ${momentWords(departs, departZone)} by its schedule; Wander can't see the real flight`;
       say(travelNow, `- ${who} — ${f.title}: ${status}`, worked(`Where ${f.title} should be right now by its schedule, from its times and the time on the phone (Wander can't see the real flight)`, [partOf(f)]));
     }
-    say(windows, parts.join("; "), worked(`${f.title}'s departure and landing in both Japan and California time, worked out from her flight details`, [partOf(f)]));
+    say(windows, parts.join("; "), worked(W(`${f.title}'s departure and landing in both Japan and California time, worked out from her flight details`, `${f.title}'s departure and landing, each on its own clock, worked out from the plan's flight details`), [partOf(f)]));
   }
   if (windows.length) {
-    say(out, "\nTRAVEL WINDOWS (worked out from the Guide's flights in both zones — before saying anyone is traveling, in the air, or somewhere at a given moment, compare THAT moment with these; where each flight stands right now is under RIGHT NOW, with their latest message):");
+    say(out, plan
+      ? "\nTRAVEL WINDOWS (worked out from the plan's flights, each time on its own clock — before saying anyone is traveling, in the air, or somewhere at a given moment, compare THAT moment with these; where each flight stands right now is under RIGHT NOW, with their latest message):"
+      : "\nTRAVEL WINDOWS (worked out from the Guide's flights in both zones — before saying anyone is traveling, in the air, or somewhere at a given moment, compare THAT moment with these; where each flight stands right now is under RIGHT NOW, with their latest message):");
     out.push(...windows);
   }
 
@@ -443,16 +483,18 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
     const herPlan = items.filter((b) => ymd(b.date) === ymd(f.date) && (b.kind === "block" || /haruka|transfer/i.test(b.detail || ""))
       && /haruka|airport|\bKIX\b|transfer|station/i.test(`${b.title} ${b.detail || ""}`));
     if (herPlan.length) {
-      say(estimates, `- ${weekday(ymd(f.date))}: Larisa's Guide has its own plan for getting to the airport — use HER plan (the DAY BY DAY lines for this date, with their tabs), not an estimate. If her tabs disagree on a time (e.g. the Itinerary tab's note vs the day's tab), say both with their tabs.`,
-        worked(`Her own plan for getting to the airport on ${weekday(ymd(f.date))}`, herPlan.map(partOf)));
+      say(estimates, plan
+        ? `- ${weekday(ymd(f.date))}: the plan has its own way of getting to the airport — use the plan's lines (the DAY BY DAY lines for this date), not an estimate. If two lines disagree on a time, say both, with where each came from.`
+        : `- ${weekday(ymd(f.date))}: Larisa's Guide has its own plan for getting to the airport — use HER plan (the DAY BY DAY lines for this date, with their tabs), not an estimate. If her tabs disagree on a time (e.g. the Itinerary tab's note vs the day's tab), say both with their tabs.`,
+        worked(W(`Her own plan for getting to the airport on ${weekday(ymd(f.date))}`, `The plan's own way of getting to the airport on ${weekday(ymd(f.date))}`), herPlan.map(partOf)));
       continue;
     }
     const [h, m] = f.time.split(":").map(Number);
     const leave = Math.floor((h * 60 + m - 150 - travel) / 5) * 5;
     say(estimates, `- ${weekday(ymd(f.date))}: ${f.title} at ${clockOf(h * 60 + m)} → leave ${cityName} for ${AIRPORT_WORDS[code!] || code} by about ${clockOf(leave)} (about ${travel} min to the airport + 2 hr 30 min there for an international flight). This is WANDER'S OWN ESTIMATE, shown on Home and Now; if asked, give this same time, say it's an estimate, and add how you'd get there if useful.`,
-      worked(`Wander's estimate of when to leave for the airport: the flight's time, less about ${travel} minutes to ${AIRPORT_WORDS[code!] || code} and 2½ hours there. Not in her Guide`, [partOf(f)]));
+      worked(`Wander's estimate of when to leave for the airport: the flight's time, less about ${travel} minutes to ${AIRPORT_WORDS[code!] || code} and 2½ hours there. Not in ${W("her Guide", "the plan")}`, [partOf(f)]));
   }
-  if (estimates.length) { say(out, "\nLEAVING FOR THE AIRPORT (Wander's estimate, not the Guide):"); out.push(...estimates); }
+  if (estimates.length) { say(out, `\nLEAVING FOR THE AIRPORT (Wander's estimate, not ${W("the Guide", "the plan")}):`); out.push(...estimates); }
 
   const undated = itemsByDate.get("undated") || [];
   if (undated.length) {
@@ -461,11 +503,13 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   }
 
   if (ideas.length) {
-    say(out, "\nIDEAS LARISA RESEARCHED (Activities tab; 'interested' = who marked it; a day means it's placed on that day):");
+    say(out, plan
+      ? "\nIDEAS (a list of places to maybe see; 'interested' = who marked it; a day means it's placed on that day):"
+      : "\nIDEAS LARISA RESEARCHED (Activities tab; 'interested' = who marked it; a day means it's placed on that day):");
     for (const e of ideas) {
       const who = e.interests.map((x) => x.displayName).join(", ");
       const removed = (e.sheetRowRef || "").startsWith("Removed from Guide|");
-      say(out, `- ${e.name} (${e.city?.name || "?"})${removed ? " [NO LONGER IN LARISA'S GUIDE — kept in Wander because people wrote on it]" : ""}${e.day ? ` on ${ymd(e.day.date)}` : ""}${who ? ` — interested: ${who}` : ""}${e.description ? ` — ${e.description.slice(0, 200)}` : ""}`,
+      say(out, `- ${e.name} (${e.city?.name || "?"})${removed ? ` [NO LONGER IN ${W("LARISA'S GUIDE", "THE PLAN")} — kept in Wander because people wrote on it]` : ""}${e.day ? ` on ${ymd(e.day.date)}` : ""}${who ? ` — interested: ${who}` : ""}${e.description ? ` — ${e.description.slice(0, 200)}` : ""}`,
         removed
           ? worked(`${e.name} is no longer in her Guide; Wander kept it because people wrote on it`, [])
           : { type: "guide", label: `${e.name} — her Activities tab`, cells: wordsAt([ideaRef(e.sheetRowRef || "", tabs)].filter((r): r is string => !!r), tabs),
@@ -499,7 +543,8 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   // (Oct 2: "the locations are not in order. Scout might add value by saying what's close and what isn't")
   const maps = await appleGuidesOf(tripId);
   if (maps.length) {
-    say(out, "\nHER APPLE MAPS GUIDES (maps Larisa made in Apple Maps, apart from her sheet — her map, not her sheet; places are NOT in visiting order):");
+    say(out, W("\nHER APPLE MAPS GUIDES (maps Larisa made in Apple Maps, apart from her sheet — her map, not her sheet; places are NOT in visiting order):",
+      "\nHER APPLE MAPS GUIDES (maps Larisa made in Apple Maps, apart from the plan — her map, not the plan; places are NOT in visiting order):"));
     for (const g of maps) {
       const src = (worked: boolean): SourceView => ({ type: "map", guide: g.name, link: g.link, readAt: g.readAt, places: g.places.filter((p) => p.name).map((p) => ({ name: p.name!, address: p.address })), ...(worked ? { worked: true } : {}) });
       const lines = guideLines(g, g.date ? weekday(g.date) : null);
@@ -510,7 +555,8 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   // Her Google map ("My Maps", Oct 11) — every location of the trip, in layers she named; read every few hours
   const gm = await myMapOf(tripId);
   if (gm) {
-    say(out, "\nHER GOOGLE MAP (a map Larisa made in Google My Maps, apart from her sheet — her map, not her sheet; layers are named by her, not dated):");
+    say(out, W("\nHER GOOGLE MAP (a map Larisa made in Google My Maps, apart from her sheet — her map, not her sheet; layers are named by her, not dated):",
+      "\nHER GOOGLE MAP (a map Larisa made in Google My Maps, apart from the plan — her map, not the plan; layers are named by her, not dated):"));
     const { strayPinsOf } = await import("./nearby.js");
     const lines = myMapLines(gm, await strayPinsOf(tripId).catch(() => new Map<string, { m: number; town: string | null }>()));
     let layer = "";
@@ -527,7 +573,7 @@ export async function buildGuideContextParts(tripId: string, opts: { phoneZone?:
   for (const d of await tripDocumentsOf(tripId)) {
     // (its days by their date when you say them: asked about Fri, Oct 23, Scout called it "Day 4 of your week" — it is
     // their Day 6; Oct 18)
-    say(out, `\n${d.name.toUpperCase()} (${whose(d.from)} own words, given to Wander by ${d.addedBy} — NOT Larisa's Guide; ${d.version}). ${d.caution}${d.dayOne ? ` Its Day 1 is ${dayWords(d, 1).replace(/^Day 1 \((.*)\)$/, "$1")}, the day her Guide meets ${d.from}; Wander dated the days from that. Say its days by their date ("Fri, Oct 23"), never by its day numbers.` : ""}`);
+    say(out, `\n${d.name.toUpperCase()} (${whose(d.from)} own words, given to Wander by ${d.addedBy} — NOT ${W("Larisa's Guide", "the plan")}; ${d.version}). ${d.caution}${d.dayOne ? ` Its Day 1 is ${dayWords(d, 1).replace(/^Day 1 \((.*)\)$/, "$1")}, the day ${W("her Guide", "the plan")} meets ${d.from}; Wander dated the days from that. Say its days by their date ("Fri, Oct 23"), never by its day numbers.` : ""}`);
     for (const s of d.sections) {
       const place = placeIn(d, s);
       say(out, `[${d.name} — ${s.day ? dayWords(d, s.day) : s.heading}${hasPages(d) ? ` (page ${s.page})` : ""}]`);

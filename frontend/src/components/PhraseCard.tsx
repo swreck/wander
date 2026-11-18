@@ -6,6 +6,18 @@ import { api } from "../lib/api";
 import useBackToClose from "../hooks/useBackToClose";
 import { screenShift } from "../lib/screenShift";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
+import { countriesInVisitOrder, openingCountry, type CityForPhrases } from "../lib/phraseCountries";
+import { isPlanTrip } from "../lib/planTrip";
+
+// A trip built from a plan: the tabs in the order the trip visits its countries, the card open on today's (S3 fix 8)
+const phoneDay = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const OPEN_KEY = "wander:phrase-open";
+function rememberedOpen(): string {
+  try { const id = localStorage.getItem("wander:last-trip-id"); const all = JSON.parse(localStorage.getItem(OPEN_KEY) || "{}"); return id && typeof all[id] === "string" && all[id] in COUNTRY_PHRASES ? all[id] : ""; } catch { return ""; }
+}
+function rememberOpen(tripId: string, country: string) {
+  try { const all = JSON.parse(localStorage.getItem(OPEN_KEY) || "{}"); all[tripId] = country; localStorage.setItem(OPEN_KEY, JSON.stringify(all)); } catch { /* found again next time */ }
+}
 
 // ── Country phrase data ────────────────────────────────────────
 interface LocalPhrase {
@@ -119,7 +131,7 @@ function rememberCountries(tripId: string, countries: string[]) {
  *  the 日 means, is gone, so the bar's says it). "header" is kept, unused. Both ask the one sheet ("wander-open-phrases").
  *  trip: the trip the screen already has, so a button is there in its first drawing (Oct 10: it arrived 1.5 s after the
  *  Next tab drew, widened the header row and moved the whole day down) */
-export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "sheet" | "bar" | "header"; inHeader?: boolean; trip?: { name: string; cities: { name: string; country?: string | null }[] } | null } = {}) {
+export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "sheet" | "bar" | "header"; inHeader?: boolean; trip?: { name: string; endDate?: string | null; cities: CityForPhrases[] } | null } = {}) {
   const kind = mode || (inHeader ? "header" : "sheet");
   const { user } = useAuth();
   const location = useLocation();
@@ -128,9 +140,16 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
   useBackToClose(open, () => setOpen(false));
   // (first from the trip the screen has, else what this phone remembers for its trip — so the bar's 日 is there in the
   // bar's first drawing; arriving 1–2 s later it slid all six tabs left under a thumb reaching for Scout, verify27)
-  const firstCountries = () => (trip ? detectCountries(trip.name || "", trip.cities || []) : rememberedCountries());
+  // (a plan trip: its cities' own order, and the country of today's city first; a sheet trip as it always was)
+  const planCountries = () => (trip && isPlanTrip() ? countriesInVisitOrder(trip.cities || []) : []);
+  const firstCountries = () => (trip ? (planCountries().length ? planCountries() : detectCountries(trip.name || "", trip.cities || [])) : rememberedCountries());
+  const firstActive = () => {
+    if (trip && planCountries().length > 1) return openingCountry(trip.cities || [], phoneDay(), trip.endDate) || firstCountries()[0] || "";
+    if (!trip && isPlanTrip()) { const r = rememberedOpen(); if (r && rememberedCountries().includes(r)) return r; }
+    return firstCountries()[0] || "";
+  };
   const [tripCountries, setTripCountries] = useState<string[]>(firstCountries);
-  const [activeCountry, setActiveCountry] = useState<string>(() => firstCountries()[0] || "");
+  const [activeCountry, setActiveCountry] = useState<string>(firstActive);
   const scrollRef = useRef<HTMLDivElement>(null);
   // How far iOS has left the screen moved down the page after a keyboard, read as the card opens (lib/screenShift) —
   // so its foot is at the screen's foot, as the bar's and Scout's are
@@ -350,10 +369,16 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
       loadedFor.current = tripId;
       setTripId(tripId);
       api.get<any>(`/trips/${tripId}`).then((t) => {
-        const countries = detectCountries(t?.name || "", t?.cities || []);
+        const visited = t?.plan === true ? countriesInVisitOrder(t?.cities || []) : [];
+        const countries = visited.length ? visited : detectCountries(t?.name || "", t?.cities || []);
         if (t?.id || t?.name) rememberCountries(tripId, countries);
         setTripCountries(countries);
-        if (countries.length > 0 && !countries.includes(activeCountry)) {
+        if (visited.length > 1) {
+          // (today's country, each time the trip is read; a tap on another tab in the card still works until the next screen)
+          const open = openingCountry(t.cities || [], phoneDay(), t.endDate) || countries[0];
+          rememberOpen(tripId, open);
+          setActiveCountry(open);
+        } else if (countries.length > 0 && !countries.includes(activeCountry)) {
           setActiveCountry(countries[0]);
         }
       }).catch(() => {});
