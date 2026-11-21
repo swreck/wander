@@ -15,7 +15,8 @@ const NOT_CONFIRMED_SENTENCE = "Not confirmed yet, so it isn't in the plan.";
 
 /** The small pill before the first word: "Sample", or "Not confirmed" (a row's own tag) */
 export function SampleTag({ label = "Sample" }: { label?: string }) {
-  return <span data-sample="1" className="inline-block align-middle mr-1.5 px-1.5 py-px rounded-full border border-[#d6ccbc] bg-white/70 text-[11px] not-italic leading-snug text-[#6f6a64]">{label}</span>;
+  // (the hidden ": " is for a screen reader, which ran "Sample" and the first words together)
+  return <span data-sample="1" className="inline-block align-middle mr-1.5 px-1.5 py-px rounded-full border border-[#d6ccbc] bg-white/70 text-[11px] not-italic leading-snug text-[#6f6a64]">{label}<span data-sample="1" className="sr-only">: </span></span>;
 }
 
 /** A placeholder picture, drawn here (no file, no request): a soft grey panel with a diagonal "SAMPLE" band */

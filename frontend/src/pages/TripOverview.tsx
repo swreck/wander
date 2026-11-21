@@ -885,12 +885,14 @@ function TripSwitcherList({
 }: {
   trips: Trip[];
   currentTripId: string;
-  onSwitch: (id: string) => void;
+  onSwitch: (id: string) => void | Promise<void>;
   onRename: (id: string, newName: string) => void;
 }) {
   const { user } = useAuth();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  // (the row tapped says so at once: choosing a trip waits on the server for about a second, and the menu sat still)
+  const [opening, setOpening] = useState<string | null>(null);
   const savingRef = useRef(false);
 
   async function saveName(tripId: string) {
@@ -923,7 +925,12 @@ function TripSwitcherList({
             <div
               key={t.id}
               className={`py-3 border-b border-[#f0ece5] last:border-0 ${!isCurrent ? "cursor-pointer hover:bg-[#faf8f5]" : ""}`}
-              onClick={() => !isCurrent && onSwitch(t.id)}
+              onClick={async () => {
+                if (isCurrent || opening) return;
+                setOpening(t.id);
+                try { await onSwitch(t.id); } finally { setOpening(null); }
+              }}
+              aria-busy={opening === t.id || undefined}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
@@ -947,6 +954,7 @@ function TripSwitcherList({
                       {t.name}
                       {/* (the trip on screen — "Now" read as "happening now" on Japan after it ended; Nov 16 2026) */}
                       {isCurrent && <span className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Showing</span>}
+                      {opening === t.id && <span role="status" className="ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-[#f0ebe3] text-[#514636]">Opening…</span>}
                     </div>
                   )}
                   {/* Tagline — shows the sync source so planners can tell trips apart */}

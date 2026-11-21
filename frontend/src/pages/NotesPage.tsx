@@ -1005,7 +1005,7 @@ export default function NotesPage() {
               })()}
               <p className="text-xs text-[#6b5d4a] mt-6">
                 Settings has two choices for notes: tidying your dictation, and whether others' trip stories may use what you say about places.{" "}
-                <button onClick={() => navigate("/settings#notes")} className="underline underline-offset-2 min-h-[44px]">Open Settings</button>
+                <button onClick={() => navigate("/settings#notes")} className="underline underline-offset-2 inline-flex items-center min-h-[44px] -my-[14px]">Open Settings</button>
               </p>
             </section>
 
