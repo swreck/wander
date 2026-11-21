@@ -781,7 +781,7 @@ function PlanSection({ blocks, overview, me, highlight, picked, onPick, onUndo, 
               className={`flex gap-3 p-3 transition-shadow ${ring} ${past && !focus ? "opacity-60" : ""}`} style={focus ? { borderLeftColor: NOW_MAROON } : undefined}>
               <div className="w-20 shrink-0 text-right text-sm text-[#3a3128] [overflow-wrap:anywhere]" title={estimate ? "Larisa's estimate" : undefined}>
                 {!focus && isNow && <span className="block text-[11px] uppercase tracking-wide text-[#8a5a1a]">Now</span>}
-                {time}
+                {keepClock(time)}
               </div>
               <div className="flex-1 min-w-0">
                 {/* (above the title, where it has room — in the time column "Next · in 50 min" broke over two lines) */}
@@ -983,6 +983,8 @@ import { emptyDayLine, startWords } from "../lib/planScreens";
  * points larger in maroon, and above its time "Now" or "Next · in 25 min".
  */
 const NOW_MAROON = "#7a1f2b";
+/** A clock time held to its AM/PM (a no-break space), so a narrow column breaks before the time, never inside it */
+const keepClock = (s: string) => s.replace(/(\d) ([AP]M)\b/g, "$1 $2");
 const nowWords = (startsIn: number) => (startsIn <= 0 ? "Now" : `Next · in ${startsIn < 60 ? `${Math.max(1, Math.round(startsIn))} min` : `${Math.floor(startsIn / 60)} hr${startsIn % 60 ? ` ${Math.round(startsIn % 60)} min` : ""}`}`);
 
 /**
@@ -1165,7 +1167,7 @@ function sampleLinesFor(samples: Sample[], date: string, tripZone: string): { at
     const timed = /^\d{1,2}:\d{2}$/.test(time);
     const at = timed ? tripClockMinutes({ time, timeZone: own, date: `${date}T00:00:00.000Z` } as GuideItem, tripZone) : NO_TIME;
     const zone = timed ? (own && own !== tripZone ? zoneWords(own) : phoneIsElsewhere(tripZone) ? zoneWords(tripZone) : null) : null;
-    return { at, node: <SampleRow key={s.id} sample={s} timeWords={timed ? clock(time.padStart(5, "0")) : ""} zone={zone} /> };
+    return { at, node: <SampleRow key={s.id} sample={s} timeWords={timed ? keepClock(clock(time.padStart(5, "0"))) : ""} zone={zone} /> };
   }).sort((a, b) => a.at - b.at);
 }
 
@@ -1819,7 +1821,7 @@ export default function DayPage({ now = false }: { now?: boolean }) {
         )}
       </div>
     );
-    const time = c.time ? clock(c.time) : <span className="text-[#6b5d4a]" aria-hidden>✦</span>;
+    const time = c.time ? keepClock(clock(c.time)) : <span className="text-[#6b5d4a]" aria-hidden>✦</span>;
     return look === "row"
       // (a row of her plan's list, tinted so it reads as the group's own)
       ? <li key={`added-${c.id}`} id={`added-${c.id}`} data-added className="flex gap-3 p-3 bg-[#fbf9f4]"><div className="w-20 shrink-0 text-right text-sm text-[#3a3128]">{time}</div>{body}</li>
@@ -3398,7 +3400,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
       <Box id={`item-${i.id}`} className="rounded-xl border border-[#efe8dc] bg-white/60">
         {/* (one tap opens it all — not to a short line that needs a second; short lines, Oct 8) */}
         <button onClick={() => { setShowTheirs(true); setOpen(true); }} aria-expanded={false} className="w-full flex items-center gap-3 px-3 py-1 min-h-[44px] text-left">
-          <span className="w-16 shrink-0 text-right text-sm text-[#6b5d4a]">{elsewhere ?? (i.time ? timeLabel(i, day) : "")}</span>
+          <span className="w-16 shrink-0 text-right text-sm text-[#6b5d4a]">{elsewhere ?? (i.time ? keepClock(timeLabel(i, day)) : "")}</span>
           <span className="flex-1 min-w-0 text-sm text-[#6b5d4a] leading-snug">{theirsWho} · {itemTitle(i, stays, date)} ›</span>
         </button>
       </Box>
@@ -3427,7 +3429,7 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
           <span className={nested ? "hidden" : "w-16 shrink-0 text-right"}>
             {i.time && !split ? (
               <>
-                <span className={`block text-sm font-medium ${past ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>{timeLabel(i, day)}</span>
+                <span className={`block text-sm font-medium ${past ? "text-[#6b5d4a]" : "text-[#3a3128]"}`}>{keepClock(timeLabel(i, day))}</span>
                 {i.endTime && i.kind !== "flight" && <span className="block text-xs text-[#6b5d4a] whitespace-nowrap">{["travel", "train"].includes(i.kind) ? "→ " : "to "}{clock(i.endTime)}</span>}
                 {zone && <span className="block text-xs text-[#6b5d4a]">{zone}</span>}
               </>
@@ -3485,9 +3487,11 @@ function ItemCard({ i, date, today, tripZone, stays, me, highlight, day, all, ow
         <div className={nested ? "hidden" : "w-16 shrink-0 text-right"}>
           {i.time && !split ? (
             <>
-              <div className="text-sm font-medium text-[#3a3128]">{timeLabel(i, day)}</div>
+              {/* (a time is never split from its AM/PM: in this narrow column "by 11:00 AM" broke as "by 11:00 / AM";
+                  now it breaks as "by / 11:00 AM") */}
+              <div className="text-sm font-medium text-[#3a3128]">{keepClock(timeLabel(i, day))}</div>
               {/* A travel line's second time is when you arrive (Okayama 8:30 → Bizen 9:30), not how long it lasts */}
-              {i.endTime && i.kind !== "flight" && <div className="text-xs text-[#6b5d4a]">{["travel", "train"].includes(i.kind) ? "arrive" : "to"} {/end time is Larisa's estimate/i.test(i.detail || "") ? "about " : ""}{clock(i.endTime)}</div>}
+              {i.endTime && i.kind !== "flight" && <div className="text-xs text-[#6b5d4a]">{["travel", "train"].includes(i.kind) ? "arrive" : "to"} {/end time is Larisa's estimate/i.test(i.detail || "") ? "about " : ""}{keepClock(clock(i.endTime))}</div>}
               {zone && <div className="text-xs text-[#6b5d4a]">{zone}</div>}
             </>
           ) : (

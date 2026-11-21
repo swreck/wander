@@ -2,6 +2,20 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-20 (Friday evening, at home) — Four small fixes: times, the trip menu, a Notes line, the sample tag
+
+- **A time stays whole in the day's narrow time column.** On a phone, "by 11:00 AM" broke as "by 11:00 / AM", "arrive
+  5:59 PM" as "arrive 5:59 / PM", and Larisa's "9:30–11:30 AM" as "9:30–11:30 / AM". A time is now held to its AM/PM,
+  so the line breaks before it ("arrive / 5:59 PM", "9:30– / 11:30 AM"). Her words are unchanged. Where: the Day
+  screen's time columns (pages/DayPage.tsx `keepClock`). SPEC unchanged.
+- **The trip menu answers the tap at once.** Choosing a trip waits about a second on the server, and the menu sat
+  still. The tapped trip now shows "Opening…" until the new trip opens, and a second tap meanwhile does nothing (it
+  used to ask the server twice). Where: Home's trip menu (pages/TripOverview.tsx). SPEC unchanged.
+- **Notes' last line keeps even spacing.** At iPad width, "Open Settings" sat on the paragraph's last line and its
+  tap area made that line twice as tall. The tap area is unchanged. Where: Notes (pages/NotesPage.tsx).
+- **A screen reader hears "Sample:" before a sample's words.** It read "SampleThe Temple of Literature…" as one word.
+  Nothing on screen changes. Where: components/SampleTag.tsx.
+
 ## 2026-11-17 (Tuesday night, at home) — The day band's caption always shows the photographer
 
 Found by a fresh judge on production: on a phone, Tokyo's band read "North Observation DeEck, Tokyo Metropolitan G…"
