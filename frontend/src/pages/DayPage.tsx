@@ -983,6 +983,11 @@ import { emptyDayLine, startWords } from "../lib/planScreens";
  * points larger in maroon, and above its time "Now" or "Next · in 25 min".
  */
 const NOW_MAROON = "#7a1f2b";
+/** An address with its postal code ("381-0497") kept on one line: the hotel's address on Jan 2 broke at the hyphen,
+ *  "381-" / "0497" (fresh judge, Nov 20) */
+function KeepPostal({ text }: { text: string }) {
+  return <>{text.split(/(\d{3}-\d{4})/).map((part, k) => (k % 2 ? <span key={k} className="whitespace-nowrap">{part}</span> : part))}</>;
+}
 /** A clock time held to its AM/PM (a no-break space), so a narrow column breaks before the time, never inside it */
 const keepClock = (s: string) => s.replace(/(\d) ([AP]M)\b/g, "$1 $2");
 const nowWords = (startsIn: number) => (startsIn <= 0 ? "Now" : `Next · in ${startsIn < 60 ? `${Math.max(1, Math.round(startsIn))} min` : `${Math.floor(startsIn / 60)} hr${startsIn % 60 ? ` ${Math.round(startsIn % 60)} min` : ""}`}`);
@@ -2220,9 +2225,12 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                   // "North Observation Deck, Tokyo Metropolitan G…" with no credit at all — fresh judge, Nov 17)
                   // The photographer's span never shrinks (a shrink of a tenth of a pixel is enough to cost it its last
                   // letters); a credit longer than the caption's 60% runs on to the left, up to the band's width.
-                  <p className="absolute right-3 bottom-0.5 text-[10px] text-white/75 max-w-[60%] flex justify-end whitespace-nowrap" data-band-caption>
-                    {bandPhoto.place && <span className="min-w-0 truncate">{bandPhoto.place}</span>}
-                    {bandPhoto.credit && <span className="shrink-0 max-w-[160%] truncate">{bandPhoto.place ? " · " : ""}{bandPhoto.credit}</span>}
+                  // The "·" ends the sight's name, so when a long credit leaves the name no room the dot goes with it (it began the
+                  // caption, "· Photo: …", Nov 17 later list). A soft shadow keeps the small words readable over a bright photo
+                  // (Hanoi's flowers at 402, fresh judge, Nov 17).
+                  <p className="absolute right-3 bottom-0.5 text-[10px] text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)] max-w-[60%] flex justify-end whitespace-nowrap" data-band-caption>
+                    {bandPhoto.place && <span className="min-w-0 truncate">{bandPhoto.place}{bandPhoto.credit ? "\u00a0·" : ""}</span>}
+                    {bandPhoto.credit && <span className={`shrink-0 max-w-[160%] truncate${bandPhoto.place ? " pl-[0.3em]" : ""}`}>{bandPhoto.credit}</span>}
                   </p>
                 )}
               </>
@@ -3165,11 +3173,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                           {tripId && !planBlocks.length && !(docDay?.moments || []).some((m) => !!m.place && sameStay(m.place, s.name)) && <ItemPhoto tripId={tripId} cityId={s.cityId ?? null} query={stayMapsQuery(s, cityOf(s.cityId), countryOf(s.cityId))} line={`Tonight's hotel: ${s.name}`} title={s.name} time={null} />}
                           {date < today
                             ? <a href={mapsLink(stayMapsQuery(s, cityOf(s.cityId), countryOf(s.cityId)))} className="inline-flex items-center min-h-[44px] text-sm text-[#514636] underline underline-offset-2 [overflow-wrap:anywhere]">
-                                {s.address ? `${s.address} ↗` : "Maps ↗"}
+                                {s.address ? <><KeepPostal text={s.address} /> ↗</> : "Maps ↗"}
                               </a>
                             // (the address in words, for a taxi driver; then Walk, Train or Taxi there — Ken, Oct 27)
                             : <>
-                                {s.address && <p className="text-sm text-[#514636] mt-1 [overflow-wrap:anywhere]">{s.address}</p>}
+                                {s.address && <p className="text-sm text-[#514636] mt-1 [overflow-wrap:anywhere]"><KeepPostal text={s.address} /></p>}
                                 <GetThere href={mapsLink(stayMapsQuery(s, cityOf(s.cityId), countryOf(s.cityId)))} name={s.name} />
                               </>}
                         </li>

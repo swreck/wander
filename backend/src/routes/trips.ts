@@ -296,17 +296,14 @@ router.post("/:id/activate", async (req: AuthRequest, res) => {
     return;
   }
 
-  const updated = await prisma.trip.update({
-    where: { id: trip.id },
-    data: { lastOpenedAt: new Date() },
-    include: {
-      cities: { where: { hidden: false }, orderBy: { sequenceOrder: "asc" } },
-      routeSegments: { orderBy: { sequenceOrder: "asc" } },
-      days: { orderBy: { date: "asc" }, include: { city: true } },
-    },
-  });
+  // (the phone reads only `plan` from this answer and loads the trip itself next; the trip's cities, legs and days were
+  // sent too, three more trips to the database each time — Nov 21 2026, a trip switch took 4 s on production)
+  const [updated, plan] = await Promise.all([
+    prisma.trip.update({ where: { id: trip.id }, data: { lastOpenedAt: new Date() } }),
+    isPlanTrip(trip.id),
+  ]);
 
-  res.json({ ...updated, plan: await isPlanTrip(updated.id) });
+  res.json({ ...updated, plan });
 });
 
 // Update trip (dates, name)

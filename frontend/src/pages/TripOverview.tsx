@@ -199,23 +199,21 @@ export default function TripOverview() {
         const keptIdeas = sameAs(_cachedExperiences, e) ? _cachedExperiences : e;
         setExperiences(keptIdeas); _cachedExperiences = keptIdeas;
         saveHome(effectiveActive, d, all);
-        try {
-          const { logs } = await api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${effectiveActive.id}?limit=50`);
-          const latest = logs.slice(0, 5);
-          setRecentActivity((prev) => (sameAs(prev, latest) ? prev : latest));
-          // (A first-visit overlay — "X has already started the itinerary… everyone will see your
-          // changes" — was removed: it covered Home on first open and wasn't true; the plan is Larisa's Guide.)
-        } catch { /* ignore */ }
-        // Fetch pending approvals count for planners
-        try {
-          const { count } = await api.get<{ count: number }>(`/approvals/${effectiveActive.id}/pending`);
-          setPendingApprovals(count);
-        } catch { /* ignore */ }
-        // Fetch open decisions for nudge
-        try {
-          const decs = await api.get<Decision[]>(`/decisions/trip/${effectiveActive.id}`);
-          setOpenDecisions(decs.filter((d) => d.status === "open"));
-        } catch { /* ignore */ }
+        // Home is drawn now: the trip and its days are here. The three lines below fill in after, side by side
+        // (Nov 21 2026: they were asked one after another before Home showed at all, about 0.9 s of a 4 s trip switch)
+        setLoading(false);
+        await Promise.all([
+          api.get<{ logs: ChangeLogEntry[]; total: number }>(`/change-logs/trip/${effectiveActive.id}?limit=50`).then(({ logs }) => {
+            const latest = logs.slice(0, 5);
+            setRecentActivity((prev) => (sameAs(prev, latest) ? prev : latest));
+            // (A first-visit overlay — "X has already started the itinerary… everyone will see your
+            // changes" — was removed: it covered Home on first open and wasn't true; the plan is Larisa's Guide.)
+          }).catch(() => { /* ignore */ }),
+          // pending approvals count for planners
+          api.get<{ count: number }>(`/approvals/${effectiveActive.id}/pending`).then(({ count }) => setPendingApprovals(count)).catch(() => { /* ignore */ }),
+          // open decisions for the nudge
+          api.get<Decision[]>(`/decisions/trip/${effectiveActive.id}`).then((decs) => setOpenDecisions(decs.filter((d) => d.status === "open"))).catch(() => { /* ignore */ }),
+        ]);
       }
     } finally {
       setLoading(false);
@@ -377,7 +375,7 @@ export default function TripOverview() {
             notePlanTrip(tripId, (await api.post<Trip>(`/trips/${tripId}/activate`, {}))?.plan);
             localStorage.setItem("wander:last-trip-id", tripId);
             setShowCreate(false);
-            loadTrips();
+            setLoading(true); // (the event below loads the trip, once)
             window.dispatchEvent(new CustomEvent("wander:data-changed"));
             window.dispatchEvent(new CustomEvent("wander:trip-switched"));
           } catch {
@@ -398,7 +396,7 @@ export default function TripOverview() {
           try {
             notePlanTrip(tripId, (await api.post<Trip>(`/trips/${tripId}/activate`, {}))?.plan);
             localStorage.setItem("wander:last-trip-id", tripId);
-            loadTrips();
+            setLoading(true); // (the event below loads the trip, once)
             window.dispatchEvent(new CustomEvent("wander:data-changed"));
             window.dispatchEvent(new CustomEvent("wander:trip-switched"));
           } catch {
@@ -416,7 +414,9 @@ export default function TripOverview() {
       setShowTripSwitcher(false);
       const switched = allTrips.find(t => t.id === tripId);
       showToast(switched?.name || "Switched");
-      loadTrips();
+      // Home's own listener for the event below loads the new trip; it ends the wait set here (Nov 21 2026: Home also
+      // called loadTrips itself, so every call was made twice during a switch)
+      setLoading(true);
       // Notify ChatOverlay to update its trip context
       window.dispatchEvent(new CustomEvent("wander:data-changed"));
       // (and the sign-in's role, which is this person's role on their current trip — a planner on one trip may be a
