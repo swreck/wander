@@ -2,6 +2,21 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-21 (Saturday evening, at home) — A trip switch shows Home sooner; a postal code and a caption tidied
+
+- **Switching trips shows Home sooner: about 3 seconds where it took 4 to 4.6.** Home asked the server for the trip
+  twice on every switch, and waited on three side lines (recent changes, approvals, decisions), one after another,
+  before showing anything. It now asks once, shows Home as soon as the trip and its days arrive, and fills the side
+  lines in after. The switch itself no longer sends back the trip's cities, legs and days, which the phone never read.
+  Where: Home's trip menu (pages/TripOverview.tsx), POST /trips/:id/activate (routes/trips.ts). SPEC unchanged. The
+  rest of the wait is distance: the server runs in California and its database in Virginia, about 70 ms for every
+  database question (HANDOFF has the measurements).
+- **A hotel's postal code stays on one line.** Jan 2's address broke as "381-" / "0497" on a phone. Where: the Day
+  screen's hotel address (pages/DayPage.tsx `KeepPostal`). SPEC unchanged.
+- **The band caption never begins with "·".** When a long photographer's name left the sight's name no room, the
+  caption read "· Photo: …". The "·" now goes with the sight's name. The small words also carry a soft shadow, for a
+  bright photo (Hanoi's flowers). Where: the Day screen's band (pages/DayPage.tsx). SPEC §16 "Photos" updated.
+
 ## 2026-11-20 (Friday evening, at home) — Four small fixes: times, the trip menu, a Notes line, the sample tag
 
 - **A time stays whole in the day's narrow time column.** On a phone, "by 11:00 AM" broke as "by 11:00 / AM", "arrive
