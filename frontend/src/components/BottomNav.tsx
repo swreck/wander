@@ -7,6 +7,7 @@ const MAYBES_DOT = false as boolean;
 import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import PhraseCard from "./PhraseCard";
+import ConvertCard from "./ConvertCard";
 import { loadLedger, savedLedger, MONEY_CHANGED } from "../lib/expenses";
 import PayNextBadge from "./PayNextBadge";
 import { api } from "../lib/api";
@@ -25,11 +26,17 @@ function todayPath(): string {
     // trip", a dead end (Ken, Nov 15: "I would like the old Japan to open, looking like it looked on the last day")
     const last = g ? finishedLastDay([...(g.days || []).map((x) => x.date), g.trip.endDate], zoneOfLastDay(g.days, g.trip.endDate, g.trip.timeZone || "Asia/Tokyo")) : null;
     if (last) return `/day/${last}`;
-    const me = (JSON.parse(localStorage.getItem("wander_user") || "null") as { displayName?: string } | null)?.displayName || null;
+    // (the phone keeps the name as plain words. It was read as JSON here, which threw, so Today was always Japan's date:
+    // from 10 PM in Hanoi that is tomorrow; Nov 22 2026)
+    const me = localStorage.getItem("wander_user") || null;
     if (g) {
       const d = new Date();
       const phone = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      return `/day/${travelerToday(g.items, me, g.trip.timeZone || "Asia/Tokyo", phone)}`;
+      const mine = travelerToday(g.items, me, g.trip.timeZone || "Asia/Tokyo", phone);
+      // Before the trip's first day, Today opens that first day — it opened today's date, "This date isn't part of the
+      // trip" on an empty page (Nov 22 2026: December, three weeks out)
+      const first = [...(g.days || []).map((x) => x.date), g.trip.startDate].filter((x): x is string => !!x).map((x) => String(x).slice(0, 10)).sort()[0];
+      return `/day/${first && mine < first ? first : mine}`;
     }
   } catch { /* nothing kept: Japan's date */ }
   return `/day/${japan}`;
@@ -116,6 +123,8 @@ export default function BottomNav({ pendingChanges }: Props) {
   // the total" (Ken, Oct 15). From the phone's copy first; again when money changes or Wander comes back to the front.
   const tripIdNow = () => { try { return localStorage.getItem("wander:last-trip-id"); } catch { return null; } };
   const [payNext, setPayNext] = useState<string | null>(() => { const t = tripIdNow(); return t ? savedLedger(t)?.next || null : null; });
+  // (the trip the badge is showing for)
+  const payNextFor = useRef<string | null>(tripIdNow());
   useEffect(() => {
     let live = true;
     // (the trip from the phone's note of it, else asked — on a phone just signed in there's no note yet, and production
@@ -123,7 +132,14 @@ export default function BottomNav({ pendingChanges }: Props) {
     const get = async () => {
       let t = tripIdNow();
       if (!t && localStorage.getItem("wander_token")) { try { t = (await api.get<{ id?: string } | null>("/trips/active"))?.id || null; } catch { t = null; } }
-      if (t) loadLedger(t).then((l) => { if (live && l) setPayNext(l.next || null); });
+      if (!t || !live) return;
+      const asked = t;
+      // Another trip than the badge shows for: the phone's copy of the new one at once, never the old trip's couple
+      // while the answer is on its way
+      if (payNextFor.current !== asked) { payNextFor.current = asked; setPayNext(savedLedger(asked)?.next || null); }
+      // (an answer about a trip that's no longer the open one changes nothing: on a weak signal Japan's came back after
+      // December's, and December's bar said "KL" until Budget was opened; Nov 22 2026)
+      loadLedger(asked).then((l) => { if (live && l && payNextFor.current === asked && (tripIdNow() || asked) === asked) setPayNext(l.next || null); });
     };
     get();
     const onShow = () => { if (document.visibilityState === "visible") get(); };
@@ -297,6 +313,7 @@ export default function BottomNav({ pendingChanges }: Props) {
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", ...(placedAt != null ? { top: placedAt, bottom: "auto" } : {}) }}
     >
       <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
+        <ConvertCard />
         {tabs.map((tab) => {
           const isActive = tab.path === "__scout__"
             ? scoutOpen

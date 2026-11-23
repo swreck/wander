@@ -44,6 +44,8 @@ const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 let _cachedTrip: Trip | null = null;
 let _cachedDays: Day[] = [];
 let _cachedExperiences: Experience[] = [];
+// (true only while Home itself announces that the open trip changed under it: its own listener sits that one out)
+let _tellingOthers = false;
 /** The same contents (a fresh copy from Wander that changed nothing) */
 const sameAs = (a: unknown, b: unknown) => { try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; } };
 
@@ -175,10 +177,24 @@ export default function TripOverview() {
       // never switches a trip: it used to pick the trip with the newest Guide copy and switch all of Wander to it, for
       // everyone. Every other screen reads this phone's note of the current trip, kept equal to it here.
       const effectiveActive = active;
+      let noteChanged = false;
       try {
+        const noted = localStorage.getItem("wander:last-trip-id");
         if (active) localStorage.setItem("wander:last-trip-id", active.id);
         else localStorage.removeItem("wander:last-trip-id");
+        noteChanged = noted !== (active ? active.id : null);
       } catch { /* storage unavailable */ }
+      // The note just changed under everything that reads it: the trip was chosen on another phone or a Mac, or this
+      // phone has just signed in. The bar (Convert, Phrases, who pays next) and Scout had read the old note and kept the
+      // old trip until the next screen, so they're told, exactly as after a switch from the trip menu here (Nov 22 2026:
+      // December on screen with no Convert; Japan on screen with December's). Home is already loading: it doesn't again.
+      if (noteChanged) {
+        _tellingOthers = true;
+        try {
+          window.dispatchEvent(new CustomEvent("wander:data-changed"));
+          window.dispatchEvent(new CustomEvent("wander:trip-switched"));
+        } finally { _tellingOthers = false; }
+      }
 
       // A fresh copy the same as the one shown is not swapped in — nothing on Home is redrawn for it (Ken, Oct 9: "there
       // is almost never a change in those items"; Oct 10 audit: each identical copy had the map's layout worked out again)
@@ -227,7 +243,7 @@ export default function TripOverview() {
   }, []);
 
   useEffect(() => {
-    const handler = () => { loadTrips(true); };
+    const handler = () => { if (!_tellingOthers) loadTrips(true); };
     window.addEventListener("wander:data-changed", handler);
     return () => window.removeEventListener("wander:data-changed", handler);
   }, []);
