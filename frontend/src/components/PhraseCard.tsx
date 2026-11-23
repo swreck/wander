@@ -372,6 +372,9 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
         const visited = t?.plan === true ? countriesInVisitOrder(t?.cities || []) : [];
         const countries = visited.length ? visited : detectCountries(t?.name || "", t?.cities || []);
         if (t?.id || t?.name) rememberCountries(tripId, countries);
+        // (an answer about a trip that's no longer the open one changes nothing on screen: on a weak signal Japan's came
+        // back after December's, and December's card stayed Japanese-only; Nov 22 2026)
+        if (loadedFor.current !== tripId) return;
         setTripCountries(countries);
         if (visited.length > 1) {
           // (today's country, each time the trip is read; a tap on another tab in the card still works until the next screen)

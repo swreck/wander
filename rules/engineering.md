@@ -15,16 +15,16 @@ is in the product."
   cosmetic fixes ride with a needed deploy. Docs-only commits don't deploy (railway.toml).
 - Deploy path: (1) `npx tsx trip-data/session-tools/backup-prod.ts <label>` (Neon branch + JSON in
   ~/Documents/WanderBackups; keeps the 2 newest; Ken, Oct 10: "even 10 backups is more than I would expect");
-  (2) schema change → `prisma db push` to production FIRST (preview: schema-diff-prod.mjs); (3) merge 2.0 → main with
-  trip-data/session-tools/deploy-merge.mjs: Railway auto-deploys main, so never `railway up` here [Overrides global:
-  Railway procedure]; (4) wait-for-deploy.mjs <bundle>; (5) `npx tsx test-functional.ts` against production;
+  (2) schema change → `prisma db push` to production FIRST (preview: schema-diff-prod.mjs); (3) merge 2.0 → main only with
+  trip-data/session-tools/deploy-merge.mjs, never a hand push (it holds the Dec 1 2026 Railway check): Railway
+  auto-deploys main, so never `railway up` here [Overrides global: Railway procedure]; (4) wait-for-deploy.mjs <bundle>; (5) `npx tsx test-functional.ts` against production;
   (6) prod-walk.mjs; (7) update HANDOFF CURRENT and the LIVE line in memory.
 - Never run delete-trip.ts, reimport.ts, clean-*, fix-* or final-cleanup scripts. Never commit trip-data/, *.xlsx,
   *.tmp.ts, or the April leftovers in backend/scripts/reimport.ts and package.json.
 - New Guide copy during the trip. Ken (Oct 2): "I want you prepared for a new copy anytime during the trip that Larisa
   makes changes to the sheet by phone or iPad. When she does that, I need to download with my phone (only device) and
   give to you over the long distance remote control from Japan to Mac." Procedure:
-  trip-data/session-tools/guide-update/README.md (`update-guide.mjs find | test | prod`). Read every warning and
+  trip-data/session-tools/guide-update/README.md. Read every warning and
   changed cell before prod; after prod, rewrite only the changed days' summaries and read each before publishing.
 
 ## Tests
@@ -48,10 +48,10 @@ is in the product."
   not stable." A change touching the keyboard, visualViewport, fixed or bottom elements or scrolling stays inside one
   component; simulate the misreport (session-tools/scout-panel-check.mjs) on every fixed element; tell Ken only his
   phone can confirm it, with the reset (swipe Wander away and reopen).
-- Review sizes: 393, 402 and 440 pt wide plus iPad. The 375 SE must work but isn't polished for.
+- Review sizes: 393, 402 and 440 pt wide plus iPad. The 375 SE must work, without polish.
 - Every map added or changed: a fresh agent reviews it against a rubric written first, at those sizes, on production
   data. (Claude) Oct 1: a test-copy review passed a map that production's real places covered.
 
 ## React hooks
-Before committing a component with early returns, read it: every hook sits ABOVE every early return. One below crashes
+Before committing, read the component: every hook sits ABOVE every early return. One below crashes
 the app.

@@ -3001,9 +3001,12 @@ else's to-do is off your day and Home (Ken still sees all). A question in her Gu
 
 ### 18.2 Today, for each person
 
-"Today" for a person is Japan's date from their scheduled landing until their flight home. Once the trip's last day is
-past, the Today tab opens that last day (Nov 15; it opened the current date: "This date isn't part of the trip", a dead
-end).
+"Today" for a person is the date where the plan has them, from their scheduled landing until their flight home: Japan's
+date on the October trip; on a trip through several countries, the date on the clock of their latest landing. Before
+that it is the phone's own date. Once the trip's last day is past, the Today tab opens that last day (Nov 15; it opened
+the current date: "This date isn't part of the trip", a dead end). Before the trip's first day, the Today tab opens
+that first day (Nov 22 2026, for the same reason). The Today tab takes its date from this rule (Nov 22 2026: it had
+always opened Japan's date, which from 10 PM in Vietnam and Cambodia is tomorrow; components/BottomNav.tsx).
 
 A finished trip isn't looked at again in the background: no refresh of its places' opening hours on app open (for
 someone whose trips are all over), no week-old re-check of a stop's photos by Google and Claude, and each city keeps
@@ -3227,9 +3230,55 @@ Ken (Nov 16): "larisa sees what is real only and I see what is real plus clearly
 §14.3 holds. A person on Japan and December switches from the trip menu (tap the trip's name on Home); switching moves
 only that person. Japan's screens are unchanged by December's being there.
 
+A trip chosen on another device, or a phone that has just signed in: Home shows the trip the server has for that
+person, and the bar (Convert, Phrases, who pays next) and Scout follow it in the same moment, exactly as after a
+switch from the trip menu (Nov 22 2026; pages/TripOverview.tsx). An answer about a trip that is no longer the open one
+changes nothing on screen: on a weak signal the phone's questions about its old trip can come back last, and the bar's
+who-pays-next badge and Phrases stay with the trip on screen (components/BottomNav.tsx, components/PhraseCard.tsx).
+
 ### 22.6 Not yet on a plan trip
 
 Money still speaks yen and dollars only: Scout keeps no amount said in another currency and asks instead; Budget's
 own words still say yen. Scout's weather and packing tips cover Japan only. Both are due before Dec 14.
+
+---
+
+## 23. Convert
+
+Ken (Nov 22 2026): "Find an interesting small place to hide a currency calculator that looks at the country you're in
+and automatically gives you a relatively up-to-date calculator going either direction. I'm thinking of something that is
+subtle, similar to the way I used to think of the phrases icon." And of its rates: "do not have to be perfect to the
+hour or even the day".
+
+- **Where**: the left end of the bottom bar, the mirror of Phrases at the right: the sign of the day's money (₫, ៛, ¥)
+  with the word "Convert" under it. One tap opens it. It shows on a trip with a country whose money Wander converts
+  (Vietnam's dong, Cambodia's riel, Japan's yen) until the trip's last day is over. A finished trip's bar has no
+  Convert, so Japan's October bar is as it was.
+- **Which money**: the country of the day's city, by the trip's own dates (§22.2), never the phone's location. Before
+  the trip, the first country. A trip with more than one country has a chip for each, in the order visited.
+- **Two amounts**, the country's money and US dollars. Tap either to type in it; the other follows as you type, in the
+  same dark ink: it is the answer.
+- **Its own number pad**, so the phone's keyboard never opens. Beside 0 sits the key that money needs: 000 for dong
+  and riel, 00 for yen, a decimal point for dollars. ⌫ takes back a digit; ✕ on the amount clears it.
+- **Banknotes**: the country's notes, each with its dollars under it. A tap puts that note in. Vietnam's six, Japan's
+  three, and Cambodia's seven from 500 to 50,000 riel (the 500 and 2,000 are what change comes back in).
+- **Split between**: − and + set how many people (1 to 20); with an amount typed, "Each: …" gives one share in both
+  moneys. Each share is the amount on its own row divided by the people (whole dong, riel and yen; dollars to the
+  cent), whichever row was typed in, so the line always agrees with the two amounts above it.
+- **The rate**, in small type under the pad, with its day: "25,716 ₫ to the dollar, the rate on Nov 22"; yen to the
+  hundredth, "¥159.78 to the dollar". The rate printed is the rate used, so a sum done by hand from it gives the
+  figure on the screen. The pad stays in the same place whichever country is chosen. Rates come
+  from open.er-api.com, kept 12 hours on the server and on each phone. With no signal the phone uses the last rate it
+  has and says its day. A phone that has never had one uses a round figure and says "A rough figure: Wander couldn't
+  get a recent rate."
+- **One line about the country's money**, each checked against a source read first: Vietnam, "The 20,000 and 500,000
+  notes are both blue. Count the zeros."; Cambodia, "Dollars are widely taken in Cambodia. Change under a dollar
+  comes back in riel."; Japan, none.
+- It closes on Back, the chevron, a tap on the page, or a change of screen. Opened again, it shows the last amount;
+  the first key starts a new one.
+- It keeps nothing about a person and changes nothing in the trip. Each phone remembers the trip's cities, countries
+  and dates so the button is there the moment Wander opens.
+- Where: components/ConvertCard.tsx, lib/convertPad.ts, lib/rates.ts; GET /api/rates (routes/rates.ts,
+  services/rates.ts).
 
 *End of Part II, written Oct 15, 2026. Keep it current.*

@@ -75,6 +75,8 @@ async function main() {
   check("Face ID sign-in starts for this site", options.status === 200 && options.json?.options?.rpId === new URL(BASE).hostname,
     `status ${options.status}, rpId ${options.json?.options?.rpId}`);
   check("Trips are private without sign-in", (await get("/api/trips")).status === 401);
+  // (Convert's rates, Nov 22 2026: the route exists and asks for sign-in; signed in, prod-menu-walk reads its figures)
+  check("Convert's rates ask for sign-in", (await get("/api/rates")).status === 401);
   check("Guide pictures refuse a link without a valid signature",
     [401, 403, 404].includes((await get("/api/guide/picture/x/y?t=forged")).status));
 

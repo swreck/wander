@@ -2,6 +2,42 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-22 (Sunday night, at home) — Convert: a currency calculator at the left end of the bar
+
+Ken asked for "an interesting small place to hide a currency calculator that looks at the country you're in and
+automatically gives you a relatively up-to-date calculator going either direction", "subtle, similar to the way I
+used to think of the phrases icon".
+- **Convert, at the bar's left end**, the mirror of Phrases at the right: the sign of the day's money (₫, ៛, ¥) over
+  the word "Convert". It shows on a trip with a country whose money Wander converts (Vietnam, Cambodia, Japan) until
+  the trip's last day is over, so Japan's finished October trip has no Convert and its bar is as it was. Where: the
+  bottom bar (components/BottomNav.tsx, components/ConvertCard.tsx).
+- **The sheet**: the country's money and US dollars, either one typed, the other following. The country comes from
+  the trip's own dates and cities, never the phone's location; a chip for each country on the trip. Its own number
+  pad (the phone's keyboard never opens) with the key each money needs beside 0: 000 for dong and riel, 00 for yen,
+  a point for dollars. Banknotes with their dollars, one tap each. "Split between" for a shared bill: each share is
+  the amount on its own row divided by the people, so "Each" always agrees with the two amounts above it.
+- **A trip chosen on another device** (or a phone that has just signed in): Home already showed the right trip, but
+  the bar and Scout kept the phone's old one until the next screen. Home now tells them at once, as its trip menu
+  does, so Convert, Phrases, who pays next and Scout are on the trip on screen. On a weak signal the phone's
+  questions about its old trip can come back last; those answers now change nothing, so the who-pays-next badge and
+  Phrases stay with the trip on screen. Where: Home (pages/TripOverview.tsx), the bar (components/BottomNav.tsx,
+  components/PhraseCard.tsx). SPEC §22.5.
+- **The Today tab opens the right day.** It read the name the phone keeps in the wrong form, failed quietly, and
+  always opened Japan's date: right in Japan, but from 10 PM in Vietnam and Cambodia that is tomorrow. It now opens
+  the date where the plan has the person (SPEC §18.2). Before the trip's first day it opens that first day, where it
+  had opened today's date on an empty page ("This date isn't part of the trip"). Where: the bottom bar
+  (components/BottomNav.tsx). SPEC §18.2.
+- **Rates** from open.er-api.com through a new GET /api/rates (routes/rates.ts), kept 12 hours on the server and on
+  each phone (lib/rates.ts), so Convert works with no signal and says the rate's day. A phone that never had a rate
+  uses a round figure and says so. The rate printed is the rate the sums use (yen to the hundredth, dong and riel
+  whole), so a figure checked by hand from that line matches the screen.
+- **One line about the country's money**, each from a source opened first: Vietnam's two blue notes; in Cambodia,
+  dollars are taken and small change comes back in riel.
+- It keeps nothing about a person and changes nothing in the trip. No location is read.
+- Engineering: publishing goes only through deploy-merge.mjs, which from Nov 30 2026 2:00 AM PST refuses until
+  Railway's own settings hold what the config file holds today (rules/engineering.md, deploy path step 3).
+- SPEC §23 (new).
+
 ## 2026-11-21 (Saturday evening, at home) — A trip switch shows Home sooner; a postal code and a caption tidied
 
 - **Switching trips shows Home sooner: about 3 seconds where it took 4 to 4.6.** Home asked the server for the trip

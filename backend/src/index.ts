@@ -64,6 +64,7 @@ import pushRoutes from "./routes/push.js";
 import paperRoutes from "./routes/papers.js";
 import sampleRoutes from "./routes/samples.js";
 import weatherRoutes from "./routes/weather.js";
+import rateRoutes from "./routes/rates.js";
 import { startMyMapReader } from "./services/guide/googleMyMap.js";
 import { startHelloWarmer } from "./services/scoutHello.js";
 import { noteActivity } from "./services/activity.js";
@@ -225,6 +226,7 @@ app.use("/api/push", pushRoutes);
 app.use("/api/papers", paperRoutes);
 app.use("/api/samples", sampleRoutes);
 app.use("/api/weather", weatherRoutes);
+app.use("/api/rates", rateRoutes);
 app.use("/api/sources", sourceRoutes);
 
 // Global error handler for API routes — returns JSON instead of HTML stack traces
