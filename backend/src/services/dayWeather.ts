@@ -148,7 +148,7 @@ async function pointForecast(point: { lat: number; lng: number }, today: string,
   return go;
 }
 
-async function forecastAt(point: { lat: number; lng: number }, date: string, away: number, zone: string = JAPAN_ZONE): Promise<Forecast | null> {
+export async function forecastAt(point: { lat: number; lng: number }, date: string, away: number, zone: string = JAPAN_ZONE): Promise<Forecast | null> {
   return (await pointForecast(point, addDays(date, -away), zone))?.get(date) ?? null;
 }
 

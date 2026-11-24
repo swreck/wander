@@ -2300,6 +2300,11 @@ export default function DayPage({ now = false }: { now?: boolean }) {
                 No signal — showing what this phone saved{data.savedAt ? ` ${new Date(data.savedAt).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}` : ""}.
               </p>
             )}
+            {/* The trip's first day, opened before the trip (the Today tab lands here then): say when it starts. Next has
+                its own line below (Nov 23 2026, a fresh review: three weeks out, Today showed Dec 14 as if it were today) */}
+            {!now && !!tripFirst && today < tripFirst && date === tripFirst && (
+              <p className="text-sm text-[#6b5d4a] mb-3" data-before-trip>{startWords(tripFirst, tripFirst, tripFirst, today)}. This is its first day.</p>
+            )}
             {/* Now tab: before the trip, after it, or what's next today */}
             {/* The morning you fly: your flight first, on your clock (round 11: Julie's Now opened on Wednesday's
                 Japan day with her noon SFO flight as its third card) */}

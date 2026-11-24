@@ -2,6 +2,67 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-24 (Tuesday, at home) — Budget for the families; Scout's money, weather and packing on a plan trip
+
+Ken (Nov 16): "dollars as the common unit, the three families as payers, shared costs split per person", "plus a
+currency pop-up on entering and viewing an expense, at recent rates." Japan's trip is unchanged by all of this: its
+Budget (two couples, yen), its Home line and bar badge, Scout's prompt and tools, its packing list.
+- **Budget on a trip of families.** A trip with a list of its people (each person's family and own days abroad,
+  written from the plan by a private tool) counts in US dollars. A payment is kept as paid, in dong, riel, yen or
+  dollars, with its dollars at the rate as printed on the day it was kept. It is shared per person among everyone on
+  the trip that day unless someone says who it was for. Who pays next is the family furthest behind among those on the
+  trip today; "To be even" gives the fewest payments. While only one family is traveling, the page says why no one is
+  named yet and from which day someone will be. What a family has paid so far is not shown (Ken, Oct 16). Where:
+  Budget (pages/FamilyBudget.tsx, chosen by pages/MoneyPage.tsx). SPEC §24.1–24.4.
+- **The entry sheet**: who paid by family, in its colour; a switch for the day's money and dollars ("Paid in riel or yen?"
+  for all four); "2,500,000 ₫ is about $96.98" as it's typed, with the rate; "125.000" from a menu in Vietnam reads
+  as 125,000; who it's for, everyone that day or chosen family by family; the day. A deposit before the trip is shared
+  by everyone on the trip. SPEC §24.5.
+- **Receipts** read dong, riel, yen or dollars ("Tổng cộng", "1.250.000"), and say so when a receipt doesn't show
+  which money. Where: services/familyReceipt.ts. SPEC §24.6.
+- **A tap on any amount** shows its dollars at its own kept rate, about what it is in the trip's other moneys, and each
+  family's part. SPEC §24.7.
+- **Home's line and the bar**: who pays next and the whole of what that family would pay to be even; the Budget tab's
+  badge in the family's colour, and a "$" coin with no one to pay next. Where: components/WhoPaysNextLine.tsx,
+  BottomNav.tsx, PayNextBadge.tsx. SPEC §24.8.
+- **The Log** says its clock ("Times are Vietnam time.") and prints a day as "Mon, Dec 28", never 2026-12-28. SPEC §24.9.
+- **A plan trip whose families aren't in yet** says "Not set up yet", and nothing can be kept from the page.
+- **Scout keeps, changes, removes and puts back a families' payment in words**, the same as the screen, in any of the
+  four moneys, and asks which money when none was said outside Japan. convert_money answers "how much is 500,000
+  dong?" with Convert's own sum. Where: services/scoutFamilyMoney.ts, routes/chat.ts. SPEC §24.10, §7.9.
+- **Scout's weather on a plan trip**: Wander's forecast for every country of the trip, with no weather site's numbers
+  unasked. A town on the way is placed only when Wander is sure of it, else said as not placed. A day 16 or more days
+  ahead comes with what that week was like there in the last five years, said as past years, never a forecast. Where:
+  services/planWeather.ts, typicalWeather.ts, townSearch.ts, planTrip.ts. SPEC §25.1, §7.8.
+- **Scout's packing on a plan trip**: checked notes for each country of the asker's own days, each with who says so,
+  and the forecast for their own nights only. Where: services/planPacking.ts, packingWeather.ts. SPEC §25.2, §6.7.
+  A full packing answer may run to about 480 words: ten checked notes with who says so can't be said in 350.
+- **Asking Scout about a visa, an entry paper, vaccines, malaria or medicines on a plan trip.** Before, Scout answered
+  from an April list whose sources were never opened, and gave a price for the Cambodian visa. Now Scout answers only
+  from the checked notes (packing_tips with notesOnly: the notes alone, no weather, no closing line), with who says so.
+  Malaria is said as CDC's note has it, and pills are a question for their doctor or a travel clinic. What no note
+  covers gets "Wander has no checked note on it", nothing from memory, and an offer to search. The April list is not
+  offered on a plan trip, and called anyway it gives none of itself. Japan's trip keeps its rule 55 and the list.
+  Where: services/planTrip.ts (rule 55 replaced whole), planPacking.ts, routes/chat.ts. SPEC §25.3.
+- Scout's opener "I'll pull Wander's checked packing notes for your days." is taken out before the answer shows, as
+  "Let me check" was (pull, pull up, fetch, grab). Where: routes/chat.ts. SPEC §25.2.
+- **Days in Scout's money answers** on a families' trip are "today" or "Thu, Dec 31", never 2026-12-31, for a payment
+  kept, the no-one-that-day note, the payments named when asked how things stand, and each listed payment. Before, Scout
+  once said "on today, Thu, Dec 31". A change to a new amount or money that isn't dollars is said with its dollars
+  now. Where: services/scoutFamilyMoney.ts. SPEC §24.10.
+- **"Who is on this trip?" on a families' trip.** Before, Scout named only the people who had joined Wander and said
+  Wander didn't hold the full list. Now it names each family and the people in it, from the list Budget shares by,
+  then who has joined Wander so far. It gives no arrival or departure from that list. Where:
+  services/scoutFamilyMoney.ts (the plan block's Money line gains a line). SPEC §24.10.
+- **The day page before the trip**: the trip's first day, opened early (the Today tab lands there), says when the trip
+  starts, as Home does, then "This is its first day." ("The trip starts in 21 days. This is its first day.") Where:
+  pages/DayPage.tsx.
+- Japan's Budget now refuses a money other than yen or dollars sent straight to the server ("This trip's Budget keeps
+  yen and US dollars."); the screens never sent one, and it was once kept as yen unseen. Home's Budget line, after a
+  trip switch, shows the new trip's saved copy at once and ignores a late answer about the old trip.
+- Data (additive): table trip_people; columns family, paid_by_name, usd_cents, rate_date and for_people on
+  trip_expenses. SPEC §20.1, §20.2, §22.6, §23 and §9.9 updated.
+
 ## 2026-11-22 (Sunday night, at home) — Convert: a currency calculator at the left end of the bar
 
 Ken asked for "an interesting small place to hide a currency calculator that looks at the country you're in and

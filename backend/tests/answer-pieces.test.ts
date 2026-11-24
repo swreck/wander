@@ -40,6 +40,12 @@ describe("joining Scout's answer pieces", () => {
     expect(withoutNarration("Let me look that up: the Raku Museum closes Mondays.")).toBe("the Raku Museum closes Mondays.");
     expect(withoutNarration("The Guide doesn't say. I'll search for that. It opens at 10:00 AM.")).toBe("The Guide doesn't say. It opens at 10:00 AM.");
   });
+
+  it("drops 'I'll pull…' said before a tool's answer (the Nov 24 packing exam), and keeps a sentence that only holds the word", () => {
+    expect(withoutNarration("I'll pull Wander's checked packing notes for your days.\n\nNo forecast reaches your days yet.")).toBe("No forecast reaches your days yet.");
+    expect(withoutNarration("Let me pull up the plan. You land at 9:45 PM.")).toBe("You land at 9:45 PM.");
+    expect(withoutNarration("The door says pull. Sliding doors open by themselves.")).toBe("The door says pull. Sliding doors open by themselves.");
+  });
 });
 
 describe("tool markup written out as words (Sep 30 exam, H19)", () => {

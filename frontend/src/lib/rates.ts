@@ -165,6 +165,14 @@ export function money(amount: number, currency: Currency): string {
     : `${sign}${MONEY_SIGNS[currency]}${digits}`;
 }
 
+/** The number a person typed into an amount box; NaN when it isn't one. Dong, riel and yen have no cents, and a menu in
+ *  Vietnam prints "125.000": there a dot before each group of three digits groups thousands. In dollars a dot is the cents. */
+export function typedAmount(text: string, currency: Currency): number {
+  const t = text.replace(/[,\s$¥₫៛đ]/g, "");
+  if (!t) return NaN;
+  return Number(currency !== "USD" && /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : t);
+}
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 /** "Nov 22" from "2026-11-22", or null when the day can't be read (never a made-up day) */
 function dayWords(asOf: string | null): string | null {
@@ -174,12 +182,17 @@ function dayWords(asOf: string | null): string | null {
   return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? `${MONTHS[month - 1]} ${day}` : null;
 }
 
+/** A rate as the rate line prints it: "25,716 ₫ to the dollar", "¥158.70 to the dollar" */
+export function perDollarWords(currency: Foreign, rate: number): string {
+  const printed = printedRate(currency, rate);
+  // (yen with its hundredths when it has any: "¥158.70", and a round "¥150")
+  return `${currency === "JPY" && !Number.isInteger(printed) ? `¥${dollarsFmt.format(printed)}` : money(printed, currency)} to the dollar`;
+}
+
 /** A currency's rate in words: its day when real, "a recent rate" when the day isn't known, and plainly rough when it's a round figure */
 export function rateWords(currency: Foreign, rates: Rates): string {
   const r = rates[currency];
-  const printed = printedRate(currency, r.rate);
-  // (yen with its hundredths when it has any: "¥158.70", and a round "¥150")
-  const perDollar = `${currency === "JPY" && !Number.isInteger(printed) ? `¥${dollarsFmt.format(printed)}` : money(printed, currency)} to the dollar`;
+  const perDollar = perDollarWords(currency, r.rate);
   if (r.approx) return `About ${perDollar}. A rough figure: Wander couldn't get a recent rate.`;
   const day = dayWords(r.asOf);
   return day ? `${perDollar}, the rate on ${day}` : `${perDollar}, a recent rate`;

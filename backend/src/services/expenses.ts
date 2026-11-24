@@ -141,7 +141,7 @@ export async function checkNotShared(tripId: string, id: string, who: { traveler
 
 /** Every open screen on the trip looks again (the bar's "who pays next", Home's total) — quietly, no notice; the person
  *  who kept it too, since Scout may have kept it for them */
-function tellScreens(tripId: string, name: string) {
+export function tellScreens(tripId: string, name: string) {
   try { broadcastChange(tripId, { userCode: "", displayName: name, description: "updated the budget", quiet: true }); } catch { /* no one listening */ }
 }
 
@@ -151,18 +151,20 @@ const notSharedSelf = (party: string, parties: string[]) => {
   const other = parties.find((p) => p !== party);
   return `${party} paying for ${party} alone isn't shared at all, so the Budget has nothing to keep. Was it shared, half each${other ? `, or for ${other} alone (they'd owe it all back)` : ""}?`;
 };
-const moneyWords = (amount: number, currency: string) => (currency === "USD" ? `$${Number(amount.toFixed(2))}` : yenWords(amount));
+// (dong and riel are kept only on a families' trip, services/familyExpenses.ts; a yen or dollar amount reads as it always did)
+export const moneyWords = (amount: number, currency: string) => (currency === "USD" ? `$${Number(amount.toFixed(2))}`
+  : currency === "VND" ? `${Math.round(amount).toLocaleString("en-US")} ₫` : currency === "KHR" ? `${Math.round(amount).toLocaleString("en-US")} ៛` : yenWords(amount));
 /** One line of Budget's History (Ken, Oct 16: "date, person, action only") */
-async function logChange(tripId: string, expenseId: string, by: { travelerId?: string | null; displayName: string }, action: string) {
+export async function logChange(tripId: string, expenseId: string, by: { travelerId?: string | null; displayName: string }, action: string) {
   try { await prisma.tripExpenseLog.create({ data: { tripId, expenseId, byId: by.travelerId || null, byName: by.displayName, action } }); }
   catch (e: any) { console.warn("[budget] history not kept:", e.message); }
 }
 /** Who may change or take away a payment: who kept it, or Ken (the trip's first member) — his rule for Maybes */
-async function mayChange(tripId: string, row: { addedById: string | null; addedByName: string }, who: { travelerId?: string | null; displayName: string }) {
+export async function mayChange(tripId: string, row: { addedById: string | null; addedByName: string }, who: { travelerId?: string | null; displayName: string }) {
   return mayChangeAs(await organizerOf(tripId), row, who);
 }
-const organizerOf = async (tripId: string) => (await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true } }))?.travelerId || null;
-const mayChangeAs = (org: string | null, row: { addedById: string | null; addedByName: string }, who: { travelerId?: string | null; displayName: string }) =>
+export const organizerOf = async (tripId: string) => (await prisma.tripMember.findFirst({ where: { tripId }, orderBy: { joinedAt: "asc" }, select: { travelerId: true } }))?.travelerId || null;
+export const mayChangeAs = (org: string | null, row: { addedById: string | null; addedByName: string }, who: { travelerId?: string | null; displayName: string }) =>
   (!!who.travelerId && (row.addedById === who.travelerId || org === who.travelerId)) || (!!who.displayName && first(row.addedByName) === first(who.displayName));
 
 /** A payment: who paid (a couple, or anyone in it), how much, in what, for what, on which day */
@@ -297,8 +299,8 @@ export async function changeExpense(tripId: string, id: string, who: { travelerI
 export async function expenseHistory(tripId: string, who?: { travelerId?: string | null; displayName: string }): Promise<{ at: string; by: string; action: string; putBack?: string; putBackBy?: string }[]> {
   const logs = await prisma.tripExpenseLog.findMany({ where: { tripId }, orderBy: { at: "desc" }, take: 300 });
   const rows = await prisma.tripExpense.findMany({ where: { tripId } });
-  // (the add itself — "added ¥…" or "added $…" — not "added its receipt")
-  const added = new Set(logs.filter((l) => /^added [¥$]/.test(l.action)).map((l) => l.expenseId));
+  // (the add itself — "added ¥…", "added $…" or, for dong and riel, "added 500,000 ₫…" — not "added its receipt")
+  const added = new Set(logs.filter((l) => /^added [¥$\d]/.test(l.action)).map((l) => l.expenseId));
   const removed = new Set(logs.filter((l) => l.action.startsWith("removed ")).map((l) => l.expenseId));
   const before = [
     ...rows.filter((r) => !added.has(r.id)).map((r) => ({ at: r.createdAt, by: r.addedByName, action: `added ${moneyWords(r.amount, r.currency)} (${r.party})`, id: r.id })),

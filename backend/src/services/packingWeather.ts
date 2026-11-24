@@ -90,7 +90,7 @@ export interface StayWeather {
 }
 
 /** The stays this person sleeps in from today on (her Guide's "who" — empty means everyone), with their forecast */
-export async function packingWeather(tripId: string, person: string, today: string): Promise<StayWeather[]> {
+export async function packingWeather(tripId: string, person: string, today: string, own?: { from: string; to: string }): Promise<StayWeather[]> {
   const me = person.toLowerCase();
   // (from their own first night: her Guide's first check-in for them — Julie & Andy's Imperial, Oct 14; the nights
   // before are the others', in Japan while they're at home)
@@ -105,8 +105,11 @@ export async function packingWeather(tripId: string, person: string, today: stri
   const last = addDays(today, 14);   // (Open-Meteo's 16 days, counted from the UTC date: a day behind Japan's before 9 AM)
   // (all stays at once — one after another took over 4 s cold, and Scout's offer to Julie fell back to its plain words)
   const out = (await Promise.all(stays.map(async (s): Promise<StayWeather | null> => {
-    const from = ymd(s.checkInDate!) > start ? ymd(s.checkInDate!) : start;
-    const to = addDays(ymd(s.checkOutDate!), -1) < last ? addDays(ymd(s.checkOutDate!), -1) : last;
+    let from = ymd(s.checkInDate!) > start ? ymd(s.checkInDate!) : start;
+    let to = addDays(ymd(s.checkOutDate!), -1) < last ? addDays(ymd(s.checkOutDate!), -1) : last;
+    // (a trip where people come and go: never a night outside the asker's own days abroad, though the hotel is
+    // "Everyone"'s. Her Guide's trip passes none, and is read as it always was.)
+    if (own) { if (own.from > from) from = own.from; if (own.to < to) to = own.to; }
     if (from > to) return null;
     const point = await stayPoint(s, pins);
     if (!point) return null;

@@ -234,3 +234,34 @@ describe("the words a person reads", () => {
     expect(R.rateWords("JPY", ROUND)).toBe("About ¥150 to the dollar. A rough figure: Wander couldn't get a recent rate.");
   });
 });
+
+// (Nov 23 2026, written before the function: a menu in Vietnam prints "125.000", and typed as it reads it was 125 dong)
+describe("an amount as a person types it", () => {
+  it("a plain number, with or without commas, spaces or its sign", () => {
+    expect(R.typedAmount("1250000", "VND")).toBe(1_250_000);
+    expect(R.typedAmount("1,250,000", "VND")).toBe(1_250_000);
+    expect(R.typedAmount(" 1 250 000 ₫", "VND")).toBe(1_250_000);
+    expect(R.typedAmount("$48.60", "USD")).toBe(48.6);
+    expect(R.typedAmount("¥7,300", "JPY")).toBe(7_300);
+    expect(R.typedAmount("20,000៛", "KHR")).toBe(20_000);
+  });
+  it("in dong, riel and yen, which have no cents, a dot before three digits groups thousands", () => {
+    expect(R.typedAmount("125.000", "VND")).toBe(125_000);
+    expect(R.typedAmount("1.250.000", "VND")).toBe(1_250_000);
+    expect(R.typedAmount("1.250.000đ", "VND")).toBe(1_250_000);
+    expect(R.typedAmount("20.000", "KHR")).toBe(20_000);
+    expect(R.typedAmount("16.000", "JPY")).toBe(16_000);
+  });
+  it("in dollars a dot is always the cents", () => {
+    expect(R.typedAmount("12.500", "USD")).toBe(12.5);
+    expect(R.typedAmount("1.250", "USD")).toBe(1.25);
+  });
+  it("a dot that can't be grouping stays a decimal point", () => {
+    expect(R.typedAmount("125.5", "VND")).toBe(125.5);
+    expect(R.typedAmount("1250.000", "VND")).toBe(1250);
+  });
+  it("nothing typed, or not a number: not a number, never a guess", () => {
+    for (const t of ["", "  ", "abc", "1.250.00", "12..5", "."]) expect(Number.isNaN(R.typedAmount(t, "VND")), t).toBe(true);
+    expect(Number.isNaN(R.typedAmount("1.250.000", "USD"))).toBe(true);
+  });
+});

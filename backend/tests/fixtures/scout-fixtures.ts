@@ -12,8 +12,12 @@ const at0 = (s: string) => new Date(`${s}T00:00:00Z`);
 export const NAMES_OF = {
   japan: { a: "Pat Hashjp", b: "Sam Hashjp" }, plan: { a: "Pat Hashplan", b: "Sam Hashplan" },
   "sample-japan": { a: "Pat Hashsjp", b: "Sam Hashsjp" }, "sample-plan": { a: "Pat Hashsplan", b: "Sam Hashsplan" },
+  // (the weather and packing files build both trips too, and run beside scout-plan-trip and scout-japan-unchanged)
+  "weather-japan": { a: "Pat Hashwjp", b: "Sam Hashwjp" }, "weather-plan": { a: "Pat Hashwplan", b: "Sam Hashwplan" },
+  "packing-japan": { a: "Pat Hashpjp", b: "Sam Hashpjp" }, "packing-plan": { a: "Pat Hashpplan", b: "Sam Hashpplan" },
 };
-export const TRIP_NAMES = { japan: "Hashtest Japan Trip", plan: "Hashtest Plan Trip", "sample-japan": "Hashtest Sample Japan Trip", "sample-plan": "Hashtest Sample Plan Trip" };
+export const TRIP_NAMES = { japan: "Hashtest Japan Trip", plan: "Hashtest Plan Trip", "sample-japan": "Hashtest Sample Japan Trip", "sample-plan": "Hashtest Sample Plan Trip",
+  "weather-japan": "Hashtest Weather Japan Trip", "weather-plan": "Hashtest Weather Plan Trip", "packing-japan": "Hashtest Packing Japan Trip", "packing-plan": "Hashtest Packing Plan Trip" };
 type Which = keyof typeof NAMES_OF;
 
 export async function cleanFixtures(prisma: PrismaClient, which: Which) {
@@ -71,7 +75,7 @@ async function build(prisma: PrismaClient, o: {
 const CA = "America/Los_Angeles", JP = "Asia/Tokyo", VN = "Asia/Ho_Chi_Minh", KH = "Asia/Phnom_Penh", KR = "Asia/Seoul", TH = "Asia/Bangkok";
 
 /** A trip read from a spreadsheet, in Japan: Julie-and-Andy-style travelers flying from California on a day before they land */
-export function makeJapan(prisma: PrismaClient, which: "japan" | "sample-japan" = "japan") {
+export function makeJapan(prisma: PrismaClient, which: "japan" | "sample-japan" | "weather-japan" | "packing-japan" = "japan") {
   return build(prisma, {
     which, name: TRIP_NAMES[which], start: "2026-10-13", end: "2026-10-15", zone: JP, kind: "xlsx", sourceName: "A Guide Copy.xlsx",
     cities: [{ key: "tokyo", name: "Tokyo", country: "Japan", zone: null }, { key: "kyoto", name: "Kyoto", country: "Japan", zone: null }],
@@ -96,7 +100,7 @@ export function makeJapan(prisma: PrismaClient, which: "japan" | "sample-japan" 
 }
 
 /** A trip built from a plan: Vietnam, Cambodia, then Japan, flown from California through Seoul and Bangkok */
-export function makePlan(prisma: PrismaClient, which: "plan" | "sample-plan" = "plan") {
+export function makePlan(prisma: PrismaClient, which: "plan" | "sample-plan" | "weather-plan" | "packing-plan" = "plan") {
   return build(prisma, {
     which, name: TRIP_NAMES[which], start: "2026-12-14", end: "2027-01-02", zone: VN, kind: "wander_plan", sourceName: "The plan",
     cities: [
