@@ -12,6 +12,7 @@ import { isPlanTrip } from "../lib/planTrip";
 import { loadLedger, savedLedger, addPayment, removePayment, changePayment, putBackPayment, loadHistory, keepKeyFor, letGoOfKeep, readReceiptPhoto, attachReceiptPhoto, receiptImage, sharedOf, yen, sayItsRight, MONEY_CHANGED, MONEY_KEPT_LATE, type Ledger, type LogLine, type ReceiptPhoto } from "../lib/expenses";
 import PayNextBadge, { partyColor, SHARED_BLUE, CHECK_RED } from "../components/PayNextBadge";
 import useBackToClose from "../hooks/useBackToClose";
+import FamilyBudget, { BudgetNotSetUp } from "./FamilyBudget";
 
 const shortDay = (d: string | null) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : "");
 const first = (s: string) => s.trim().split(/\s+/)[0].toLowerCase();
@@ -66,6 +67,10 @@ export default function MoneyPage() {
     setKept({ said });
   };
   const openAdd = () => { keyboard.current?.focus(); setSheet({ id: null }); };
+
+  // A trip whose payers are families has its own Budget (FamilyBudget.tsx); a plan whose families aren't in yet says so
+  if (l?.family && tripId) return <FamilyBudget tripId={tripId} family={l.family} />;
+  if (l?.notSetUp) return <BudgetNotSetUp />;
 
   const back = () => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/"));
   return (
@@ -210,12 +215,12 @@ function notSharedWords(x: Item): string {
 }
 
 /** A card near the top of the screen — above where an iPhone's keyboard comes up — over the page; back or a tap outside
- *  closes it */
-function Card({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
+ *  closes it. `mark`: a data- attribute the card carries, for the family page's checks (Japan's cards have none) */
+export function Card({ label, onClose, mark, children }: { label: string; onClose: () => void; mark?: string; children: React.ReactNode }) {
   useBackToClose(true, () => onClose());
   return (
     <div className="fixed inset-0 z-[70] bg-black/30 flex items-start justify-center px-3" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }} onClick={onClose}>
-      <section role="dialog" aria-label={label} className="w-full max-w-md bg-[#faf8f5] rounded-2xl p-4 flex flex-col gap-3 max-h-[80dvh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <section role="dialog" aria-label={label} {...(mark ? { [mark]: "" } : {})} className="w-full max-w-md bg-[#faf8f5] rounded-2xl p-4 flex flex-col gap-3 max-h-[80dvh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
         {children}
       </section>
     </div>
@@ -478,7 +483,7 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
 /** Budget's Log: when, who, what they did — newest first (Ken, Oct 16: "date, person, action only"; "an admin log, only
  *  for me or moments of audit") */
 /** A payment's receipt photo, over everything, to read it (Done or a tap closes it) */
-function ReceiptView({ tripId, id, onClose }: { tripId: string; id: string; onClose: () => void }) {
+export function ReceiptView({ tripId, id, onClose }: { tripId: string; id: string; onClose: () => void }) {
   const [src, setSrc] = useState<string | null | "none">(null);
   useEffect(() => {
     let live = true, made: string | null = null;
@@ -499,7 +504,9 @@ function ReceiptView({ tripId, id, onClose }: { tripId: string; id: string; onCl
   );
 }
 
-function HistorySheet({ tripId, onClose }: { tripId: string; onClose: () => void }) {
+/** `zone`: the clock the Log's times are read on (Japan's, unless a trip says its own); `zoneWords`, when given, says
+ *  which clock that is at the top ("Times are Vietnam time."); Japan's page gives none */
+export function HistorySheet({ tripId, onClose, zone = "Asia/Tokyo", zoneWords }: { tripId: string; onClose: () => void; zone?: string; zoneWords?: string }) {
   const [lines, setLines] = useState<LogLine[] | null | "none">(null);
   const [tick, setTick] = useState(0);
   const [err, setErr] = useState<string | null>(null);
@@ -510,13 +517,14 @@ function HistorySheet({ tripId, onClose }: { tripId: string; onClose: () => void
     const e = await putBackPayment(tripId, id);
     if (e) setErr(e); else setTick((n) => n + 1);
   };
-  const when = (iso: string) => new Date(iso).toLocaleString("en-US", { timeZone: "Asia/Tokyo", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const when = (iso: string) => new Date(iso).toLocaleString("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
     <Card label="Budget log" onClose={onClose}>
       <div className="flex items-center justify-between">
         <h2 className="text-[17px] font-medium text-[#3a3128]">Log</h2>
         <button type="button" onClick={onClose} className="min-h-[44px] min-w-[44px] text-[15px] text-[#514636] underline underline-offset-2">Done</button>
       </div>
+      {zoneWords && <p data-log-clock className="text-xs text-[#6b5d4a] -mt-2">Times are {zoneWords}.</p>}
       {err && <p className="text-sm text-[#8a3a1a]" role="alert">{err}</p>}
       {lines === null ? <p className="text-sm text-[#6b5d4a]">Getting it…</p>
         : lines === "none" ? <p className="text-sm text-[#6b5d4a]">That didn't load. Try again when you have signal.</p>

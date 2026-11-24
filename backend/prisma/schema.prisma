@@ -132,6 +132,7 @@ model Trip {
   tellKen           TellKen[]
   wanderIdeas       WanderIdea[]
   expenses          TripExpense[]
+  people            TripPerson[]
   expenseLog        TripExpenseLog[]
   photos            TripPhoto[]
   alerts            TripAlert[]
@@ -1311,11 +1312,39 @@ model TripExpense {
   // the phone's one-time tag for this Keep: the same tag again (a reply lost on a weak signal, then Keep again) is the
   // same payment, never a second one (Ken, Oct 16: "There will not be errors")
   clientKey   String?   @unique @map("client_key")
+  // A trip whose payers are families (TripPerson rows; Ken, Nov 16 2026: "dollars as the common unit, the three
+  // families as payers, shared costs split per person"). All null on a couples' trip (Japan, October 2026).
+  family      Int?                                     // the family that paid (TripPerson.family); `party` keeps its label as said
+  paidByName  String?   @map("paid_by_name")           // the person who paid, when said
+  usdCents    Int?      @map("usd_cents")              // its dollars in whole cents, at the rate it was kept with
+  rateDate    String?   @map("rate_date")              // the day that rate is from, YYYY-MM-DD (null: dollars, or a rough rate)
+  forPeople   Json?     @map("for_people")             // names it was for; null: everyone abroad on its day
+  // (on a families' trip `rate` is the currency's units per dollar, and `yen` its yen at that day's rate)
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@index([tripId, createdAt])
   @@map("trip_expenses")
+}
+
+/// The people on a trip whose payers are families: who is in which family, and each person's own days abroad. Written
+/// by the plan's roster import (trip-data, never typed in the app). A person here need not have joined Wander yet.
+model TripPerson {
+  id          String   @id @default(cuid())
+  tripId      String   @map("trip_id")
+  name        String                                   // first name, as the accounts are named
+  family      Int                                      // 1, 2, 3: the order families are listed in
+  familyLabel String   @map("family_label")            // what the family is called on screen
+  abroadFrom  String   @map("abroad_from")             // YYYY-MM-DD, both ends included
+  abroadTo    String   @map("abroad_to")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, name])
+  @@index([tripId, family, sortOrder])
+  @@map("trip_people")
 }
 
 /// A payment's receipt, photographed (Ken, Oct 16 2026: "We need to be able to take pictures of receipts and add them and

@@ -22,6 +22,7 @@ import type { ContextLine } from "../services/guide/sources.js";
 import { keepScoutWarm } from "../services/scoutWarm.js";
 import { currentTripIdFor, chooseTrip } from "../services/currentTrip.js";
 import { isPlanTrip, planSystemPrompt, planTools } from "../services/planTrip.js";
+import { familySystemPrompt, familyTools } from "../services/scoutFamilyMoney.js";
 import { zoneWords as zoneWordsOf } from "../services/zoneWords.js";
 import { wrongWeekdays, withoutWrongWeekdays } from "../services/weekdays.js";
 
@@ -1690,7 +1691,7 @@ export function joinAnswerPieces(pieces: string[]): string {
 export function withoutNarration(text: string): string {
   return text
     // "I'll check — …" / "Let me check the hours." / "Let me look that up:" at the start of a sentence
-    .replace(/(^|(?<=[.!?]\s)|(?<=\n))(?:I'll|I will|Let me|Let's) (?:check|look(?: that)? up|look|see|search)\b[^.!?\n—:]*(?:[.!?:]\s*|\s*—\s*[^.!?\n]*[.!?]\s*)/gi, "$1")
+    .replace(/(^|(?<=[.!?]\s)|(?<=\n))(?:I'll|I will|Let me|Let's) (?:check|look(?: that)? up|look|see|search|pull(?: up)?|fetch|grab)\b[^.!?\n—:]*(?:[.!?:]\s*|\s*—\s*[^.!?\n]*[.!?]\s*)/gi, "$1")
     // A false start corrected mid-sentence: "Tomorrow morning — Fri… rather, the Imperial is…" (Sep 30, 1 in 4)
     .replace(/\b[A-Za-z]{1,9}(?:…|\.\.\.)\s*(?:rather|sorry|I mean|make that|no)\b,?\s*/g, "")
     .replace(/[ \t]{2,}/g, " ")
@@ -4113,6 +4114,10 @@ export async function executeTool(
       if (!me || !(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: input.tripId, travelerId: me } } }))) {
         return { result: { error: "That trip isn't one of yours." } };
       }
+      // A trip whose payers are families (Ken, Nov 16: "the three families as payers, shared costs split per person"):
+      // its own sums and words. A trip with no families goes on below, as it always has.
+      const families = await (await import("../services/familyExpenses.js")).rosterOf(input.tripId);
+      if (families) return (await import("../services/scoutFamilyMoney.js")).scoutFamilyMoney(toolName, input, { travelerId: me, displayName: user.displayName }, families);
       const { addExpense, removeExpense, restoreExpense, changeExpense, ledger, yenWords } = await import("../services/expenses.js");
       const said = (l: Awaited<ReturnType<typeof ledger>>) => ({
         whoPaysNext: l.next, totals: Object.fromEntries(Object.entries(l.totals).map(([k, v]) => [k, yenWords(v)])),
@@ -4188,6 +4193,14 @@ export async function executeTool(
           say: "One or two short lines: kept for which couple and how much (and its yen for dollars), then who pays next, and — when they aren't even — what that couple would pay the other to be even now, said plainly (\"…would pay Ken & Larisa ¥534 to be even\"). Not the totals (Ken: people don't want to be reminded how much they've paid). No lists." },
         actionDescription: `Kept: ${r.party} paid ${input.currency === "USD" ? `$${input.amount}` : yenWords(Number(input.amount))}`,
       };
+    }
+    // "How much is 500,000 dong?" (offered on a families' trip only). The trip says which country they're in today,
+    // and only a trip of their own does.
+    case "convert_money": {
+      const me = (user as any).travelerId as string | undefined;
+      const mine = !!me && typeof input.tripId === "string" && !!input.tripId
+        && !!(await prisma.tripMember.findUnique({ where: { tripId_travelerId: { tripId: input.tripId, travelerId: me } } }));
+      return (await import("../services/scoutFamilyMoney.js")).convertMoney({ tripId: mine ? input.tripId : null, amount: input.amount, from: input.from, to: input.to });
     }
     case "tell_ken": {
       const me = (user as any).travelerId as string | undefined;
@@ -4281,6 +4294,13 @@ export async function executeTool(
       const town = typeof input.town === "string" ? input.town.trim() : "";
       const hf = Number(input.hours?.from), ht = Number(input.hours?.to);
       const hrs = Number.isInteger(hf) && Number.isInteger(ht) && hf >= 0 && ht <= 23 && hf <= ht ? { from: hf, to: ht } : null;
+      const hourlyHowOf = (clockWords: string) => `hourly: each place's own hours (${clockWords}), from the same forecast as the lines. Give the hours they asked about as they are (a few may be said as a short run, \"61°F at 1 PM, 55°F by 6 PM\"), the place's height when it tells them which spot it is, and otherForecasts in a few words. Never move one place's hours to another. A height is that place's own, above sea level: never a difference between places (comparing two, give each one's height).`;
+      // (a named town on a trip built from a plan: any town in the trip's countries, on the town's own clock, and said
+      // as not placed when Wander can't place it — services/planWeather. Japan's own trip goes on as it always has.)
+      if (onPlan && town) {
+        const { planTownWeather } = await import("../services/planWeather.js");
+        return { result: await planTownWeather({ tripId: tripIdForWeather, town, asked, hours: hrs, tripToday: today, now, hourlyHow: hourlyHowOf }) };
+      }
       // (plain characters for an answer: the day page's no-break spaces and hyphens keep its lines from wrapping badly)
       const plain = (t: string) => t.replace(/\u00a0/g, " ").replace(/\u2060/g, "").replace(/\u2011/g, "-");
       const dayName = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
@@ -4323,6 +4343,18 @@ export async function executeTool(
           ...(hourly?.length ? { hourly } : {}),
           ...(airports.length ? { airports, airportsNote: "the airport's own forecast, for their flight that day (not on the day page): use it for landing or leaving" } : {}) };
       }));
+      // (a trip built from a plan, a day too far ahead for a forecast: what that week was like there in the last five
+      // years, said as past years and never as a forecast — services/planWeather, typicalWeather. Never for Japan's trip.)
+      let typicalHow: string | undefined, typicalOnce: string | undefined;
+      if (onPlan) {
+        const { typicalForDays, FAR, TYPICAL_HOW, TYPICAL_ONCE } = await import("../services/planWeather.js");
+        const farDays = (days as any[]).filter((d) => d.none === FAR);
+        if (farDays.length) {
+          const past = await typicalForDays(tripIdForWeather, user.displayName || "", farDays.map((d) => d.date)).catch(() => null);
+          for (const d of farDays) if (past?.byDate.has(d.date)) d.typical = past.byDate.get(d.date);
+          if (past?.byDate.size) { typicalHow = TYPICAL_HOW; if (past.once) typicalOnce = TYPICAL_ONCE; }
+        }
+      }
       // The storm, warning and train watch for their places (services/stormWatch — Ken's decision 2): the same lines the
       // day page shows, for the days asked about; and whether it found anything at all through 5 days ahead
       let watch: Record<string, unknown> | null = null;
@@ -4378,7 +4410,8 @@ export async function executeTool(
           days,
           ...(watch ? { stormWatch: watch } : {}),
           source: town ? `Wander's forecast for ${town} (Open-Meteo), the same source as the day pages` : "Wander's forecast (Open-Meteo): exactly what the day page and Home show for them",
-          ...(hrs ? { hourlyHow: `hourly: each place's own hours (${clockWords}), from the same forecast as the lines. Give the hours they asked about as they are (a few may be said as a short run, \"61°F at 1 PM, 55°F by 6 PM\"), the place's height when it tells them which spot it is, and otherForecasts in a few words. Never move one place's hours to another. A height is that place's own, above sea level: never a difference between places (comparing two, give each one's height).` } : {}),
+          ...(hrs ? { hourlyHow: hourlyHowOf(clockWords) } : {}),
+          ...(typicalHow ? { typicalHow, ...(typicalOnce ? { typicalOnce } : {}) } : {}),
           say: town
             ? "Give the numbers exactly as the lines have them, and say in a short clause that it's not where their plan has them that day, unless their day passes through it (say where it does, from DAY BY DAY)."
             : `Give the numbers, hours and places exactly as these lines have them: you may say them more naturally, but never change, round, average or merge a number, an hour or a place. Two lines for a day: say both, the first one first (where the day takes them, then where they sleep). An early outlook is said as one. Rain hours are ${clockWords === "Japan time" ? "Japan time" : "on each day's own clock"} and already leave out hours that have passed. Each line's hours and temperatures are for that line's place, all day: never tie them to being somewhere else (\"that rain window overlaps your landing at Narita\" is wrong: the hotel is 60 km from the airport), and never call the day's range tonight's. No ranges of your own (\"high 40s\"). Don't add the reading time unless they ask how current it is.`,
@@ -4388,15 +4421,19 @@ export async function executeTool(
     }
 
     case "packing_tips": {
+      // (a trip built from a plan has its own checked notes, country by country for the asker's own days, and its own
+      // weather words: services/planPacking.ts. Its today is the date on the clock of the day the people are living.)
+      if (await isPlanTrip(String(input.tripId || ""))) {
+        const { planPacking } = await import("../services/planPacking.js");
+        const { tripToday } = await import("../services/dayCountry.js");
+        return { result: await planPacking(String(input.tripId || ""), user.displayName || "", await tripToday(String(input.tripId || "")), { notesOnly: input.notesOnly === true }) };
+      }
       // (with the live forecast where this person sleeps, stay by stay — Ken, Oct 12: "Adjust your packing tips for this.
       // Don't say obvious things. Be helpful." — services/packingWeather.ts)
       let weather: unknown = null;
       try {
         const { packingWeather } = await import("../services/packingWeather.js");
-        // (Japan's date for a Guide trip; a plan trip's is the date on the clock of the day the people are living)
-        const today = (await isPlanTrip(String(input.tripId || "")))
-          ? await (await import("../services/dayCountry.js")).tripToday(String(input.tripId || ""))
-          : new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);   // (Japan's date)
+        const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);   // (Japan's date)
         const stays = await packingWeather(String(input.tripId || ""), user.displayName || "", today);
         if (stays.length) weather = {
           asOf: `the live forecast (Open-Meteo), read ${today}`,
@@ -4405,8 +4442,6 @@ export async function executeTool(
           how: "From this, at most three items, each ONE sentence: what the forecast shows for their own nights or days (with the dates as given here, weekday and all), tied to what Backroads' itinerary or her Guide has them doing that day, and what to pack for it. Worth an item, and only these: the coldest stop against where they start, in ONE item (give both ranges, never a difference you work out); the days rain shows when they'll be outside (biking, a hike); one very wet stretch. Never an item that only says a stop is mild or warm, or tells them to bring ordinary clothes for it ('light clothes', 'a short-sleeve layer'): that's obvious, and Ken (Oct 12): \"Don't just do the obvious. That's worse than nothing.\" Fewer weather items is better than an obvious one. Certainty goes day by day: a rain day may be called likely, with its chance, only when it's marked 'forecast' AND its models 'agree'; when its models 'disagree' (Europe's, Japan's and the US forecasts don't all show rain), it only 'may' rain, and say the forecasts disagree, with no chance given as if settled; one marked 'early outlook' is more than a week away and only 'may' rain. Say once that the numbers are for the hotel itself when 'at' says so. Backroads' own notes already tell them to bring rain gear, warm layers and gloves: never mention any of those, even in passing, and nothing as obvious as 'check the forecast'. One item may be, on its own and about nothing else: no need to pack an umbrella, since convenience stores sell them for under ¥1,000. Temperatures in °F as given. Backroads' days by their date (\"Mon, Oct 19\"), never its numbers (\"Day 2\"). Nothing of your own about the hotels (what they have or lend) or about what dries overnight.",
         };
       } catch (e: any) { console.warn("[packing] weather unavailable:", e?.message); }
-      // (a plan trip: the tool's own sentence says "the plan", never "her Guide")
-      if (weather && typeof (weather as any).how === "string" && (await isPlanTrip(String(input.tripId || "")))) (weather as any).how = (weather as any).how.replace("her Guide", "the plan");
       return { result: weather ? { ...PACKING, weather } : PACKING };
     }
 
@@ -5118,6 +5153,11 @@ export async function executeTool(
     }
 
     case "get_travel_advisories": {
+      // (a trip built from a plan is never sent this tool: this list's sources were never opened — services/planTrip.ts
+      // ADVISORY_TOOL. Called anyway, it says so and gives none of the list.)
+      if (await isPlanTrip(String(input.tripId || ""))) {
+        return { result: { noNote: "Wander has no checked note on it. Its checked notes for this trip come from packing_tips (notesOnly: true)." } };
+      }
       // Derive countries from trip cities if not provided
       let countries = input.countries as string[] | undefined;
       if (!countries || countries.length === 0) {
@@ -5590,7 +5630,9 @@ router.post("/", async (req: AuthRequest, res) => {
     // (a trip built from a plan gets this prompt with one block and one rule changed — services/planTrip.ts; every other trip
     // gets it untouched, and scout-japan-unchanged.test.ts holds a hash of it)
     const planTripNow = tripId ? await isPlanTrip(tripId) : false;
-    const scoutPromptBase = `You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
+    // (and a plan trip whose payers are families gets the families' money rule and tools — services/scoutFamilyMoney.ts)
+    const familyTripNow = planTripNow && tripId ? !!(await (await import("../services/familyExpenses.js")).rosterOf(tripId)) : false;
+    const scoutPromptBase =`You are Scout, the travel companion built into Wander. You're warm, knowledgeable, and practical — like a friend who's been everywhere and remembers everything.
 
 Wander is the family's window into Larisa's Guide — her trip spreadsheet, which is the plan. You know the Guide (the document at the start of the conversation), you know how Wander works (below), and you can look things up on the internet. You never change the plan. What time it is for the person asking, and what the Guide's deadlines and flights stand at right now, are in RIGHT NOW with their latest message.
 
@@ -5738,7 +5780,7 @@ RULES:
 63. Letting everyone know (Ken, Oct 18: "Alert on next login function from anyone using anything to scout like 'let everyone know' with 'got it' and 'remind me' as options. This is for logistics not general messaging."): "let everyone know…", "tell everyone…", "can you alert everyone when they log in…" → tell_everyone, and never say Wander can't reach them. Only the trip's logistics: a time, a place, a meeting point, a change, a booking, a correction everyone should see (that the guides' names may be misspelled is one). Chat, jokes, greetings or feelings: say in a line that it's for the trip's logistics, and that a shared note or a text reaches them. The words: theirs when they gave them, in their voice ("I" is the sender), short, with only what they asked you to add; never news of your own, and never a list of names or a wall of text — say what's there to ask you about (Ken, Oct 18: "I do not expect to send out a message with all the names, which seems annoying and a wall of text"). Always confirm first (Ken, Oct 18: "Confirm: 'got it. Here's what I'll send: ….'"): call tell_everyone without confirmed and reply as it says; send (confirmed: true, the same words) only after their yes. A message about a moment (a bus leaving, a meeting time) gets until: that moment, Japan time; it's gone from everyone's screen then, and after 3 days in any case. "Has everyone seen it?", "did Julie get it?", "take it back" → my_alerts.
 55. Use get_travel_advisories when someone asks about visas, vaccines, shots, health precautions, travel requirements, SIM cards, connectivity, currency, or "what do I need for this trip?". Also use it PROACTIVELY when a new country is added to the trip or when checking travel readiness — travelers need to know about visa requirements and recommended vaccinations well before departure. Present the information conversationally, not as a raw dump. Lead with action items (visa deadlines, vaccine timing) and follow with practical tips.
 48. You are Scout. Speak warmly but concisely. You know the whole trip and everyone in it. When a traveler (not a planner) asks to do something that affects many items at once — deleting 3+ activities, rearranging an entire day, shifting all dates — don't execute it directly. Instead, explain that you've organized the changes for the planner to review, and create an approval request.`;
-    const systemPrompt = planTripNow ? planSystemPrompt(scoutPromptBase) : scoutPromptBase;
+    const systemPrompt = familyTripNow ? familySystemPrompt(planSystemPrompt(scoutPromptBase)) : planTripNow ? planSystemPrompt(scoutPromptBase) : scoutPromptBase;
 
     // The conversation is what THIS phone shows. A chat from another phone, or from last night,
     // must never steer an answer here (it once made Scout say "no check-out today" on a moving day).
@@ -5842,7 +5884,7 @@ RULES:
     ].filter(Boolean).join("\n");
     const system: Anthropic.TextBlockParam[] = [{ type: "text", text: systemPrompt, cache_control: HOUR }];
     // (a plan trip is sent a copy of the tools with three descriptions that no longer say Japan's clock, yen or Japan's dates)
-    const toolsNow: Anthropic.ToolUnion[] = planTripNow ? planTools(offeredTools) : offeredTools;
+    const toolsNow: Anthropic.ToolUnion[] = familyTripNow ? familyTools(planTools(offeredTools)) : planTripNow ? planTools(offeredTools) : offeredTools;
     // The latest message: the right-now statuses, this question's details, then the question itself
     const latest: any[] = [
       ...(liveLines.length ? [asDocument(LIVE_TITLE, liveLines, false)] : []),

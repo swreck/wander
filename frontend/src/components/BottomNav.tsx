@@ -8,8 +8,8 @@ import { phoneReport } from "../lib/phoneReport";
 import { screenShift } from "../lib/screenShift";
 import PhraseCard from "./PhraseCard";
 import ConvertCard from "./ConvertCard";
-import { loadLedger, savedLedger, MONEY_CHANGED } from "../lib/expenses";
-import PayNextBadge from "./PayNextBadge";
+import { loadLedger, savedLedger, payNextOf, MONEY_CHANGED, type Ledger } from "../lib/expenses";
+import PayNextBadge, { familyColor } from "./PayNextBadge";
 import { api } from "../lib/api";
 import { savedGuideData } from "../lib/guideData";
 import { travelerToday } from "../lib/guideDisplay";
@@ -112,6 +112,18 @@ const tabs = [
   },
 ];
 
+/** Budget's coin on a trip whose payers are families, which counts in dollars: the same coin with "$" for "¥" */
+const DOLLAR_ICON = (
+  <svg data-dollar-coin width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" /><path d="M12 6.5v11M14.8 9.3c-.4-.9-1.5-1.5-2.8-1.5-1.6 0-2.8.8-2.8 2 0 2.9 5.6 1.5 5.6 4.4 0 1.2-1.2 2-2.8 2-1.4 0-2.5-.6-2.9-1.6" />
+  </svg>
+);
+// What Budget's tab shows, from one copy of the ledger: who pays next, and whether the trip counts in dollars (a trip whose
+// payers are families). Held together, so the ledger's answer redraws the tab even when no one pays next yet (Nov 24)
+type Bar = { next: { party: string; index: number } | null; dollars: boolean };
+const barOf = (l: Ledger | null): Bar => ({ next: payNextOf(l), dollars: !!l?.family });
+const sameBar = (a: Bar, b: Bar) => a.dollars === b.dollars && a.next?.party === b.next?.party && a.next?.index === b.next?.index;
+
 export default function BottomNav({ pendingChanges }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -122,7 +134,9 @@ export default function BottomNav({ pendingChanges }: Props) {
   // Who pays next, for Budget's icon: "AJ" in orange or "KL" in purple — "so it can be done in a glance or tapped to see
   // the total" (Ken, Oct 15). From the phone's copy first; again when money changes or Wander comes back to the front.
   const tripIdNow = () => { try { return localStorage.getItem("wander:last-trip-id"); } catch { return null; } };
-  const [payNext, setPayNext] = useState<string | null>(() => { const t = tripIdNow(); return t ? savedLedger(t)?.next || null : null; });
+  // (a couple, or on a trip whose payers are families, a family with its place among them, for its colour)
+  const [bar, setBar] = useState<Bar>(() => { const t = tripIdNow(); return barOf(t ? savedLedger(t) : null); });
+  const showBar = (b: Bar) => setBar((was) => (sameBar(was, b) ? was : b));
   // (the trip the badge is showing for)
   const payNextFor = useRef<string | null>(tripIdNow());
   useEffect(() => {
@@ -136,10 +150,10 @@ export default function BottomNav({ pendingChanges }: Props) {
       const asked = t;
       // Another trip than the badge shows for: the phone's copy of the new one at once, never the old trip's couple
       // while the answer is on its way
-      if (payNextFor.current !== asked) { payNextFor.current = asked; setPayNext(savedLedger(asked)?.next || null); }
+      if (payNextFor.current !== asked) { payNextFor.current = asked; showBar(barOf(savedLedger(asked))); }
       // (an answer about a trip that's no longer the open one changes nothing: on a weak signal Japan's came back after
       // December's, and December's bar said "KL" until Budget was opened; Nov 22 2026)
-      loadLedger(asked).then((l) => { if (live && l && payNextFor.current === asked && (tripIdNow() || asked) === asked) setPayNext(l.next || null); });
+      loadLedger(asked).then((l) => { if (live && l && payNextFor.current === asked && (tripIdNow() || asked) === asked) showBar(barOf(l)); });
     };
     get();
     const onShow = () => { if (document.visibilityState === "visible") get(); };
@@ -148,6 +162,9 @@ export default function BottomNav({ pendingChanges }: Props) {
     return () => { live = false; window.removeEventListener(MONEY_CHANGED, get); document.removeEventListener("visibilitychange", onShow); };
   // (and on each new screen: cheap, and it catches a sign-in that happened since)
   }, [location.pathname]);
+  // Budget counts in dollars on a trip whose payers are families: its coin says "$" (Japan's ledger has no families, so its
+  // "¥" never changes)
+  const payNext = bar.next, dollarTrip = bar.dollars;
   // Something new on Maybes from someone else since you last looked — a dot, never an alert
   const [maybesNew, setMaybesNew] = useState(false);
 
@@ -356,8 +373,8 @@ export default function BottomNav({ pendingChanges }: Props) {
                 ${isActive ? "text-[#514636]" : "text-[#7a6b55] hover:text-[#6b5d4a]"}`}
             >
               {tab.path === "/money" && payNext ? (
-                <span aria-label={`${payNext} pay next`} className="inline-flex"><PayNextBadge party={payNext} /></span>
-              ) : tab.icon}
+                <span aria-label={`${payNext.party} pay next`} className="inline-flex"><PayNextBadge party={payNext.party} color={payNext.index >= 0 ? familyColor(payNext.index) : undefined} /></span>
+              ) : tab.path === "/money" && dollarTrip ? DOLLAR_ICON : tab.icon}
               <span className="text-xs leading-tight font-medium">{tab.label}</span>
               {/* Badge dot for pending sync changes on Home */}
               {tab.path === "/" && pendingChanges && pendingChanges > 0 ? (

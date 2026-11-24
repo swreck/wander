@@ -13,10 +13,12 @@ export const partyColor = (party: string) => { const who = initialsOf(party); re
  *  whatever is appropriate to indicate default"); red-brown, never orange, so it isn't read as Andy & Julie's */
 export const SHARED_BLUE = "#2f6db0";
 export const CHECK_RED = "#a3361b";
+/** On a trip whose payers are families, each family's colour by its order: purple, orange, teal, then a quiet brown */
+export const familyColor = (index: number) => ["#6b46c1", "#e07020", "#1f7a6d"][index] ?? "#7a6b55";
 
-export default function PayNextBadge({ party, className = "" }: { party: string; className?: string }) {
+export default function PayNextBadge({ party, color: given, className = "" }: { party: string; color?: string; className?: string }) {
   const who = initialsOf(party);
-  const color = partyColor(party);
+  const color = given ?? partyColor(party);
   return (
     <span aria-hidden className={`inline-flex items-center justify-center h-[20px] min-w-[26px] px-1 rounded-full text-[10.5px] font-semibold tracking-[.04em] text-white align-middle ${className}`}
       style={{ background: color }}>{who}</span>

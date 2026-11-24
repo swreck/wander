@@ -2129,7 +2129,8 @@ helpful." From the live forecast at each of that person's hotels, from their own
 their dates and to what her Guide and Backroads have them doing, then a checked list of what Americans most often wish
 they'd brought to Japan, seven in all. Nothing Backroads already tells them, no umbrella to pack (convenience stores
 sell them), never "mild" or "bring ordinary clothes". Rain is "likely" only when all three models show it; otherwise
-"may", saying the forecasts disagree. Julie and Andy were offered this once in Scout before they flew (§7.5).
+"may", saying the forecasts disagree. Julie and Andy were offered this once in Scout before they flew (§7.5). A trip
+built from a plan has its own checked notes (§25.2).
 
 **The Safety tips note** (Home, for Larisa, Andy and Julie; Oct 13): Ken got an alert pointing him to Safety tips, the
 free warning app from Japan's Tourism Agency; he installed it, "and you're with him". "Here's how" shows three steps and
@@ -2341,7 +2342,8 @@ Another source (Oct 17; Ken: "Find another source for hourly… I want to be sur
 asked for one, or to check a weather app, site or screenshot against Wander, Scout searches online and gives both:
 Wander's first, then the other, named and said as found online. Differences are worked pair by pair from the numbers
 given, with what may explain them; it never calls either one wrong beyond what it can see, and never refuses to look.
-Unasked, Scout gives only Wander's forecast for Japan; weather outside Japan is searched online.
+Unasked, Scout gives only Wander's forecast for Japan; weather outside Japan is searched online. On a trip built from
+a plan, every country of the trip has Wander's forecast, and a town in any of them can be asked about (§25.1).
 
 ### 7.9 What Scout can do, and what's withdrawn
 
@@ -2354,7 +2356,8 @@ Scout's tools for Wander's own additions match the screens (§1.3 rule 11):
 - **Actions**: get_todos, add_todo, set_todo_done, remove_todo, set_deadline_done. Marking one of her to-dos done marks
   it in Wander, never in her list.
 - **Getting around and weather**: directions, offer_location, places_near_me, get_weather, packing_tips.
-- **Money**: add_expense, remove_expense, money_so_far (§9.9).
+- **Money**: add_expense, change_expense, remove_expense, put_back_expense, money_so_far (§9.9); on a trip of
+  families the same five in its own words, and convert_money (§24.10).
 - **Your photos**: keep_photo, for the day, just yours or shared (§3.8).
 - **To Ken**: tell_ken (§13), add_wander_idea (§12).
 - **Screens**: opening any screen Scout can describe.
@@ -2676,6 +2679,7 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
 - **Home** has the budget line under the Today card (§2.1).
 - **Scout**: add_expense, change_expense, remove_expense, money_so_far (prompt rule 61); Scout's map of the app knows
   Budget. Data: trip_expenses, trip_expense_logs.
+- **A trip whose payers are families** has its own Budget, counted in dollars (§24). Everything above is the couples'.
 
 ---
 
@@ -3085,7 +3089,8 @@ PostgreSQL; one Railway service, with Express serving the built front end. Chang
   and keep-warm.
 - **Her Guide**: snapshot .xlsx copies Ken provides, read on the server; pictures read by AI. Ken's rail sheet: the Google
   Sheets API, read-only.
-- **Weather**: Open-Meteo (forecast and several models); Japan's weather agency for the storm watch.
+- **Weather**: Open-Meteo (forecast and several models; for Scout on a plan trip, its place search and its archive of
+  past years too, §25); Japan's weather agency for the storm watch.
 - **Places and photos**: Google Maps on Home; Google Places for city photos, stop photos, opening hours and "near me";
   Google Maps links for every map link and direction (her Apple Maps guides stay Apple's). The travelers' own photos are
   stored by Wander.
@@ -3098,7 +3103,7 @@ PostgreSQL; one Railway service, with Express serving the built front end. Chang
 Her Guide is a layer Wander replaces with each good copy: snapshots, Guide items (each with its cells and time text), and
 Guide pictures. Everything people add lives apart from it and survives every re-read: plans for a day and picks, maybes
 and their marks and removals, notes on ideas, trip notes, papers, phrases and each person's order and removals, to-dos
-added in Wander and the done marks on hers (keyed to stable places in her list), Ideas for Wander, Tell Ken messages, payments for Who pays next,
+added in Wander and the done marks on hers (keyed to stable places in her list), Ideas for Wander, Tell Ken messages, payments for Who pays next (and a trip of families' list of people, §24.1),
 the travelers' own photos and their captions, push subscriptions, the conversation with Scout and each answer's sources, place photos, Wander's place notes, and other
 sources (Ken's rail sheet and its copies, Backroads' itinerary, her maps).
 
@@ -3238,8 +3243,9 @@ who-pays-next badge and Phrases stay with the trip on screen (components/BottomN
 
 ### 22.6 Not yet on a plan trip
 
-Money still speaks yen and dollars only: Scout keeps no amount said in another currency and asks instead; Budget's
-own words still say yen. Scout's weather and packing tips cover Japan only. Both are due before Dec 14.
+Budget for the families (§24) and Scout's weather and packing for every country of the trip (§25) came Nov 24 2026.
+Still not on a plan trip: past years' weather on the day screens (Scout has it), and a flood or cyclone watch outside
+Japan (Ken's to ask for).
 
 ---
 
@@ -3276,9 +3282,306 @@ hour or even the day".
   comes back in riel."; Japan, none.
 - It closes on Back, the chevron, a tap on the page, or a change of screen. Opened again, it shows the last amount;
   the first key starts a new one.
+- On a trip of families Scout does the same sum in words ("how much is 500,000 dong?"), and Budget's sheet shows
+  dollars as an amount is typed (§24).
 - It keeps nothing about a person and changes nothing in the trip. Each phone remembers the trip's cities, countries
   and dates so the button is there the moment Wander opens.
 - Where: components/ConvertCard.tsx, lib/convertPad.ts, lib/rates.ts; GET /api/rates (routes/rates.ts,
   services/rates.ts).
+
+---
+
+## 24. Budget for a Trip of Families
+
+Ken (Nov 16 2026): "dollars as the common unit, the three families as payers, shared costs split per person", "plus a
+currency pop-up on entering and viewing an expense, at recent rates." And: "inputs and views of a transaction later
+should have a pop up for currency using recent conversion rates (do not have to be perfect to the hour or even the
+day)." Ken (Oct 16): "people do not want to be reminded how much they've paid. They simply want to understand the next
+action, which is who pays next and what the difference is".
+
+December's trip is the first whose payers are families. A trip with a list of its people has this Budget. Japan,
+which has no list and wasn't built from a plan, keeps the couples' Budget (§9.9). Japan's Budget, its Home line, its
+bar badge and Scout's words for it are unchanged, to the yen.
+
+### 24.1 The families and their days
+
+- The trip's list of people gives each person's family and their own days abroad. It is written from the plan by a
+  private tool, never typed in the app. A person on it need not have joined Wander yet.
+- A family is named by its first two people in the plan's order ("Ken & Larisa"), so its badge has two initials.
+- Each family has a colour by its order: purple, orange, teal (any further family a quiet brown). Its badge, its name,
+  its who-paid button and its people's chips wear it.
+- "On the trip that day" means abroad that day by the person's own days, both ends included.
+- A plan trip whose families aren't in yet: Budget reads "Not set up yet" and "Budget opens once this trip's families
+  are in.", with no + Add entry. Home has no Budget line. Nothing can be kept from the page. Known gap (Nov 24): on
+  such a trip Scout still keeps a payment the earlier way, in yen or dollars (§22), and the page doesn't show it; once
+  the families are in it shows as "Not counted". December's families go in before this Budget is live, so no one meets
+  it there.
+
+### 24.2 The sums
+
+- **Dollars are the common unit.** A payment is kept as paid, in dong, riel, yen or US dollars, with its dollars to
+  the cent at the rate of the day it was kept. That rate is kept as printed (yen to the hundredth, dong and riel to the
+  whole unit), so its dollars can be checked by hand from the rate shown beside it. The rates are Convert's (§23).
+- **Shared per person.** A payment is shared among everyone on the trip that day, unless someone says who it was
+  for. A family's part is the amount × its people on the list ÷ the list's size, in whole cents; the cents left over go
+  one each to the largest remainders, so the parts always add up to the amount. With no list, who was on the trip that
+  day is worked out each time Budget is read, so a person's days corrected later count from then on.
+- Anyone on the trip can be the one who paid, the youngest included. It counts for their family.
+- **Who pays next** is the family furthest behind among the families with someone on the trip today. No one is named
+  when fewer than two families are on the trip today, or when they are within a dollar of each other. Every family
+  within a dollar of even is even.
+- **To be even** is the fewest payments that make every family even: the family furthest behind pays the family
+  furthest ahead, then again. Among three families that is at most two payments.
+- A payment for people who are all the paying family's own is never kept: "That's all Ken & Larisa's own, so there's
+  nothing to share. Who else was it for?"
+- A payment on a day nobody was on the trip, for nobody named, counts for the family that paid it alone until someone
+  says who it was for or changes its day.
+- A payment Wander can't place in a family (kept before the families were known) is shown and counted in no sum.
+- One payment can be up to about $100,000 in any of the four. Dong, riel and yen are kept whole; dollars to the cent.
+  An amount under a cent is refused.
+
+### 24.3 The page
+
+The same frame as Japan's: ‹ Back, the small "Budget", the heading, + Add entry, every entry, Log. What a family has
+paid so far is never shown.
+
+- **Nothing kept yet**, then "When someone pays for the group, add it here. Each cost is split per person among
+  everyone on the trip that day. Budget counts in US dollars." Under + Add entry: "Or tell Scout: “We paid 400,000
+  dong for lunch.”"
+- **A family pays next**: "Who pays next", the family's badge and name in large type, then one line for each family
+  that would pay: "To be even now, <family> would pay <family> $21.36." or "…would pay <family> $21.36 and <family>
+  $16.24."
+- **You're even** when every family is within a dollar.
+- **Otherwise**, "To be even" and the same lines without "To be even now,". Then one quiet line saying why no one is
+  named: "Wander names who pays next from <day>, when the families are traveling together." (the first day ahead on
+  which two families are on the trip; it shows under "Nothing kept yet" too), or "Only <family>'s family is on the trip
+  now, so no one pays next."
+- **A payment nobody was on the trip for** shows above the list in a red-brown box: "<what it was for, or 'A
+  payment'> · <amount>: no one was on the trip that day, so it counts for <family> alone. Tap to say who it was for."
+  The tap opens it, for someone who may change it.
+
+### 24.4 Every entry
+
+By its day, newest day first; on one day, the last kept first. Each row:
+- the family's badge and name in its colour, and what it was for when someone said. At the right, the amount as paid
+  ("2,500,000 ₫", "$60.00", "¥16,000", "40,000 ៛"), underlined in dots: a tap opens the money pop-up (§24.7);
+- its dollars when it wasn't paid in dollars, then who it was for: "everyone on the trip that day (7)" or "everyone on
+  the trip (10)" in blue, or "for <names>". In red-brown on a tinted row: "No one was on the trip that day." or "Not
+  counted: Wander can't tell which family paid.";
+- the day ("Sat, Dec 26"), "paid by <name>" when one person was named, and "kept by you" or by whom;
+- "Receipt" when it has one, for everyone to see.
+A row the reader may change has a "›" and opens on a tap. One they may not has none; a tap shows "<name> kept this one.
+Ask <name> if it needs changing.", and a second tap hides it.
+
+### 24.5 Adding or changing an entry
+
++ Add entry opens the sheet near the top of the screen, as Japan's does, with the cursor in the amount.
+- **Who paid**: the families side by side, each a button in its colour. The reader's own family is chosen at first
+  (none when they are in no family). A long name wraps onto a second line.
+- **The amount**, with a two-way switch: the day's money and dollars. Vietnam ₫ | $ with ₫ chosen; Cambodia $ | ៛ with
+  $ chosen; Japan ¥ | $ with ¥ chosen. Before the trip, $ and the first country's money, $ chosen. "Paid in riel or yen?" (the two moneys the switch leaves out, by name)
+  shows all four. Changing the day changes the switch to that day's pair, unless the person has tapped it. The box
+  reads "Amount in dong" (riel, yen, dollars), or "Amount" with all four showing.
+- Commas, spaces and the money's sign are ignored. In dong, riel and yen a dot before each group of three digits groups
+  thousands, so "125.000" from a menu in Vietnam is 125,000; in dollars a dot is the cents.
+- **As they type**: "2,500,000 ₫ is about $96.98", with the rate under it ("25,716 ₫ to the dollar, the rate on Nov
+  22"). Dollars on a day with a money of its own: "About 1,543,000 ₫". The rate shown is the rate used.
+- **What for (if you like).**
+- **Who it's for**: a blue "✓ Everyone on the trip that day (7)" and "Not everyone?". That opens the people, family
+  by family: the family's name turns its whole family on or off, then a chip for each person by first name.
+  "Everyone on the trip that day" closes it. Under it, with an amount: "Split 7 ways, about $13.85 each." or "For 3
+  people, about $32.33 each.", the dollars shown above divided by the people.
+- A new entry on a day no one is traveling yet (a deposit before the trip) reads "✓ Everyone on the trip (10)" and "No
+  one is traveling yet that day, so everyone on the trip shares it." It is kept for everyone on the trip. A kept
+  entry on such a day, for no one: "No one is on the trip that day. Change the day, or choose who it's for.", in
+  red-brown, with "Everyone on the trip (10)" and "Choose people".
+- When everyone on the trip that day is the paying family: "Only <family>'s family is on the trip that day, so this
+  changes nothing between families." It can still be kept: "everyone on the trip that day" is worked out each time Budget is read, so the entry starts to count if the families' days change. People chosen by hand who are all the paying family's own never can, so that one is refused (§24.2).
+- **The day**: "Day: Today, Sun Nov 22" (today on the trip's clock) or "Day: Sat, Dec 26", and "Change" for a date
+  field from the trip's first day to its last (or today, when today is outside them).
+- **Keep it** or **Save**, and **Cancel**: "Keeping…", "Still waiting…" and never kept twice, as Japan's (§9.9). A
+  message shows just above Keep it, and the sheet scrolls so both are in view: "Which family paid?", "How much was it?",
+  "Who is it for?", or the server's own words.
+- Then beside + Add entry: "✓ Kept: <family>, <amount>, <what>", "✓ Already kept: …", "✓ Changed: …", "Removed: …"
+  with "Put it back".
+- A change sends only what changed. A payment keeps the rate it was kept with while its money stays the same; a new
+  money takes the day's rate and needs its amount.
+
+### 24.6 Receipts
+
+- "📷 Photo of the receipt" on the sheet's heading line. Wander reads the grand total ("Tổng cộng" on a Vietnamese
+  bill, 合計 on a Japanese one; never a tax or service line, the cash handed over or the change), its money, what it
+  was for in a few plain words, and its day when that is one of the trip's. "1.250.000" on a bill is 1,250,000 dong. A
+  receipt in Cambodia that prints both totals gives the dollar one.
+- It says "From the receipt: 1,250,000 ₫, Dinner. Check it, then tap who paid." When the receipt doesn't say which
+  money: "It doesn't say which money, so check that too, then tap who paid." Who paid then waits for a tap. With no
+  total: "Wander couldn't find a total on it. If it's a receipt, type the amount; the photo is kept with it."
+- A card, slip or phone number never goes into what it was for.
+- On a kept entry: "See the receipt", and "📷 Add the receipt's photo" or "📷 Replace the receipt's photo".
+
+### 24.7 The money pop-up
+
+A tap on any amount in the list:
+- "<what it was for, or 'A payment'> · <family>", and the amount as paid, large;
+- "Budget counts it as $96.98 (25,716 ₫ to the dollar, the rate on Nov 22)", from that payment's own kept rate;
+- "That's about <the same dollars in the trip's other moneys> at a recent rate.", never back into the money it was paid
+  in;
+- "Each family's part: <family> $32.33 · <family> $64.65", leaving out a family with no part.
+A payment not counted shows its first two lines and "Not counted: Wander can't tell which family paid." Done, Back or
+a tap outside closes it.
+
+### 24.8 Home and the bar
+
+- **Home's line**: "Budget: nothing kept yet"; "Who pays next: <badge> <family> · $37.60 to be even", the whole of what
+  that family would pay, to one family or two; "Budget: you're even"; otherwise "To be even: <family> would pay
+  <family> $21.36", or "2 payments would make the families even". Nothing while Budget isn't set up.
+- **The bar's Budget tab**: the badge of the family that pays next, in its colour; with no one to pay next, the coin
+  shows "$" in place of "¥". It comes from the phone's saved copy and then from the answer the bar already asks for, so
+  "$" shows on the first screen.
+
+### 24.9 Changing, removing, the Log, who sees it
+
+- Everyone on the trip sees Budget. Only the person who kept a payment, or Ken (the trip's first member), changes it,
+  removes it or puts it back. Removed is hidden for everyone, never deleted; "Put it back" shows for 12 seconds, and in
+  the Log, as Japan's.
+- **Log**, at the foot: every add, change, removal and put back, as Japan's. Its times are on the clock of today's day
+  of the trip (before the trip, the trip's own), said at its top: "Times are Vietnam time." (Cambodia time, Japan time). A day reads as people say it:
+  "changed its day: Mon, Dec 28 → Tue, Dec 29". Dong and riel read "2,500,000 ₫" and "40,000 ៛".
+- Data: trip_people (the list of people), five new columns on trip_expenses (family, paid_by_name, usd_cents,
+  rate_date, for_people), trip_expense_logs.
+
+### 24.10 Scout
+
+What the page does, Scout does in words, with the same sums and the same refusals (CLAUDE.md §8): add_expense,
+change_expense, remove_expense, put_back_expense and money_so_far, each in a families' version, and convert_money. On
+such a trip Scout's rule 61, the plan block's Money line and its map of Budget are the families'; Japan's are
+untouched.
+- **Keeping one**: "we paid 2,500,000 dong for dinner", "Larisa paid 80,000 riel for the tuk-tuk". "We" or "I" is the
+  person talking; a person named counts for their family. The money is the one said. With none said: on a day in
+  Japan, yen; in Vietnam, "Was that in dong or US dollars? Nothing is kept yet."; in Cambodia, the same with riel;
+  before the trip, "Which money was it in? Wander keeps dong, riel, yen and US dollars. Nothing is kept yet." Any
+  other money keeps nothing.
+- **Who it was for**: everyone on the trip that day unless said; names, or a family's name for all of it ("just for
+  us" is the speaker's family). A name not on the trip: "Who is it for? <name> isn't on this trip." Shared is the
+  default; when it might be either, Scout asks in one line first.
+- **The answer**: in a line or two, kept for which family, its dollars when it wasn't in dollars ("about $17.44"), its
+  day, and who pays next. Never what a family has paid unless asked. When no one was on the trip that day, Scout
+  says so and asks which day it was.
+- **A day in Scout's words** is "today" or "Thu, Dec 31", never 2026-12-31. This holds for a payment just kept, the
+  note that no one was on the trip that day, the payments Scout names when asked how things stand, and each payment
+  it lists.
+- **"Who pays next?"**: who, and what would make the families even, in dollars. Asked how things stand, Scout names
+  any payment no one was on the trip for, so a mistake shows.
+- **Changing one**: the amount, its money, who paid, what it was for, who it was for, or its day. A new amount or a
+  new money that isn't dollars is said with its dollars now ("about $22.14").
+- **A receipt photo** sent with who paid: kept as a payment with its photo, as §9.9, reading the total and the money
+  as §24.6 does.
+- **convert_money**: "How much is 500,000 dong?", "what's $40 in riel?". Convert's own sum on the rates as printed
+  (§23), said as about, with the rate's day: a recent rate, not what a bank or a card gives. Dollars with no money
+  named go into the money of the country they are in today. It keeps nothing.
+- **"Who is on this trip?"**: Scout answers from the same list Budget shares by (money_so_far's families): each family
+  and the people in it, and how many in all, with nothing about money. Who has joined Wander is a shorter list, said
+  as that. The list gives no arrival, departure or flight: those come only from the plan's own lines.
+
+### 24.11 Where
+
+frontend/src/pages/FamilyBudget.tsx (the page, the sheet, the pop-up), pages/MoneyPage.tsx (chooses the page; its
+card, receipt view and Log are shared), components/WhoPaysNextLine.tsx, BottomNav.tsx, PayNextBadge.tsx, lib/expenses.ts,
+lib/rates.ts (`typedAmount`, `perDollarWords`). Server: services/familyLedger.ts (the arithmetic, in whole cents),
+familyExpenses.ts, familyReceipt.ts, scoutFamilyMoney.ts; routes/expenses.ts (a trip of families answers with
+`family`; a plan without its families, with `notSetUp`). The behaviour spec: trip-data/december-plan/family-budget-spec.md.
+
+---
+
+## 25. Scout's Weather and Packing on a Trip Built from a Plan
+
+Ken (Oct 13 2026): "Why hide rain if a legitimate forecast has it? If it is real, use it. If not, don't. Scout does
+not lie." Ken (Oct 12): "Adjust your packing tips for this. Don't say obvious things. Be helpful."
+
+Japan's October trip is answered exactly as before (§6.7, §7.8). This section is a plan trip's.
+
+### 25.1 Weather
+
+- **Every day, every country**: get_weather gives Wander's own forecast, the one the day pages show (§6), for each day
+  of the trip, on that day's own clock. Unasked, Scout gives no weather site's numbers in any country of the trip.
+  Asked for another source, it searches as §7.8 says, and in Japan names Japan's weather agency or tenki.jp.
+- **A town on the way**: one of the trip's own cities first; else Open-Meteo's place search, taken only when the town
+  is in one of the trip's countries, its name is the name asked (accents, case and spacing aside), and the map counts
+  people there or it is the seat of its province or district. A name ending in a sight's word ("Ha Long Bay") is tried
+  again without it. A town found by the search is named once with its country, so the person can tell it is the one
+  they meant. Its days and hours are on its own clock, said the way the trip says that country's clock ("Vietnam time").
+- **A town Wander can't place**: "No forecast for <town>: Wander couldn't place a town of that name in Vietnam,
+  Cambodia or Japan." Nothing is forecast for it. For a sight (a temple, a bay), Scout may ask again with the town
+  people stay in to see it, only when it is sure which town that is, and says the forecast is that town's. On Nov 23
+  the search found nothing sure for "Ninh Binh" or "Sapa", so both are said as not placed.
+- **A day too far ahead for a forecast** (16 days or more from today) says there's no forecast yet, then what that
+  week was like where the person sleeps that night, in the five years before the day's own year: "Past years, not a
+  forecast: in the same week of 2021–2025, Hoi An's highs were around 75°F (71 to 79) and its lows around 68°F (64 to
+  73). It rained on 32 of those 35 days, heavily on 13." The week is the day and three days either side. A rain day
+  has 0.04" or more, a heavy one 0.4" or more; a day with 0.4" of snow or more is a snow day and never also a rain
+  day. With fewer than three years or 15 days from the archive, nothing is said. Over a run of far days in one town it
+  is given once, for the week around the middle day; up to six towns a question. Scout never says it as a forecast, a
+  chance or what to expect, and never works a percentage from the counts.
+- Japan's storm watch runs only on the days in Japan (§22.2).
+
+### 25.2 Packing
+
+packing_tips on a plan trip gives Wander's checked notes, a section for each country of the asker's own days (from
+the trip's list of people), with their dates there. Someone not on the list gets every country. A note about one town
+comes only when their days have that town. Each note says what to bring, why, and who says so; its link only when
+asked. Each keeps its source's strength: "may be refused" is never "will be", and a habit residents report is never a
+rule. Every source was opened and read before its note was kept (trip-data/december-plan/packing-research.md).
+- **Vietnam**: a printed copy of the e-visa (Vietnam's tourism site); the doctor's prescription for medicines carried
+  in, with the embassy page's limits; for Hué, clothes that cover shoulders and knees at its royal tombs, temples,
+  shrines and pagodas (a news report, said as one).
+- **Cambodia**: the free e-Arrival card, filled in during the 7 days before arriving (Tourism of Cambodia's site); for
+  Angkor's temples, clothes that cover shoulders and knees (Angkor's own code of conduct); crisp, untorn, newer US
+  bills (residents' accounts, said as a habit).
+- **Japan**: Japan's medicines note, word for word from Japan's own list (§6.7); for Shiga Kogen, yen in cash before
+  going up, and their own gloves, goggles and warm hat (Shiga Kogen's own pages).
+- **An insect repellent** with 20% or more DEET, said once for Vietnam and Cambodia together (CDC). CDC lists dengue
+  for both. Malaria is said only as CDC's pages name it: a town they name is named, a town they don't is never called
+  safe, and the rest is "talk to your doctor or a travel clinic about malaria for your own days."
+- **What Wander has no note on** is said in a line: "The Cambodian visa: Wander has no checked note on it." Asked about
+  anything else the notes don't cover, Scout says Wander has no checked note on it, and searches online only if asked
+  again, said as found online.
+- **The weather comes first**, at most three items: the forecast at the stays of their own nights (never a night
+  outside their own days, though the hotel is everyone's), and past years for the days too far ahead (§25.1; Scout
+  waits at most 20 seconds for them). Never what Backroads' own notes already say: rain gear, wet-weather shoes, a
+  fleece and long pants for the north, light clothes, passport rules.
+- The answer ends: "Tell me how you like to travel (light, or with options; whether you'll do laundry) and I'll fit
+  this to you." Scout's rule asks for about 350 words, as pressure to stay short. Ten checked notes, each with what,
+  why and who says so, plus the weather and that line, take about 415 words at the least, so an answer up to about
+  480 words passes its exam.
+- Scout starts with the answer. An opener such as "I'll pull Wander's checked packing notes for your days." is taken
+  out before it is shown, as "Let me check" already was.
+
+### 25.3 Visas, entry papers and health
+
+On a plan trip, Scout's rule 55 is replaced whole. Japan's trip keeps its rule 55 and its tool.
+- **A question about a visa, an entry paper, vaccines, malaria or medicines** gets packing_tips with notesOnly: the
+  same notes and the same "no checked note" lines, with no weather and no closing line. Scout answers in a few lines
+  from the note or notes that cover the question, each with who says so.
+- **Malaria** is said only as CDC's note has it. A town CDC's lists don't name is said as not named. Whether to take
+  pills is for their doctor or a travel clinic.
+- **What no note covers** (whether a Cambodian visa is needed, what it costs, how to apply, which shots to get) gets
+  "Wander has no checked note on it", with no answer from Scout's own memory, and an offer to search. Scout searches
+  only when asked, and says what it finds as found online, with the page and the country's official site to confirm.
+- **The April list of advisories** (get_travel_advisories) is not offered on a plan trip, because its sources were
+  never opened: it once gave a price for the Cambodian visa. Called anyway, it returns only "Wander has no checked
+  note on it."
+
+### 25.4 What stays out, and why
+
+- A flood or cyclone watch for Vietnam or Cambodia: a new capability, Ken's to ask for.
+- Past years' weather on the day screens: Scout only, for now.
+- The Cambodian visa: its official e-visa site wouldn't open when the notes were checked, so there is no checked note.
+- Ho Chi Minh's Mausoleum's rules: the plan holds no visit there.
+- Checked and left out: malaria pills, plug adapters (no official source), cash for Shiga Kogen's lift passes (its
+  own page says cards are taken), shoes off at Vietnamese pagodas (no source), a headlamp for the Angkor sunrise,
+  Cambodia's medicine rules (no official page, and other pages disagree), $2 bills for Cambodia.
+- Where: services/planWeather.ts, typicalWeather.ts, townSearch.ts, planPacking.ts, packingWeather.ts (the asker's own
+  days), planTrip.ts (on a plan trip, rules 46f and 55 are replaced whole, five of Japan's weather sentences are swapped,
+  get_weather's and packing_tips' own words are the plan's, and the advisory tool is left out); routes/chat.ts.
 
 *End of Part II, written Oct 15, 2026. Keep it current.*

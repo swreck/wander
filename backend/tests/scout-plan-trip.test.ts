@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import request from "supertest";
 import { createHash } from "crypto";
+import { readFileSync } from "fs";
 import { PrismaClient } from "@prisma/client";
 import { cleanFixtures, makePlan, NAMES_OF } from "./fixtures/scout-fixtures.js";
 
@@ -38,6 +39,7 @@ const { app } = await import("../src/index.js");
 const { signToken } = await import("../src/middleware/auth.js");
 const { buildGuideContextParts } = await import("../src/services/guide/scoutContext.js");
 const { executeTool, scoutTools } = await import("../src/routes/chat.js");
+const { PLAN_PACKING_RULE, PLAN_ADVISORY_RULE } = await import("../src/services/planTrip.js");
 const prisma = new PrismaClient();
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -208,6 +210,14 @@ describe("S7 the plan trip's prompt", () => {
   const SWAPS: [string, string][] = [
     ["the amount as said, yen unless they said dollars, and what it was for", "the amount as said, the currency only if they said one (on a day in Japan, yen unless they said dollars), and what it was for"],
     ["gets until: that moment, Japan time; it's gone", "gets until: that moment on that day's own clock; it's gone"],
+    // (the weather, Nov 23 2026: the look-it-up rule and rule 46g — scout-plan-weather.test.ts W8 has the reasons)
+    ["how to get from A to B, the weather outside Japan (in Japan it's get_weather, rule 46g), what a station exit is", "how to get from A to B, what a station exit is"],
+    ["For a town in Japan that isn't where their plan has them that day, get_weather with town, and say in a short clause that their plan has them elsewhere.",
+      "For a town in any of the trip's countries that isn't where the plan has them that day, get_weather with town, and say in a short clause that the plan has them elsewhere. It takes a town's own name: for a sight (a temple, a bay, a park), give the town people stay in to see it, only if you are sure which town that is, and say that the forecast is that town's. When it can't place a town, say so; never give a forecast of your own for it."],
+    ["(the service they named first; else Japan's weather agency or tenki.jp)", "(the service they named first; else, for a town in Japan, Japan's weather agency or tenki.jp)"],
+    ["Unasked, never a weather site's numbers in Japan. Outside Japan, web_search, said as found online.", "Unasked, never a weather site's numbers, in any country of the trip: the weather is get_weather's."],
+    ["When get_weather has no forecast for a day (over, or more than 16 days ahead), say so; her pre-trip forecast in the Guide may be given then, said as hers, written before the trip.",
+      "When get_weather has no forecast for a day (over, or more than 16 days ahead), say so. A day too far ahead may come with \"typical\": what that week was like there in past years. Say first that there's no forecast yet, then give it as past years, with its years and its counts as they are (\"in the same week of 2021–2025 it rained on 32 of those 35 days\"); never as a forecast, a chance or what to expect, and never a percentage worked out from the counts."],
   ];
   const OLD_RULE = `- Every date in the Guide is a Japan date. A person still at home lives on another calendar: Julie's "Oct 13" in California (the day she flies) is not the Guide's Oct 13 (when she is still at home). Before saying where someone is on a Guide date, read that date's WHERE line in DAY BY DAY; never map a Japan date onto their own calendar day.`;
   const NEW_RULE = `- Every date is the date in that day's country, as DAY BY DAY names it. Before saying where someone is on a date, read that date's lines; never map a date onto another country's calendar.`;
@@ -232,17 +242,53 @@ describe("S7 the plan trip's prompt", () => {
     expect(system).not.toContain("Every date in the Guide is a Japan date");
     expect(system).not.toContain(OLD_RULE);
   });
-  it("F5 rules 61 and 63 say the currency only if said, and the day's own clock", () => {
+  it("F5 rules 61 and 63 say the currency only if said, and the day's own clock; the weather rules say every country of the trip", () => {
     for (const [was, now] of SWAPS) {
       expect(system).toContain(now);
       expect(system).not.toContain(was);
     }
   });
-  it("and nothing else differs from Japan's prompt: undo the four changes and it is Japan's, by its hash", () => {
+  // (Japan's packing rule, read from where it is written: one line of Scout's prompt, with no escapes in it)
+  const japanPacking = readFileSync(new URL("../src/routes/chat.ts", import.meta.url), "utf8").split("\n").find((l) => l.startsWith("46f. Packing:")) ?? "";
+  it("the packing rule is the plan trip's own, whole: none of Japan's list, Julie's offer or ryokans", () => {
+    expect(japanPacking).toContain("the packing list Scout offered Julie");
+    expect(system).toContain(`\n${PLAN_PACKING_RULE}\n`);
+    expect(system).not.toContain("the packing list Scout offered Julie");
+    expect(system).not.toContain("a big suitcase → their bullet-train days");
+  });
+  it("and nothing else differs from Japan's prompt: undo the changes and it is Japan's, by its hash", () => {
     const firstEnd = system.indexOf("\n\n");
     let undone = (system.slice(0, firstEnd + 2) + system.slice(firstEnd + 2 + BLOCK.length + 2)).replace(NEW_RULE, OLD_RULE);
     for (const [was, now] of SWAPS) undone = undone.replace(now, was);
+    undone = undone.replace(PLAN_PACKING_RULE, () => japanPacking).replace(PLAN_ADVISORY_RULE, () => japanAdvisory);
     expect(sha(undone)).toBe(JAPAN_SYSTEM_HASH);
+  });
+  // (Nov 24 2026: "Do I need a visa for Cambodia?" was answered with prices from the April advisory list, whose sources
+  // were never opened. A plan trip has neither Japan's rule 55 nor that tool.)
+  const japanAdvisory = readFileSync(new URL("../src/routes/chat.ts", import.meta.url), "utf8").split("\n").find((l) => l.startsWith("55. Use get_travel_advisories")) ?? "";
+  it("rule 55 is the plan trip's own, whole: the checked notes or 'no checked note', never the advisory list", () => {
+    expect(japanAdvisory).toContain("use it PROACTIVELY");
+    expect(system).toContain(`\n${PLAN_ADVISORY_RULE}\n`);
+    expect(system).not.toContain("get_travel_advisories");
+    expect(PLAN_ADVISORY_RULE).not.toContain("\n");
+    expect(PLAN_ADVISORY_RULE).toMatch(/packing_tips with notesOnly: true/);
+    expect(PLAN_ADVISORY_RULE).toMatch(/"Wander has no checked note on it"/);
+    expect(PLAN_ADVISORY_RULE).toMatch(/no answer from your own memory/);
+    expect(PLAN_ADVISORY_RULE).toMatch(/doctor or a travel clinic/);
+    expect(PLAN_ADVISORY_RULE).not.toMatch(/\$\d|\bGuide\b|\bsheet\b|\btab\b|\bcell\b/);
+  });
+  it("and the tools sent hold no get_travel_advisories, while Japan's list still does", () => {
+    const names = (sentToModel[0].tools as any[]).map((t) => t.name);
+    expect(names).not.toContain("get_travel_advisories");
+    expect(names).toContain("packing_tips");
+    expect((sentToModel[0].tools as any[]).find((t) => t.name === "packing_tips").input_schema.properties.notesOnly.type).toBe("boolean");
+    expect((scoutTools as any[]).map((t) => t.name)).toContain("get_travel_advisories");
+    expect((scoutTools as any[]).find((t) => t.name === "packing_tips").input_schema.properties.notesOnly).toBeUndefined();
+  });
+  it("called anyway on a plan trip, the advisory tool gives none of its list", async () => {
+    const r = (await executeTool("get_travel_advisories", { tripId: plan.tripId, countries: ["Cambodia"] }, ken)).result as any;
+    expect(Object.keys(r)).toEqual(["noNote"]);
+    expect(JSON.stringify(r)).not.toMatch(/\$\d|e-?Visa|advisories/i);
   });
 });
 

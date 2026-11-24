@@ -3,6 +3,55 @@
  * couple's total, what one owes the other to be even. This phone keeps its last copy, so it shows with no signal.
  */
 import { api } from "./api";
+import { money, type Currency, type Foreign, type Rates } from "./rates";
+
+/** One payment on a trip whose payers are families (the server's backend/src/services/familyExpenses.ts FamilyItem) */
+export type FamilyItem = {
+  id: string; party: string; paidByName: string | null;
+  amount: number; currency: string;
+  /** its dollars; null when it couldn't be counted (see notCounted) */
+  usd: number | null;
+  rate: number | null; rateDate: string | null;
+  what: string | null; dayDate: string | null;
+  /** everyone on the trip that day (no list was said) */
+  everyone: boolean;
+  /** who it was for in the end, by name */
+  forNames: string[];
+  /** nobody was on the trip that day and no one was named: it stays the payer's own until someone says who it was for */
+  forNobody: boolean;
+  /** each family's part of it, in dollars */
+  shares: Record<string, number>;
+  /** kept before this trip's families were known, so it is in no sum: shown, never dropped */
+  notCounted?: true;
+  addedByName: string; createdAt: string; mayRemove: boolean; hasReceipt: boolean;
+};
+
+/** Budget on a trip whose payers are families, in dollars to the cent (the server's FamilyLedger) */
+export type FamilyLedger = {
+  unit: "USD";
+  /** the families' labels, in their order */
+  parties: string[];
+  people: { name: string; party: string; abroadFrom: string; abroadTo: string }[];
+  /** the day on the trip's own clock, and that clock */
+  today: string;
+  zone: string;
+  /** the families with someone on the trip today */
+  here: string[];
+  paid: Record<string, number>;
+  share: Record<string, number>;
+  balance: Record<string, number>;
+  /** the family that pays next; null when fewer than two families are on the trip today, or all are even */
+  next: string | null;
+  settled: boolean;
+  /** the fewest payments that make every family even */
+  even: { from: string; to: string; usd: number }[];
+  /** the reader's own family */
+  mine: string | null;
+  items: FamilyItem[];
+  rates: Rates;
+  /** each day of the trip and the money of its country (null where Wander keeps no rate for it) */
+  days: { date: string; money: Foreign | null }[];
+};
 
 export type Ledger = {
   parties: string[];
@@ -13,20 +62,33 @@ export type Ledger = {
   next: string | null;
   owes: { from: string; to: string; yen: number } | null;
   items: { id: string; party: string; forParty?: string | null; amount: number; currency: string; yen: number; rate: number | null; what: string | null; dayDate: string | null; addedByName: string; createdAt: string; mayRemove: boolean; hasReceipt?: boolean; checkedBy?: string }[];
+  /** a trip whose payers are families: the couples' fields above are empty and this is its Budget */
+  family?: FamilyLedger;
+  /** a trip built from a plan whose families aren't in yet: nothing can be kept */
+  notSetUp?: boolean;
 };
+
+/** Who pays next, and that family's place among the trip's families (its colour); a couple's place is -1 */
+export function payNextOf(l: Ledger | null): { party: string; index: number } | null {
+  if (!l) return null;
+  if (l.family) return l.family.next ? { party: l.family.next, index: l.family.parties.indexOf(l.family.next) } : null;
+  return l.next ? { party: l.next, index: -1 } : null;
+}
 
 /** A receipt photo, shrunk on the phone, ready to read and to keep with its payment */
 export type ReceiptPhoto = { mediaType: "image/jpeg"; data: string; thumb: string };
 /** Ken, Oct 16: "take pictures of receipts and add them and simply note who paid for them and have the option of adding
  *  what the item is". The photo shrunk, then read by Wander: its total, yen or dollars, what it was for, the trip day —
- *  null fields when it couldn't be read (the person types the amount; the photo still goes with the payment). */
-export async function readReceiptPhoto(tripId: string, file: File): Promise<{ photo: ReceiptPhoto | null; read: { amount: number | null; currency: "JPY" | "USD"; what: string; date: string | null } | null; error?: string }> {
+ *  null fields when it couldn't be read (the person types the amount; the photo still goes with the payment).
+ *  On a families' trip the server's reader gives dong, riel, yen or dollars, or no money when the receipt doesn't say:
+ *  that screen asks for `readReceiptPhoto<Currency | null>`. */
+export async function readReceiptPhoto<C = "JPY" | "USD">(tripId: string, file: File): Promise<{ photo: ReceiptPhoto | null; read: { amount: number | null; currency: C; what: string; date: string | null } | null; error?: string }> {
   const { shrinkPicture } = await import("./papers");
   const p = await shrinkPicture(file);
   if (!p) return { photo: null, read: null, error: "That picture couldn't be read on this phone. A screenshot of it works." };
   const photo: ReceiptPhoto = { mediaType: "image/jpeg", data: p.data, thumb: p.thumb };
   try {
-    const r = await api.post<{ read: { amount: number | null; currency: "JPY" | "USD"; what: string; date: string | null } | null }>(`/expenses/trip/${tripId}/receipt`, { file: photo });
+    const r = await api.post<{ read: { amount: number | null; currency: C; what: string; date: string | null } | null }>(`/expenses/trip/${tripId}/receipt`, { file: photo });
     return { photo, read: r.read };
   } catch {
     return { photo, read: null };
@@ -101,7 +163,7 @@ export const keepKeyFor = (tripId: string, words: string) => allUnsure().find((u
 /** A Keep whose pop-up was closed, answered after all: the Budget page says so ("Kept after all: …") */
 export const MONEY_KEPT_LATE = "wander:money-kept-late";
 /** err: what to say when it didn't (or may not have) saved; again: Wander already had this very payment ("Already kept") */
-export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: "JPY" | "USD"; what?: string; forParty?: string | null; clientKey?: string; dayDate?: string; receipt?: ReceiptPhoto }, words = ""): Promise<{ err: string | null; again: boolean }> {
+export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: Currency; what?: string; forParty?: string | null; forPeople?: string[]; clientKey?: string; dayDate?: string; receipt?: ReceiptPhoto }, words = ""): Promise<{ err: string | null; again: boolean }> {
   let again = false;
   // (only the first send says "already kept": the phone's own second try finds the first one that got through, and
   // that's still her one Keep — "Already kept" after one tap read as if she'd typed it twice)
@@ -121,7 +183,9 @@ export async function addPayment(tripId: string, body: { paidBy: string; amount:
       unsureHere = [...unsureHere.filter((u) => u.key !== mark.key), kept];
       setUnsure([...unsure().filter((u) => u.key !== mark.key), kept]);
       // (and says so — it used to just appear in the list; fresh tester)
-      if (!again) window.dispatchEvent(new CustomEvent(MONEY_KEPT_LATE, { detail: `${body.paidBy}, ${body.currency === "USD" ? `$${body.amount}` : yen(body.amount)}${body.what ? `, ${body.what}` : ""}` }));
+      // (dong and riel as a person reads them: "2,500,000 ₫")
+      const said = body.currency === "USD" ? `$${body.amount}` : body.currency === "JPY" ? yen(body.amount) : money(body.amount, body.currency);
+      if (!again) window.dispatchEvent(new CustomEvent(MONEY_KEPT_LATE, { detail: `${body.paidBy}, ${said}${body.what ? `, ${body.what}` : ""}` }));
     } else forget();
     window.dispatchEvent(new Event(MONEY_CHANGED));
     return { err: null, again };
@@ -133,7 +197,7 @@ export async function addPayment(tripId: string, body: { paidBy: string; amount:
   }
 }
 /** Changed: only what's given (Ken, Oct 16: "go back and add reason, change total, or change payer") */
-export async function changePayment(tripId: string, id: string, body: { paidBy?: string; amount?: number; currency?: "JPY" | "USD"; what?: string; forParty?: string | null }): Promise<string | null> {
+export async function changePayment(tripId: string, id: string, body: { paidBy?: string; amount?: number; currency?: Currency; what?: string; forParty?: string | null; forPeople?: string[] | null; dayDate?: string }): Promise<string | null> {
   try { await api.patch(`/expenses/trip/${tripId}/${id}`, body); window.dispatchEvent(new Event(MONEY_CHANGED)); return null; }
   catch (e: any) { return e?.message && !/^Request failed|Failed to fetch|Load failed/i.test(e.message) ? e.message : "That didn't save — try again in a moment."; }
 }

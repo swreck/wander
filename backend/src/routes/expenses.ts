@@ -4,6 +4,17 @@ import { requireAuth, type AuthRequest } from "../middleware/auth.js";
 import { tripMemberParam } from "../middleware/role.js";
 import { ledger, addExpense, removeExpense, changeExpense, restoreExpense, expenseHistory, readReceipt, receiptOf, attachReceipt } from "../services/expenses.js";
 import { paperFile } from "../services/papers.js";
+import { rosterOf, familyLedger, addFamilyExpense, changeFamilyExpense } from "../services/familyExpenses.js";
+import { readFamilyReceipt } from "../services/familyReceipt.js";
+import { isPlanTrip } from "../services/planTrip.js";
+
+// A trip whose payers are families (it has a roster; services/familyExpenses.ts) answers with the couples' fields empty
+// and its own sum under `family`, so a phone still running an older Wander shows an empty Budget, never dollars as yen.
+const EMPTY = { parties: [] as string[], totals: {}, shared: 0, alone: 0, next: null, owes: null, items: [] as unknown[] };
+/** A trip built from a plan whose families aren't in yet: nothing can be kept */
+const NOT_SET_UP = "Budget isn't set up for this trip yet.";
+/** Yen or US dollars, or none said: what a couples' trip keeps. Anything else was once kept as yen, unseen. */
+const yenOrDollars = (c: unknown) => { const s = String(c ?? "").trim(); return !s || /^(jpy|yen|¥|円|usd|\$|dollars?)$/i.test(s); };
 
 /** A receipt photo as the phone sent it (a JPEG it shrank), or null — anything else isn't a receipt photo */
 // (and a real photo: a few bytes claiming to be a JPEG were kept as one — fresh tester)
@@ -15,13 +26,30 @@ router.param("tripId", tripMemberParam);
 
 // GET /trip/:tripId — the couples, their totals, who pays next, what's owed, every payment (newest first)
 router.get("/trip/:tripId", async (req: AuthRequest, res) => {
-  res.json(await ledger(req.params.tripId as string, { travelerId: req.user?.travelerId, displayName: req.user?.displayName }));
+  const tripId = req.params.tripId as string;
+  const who = { travelerId: req.user?.travelerId, displayName: req.user?.displayName };
+  const roster = await rosterOf(tripId);
+  if (roster) { res.json({ ...EMPTY, family: await familyLedger(tripId, roster, who) }); return; }
+  if (await isPlanTrip(tripId)) { res.json({ ...EMPTY, notSetUp: true }); return; }
+  res.json(await ledger(tripId, who));
 });
 
 // POST /trip/:tripId — { paidBy: "Andy & Julie" | "Andy", amount, currency: "JPY" | "USD", what?, dayDate?, forParty? }
 // (forParty: the couple it's wholly for; left out, it's shared half and half)
 router.post("/trip/:tripId", async (req: AuthRequest, res) => {
   const b = req.body || {};
+  const roster = await rosterOf(req.params.tripId as string);
+  if (roster) {
+    // { paidBy: a family or anyone in it, amount, currency: "VND" | "KHR" | "JPY" | "USD", what?, dayDate?, forPeople?: names (left out: everyone abroad that day) }
+    const f = await addFamilyExpense(roster, { tripId: req.params.tripId as string, paidBy: String(b.paidBy || ""), amount: Number(b.amount), currency: b.currency, what: b.what ?? null, dayDate: b.dayDate ?? null, forPeople: b.forPeople,
+      addedById: req.user?.travelerId ?? null, addedByName: req.user?.displayName || "Someone", clientKey: typeof b.clientKey === "string" ? b.clientKey : null,
+      receipt: b.receipt ? receiptFile(b.receipt) : null });
+    if ("error" in f) { res.status(400).json(f); return; }
+    res.json(f);
+    return;
+  }
+  if (await isPlanTrip(req.params.tripId as string)) { res.status(400).json({ error: NOT_SET_UP }); return; }
+  if (!yenOrDollars(b.currency)) { res.status(400).json({ error: "This trip's Budget keeps yen and US dollars." }); return; }
   const r = await addExpense({ tripId: req.params.tripId as string, paidBy: String(b.paidBy || ""), amount: Number(b.amount), currency: b.currency, what: b.what ?? null, dayDate: b.dayDate ?? null, forParty: b.forParty ?? null,
     addedById: req.user?.travelerId ?? null, addedByName: req.user?.displayName || "Someone", clientKey: typeof b.clientKey === "string" ? b.clientKey : null,
     receipt: b.receipt ? receiptFile(b.receipt) : null });
@@ -34,7 +62,9 @@ router.post("/trip/:tripId", async (req: AuthRequest, res) => {
 router.post("/trip/:tripId/receipt", async (req: AuthRequest, res) => {
   const file = receiptFile(req.body?.file);
   if (!file) { res.status(400).json({ error: "Only a photo of the receipt can be read." }); return; }
-  res.json({ read: await readReceipt(req.params.tripId as string, file) });
+  // (a families' trip runs through Vietnam, Cambodia and Japan: its reader gives dong, riel, yen or dollars. Japan's is as it was.)
+  const tripId = req.params.tripId as string;
+  res.json({ read: (await rosterOf(tripId)) ? await readFamilyReceipt(tripId, file) : await readReceipt(tripId, file) });
 });
 
 // POST /trip/:tripId/:id/receipt — { file } — a receipt's photo added to a payment already kept (who kept it, or Ken)
@@ -81,7 +111,13 @@ router.post("/trip/:tripId/:id/right", async (req: AuthRequest, res) => {
 // PATCH /trip/:tripId/:id — { amount?, currency?, paidBy?, what?, forParty? (null: shared) }, by who added it or the trip's first member
 router.patch("/trip/:tripId/:id", async (req: AuthRequest, res) => {
   const b = req.body || {};
-  const r = await changeExpense(req.params.tripId as string, req.params.id as string, { travelerId: req.user?.travelerId, displayName: req.user?.displayName || "Someone" },
+  const roster = await rosterOf(req.params.tripId as string);
+  if (!roster && b.currency !== undefined && !yenOrDollars(b.currency)) { res.status(400).json({ error: "This trip's Budget keeps yen and US dollars." }); return; }
+  const me = { travelerId: req.user?.travelerId, displayName: req.user?.displayName || "Someone" };
+  // (a families' trip: { amount?, currency?, paidBy?, what?, forPeople? (null: everyone abroad that day), dayDate? })
+  const r = roster
+    ? await changeFamilyExpense(roster, req.params.tripId as string, req.params.id as string, me, { amount: b.amount === undefined ? undefined : Number(b.amount), currency: b.currency, paidBy: b.paidBy, what: b.what, forPeople: b.forPeople, dayDate: b.dayDate })
+    : await changeExpense(req.params.tripId as string, req.params.id as string, me,
     { amount: b.amount === undefined ? undefined : Number(b.amount), currency: b.currency, paidBy: b.paidBy, what: b.what, forParty: b.forParty });
   if (r === "not-yours") { res.status(403).json({ error: "Only whoever added it, or Ken, can change it." }); return; }
   if (r === "gone") { res.status(404).json({ error: "That payment isn't there anymore." }); return; }
