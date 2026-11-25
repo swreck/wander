@@ -2522,7 +2522,7 @@ what you say about places (never anything personal)? The choice lives in Setting
 
 A receipt, a bill, a ticket or a booking can be kept in Wander instead of carried (Oct 12).
 - **Keeping one**: "Keep a paper" in Notes (take a photo, choose one, or a PDF), or send it to Scout and say "keep this".
-  Wander reads it and files it under the trip day it belongs to ("Kept '… bill' under Oct 9 · Karatsu"; a stay sits on its
+  Wander reads it and files it under the trip day it belongs to ("Saved “… bill” under Oct 9 · Karatsu"; a stay sits on its
   last night), with a one-line description and the total as printed, and the words printed on it (Oct 25). Never a card,
   confirmation or passport number, a guest's name or a room number in any of it. Nothing on it says a day (a welcome
   sheet, a menu, a temple ticket): it goes under the day it was kept (Oct 25). Two photos are filed as the papers they
@@ -2532,10 +2532,14 @@ A receipt, a bill, a ticket or a booking can be kept in Wander instead of carrie
   keeping", full screen: four circles to drag onto the paper's corners (crops it and straightens a sheet shot at an
   angle; the page keeps its true shape, worked out from where the corners fall; corners dragged crossed still give the
   upright page; a magnifier shows beside the finger), **Crisper** (white paper, darker print, measured on the page
-  itself), **Turn ↻** (a quarter turn), **Keep the photo as it is**, **Keep it**, **Cancel**. The circles start at the
-  photo's own corners, so Keep it untouched trims nothing. A PDF is kept as it is. A kept photo's viewer has **Edit** (the keeper's): the same, with **Save**, and
+  itself), **Turn ↻** (a quarter turn), **Keep the photo as it is**, **Save**, **Cancel**. The circles start at the
+  photo's own corners, so Save untouched trims nothing. A PDF is kept as it is. A kept photo's viewer has **Edit** (the keeper's): the same, with **Save**, and
   **Back to the original** once edited — the photo as first kept is always kept (trip_papers.original). After an edit
-  Wander reads its words again for Scout. Done on the phone; nothing is sent until Keep it or Save.
+  Wander reads its words again for Scout. Done on the phone; nothing is sent until Save. (The first Save said
+  "Keep it" until Nov 24 2026. Ken: "People seem to find the phrase 'keep it' weird, so just change it to save".) After
+  Save: "Saved “<title>” under <day> · <town>.", or "Saved. Wander couldn't read it, so it's under <day>."; when someone
+  else saved one like it that day, "<name> saved one like it on that day. Remove one if it's the same paper." With no
+  signal: "No signal right now. Save it again when there's signal. The paper stays on your phone meanwhile."
 - **Opening one** (Oct 25; it had opened the bare photo in its own window, a dead end in the Home Screen app): full
   screen inside Wander, from its row in Notes, from that day's page, from "See it or share it" right after keeping it, and
   from the card below. Pinch (toward the fingers) or double-tap to zoom, drag to look around, double-tap for the whole
@@ -2607,8 +2611,9 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   doesn't shared because it's probably an error. Ask if the intent is unclear." · "Make the payer color equal the color
   in the home page. And shared a blue color"): in the add pop-up, who paid is in the couple's Home color (KL purple, AJ
   orange); "✓ Shared, half each" is blue and already chosen; "Not shared? Only <the other couple>'s" is one deliberate
-  tap away and says what it means ("Not shared: Ken & Larisa will owe Julie & Andy ¥3,000, all of it."; Keep reads
-  "Keep it — not shared"). A couple paying for themselves alone is never kept (it's refused with a question); one kept
+  tap away and says what it means ("Not shared: Ken & Larisa will owe Julie & Andy ¥3,000, all of it."; Save reads
+  "Save — not shared"; it said "Keep it" until Nov 24 2026, when Ken wrote: "People seem to find the phrase 'keep it'
+  weird, so just change it to save"). A couple paying for themselves alone is never kept (it's refused with a question); one kept
   before shows flagged. Every row says "Shared, half each" in blue, or "Not shared: … Is that right?" in red-brown on a
   tinted row; at the top, under "To be even now", a red-brown box lists each payment that isn't shared, each opening it,
   each with **That's right** (Oct 24; Ken: "they're all correct… make sure there's a way to remove them"): checked by
@@ -2623,23 +2628,23 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
   Larisa alone and ¥1,980 for Julie & Andy alone."). Home's Budget line shows only who pays next and the difference.
   Scout too: who pays next and the difference; totals only when asked.
 - **Never counted twice, never dropped** (Oct 16 — Ken: "There will not be errors. There will not be omissions. Nothing
-  will be forgotten, and the math will be correct"). Each Keep carries a one-time tag: sent again (its reply lost on a
-  weak signal, "That didn't save", Keep again) it's the same payment. A payment counts for its couple by the people in
+  will be forgotten, and the math will be correct"). Each save carries a one-time tag: sent again (its reply lost on a
+  weak signal, "That didn't save", Save again) it's the same payment. A payment counts for its couple by the people in
   it, whatever order her Guide names them in ("Julie & Andy" or "Andy & Julie"); if a new copy of her Guide named fewer
   than two couples, the couples payments were kept for still count. Nothing about money waits on the phone. With no
   answer, the phone asks once more by itself; if that fails too it says "Wander didn't hear back, so this may or may not
-  have saved. Tap Keep it again when you have signal. It won't be kept twice." The phone holds the tag for those words
-  from Keep until Wander answers, through Cancel and through closing Wander, so the same payment typed again is still
-  one. A Keep that hangs says after six seconds "Still waiting for Wander to answer. You can keep waiting, or Cancel: if
-  it got through, it shows in the list, and typing it again won't keep it twice."; one that lands after Cancel holds its
+  have saved. Tap Save again when you have signal. It won't be saved twice." The phone holds the tag for those words
+  from Save until Wander answers, through Cancel and through closing Wander, so the same payment typed again is still
+  one. A save that hangs says after six seconds "Still waiting for Wander to answer. You can keep waiting, or Cancel: if
+  it got through, it shows in the list, and typing it again won't save it twice."; one that lands after Cancel holds its
   words for ten minutes. After that, the same words are a new payment (a second taxi).
 - **Put it back** (Oct 16 — Ken: "can I assume that means the data can be brought back into the live flow"): right after
   a removal, "✓ Removed: … · Put it back" beside + Add entry for 12 seconds; and on that removal's line in the Log, for
   the same people who may remove it. Put back, it counts exactly as before; the Log says "Put back ¥… (couple): what
-  it was for · who" (adds and removals name what it was for too, and so do "✓ Kept: …" and "Removed: …", which has no
-  tick). Someone who may not put a removed payment back sees who can: "Julie or Ken can put it back." A Keep closed before
-  Wander answered that lands after all says "✓ Kept after all: …"; the same payment typed again says "✓ Already kept: …"
-  (the phone's own retry after a lost reply still says "✓ Kept: …"). These lines stay 8 seconds; a removal's, with Put
+  it was for · who" (adds and removals name what it was for too, and so do "✓ Saved: …" and "Removed: …", which has no
+  tick). Someone who may not put a removed payment back sees who can: "Julie or Ken can put it back." A save closed before
+  Wander answered that lands after all says "✓ Saved after all: …"; the same payment typed again says "✓ Already saved: …"
+  (the phone's own retry after a lost reply still says "✓ Saved: …"). These lines stay 8 seconds; a removal's, with Put
   it back, 12. The Log's "Changed …" lines say what the payment was for too.
 - **Receipts** (Oct 16 — Ken: "take pictures of receipts and add them and simply note who paid for them and have the
   option of adding what the item is"). "📷 Photo of the receipt" on the add pop-up's heading line: Wander reads the
@@ -3240,6 +3245,9 @@ person, and the bar (Convert, Phrases, who pays next) and Scout follow it in the
 switch from the trip menu (Nov 22 2026; pages/TripOverview.tsx). An answer about a trip that is no longer the open one
 changes nothing on screen: on a weak signal the phone's questions about its old trip can come back last, and the bar's
 who-pays-next badge and Phrases stay with the trip on screen (components/BottomNav.tsx, components/PhraseCard.tsx).
+On a slow connection the Phrases letter changes with the rest of the bar, from the countries the phone remembers for
+the trip chosen, before the server answers (Nov 24 2026). A trip this phone has never opened has nothing remembered:
+its first change waits for the server under "Finding your trip…".
 
 ### 22.6 Not yet on a plan trip
 
@@ -3254,20 +3262,38 @@ Japan (Ken's to ask for).
 Ken (Nov 22 2026): "Find an interesting small place to hide a currency calculator that looks at the country you're in
 and automatically gives you a relatively up-to-date calculator going either direction. I'm thinking of something that is
 subtle, similar to the way I used to think of the phrases icon." And of its rates: "do not have to be perfect to the
-hour or even the day".
+hour or even the day". Ken (Nov 24 2026): "Conversion should easily go both directions and make sure it is still the
+most innovative design for doing conversion and expenses should use the same input panel to breed familiarity."
 
 - **Where**: the left end of the bottom bar, the mirror of Phrases at the right: the sign of the day's money (₫, ៛, ¥)
-  with the word "Convert" under it. One tap opens it. It shows on a trip with a country whose money Wander converts
+  with the word "Convert" under it. The sign is drawn in the app's own typeface; in the iPhone's serif face the ₫ was
+  small and faint beside Phrases' letter. One tap opens it. It shows on a trip with a country whose money Wander converts
   (Vietnam's dong, Cambodia's riel, Japan's yen) until the trip's last day is over. A finished trip's bar has no
   Convert, so Japan's October bar is as it was.
 - **Which money**: the country of the day's city, by the trip's own dates (§22.2), never the phone's location. Before
   the trip, the first country. A trip with more than one country has a chip for each, in the order visited.
 - **Two amounts**, the country's money and US dollars. Tap either to type in it; the other follows as you type, in the
-  same dark ink: it is the answer.
+  same dark ink: it is the answer. Both directions show at a glance. The row being typed in has a blinking caret after
+  its amount (on a phone set to reduce motion it shows without blinking). The other row's label line says "tap to type dollars"
+  (or dong, riel, yen). A round swap button sits at the rows' right, in a 44 pt rail of its own, centred on the gap
+  between the rows; a tap does what a tap on the other row does, and a screen reader names it "Type in dollars" (or
+  dong, riel, yen). With an amount typed, a tap on the other row keeps both amounts until the first key. With nothing
+  typed, the row tapped becomes the row typed in, and the row not typed in reads zero ("$0.00" when it is the dollars row).
 - **Its own number pad**, so the phone's keyboard never opens. Beside 0 sits the key that money needs: 000 for dong
-  and riel, 00 for yen, a decimal point for dollars. ⌫ takes back a digit; ✕ on the amount clears it.
+  and riel, 00 for yen, a decimal point for dollars. ⌫ takes back a digit; ✕ on the amount clears it. After a
+  banknote's tap, ⌫ takes one digit off the note; after a tap on the other row, where the amount is only the converted
+  one, ⌫ empties it.
 - **Banknotes**: the country's notes, each with its dollars under it. A tap puts that note in. Vietnam's six, Japan's
   three, and Cambodia's seven from 500 to 50,000 riel (the 500 and 2,000 are what change comes back in).
+  A dong note's button wears the note's own colour, as the State Bank of Vietnam describes each note: the 10,000
+  greenish yellow, the 20,000 dark blue, the 50,000 red, the 100,000 dark green, the 200,000 brownish red, the 500,000
+  blue with purple. The fill is as deep as its two lines of dark text allow (at least 4.5 to 1), the border the
+  note's colour at full strength, two lines thick. A held note darkens and dips. A person holding a note finds its button by colour,
+  then by its number. Ken (Nov 24 2026): "color
+  where appropriate to match the currency of the country". The 20,000 and the 500,000 are both blue, as the notes are,
+  and the tip under the pad says to count the zeros. Riel and yen buttons are plain: riel notes of one value are in
+  use in several issues of different colours, and the Bank of Japan's pages name no colour for a note. A colour goes
+  in only once its source has been read (lib/convertPad.ts, NOTE_TINT).
 - **Split between**: − and + set how many people (1 to 20); with an amount typed, "Each: …" gives one share in both
   moneys. Each share is the amount on its own row divided by the people (whole dong, riel and yen; dollars to the
   cent), whichever row was typed in, so the line always agrees with the two amounts above it.
@@ -3282,11 +3308,12 @@ hour or even the day".
   comes back in riel."; Japan, none.
 - It closes on Back, the chevron, a tap on the page, or a change of screen. Opened again, it shows the last amount;
   the first key starts a new one.
-- On a trip of families Scout does the same sum in words ("how much is 500,000 dong?"), and Budget's sheet shows
-  dollars as an amount is typed (§24).
+- On a trip of families Scout does the same sum in words ("how much is 500,000 dong?"), and Budget's sheet types its
+  amount on these same rows and keys (§24.5).
 - It keeps nothing about a person and changes nothing in the trip. Each phone remembers the trip's cities, countries
   and dates so the button is there the moment Wander opens.
-- Where: components/ConvertCard.tsx, lib/convertPad.ts, lib/rates.ts; GET /api/rates (routes/rates.ts,
+- Where: components/ConvertCard.tsx, components/MoneyPad.tsx (the rows and keys, shared with Budget),
+  lib/convertPad.ts, lib/rates.ts; GET /api/rates (routes/rates.ts,
   services/rates.ts).
 
 ---
@@ -3375,35 +3402,53 @@ Ask <name> if it needs changing.", and a second tap hides it.
 
 ### 24.5 Adding or changing an entry
 
-+ Add entry opens the sheet near the top of the screen, as Japan's does, with the cursor in the amount.
++ Add entry opens the sheet near the top of the screen, as Japan's does, with the keys up, ready to type.
 - **Who paid**: the families side by side, each a button in its colour. The reader's own family is chosen at first
   (none when they are in no family). A long name wraps onto a second line.
-- **The amount**, with a two-way switch: the day's money and dollars. Vietnam ₫ | $ with ₫ chosen; Cambodia $ | ៛ with
-  $ chosen; Japan ¥ | $ with ¥ chosen. Before the trip, $ and the first country's money, $ chosen. "Paid in riel or yen?" (the two moneys the switch leaves out, by name)
-  shows all four. Changing the day changes the switch to that day's pair, unless the person has tapped it. The box
-  reads "Amount in dong" (riel, yen, dollars), or "Amount" with all four showing.
-- Commas, spaces and the money's sign are ignored. In dong, riel and yen a dot before each group of three digits groups
-  thousands, so "125.000" from a menu in Vietnam is 125,000; in dollars a dot is the cents.
-- **As they type**: "2,500,000 ₫ is about $96.98", with the rate under it ("25,716 ₫ to the dollar, the rate on Nov
-  22"). Dollars on a day with a money of its own: "About 1,543,000 ₫". The rate shown is the rate used.
+- **The amount** is typed on Convert's own two rows and keys (§23), never the iPhone's keyboard, so a person who has
+  used Convert already knows how. Ken (Nov 24 2026): "expenses should use the same input panel to breed familiarity."
+  The first row is a money that isn't dollars (a kept entry's own, else the day's; before the trip, the trip's first);
+  the second is US dollars. A new entry types in the day's money first: dong in Vietnam, yen in Japan, and dollars in
+  Cambodia and before the trip.
+- **The money paid is the row the amount was typed in.** That row reads "Paid in Vietnamese dong" (Cambodian riel,
+  Japanese yen, US dollars). Once an amount is typed, the other row reads "About, in US dollars" (or the first row's
+  money) with the amount converted. A tap on the other row alone never changes the money paid; the first key there
+  does. Dong, riel and yen are whole on the pad, which has no point key for them.
+- **A chip for each country** sits above the two rows, always showing, as in Convert and in the same place: Vietnam,
+  Cambodia, Japan, in the order the trip meets them, the first row's country dark. One tap puts another country's
+  money in the first row. Dollars typed stay; an amount typed in the old money is cleared. Ken (Nov 24 2026): "the
+  ease of switching currencies".
+- **The keys** are up on a new entry. They are folded away on a kept entry, and after a receipt gives its total, so the
+  amount shows for checking. Done under the keys, or a tap into "What for", folds them, so the keys and the phone's
+  keyboard are never both up. Folded, no row has a caret or a ✕; the pressed row goes back to the money paid and says
+  "tap to change". A tap on a row opens the keys again, and the first digit then starts a new amount (90,000 opened
+  again and 120,000 typed reads 120,000 ₫); ⌫ first takes back one digit of the amount that was there. Done also
+  brings Save into view when the sheet is longer than its window, and on a short phone the keys open with Done in
+  view.
+- Changing the day with nothing typed moves the first row, and the row typed in, to that day's money, unless a country
+  chip was tapped.
+- **The rate** of the first row's money sits under the keys ("25,716 ₫ to the dollar, the rate on Nov 22"). The rate
+  shown is the rate used.
 - **What for (if you like).**
 - **Who it's for**: a blue "✓ Everyone on the trip that day (7)" and "Not everyone?". That opens the people, family
   by family: the family's name turns its whole family on or off, then a chip for each person by first name.
   "Everyone on the trip that day" closes it. Under it, with an amount: "Split 7 ways, about $13.85 each." or "For 3
   people, about $32.33 each.", the dollars shown above divided by the people.
 - A new entry on a day no one is traveling yet (a deposit before the trip) reads "✓ Everyone on the trip (10)" and "No
-  one is traveling yet that day, so everyone on the trip shares it." It is kept for everyone on the trip. A kept
+  one is traveling yet that day, so everyone on the trip shares it." It is kept for everyone on the trip, and opened
+  again it reads the same "✓ Everyone on the trip (10)" with "Not everyone?", its names folded. A kept
   entry on such a day, for no one: "No one is on the trip that day. Change the day, or choose who it's for.", in
   red-brown, with "Everyone on the trip (10)" and "Choose people".
 - When everyone on the trip that day is the paying family: "Only <family>'s family is on the trip that day, so this
   changes nothing between families." It can still be kept: "everyone on the trip that day" is worked out each time Budget is read, so the entry starts to count if the families' days change. People chosen by hand who are all the paying family's own never can, so that one is refused (§24.2).
-- **The day**: "Day: Today, Sun Nov 22" (today on the trip's clock) or "Day: Sat, Dec 26", and "Change" for a date
+- **The day**: "Day: Today, Sun Nov 22" (today on the trip's clock, said as "Today" only when it is the phone's own
+  date too; at home the evening before, the same day reads "Day: Sun, Nov 22") or "Day: Sat, Dec 26", and "Change" for a date
   field from the trip's first day to its last (or today, when today is outside them).
-- **Keep it** or **Save**, and **Cancel**: "Keeping…", "Still waiting…" and never kept twice, as Japan's (§9.9). A
-  message shows just above Keep it, and the sheet scrolls so both are in view: "Which family paid?", "How much was it?",
+- **Save** and **Cancel**: "Saving…", "Still waiting…" and never saved twice, as Japan's (§9.9). A
+  message shows just above Save, and the sheet scrolls so both are in view: "Which family paid?", "How much was it?",
   "Who is it for?", or the server's own words.
-- Then beside + Add entry: "✓ Kept: <family>, <amount>, <what>", "✓ Already kept: …", "✓ Changed: …", "Removed: …"
-  with "Put it back".
+- Then beside + Add entry: "✓ Saved: <family>, <amount>, <what>", "✓ Already saved: …", "✓ Saved after all: …",
+  "✓ Changed: …", "Removed: …" with "Put it back".
 - A change sends only what changed. A payment keeps the rate it was kept with while its money stays the same; a new
   money takes the day's rate and needs its amount.
 
@@ -3487,7 +3532,8 @@ untouched.
 
 frontend/src/pages/FamilyBudget.tsx (the page, the sheet, the pop-up), pages/MoneyPage.tsx (chooses the page; its
 card, receipt view and Log are shared), components/WhoPaysNextLine.tsx, BottomNav.tsx, PayNextBadge.tsx, lib/expenses.ts,
-lib/rates.ts (`typedAmount`, `perDollarWords`). Server: services/familyLedger.ts (the arithmetic, in whole cents),
+lib/rates.ts (`perDollarWords`); components/MoneyPad.tsx and lib/convertPad.ts (the amount's rows and keys,
+Convert's own). Server: services/familyLedger.ts (the arithmetic, in whole cents),
 familyExpenses.ts, familyReceipt.ts, scoutFamilyMoney.ts; routes/expenses.ts (a trip of families answers with
 `family`; a plan without its families, with `notSetUp`). The behaviour spec: trip-data/december-plan/family-budget-spec.md.
 

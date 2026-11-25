@@ -4,11 +4,12 @@ import { useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 import useBackToClose from "../hooks/useBackToClose";
 import { screenShift } from "../lib/screenShift";
-import { convert, loadRates, money, rateWords, savedRates, ROUND_RATES, MONEY_NAMES, MONEY_SIGNS, type Currency, type Foreign, type Rates } from "../lib/rates";
+import { convert, loadRates, money, rateWords, savedRates, ROUND_RATES, MONEY_SIGNS, type Foreign, type Rates } from "../lib/rates";
 import {
-  convertTripFrom, eachOfBoth, moneyCountries, NOTES, openingMoney, padAmount, padPress, padShown, rememberConvertTrip,
-  rememberedConvertTrip, shortcutKey, showsConvert, SPLIT_MAX, type ConvertTrip, type PadKey,
+  convertTripFrom, eachOfBoth, moneyCountries, NOTES, NOTE_TINT, openingMoney, padFigures, padNewMoney, padStart, rememberConvertTrip,
+  rememberedConvertTrip, showsConvert, SPLIT_MAX, type ConvertTrip, type Pad,
 } from "../lib/convertPad";
+import MoneyPad from "./MoneyPad";
 
 /**
  * Convert, the money calculator (Nov 22 2026; trip-data/december-plan/convert-spec.md). The bar's button and its sheet,
@@ -29,15 +30,10 @@ const TIPS: Partial<Record<Foreign, string>> = {
   KHR: "Dollars are widely taken in Cambodia. Change under a dollar comes back in riel.",
 };
 
-type Row = "local" | "usd";
-// typing: the row the pad types in. from: the row the amount was typed in (the other row shows it converted).
-// fresh: the next key starts a new amount, after a tap on the other row, a banknote, or opening the sheet again.
-type Pad = { typing: Row; from: Row; text: string; fresh: boolean };
-const START: Pad = { typing: "local", from: "local", text: "", fresh: false };
+// The pad's state and its rules (typing, from, fresh) are lib/convertPad.ts's, shared with Budget's entry sheet
+const START: Pad = padStart("local");
 
 const wholeFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
-// (a long amount a size smaller, so twelve digits of dong still fit beside the ✕ on the smallest phone)
-const amountSize = (shown: string) => (shown.length <= 11 ? "26px" : shown.length <= 14 ? "22px" : "18px");
 
 export default function ConvertCard() {
   const location = useLocation();
@@ -136,38 +132,26 @@ export default function ConvertCard() {
       className="shrink-0 w-12 min-h-[48px] py-1 flex flex-col items-center justify-center gap-0.5 rounded-lg text-[#7a6b55] active:bg-[#f0ebe3]"
       aria-label="Convert money"
     >
-      <span className="text-lg font-bold leading-none h-5 flex items-center" style={{ fontFamily: "serif" }} aria-hidden>{MONEY_SIGNS[today]}</span>
+      {/* (the app's own face: iOS's serif face draws ₫ small and faint beside Phrases' bold letter; Ken's iPhone, Nov 24) */}
+      <span className="text-lg font-bold leading-none h-5 flex items-center" aria-hidden>{MONEY_SIGNS[today]}</span>
       <span data-convert-word className="text-[11px] leading-tight whitespace-nowrap" aria-hidden>Convert</span>
     </button>
   );
   if (!open) return barButton;
 
-  // What each row shows: the typed row as typed, the other converted (a rate it can't stand behind shows as zero)
-  const fromCur: Currency = pad.from === "local" ? currency : "USD";
-  const typed = padAmount(pad.text);
-  const converted = convert(typed, fromCur, pad.from === "local" ? "USD" : currency, rates) ?? 0;
-  const amountOf = (row: Row) => (row === pad.from ? typed : converted);
-  const shownOf = (row: Row) => (row === pad.from ? padShown(pad.text, fromCur) : money(converted, row === "local" ? currency : "USD"));
-  const typingCur: Currency = pad.typing === "local" ? currency : "USD";
+  // What each row holds: the typed row as typed, the other converted (MoneyPad draws them)
+  const { amount: amountOf } = padFigures(pad, currency, rates);
   // A split: each row's own amount shared, so the line agrees with both amounts above it; the country's money first
   const shares = eachOfBoth(amountOf("local"), amountOf("usd"), people, currency);
   const each = `Each: ${money(shares.local, currency)} · ${money(shares.usd, "USD")}`;
-  const keys: PadKey[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", shortcutKey(typingCur), "0", "back"];
   const tip = TIPS[currency];
 
-  const press = (key: PadKey) => setPad((p) => {
-    const cur: Currency = p.typing === "local" ? currency : "USD";
-    // (the first key after a fresh start replaces the amount, never adds to it)
-    return p.fresh ? { typing: p.typing, from: p.typing, text: padPress("", key, cur), fresh: false } : { ...p, text: padPress(p.text, key, cur) };
-  });
-  const tapRow = (row: Row) => setPad((p) => (p.typing === row ? p : { ...p, typing: row, fresh: true }));
   const tapNote = (note: number) => setPad({ typing: "local", from: "local", text: String(note), fresh: true });
-  const clear = () => setPad((p) => ({ typing: p.typing, from: p.typing, text: "", fresh: false }));
   // Another country: dollars typed are kept and shown in the new money; an amount in the old money means nothing there
   const chooseMoney = (c: Foreign) => {
     if (c === currency) return;
     setChosen(c);
-    setPad((p) => (p.from === "usd" ? p : START));
+    setPad(padNewMoney);
   };
 
   // (with the iPhone's screen left moved down the page, the foot sits that much lower: at the screen's real foot, as Phrases does)
@@ -205,47 +189,24 @@ export default function ConvertCard() {
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-3">
-          {/* The two rows: the one being typed in is white with a dark edge. The other holds the answer, in the same dark
-              ink: it's the number the person came for. A tap on the other row types there; both amounts stay until the
-              first key. */}
-          <div className="space-y-1.5 pt-0.5">
-            {(["local", "usd"] as Row[]).map((row) => {
-              const on = pad.typing === row;
-              const shown = shownOf(row);
-              return (
-                <div key={row} className="relative">
-                  <button data-convert-row={row} aria-pressed={on} onClick={() => tapRow(row)}
-                    className={`w-full min-h-[52px] rounded-xl border pl-3 py-1.5 text-left transition-colors ${on ? "bg-white border-[#514636]" : "bg-transparent border-[#e5ddd0]"} ${on && pad.text ? "pr-12" : "pr-3"}`}>
-                    <span className="block text-[11px] leading-tight text-[#6b5d4a]">{MONEY_NAMES[row === "local" ? currency : "USD"]}</span>
-                    <span data-convert-amount={row} className="block font-semibold tabular-nums whitespace-nowrap leading-tight text-[#3a3128]" style={{ fontSize: amountSize(shown) }}>{shown}</span>
-                  </button>
-                  {on && pad.text !== "" && (
-                    <button onClick={clear} aria-label="Clear" data-convert-clear
-                      className="absolute right-0.5 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full text-[#6b5d4a] active:bg-[#f0ebe3]">
-                      <span className="w-6 h-6 rounded-full bg-[#ece6dc] flex items-center justify-center">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" aria-hidden>
-                          <path d="M6 6l12 12M18 6L6 18" />
-                        </svg>
-                      </span>
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
+          {/* The two rows and the pad (MoneyPad, shared with Budget's entry sheet), with the banknotes and the split between */}
+          <MoneyPad pad={pad} setPad={setPad} local={currency} rates={rates} between={<>
           {/* The notes a traveler is handed, each with its dollars; a tap puts that note in the country's row */}
           <div className="pt-2.5">
             <div className="text-[11px] leading-tight text-[#6b5d4a]">Banknotes</div>
             <div className="mt-1 flex gap-[2px] overflow-x-auto overflow-y-hidden overscroll-x-contain" style={{ scrollbarWidth: "none" }}>
               {NOTES[currency].map((note) => {
                 const usd = money(convert(note, currency, "USD", rates) ?? 0, "USD");
+                // (a dong note's button wears the note's own colour; riel and yen stay plain: lib/convertPad.ts NOTE_TINT)
+                const tint = NOTE_TINT[currency]?.[note];
                 return (
-                  <button key={note} data-convert-note={note} aria-label={`${money(note, currency)} note, ${usd}`} onClick={() => tapNote(note)}
-                    className="flex-auto shrink-0 min-w-[44px] min-h-[44px] px-[2px] py-1 rounded-lg border border-[#e5ddd0] bg-white active:bg-[#f0ebe3] flex flex-col items-center justify-center">
+                  <button key={note} data-convert-note={note} data-note-tint={tint ? tint.edge : undefined} aria-label={`${money(note, currency)} note, ${usd}`} onClick={() => tapNote(note)}
+                    style={tint ? { background: tint.fill, borderColor: tint.edge, boxShadow: `inset 0 0 0 1px ${tint.edge}` } : undefined}
+                    className="flex-auto shrink-0 min-w-[44px] min-h-[44px] px-[2px] py-1 rounded-lg border border-[#e5ddd0] bg-white active:bg-[#f0ebe3] active:brightness-[0.86] active:scale-[0.96] transition-transform duration-75 flex flex-col items-center justify-center">
                     {/* (11 pt and 44 wide, so Vietnam's six and Cambodia's seven fit across a phone: cut at the edge, the last looked clipped) */}
                     <span className="block text-[11px] leading-tight font-semibold text-[#3a3128]">{wholeFmt.format(note)}</span>
-                    <span className="block text-[10px] leading-tight text-[#6b5d4a] tabular-nums">{usd}</span>
+                    {/* (on a note's colour the dollars are as dark as its number: the brown reads too faintly there) */}
+                    <span className={`block text-[10px] leading-tight tabular-nums ${tint ? "text-[#3a3128]" : "text-[#6b5d4a]"}`}>{usd}</span>
                   </button>
                 );
               })}
@@ -264,24 +225,7 @@ export default function ConvertCard() {
           <div className="h-5">
             {people > 1 && amountOf(pad.typing) > 0 && <p data-convert-each className="text-sm leading-5 text-right text-[#3a3128] tabular-nums">{each}</p>}
           </div>
-
-          {/* The pad: the corner key is the one this money needs most (000 for dong and riel, 00 for yen, the point for dollars) */}
-          <div data-convert-pad className="pt-1.5 grid grid-cols-3 gap-1.5">
-            {keys.map((k) => (
-              <button key={k} data-convert-key={k} aria-label={k === "back" ? "Delete" : undefined} onClick={() => press(k)}
-                style={{ touchAction: "manipulation" }}
-                className="min-h-[50px] rounded-xl bg-white border border-[#e5ddd0] text-[22px] font-medium text-[#3a3128] tabular-nums select-none flex items-center justify-center active:bg-[#e9e2d6] active:border-[#d8cdbd]">
-                {k === "back" ? (
-                  <svg width="26" height="20" viewBox="0 0 26 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M8 1.5h15a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H8L1.5 10z" /><path d="M12.5 6.5l7 7M19.5 6.5l-7 7" />
-                  </svg>
-                ) : k === "." ? (
-                  // (the point drawn large: at the digits' size it was a speck at the key's foot)
-                  <span className="text-[34px] leading-none -mt-3">.</span>
-                ) : k}
-              </button>
-            ))}
-          </div>
+          </>} />
 
           {/* The rate and the country's line keep the same room whichever country is chosen (Japan has no line), so the
               pad's keys never move under a thumb when the country changes */}

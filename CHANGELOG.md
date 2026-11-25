@@ -2,6 +2,68 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-24 (Tuesday, at home) — Batch 114: Convert shows both directions; Budget types on Convert's pad; "Save"
+
+Ken (Nov 24 2026): "Conversion should easily go both directions and make sure it is still the most innovative design
+for doing conversion and expenses should use the same input panel to breed familiarity. People seem to find the phrase
+"keep it" weird, so just change it to save"
+Ken (Nov 24 2026, later): "Please don't make the better money interface worse to look like the other one. Find the best
+practices, including the ease of switching currencies and adding three zeros, color where appropriate to match the
+currency of the country, etc." Convert keeps everything it had: its country chips, the 000 key, the banknotes, the split.
+- **A dong note's button in Convert wears the note's own colour**, as the State Bank of Vietnam describes each note
+  (10,000 greenish yellow, 20,000 dark blue, 50,000 red, 100,000 dark green, 200,000 brownish red, 500,000 blue with
+  purple). Riel and yen buttons stay plain: no source read gives one colour per note. The fill is as deep as its two
+  lines of dark text allow, the border the note's colour at full strength and two lines thick (fresh reviewers read
+  the first, paler 50,000 as pink, twice, and the 200,000 as peach). A held note darkens and dips; a coloured one barely showed the press.
+  Where: Convert, the Banknotes row (components/ConvertCard.tsx; lib/convertPad.ts, NOTE_TINT). SPEC §23.
+- **Convert says which way it is typing.** The row being typed in has a blinking caret after its amount (without
+  blinking on a phone set to reduce motion). The other row says "tap to type dollars" (or dong, riel, yen). A round swap button sits
+  in its own 44 pt rail at the rows' right, centred on the gap, named "Type in dollars" (or dong, riel, yen) for a
+  screen reader. With nothing typed, a tap on the other row makes it the row typed in, and the row not typed in reads
+  "$0.00" when it is the dollars row. The bar's money sign is drawn in the app's own typeface; in the iPhone's serif
+  face the ₫ was small and faint. Where: Convert on the bottom bar (components/ConvertCard.tsx, the new
+  components/MoneyPad.tsx, lib/convertPad.ts). SPEC §23.
+- **Budget's entry sheet on a families' trip types the amount on Convert's own rows and keys**, one shared component,
+  never the iPhone's keyboard. The amount box, the money switch and its "Amount in dong" words are gone, and so is the
+  "125.000" reading (dong has no point key on the pad). The money paid is the row the amount was typed in: "Paid in
+  <money>", and once an amount is typed, "About, in <money>" on the other row. A chip for each country (Vietnam, Cambodia, Japan)
+  always shows above the rows, as in Convert, so another country's money is one tap away. The keys are up on a new entry and folded on a kept one or after a receipt gives its total; Done, or a
+  tap into "What for", folds them, and the pressed row then says "tap to change". Changing the day with nothing typed
+  moves the first row to that day's money. The rate sits under the keys. Where: Budget, + Add entry or a tap on an
+  entry (pages/FamilyBudget.tsx). SPEC §24.5, §24.11.
+- **"Save" on every button that saves**: both Budgets' entry sheets ("Save", "Save — not shared", "Saving…") and a
+  paper's photo editor. The lines after say the same: "✓ Saved: …", "✓ Already saved: …", "✓ Saved after all: …",
+  "Tap Save again when you have signal. It won't be saved twice.", "typing it again won't save it twice.", a paper's
+  "Saved “title” under …" and "… saved one like it on that day.", and "No signal right now. Save it again when
+  there's signal…". A receipt added to an entry says "Saving the receipt…" and "Receipt saved with it". "Keep it" stays as the answer to "Remove this?", and "Keep it just for me", "Keep the photo as it
+  is" and "Nothing kept yet" are unchanged. Where: Budget (pages/MoneyPage.tsx, pages/FamilyBudget.tsx,
+  lib/expenses.ts), Notes' papers (components/PaperEdit.tsx, components/Papers.tsx, lib/papers.ts). SPEC §9.6, §9.9,
+  §24.5.
+- **An amount opened again is typed over, never added to.** In Budget's sheet, 90,000 typed, a tap into "What for",
+  then "tap to change" and 120,000 read 90,000,120,000 ₫ (found by the fresh review before any deploy). Once the keys
+  have folded, the first digit starts a new amount, as on a kept entry. ⌫ as the first key on an amount standing in
+  its own row takes back one digit (a kept entry, a banknote in Convert, the keys opened again); on the other row,
+  where the amount is only the converted one, ⌫ still empties it. Where: Budget's entry sheet and Convert
+  (lib/convertPad.ts, padFold and padKey). SPEC §23, §24.5.
+- **Done brings Save into view.** On a long sheet (a kept entry with its people listed) Save sat below the sheet's
+  edge after Done and took a scroll to find. Where: Budget's entry sheet (pages/FamilyBudget.tsx, doneTyping).
+  SPEC §24.5.
+- **The bar's Phrases letter follows the trip on Home.** A phone that last showed Japan, opened after December was
+  chosen on another device, opens on December; Japan chosen from the trip menu then left Japan's bar on December's
+  "V", and its card in Vietnamese, until Wander was opened again. On a slow connection the letter also stayed on the
+  old trip for over a second after Convert and the pay-next badge had changed; it now changes with them, from the
+  countries the phone already remembers for that trip. Left as it is: the first change to a trip this phone has
+  never opened, on a slow connection, keeps the old trip's bar under "Finding your trip…" until the server answers.
+  Where: the bottom bar's Phrases button (components/PhraseCard.tsx). SPEC §22.
+- **Three smaller things in Budget's entry sheet, from the fresh review.** On a short phone (375×667) the keys open
+  with Done in view; it sat under the sheet's edge with the last row of keys cut in half. A kept entry for everyone
+  on the trip opens with one blue "✓ Everyone on the trip (10)" and "Not everyone?", its ten names folded. The day
+  line says "Today" only when the trip's day is also the phone's own date: on a California evening the trip's day
+  is already tomorrow, and it read "Today, Wed Nov 25" on Tuesday. Where: Budget, + Add entry or a tap on an entry
+  (pages/FamilyBudget.tsx). SPEC §24.5.
+- `typedAmount` is removed from lib/rates.ts with its tests; the pad's rules have new tests in
+  backend/tests/convert-phone.test.ts.
+
 ## 2026-11-24 (Tuesday, at home) — Budget for the families; Scout's money, weather and packing on a plan trip
 
 Ken (Nov 16): "dollars as the common unit, the three families as payers, shared costs split per person", "plus a
