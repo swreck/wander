@@ -2,6 +2,54 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-25 (Wednesday, at home) — Batch 115: Convert's look; the bar in Ken's order with Scout standing out; yen and riel notes in their colours
+
+Ken (Nov 25 2026): "1. convert is working. it still seems an amateurish look and feel. So now that it is working,
+review best practices for look and feel 2. Last 3 buttons on right in menu should be budget >> convert >> phrases (so
+from left, home, today, next, notes, Scout, budget, convert, phrases). Is there an apple UI standard to make this menu
+more attractive? It's ok now, but as an example, I like scount being integrated in the menu, but it should pop out
+more. 3. recheck monetary note colors: japan and cambodia use different colors also."
+Nothing Convert or Budget does has changed: the same taps give the same sums. What changed is how they look.
+- **The bar's order is Home, Today, Next, Notes, Scout, Budget, Convert, Phrases.** Convert moved from the left end to
+  between Budget and Phrases. Every item is the same width and height with the same label size (Convert and Phrases
+  were narrower with smaller words). The icons are one drawn family: Convert is a banknote's outline with the day's
+  money sign in it, Phrases its letter in a small outlined tile. The screen you're on has a soft pill behind its item,
+  a filled icon and a heavier, darker label (the two used to differ only by two browns). Scout is a white speech
+  bubble on a dark capsule, the one filled item in the bar. Japan's finished trip has the same bar without Convert.
+  Where: the bottom bar on every screen (components/BottomNav.tsx, the new components/barSlot.ts,
+  components/ConvertCard.tsx, components/PhraseCard.tsx). SPEC §1.4, §10, §23.
+- **Convert is a sheet the screen's full width**, rising from the bottom over the bar, with a grabber, a round ✕ and
+  the page dimmed behind it (it was a 360 pt card with a chevron). The countries are one switch across the top. The
+  two amounts share one white card with a line between them, each with its flag; the row typed in is white with the
+  caret, the other a shade darker; the swap button sits on the line between the flags. "tap to type dollars" is no
+  longer on screen (a screen reader still says it). The rate sits right under the amounts. The keys are soft, with no
+  outlines, and are the last thing on the sheet, so they stay in one place whichever country is chosen. Note buttons
+  are soft tiles with a stripe in the note's ink, three across (four for Cambodia's seven); the doubled bright
+  borders are gone. Where: Convert on the bar (components/ConvertCard.tsx, components/MoneyPad.tsx). SPEC §23.
+- **Yen and riel notes wear their own colours.** Yen from the Bank of Japan's own pictures: 1,000 blue, 5,000 purple,
+  10,000 brown. Riel from the National Bank of Cambodia's own pictures of the notes in circulation: 500 pink-red,
+  1,000 blue, 5,000 lilac with green, 10,000 teal, 20,000 plum. The 2,000 and the 50,000 are in use in two issues of
+  different colours (the 50,000's newer one was issued in September 2026), so each of those buttons is the two notes
+  side by side: one colour on each half, each with its own stripe at its edge (blended into one fill, a fresh review
+  read both as beige). Each picture was opened and looked at before its colour went in. Where: Convert, Banknotes
+  (lib/convertPad.ts, NOTE_TINT). SPEC §23.
+- **Budget's entry sheet on a families' trip is the same sheet**: the screen's full width, from under the status bar
+  to the bottom. Cancel, the sheet's name and Save are one row at its top that stays put, so Save is always in view
+  (it sat at the foot, under the fold); what Save found wrong shows right under that row. "Photo of the receipt" is a
+  button the sheet's width with a drawn camera. The countries' switch, the two rows and the keys are Convert's. The
+  rate and Done share one line above the keys. Underlined links in the sheet ("Not everyone?", "Change", "Remove",
+  "See the receipt") are plain dark words. Done no longer scrolls Save into view: Save never leaves it. Where:
+  Budget, + Add entry or a tap on an entry (pages/FamilyBudget.tsx). SPEC §24.5, §24.6.
+- **Two colours in Budget that were hard to read.** A family whose colour is orange had its name in that orange on
+  white at 3.2 to 1, in the sheet's "Who paid" and in the list; both now use a darker ink of the same colour (4.8).
+  The money pop-up's underlined Done is plain, as the sheet's.
+- **From the fresh review of this batch.** On the smallest phone (375×667) Convert's last row of keys was cut by
+  2 pt in Vietnam and Cambodia; all four rows are whole. On an iPad, Budget's entry sheet hung from the bottom, so it
+  dropped 224 pt when the keys folded and Save moved under the finger; it now hangs from the top and Save stays put.
+  Where: Convert (components/ConvertCard.tsx); Budget, + Add entry (pages/FamilyBudget.tsx). SPEC §23, §24.5.
+- Not built, waiting on Ken: Apple's floating glass bar (a change of feel on every screen). Left as they are: the
+  list's own underlined "Log", "Receipt" and "Put it back".
+
 ## 2026-11-24 (Tuesday, at home) — Batch 114: Convert shows both directions; Budget types on Convert's pad; "Save"
 
 Ken (Nov 24 2026): "Conversion should easily go both directions and make sure it is still the most innovative design

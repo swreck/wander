@@ -1421,8 +1421,16 @@ reads "Larisa's Guide" and "Ken's rail sheet". Wander's own lines never talk abo
 
 ### 1.4 The screens
 
-The bottom bar, on every screen: **Home · Today · Next · Notes · Budget · Scout**, and a small **日** at its right end
-for the phrase card. **Today** (Oct 16, where Maybes was — Ken: "Replace 'maybes' with 'full itinerary for today'") opens
+The bottom bar, on every screen: **Home · Today · Next · Notes · Scout · Budget · Convert · Phrases** (Ken, Nov 25
+2026: "Last 3 buttons on right in menu should be budget >> convert >> phrases (so from left, home, today, next, notes,
+Scout, budget, convert, phrases)"). Convert shows only on a trip whose money Wander converts and that isn't over
+(§23), so Japan's October bar has seven. Every item is the same width and height with the same 11 pt label (10 pt on a
+phone under 390 pt wide), and the icons are one drawn family: Convert a banknote's outline with the day's money sign
+in it, Phrases the language's letter (V, 日) in a small outlined tile. The screen you're on has a soft pill behind its
+item, its icon filled and its label heavier and darker; before Nov 25 the two differed only by two browns. **Scout
+stands out** (Ken, Nov 25: "I like scount being integrated in the menu, but it should pop out more"): a white speech
+bubble on a dark capsule, the one filled item in the bar, with a darker, heavier label. Where: components/BottomNav.tsx,
+components/barSlot.ts (the slot every item shares). **Today** (Oct 16, where Maybes was — Ken: "Replace 'maybes' with 'full itinerary for today'") opens
 the traveler's own today's full day page and is lit there; Maybes opens from a row on Home. Budget took Actions' place on Oct 15 (Ken: "There seems to be no need for the [Actions] button in
 the main navigation menu, so you can replace that with budget"); to-dos and deadlines open from Home (§11). Budget's
 icon says who pays next (§9.9). Tapping Home while on Home closes any open panel and Scout and goes back to the top. A dot on a tab means
@@ -2693,9 +2701,10 @@ and you should convert)"; all four see it; "It didn't need to be exact!"
 The 日 card: Japanese phrases to say, and characters to find.
 
 - **Where**: a small 日 at the right end of the bottom bar on every screen opens it in one tap (Oct 13). Ken: "a clear
-  convenient but subtle way to have phrase button always available". Since Oct 16 the word "Phrases" sits under it, a
-  size smaller than the tabs' labels, and it's the one way in (Ken: "Why are phrases now in the upper left and bottom
-  right?"; Next's labelled header copy is gone). It closes on Back, Close, a tap on the page, or a change of screen.
+  convenient but subtle way to have phrase button always available". Since Oct 16 the word "Phrases" sits under it,
+  and it's the one way in (Ken: "Why are phrases now in the upper left and bottom right?"; Next's labelled header copy
+  is gone). Since Nov 25 it is an item like the bar's others, the same width and label size, its letter in a small
+  outlined tile (§1.4). It closes on Back, Close, a tap on the page, or a change of screen.
 - **Each line leads with its English title**, then the Japanese in romaji and how to say it: "Hello", then "Konnichiwa
   (Koh-nee-chee-wah)". Ken (Oct 14): "all phrases titles should be English to find what is needed".
 - **Characters to find on a device.** Ken (Oct 14): "Language list should generally not use kanji. But in this case (and
@@ -3265,48 +3274,66 @@ subtle, similar to the way I used to think of the phrases icon." And of its rate
 hour or even the day". Ken (Nov 24 2026): "Conversion should easily go both directions and make sure it is still the
 most innovative design for doing conversion and expenses should use the same input panel to breed familiarity."
 
-- **Where**: the left end of the bottom bar, the mirror of Phrases at the right: the sign of the day's money (₫, ៛, ¥)
-  with the word "Convert" under it. The sign is drawn in the app's own typeface; in the iPhone's serif face the ₫ was
-  small and faint beside Phrases' letter. One tap opens it. It shows on a trip with a country whose money Wander converts
-  (Vietnam's dong, Cambodia's riel, Japan's yen) until the trip's last day is over. A finished trip's bar has no
-  Convert, so Japan's October bar is as it was.
+- **Where**: on the bottom bar between Budget and Phrases (Ken's order, Nov 25 2026; §1.4): a banknote's outline with
+  the sign of the day's money in it (₫, ៛, ¥) and the word "Convert" under it. The sign is drawn in the app's own
+  typeface; in the iPhone's serif face the ₫ was small and faint. One tap opens it. It shows on a trip with a country
+  whose money Wander converts (Vietnam's dong, Cambodia's riel, Japan's yen) until the trip's last day is over. A
+  finished trip's bar has no Convert.
+- **The sheet** (Ken, Nov 25 2026: "convert is working. it still seems an amateurish look and feel. So now that it is
+  working, review best practices for look and feel"): it rises from the bottom at the screen's full width, over the
+  bar, with rounded top corners, a small grabber and the page dimmed behind it; on an iPad it is the bar's width. From
+  the top: the countries and a round ✕, the two amounts, the rate, the banknotes, the country's one line, Split
+  between, the keys. The keys are the last thing on it, so they sit in the same place whichever country is chosen.
+  Nothing it did before Nov 25 changed; its look did.
 - **Which money**: the country of the day's city, by the trip's own dates (§22.2), never the phone's location. Before
-  the trip, the first country. A trip with more than one country has a chip for each, in the order visited.
-- **Two amounts**, the country's money and US dollars. Tap either to type in it; the other follows as you type, in the
-  same dark ink: it is the answer. Both directions show at a glance. The row being typed in has a blinking caret after
-  its amount (on a phone set to reduce motion it shows without blinking). The other row's label line says "tap to type dollars"
-  (or dong, riel, yen). A round swap button sits at the rows' right, in a 44 pt rail of its own, centred on the gap
-  between the rows; a tap does what a tap on the other row does, and a screen reader names it "Type in dollars" (or
-  dong, riel, yen). With an amount typed, a tap on the other row keeps both amounts until the first key. With nothing
-  typed, the row tapped becomes the row typed in, and the row not typed in reads zero ("$0.00" when it is the dollars row).
-- **Its own number pad**, so the phone's keyboard never opens. Beside 0 sits the key that money needs: 000 for dong
-  and riel, 00 for yen, a decimal point for dollars. ⌫ takes back a digit; ✕ on the amount clears it. After a
-  banknote's tap, ⌫ takes one digit off the note; after a tap on the other row, where the amount is only the converted
-  one, ⌫ empties it.
+  the trip, the first country. A trip with more than one country has one switch across the top with a part for each,
+  in the order visited, the chosen one white and raised. A trip with one country has its name there.
+- **Two amounts**, the country's money and US dollars, in one white card with a line between them, each with its
+  flag at the left. Tap either to type in it; the other follows as you type, in the same dark ink: it is the answer.
+  Both directions show at a glance. The row being typed in is white with a blinking caret after its amount (on a phone
+  set to reduce motion it shows without blinking) and a small ✕ at its right; the other row is a shade darker. A round
+  swap button sits on the line between the rows, between the two flags; a tap does what a tap on the other row does,
+  and a screen reader names it "Type in dollars" (or dong, riel, yen) and says of the other row "tap to type dollars"
+  (those words were on screen until Nov 25; the caret and the swap button carry it now). With an amount typed, a tap
+  on the other row keeps both amounts until the first key. With nothing typed, the row tapped becomes the row typed
+  in, and the row not typed in reads zero ("$0.00" when it is the dollars row).
+- **Its own number pad**, so the phone's keyboard never opens: soft keys with no outlines, as an iPhone's own keypad.
+  Beside 0 sits the key that money needs: 000 for dong and riel, 00 for yen, a decimal point for dollars. ⌫ takes back
+  a digit; ✕ on the amount clears it. After a banknote's tap, ⌫ takes one digit off the note; after a tap on the other
+  row, where the amount is only the converted one, ⌫ empties it.
 - **Banknotes**: the country's notes, each with its dollars under it. A tap puts that note in. Vietnam's six, Japan's
   three, and Cambodia's seven from 500 to 50,000 riel (the 500 and 2,000 are what change comes back in).
-  A dong note's button wears the note's own colour, as the State Bank of Vietnam describes each note: the 10,000
-  greenish yellow, the 20,000 dark blue, the 50,000 red, the 100,000 dark green, the 200,000 brownish red, the 500,000
-  blue with purple. The fill is as deep as its two lines of dark text allow (at least 4.5 to 1), the border the
-  note's colour at full strength, two lines thick. A held note darkens and dips. A person holding a note finds its button by colour,
-  then by its number. Ken (Nov 24 2026): "color
-  where appropriate to match the currency of the country". The 20,000 and the 500,000 are both blue, as the notes are,
-  and the tip under the pad says to count the zeros. Riel and yen buttons are plain: riel notes of one value are in
-  use in several issues of different colours, and the Bank of Japan's pages name no colour for a note. A colour goes
-  in only once its source has been read (lib/convertPad.ts, NOTE_TINT).
+  Every note's button wears the note's own colour: a soft fill of it, with a stripe down the left edge in the note's
+  ink. Ken (Nov 24 2026): "color where appropriate to match the currency of the country"; (Nov 25): "recheck monetary
+  note colors: japan and cambodia use different colors also." A person holding a note finds its button by colour, then
+  by its number. Text on every fill is at least 4.5 to 1. A held note darkens and dips.
+  - Dong, as the State Bank of Vietnam describes each note: the 10,000 greenish yellow, the 20,000 dark blue, the
+    50,000 red, the 100,000 dark green, the 200,000 brownish red, the 500,000 blue with purple. The 20,000 and the
+    500,000 are both blue, as the notes are, and the line under the notes says to count the zeros.
+  - Yen, from the Bank of Japan's own pictures of its notes (the 2024 and the 2004 series alike): the 1,000 blue, the
+    5,000 purple, the 10,000 brown.
+  - Riel, from the National Bank of Cambodia's own pictures of the notes in circulation: the 500 pink-red, the 1,000
+    blue, the 5,000 lilac running to green (one note that carries both), the 10,000 teal, the 20,000 plum. Two values
+    are in use in two issues of different colours: the 2,000 (the 2013 green note and the 2022 grey-and-gold one) and
+    the 50,000 (the 2014 olive note and the orange-brown one issued in September 2026). Each of those buttons is the
+    two notes side by side: the older issue's colour fills the left half with its stripe at the left edge, the newer
+    one's fills the right half with its stripe at the right edge, and the two meet at a clean line. (Blended into one
+    fill, a fresh review read both buttons as beige.) A button shows only colours a traveler can be holding.
+  - A colour goes in only once its source has been opened and looked at (lib/convertPad.ts, NOTE_TINT). The banks'
+    pictures, not a collector's page or Wikipedia.
 - **Split between**: − and + set how many people (1 to 20); with an amount typed, "Each: …" gives one share in both
   moneys. Each share is the amount on its own row divided by the people (whole dong, riel and yen; dollars to the
   cent), whichever row was typed in, so the line always agrees with the two amounts above it.
-- **The rate**, in small type under the pad, with its day: "25,716 ₫ to the dollar, the rate on Nov 22"; yen to the
-  hundredth, "¥159.78 to the dollar". The rate printed is the rate used, so a sum done by hand from it gives the
-  figure on the screen. The pad stays in the same place whichever country is chosen. Rates come
+- **The rate**, in small type right under the two amounts, with its day: "25,716 ₫ to the dollar, the rate on Nov
+  22"; yen to the hundredth, "¥159.78 to the dollar". The rate printed is the rate used, so a sum done by hand from it
+  gives the figure on the screen. Rates come
   from open.er-api.com, kept 12 hours on the server and on each phone. With no signal the phone uses the last rate it
   has and says its day. A phone that has never had one uses a round figure and says "A rough figure: Wander couldn't
   get a recent rate."
 - **One line about the country's money**, each checked against a source read first: Vietnam, "The 20,000 and 500,000
   notes are both blue. Count the zeros."; Cambodia, "Dollars are widely taken in Cambodia. Change under a dollar
   comes back in riel."; Japan, none.
-- It closes on Back, the chevron, a tap on the page, or a change of screen. Opened again, it shows the last amount;
+- It closes on Back, the round ✕, a tap on the dimmed page, or a change of screen. Opened again, it shows the last amount;
   the first key starts a new one.
 - On a trip of families Scout does the same sum in words ("how much is 500,000 dong?"), and Budget's sheet types its
   amount on these same rows and keys (§24.5).
@@ -3402,7 +3429,12 @@ Ask <name> if it needs changing.", and a second tap hides it.
 
 ### 24.5 Adding or changing an entry
 
-+ Add entry opens the sheet near the top of the screen, as Japan's does, with the keys up, ready to type.
++ Add entry opens a sheet with the keys up, ready to type. It is Convert's own sheet (§23): the screen's full width,
+rising from the bottom over the bar, its top just under the phone's status bar. Its top row stays put while the rest
+scrolls: **Cancel** at the left, "Add entry" (or "Change entry") in the middle, **Save** at the right, a dark capsule.
+Save is always in view; before Nov 25 it sat at the sheet's foot, under the fold. Links in the sheet are plain dark
+words, never underlined. On an iPad the sheet is a card the bar's width, hung 48 pt from the top and as tall as what
+it holds, so Save stays in one place when the keys fold away.
 - **Who paid**: the families side by side, each a button in its colour. The reader's own family is chosen at first
   (none when they are in no family). A long name wraps onto a second line.
 - **The amount** is typed on Convert's own two rows and keys (§23), never the iPhone's keyboard, so a person who has
@@ -3414,21 +3446,20 @@ Ask <name> if it needs changing.", and a second tap hides it.
   Japanese yen, US dollars). Once an amount is typed, the other row reads "About, in US dollars" (or the first row's
   money) with the amount converted. A tap on the other row alone never changes the money paid; the first key there
   does. Dong, riel and yen are whole on the pad, which has no point key for them.
-- **A chip for each country** sits above the two rows, always showing, as in Convert and in the same place: Vietnam,
-  Cambodia, Japan, in the order the trip meets them, the first row's country dark. One tap puts another country's
-  money in the first row. Dollars typed stay; an amount typed in the old money is cleared. Ken (Nov 24 2026): "the
+- **The countries' switch** sits above the two rows, always showing, as in Convert and in the same place: Vietnam,
+  Cambodia, Japan, in the order the trip meets them, the first row's country white and raised. One tap puts another
+  country's money in the first row. Dollars typed stay; an amount typed in the old money is cleared. Ken (Nov 24 2026): "the
   ease of switching currencies".
 - **The keys** are up on a new entry. They are folded away on a kept entry, and after a receipt gives its total, so the
-  amount shows for checking. Done under the keys, or a tap into "What for", folds them, so the keys and the phone's
-  keyboard are never both up. Folded, no row has a caret or a ✕; the pressed row goes back to the money paid and says
-  "tap to change". A tap on a row opens the keys again, and the first digit then starts a new amount (90,000 opened
-  again and 120,000 typed reads 120,000 ₫); ⌫ first takes back one digit of the amount that was there. Done also
-  brings Save into view when the sheet is longer than its window, and on a short phone the keys open with Done in
-  view.
-- Changing the day with nothing typed moves the first row, and the row typed in, to that day's money, unless a country
-  chip was tapped.
-- **The rate** of the first row's money sits under the keys ("25,716 ₫ to the dollar, the rate on Nov 22"). The rate
-  shown is the rate used.
+  amount shows for checking. Done, at the right of the rate's line just above the keys, or a tap into "What for", folds
+  them, so the keys and the phone's keyboard are never both up. Folded, no row has a caret or a ✕; the pressed row
+  goes back to the money paid, and a screen reader says "tap to change" (on screen until Nov 25). A tap on a row opens
+  the keys again, and the first digit then starts a new amount (90,000 opened again and 120,000 typed reads 120,000
+  ₫); ⌫ first takes back one digit of the amount that was there.
+- Changing the day with nothing typed moves the first row, and the row typed in, to that day's money, unless another
+  country was chosen on the switch.
+- **The rate** of the first row's money sits right under the two rows, with Done beside it ("25,716 ₫ to the dollar,
+  the rate on Nov 22"). The rate shown is the rate used.
 - **What for (if you like).**
 - **Who it's for**: a blue "✓ Everyone on the trip that day (7)" and "Not everyone?". That opens the people, family
   by family: the family's name turns its whole family on or off, then a chip for each person by first name.
@@ -3444,9 +3475,9 @@ Ask <name> if it needs changing.", and a second tap hides it.
 - **The day**: "Day: Today, Sun Nov 22" (today on the trip's clock, said as "Today" only when it is the phone's own
   date too; at home the evening before, the same day reads "Day: Sun, Nov 22") or "Day: Sat, Dec 26", and "Change" for a date
   field from the trip's first day to its last (or today, when today is outside them).
-- **Save** and **Cancel**: "Saving…", "Still waiting…" and never saved twice, as Japan's (§9.9). A
-  message shows just above Save, and the sheet scrolls so both are in view: "Which family paid?", "How much was it?",
-  "Who is it for?", or the server's own words.
+- **Save** and **Cancel**, in the sheet's top row: "Saving…", "Still waiting…" and never saved twice, as Japan's
+  (§9.9). A message shows right under that row, so it and Save are always in view: "Which family paid?", "How much
+  was it?", "Who is it for?", or the server's own words.
 - Then beside + Add entry: "✓ Saved: <family>, <amount>, <what>", "✓ Already saved: …", "✓ Saved after all: …",
   "✓ Changed: …", "Removed: …" with "Put it back".
 - A change sends only what changed. A payment keeps the rate it was kept with while its money stays the same; a new
@@ -3454,7 +3485,8 @@ Ask <name> if it needs changing.", and a second tap hides it.
 
 ### 24.6 Receipts
 
-- "📷 Photo of the receipt" on the sheet's heading line. Wander reads the grand total ("Tổng cộng" on a Vietnamese
+- "Photo of the receipt", a button the sheet's width under its top row, with a drawn camera (an emoji 📷 on a dashed
+  outline until Nov 25). Wander reads the grand total ("Tổng cộng" on a Vietnamese
   bill, 合計 on a Japanese one; never a tax or service line, the cash handed over or the change), its money, what it
   was for in a few plain words, and its day when that is one of the trip's. "1.250.000" on a bill is 1,250,000 dong. A
   receipt in Cambodia that prints both totals gives the dollar one.
@@ -3462,7 +3494,7 @@ Ask <name> if it needs changing.", and a second tap hides it.
   money: "It doesn't say which money, so check that too, then tap who paid." Who paid then waits for a tap. With no
   total: "Wander couldn't find a total on it. If it's a receipt, type the amount; the photo is kept with it."
 - A card, slip or phone number never goes into what it was for.
-- On a kept entry: "See the receipt", and "📷 Add the receipt's photo" or "📷 Replace the receipt's photo".
+- On a kept entry: "See the receipt", and "Add the receipt's photo" or "Replace the receipt's photo".
 
 ### 24.7 The money pop-up
 

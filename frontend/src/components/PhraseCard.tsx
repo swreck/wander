@@ -8,6 +8,7 @@ import { screenShift } from "../lib/screenShift";
 import { startVoice, stopVoice, voiceSupported, type VoiceHandlers } from "../lib/voice";
 import { countriesInVisitOrder, openingCountry, type CityForPhrases } from "../lib/phraseCountries";
 import { isPlanTrip } from "../lib/planTrip";
+import { BAR_ICON, BAR_KEEP, BAR_LABEL, BAR_SLOT, barTone, barWeight } from "./barSlot";
 
 // A trip built from a plan: the tabs in the order the trip visits its countries, the card open on today's (S3 fix 8)
 const phoneDay = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -419,11 +420,11 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
 
   if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
   // (the bar draws before Wander knows who's signed in on a first opening — the room is kept then too)
-  if (!user) return kind === "bar" ? <span className="shrink-0 w-12" aria-hidden /> : null;
+  if (!user) return kind === "bar" ? <span className={BAR_KEEP} aria-hidden /> : null;
   const activePhrases = tripCountries.length ? COUNTRY_PHRASES[activeCountry] : undefined;
-  // (the bar keeps the 日's room while the trip is still being read, and on a trip with no phrases, so its tabs never
-  // slide sideways under a thumb)
-  if (!activePhrases) return kind === "bar" ? <span className="shrink-0 w-12" aria-hidden /> : null;
+  // (the bar keeps the 日's room, one equal slot, while the trip is still being read, and on a trip with no phrases, so
+  // its tabs never slide sideways under a thumb)
+  if (!activePhrases) return kind === "bar" ? <span className={BAR_KEEP} aria-hidden /> : null;
 
   const ask = () => window.dispatchEvent(new CustomEvent("wander-open-phrases", { detail: { countries: tripCountries, tripId } }));
   if (kind === "header") {
@@ -439,20 +440,20 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
     );
   }
   if (kind === "bar") {
-    // A quieter extra at the end of the tabs, never shown as the current one; its word under it, a size smaller than the
-    // tabs' (Ken, Oct 16: "if there's no room and it would overwhelm the bar, I sort of liked… very subtle in the corner").
-    // 48 pt wide, a full fingertip (verify27: 36 pt sat right against Scout)
+    // The bar's last item, never shown as the current one (Ken, Oct 13: "a clear convenient but subtle way to have phrase
+    // button always available"). One of the bar's equal slots (batch 115): the language's letter in a small outlined
+    // tile, in the app's own face, "Phrases" under it on the tabs' label line.
     return (
       <button
         onClick={ask}
         data-tour="Phrases"
-        // (in line with the tabs' icons, its word on their label line: centred, it sat lower and was cut off when the bar
-        // slides down on scroll — user-ken4)
-        className="shrink-0 w-12 min-h-[48px] py-1 flex flex-col items-center justify-center gap-0.5 rounded-lg text-[#7a6b55] active:bg-[#f0ebe3]"
+        className={`${BAR_SLOT} ${barTone(false)}`}
         aria-label={`${activePhrases.language} phrases`}
       >
-        <span className="text-lg font-bold leading-none h-5 flex items-center" style={{ fontFamily: "serif" }} aria-hidden>{activePhrases.icon}</span>
-        <span data-phrases-word className="text-[11px] leading-tight whitespace-nowrap" aria-hidden>Phrases</span>
+        <span className={BAR_ICON} aria-hidden>
+          <span className="w-[17px] h-[17px] rounded-[4.5px] border-[1.8px] border-current flex items-center justify-center text-[11px] font-bold leading-none">{activePhrases.icon}</span>
+        </span>
+        <span data-phrases-word className={`${BAR_LABEL} ${barWeight(false)}`} aria-hidden>Phrases</span>
       </button>
     );
   }
