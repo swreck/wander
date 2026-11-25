@@ -12,8 +12,11 @@ import { isPlanTrip } from "../lib/planTrip";
 // A trip built from a plan: the tabs in the order the trip visits its countries, the card open on today's (S3 fix 8)
 const phoneDay = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const OPEN_KEY = "wander:phrase-open";
+function rememberedOpenFor(id: string | null): string {
+  try { const all = JSON.parse(localStorage.getItem(OPEN_KEY) || "{}"); return id && typeof all[id] === "string" && all[id] in COUNTRY_PHRASES ? all[id] : ""; } catch { return ""; }
+}
 function rememberedOpen(): string {
-  try { const id = localStorage.getItem("wander:last-trip-id"); const all = JSON.parse(localStorage.getItem(OPEN_KEY) || "{}"); return id && typeof all[id] === "string" && all[id] in COUNTRY_PHRASES ? all[id] : ""; } catch { return ""; }
+  try { return rememberedOpenFor(localStorage.getItem("wander:last-trip-id")); } catch { return ""; }
 }
 function rememberOpen(tripId: string, country: string) {
   try { const all = JSON.parse(localStorage.getItem(OPEN_KEY) || "{}"); all[tripId] = country; localStorage.setItem(OPEN_KEY, JSON.stringify(all)); } catch { /* found again next time */ }
@@ -107,12 +110,14 @@ function detectCountries(tripName: string, cities: { name: string; country?: str
 
 // The languages this phone last found for each trip, so the buttons draw at once
 const LANGS_KEY = "wander:phrase-langs";
-function rememberedCountries(): string[] {
+function rememberedCountriesFor(id: string | null): string[] {
   try {
-    const id = localStorage.getItem("wander:last-trip-id");
     const all = JSON.parse(localStorage.getItem(LANGS_KEY) || "{}");
     return id && Array.isArray(all[id]) ? all[id].filter((k: unknown) => typeof k === "string" && k in COUNTRY_PHRASES) : [];
   } catch { return []; }
+}
+function rememberedCountries(): string[] {
+  try { return rememberedCountriesFor(localStorage.getItem("wander:last-trip-id")); } catch { return []; }
 }
 function rememberCountries(tripId: string, countries: string[]) {
   try {
@@ -368,6 +373,14 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
     function loadTripCountries(tripId: string) {
       loadedFor.current = tripId;
       setTripId(tripId);
+      // (what this phone last found for THIS trip goes on the bar at once: on a slow connection the old trip's letter
+      // stayed over a second after Convert and Budget had already changed, waiting for the trip's details; Nov 24 2026)
+      const known = rememberedCountriesFor(tripId);
+      if (known.length) {
+        const opened = rememberedOpenFor(tripId);
+        setTripCountries(known);
+        setActiveCountry((was) => (opened && known.includes(opened) ? opened : known.includes(was) ? was : known[0]));
+      }
       api.get<any>(`/trips/${tripId}`).then((t) => {
         const visited = t?.plan === true ? countriesInVisitOrder(t?.cities || []) : [];
         const countries = visited.length ? visited : detectCountries(t?.name || "", t?.cities || []);
@@ -381,8 +394,11 @@ export default function PhraseCard({ mode, inHeader = false, trip }: { mode?: "s
           const open = openingCountry(t.cities || [], phoneDay(), t.endDate) || countries[0];
           rememberOpen(tripId, open);
           setActiveCountry(open);
-        } else if (countries.length > 0 && !countries.includes(activeCountry)) {
-          setActiveCountry(countries[0]);
+        } else if (countries.length > 0) {
+          // (asked of the language showing NOW, never the one showing when this screen opened: Japan → December → Japan
+          // without leaving Home left Japan's bar on December's "V", and its card in Vietnamese, until Wander was
+          // opened again; Nov 24 2026)
+          setActiveCountry((was) => (countries.includes(was) ? was : countries[0]));
         }
       }).catch(() => {});
     }

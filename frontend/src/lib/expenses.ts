@@ -160,9 +160,9 @@ const setUnsure = (list: Unsure[]) => { try { localStorage.setItem(UNSURE, JSON.
 let unsureHere: Unsure[] = [];
 const allUnsure = () => [...unsure(), ...unsureHere.filter(live)];
 export const keepKeyFor = (tripId: string, words: string) => allUnsure().find((u) => u.words === `${tripId}|${words}`)?.key || newKeepKey();
-/** A Keep whose pop-up was closed, answered after all: the Budget page says so ("Kept after all: …") */
+/** A Keep whose pop-up was closed, answered after all: the Budget page says so ("Saved after all: …") */
 export const MONEY_KEPT_LATE = "wander:money-kept-late";
-/** err: what to say when it didn't (or may not have) saved; again: Wander already had this very payment ("Already kept") */
+/** err: what to say when it didn't (or may not have) saved; again: Wander already had this very payment ("Already saved") */
 export async function addPayment(tripId: string, body: { paidBy: string; amount: number; currency: Currency; what?: string; forParty?: string | null; forPeople?: string[]; clientKey?: string; dayDate?: string; receipt?: ReceiptPhoto }, words = ""): Promise<{ err: string | null; again: boolean }> {
   let again = false;
   // (only the first send says "already kept": the phone's own second try finds the first one that got through, and
@@ -193,7 +193,7 @@ export async function addPayment(tripId: string, body: { paidBy: string; amount:
     if (!noAnswer(e)) { forget(); return { err: e?.message && !/^Request failed/i.test(e.message) ? e.message : "That didn't save. Try again in a moment.", again: false }; }
     // (it may have reached Wander: the list shows it if it did)
     window.dispatchEvent(new Event(MONEY_CHANGED));
-    return { err: "Wander didn't hear back, so this may or may not have saved. Tap Keep it again when you have signal. It won't be kept twice.", again: false };
+    return { err: "Wander didn't hear back, so this may or may not have saved. Tap Save again when you have signal. It won't be saved twice.", again: false };
   }
 }
 /** Changed: only what's given (Ken, Oct 16: "go back and add reason, change total, or change payer") */

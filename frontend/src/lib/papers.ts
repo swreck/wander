@@ -66,7 +66,7 @@ const asBase64 = (file: File) => new Promise<string | null>((ok) => {
 
 /** Keep one paper: Wander reads it and files it under its day. The kept paper, or why it couldn't be kept. */
 export async function keepPaperFile(tripId: string, file: File, fitted?: { data: string; thumb: string }): Promise<{ paper: { id: string; title: string; dayDate: string | null; town: string | null; read: boolean }; alsoKept?: { by: string; title: string } | null } | { error: string }> {
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return { error: "No signal right now. Keep it again when there's signal — the paper stays on your phone meanwhile." };
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return { error: "No signal right now. Save it again when there's signal. The paper stays on your phone meanwhile." };
   let body: { mediaType: string; data: string; name: string; thumb?: string };
   if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
     if (file.size > 10 * 1024 * 1024) return { error: "That PDF is too large to keep (over 10 MB). A photo of it works." };
@@ -120,7 +120,7 @@ async function send(tripId: string, payload: unknown, kb: number): Promise<Kept 
         if (tries >= 3 || navigator.onLine === false) {
           report("failed-after-retries", tries);
           return { error: navigator.onLine === false
-            ? "No signal right now. Keep it again when there's signal — the paper stays on your phone meanwhile."
+            ? "No signal right now. Save it again when there's signal. The paper stays on your phone meanwhile."
             : "The paper didn't finish sending. Try again in a moment." };
         }
         await back();

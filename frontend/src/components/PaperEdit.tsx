@@ -342,7 +342,7 @@ export default function PaperEdit({ src, mode, onKeep, onAsIs, onCancel, onOrigi
           )}
           <button onClick={() => void keep()} disabled={!work || !corners || !!busy}
             className="ml-auto min-h-[44px] px-6 rounded-xl bg-white text-[#1d1813] text-[15px] font-medium disabled:opacity-50">
-            {mode === "new" ? "Keep it" : "Save"}
+            Save
           </button>
         </div>
       </div>

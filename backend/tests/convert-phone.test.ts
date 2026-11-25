@@ -125,6 +125,147 @@ describe("the number pad", () => {
   });
 });
 
+// (batch 114, Nov 24 2026, written before the functions: Convert and Budget's entry sheet draw the same two rows and pad,
+// components/MoneyPad.tsx; these are its rules, and on Budget the money paid is the row the amount was typed in)
+describe("the two rows, shared by Convert and Budget's entry sheet", () => {
+  const RATES = { JPY: { rate: 159.78, asOf: "2026-11-22", approx: false }, VND: { rate: 25715.74, asOf: "2026-11-22", approx: false }, KHR: { rate: 4064.11, asOf: "2026-11-22", approx: false } };
+  const keys = (p: any, list: string[], local: any = "VND") => list.reduce((q, k) => C.padKey(q, k as any, local), p);
+
+  it("a new pad types in the row it's given, with nothing typed", () => {
+    expect(C.padStart()).toEqual({ typing: "local", from: "local", text: "", fresh: false });
+    expect(C.padStart("usd")).toEqual({ typing: "usd", from: "usd", text: "", fresh: false });
+  });
+
+  it("keys type in the row being typed in, with that money's rules", () => {
+    expect(keys(C.padStart(), ["5", "0", "0", "000"]).text).toBe("500000");
+    expect(keys(C.padStart("usd"), ["1", "2", ".", "5"]).text).toBe("12.5");
+    // (dong has no point; dollars have no 000)
+    expect(keys(C.padStart(), ["1", "."]).text).toBe("1");
+    expect(keys(C.padStart("usd"), ["1", "000"]).text).toBe("1");
+  });
+
+  it("500,000 typed in dong, then a tap on the dollars row: the money paid is still 500,000 dong", () => {
+    const typed = keys(C.padStart(), ["5", "0", "0", "000"]);
+    const tapped = C.padTap(typed, "usd");
+    expect(tapped).toEqual({ typing: "usd", from: "local", text: "500000", fresh: true });
+    expect(C.padPaid(tapped, "VND")).toEqual({ amount: 500000, currency: "VND" });
+    // (and the rows: dong as typed, dollars converted at the printed rate, 500,000 ÷ 25,716)
+    const fig = C.padFigures(tapped, "VND", RATES);
+    expect(fig.shown("local")).toBe(`500,000${NB}₫`);
+    expect(fig.shown("usd")).toBe("$19.44");
+    expect(fig.amount("usd")).toBe(19.44);
+  });
+
+  it("a tap on the row already typed in changes nothing", () => {
+    const typed = keys(C.padStart(), ["7"]);
+    expect(C.padTap(typed, "local")).toBe(typed);
+  });
+
+  it("with nothing typed, a tap on the other row makes it the one typed in and the one paid", () => {
+    expect(C.padTap(C.padStart(), "usd")).toEqual({ typing: "usd", from: "usd", text: "", fresh: false });
+    expect(C.padTap(C.padStart("usd"), "local")).toEqual({ typing: "local", from: "local", text: "", fresh: false });
+    expect(C.padPaid(C.padTap(C.padStart(), "usd"), "VND").currency).toBe("USD");
+    // (the keys then type there exactly as they did before: the point first reads "0.")
+    expect(C.padKey(C.padTap(C.padStart(), "usd"), ".", "VND").text).toBe("0.");
+    // (a tap back on an emptied row, after the ✕, the same)
+    const cleared = C.padClear(C.padTap(keys(C.padStart(), ["9", "000"]), "usd"));
+    expect(C.padTap(cleared, "local")).toEqual({ typing: "local", from: "local", text: "", fresh: false });
+  });
+
+  it("folding the keys puts the pressed row back on the money paid; the next key still starts afresh", () => {
+    const dong = keys(C.padStart(), ["5", "0", "0", "000"]);
+    const folded = C.padFold(C.padTap(dong, "usd"));
+    expect(folded).toEqual({ typing: "local", from: "local", text: "500000", fresh: true });
+    expect(C.padPaid(folded, "VND")).toEqual({ amount: 500000, currency: "VND" });
+    expect(C.padKey(folded, "7", "VND").text).toBe("7");
+    // (nothing typed: unchanged, the same object)
+    const empty = C.padStart("usd");
+    expect(C.padFold(empty)).toBe(empty);
+  });
+
+  it("90,000 typed, the keys folded, opened again, 120,000 typed: it reads 120,000, never 90,000,120,000", () => {
+    const first = keys(C.padStart(), ["9", "0", "000"]);
+    const folded = C.padFold(first);
+    expect(folded).toEqual({ typing: "local", from: "local", text: "90000", fresh: true });
+    // ("tap to change" is a tap on the row already pressed: nothing changes until a key)
+    const again = C.padTap(folded, "local");
+    expect(again).toBe(folded);
+    expect(keys(again, ["1", "2", "0", "000"])).toEqual({ typing: "local", from: "local", text: "120000", fresh: false });
+    // (folded twice is the same as once, and the money paid never moved)
+    expect(C.padFold(folded)).toEqual(folded);
+    expect(C.padPaid(folded, "VND")).toEqual({ amount: 90000, currency: "VND" });
+    // (dollars the same)
+    const usd = C.padFold(keys(C.padStart("usd"), ["4", "8", ".", "6"]));
+    expect(keys(usd, ["5", "0"])).toEqual({ typing: "usd", from: "usd", text: "50", fresh: false });
+  });
+
+  it("⌫ on an amount standing in its own row takes back one digit, even when a digit would start afresh", () => {
+    // (the keys opened again)
+    const folded = C.padFold(keys(C.padStart(), ["9", "0", "000"]));
+    const back = C.padKey(folded, "back", "VND");
+    expect(back).toEqual({ typing: "local", from: "local", text: "9000", fresh: false });
+    // (and the next digit then adds, as on any amount being typed)
+    expect(C.padKey(back, "5", "VND").text).toBe("90005");
+    // (a kept entry's amount: 48.60 → 48.6)
+    expect(C.padKey({ typing: "usd", from: "usd", text: "48.60", fresh: true }, "back", "VND")).toEqual({ typing: "usd", from: "usd", text: "48.6", fresh: false });
+    // (on the other row the amount is only the converted one: ⌫ there still clears)
+    const tapped = C.padTap(keys(C.padStart(), ["9", "000"]), "usd");
+    expect(C.padKey(tapped, "back", "VND").text).toBe("");
+  });
+
+  it("the first key after a row tap replaces the amount, in the new row, and the money paid follows it", () => {
+    const tapped = C.padTap(keys(C.padStart(), ["5", "0", "0", "000"]), "usd");
+    const next = C.padKey(tapped, "2", "VND");
+    expect(next).toEqual({ typing: "usd", from: "usd", text: "2", fresh: false });
+    expect(C.padPaid(next, "VND")).toEqual({ amount: 2, currency: "USD" });
+    expect(C.padKey(next, "0", "VND").text).toBe("20");
+    // (⌫ as the first key after a tap empties it, never deletes from the old amount)
+    expect(C.padKey(tapped, "back", "VND")).toEqual({ typing: "usd", from: "usd", text: "", fresh: false });
+  });
+
+  it("the ✕ empties the row being typed in, and it becomes the one paid", () => {
+    const tapped = C.padTap(keys(C.padStart(), ["9", "000"]), "usd");
+    expect(C.padClear(tapped)).toEqual({ typing: "usd", from: "usd", text: "", fresh: false });
+  });
+
+  it("another money in the first row: dollars typed stay; an amount typed in the old money is cleared", () => {
+    const dollars = keys(C.padStart("usd"), ["2", "0"]);
+    expect(C.padNewMoney(dollars)).toBe(dollars);
+    expect(C.padPaid(C.padNewMoney(dollars), "JPY")).toEqual({ amount: 20, currency: "USD" });
+    expect(C.padFigures(dollars, "JPY", RATES).shown("local")).toBe("¥3,196");
+    const dong = keys(C.padStart(), ["5", "000"]);
+    expect(C.padNewMoney(dong)).toEqual({ typing: "local", from: "local", text: "", fresh: false });
+    // (dong typed, then the dollars row tapped: the amount is still dong's, so it's cleared too)
+    expect(C.padNewMoney(C.padTap(dong, "usd"))).toEqual({ typing: "local", from: "local", text: "", fresh: false });
+  });
+
+  it("a rate it can't stand behind shows the other row as zero, never a guess", () => {
+    const bad = { ...RATES, VND: { rate: 0, asOf: null, approx: true } } as any;
+    const fig = C.padFigures(keys(C.padStart(), ["5", "000"]), "VND", bad);
+    expect(fig.shown("usd")).toBe("$0.00");
+    expect(fig.amount("usd")).toBe(0);
+  });
+
+  it("an amount already kept, as the pad's text: whole dong, riel and yen; dollars with their cents", () => {
+    expect(C.padText(500000, "VND")).toBe("500000");
+    expect(C.padText(16000, "JPY")).toBe("16000");
+    expect(C.padText(60, "USD")).toBe("60");
+    expect(C.padText(48.6, "USD")).toBe("48.60");
+    expect(C.padText(0.1 + 0.2, "USD")).toBe("0.30");
+    expect(C.padText(12.345, "USD")).toBe("12.35");
+    expect(C.padText(0, "USD")).toBe("");
+    expect(C.padText(NaN, "VND")).toBe("");
+    expect(C.padText(-5, "VND")).toBe("");
+    // (shown as it was kept)
+    expect(C.padShown(C.padText(48.6, "USD"), "USD")).toBe("$48.60");
+    expect(C.padAmount(C.padText(48.6, "USD"))).toBe(48.6);
+  });
+
+  it("each money's word, for \"tap to type …\" and the swap button", () => {
+    expect(C.MONEY_WORDS).toEqual({ VND: "dong", KHR: "riel", JPY: "yen", USD: "dollars" });
+  });
+});
+
 describe("banknotes and a split", () => {
   it("the notes offered: Vietnam's six polymer notes, seven riel notes (the 500 and 2,000 that change comes back in), Japan's three", () => {
     expect(C.NOTES).toEqual({

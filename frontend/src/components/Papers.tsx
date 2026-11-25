@@ -221,7 +221,7 @@ export function PapersKeep({ tripId }: { tripId: string }) {
     const p = r.paper;
     changed();
     const where = p.dayDate ? ` under ${shortDay(p.dayDate)}${p.town ? ` · ${p.town}` : ""}` : ", without a day";
-    setStatus({ kind: "kept", id: p.id, text: `${p.read ? `Kept “${p.title}”${where}.` : `Kept. Wander couldn't read it, so it's${where}.`}${r.alsoKept ? ` ${r.alsoKept.by} kept one like it on that day. Remove one if it's the same paper.` : ""}` });
+    setStatus({ kind: "kept", id: p.id, text: `${p.read ? `Saved “${p.title}”${where}.` : `Saved. Wander couldn't read it, so it's${where}.`}${r.alsoKept ? ` ${r.alsoKept.by} saved one like it on that day. Remove one if it's the same paper.` : ""}` });
   };
   const kept = status?.id ? papers?.find((p) => p.id === status.id) : undefined;
   return (

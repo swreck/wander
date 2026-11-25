@@ -9,8 +9,10 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { addPayment, changePayment, removePayment, putBackPayment, keepKeyFor, letGoOfKeep, readReceiptPhoto, attachReceiptPhoto, MONEY_KEPT_LATE, type FamilyLedger, type FamilyItem, type ReceiptPhoto } from "../lib/expenses";
-import { convert, money, typedAmount, rateWords, perDollarWords, MONEY_NAMES, MONEY_SIGNS, type Currency, type Foreign } from "../lib/rates";
+import { convert, money, rateWords, perDollarWords, MONEY_NAMES, type Currency, type Foreign } from "../lib/rates";
+import { padClear, padFold, padNewMoney, padPaid, padStart, padText } from "../lib/convertPad";
 import PayNextBadge, { familyColor, SHARED_BLUE, CHECK_RED } from "../components/PayNextBadge";
+import MoneyPad, { type Pad, type PadRow } from "../components/MoneyPad";
 import { Card, ReceiptView, HistorySheet } from "./MoneyPage";
 
 const shortDay = (d: string | null) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : "");
@@ -25,7 +27,9 @@ const stillOpen = (tripId: string) => (openTripId() || tripId) === tripId;
 const storedName = () => { try { return localStorage.getItem("wander_user") || ""; } catch { return ""; } };
 /** All four monies, in the order the trip meets them, dollars last */
 const FOUR: Currency[] = ["VND", "KHR", "JPY", "USD"];
-const AMOUNT_IN: Record<Currency, string> = { VND: "dong", KHR: "riel", JPY: "yen", USD: "dollars" };
+/** The three that aren't dollars, and each one's country as the entry sheet's chips name it (as Convert's do) */
+const THREE: Foreign[] = ["VND", "KHR", "JPY"];
+const COUNTRY_OF: Record<Foreign, string> = { VND: "Vietnam", KHR: "Cambodia", JPY: "Japan" };
 /** The Log's clock in words, for the trip's own zone ("Times are Vietnam time."); any other zone says nothing */
 const ZONE_WORDS: Record<string, string> = { "Asia/Ho_Chi_Minh": "Vietnam time", "Asia/Phnom_Penh": "Cambodia time", "Asia/Tokyo": "Japan time" };
 
@@ -80,7 +84,7 @@ export default function FamilyBudget({ tripId, family }: { tripId: string; famil
   const saidRow = useRef<HTMLDivElement>(null);
   useEffect(() => { if (kept?.putBack) saidRow.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [kept]);
   useEffect(() => {
-    const late = (e: Event) => setKept({ said: `Kept after all: ${(e as CustomEvent<string>).detail}` });
+    const late = (e: Event) => setKept({ said: `Saved after all: ${(e as CustomEvent<string>).detail}` });
     window.addEventListener(MONEY_KEPT_LATE, late);
     return () => window.removeEventListener(MONEY_KEPT_LATE, late);
   }, []);
@@ -277,16 +281,49 @@ function MoneyPopup({ f, x, onClose }: { f: FamilyLedger; x: FamilyItem; onClose
  *  one kept already, Remove (spec §5) */
 function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLedger; item: FamilyItem | null; onClose: (said?: string, removedId?: string) => void }) {
   const [paidBy, setPaidBy] = useState<string | null>(item ? item.party : f.mine);
-  const [amount, setAmount] = useState(item ? String(item.amount) : "");
-  // The money: null follows the day's (a new entry until the switch is tapped); a kept entry keeps its own
-  const [chosen, setChosen] = useState<Currency | null>(item ? (item.currency as Currency) : null);
-  const [allMoney, setAllMoney] = useState(false);
-  const [what, setWhat] = useState(item?.what || "");
   const startDay = item?.dayDate || f.today;
+
+  // The day's money, and the row typed in on opening: the day's money (dollars in Cambodia, where they're used most, and
+  // before the trip)
+  const moneyOn = (d: string) => f.days.find((x) => x.date === d)?.money ?? null;
+  const openingOn = (d: string): Currency => { const m = moneyOn(d); return m && m !== "KHR" ? m : "USD"; };
+  const openingRow = (d: string): PadRow => (openingOn(d) === "USD" ? "usd" : "local");
+  // The trip's moneys that aren't dollars, in the order it meets them (any it never meets, after): the chips' order
+  const tripMonies: Foreign[] = [...new Set([...f.days.map((x) => x.money).filter((m): m is Foreign => !!m), ...THREE])];
+  // The first row's money on a day: the day's, else the trip's first
+  const firstRowOn = (d: string): Foreign => moneyOn(d) ?? tripMonies[0];
+
+  // How much, on Convert's own pad (components/MoneyPad.tsx; Ken, Nov 24: "expenses should use the same input panel to
+  // breed familiarity"). The first row: a money that isn't dollars (a kept entry's own, else the day's); the second,
+  // dollars. The money paid is the row the amount was typed in (the pad's `from`).
+  const kept = item ? (item.currency as Currency) : null;
+  const [local, setLocal] = useState<Foreign>(() => (kept && kept !== "USD" ? (kept as Foreign) : firstRowOn(startDay)));
+  const [pad, setPad] = useState<Pad>(() => {
+    if (!item || !kept) return padStart(openingRow(startDay));
+    // (a kept entry: its amount in its rows, and the next key replaces it)
+    const row: PadRow = kept === "USD" ? "usd" : "local";
+    return { typing: row, from: row, text: padText(item.amount, kept), fresh: true };
+  });
+  // (a country chip tapped: the first row keeps that money when the day changes)
+  const [chipChosen, setChipChosen] = useState(false);
+  // The keys: up on a new entry, so a person types at once; folded on a kept one, its amount shown in the rows
+  const [padOpen, setPadOpen] = useState(!item);
+  const [what, setWhat] = useState(item?.what || "");
   const [day, setDay] = useState(startDay);
   const [dayOpen, setDayOpen] = useState(false);
   // Who it's for: null is everyone on the trip that day (the usual); else the people chosen
   const [forSome, setForSome] = useState<string[] | null>(item && !item.everyone ? item.forNames : null);
+  // A kept entry for everyone on the trip (a deposit before anyone travels) opens as it reads in the list, one blue
+  // "Everyone on the trip (10)", its names folded until "Not everyone?" (a fresh review, Nov 24: opened to change the
+  // amount, the ten names looked like some other split)
+  const [namesOpen, setNamesOpen] = useState(() => !(item && !item.everyone && item.forNames.length === f.people.length && f.people.every((p) => item.forNames.includes(p.name))));
+  // The keys come up: on a short phone (375×667) Done sat under the sheet's edge, the last row of keys cut in half
+  const padBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!padOpen) return;
+    const t = setTimeout(() => padBox.current?.querySelector("[data-pad-done]")?.scrollIntoView({ block: "nearest" }), 60);
+    return () => clearTimeout(t);
+  }, [padOpen]);
   // A photo of the receipt: Wander reads the total and what it was for; the photo goes with the payment
   const [receipt, setReceipt] = useState<{ photo: ReceiptPhoto; date: string | null } | null>(null);
   const [reading, setReading] = useState(false);
@@ -299,42 +336,53 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
   useEffect(() => { if (!busy) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 6000); return () => clearTimeout(t); }, [busy]);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
-  // (a message after Keep it: the sheet scrolls so the message and Keep it are both in view; the message sits above it)
+  // (a message after Save: the sheet scrolls so the message and Save are both in view; the message sits above it)
   const keepRow = useRef<HTMLDivElement>(null);
   useEffect(() => { if (error) keepRow.current?.scrollIntoView({ block: "nearest" }); }, [error]);
-  const amountRef = useRef<HTMLInputElement>(null);
-  // This Keep's one-time tag, as Japan's: Keep again after no answer sends the same one, so a payment is never kept twice
+  // This Keep's one-time tag, as Japan's: Save again after no answer sends the same one, so a payment is never kept twice
   const keepKey = useRef<{ words: string; key: string } | null>(null);
   // Closed before Wander answered: this sheet never acts again
   const closed = useRef(false);
   const close = () => { closed.current = true; if (busy && keepKey.current) letGoOfKeep(keepKey.current.key); onClose(); };
-  useEffect(() => { if (!item) amountRef.current?.focus(); }, [item]);
   useEffect(() => { if (paidBy) setError((e) => (e === "Which family paid?" ? null : e)); }, [paidBy]);
   // (who it's for, or the day, changed: what was said about the last Keep no longer applies)
   useEffect(() => { setError((e) => (e === "Which family paid?" || e === "How much was it?" ? e : null)); }, [forSome, day]);
-  // What the last photo filled in: a new photo, or Remove, replaces it; words the person typed themselves stay
+  // What the last photo filled in (the pad's text): a new photo, or Remove, replaces it; what the person typed stays
   const filled = useRef({ amount: "", what: "" });
 
-  // The day's money, and the one the switch opens on: the day's (dollars in Cambodia, where they're used most)
-  const moneyOn = (d: string) => f.days.find((x) => x.date === d)?.money ?? null;
-  const openingOn = (d: string): Currency => { const m = moneyOn(d); return m && m !== "KHR" ? m : "USD"; };
-  const dayMoney = moneyOn(day);
-  const tripMoney = f.days.find((x) => x.money)?.money ?? null;
-  // The switch: the day's money and dollars; before the trip, dollars and the trip's first money
-  const pair: Currency[] = dayMoney ? (dayMoney === "KHR" ? ["USD", "KHR"] : [dayMoney, "USD"]) : tripMoney ? ["USD", tripMoney] : FOUR;
-  const currency: Currency = chosen ?? openingOn(day);
-  const offered = allMoney || !pair.includes(currency) ? FOUR : pair;
-
-  // ("125.000" typed as a menu in Vietnam prints it is 125,000 dong)
-  const n = typedAmount(amount, currency);
+  // The money paid and its amount: what was typed, in the row it was typed in. A tap on the other row alone changes
+  // neither (the pad's rule: the amount stays until a key is pressed there).
+  const rowMoney = (row: PadRow): Currency => (row === "local" ? local : "USD");
+  const { amount: n, currency } = padPaid(pad, local);
   const valid = Number.isFinite(n) && n > 0;
-  // As they type: dollars, or the day's money for dollars typed, from the trip's rates (the rate shown is the rate used)
+  // Its dollars, from the trip's rates (the rate shown is the rate used)
   const dollars = !valid ? null : currency === "USD" ? n : convert(n, currency, "USD", f.rates);
-  const local = valid && currency === "USD" && dayMoney ? convert(n, "USD", dayMoney, f.rates) : null;
-  // (another money says what was typed, with its commas, so a missing zero shows: "2,500,000 ₫ is about $96.98")
-  const about = currency !== "USD" && dollars !== null ? { big: `${money(n, currency)} is about ${usd(dollars)}`, rate: rateWords(currency as Foreign, f.rates) }
-    : local !== null && dayMoney ? { big: `About ${money(local, dayMoney)}`, rate: rateWords(dayMoney, f.rates) }
-    : null;
+  // Each row says which is paid: "Paid in Vietnamese dong" above "About, in US dollars". With no amount yet the other row
+  // is the money's plain name ("About" over a zero says nothing)
+  const rowLabel = (row: PadRow) => `${row === pad.from ? "Paid in " : valid ? "About, in " : ""}${MONEY_NAMES[rowMoney(row)]}`;
+  // The keys fold away (Done, or "What for" taken): the pressed row goes back to the money paid, so a folded sheet always
+  // has its dark-edged row on the money that will be saved
+  const foldPad = () => { setPadOpen(false); setPad(padFold); };
+  // Done under the keys: they fold, and once they have, Save comes into view (on a long sheet, a kept entry with its
+  // people listed, Save sat under the sheet's edge and took a scroll to find)
+  const doneTyping = () => {
+    foldPad();
+    const smooth = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    setTimeout(() => keepRow.current?.scrollIntoView({ block: "nearest", behavior: smooth ? "smooth" : "auto" }), 230);
+  };
+  // (the person chose the money: a chip, a tap on the other row, or an amount typed. Until then, a receipt's day decides it)
+  const moneyChosen = chipChosen || pad.text !== "" || pad.typing !== openingRow(day) || local !== firstRowOn(day);
+  // The day changed with nothing typed: the first row, and the row typed in, follow the new day (a chip tapped keeps its money)
+  const changeDay = (d: string) => {
+    setDay(d);
+    if (pad.text === "" && !chipChosen) { setLocal(firstRowOn(d)); setPad(padStart(openingRow(d))); }
+  };
+  // Another country's money in the first row, as Convert does: dollars typed stay; an amount in the old money is cleared
+  const chooseMoney = (m: Foreign) => {
+    if (m === local) return;
+    setLocal(m); setChipChosen(true);
+    setPad(padNewMoney);
+  };
 
   // Who's on the trip that day (both ends included, as the server counts), and who it's for
   const there = f.people.filter((p) => p.abroadFrom.slice(0, 10) <= day && day <= p.abroadTo.slice(0, 10));
@@ -374,14 +422,21 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
     const readDay = r.read?.date && /^\d{4}-\d{2}-\d{2}$/.test(r.read.date) ? r.read.date : day;
     setDay(readDay);
     const prev = filled.current;
-    const amountTheirs = !!amount.trim() && amount !== prev.amount;
+    const amountTheirs = pad.text !== "" && pad.text !== prev.amount;
     const whatTheirs = !!what.trim() && what !== prev.what;
-    const amt = r.read?.amount ? String(r.read.amount) : "";
     // (the receipt's own money when the reader could tell it; when it couldn't, the money already chosen stays, else the
     // day's, and the note says to check it: never a silent guess)
     const told = r.read?.currency && FOUR.includes(r.read.currency) ? r.read.currency : null;
-    const c: Currency = told ?? chosen ?? openingOn(readDay);
-    if (amt) { setAmount(amt); setChosen(c); } else if (!amountTheirs) setAmount("");
+    const c: Currency = told ?? (moneyChosen ? rowMoney(pad.typing) : openingOn(readDay));
+    const amt = r.read?.amount ? padText(r.read.amount, c) : "";
+    if (amt) {
+      // (the amount in its own row, the keys folded away: the person checks it, then taps who paid)
+      const row: PadRow = c === "USD" ? "usd" : "local";
+      if (c !== "USD") setLocal(c);
+      else if (!chipChosen && pad.text === "") setLocal(firstRowOn(readDay));
+      setPad({ typing: row, from: row, text: amt, fresh: true });
+      setPadOpen(false);
+    } else if (!amountTheirs) setPad(padClear);
     const said = r.read?.what || "";
     if (!whatTheirs) setWhat(said);
     filled.current = { amount: amt || (amountTheirs ? prev.amount : ""), what: whatTheirs ? prev.what : said };
@@ -394,7 +449,7 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
   };
   const dropReceipt = () => {
     const prev = filled.current;
-    if (amount === prev.amount) setAmount("");
+    if (pad.text === prev.amount) setPad(padClear);
     if (what === prev.what) setWhat("");
     filled.current = { amount: "", what: "" };
     setReceipt(null); setReadNote(null);
@@ -434,7 +489,7 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
     setBusy(false);
     if (err) { setError(err); return; }
     const forWords = what.trim() ? `, ${what.trim()}` : "";
-    onClose(item ? `Changed: ${paidBy}, ${money(n, currency)}${forWords}` : `${again ? "Already kept" : "Kept"}: ${paidBy}, ${money(n, currency)}${forWords}`);
+    onClose(item ? `Changed: ${paidBy}, ${money(n, currency)}${forWords}` : `${again ? "Already saved" : "Saved"}: ${paidBy}, ${money(n, currency)}${forWords}`);
   };
   const remove = async () => {
     if (!item) return;
@@ -479,7 +534,7 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
             <button type="button" onClick={() => setShowReceipt(true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See the receipt</button>
           )}
           <button type="button" disabled={reading} onClick={() => receiptInput.current?.click()} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2 disabled:opacity-60">
-            {reading ? "Keeping the receipt…" : item.hasReceipt ? "📷 Replace the receipt's photo" : "📷 Add the receipt's photo"}
+            {reading ? "Saving the receipt…" : item.hasReceipt ? "📷 Replace the receipt's photo" : "📷 Add the receipt's photo"}
           </button>
         </div>
       )}
@@ -492,7 +547,7 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
           if (closed.current || !stillOpen(tripId)) return;
           setReading(false);
           if (err) { setError(err); return; }
-          onClose(`${item.hasReceipt ? "Receipt replaced" : "Receipt kept with it"}: ${item.party}, ${money(item.amount, item.currency as Currency)}${item.what ? `, ${item.what}` : ""}`);
+          onClose(`${item.hasReceipt ? "Receipt replaced" : "Receipt saved with it"}: ${item.party}, ${money(item.amount, item.currency as Currency)}${item.what ? `, ${item.what}` : ""}`);
         }} />}
       {showReceipt && item && <ReceiptView tripId={tripId} id={item.id} onClose={() => setShowReceipt(false)} />}
 
@@ -509,31 +564,36 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
         })}
       </div>
 
-      {/* How much: the day's money and dollars, or all four */}
-      <div>
-        <div className="flex gap-2">
-          <div className="flex rounded-xl border border-[#e0d8cc] overflow-hidden shrink-0" role="group" aria-label="Which money">
-            {offered.map((c) => (
-              <button key={c} type="button" data-money-switch={c} onClick={() => setChosen(c)} aria-pressed={currency === c} aria-label={MONEY_NAMES[c]}
-                className={`min-w-[48px] min-h-[48px] ${c === "KHR" ? "text-[22px]" : "text-[17px]"} ${currency === c ? "bg-[#3a3128] text-white" : "bg-white text-[#514636]"}`}>{MONEY_SIGNS[c]}</button>
-            ))}
-          </div>
-          <input ref={amountRef} data-amount value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" enterKeyHint="done"
-            placeholder={offered.length === FOUR.length ? "Amount" : `Amount in ${AMOUNT_IN[currency]}`} aria-label="Amount"
-            className="flex-1 min-w-0 min-h-[48px] rounded-xl border border-[#e0d8cc] px-3 text-[17px] text-[#3a3128] focus:outline-none focus:border-[#a89880]" />
+      {/* How much: Convert's rows and pad (never the phone's keyboard). Above the rows, always showing, the trip's
+          countries as Convert's own chips, in Convert's place (Ken, Nov 24: "the ease of switching currencies").
+          The rate under it all. */}
+      <div ref={padBox}>
+        <div className="flex items-center" role="group" aria-label="Which money">
+          {tripMonies.map((m) => (
+            <button key={m} type="button" data-money-chip={m} aria-pressed={m === local} onClick={() => chooseMoney(m)} className="min-h-[44px] pr-1 flex items-center">
+              <span className={`px-3 py-1 text-xs rounded-full transition-colors ${m === local ? "bg-[#514636] text-white" : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e5ddd0]"}`}>{COUNTRY_OF[m]}</span>
+            </button>
+          ))}
         </div>
-        {offered.length < FOUR.length && <button type="button" data-another-money onClick={() => setAllMoney(true)} className={link}>Paid in {FOUR.filter((c) => !offered.includes(c)).map((c) => AMOUNT_IN[c]).join(" or ")}?</button>}
-        {about && (
-          <p data-about className="mt-1 text-[15px] text-[#3a3128]">{about.big}<span className="block text-[12px] text-[#6b5d4a]">{about.rate}</span></p>
-        )}
+        <MoneyPad pad={pad} setPad={setPad} local={local} rates={f.rates} label={rowLabel}
+          open={padOpen} onOpen={() => setPadOpen(true)} onDone={doneTyping} />
+        <p data-convert-rate className="mt-1 px-1 text-[12px] leading-snug text-[#6b5d4a]">{rateWords(local, f.rates)}</p>
       </div>
 
-      <input value={what} onChange={(e) => setWhat(e.target.value)} placeholder="What for (if you like)" aria-label="What for"
+      {/* (the phone's keyboard comes up here, so the pad folds away: the two are never both up) */}
+      <input value={what} onChange={(e) => setWhat(e.target.value)} onFocus={foldPad} placeholder="What for (if you like)" aria-label="What for"
         className="min-h-[48px] rounded-xl border border-[#e0d8cc] px-3 text-[16px] text-[#3a3128] focus:outline-none focus:border-[#a89880]" />
 
       {/* Who it's for: everyone on the trip that day, in blue, unless someone means otherwise */}
       <div role="group" aria-label="Who it's for">
-        {forSome === null ? (
+        {forSome !== null && !namesOpen ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span data-for-everyone className="min-h-[44px] px-3 rounded-full text-[14px] text-white inline-flex items-center" style={{ background: SHARED_BLUE }}>
+              ✓ Everyone on the trip ({forSome.length})
+            </span>
+            <button type="button" data-not-everyone onClick={() => setNamesOpen(true)} className={link}>Not everyone?</button>
+          </div>
+        ) : forSome === null ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span data-for-everyone className="min-h-[44px] px-3 rounded-full text-[14px] text-white inline-flex items-center" style={{ background: SHARED_BLUE }}>
               {noneYet ? `✓ Everyone on the trip (${everyoneNames.length})` : `✓ Everyone on the trip that day (${there.length})`}
@@ -567,7 +627,7 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
             })}
           </div>
         )}
-        {/* (said once: while the red message above Keep it says the same, this line waits) */}
+        {/* (said once: while the red message above Save says the same, this line waits) */}
         {forLine && !error?.startsWith(forLine.words) && <p data-for-line className={`text-[13px] mt-1.5 ${forLine.red ? "font-medium" : "text-[#514636]"}`} style={forLine.red ? { color: CHECK_RED } : undefined}>{forLine.words}</p>}
         {forSome === null && !there.length && !noneYet && (
           <div className="flex flex-wrap gap-x-4">
@@ -579,10 +639,11 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
 
       {/* The day: today's, or the receipt's, unless changed */}
       <div className="flex flex-wrap items-center gap-x-3">
-        <p data-day-line className="text-[14px] text-[#3a3128]">Day: {day === today ? `Today, ${shortDay(day).replace(",", "")}` : shortDay(day)}</p>
+        {/* ("Today" only when it is the phone's own date too: the trip's day runs ahead of an evening in California) */}
+        <p data-day-line className="text-[14px] text-[#3a3128]">Day: {day === today && day === new Date().toLocaleDateString("en-CA") ? `Today, ${shortDay(day).replace(",", "")}` : shortDay(day)}</p>
         {dayOpen
           ? <input type="date" data-day-input value={day} min={lo} max={hi} aria-label="Which day"
-              onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setDay(e.target.value); }}
+              onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) changeDay(e.target.value); }}
               className="min-h-[44px] rounded-xl border border-[#e0d8cc] bg-white px-2 text-[16px] text-[#3a3128]" />
           : <button type="button" data-day-change onClick={() => setDayOpen(true)} className="min-h-[44px] min-w-[44px] text-[14px] text-[#514636] underline underline-offset-2">Change</button>}
       </div>
@@ -590,11 +651,11 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
       <div ref={keepRow} className="flex flex-col gap-3">
         {error && <p className="text-sm text-[#8a3a1a]" role="alert">{error}</p>}
         <div className="flex items-center gap-3">
-          <button type="button" onClick={save} disabled={busy} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? (item ? "Saving…" : "Keeping…") : item ? "Save" : "Keep it"}</button>
+          <button type="button" onClick={save} disabled={busy} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
           <button type="button" onClick={close} className="min-h-[48px] px-2 text-[15px] text-[#514636] underline underline-offset-2">Cancel</button>
         </div>
       </div>
-      {slow && !item && <p className="text-sm text-[#514636]" role="status">Still waiting for Wander to answer. You can keep waiting, or Cancel: if it got through, it shows in the list, and typing it again won't keep it twice.</p>}
+      {slow && !item && <p className="text-sm text-[#514636]" role="status">Still waiting for Wander to answer. You can keep waiting, or Cancel: if it got through, it shows in the list, and typing it again won't save it twice.</p>}
       {item && (removing ? (
         <div className="flex items-center gap-3 border-t border-[#ece5da] pt-2">
           <span className="text-sm text-[#3a3128]">Remove it for everyone?</span>

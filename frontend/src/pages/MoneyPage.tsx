@@ -50,7 +50,7 @@ export default function MoneyPage() {
   }, [tripId]);
   // (a Keep closed before Wander answered, then answered: said, not just appearing in the list — fresh tester)
   useEffect(() => {
-    const late = (e: Event) => setKept({ said: `Kept after all: ${(e as CustomEvent<string>).detail}` });
+    const late = (e: Event) => setKept({ said: `Saved after all: ${(e as CustomEvent<string>).detail}` });
     window.addEventListener(MONEY_KEPT_LATE, late);
     return () => window.removeEventListener(MONEY_KEPT_LATE, late);
   }, []);
@@ -334,8 +334,9 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
     if (err) { setError(err); return; }
     // (what for too, as Removed and Put back say — "Kept: Julie & Andy, ¥3,400" didn't say which ¥3,400; fresh tester)
     const forWords = what.trim() ? `, ${what.trim()}` : "";
-    // ("Already kept" when Wander had this very payment — typed again after no answer; fresh tester: "Kept" read as new)
-    onClose(item ? `Changed: ${paidBy}, ${money(n, currency)}${forWords}` : `${again ? "Already kept" : "Kept"}: ${paidBy}, ${money(n, currency)}${forWords}`);
+    // ("Already saved" when Wander had this very payment — typed again after no answer; fresh tester: "Kept" read as new.
+    // "Saved", as the button says since Nov 24)
+    onClose(item ? `Changed: ${paidBy}, ${money(n, currency)}${forWords}` : `${again ? "Already saved" : "Saved"}: ${paidBy}, ${money(n, currency)}${forWords}`);
   };
   const remove = async () => {
     if (!item || !tripId) return;
@@ -383,7 +384,7 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
             <button type="button" onClick={() => setShowReceipt(true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See the receipt</button>
           )}
           <button type="button" disabled={reading} onClick={() => receiptInput.current?.click()} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2 disabled:opacity-60">
-            {reading ? "Keeping the receipt…" : item.hasReceipt ? "📷 Replace the receipt's photo" : "📷 Add the receipt's photo"}
+            {reading ? "Saving the receipt…" : item.hasReceipt ? "📷 Replace the receipt's photo" : "📷 Add the receipt's photo"}
           </button>
         </div>
       )}
@@ -396,7 +397,7 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
           if (closed.current) return;
           setReading(false);
           if (err) { setError(err); return; }
-          onClose(`${item.hasReceipt ? "Receipt replaced" : "Receipt kept with it"}: ${item.party}, ${money(item.amount, item.currency)}${item.what ? `, ${item.what}` : ""}`);
+          onClose(`${item.hasReceipt ? "Receipt replaced" : "Receipt saved with it"}: ${item.party}, ${money(item.amount, item.currency)}${item.what ? `, ${item.what}` : ""}`);
         }} />}
       {showReceipt && item && tripId && <ReceiptView tripId={tripId} id={item.id} onClose={() => setShowReceipt(false)} />}
       {/* (opened before the ledger came: says so, and Keep it waits — user-julie3: "Which couple paid?" with no way to answer) */}
@@ -462,10 +463,10 @@ function EntrySheet({ tripId, l, mine, item, onClose }: { tripId: string | null;
         );
       })()}
       <div className="flex items-center gap-3">
-        <button type="button" onClick={save} disabled={busy || !l} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? (item ? "Saving…" : "Keeping…") : item ? "Save" : forParty && forParty !== paidBy ? "Keep it — not shared" : "Keep it"}</button>
+        <button type="button" onClick={save} disabled={busy || !l} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? "Saving…" : !item && forParty && forParty !== paidBy ? "Save — not shared" : "Save"}</button>
         <button type="button" onClick={close} className="min-h-[48px] px-2 text-[15px] text-[#514636] underline underline-offset-2">Cancel</button>
       </div>
-      {slow && !item && <p className="text-sm text-[#514636]" role="status">Still waiting for Wander to answer. You can keep waiting, or Cancel: if it got through, it shows in the list, and typing it again won't keep it twice.</p>}
+      {slow && !item && <p className="text-sm text-[#514636]" role="status">Still waiting for Wander to answer. You can keep waiting, or Cancel: if it got through, it shows in the list, and typing it again won't save it twice.</p>}
       {error && <p className="text-sm text-[#8a3a1a]" role="alert">{error}</p>}
       {item && (removing ? (
         <div className="flex items-center gap-3 border-t border-[#ece5da] pt-2">
