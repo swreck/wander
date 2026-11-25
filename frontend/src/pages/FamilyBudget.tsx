@@ -5,14 +5,15 @@
  * (backend/src/services/familyExpenses.ts); the phone only converts what is being typed ("About …") and divides that
  * ("about $… each"). Japan's couples' Budget is MoneyPage.tsx and stays as it is; this page borrows its cards.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import useBackToClose from "../hooks/useBackToClose";
 import { useAuth } from "../contexts/AuthContext";
 import { addPayment, changePayment, removePayment, putBackPayment, keepKeyFor, letGoOfKeep, readReceiptPhoto, attachReceiptPhoto, MONEY_KEPT_LATE, type FamilyLedger, type FamilyItem, type ReceiptPhoto } from "../lib/expenses";
 import { convert, money, rateWords, perDollarWords, MONEY_NAMES, type Currency, type Foreign } from "../lib/rates";
 import { padClear, padFold, padNewMoney, padPaid, padStart, padText } from "../lib/convertPad";
 import PayNextBadge, { familyColor, SHARED_BLUE, CHECK_RED } from "../components/PayNextBadge";
-import MoneyPad, { type Pad, type PadRow } from "../components/MoneyPad";
+import MoneyPad, { Grabber, Segments, type Pad, type PadRow } from "../components/MoneyPad";
 import { Card, ReceiptView, HistorySheet } from "./MoneyPage";
 
 const shortDay = (d: string | null) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : "");
@@ -30,6 +31,10 @@ const FOUR: Currency[] = ["VND", "KHR", "JPY", "USD"];
 /** The three that aren't dollars, and each one's country as the entry sheet's chips name it (as Convert's do) */
 const THREE: Foreign[] = ["VND", "KHR", "JPY"];
 const COUNTRY_OF: Record<Foreign, string> = { VND: "Vietnam", KHR: "Cambodia", JPY: "Japan" };
+/** A family's colour as words on white (the entry sheet, the list). The orange as text measured 3.2 to 1 on white (WCAG asks
+ *  4.5), so its words are a darker orange of the same hue, 4.8 to 1; its fills, white words on orange, stay as they are */
+const ORANGE_WORDS = "#b35a17";
+const familyInk = (index: number) => { const c = familyColor(index); return c.toLowerCase() === "#e07020" ? ORANGE_WORDS : c; };
 /** The Log's clock in words, for the trip's own zone ("Times are Vietnam time."); any other zone says nothing */
 const ZONE_WORDS: Record<string, string> = { "Asia/Ho_Chi_Minh": "Vietnam time", "Asia/Phnom_Penh": "Cambodia time", "Asia/Tokyo": "Japan time" };
 
@@ -208,7 +213,7 @@ export default function FamilyBudget({ tripId, family }: { tripId: string; famil
                     )}
                     <div className="relative pointer-events-none pl-4 pr-8 py-3">
                       <div className="flex items-start justify-between gap-3">
-                        <p className="min-w-0 text-[15px] text-[#3a3128]"><PayNextBadge party={x.party} color={colorOf(x.party)} className="mr-1.5 -mt-0.5" /><span className="font-medium" style={{ color: colorOf(x.party) }}>{x.party}</span>{x.what ? ` · ${x.what}` : ""}</p>
+                        <p className="min-w-0 text-[15px] text-[#3a3128]"><PayNextBadge party={x.party} color={colorOf(x.party)} className="mr-1.5 -mt-0.5" /><span className="font-medium" style={{ color: familyInk(f.parties.indexOf(x.party)) }}>{x.party}</span>{x.what ? ` · ${x.what}` : ""}</p>
                         <button type="button" data-entry-amount={x.id} onClick={() => setPopup(x.id)} aria-label={`${paid}, in dollars and the trip's other money`}
                           className="pointer-events-auto shrink-0 -my-[11px] min-h-[44px] min-w-[44px] text-right text-[15px] text-[#3a3128] whitespace-nowrap underline decoration-dotted underline-offset-4">{paid}</button>
                       </div>
@@ -271,7 +276,7 @@ function MoneyPopup({ f, x, onClose }: { f: FamilyLedger; x: FamilyItem; onClose
           </>
         )}
       <div className="flex justify-end">
-        <button type="button" onClick={onClose} className="min-h-[44px] min-w-[44px] px-3 text-[15px] text-[#514636] underline underline-offset-2">Done</button>
+        <button type="button" onClick={onClose} className="min-h-[44px] min-w-[44px] px-3 text-[15px] font-semibold text-[#514636]">Done</button>
       </div>
     </Card>
   );
@@ -317,11 +322,12 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
   // "Everyone on the trip (10)", its names folded until "Not everyone?" (a fresh review, Nov 24: opened to change the
   // amount, the ten names looked like some other split)
   const [namesOpen, setNamesOpen] = useState(() => !(item && !item.everyone && item.forNames.length === f.people.length && f.people.every((p) => item.forNames.includes(p.name))));
-  // The keys come up: on a short phone (375×667) Done sat under the sheet's edge, the last row of keys cut in half
+  // The keys come up: on a short phone (375×667) the last row of keys sat cut in half under the sheet's edge, so once
+  // they have opened, they are brought into view (the keys' fold, never the keys inside it, which would scroll the fold)
   const padBox = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!padOpen) return;
-    const t = setTimeout(() => padBox.current?.querySelector("[data-pad-done]")?.scrollIntoView({ block: "nearest" }), 60);
+    const t = setTimeout(() => padBox.current?.querySelector("[data-pad-fold]")?.scrollIntoView({ block: "nearest" }), 230);
     return () => clearTimeout(t);
   }, [padOpen]);
   // A photo of the receipt: Wander reads the total and what it was for; the photo goes with the payment
@@ -336,9 +342,6 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
   useEffect(() => { if (!busy) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 6000); return () => clearTimeout(t); }, [busy]);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
-  // (a message after Save: the sheet scrolls so the message and Save are both in view; the message sits above it)
-  const keepRow = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (error) keepRow.current?.scrollIntoView({ block: "nearest" }); }, [error]);
   // This Keep's one-time tag, as Japan's: Save again after no answer sends the same one, so a payment is never kept twice
   const keepKey = useRef<{ words: string; key: string } | null>(null);
   // Closed before Wander answered: this sheet never acts again
@@ -363,13 +366,8 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
   // The keys fold away (Done, or "What for" taken): the pressed row goes back to the money paid, so a folded sheet always
   // has its dark-edged row on the money that will be saved
   const foldPad = () => { setPadOpen(false); setPad(padFold); };
-  // Done under the keys: they fold, and once they have, Save comes into view (on a long sheet, a kept entry with its
-  // people listed, Save sat under the sheet's edge and took a scroll to find)
-  const doneTyping = () => {
-    foldPad();
-    const smooth = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    setTimeout(() => keepRow.current?.scrollIntoView({ block: "nearest", behavior: smooth ? "smooth" : "auto" }), 230);
-  };
+  // Done, at the right of the rate's line: the keys fold (Save is in the sheet's top row, always in view; batch 115)
+  const doneTyping = foldPad;
   // (the person chose the money: a chip, a tap on the other row, or an amount typed. Until then, a receipt's day decides it)
   const moneyChosen = chipChosen || pad.text !== "" || pad.typing !== openingRow(day) || local !== firstRowOn(day);
   // The day changed with nothing typed: the first row, and the row typed in, follow the new day (a chip tapped keeps its money)
@@ -501,42 +499,53 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
     onClose(`Removed: ${item.party}, ${money(item.amount, item.currency as Currency)}${item.what ? `, ${item.what}` : ""}`, item.id);
   };
 
-  const link = "min-h-[44px] text-[13px] text-[#6b5d4a] underline underline-offset-2";
+  // (iOS plain buttons carry no underline: batch 115)
+  const plain = "min-h-[44px] text-[15px] font-medium text-[#514636]";
+  const title = item ? "Change entry" : "Add entry";
   return (
-    <Card label={item ? "Change entry" : "Add entry"} onClose={close} mark="data-entry-sheet">
-      {/* (the receipt's photo on the heading's line, as Japan's) */}
-      <div className="flex items-center gap-2 -my-1">
-        <h2 className="flex-1 text-[17px] font-medium text-[#3a3128]">{item ? "Change entry" : "Add entry"}</h2>
-        {!item && (
-          <button type="button" onClick={() => receiptInput.current?.click()} disabled={reading}
-            className="min-h-[44px] px-3 rounded-xl border border-dashed border-[#c8b89c] bg-white text-[14px] text-[#514636] disabled:opacity-60">
-            {reading ? "Reading the receipt…" : receipt ? "📷 Take another photo" : "📷 Photo of the receipt"}
-          </button>
-        )}
-        {!item && <input ref={receiptInput} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1}
-          onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void fromReceipt(file); }} />}
+    <EntryFrame label={title} onClose={close} head={<>
+      {/* Cancel, the sheet's name, Save: Save always in view, whatever the sheet's length (it sat under the fold) */}
+      <div className="h-11 grid grid-cols-[1fr_auto_1fr] items-center">
+        <button type="button" onClick={close} className="justify-self-start -ml-1 h-11 min-w-[44px] px-1 text-[17px] text-[#514636]">Cancel</button>
+        <h2 className="text-[17px] font-semibold text-[#3a3128]">{title}</h2>
+        <button type="button" onClick={save} disabled={busy} className="justify-self-end h-11 min-w-[44px] flex items-center disabled:opacity-50">
+          <span className="h-[34px] px-[18px] rounded-[17px] bg-[#3a3128] text-white text-[15px] font-semibold flex items-center active:bg-[#241f1a]">{busy ? "Saving…" : "Save"}</span>
+        </button>
       </div>
+      {/* (what Save found wrong, and a Save with no answer for a while, right under the row that holds Save) */}
+      {error && <p className="pb-1.5 text-sm text-[#8a3a1a]" role="alert">{error}</p>}
+      {slow && !item && <p className="pb-1.5 text-sm text-[#514636]" role="status">Still waiting for Wander to answer. You can keep waiting, or Cancel: if it got through, it shows in the list, and typing it again won't save it twice.</p>}
+    </>}>
+      {!item && (
+        <button type="button" onClick={() => receiptInput.current?.click()} disabled={reading}
+          className="mt-2 w-full h-11 rounded-xl border border-[#e5ddd0] bg-white flex items-center justify-center gap-2 text-[15px] font-medium text-[#514636] active:bg-[#f5f0ea] disabled:opacity-60">
+          {CAMERA}{reading ? "Reading the receipt…" : receipt ? "Take another photo" : "Photo of the receipt"}
+        </button>
+      )}
+      {!item && <input ref={receiptInput} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1}
+        onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void fromReceipt(file); }} />}
       {!item && (receipt || readNote) && (
         <div>
           {receipt && (
             <div className="flex items-center gap-3 mt-2">
               <img src={receipt.photo.thumb} alt="The receipt" className="w-10 h-12 object-cover rounded border border-[#e0d8cc]" />
               <p className="flex-1 text-[13px] text-[#514636]" role="status">{readNote}</p>
-              <button type="button" onClick={dropReceipt} className="min-h-[44px] text-sm text-[#6b5d4a] underline underline-offset-2">Remove</button>
+              <button type="button" onClick={dropReceipt} className={plain}>Remove</button>
             </div>
           )}
-          {!receipt && readNote && <p className="text-[13px] text-[#514636] mt-1" role="status">{readNote}</p>}
+          {!receipt && readNote && <p className="text-[13px] text-[#514636] mt-2" role="status">{readNote}</p>}
         </div>
       )}
       {item && (
-        <div className="flex flex-wrap items-center gap-x-5 -my-1">
-          {item.hasReceipt && (
-            <button type="button" onClick={() => setShowReceipt(true)} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2">See the receipt</button>
-          )}
-          <button type="button" disabled={reading} onClick={() => receiptInput.current?.click()} className="min-h-[44px] text-sm text-[#514636] underline underline-offset-2 disabled:opacity-60">
-            {reading ? "Saving the receipt…" : item.hasReceipt ? "📷 Replace the receipt's photo" : "📷 Add the receipt's photo"}
+        <>
+          <button type="button" disabled={reading} onClick={() => receiptInput.current?.click()}
+            className="mt-2 w-full h-11 rounded-xl border border-[#e5ddd0] bg-white flex items-center justify-center gap-2 text-[15px] font-medium text-[#514636] active:bg-[#f5f0ea] disabled:opacity-60">
+            {CAMERA}{reading ? "Saving the receipt…" : item.hasReceipt ? "Replace the receipt's photo" : "Add the receipt's photo"}
           </button>
-        </div>
+          {item.hasReceipt && (
+            <button type="button" onClick={() => setShowReceipt(true)} className={`${plain} self-start`}>See the receipt</button>
+          )}
+        </>
       )}
       {item && <input ref={receiptInput} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1}
         onChange={async (e) => {
@@ -552,53 +561,47 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
       {showReceipt && item && <ReceiptView tripId={tripId} id={item.id} onClose={() => setShowReceipt(false)} />}
 
       {/* Who paid: the families side by side, each in its colour (a long name wraps, never cut) */}
-      <p className="text-[13px] text-[#6b5d4a] -mb-2">Who paid</p>
+      <p className="mt-4 mb-1.5 mx-1 text-[13px] font-semibold text-[#6b5d4a]">Who paid</p>
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(f.parties.length, 3)}, minmax(0, 1fr))` }} role="group" aria-label="Who paid">
         {f.parties.map((p, i) => {
           const c = familyColor(i);
           return (
             <button key={p} type="button" data-family-pay={i} onClick={() => setPaidBy(p)} aria-pressed={paidBy === p}
-              className="min-h-[48px] px-1.5 py-1 rounded-xl border-2 text-[15px] leading-tight [overflow-wrap:anywhere]"
-              style={paidBy === p ? { background: c, borderColor: c, color: "#fff" } : { background: "#fff", borderColor: "#e0d8cc", color: c }}>{p}</button>
+              className="min-h-[48px] px-1.5 py-1 rounded-xl border text-[15px] font-medium leading-[18px] [overflow-wrap:anywhere]"
+              style={paidBy === p ? { background: c, borderColor: "transparent", color: "#fff" } : { background: "#fff", borderColor: "#e0d8cc", color: familyInk(i) }}>{p}</button>
           );
         })}
       </div>
 
-      {/* How much: Convert's rows and pad (never the phone's keyboard). Above the rows, always showing, the trip's
-          countries as Convert's own chips, in Convert's place (Ken, Nov 24: "the ease of switching currencies").
-          The rate under it all. */}
-      <div ref={padBox}>
-        <div className="flex items-center" role="group" aria-label="Which money">
-          {tripMonies.map((m) => (
-            <button key={m} type="button" data-money-chip={m} aria-pressed={m === local} onClick={() => chooseMoney(m)} className="min-h-[44px] pr-1 flex items-center">
-              <span className={`px-3 py-1 text-xs rounded-full transition-colors ${m === local ? "bg-[#514636] text-white" : "bg-[#f0ece5] text-[#6b5d4a] hover:bg-[#e5ddd0]"}`}>{COUNTRY_OF[m]}</span>
-            </button>
-          ))}
+      {/* How much: Convert's segmented countries, rows, rate and pad (never the phone's keyboard; Ken, Nov 24: "the ease of
+          switching currencies"). Done folds the keys away. */}
+      <div ref={padBox} className="mt-4">
+        <Segments items={tripMonies.map((m) => ({ value: m, name: COUNTRY_OF[m] }))} chosen={local} onChoose={chooseMoney} attr="data-money-chip" label="Which money" />
+        <div className="mt-2.5">
+          <MoneyPad pad={pad} setPad={setPad} local={local} rates={f.rates} label={rowLabel} rate={rateWords(local, f.rates)}
+            open={padOpen} onOpen={() => setPadOpen(true)} onDone={doneTyping} />
         </div>
-        <MoneyPad pad={pad} setPad={setPad} local={local} rates={f.rates} label={rowLabel}
-          open={padOpen} onOpen={() => setPadOpen(true)} onDone={doneTyping} />
-        <p data-convert-rate className="mt-1 px-1 text-[12px] leading-snug text-[#6b5d4a]">{rateWords(local, f.rates)}</p>
       </div>
 
       {/* (the phone's keyboard comes up here, so the pad folds away: the two are never both up) */}
       <input value={what} onChange={(e) => setWhat(e.target.value)} onFocus={foldPad} placeholder="What for (if you like)" aria-label="What for"
-        className="min-h-[48px] rounded-xl border border-[#e0d8cc] px-3 text-[16px] text-[#3a3128] focus:outline-none focus:border-[#a89880]" />
+        className="mt-3.5 w-full h-12 rounded-xl border border-[#e5ddd0] bg-white px-3.5 text-[16px] text-[#3a3128] placeholder:text-[#7a6b55] focus:outline-none focus:border-[#a89880]" />
 
       {/* Who it's for: everyone on the trip that day, in blue, unless someone means otherwise */}
-      <div role="group" aria-label="Who it's for">
+      <div role="group" aria-label="Who it's for" className="mt-3.5">
         {forSome !== null && !namesOpen ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span data-for-everyone className="min-h-[44px] px-3 rounded-full text-[14px] text-white inline-flex items-center" style={{ background: SHARED_BLUE }}>
+          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
+            <span data-for-everyone className="min-h-[44px] px-3.5 rounded-full text-[14px] font-medium text-white inline-flex items-center" style={{ background: SHARED_BLUE }}>
               ✓ Everyone on the trip ({forSome.length})
             </span>
-            <button type="button" data-not-everyone onClick={() => setNamesOpen(true)} className={link}>Not everyone?</button>
+            <button type="button" data-not-everyone onClick={() => setNamesOpen(true)} className={plain}>Not everyone?</button>
           </div>
         ) : forSome === null ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span data-for-everyone className="min-h-[44px] px-3 rounded-full text-[14px] text-white inline-flex items-center" style={{ background: SHARED_BLUE }}>
+          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
+            <span data-for-everyone className="min-h-[44px] px-3.5 rounded-full text-[14px] font-medium text-white inline-flex items-center" style={{ background: SHARED_BLUE }}>
               {noneYet ? `✓ Everyone on the trip (${everyoneNames.length})` : `✓ Everyone on the trip that day (${there.length})`}
             </span>
-            <button type="button" data-not-everyone onClick={() => setForSome(noneYet ? everyoneNames : there.map((p) => p.name))} className={link}>Not everyone?</button>
+            <button type="button" data-not-everyone onClick={() => setForSome(noneYet ? everyoneNames : there.map((p) => p.name))} className={plain}>Not everyone?</button>
           </div>
         ) : (
           <div className="flex flex-col gap-1">
@@ -613,13 +616,13 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
                   {/* (the family's name turns its whole family on or off) */}
                   <button type="button" data-family-toggle={i} aria-pressed={allOn}
                     onClick={() => setForSome(allOn ? forSome.filter((name) => !names.includes(name)) : [...forSome, ...names.filter((name) => !forSome.includes(name))])}
-                    className="min-h-[44px] min-w-[44px] pr-1 text-left text-[13px] font-semibold underline underline-offset-2" style={{ color: c }}>{p}</button>
+                    className="min-h-[44px] min-w-[44px] pr-1 text-left text-[13px] font-semibold" style={{ color: familyInk(i) }}>{p}</button>
                   {names.map((name) => {
                     const on = forSome.includes(name);
                     return (
                       <button key={name} type="button" data-person={name} aria-pressed={on} onClick={() => setForSome(on ? forSome.filter((x) => x !== name) : [...forSome, name])}
                         className="min-h-[44px] min-w-[44px] px-3 rounded-full border-2 text-[14px]"
-                        style={on ? { background: c, borderColor: c, color: "#fff" } : { background: "#fff", borderColor: "#e0d8cc", color: c }}>{name.trim().split(/\s+/)[0]}</button>
+                        style={on ? { background: c, borderColor: c, color: "#fff" } : { background: "#fff", borderColor: "#e0d8cc", color: familyInk(i) }}>{name.trim().split(/\s+/)[0]}</button>
                     );
                   })}
                 </div>
@@ -627,42 +630,69 @@ function EntrySheet({ tripId, f, item, onClose }: { tripId: string; f: FamilyLed
             })}
           </div>
         )}
-        {/* (said once: while the red message above Save says the same, this line waits) */}
+        {/* (said once: while the red message under Save says the same, this line waits) */}
         {forLine && !error?.startsWith(forLine.words) && <p data-for-line className={`text-[13px] mt-1.5 ${forLine.red ? "font-medium" : "text-[#514636]"}`} style={forLine.red ? { color: CHECK_RED } : undefined}>{forLine.words}</p>}
         {forSome === null && !there.length && !noneYet && (
           <div className="flex flex-wrap gap-x-4">
-            <button type="button" data-everyone-on-trip onClick={() => setForSome(f.people.map((p) => p.name))} className={link}>Everyone on the trip ({f.people.length})</button>
-            <button type="button" onClick={() => setForSome([])} className={link}>Choose people</button>
+            <button type="button" data-everyone-on-trip onClick={() => setForSome(f.people.map((p) => p.name))} className={plain}>Everyone on the trip ({f.people.length})</button>
+            <button type="button" onClick={() => setForSome([])} className={plain}>Choose people</button>
           </div>
         )}
       </div>
 
       {/* The day: today's, or the receipt's, unless changed */}
-      <div className="flex flex-wrap items-center gap-x-3">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3">
         {/* ("Today" only when it is the phone's own date too: the trip's day runs ahead of an evening in California) */}
         <p data-day-line className="text-[14px] text-[#3a3128]">Day: {day === today && day === new Date().toLocaleDateString("en-CA") ? `Today, ${shortDay(day).replace(",", "")}` : shortDay(day)}</p>
         {dayOpen
           ? <input type="date" data-day-input value={day} min={lo} max={hi} aria-label="Which day"
               onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) changeDay(e.target.value); }}
               className="min-h-[44px] rounded-xl border border-[#e0d8cc] bg-white px-2 text-[16px] text-[#3a3128]" />
-          : <button type="button" data-day-change onClick={() => setDayOpen(true)} className="min-h-[44px] min-w-[44px] text-[14px] text-[#514636] underline underline-offset-2">Change</button>}
+          : <button type="button" data-day-change onClick={() => setDayOpen(true)} className={`${plain} min-w-[44px]`}>Change</button>}
       </div>
 
-      <div ref={keepRow} className="flex flex-col gap-3">
-        {error && <p className="text-sm text-[#8a3a1a]" role="alert">{error}</p>}
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={save} disabled={busy} className="min-h-[48px] px-6 rounded-xl bg-[#514636] text-white text-[15px] font-medium disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
-          <button type="button" onClick={close} className="min-h-[48px] px-2 text-[15px] text-[#514636] underline underline-offset-2">Cancel</button>
-        </div>
-      </div>
-      {slow && !item && <p className="text-sm text-[#514636]" role="status">Still waiting for Wander to answer. You can keep waiting, or Cancel: if it got through, it shows in the list, and typing it again won't save it twice.</p>}
       {item && (removing ? (
-        <div className="flex items-center gap-3 border-t border-[#ece5da] pt-2">
+        <div className="mt-2 flex items-center gap-4 border-t border-[#ece5da] pt-2">
           <span className="text-sm text-[#3a3128]">Remove it for everyone?</span>
-          <button type="button" onClick={remove} disabled={busy} className="min-h-[44px] text-sm text-[#8a3a1a] underline">Remove it</button>
-          <button type="button" onClick={() => setRemoving(false)} className="min-h-[44px] text-sm text-[#514636] underline">Leave it</button>
+          <button type="button" onClick={remove} disabled={busy} className="min-h-[44px] text-[15px] font-medium text-[#8a3a1a]">Remove it</button>
+          <button type="button" onClick={() => setRemoving(false)} className={plain}>Leave it</button>
         </div>
-      ) : <button type="button" onClick={() => setRemoving(true)} className="self-start min-h-[44px] text-sm text-[#8a3a1a] underline underline-offset-2 border-t border-[#ece5da] pt-2">Remove this entry</button>)}
-    </Card>
+      ) : <button type="button" onClick={() => setRemoving(true)} className="mt-2 self-start min-h-[44px] text-[15px] font-medium text-[#8a3a1a] border-t border-[#ece5da] pt-2">Remove this entry</button>)}
+    </EntryFrame>
+  );
+}
+
+/** The camera on the receipt's button: a line icon in the app's ink (it was a 📷) */
+const CAMERA = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.5" />
+  </svg>
+);
+
+/**
+ * The entry sheet's frame (batch 115): the screen's full width (a phone's; on an iPad, the bar's width), up from the
+ * bottom over the bar, its top just under the phone's status bar. Its head (Cancel, the name, Save) stays put; the rest
+ * scrolls inside it. On an iPad it hangs 48 pt from the top and is as tall as what it holds, so Save stays where it is
+ * when the keys fold (hung from the bottom, a fresh review saw the whole sheet drop 224 pt at Done). Its own frame, so Japan's Budget (MoneyPage.tsx Card) is untouched. The phone's Back and a tap
+ * outside close it, as they close Card.
+ */
+function EntryFrame({ label, onClose, head, children }: { label: string; onClose: () => void; head: ReactNode; children: ReactNode }) {
+  useBackToClose(true, () => onClose());
+  return (
+    <div className="fixed inset-0 z-[70]">
+      <div className="absolute inset-0 bg-[rgba(36,31,26,.38)]" onClick={onClose} />
+      <section role="dialog" aria-label={label} data-entry-sheet
+        className="absolute inset-x-0 mx-auto bottom-0 w-full max-w-lg bg-[#faf8f5] rounded-t-[24px] flex flex-col top-[calc(env(safe-area-inset-top,0px)+7px)] min-[700px]:top-12 min-[700px]:bottom-auto min-[700px]:max-h-[calc(100dvh-96px)] min-[700px]:rounded-b-[24px]"
+        style={{ boxShadow: "0 -10px 30px rgba(36,31,26,.18)" }}>
+        <div className="shrink-0 px-4">
+          <Grabber />
+          {head}
+        </div>
+        {/* (each part keeps its own height: in a column longer than the screen, flex would squash them) */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 flex flex-col [&>*]:shrink-0" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}>
+          {children}
+        </div>
+      </section>
+    </div>
   );
 }

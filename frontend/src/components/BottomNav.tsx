@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { loadMaybeNews } from "../lib/maybesNews";
 
@@ -10,6 +10,7 @@ import PhraseCard from "./PhraseCard";
 import ConvertCard from "./ConvertCard";
 import { loadLedger, savedLedger, payNextOf, MONEY_CHANGED, type Ledger } from "../lib/expenses";
 import PayNextBadge, { familyColor } from "./PayNextBadge";
+import { BAR_ICON, BAR_LABEL, BAR_SLOT, barTone, barWeight } from "./barSlot";
 import { api } from "../lib/api";
 import { savedGuideData } from "../lib/guideData";
 import { travelerToday } from "../lib/guideDisplay";
@@ -47,14 +48,24 @@ interface Props {
   actionsNeedAttention?: boolean;
 }
 
+// The bar's icons, one family: 22 pt line glyphs, and a filled one for the tab that's selected (Apple's own rule for tab
+// bars: a selected tab's symbol is filled). The filled glyph's inner lines are drawn in the selection pill's colour.
+const PILL = "#ece4d6";
+const line = (paths: ReactNode, mark?: Record<string, string>) => (
+  <svg {...mark} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths}</svg>
+);
+const COIN_YEN = <path d="M8.5 7.5 12 12l3.5-4.5M12 12v5M9 13h6M9 15.5h6" />;
+const COIN_DOLLAR = <path d="M12 6.5v11M14.8 9.3c-.4-.9-1.5-1.5-2.8-1.5-1.6 0-2.8.8-2.8 2 0 2.9 5.6 1.5 5.6 4.4 0 1.2-1.2 2-2.8 2-1.4 0-2.5-.6-2.9-1.6" />;
+const coinFilled = (inner: ReactNode, mark?: Record<string, string>) => line(<><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none" /><g stroke={PILL}>{inner}</g></>, mark);
+
 const tabs = [
   {
     path: "/",
     label: "Home",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-        <polyline points="9 22 9 12 15 12 15 22" />
+    icon: line(<><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></>),
+    iconOn: (
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+        <path fill="currentColor" d="M12 1.6c.3 0 .6.1.9.3l8.2 6.4c.4.3.6.7.6 1.2V20a2 2 0 0 1-2 2h-4.2a.5.5 0 0 1-.5-.5V15a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v6.5a.5.5 0 0 1-.5.5H4.3a2 2 0 0 1-2-2V9.5c0-.5.2-.9.6-1.2l8.2-6.4c.3-.2.6-.3.9-.3z" />
       </svg>
     ),
   },
@@ -63,61 +74,51 @@ const tabs = [
   {
     path: "__today__",
     label: "Today",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4.5" width="18" height="16.5" rx="2" /><path d="M3 9.5h18M8 2.5v4M16 2.5v4" /><path d="M7.5 13.5h4M7.5 17h7" />
-      </svg>
-    ),
+    icon: line(<><rect x="3" y="4.5" width="18" height="16.5" rx="2" /><path d="M3 9.5h18M8 2.5v4M16 2.5v4" /><path d="M7.5 13.5h4M7.5 17h7" /></>),
+    iconOn: line(<><rect x="2.5" y="4" width="19" height="17.5" rx="2.5" fill="currentColor" stroke="none" /><path d="M8 2.5v4M16 2.5v4" /><path d="M2.5 9.5h19M7.5 13.5h4M7.5 17h7" stroke={PILL} /></>),
   },
   {
     path: "/now",
     // "Next" (Oct 2, Ken): the question this tab answers — what's next, when, and how to get there
     label: "Next",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
-      </svg>
-    ),
+    icon: line(<><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>),
+    iconOn: line(<><circle cx="12" cy="12" r="10.5" fill="currentColor" stroke="none" /><polyline points="12 6 12 12 16 14" stroke={PILL} strokeWidth="2" /></>),
   },
   // Trip notes (Oct 1 2026): always one tap away, whatever the screen
   {
     path: "/notes",
     label: "Notes",
+    icon: line(<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>),
+    iconOn: line(<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" fill="currentColor" /></>),
+  },
+  // Scout between Notes and Budget (Ken's order, Nov 25 2026): on a small capsule of the bar's darkest ink, the one
+  // filled-colour item in the bar, so the way to ask is found at a glance. Ink, never a bright colour: Budget's badge
+  // beside it wears a family's colour, and two coloured discs side by side would read as two badges.
+  {
+    path: "__scout__",
+    label: "Scout",
     icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-      </svg>
+      <span className="w-9 h-[26px] rounded-[13px] bg-[#3a3128] text-white flex items-center justify-center">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+          <path fill="currentColor" d="M5.5 3h13A2.5 2.5 0 0 1 21 5.5v9a2.5 2.5 0 0 1-2.5 2.5H8.2l-4.4 3.8A.5.5 0 0 1 3 20.4V5.5A2.5 2.5 0 0 1 5.5 3z" />
+        </svg>
+      </span>
     ),
+    iconOn: null,
   },
   // Budget where Actions was — Ken (Oct 15): "There seems to be no need for the [Actions] button in the main navigation
   // menu, so you can replace that with budget" (the to-dos open from Home's "To-dos and deadlines" line)
   {
     path: "/money",
     label: "Budget",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="9" /><path d="M8.5 7.5 12 12l3.5-4.5M12 12v5M9 13h6M9 15.5h6" />
-      </svg>
-    ),
-  },
-  {
-    path: "__scout__",
-    label: "Scout",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
-    ),
+    icon: line(<><circle cx="12" cy="12" r="9" />{COIN_YEN}</>),
+    iconOn: coinFilled(COIN_YEN),
   },
 ];
 
 /** Budget's coin on a trip whose payers are families, which counts in dollars: the same coin with "$" for "¥" */
-const DOLLAR_ICON = (
-  <svg data-dollar-coin width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9" /><path d="M12 6.5v11M14.8 9.3c-.4-.9-1.5-1.5-2.8-1.5-1.6 0-2.8.8-2.8 2 0 2.9 5.6 1.5 5.6 4.4 0 1.2-1.2 2-2.8 2-1.4 0-2.5-.6-2.9-1.6" />
-  </svg>
-);
+const DOLLAR_ICON = line(<><circle cx="12" cy="12" r="9" />{COIN_DOLLAR}</>, { "data-dollar-coin": "" });
+const DOLLAR_ICON_ON = coinFilled(COIN_DOLLAR, { "data-dollar-coin": "" });
 // What Budget's tab shows, from one copy of the ledger: who pays next, and whether the trip counts in dollars (a trip whose
 // payers are families). Held together, so the ledger's answer redraws the tab even when no one pays next yet (Nov 24)
 type Bar = { next: { party: string; index: number } | null; dollars: boolean };
@@ -329,8 +330,9 @@ export default function BottomNav({ pendingChanges }: Props) {
       className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e0d8cc]"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", ...(placedAt != null ? { top: placedAt, bottom: "auto" } : {}) }}
     >
-      <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
-        <ConvertCard />
+      {/* Ken's order (Nov 25 2026): Home, Today, Next, Notes, Scout, Budget, Convert, Phrases. Every item an equal slot
+          (barSlot.ts), so a trip without Convert or Phrases has fewer, wider ones */}
+      <div className="flex items-center h-14 max-w-lg mx-auto px-1">
         {tabs.map((tab) => {
           const isActive = tab.path === "__scout__"
             ? scoutOpen
@@ -368,31 +370,35 @@ export default function BottomNav({ pendingChanges }: Props) {
                   navigate(tab.path);
                 }
               }}
-              // The five tabs share the width — at Safari's larger zoom, 64-point tabs pushed "Scout" off a small phone
-              className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 min-h-[48px] px-1 py-1 rounded-lg transition-colors relative ${tab.path === "__actions__" && actionsNeedAttention ? "text-amber-600" : ""}
-                ${isActive ? "text-[#514636]" : "text-[#7a6b55] hover:text-[#6b5d4a]"}`}
+              // Equal slots share the width — at Safari's larger zoom, 64-point tabs pushed "Scout" off a small phone
+              className={`${BAR_SLOT} ${barTone(isActive)} ${tab.path === "__actions__" && actionsNeedAttention ? "text-amber-600" : ""}`}
             >
-              {tab.path === "/money" && payNext ? (
-                <span aria-label={`${payNext.party} pay next`} className="inline-flex"><PayNextBadge party={payNext.party} color={payNext.index >= 0 ? familyColor(payNext.index) : undefined} /></span>
-              ) : tab.path === "/money" && dollarTrip ? DOLLAR_ICON : tab.icon}
-              <span className="text-xs leading-tight font-medium">{tab.label}</span>
+              <span className={BAR_ICON}>
+                {tab.path === "/money" && payNext ? (
+                  <span aria-label={`${payNext.party} pay next`} className="inline-flex"><PayNextBadge party={payNext.party} color={payNext.index >= 0 ? familyColor(payNext.index) : undefined} /></span>
+                ) : tab.path === "/money" && dollarTrip ? (isActive ? DOLLAR_ICON_ON : DOLLAR_ICON) : isActive && tab.iconOn ? tab.iconOn : tab.icon}
+              </span>
+              {/* (Scout's word is always the darker, heavier one, with its ink capsule) */}
+              <span className={`${BAR_LABEL} ${tab.path === "__scout__" ? "font-semibold text-[#3a3128]" : barWeight(isActive)}`}>{tab.label}</span>
               {/* Badge dot for pending sync changes on Home */}
               {tab.path === "/" && pendingChanges && pendingChanges > 0 ? (
-                <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" />
+                <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-500" />
               ) : null}
               {/* Something new on Maybes (not while you're looking at it) */}
               {MAYBES_DOT && maybesNew && !isActive ? (
-                <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-amber-500" aria-label="Something new" />
+                <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-500" aria-label="Something new" />
               ) : null}
               {/* Glow dot for Actions needing attention */}
               {tab.path === "__actions__" && actionsNeedAttention ? (
-                <span className="absolute top-0 right-1 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                <span className="absolute top-1 right-2 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
               ) : null}
             </button>
           );
         })}
-        {/* The phrases, a small 日 at the bar's end on every screen (Ken, Oct 13: "a clear convenient but subtle way to
-            have phrase button always available"); nothing on a trip without phrases */}
+        {/* Convert, while the trip is under way or still to come (nothing once it's over) */}
+        <ConvertCard />
+        {/* The phrases at the bar's end on every screen (Ken, Oct 13: "a clear convenient but subtle way to have phrase
+            button always available"); its room kept while the trip is read */}
         <PhraseCard mode="bar" />
       </div>
     </nav>

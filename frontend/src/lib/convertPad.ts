@@ -76,7 +76,7 @@ export function shortcutKey(currency: Currency): PadKey {
 
 // ── The two rows (Convert and Budget's entry sheet share them: components/MoneyPad.tsx) ──
 
-/** Each money as a person says it: "tap to type dong", "Type in dollars" */
+/** Each money as a person says it: "Type in dollars" (the swap button), "tap to type dong" (a row, to a screen reader) */
 export const MONEY_WORDS: Record<Currency, string> = { VND: "dong", KHR: "riel", JPY: "yen", USD: "dollars" };
 
 /** The first row holds a money that isn't dollars; the second, US dollars */
@@ -162,13 +162,19 @@ export const NOTES: Record<Foreign, number[]> = {
   JPY: [1_000, 5_000, 10_000],
 };
 
-/** A dong note's own colour on its button, so the note in a hand finds its button (Ken, Nov 24 2026: "color where
- *  appropriate to match the currency of the country"). Each is the State Bank of Vietnam's own description of the note,
- *  quoted beside it (its banknote pages, read Nov 24 2026). The 20,000 and the 500,000 are both blue there too, which is
- *  why Convert's tip says to count the zeros.
- *  Riel and yen buttons stay plain on purpose: riel notes of one value circulate in several issues of different colours,
- *  and the Bank of Japan's pages name no colour for a note. A colour goes in only with its source read. */
-export const NOTE_TINT: Partial<Record<Foreign, Record<number, { fill: string; edge: string }>>> = {
+/** A note's own colour on its button, so the note in a hand finds its button (Ken, Nov 24 2026: "color where
+ *  appropriate to match the currency of the country"). The button is a soft fill with a stripe at its left in the
+ *  note's ink (edge). One note that carries two colours (500,000 dong, 5,000 riel) has a fill that runs from the first
+ *  to the second. A value in use in two issues of different colours (edge2) is drawn as the two notes side by side:
+ *  the older issue's colour on the left half with its stripe at the left, the newer one's on the right half with its
+ *  stripe at the right, no blend between them (blended, a fresh review read both such buttons as beige).
+ *  Dong: the State Bank of Vietnam's own description of each note, quoted beside it (its banknote pages, read Nov 24
+ *  2026). The 20,000 and the 500,000 are both blue there too, which is why Convert's tip says to count the zeros.
+ *  Yen: the Bank of Japan's own pictures of the notes in circulation, opened Nov 25 2026.
+ *  Riel: the National Bank of Cambodia's own pictures of its notes, opened Nov 25 2026. Where two issues of one value
+ *  circulate, both colours are on the button. A colour goes in only with its source read. */
+export type NoteTint = { fill: string; edge: string; edge2?: string };
+export const NOTE_TINT: Partial<Record<Foreign, Record<number, NoteTint>>> = {
   VND: {
     // (deepened Nov 24 2026 after a fresh review named the first, paler 50,000 "pink" and the 200,000 "peach": the
     // fill as deep as the two lines of text allow, the edge the note's colour at full strength)
@@ -178,6 +184,20 @@ export const NOTE_TINT: Partial<Record<Foreign, Record<number, { fill: string; e
     100_000: { fill: "#b3d9ae", edge: "#2e6b3a" }, // "dark green"
     200_000: { fill: "#e3ab92", edge: "#8f3d26" }, // "brownish red"
     500_000: { fill: "linear-gradient(90deg, #bcd3f2, #d2c4f0)", edge: "#5560b5" }, // "blue and bluish purple"
+  },
+  JPY: {
+    1_000: { fill: "#c3d3e6", edge: "#3f5878" }, // blue
+    5_000: { fill: "#dcc4d6", edge: "#7a5672" }, // purple
+    10_000: { fill: "#dccfae", edge: "#6a5a36" }, // brown
+  },
+  KHR: {
+    500: { fill: "#f4b6bb", edge: "#b0485a" }, // pink-red
+    1_000: { fill: "#b3c4ea", edge: "#3f5aa0" }, // blue
+    2_000: { fill: "linear-gradient(90deg, #b5dcab 50%, #e0cf8a 50%)", edge: "#3f7d47", edge2: "#86702a" }, // the 2013 green note and the 2022 grey-and-gold one
+    5_000: { fill: "linear-gradient(90deg, #d6c3de, #b5cfc4)", edge: "#7b5c93" }, // one note: lilac, with a green portrait
+    10_000: { fill: "#a9d6cf", edge: "#2f7d74" }, // teal
+    20_000: { fill: "#d9b3d0", edge: "#7d4470" }, // plum
+    50_000: { fill: "linear-gradient(90deg, #c9cdb0 50%, #eaa66c 50%)", edge: "#5f6a52", edge2: "#9a4f1e" }, // the 2014 olive note and the orange-brown one issued Sep 2026
   },
 };
 
