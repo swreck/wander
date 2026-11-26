@@ -74,6 +74,63 @@ textarea, input, [contenteditable="true"] {
    already start clear of them.) */
 html.ipad-app .top-bar { padding-left: 80px; }
 
+/* The bottom bar floats on glass, as iOS's tab bar does (batch 116, Nov 25 2026). BottomNav.tsx keeps the <nav>'s box
+   exactly as it was (Oct 9: a change to that box broke Scout's panel); these rules only draw inside it.
+   The box is a 56 pt row plus the phone's bottom safe area. The capsule sits --bar-top under the box's top and
+   --bar-foot above the screen's bottom edge:
+     iPhone (34 pt safe area): 8 + 62 + 20      iPad (20): 8 + 62 + 6      a browser tab (0): 0 + 52 + 4 */
+.wander-bar {
+  --bar-safe: env(safe-area-inset-bottom, 0px);
+  --bar-top: min(8px, var(--bar-safe));
+  --bar-foot: max(4px, calc(var(--bar-safe) - 14px));
+  /* (6 from the screen's sides and 6 inside the capsule's ends: with 4, "Phrases" met the capsule's round corner) */
+  --bar-side: 6px;
+  --bar-pad: 6px;
+  /* (an item: the capsule's height less 4 pt above and below) */
+  --bar-slot: calc(48px - var(--bar-top) - var(--bar-foot) + var(--bar-safe));
+  /* (the page shows beside and around the capsule, wide on an iPad: what shows there can be tapped, as around iOS's
+     own bar. Only the capsule takes a touch.) */
+  pointer-events: none;
+}
+/* (Scout's slim bar is sitting on the box: the box is the slim bar's own paper, one sheet, and solid to a touch) */
+.wander-bar[data-docked] {
+  background: #faf8f5;
+  pointer-events: auto;
+}
+/* (a phone under 390 pt wide: the capsule a little wider, so eight items stay a fingertip wide) */
+@media (max-width: 389px) {
+  .wander-bar { --bar-side: 4px; }
+}
+.wander-bar-glass, .wander-bar-row {
+  position: absolute;
+  left: var(--bar-side);
+  right: var(--bar-side);
+  top: var(--bar-top);
+  bottom: calc(var(--bar-foot) - var(--bar-safe));
+  border-radius: 999px;
+}
+/* (86% paper: the labels keep 4.5 to 1 even with black passing under the glass) */
+.wander-bar-glass {
+  pointer-events: none;
+  background: rgba(255, 253, 249, 0.86);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: 0 8px 24px rgba(58, 49, 40, 0.14), 0 1px 3px rgba(58, 49, 40, 0.08), inset 0 0 0 0.5px rgba(58, 49, 40, 0.14);
+}
+.wander-bar-row {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--bar-pad);
+  pointer-events: auto;
+}
+/* (a browser that can't blur what's behind, or a person who asked iOS to Reduce Transparency: solid) */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .wander-bar-glass { background: #fffdf9; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .wander-bar-glass { background: #fffdf9; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
 /* Safe area helpers */
 .safe-bottom {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);

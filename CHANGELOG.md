@@ -2,6 +2,31 @@
 
 SPEC.md is canonical. CHANGELOG.md records implemented behavior changes and flags when SPEC needs updates.
 
+## 2026-11-25 (Wednesday, at home) — Batch 116: the bar floats on glass
+
+Ken (Nov 25 2026): "Ok. Build it to the standard for apple. do your best to specifically mitigate the risk."
+The bar's items, their order and what each does are unchanged. What changed is how the bar is drawn.
+- **The bottom bar is a glass capsule**, as iOS's own tab bar is: rounded at both ends, 6 pt in from the screen's
+  sides (4 on a phone under 390 pt wide) and lifted off the bottom edge (20 pt on an iPhone, 6 on an iPad, 4 in a
+  browser tab). It is 62 pt tall on an iPhone and iPad (52 in a browser tab) and its items are 54 pt tall (they were
+  50). The page shows around it and softly through it; it was a white strip the screen's full width with a line above
+  it. On an iPad the capsule is the bar's old width, centred, with the page showing either side. Every screen still
+  ends clear of it. Where: the bottom bar on every screen (components/BottomNav.tsx, components/barSlot.ts,
+  index.css's .wander-bar). SPEC §1.4.
+- **Only the capsule takes a touch.** A tap on the page beside or just above the capsule reaches the page (the old
+  strip swallowed it).
+- **Reduce Transparency** (iOS's setting), or a browser that can't blur: the capsule is solid paper.
+- **Scout's slim bar** still sits on the bar. While it shows, the strip behind the capsule is the slim bar's own paper,
+  so the two read as one sheet.
+- **"Show me around" lights each item in its own shape**, the same rounded slot the selected tab's pill fills. It was
+  a box 4 pt bigger with a tighter corner, which stuck out past the capsule's round end at the first and last item.
+  Where: Settings and How Wander works, "Show me around" (components/ShowMeAround.tsx). SPEC: "Show me around".
+- **The risk, and what was done about it.** On Oct 9 a change to this bar's box broke Scout's panel on the iPhone. This
+  time the box is unchanged to the point: same place, same height, same placement in the Home Screen app, on a 375,
+  393, 402 and 440 pt phone and an iPad, measured on the old build and compared on the new one, along with Scout's
+  panel, its slim bar and the Oct 9 keyboard simulations. Only what is painted inside the box changed, and Scout's code
+  was not touched.
+
 ## 2026-11-25 (Wednesday, at home) — Batch 115: Convert's look; the bar in Ken's order with Scout standing out; yen and riel notes in their colours
 
 Ken (Nov 25 2026): "1. convert is working. it still seems an amateurish look and feel. So now that it is working,

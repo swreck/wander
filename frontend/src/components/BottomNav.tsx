@@ -11,6 +11,7 @@ import ConvertCard from "./ConvertCard";
 import { loadLedger, savedLedger, payNextOf, MONEY_CHANGED, type Ledger } from "../lib/expenses";
 import PayNextBadge, { familyColor } from "./PayNextBadge";
 import { BAR_ICON, BAR_LABEL, BAR_SLOT, barTone, barWeight } from "./barSlot";
+import useScoutDocked from "../hooks/useScoutDocked";
 import { api } from "../lib/api";
 import { savedGuideData } from "../lib/guideData";
 import { travelerToday } from "../lib/guideDisplay";
@@ -230,6 +231,9 @@ export default function BottomNav({ pendingChanges }: Props) {
   // uses (Oct 9: a page-wide bar change broke Scout).
   const navRef = useRef<HTMLElement>(null);
   const [placedAt, setPlacedAt] = useState<number | null>(null);
+  // (Scout's slim bar sits on the bar's box: while it shows, the box is painted the slim bar's own paper, so the two
+  // read as one sheet and no strip of the page shows between them)
+  const scoutDocked = useScoutDocked();
   useEffect(() => {
     if ((navigator as any).standalone !== true) return;
     let healedAt = 0;
@@ -325,14 +329,27 @@ export default function BottomNav({ pendingChanges }: Props) {
   if (location.pathname === "/login" || location.pathname.startsWith("/join")) return null;
 
   return (
+    // The bar floats on glass, as iOS's own tab bar does (batch 116; Ken, Nov 25 2026: "Build it to the standard for
+    // apple. do your best to specifically mitigate the risk"). The risk is Oct 9's, when a change to this bar's box
+    // broke Scout's panel. So this <nav>'s BOX is what it always was, to the point, on every device: the same place,
+    // the same 1 pt top edge (now clear), the same 56 pt row, the same safe-area room, the same placement code above.
+    // Only what is painted inside the box changed: nothing behind it, and a glass capsule drawn within it (index.css,
+    // .wander-bar). Scout's slim bar, the notices and every page's room at its foot still measure from the same box.
     <nav
       ref={navRef}
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e0d8cc]"
+      className="wander-bar fixed bottom-0 left-0 right-0 z-50 border-t border-transparent"
+      data-docked={scoutDocked ? "" : undefined}
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", ...(placedAt != null ? { top: placedAt, bottom: "auto" } : {}) }}
     >
+      {/* (the 56 pt row the box has always had; the capsule and its items are placed inside it and reach down into the
+          safe-area room below it) */}
+      <div className="relative h-14 max-w-lg mx-auto">
+      {/* The glass: a layer BESIDE the items, never around them. A blurred backdrop on a parent would make that parent
+          the frame for anything fixed inside it. */}
+      <div data-bar-glass aria-hidden className="wander-bar-glass" />
       {/* Ken's order (Nov 25 2026): Home, Today, Next, Notes, Scout, Budget, Convert, Phrases. Every item an equal slot
           (barSlot.ts), so a trip without Convert or Phrases has fewer, wider ones */}
-      <div className="flex items-center h-14 max-w-lg mx-auto px-1">
+      <div className="wander-bar-row">
         {tabs.map((tab) => {
           const isActive = tab.path === "__scout__"
             ? scoutOpen
@@ -400,6 +417,7 @@ export default function BottomNav({ pendingChanges }: Props) {
         {/* The phrases at the bar's end on every screen (Ken, Oct 13: "a clear convenient but subtle way to have phrase
             button always available"); its room kept while the trip is read */}
         <PhraseCard mode="bar" />
+      </div>
       </div>
     </nav>
   );

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { isPlanTrip } from "../lib/planTrip";
+import { BAR_SLOT_RADIUS } from "./barSlot";
 
 export const SHOW_AROUND = "wander:show-around";
 export const showMeAround = () => window.dispatchEvent(new Event(SHOW_AROUND));
@@ -93,7 +94,9 @@ export default function ShowMeAround() {
   if (step === null) return null;
   const s = steps[step];
   const last = step === steps.length - 1;
-  const pad = 4;
+  // (the floating bar, batch 116: the light is the slot's own shape and size. A box 4 pt bigger with a 12 pt corner
+  // stuck out past the glass capsule's round end at the first and last item.)
+  const pad = 0;
   // The card sits just above the bottom bar, its point under the lit button
   const cardBottom = lit ? window.innerHeight - lit.top + 14 : 96;
   const point = lit ? Math.max(12, lit.left + lit.width / 2 - cardLeft - 8) : -100;
@@ -102,8 +105,8 @@ export default function ShowMeAround() {
     <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="A quick look around Wander">
       {/* The dim, with the button it's about left lit */}
       {lit ? (
-        <div aria-hidden className="fixed rounded-xl pointer-events-none transition-all duration-300"
-          style={{ left: lit.left - pad, top: lit.top - pad, width: lit.width + pad * 2, height: lit.height + pad * 2,
+        <div aria-hidden className="fixed pointer-events-none transition-all duration-300"
+          style={{ left: lit.left - pad, top: lit.top - pad, width: lit.width + pad * 2, height: lit.height + pad * 2, borderRadius: BAR_SLOT_RADIUS + pad,
             boxShadow: "0 0 0 9999px rgba(36, 29, 22, 0.62)", outline: "2px solid rgba(255,255,255,0.9)" }} />
       ) : (
         <div aria-hidden className="fixed inset-0" style={{ background: "rgba(36, 29, 22, 0.62)" }} />
