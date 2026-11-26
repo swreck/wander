@@ -1430,7 +1430,20 @@ in it, Phrases the language's letter (V, 日) in a small outlined tile. The scre
 item, its icon filled and its label heavier and darker; before Nov 25 the two differed only by two browns. **Scout
 stands out** (Ken, Nov 25: "I like scount being integrated in the menu, but it should pop out more"): a white speech
 bubble on a dark capsule, the one filled item in the bar, with a darker, heavier label. Where: components/BottomNav.tsx,
-components/barSlot.ts (the slot every item shares). **Today** (Oct 16, where Maybes was — Ken: "Replace 'maybes' with 'full itinerary for today'") opens
+components/barSlot.ts (the slot every item shares).
+**The bar floats on glass** (Ken, Nov 25 2026: "Build it to the standard for apple. do your best to specifically
+mitigate the risk"), as iOS's own tab bar does: one rounded capsule, 6 pt in from the screen's sides (4 on a phone
+under 390 pt wide) and lifted off its bottom edge (20 pt on an iPhone, 6 on an iPad, 4 in a browser tab), 62 pt tall
+(52 in a browser tab), its items 54 pt (44). The page shows around it and softly through it: 86% warm paper over a
+blurred, richer copy of what is passing underneath, with a soft shadow. Every screen still ends clear of it, so the
+last line and the last button are never under the glass. Only the capsule takes a touch: what shows beside it (wide
+on an iPad) can be tapped. With iOS's Reduce Transparency on, or in a browser that can't blur, the capsule is solid
+paper. While Scout's slim bar is showing, the strip behind the capsule is the slim bar's own paper, so the two read
+as one sheet. The risk was Oct 9's (a change to the bar's box broke Scout's panel on the iPhone), so the bar's box is
+unchanged to the point on every device (same place, same height, same placement in the Home Screen app) and only
+what is painted inside it changed: Scout's panel, its slim bar, the notices above the bar and every page's room at
+its foot measure from the same box as before. Where: components/BottomNav.tsx, index.css (.wander-bar), checked by
+session-tools/december/glass-bar-check.mjs against the old build's measurements. **Today** (Oct 16, where Maybes was — Ken: "Replace 'maybes' with 'full itinerary for today'") opens
 the traveler's own today's full day page and is lit there; Maybes opens from a row on Home. Budget took Actions' place on Oct 15 (Ken: "There seems to be no need for the [Actions] button in
 the main navigation menu, so you can replace that with budget"); to-dos and deadlines open from Home (§11). Budget's
 icon says who pays next (§9.9). Tapping Home while on Home closes any open panel and Scout and goes back to the top. A dot on a tab means
@@ -2978,7 +2991,8 @@ setting never replaces the others.
 - **The welcome card** on Home (first open): "Hi Julie. This is Larisa's plan for the trip, day by day, on your phone.
   There's nothing you need to do — it's here when you want it." It comes up just above the tab bar, so nothing moves.
 - **Show me around**: seven short steps, one for each button along the bottom including the 日. The screen dims, the
-  button stays lit, and a sentence or two says what it's for, with Back, Next and Skip. Nothing starts on its own. Ken
+  button stays lit (in its own rounded slot's shape, inside the glass capsule, since batch 116), and a sentence or
+  two says what it's for, with Back, Next and Skip. Nothing starts on its own. Ken
   (Oct 4): "I'd like it offered at least 3x with Yes, Next time, No Thanks". Offered up to three times: "Show me around",
   "Next time" (back on a visit at least 12 hours later), "No thanks"; the third says it's the last and that it's always in
   Settings. The answer is kept per person on Wander. Also in Settings and at the top of How Wander works.
